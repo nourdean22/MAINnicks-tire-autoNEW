@@ -20,7 +20,7 @@ import {
   Clock, Loader2, ArrowRight, Wifi, WifiOff, RefreshCw, BarChart3, DollarSign,
 } from "lucide-react";
 import { toast } from "sonner";
-import { StatCard, PageHeader } from "./shared";
+import { StatCard, PageHeader, navigateToAdminSection } from "./shared";
 
 const NOUR_OS_URL = "https://autonicks.com/command";
 const NOUR_OS_CHAT_URL = "https://autonicks.com/chat";
@@ -355,7 +355,19 @@ export default function CommandCenterSection() {
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Top Opportunities</p>
                     <div className="space-y-1.5">
                       {systemOverview.revenueWaiting.topOpportunities.slice(0, 5).map((opp: RevenueOpportunity) => (
-                        <div key={opp.id} className="flex items-center justify-between text-[11px]">
+                        /* wave-111 — was a static <div>; rows are now buttons
+                           that jump to the Leads section. Backend doesn't yet
+                           expose a deep-link to a specific lead id, so we
+                           navigate to the section and let the operator spot
+                           the row in the list (matches at-risk-whales pattern
+                           on Overview). */
+                        <button
+                          key={opp.id}
+                          type="button"
+                          onClick={() => navigateToAdminSection("leads")}
+                          className="w-full flex items-center justify-between text-[11px] hover:bg-primary/5 rounded px-1 py-0.5 transition-colors text-left"
+                          aria-label={`Open Leads — ${opp.name}`}
+                        >
                           <div className="flex items-center gap-2 truncate">
                             <span className={`w-1.5 h-1.5 rounded-full ${opp.status === "new" ? "bg-amber-400" : "bg-blue-400"}`} />
                             <span className="text-foreground/80 truncate">{opp.name}</span>
@@ -370,7 +382,7 @@ export default function CommandCenterSection() {
                               {opp.ageHours}h
                             </span>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>

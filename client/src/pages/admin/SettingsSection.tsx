@@ -54,9 +54,10 @@ export default function SettingsSection() {
     const raw = (qp.get("settingsTab") || qp.get("tab") || "").toLowerCase();
     const valid: SettingsTab[] = ["shopdriver", "health", "compliance", "integrations"];
     if (valid.includes(raw as SettingsTab)) return raw as SettingsTab;
-    // Legacy aliases that matched AdminSection names
-    if (raw === "integrations") return "integrations";
+    // Legacy alias: ?tab=settings → ShopDriver tab (the section's home)
     if (raw === "settings") return "shopdriver";
+    // wave-111 — removed dead `if (raw === "integrations")` guard;
+    // already handled by `valid.includes` check above.
     return "shopdriver";
   })();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);

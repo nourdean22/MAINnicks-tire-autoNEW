@@ -306,6 +306,22 @@ export default function LeadsSection() {
     }
   };
 
+  // wave-111 — single source of truth for "mark contacted" with notes prompt.
+  // Was: alert-banner Mark Called button bypassed the prompt and silently
+  // wrote NULL to contactNotes; inline list-view button had its own prompt
+  // block. Two paths, one mutation, one silently-broken. Now both call this.
+  // Kanban drag-drop intentionally skips this (different UX paradigm).
+  const markContacted = (id: number) => {
+    const notes = prompt("Contact notes (what was discussed?):");
+    if (notes === null) return; // Cancelled
+    updateLead.mutate({
+      id,
+      status: "contacted",
+      contacted: 1,
+      contactNotes: notes || "Called, no notes.",
+    });
+  };
+
   // Category filter helper
   const applyCategory = (list: LeadItem[]) => {
     switch (category) {
@@ -425,7 +441,7 @@ export default function LeadsSection() {
                     <span className="text-primary font-mono font-bold">${(lead.estimatedValueCents / 100).toFixed(0)}</span>
                   )}
                   <button
-                    onClick={() => handleStatusChange(lead.id, "contacted")}
+                    onClick={() => markContacted(lead.id)}
                     className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded hover:bg-emerald-500/30 transition-colors"
                   >
                     Mark Called
@@ -652,17 +668,7 @@ export default function LeadsSection() {
                             <PhoneCall className="w-4 h-4" /> CALL
                           </a>
                           <button
-                            onClick={() => {
-                              const notes = prompt("Contact notes (what was discussed?):");
-                              if (notes !== null) {
-                                updateLead.mutate({
-                                  id: lead.id,
-                                  status: "contacted",
-                                  contacted: 1,
-                                  contactNotes: notes || "Called, no notes.",
-                                });
-                              }
-                            }}
+                            onClick={() => markContacted(lead.id)}
                             disabled={updateLead.isPending}
                             className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
                           >

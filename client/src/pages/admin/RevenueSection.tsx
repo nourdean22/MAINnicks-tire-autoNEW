@@ -29,7 +29,7 @@ import {
   AreaChart, Area, CartesianGrid,
 } from "recharts";
 
-import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip, TabBar } from "./shared";
+import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 
 function formatCents(cents: number): string {
@@ -97,7 +97,16 @@ export default function RevenueSection() {
 function RevenueContent() {
   const [period, setPeriod] = useState(30);
   const [intelPeriod, setIntelPeriod] = useState<"7d" | "30d" | "90d" | "6mo" | "1yr" | "all">("30d");
-  const [tab, setTab] = useState<"dashboard" | "invoices" | "create">("dashboard");
+  // wave-111 — was useState; now URL-persistent via useUrlFilter so a
+  // refresh / deep-link / back-button doesn't bounce operator off the
+  // invoices or create sub-tab back to dashboard.
+  const [tab, setTab] = useUrlFilter<"dashboard" | "invoices" | "create">(
+    "revTab",
+    "dashboard",
+    {
+      validate: (raw) => (raw === "dashboard" || raw === "invoices" || raw === "create" ? raw : null),
+    },
+  );
   const { data: stats, isLoading } = trpc.invoices.stats.useQuery({ days: period }, { refetchInterval: 60000 });
   const { data: topCustomers } = trpc.invoices.topCustomers.useQuery({ limit: 10 });
   const { data: kpi } = trpc.kpi.current.useQuery(undefined, { refetchInterval: 60000 });
