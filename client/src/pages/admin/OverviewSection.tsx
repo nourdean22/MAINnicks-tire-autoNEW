@@ -813,31 +813,43 @@ export default function OverviewSection() {
       {/* ─── WHAT TO DO NOW — Server-Driven Priority Queue ─── */}
       <NextBestActions />
 
-      {/* ─── SHOP FLOOR — merged 2026-05-09 ───
-          Was two cards (NICK AI LIVE PULSE + AUTO LABOR GUIDE — SHOP FLOOR).
-          They shared 3 of 6 numeric slots (TODAY REV, JOBS/INVOICES, AVG
-          TICKET) all sourced from ALG, with relabeled headings — defeating
-          the point of the AI-Live-Pulse card after revenue numbers got
-          rebound to ALG. Operator: "is there a point to two of these".
+      {/* ─── SHOP DASHBOARD — apex merge 2026-05-09 ───
+          Combines THREE cards into one composite that answers all the
+          operator's primary questions at the top of /admin:
+            (1) "How's the floor right now?"        → revenue/operations row
+            (2) "Who are my customers?"             → cohort row
+            (3) "What's the AI saying / what to do?" → score + insights + actions
 
-          Merged into one ALG-themed card. Kept all unique signals:
-            • from ALG: TODAY REV, INVOICES, AVG TICKET, CONVERSION, MONTH REV
-            • from shopPulse (AI-derived): WALKED count, busy/steady/slow status, shopInsight footer
-          Dropped redundant: WALK-INS (covered by INVOICES + WALKED), WALK
-          RATE % (CONVERSION is operator-better), WEEK REV (MONTH covers pacing).
-          Click → ShopDriver settings (ALG card behavior). */}
-      {algFloor && (
+          Source cards merged:
+            • SHOP FLOOR (algFloor + shopPulse — operations row + insight footer)
+            • PULSE (masterReport.summary + revIntel.recommendations — score + insights)
+            • CUSTOMER INTELLIGENCE (custIntel — cohort row + at-risk whales + winback)
+
+          Visual hierarchy by operator priority:
+            HEADER:  score (most important glanceable signal) + status pills
+            BODY 1:  revenue numbers (LARGEST text — most-checked daily)
+            BODY 2:  customer cohorts (SMALLER — strategic, weekly review)
+            BODY 3:  AI insight grid (medium — what's wrong/right)
+            BODY 4:  recommendations (compact action list)
+            FOOTER:  AI shop insight + week breakdown + at-risk whales
+
+          Single click → /admin/intelligence (deepest drilldown; operator
+          navigates from there). Lost direct paths to /settings/shopdriver
+          and /customers — re-add inline if operator misses them.
+          Renders if ANY of the 3 sources has data. */}
+      {(algFloor || masterReport?.summary || custIntel || (revIntel?.recommendations && revIntel.recommendations.length > 0)) && (
         <div
           role="button"
           tabIndex={0}
-          onClick={() => navigateToAdminSection("settings", { settingsTab: "shopdriver" })}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("settings", { settingsTab: "shopdriver" }); }}
-          className="bg-card border border-emerald-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-emerald-500/40 transition-shadow"
-          aria-label="Open ShopDriver / ALG settings"
+          onClick={() => navigateToAdminSection("intelligence")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("intelligence"); }}
+          className="bg-card border border-violet-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-violet-500/40 transition-shadow space-y-3"
+          aria-label="Open intelligence dashboard"
         >
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">SHOP FLOOR</span>
+          {/* Header — score + status + customer count pills */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <Brain className="w-4 h-4 text-violet-400" />
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">SHOP DASHBOARD</span>
             {shopPulse && (
               <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold tracking-wider ${
                 shopPulse.shopStatus === "busy" ? "bg-emerald-500/15 text-emerald-400" :
@@ -846,42 +858,160 @@ export default function OverviewSection() {
                 "bg-foreground/5 text-muted-foreground"
               }`}>{shopPulse.shopStatus.toUpperCase()}</div>
             )}
-            <span className="ml-auto text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
-              {algFloor.totalCustomers} CUSTOMERS · {algFloor.vipCustomers} VIP
-            </span>
+            {algFloor && (
+              <span className="text-[9px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
+                {algFloor.totalCustomers} CUST · {algFloor.vipCustomers} VIP
+              </span>
+            )}
+            {masterReport?.summary && (
+              <div className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider ${
+                masterReport.summary.score >= 70 ? "bg-emerald-500/15 text-emerald-400" :
+                masterReport.summary.score >= 40 ? "bg-amber-500/15 text-amber-400" :
+                "bg-red-500/15 text-red-400"
+              }`}>
+                {masterReport.summary.score}/100
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
-            <div className="text-center">
-              <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
+
+          {/* Operations row — most-checked daily numbers (largest text) */}
+          {algFloor && (
+            <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+              <div className="text-center">
+                <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
+              </div>
+              <div className="text-center">
+                <div className={`text-lg font-bold ${algFloor.conversionRate >= 50 ? "text-emerald-400" : algFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{algFloor.conversionRate}%</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-purple-400">${Math.round(monthRevenue).toLocaleString()}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
+              </div>
             </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
-            </div>
-            <div className="text-center">
-              <div className={`text-lg font-bold ${algFloor.conversionRate >= 50 ? "text-emerald-400" : algFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{algFloor.conversionRate}%</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold text-purple-400">${Math.round(monthRevenue).toLocaleString()}</div>
-              <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
-            </div>
-          </div>
-          {shopPulse?.shopInsight && (
-            <div className="mt-2 text-[10px] text-muted-foreground italic">{shopPulse.shopInsight}</div>
           )}
-          <div className="mt-1 text-[10px] text-muted-foreground">
-            Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} revenue · {algFloor.estimatesThisWeek} walk-in estimates
-          </div>
+
+          {/* Customer cohort row — strategic, smaller text */}
+          {custIntel && (
+            <div className="pt-2 border-t border-border/15">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                <div className="text-center p-2 rounded-md bg-primary/5 border border-primary/15">
+                  <p className="text-base font-bold text-primary">{custIntel.spendTiers.whales.count}</p>
+                  <p className="text-[8px] text-muted-foreground mt-0.5">Whales ($2K+)</p>
+                </div>
+                <div className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/15">
+                  <p className="text-base font-bold text-blue-400">{custIntel.spendTiers.regulars.count}</p>
+                  <p className="text-[8px] text-muted-foreground mt-0.5">Regulars</p>
+                </div>
+                <div className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15">
+                  <p className="text-base font-bold text-emerald-400">{custIntel.spendTiers.oneTimers.count}</p>
+                  <p className="text-[8px] text-muted-foreground mt-0.5">One-Timers</p>
+                </div>
+                <div className="text-center p-2 rounded-md bg-red-500/5 border border-red-500/15">
+                  <p className="text-base font-bold text-red-400">{custIntel.churnRisk.atRisk}</p>
+                  <p className="text-[8px] text-muted-foreground mt-0.5">Churn Risk</p>
+                </div>
+              </div>
+              {custIntel.churnRisk.winbackTargets > 0 && (
+                <div className="flex items-center gap-2 mt-2 p-2 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
+                  <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-foreground/60">
+                    <span className="font-bold text-amber-400">{custIntel.churnRisk.winbackTargets}</span> dormant ·
+                    <span className="font-bold text-primary"> ${custIntel.churnRisk.winbackPotential.toLocaleString()}</span> winback potential
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* AI insights — alert / opportunity / risk */}
+          {masterReport?.summary && (masterReport.summary.topAlert || masterReport.summary.topOpportunity || masterReport.summary.topRisk) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border/15">
+              {masterReport.summary.topAlert && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
+                    <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
+                  </div>
+                </div>
+              )}
+              {masterReport.summary.topOpportunity && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
+                    <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
+                  </div>
+                </div>
+              )}
+              {masterReport.summary.topRisk && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
+                  <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
+                    <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Recommendations — compact action list */}
+          {revIntel?.recommendations && revIntel.recommendations.length > 0 && (
+            <div className="pt-2 border-t border-border/15 space-y-1.5">
+              <p className="text-[8px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5">What To Do Now</p>
+              {revIntel.recommendations.map((r: RevenueRecommendation, i: number) => (
+                <div key={i} className={`flex items-start gap-2 p-2 rounded text-xs ${
+                  r.priority === "high" ? "bg-red-500/5 border border-red-500/15" : "bg-amber-500/5 border border-amber-500/10"
+                }`}>
+                  <span className={`text-[8px] font-bold uppercase mt-0.5 shrink-0 ${
+                    r.type === "revenue" ? "text-emerald-400" : r.type === "risk" ? "text-red-400" : "text-blue-400"
+                  }`}>{r.type}</span>
+                  <span className="text-foreground/70 flex-1">{r.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Footer — AI insight + week breakdown + at-risk whales */}
+          {(shopPulse?.shopInsight || (algFloor && weekInvoiceCount > 0) || (custIntel?.atRiskWhales && custIntel.atRiskWhales.length > 0)) && (
+            <div className="pt-2 border-t border-border/15 space-y-1">
+              {shopPulse?.shopInsight && (
+                <div className="text-[10px] text-muted-foreground italic">{shopPulse.shopInsight}</div>
+              )}
+              {algFloor && (
+                <div className="text-[10px] text-muted-foreground">
+                  Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} revenue · {algFloor.estimatesThisWeek} walk-in estimates
+                </div>
+              )}
+              {custIntel?.atRiskWhales && custIntel.atRiskWhales.length > 0 && (
+                <div className="pt-1">
+                  <p className="text-[8px] text-red-400 font-bold uppercase mb-0.5">High-Value Going Quiet</p>
+                  {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale, i: number) => (
+                    <div key={i} className="flex items-center gap-2 py-0.5 text-[11px]">
+                      <span className="text-foreground/80 flex-1 truncate">{w.name}</span>
+                      <span className="font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
+                      <span className="text-red-400 text-[9px] font-mono">{String(w.daysSince)}d</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -977,148 +1107,10 @@ export default function OverviewSection() {
         />
       </div>
 
-      {/* ─── PULSE — merged 2026-05-09 ───
-          Was three cards: SMART RECOMMENDATIONS ("What To Do Now") + MASTER
-          INTELLIGENCE SUMMARY (score + topAlert/Opp/Risk) — both at the top
-          of /admin showing different framings of the same revenue gap.
-          Per Elon first-principles + Sam Altman focus: one apex card.
-          Operator's brain shouldn't be the merge layer.
-
-          Combines:
-            • masterReport.summary.score (header, color-coded)
-            • masterReport.summary.{topAlert, topOpportunity, topRisk} (3-up insight grid)
-            • revIntel.recommendations (action list, only if non-trivial)
-          Click → /admin/intelligence (kept from MASTER card).
-          Renders only when at least one source has data. */}
-      {(masterReport?.summary || (revIntel?.recommendations && revIntel.recommendations.length > 0)) && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => navigateToAdminSection("intelligence")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("intelligence"); }}
-          className="bg-card border border-violet-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-violet-500/40 transition-shadow"
-          aria-label="Open intelligence dashboard"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <Brain className="w-4 h-4 text-violet-400" />
-            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">PULSE</span>
-            {masterReport?.summary && (
-              <div className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider ${
-                masterReport.summary.score >= 70 ? "bg-emerald-500/15 text-emerald-400" :
-                masterReport.summary.score >= 40 ? "bg-amber-500/15 text-amber-400" :
-                "bg-red-500/15 text-red-400"
-              }`}>
-                {masterReport.summary.score}/100
-              </div>
-            )}
-          </div>
-
-          {/* Top-line insights — alert / opportunity / risk */}
-          {masterReport?.summary && (masterReport.summary.topAlert || masterReport.summary.topOpportunity || masterReport.summary.topRisk) && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-              {masterReport.summary.topAlert && (
-                <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
-                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
-                    <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
-                  </div>
-                </div>
-              )}
-              {masterReport.summary.topOpportunity && (
-                <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
-                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
-                    <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
-                  </div>
-                </div>
-              )}
-              {masterReport.summary.topRisk && (
-                <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
-                  <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
-                    <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Action list — revenue recommendations (compact, only if any) */}
-          {revIntel?.recommendations && revIntel.recommendations.length > 0 && (
-            <div className="space-y-1.5 pt-2 border-t border-border/15">
-              <p className="text-[8px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5">What To Do Now</p>
-              {revIntel.recommendations.map((r: RevenueRecommendation, i: number) => (
-                <div key={i} className={`flex items-start gap-2 p-2 rounded text-xs ${
-                  r.priority === "high" ? "bg-red-500/5 border border-red-500/15" : "bg-amber-500/5 border border-amber-500/10"
-                }`}>
-                  <span className={`text-[8px] font-bold uppercase mt-0.5 shrink-0 ${
-                    r.type === "revenue" ? "text-emerald-400" : r.type === "risk" ? "text-red-400" : "text-blue-400"
-                  }`}>{r.type}</span>
-                  <span className="text-foreground/70 flex-1">{r.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ─── CUSTOMER INTELLIGENCE (click → customers) ─── */}
-      {custIntel && (
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={() => navigateToAdminSection("customers")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("customers"); }}
-          className="stat-card !p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
-          aria-label="Open customers"
-        >
-          <h3 className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase flex items-center gap-2 mb-3">
-            <Users className="w-3.5 h-3.5 text-blue-400" /> Customer Intelligence
-          </h3>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-            <div className="text-center p-2 rounded-md bg-primary/5 border border-primary/15">
-              <p className="text-xl font-bold text-primary">{custIntel.spendTiers.whales.count}</p>
-              <p className="text-[8px] text-muted-foreground mt-0.5">Whales ($2K+)</p>
-            </div>
-            <div className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/15">
-              <p className="text-xl font-bold text-blue-400">{custIntel.spendTiers.regulars.count}</p>
-              <p className="text-[8px] text-muted-foreground mt-0.5">Regulars</p>
-            </div>
-            <div className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15">
-              <p className="text-xl font-bold text-emerald-400">{custIntel.spendTiers.oneTimers.count}</p>
-              <p className="text-[8px] text-muted-foreground mt-0.5">One-Timers</p>
-            </div>
-            <div className="text-center p-2 rounded-md bg-red-500/5 border border-red-500/15">
-              <p className="text-xl font-bold text-red-400">{custIntel.churnRisk.atRisk}</p>
-              <p className="text-[8px] text-muted-foreground mt-0.5">Churn Risk</p>
-            </div>
-          </div>
-          {custIntel.churnRisk.winbackTargets > 0 && (
-            <div className="flex items-center gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
-              <RotateCcw className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-foreground/60">
-                <span className="font-bold text-amber-400">{custIntel.churnRisk.winbackTargets}</span> dormant customers ·
-                <span className="font-bold text-primary"> ${custIntel.churnRisk.winbackPotential.toLocaleString()}</span> potential revenue
-              </span>
-            </div>
-          )}
-          {custIntel.atRiskWhales.length > 0 && (
-            <div className="mt-2 space-y-1">
-              <p className="text-[8px] text-red-400 font-bold uppercase">High-Value Going Quiet</p>
-              {custIntel.atRiskWhales.slice(0, 3).map((w: AtRiskWhale, i: number) => (
-                <div key={i} className="flex items-center gap-2 py-1 text-[11px]">
-                  <span className="text-foreground/80 flex-1">{w.name}</span>
-                  <span className="font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
-                  <span className="text-red-400 text-[9px] font-mono">{String(w.daysSince)}d</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* PULSE + CUSTOMER INTELLIGENCE blocks removed 2026-05-09 — both
+          folded into the SHOP DASHBOARD apex card above. Their data
+          (masterReport.summary, revIntel.recommendations, custIntel
+          spendTiers + churnRisk + atRiskWhales) renders inline up there. */}
 
       {/* ─── PRIORITY ACTION QUEUE ─── */}
       <div className="stat-card !p-5 !border-primary/20">
