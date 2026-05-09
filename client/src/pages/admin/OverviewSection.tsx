@@ -720,76 +720,13 @@ export default function OverviewSection() {
       {/* wave-110 — TodayBriefStrip removed entirely (was hidden +
           definition was zombie). Restore from git history if revived. */}
 
-      {/* 2026-05-06 Elon-style hierarchy pass · Today's Revenue gets
-          2x span (the single most-checked CEO metric); ALG demoted from
-          a hero KPI tile to a status pill below the row (it's "wallpaper"
-          most days — green check 99% of the time, only matters when red).
-          Net: 5 KPI tiles with proper visual hierarchy + 1 status pill. */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        {/* TODAY'S REVENUE — 2x span on desktop, the single number Nour
-            checks most when admin opens. Hierarchy: this is the headline. */}
-        <StatCard
-          label="Today's Revenue"
-          value={`$${Math.round(todayRevenue).toLocaleString()}`}
-          icon={<TrendingUp className="w-5 h-5" />}
-          color="text-emerald-400"
-          trend={todayRevenue > 0 ? "up" : "neutral"}
-          trendLabel={weekRevenue > 0 ? `$${Math.round(weekRevenue).toLocaleString()} this week` : "no invoices yet this week"}
-          onClick={() => openDrilldown({ kind: "revenue_today" })}
-          className="xl:col-span-2"
-        />
-        <StatCard
-          label="Cars in Shop"
-          value={carsInShop}
-          icon={<Wrench className="w-4 h-4" />}
-          color={carsInShop > 0 ? "text-primary" : "text-muted-foreground"}
-          trend={carsInShop > 5 ? "up" : "neutral"}
-          trendLabel={shopLoad ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : undefined}
-          onClick={() => openDrilldown({ kind: "cars_in_shop" })}
-        />
-        <StatCard
-          label="Jobs Closed Today"
-          value={jobsClosed}
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          color={jobsClosed > 0 ? "text-emerald-400" : "text-muted-foreground"}
-          trend={jobsClosed > 0 ? "up" : "neutral"}
-          trendLabel={`${weekInvoiceCount} this week`}
-          onClick={() => openDrilldown({ kind: "jobs_closed_today" })}
-        />
-        <StatCard
-          /* wave-124b — was labeled "Website Leads" with value=activeLeads
-             (all `new` + `contacted` leads, no time window) but the click
-             opened fresh_leads drilldown which only shows leads <4h old.
-             Count vs list mismatch. Renamed to "Hot Leads" to match the
-             drilldown's actual scope (4h golden response window). */
-          label="Hot Leads (<4h)"
-          value={activeLeads}
-          icon={<Users className="w-4 h-4" />}
-          color="text-blue-400"
-          trend={urgentLeads > 0 ? "up" : "neutral"}
-          trendLabel={urgentLeads > 0 ? `${urgentLeads} urgent` : `${stats.leads.thisWeek} this week`}
-          onClick={() => openDrilldown({ kind: "fresh_leads" })}
-        />
-        <StatCard
-          label="Health Score"
-          value={healthScore !== null ? `${healthScore}/100` : "--"}
-          icon={<Brain className="w-4 h-4" />}
-          color={
-            healthScore === null ? "text-muted-foreground" :
-            healthScore >= 70 ? "text-emerald-400" :
-            healthScore >= 40 ? "text-amber-400" : "text-red-400"
-          }
-          trend={
-            healthScore === null ? "neutral" :
-            healthScore >= 70 ? "up" : healthScore >= 40 ? "neutral" : "down"
-          }
-          trendLabel={
-            healthScore === null ? "Loading..." :
-            healthScore >= 70 ? "Healthy" : healthScore >= 40 ? "Needs work" : "Critical"
-          }
-          targetSection="intelligence"
-        />
-      </div>
+      {/* wave-126 — primary 6-card KPI grid REMOVED (was lines 728-792).
+          Every metric it displayed is now folded into the unified SHOP
+          DASHBOARD apex card below (Today Rev · Cars in Shop · Jobs
+          Closed · Hot Leads · Health Score). Operator was seeing the
+          same numbers in 2-3 places (e.g. $3,675 Today Rev appeared
+          in the 6-card grid AND in the apex ops row). One source of
+          truth now. */}
 
       {/* ALG status pill — demoted from hero tile. Visible but not loud.
           Green check = wallpaper; red = something to actually do.
@@ -827,28 +764,10 @@ export default function OverviewSection() {
           The trpc.intelligence.walkAwayEstimates query + SMS recovery
           cron are untouched — only the visual strip is gone. */}
 
-      {/* ─── SHOP LOAD INDICATOR ─── */}
-      {shopLoad && (
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-[10px] font-bold tracking-wider text-muted-foreground mr-1">SHOP LOAD</span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold">
-            <Wrench className="w-3 h-3" />
-            {shopLoad.activeWOs} Active WOs
-          </span>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 text-xs font-bold">
-            <CalendarClock className="w-3 h-3" />
-            {shopLoad.todayBookings} Today
-          </span>
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${
-            shopLoad.estimatedWait > 120 ? "bg-red-500/10 text-red-400" :
-            shopLoad.estimatedWait > 60 ? "bg-amber-500/10 text-amber-400" :
-            "bg-emerald-500/10 text-emerald-400"
-          }`}>
-            <Clock className="w-3 h-3" />
-            {shopLoad.estimatedWait > 0 ? `~${Math.round(shopLoad.estimatedWait / 60)}h wait` : "No wait"}
-          </span>
-        </div>
-      )}
+      {/* wave-126 — SHOP LOAD pills REMOVED. Active WOs, Today bookings,
+          and Wait time are now folded into the apex ops grid (8 stats
+          unified). The pills were duplicating data already present in
+          the apex's ops row. */}
 
       {/* ─── WHAT TO DO NOW — Server-Driven Priority Queue ─── */}
       <NextBestActions />
@@ -886,6 +805,41 @@ export default function OverviewSection() {
           className="bg-card border border-violet-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-violet-500/40 transition-shadow space-y-3"
           aria-label="Open intelligence dashboard"
         >
+          {/* wave-126 — TOP ACTION callout. Auto-surfaces the single most
+              urgent thing the operator should do right now. Picked from
+              priorityQueue (already merges bookings + leads + callbacks +
+              work orders by urgency). Renders only when there's actually
+              something — empty queue = silent (zero distracting noise). */}
+          {priorityQueue.length > 0 && (() => {
+            const top = priorityQueue[0];
+            const ageHours = Math.floor((Date.now() - new Date(top.createdAt).getTime()) / (1000 * 60 * 60));
+            const typeIcon = top.type === "booking" ? "📅" : top.type === "lead" ? "🔥" : top.type === "callback" ? "📞" : "🔧";
+            const ageColor = ageHours >= 24 ? "text-red-400" : ageHours >= 4 ? "text-amber-400" : "text-emerald-400";
+            return (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const target = document.getElementById("priority-action-queue");
+                  if (target) {
+                    target.scrollIntoView({ behavior: "smooth", block: "start" });
+                    target.classList.add("ring-2", "ring-primary/60");
+                    setTimeout(() => target.classList.remove("ring-2", "ring-primary/60"), 1500);
+                  }
+                }}
+                className="w-full flex items-center gap-2 p-2 rounded-md bg-amber-500/5 border border-amber-500/20 hover:bg-amber-500/10 transition-colors text-left"
+                aria-label="Jump to top priority action"
+              >
+                <span className="text-base shrink-0">{typeIcon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold text-amber-400 tracking-wider uppercase">Top action · urgency {top.urgency}/5</div>
+                  <div className="text-[12px] text-foreground/90 truncate">{top.name} · <span className="text-foreground/60">{top.detail}</span></div>
+                </div>
+                <span className={`text-[10px] font-mono shrink-0 ${ageColor}`}>{ageHours}h</span>
+              </button>
+            );
+          })()}
+
           {/* Header — score + status + customer count pills + collapse toggle */}
           <div className="flex items-center gap-3 flex-wrap">
             <Brain className="w-4 h-4 text-violet-400" />
@@ -925,30 +879,111 @@ export default function OverviewSection() {
             </button>
           </div>
 
-          {/* Operations row — most-checked daily numbers (largest text) */}
+          {/* wave-126 — operations row, evolved.
+              · 8 stats now (was 6): added CARS IN SHOP + WAIT and HOT LEADS
+                (folded from the deleted 6-card grid + SHOP LOAD pills above)
+              · every cell is a button that opens the matching drilldown
+                (was static text — operator had to navigate manually)
+              · TODAY REV gets EOD pace subtitle (intelligence: project end-
+                of-day total based on current run rate vs business hours)
+              · stopPropagation on each cell so clicking a stat opens its
+                drilldown without ALSO firing the parent's intelligence nav
+          */}
           {algFloor && (
-            <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
-              <div className="text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 pt-1">
+              {/* TODAY REV — hero stat, EOD pace projection in subtitle */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openDrilldown({ kind: "revenue_today" }); }}
+                className="text-center hover:bg-emerald-500/5 rounded p-1 transition-colors"
+                aria-label="Open today's revenue detail"
+              >
                 <div className="text-lg font-bold text-primary revenue-glow">${Math.round(todayRevenue).toLocaleString()}</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">TODAY REV</div>
-              </div>
-              <div className="text-center">
+                {(() => {
+                  // Predict end-of-day pace: current revenue / business-hours
+                  // elapsed × business-hours total. Shop hours 8a-6p (10h).
+                  const now = new Date();
+                  const startHour = 8;
+                  const endHour = 18;
+                  const totalH = endHour - startHour;
+                  const elapsed = Math.max(0.5, Math.min(totalH, now.getHours() + now.getMinutes() / 60 - startHour));
+                  if (todayRevenue > 0 && now.getHours() >= startHour && now.getHours() < endHour) {
+                    const eod = Math.round((todayRevenue / elapsed) * totalH);
+                    return <div className="text-[8px] text-muted-foreground/70 tracking-wider mt-0.5">~${eod.toLocaleString()} EOD pace</div>;
+                  }
+                  return null;
+                })()}
+              </button>
+
+              {/* INVOICES (jobs closed today) */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openDrilldown({ kind: "jobs_closed_today" }); }}
+                className="text-center hover:bg-emerald-500/5 rounded p-1 transition-colors"
+                aria-label="Open today's invoices detail"
+              >
                 <div className="text-lg font-bold text-emerald-400">{jobsClosed}</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">INVOICES</div>
-              </div>
-              <div className="text-center">
+                <div className="text-[8px] text-muted-foreground/70 tracking-wider mt-0.5">{weekInvoiceCount} wk</div>
+              </button>
+
+              {/* WALKED (customers we lost today) */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openDrilldown({ kind: "walk_aways" }); }}
+                className="text-center hover:bg-red-500/5 rounded p-1 transition-colors"
+                aria-label="Open walk-aways detail"
+              >
                 <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">WALKED</div>
-              </div>
-              <div className="text-center">
+              </button>
+
+              {/* CARS IN SHOP (was in 6-card grid; folded here in wave-126) */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openDrilldown({ kind: "cars_in_shop" }); }}
+                className="text-center hover:bg-primary/5 rounded p-1 transition-colors"
+                aria-label="Open cars in shop detail"
+              >
+                <div className={`text-lg font-bold ${carsInShop > 0 ? "text-primary" : "text-muted-foreground"}`}>{carsInShop}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">IN SHOP</div>
+                {shopLoad && shopLoad.estimatedWait > 0 && (
+                  <div className={`text-[8px] tracking-wider mt-0.5 ${
+                    shopLoad.estimatedWait > 120 ? "text-red-400" :
+                    shopLoad.estimatedWait > 60 ? "text-amber-400" : "text-muted-foreground/70"
+                  }`}>~{Math.round(shopLoad.estimatedWait / 60)}h wait</div>
+                )}
+              </button>
+
+              {/* HOT LEADS (was in 6-card grid; folded here in wave-126) */}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); openDrilldown({ kind: "fresh_leads" }); }}
+                className="text-center hover:bg-blue-500/5 rounded p-1 transition-colors"
+                aria-label="Open hot leads detail"
+              >
+                <div className={`text-lg font-bold ${urgentLeads > 0 ? "text-red-400" : activeLeads > 0 ? "text-blue-400" : "text-muted-foreground"}`}>{activeLeads}</div>
+                <div className="text-[9px] text-muted-foreground tracking-wider">HOT LEADS</div>
+                {urgentLeads > 0 && (
+                  <div className="text-[8px] text-red-400 tracking-wider mt-0.5">{urgentLeads} urgent</div>
+                )}
+              </button>
+
+              {/* AVG TICKET */}
+              <div className="text-center p-1">
                 <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">AVG TICKET</div>
               </div>
-              <div className="text-center">
+
+              {/* CONVERSION */}
+              <div className="text-center p-1">
                 <div className={`text-lg font-bold ${algFloor.conversionRate >= 50 ? "text-emerald-400" : algFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{algFloor.conversionRate}%</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">CONVERSION</div>
               </div>
-              <div className="text-center">
+
+              {/* MONTH REV */}
+              <div className="text-center p-1">
                 <div className="text-lg font-bold text-purple-400">${Math.round(monthRevenue).toLocaleString()}</div>
                 <div className="text-[9px] text-muted-foreground tracking-wider">MONTH REV</div>
               </div>
