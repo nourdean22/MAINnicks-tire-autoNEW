@@ -309,6 +309,7 @@ export default function ReviewRequestsSection() {
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formDelay || settings?.delayMinutes || 120}
                   onChange={(e) => setFormDelay(e.target.value)}
                   min={0}
@@ -327,6 +328,7 @@ export default function ReviewRequestsSection() {
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formMaxPerDay || settings?.maxPerDay || 20}
                   onChange={(e) => setFormMaxPerDay(e.target.value)}
                   min={1}
@@ -345,6 +347,7 @@ export default function ReviewRequestsSection() {
                 </label>
                 <input
                   type="number"
+                  inputMode="numeric"
                   value={formCooldown || settings?.cooldownDays || 30}
                   onChange={(e) => setFormCooldown(e.target.value)}
                   min={1}

@@ -467,7 +467,8 @@ function InlineSms({ customerId, firstName }: { customerId: number; firstName: s
         autoFocus
       />
       <div className="flex items-center justify-between mt-1.5">
-        <span className="text-[9px] text-foreground/30">{text.length}/500</span>
+        {/* wave-120 — 9px is below iOS legibility threshold; bumped to 11px */}
+        <span className="text-[11px] text-foreground/40">{text.length}/500</span>
         <button
           onClick={() => quickSms.mutate({ customerId, message: text })}
           disabled={!text.trim() || quickSms.isPending}

@@ -103,8 +103,9 @@ export default function LoyaltyAdminSection() {
       <div className="bg-card border border-border/30 p-5">
         <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">AWARD POINTS</h3>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <input placeholder="Customer Phone" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <input placeholder="Points" type="number" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          {/* wave-120 — added type="tel" + inputMode hints for proper iOS keyboard */}
+          <input placeholder="Customer Phone" type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+          <input placeholder="Points" type="number" inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <button onClick={async () => {
             // Look up customer by phone to get real userId
@@ -136,8 +137,8 @@ export default function LoyaltyAdminSection() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input placeholder="Reward Title" value={rewardForm.title} onChange={e => setRewardForm(f => ({ ...f, title: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
               <input placeholder="Description" value={rewardForm.description} onChange={e => setRewardForm(f => ({ ...f, description: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-              <input placeholder="Points Cost" type="number" value={rewardForm.pointsCost} onChange={e => setRewardForm(f => ({ ...f, pointsCost: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-              <input placeholder="Discount Value ($)" type="number" value={rewardForm.discountValue} onChange={e => setRewardForm(f => ({ ...f, discountValue: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+              <input placeholder="Points Cost" type="number" inputMode="numeric" value={rewardForm.pointsCost} onChange={e => setRewardForm(f => ({ ...f, pointsCost: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
+              <input placeholder="Discount Value ($)" type="number" inputMode="decimal" value={rewardForm.discountValue} onChange={e => setRewardForm(f => ({ ...f, discountValue: e.target.value }))} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
             </div>
             <button onClick={() => createReward.mutate({ title: rewardForm.title, description: rewardForm.description, pointsCost: parseInt(rewardForm.pointsCost) || 0, rewardValue: parseInt(rewardForm.discountValue) || 0 })} disabled={createReward.isPending || !rewardForm.title || !rewardForm.pointsCost} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
               {createReward.isPending ? "CREATING..." : "CREATE REWARD"}

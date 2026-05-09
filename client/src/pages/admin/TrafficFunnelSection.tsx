@@ -589,6 +589,10 @@ function SitemapSubmissionPanel() {
               : "Sitemap status unavailable. Confirm GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_SERVICE_ACCOUNT_KEY env vars are set, and that the service account has full siteOwner permissions on https://nickstire.org/."}
           </div>
         ) : (
+          // wave-120 — wrapped in overflow-x-auto so the 5-column sitemap
+          // table can scroll horizontally on phone (390px viewport)
+          // instead of squishing or overflowing the parent.
+          <div className="overflow-x-auto">
           <table className="w-full text-[12px]">
             <thead>
               <tr className="border-b border-border/20">
@@ -644,6 +648,7 @@ function SitemapSubmissionPanel() {
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

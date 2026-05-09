@@ -215,7 +215,8 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
                       <div className="flex-1 min-w-0 pt-0.5">
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium text-foreground truncate">{event.title}</span>
-                          <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusCls}`}>
+                          {/* wave-120 — 9px below iOS legibility threshold; bumped to 11px */}
+                          <span className={`text-[11px] font-bold tracking-wider px-1.5 py-0.5 rounded ${statusCls}`}>
                             {event.status?.replace(/_/g, " ").toUpperCase()}
                           </span>
                           {((event as typeof event & { amount?: number }).amount ?? 0) > 0 && (
