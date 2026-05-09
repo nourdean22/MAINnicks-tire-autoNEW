@@ -86,19 +86,21 @@ export default function FollowUpsSection() {
         </button>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row — wave-133 loading guard: was rendering "0/0/0"
+          for ~1-2s while pending+recent queries resolved, then
+          flashing the real numbers. Now placeholders during load. */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Pending</span>
-          <span className="font-bold text-2xl text-amber-400">{pendingCount}</span>
+        <div className="bg-card border border-border/30 rounded-md p-4">
+          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Pending</span>
+          <span className="text-2xl font-semibold text-amber-400 tabular-nums">{isLoading ? "—" : pendingCount}</span>
         </div>
-        <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Sent (Recent 50)</span>
-          <span className="font-bold text-2xl text-emerald-400">{sentCount}</span>
+        <div className="bg-card border border-border/30 rounded-md p-4">
+          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · recent 50</span>
+          <span className="text-2xl font-semibold text-emerald-400 tabular-nums">{isLoading ? "—" : sentCount}</span>
         </div>
-        <div className="bg-card border border-border/30 p-4">
-          <span className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Failed</span>
-          <span className="font-bold text-2xl text-red-400">{failedCount}</span>
+        <div className="bg-card border border-border/30 rounded-md p-4">
+          <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Failed</span>
+          <span className="text-2xl font-semibold text-red-400 tabular-nums">{isLoading ? "—" : failedCount}</span>
         </div>
       </div>
 

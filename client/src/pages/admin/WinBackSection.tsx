@@ -102,8 +102,11 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div>
-          <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">Target Segment</label>
-          <div className="grid grid-cols-4 gap-2">
+          <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">Target segment</label>
+          {/* wave-133 — was grid-cols-4 fixed; 8 segments × ~79px wide
+              at 375px = unusable touch targets. Mobile collapses to
+              2 cols (~160px each), 4 cols only at sm+ (640px+). */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {(["lapsed", "dormant", "lost", "declined", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
               const labels: Record<string, string> = {
                 lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",

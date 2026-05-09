@@ -195,6 +195,9 @@ export default function CallTrackingSection() {
                       {formatDateTime(cb.createdAt)}
                     </span>
                   </div>
+                  {/* wave-133 — was 4 inline buttons cramped to ~28px each
+                      at 375px. Now: Call + Done are primary on mobile,
+                      SMS + ✕ hidden behind sm:flex (tablet+). */}
                   <div className="shrink-0 flex items-center gap-1.5">
                     <a
                       href={`tel:${cb.phone}`}
@@ -205,7 +208,7 @@ export default function CallTrackingSection() {
                     </a>
                     <a
                       href={`sms:${cb.phone}?body=${encodeURIComponent(`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call — give us a ring back when you can: (216) 862-0005.`)}`}
-                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 text-[10px] font-medium hover:bg-blue-500/20 rounded transition-all"
+                      className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 text-[10px] font-medium hover:bg-blue-500/20 rounded transition-all"
                       title="Send SMS"
                     >
                       <MessageSquare className="w-3 h-3" /> SMS
@@ -223,7 +226,7 @@ export default function CallTrackingSection() {
                       type="button"
                       onClick={() => handleMarkNoAnswer(cb.id, cb.name || "customer")}
                       disabled={callbackUpdateStatus.isPending}
-                      className="flex items-center gap-1 px-2 py-1.5 bg-foreground/5 text-foreground/60 text-[10px] font-medium hover:bg-foreground/10 rounded transition-all disabled:opacity-40"
+                      className="hidden sm:flex items-center gap-1 px-2 py-1.5 bg-foreground/5 text-foreground/60 text-[10px] font-medium hover:bg-foreground/10 rounded transition-all disabled:opacity-40"
                       title="No answer"
                     >
                       <XCircle className="w-3 h-3" />
