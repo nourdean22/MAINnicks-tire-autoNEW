@@ -423,7 +423,7 @@ export default function LeadsSection() {
       />
       {/* CRITICAL ALERT — Uncontacted leads with ticking timer */}
       {uncontactedLeads.length > 0 && (
-        <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
+        <div id="leads-urgent-banner" className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             <span className="text-[13px] font-bold text-red-400 tracking-wide">
@@ -471,13 +471,57 @@ export default function LeadsSection() {
         </div>
       )}
 
-      {/* Stats */}
+      {/* Stats — wave-127 — clickable filters. Each card sets the
+          status filter + flips to list view. Urgent scrolls to the
+          red banner (which already surfaces uncontacted leads by age). */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Total Leads" value={leadStats.total} icon={<Hash className="w-4 h-4" />} color="text-foreground" />
-        <StatCard label="New (Uncalled)" value={leadStats.new} icon={<Users className="w-4 h-4" />} color="text-blue-400" />
-        <StatCard label="Contacted" value={leadStats.contacted} icon={<PhoneCall className="w-4 h-4" />} color="text-primary" />
-        <StatCard label="Booked" value={leadStats.booked} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
-        <StatCard label="Urgent (4-5)" value={leadStats.urgent} icon={<AlertTriangle className="w-4 h-4" />} color="text-red-400" />
+        <StatCard
+          label="Total Leads"
+          value={leadStats.total}
+          icon={<Hash className="w-4 h-4" />}
+          color="text-foreground"
+          onClick={() => { setLeadFilter("all"); setViewMode("list"); }}
+        />
+        <StatCard
+          label="New (Uncalled)"
+          value={leadStats.new}
+          icon={<Users className="w-4 h-4" />}
+          color="text-blue-400"
+          onClick={() => { setLeadFilter("new"); setViewMode("list"); }}
+        />
+        <StatCard
+          label="Contacted"
+          value={leadStats.contacted}
+          icon={<PhoneCall className="w-4 h-4" />}
+          color="text-primary"
+          onClick={() => { setLeadFilter("contacted"); setViewMode("list"); }}
+        />
+        <StatCard
+          label="Booked"
+          value={leadStats.booked}
+          icon={<CheckCircle2 className="w-4 h-4" />}
+          color="text-emerald-400"
+          onClick={() => { setLeadFilter("booked"); setViewMode("list"); }}
+        />
+        <StatCard
+          label="Urgent (4-5)"
+          value={leadStats.urgent}
+          icon={<AlertTriangle className="w-4 h-4" />}
+          color="text-red-400"
+          onClick={() => {
+            const banner = document.getElementById("leads-urgent-banner");
+            if (banner) {
+              banner.scrollIntoView({ behavior: "smooth", block: "start" });
+              banner.classList.add("ring-2", "ring-red-400/60");
+              setTimeout(() => banner.classList.remove("ring-2", "ring-red-400/60"), 1500);
+            } else {
+              // No urgent banner means no uncontacted urgent leads —
+              // fall back to list view so operator can scan all leads.
+              setLeadFilter("all");
+              setViewMode("list");
+            }
+          }}
+        />
       </div>
 
       {/* Category Tabs */}
