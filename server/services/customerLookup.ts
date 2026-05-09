@@ -73,16 +73,29 @@ export async function findOrCreateCustomer(data: {
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || null;
 
-  // ID is auto-increment int — don't pass it, let DB generate
-  const result = await db.insert(customers).values({
-    firstName,
-    lastName,
-    phone: data.phone,
-    email: data.email?.toLowerCase() ?? undefined,
-  });
+  // wave-116 — race-safe insert. If two callers hit findOrCreate with
+  // the same phone simultaneously, both find no existing customer, both
+  // INSERT, duplicate created. Post-migration 0034, the unique
+  // constraint causes ER_DUP_ENTRY on the second; we catch and re-find
+  // the now-existing customer instead of failing the caller.
+  // Pre-migration: behavior unchanged.
+  try {
+    await db.insert(customers).values({
+      firstName,
+      lastName,
+      phone: data.phone,
+      email: data.email?.toLowerCase() ?? undefined,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+      throw err;
+    }
+    log.warn("Customer race detected in findOrCreate — falling through to lookup", { phone: data.phone });
+  }
 
-  // Fetch by phone since we just created with that phone
+  // Fetch by phone since we just created with that phone (or found existing)
   const newCustomer = await findCustomer({ phone: data.phone });
-  log.info("New customer created", { name: data.name });
+  log.info("New customer created (or recovered from race)", { name: data.name });
   return { customer: newCustomer!, isNew: true };
 }

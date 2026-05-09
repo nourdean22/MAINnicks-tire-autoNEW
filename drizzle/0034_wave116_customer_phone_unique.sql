@@ -1,0 +1,67 @@
+-- Wave-116 — customers.phone unique constraint to prevent duplicate-customer
+-- races. Audit found multiple SELECT-by-phone → INSERT-or-UPDATE upsert sites
+-- (shopdriver import, shopDriverMirror, customerLookup) that race when run
+-- concurrently — both processes find no existing customer, both INSERT,
+-- duplicates are created.
+--
+-- BEFORE applying this migration, the operator MUST dedupe existing rows.
+-- The dedupe step keeps the customer record with the LOWEST id (oldest)
+-- and merges essential fields from later duplicates. Run this in TWO
+-- phases (do not collapse) so the dedupe completes before the constraint
+-- is added — otherwise the ALTER will fail with "Duplicate entry".
+--
+-- ─── PHASE 1: Dedupe (audit-only first) ─────────────────────────────
+-- Step 1a: identify duplicates (READ-ONLY · run this first to see scope)
+--
+--   SELECT phone, COUNT(*) AS dupes, GROUP_CONCAT(id ORDER BY id)
+--   FROM customers
+--   WHERE phone IS NOT NULL AND phone != ''
+--   GROUP BY phone
+--   HAVING dupes > 1
+--   ORDER BY dupes DESC;
+--
+-- Step 1b: merge duplicates. Conservative version — for each duplicate
+-- group, keep the record with smallest id; before deleting later ones,
+-- copy non-null fields up onto the keeper. Adjust per actual data shape.
+--
+--   -- Example merge query (run per-phone or scripted):
+--   -- UPDATE customers c1
+--   --   JOIN (
+--   --     SELECT phone, MIN(id) AS keep_id
+--   --     FROM customers
+--   --     WHERE phone IS NOT NULL AND phone != ''
+--   --     GROUP BY phone
+--   --     HAVING COUNT(*) > 1
+--   --   ) keepers ON c1.phone = keepers.phone AND c1.id = keepers.keep_id
+--   --   JOIN customers c2 ON c2.phone = c1.phone AND c2.id > c1.id
+--   --   SET
+--   --     c1.email     = COALESCE(c1.email,     c2.email),
+--   --     c1.address   = COALESCE(c1.address,   c2.address),
+--   --     c1.city      = COALESCE(c1.city,      c2.city),
+--   --     c1.state     = COALESCE(c1.state,     c2.state),
+--   --     c1.zip       = COALESCE(c1.zip,       c2.zip),
+--   --     c1.totalSpent= GREATEST(c1.totalSpent, c2.totalSpent),
+--   --     c1.totalVisits= GREATEST(c1.totalVisits, c2.totalVisits),
+--   --     c1.notes     = COALESCE(c1.notes,     c2.notes);
+--   -- DELETE c2 FROM customers c2
+--   --   JOIN (
+--   --     SELECT phone, MIN(id) AS keep_id
+--   --     FROM customers
+--   --     WHERE phone IS NOT NULL AND phone != ''
+--   --     GROUP BY phone
+--   --     HAVING COUNT(*) > 1
+--   --   ) keepers ON c2.phone = keepers.phone
+--   --   WHERE c2.id > keepers.keep_id;
+--
+-- ─── PHASE 2: Add the unique constraint (after dedupe completes) ────
+-- The application code (server/routers/shopdriver.ts + customerLookup +
+-- shopDriverMirror) already handles the duplicate-key error gracefully
+-- post wave-116, so once this constraint is in place, races become
+-- atomic — INSERT fails fast, code falls through to UPDATE.
+
+ALTER TABLE `customers` ADD UNIQUE KEY `uniq_customer_phone` (`phone`);
+--> statement-breakpoint
+
+-- Drop the redundant non-unique index — the unique key replaces it for
+-- lookups by phone (MySQL's unique key doubles as a regular index).
+ALTER TABLE `customers` DROP INDEX `idx_customer_phone`;

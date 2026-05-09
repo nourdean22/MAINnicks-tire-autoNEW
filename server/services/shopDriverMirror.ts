@@ -691,19 +691,43 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
           updated++;
         }
       } else {
-        await d.insert(customers).values({
-          firstName,
-          lastName,
-          phone: rc.phone,
-          phone2: rc.phone2 || undefined,
-          email: rc.email || undefined,
-          address: rc.address || undefined,
-          city: rc.city || undefined,
-          state: rc.state || undefined,
-          zip: rc.zip || undefined,
-          segment: "unknown",
-        });
-        created++;
+        // wave-116 — race-safe insert. The outer try/catch already
+        // logs+skips on error, but we want the dup-key case to convert
+        // to UPDATE so the customer's data isn't lost when two
+        // concurrent imports/mirrors race.
+        try {
+          await d.insert(customers).values({
+            firstName,
+            lastName,
+            phone: rc.phone,
+            phone2: rc.phone2 || undefined,
+            email: rc.email || undefined,
+            address: rc.address || undefined,
+            city: rc.city || undefined,
+            state: rc.state || undefined,
+            zip: rc.zip || undefined,
+            segment: "unknown",
+          });
+          created++;
+        } catch (insertErr) {
+          const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+          if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+            await d.update(customers).set({
+              firstName,
+              lastName,
+              phone2: rc.phone2 || undefined,
+              email: rc.email || undefined,
+              address: rc.address || undefined,
+              city: rc.city || undefined,
+              state: rc.state || undefined,
+              zip: rc.zip || undefined,
+            }).where(eq(customers.phone, rc.phone));
+            updated++;
+            log.warn(`[shopDriverMirror] Customer race detected — INSERT → UPDATE`, { phone: rc.phone });
+          } else {
+            throw insertErr;
+          }
+        }
       }
     } catch (err) {
       log.warn(`Failed to upsert customer ${rc.name}/${rc.phone}`, { error: err instanceof Error ? err.message : String(err) });
