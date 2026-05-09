@@ -171,6 +171,28 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
   // ever widens (e.g. a date math bug). Cap mirrors crossSellOutreach.
   const MAX_SMS_PER_RUN = 20;
 
+  // wave-121 — bulk-load opt-out phones BEFORE the loop. Was: a SELECT
+  // against customers per estimate (up to 100 round-trips per run), with
+  // a `RIGHT(REPLACE(...))` string transform that defeated the
+  // uniq_customer_phone index → full table scan EACH iteration.
+  // Now: one query that pulls all opt-outs with last-10-digits computed
+  // server-side once, then in-memory check during the loop.
+  const optOutSet = new Set<string>();
+  try {
+    const optOutRows = await d
+      .select({ phone: customers.phone })
+      .from(customers)
+      .where(eq(customers.smsOptOut, 1));
+    for (const row of optOutRows) {
+      if (row.phone) optOutSet.add(row.phone.replace(/\D/g, "").slice(-10));
+    }
+    log.info(`[declined-recovery] preloaded ${optOutSet.size} opt-out phones`);
+  } catch (e) {
+    log.warn("[declined-recovery] opt-out preload failed; defaulting to empty set", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
   for (const est of unmatched) {
     if (sent7d + sent30d >= MAX_SMS_PER_RUN) {
       log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
@@ -188,14 +210,10 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
         continue;
       }
 
-      // Check SMS opt-out via customers table lookup by last-10 digits
+      // wave-121 — was a per-row SELECT against customers; now in-memory
+      // Set lookup against the preloaded opt-out phones.
       const normalized = est.customerPhone.replace(/\D/g, "").slice(-10);
-      const [cust] = await d
-        .select({ smsOptOut: customers.smsOptOut })
-        .from(customers)
-        .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), '(', ''), ')', ''), 10) = ${normalized}`)
-        .limit(1);
-      if (cust?.smsOptOut) {
+      if (optOutSet.has(normalized)) {
         skippedOptOut++;
         continue;
       }
