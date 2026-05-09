@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.3 (2026-04-22)
+# Nickstire Query Contract — v11.4 (2026-05-09)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -349,6 +349,79 @@ X-Snap-Signature: <hmac-sha256>
 
 ---
 
+---
+
+## 6. POST `/api/nour-os/query` — statenour COO actions
+
+A second, **action-style** bridge separate from the `/api/bridge/*` REST
+surface above. Statenour-os AI COO ("Nick") calls these to answer Nour's
+questions with live data instead of stale 15-min sync dumps.
+
+**Auth:** same `STATENOUR_SYNC_KEY`, but as the `x-sync-key` header
+(lowercase, no `X-Statenour-` prefix). Source: `server/routes/nour-os-query.ts`.
+
+**Request shape:**
+
+```http
+POST /api/nour-os/query
+x-sync-key: <STATENOUR_SYNC_KEY>
+Content-Type: application/json
+
+{
+  "query": "<action-name>",
+  "filters": { ... }
+}
+```
+
+**Response shape:**
+
+```json
+{
+  "query": "<action-name>",
+  "timestamp": "2026-05-09T01:23:45.000Z",
+  "data": { ... }
+}
+```
+
+If `query` is missing or unknown → 400 with `available: string[]` listing
+every registered handler. If `x-sync-key` is missing/wrong → 401.
+
+**Registered actions (alphabetical):**
+
+| Action | Filters | Returns |
+|---|---|---|
+| `attention_needed` | none | `{ alerts: [{ level, message, count }], totalCritical, totalWarning }` |
+| `bookings_status` | none | 7-day status breakdown |
+| `bookings_today` | none | Today's bookings (ET-anchored) |
+| `callbacks_pending` | none | New callback requests |
+| `customer_search` | `term: string` | Top 20 matching customers |
+| `feature_flags` | none | All flags + enabled state |
+| `gsc_summary` | `from?, to?` (YYYY-MM-DD; default last 30d) | `{ totalClicks, totalImpressions, avgCtr, avgPosition }` (CTR is %, position is float) |
+| `gsc_top_queries` | `from?, to?, limit?` (default 30d, top 10, max 50) | `{ queries: [{ query, clicks, impressions, ctr, position }] }` |
+| `leads_pipeline` | none | 30-day status breakdown |
+| `leads_today` | none | Today's leads (ET-anchored) |
+| `leads_urgent` | none | Urgency ≥ 4, status = new |
+| `revenue_range` | `from?, to?` | Total + avg ticket for range |
+| `revenue_today` | none | Today's revenue (ET-anchored) |
+| `shop_pulse` | none | Live snapshot via nickIntelligence |
+| `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
+
+**GSC actions (added v11.4, 2026-05-09):** these were added because the
+statenour AI COO had no SEO data source and was fabricating round
+numbers (1,700 imp / 17 clicks for both 30d AND 90d). Pipeline at
+`server/pipelines/gsc-data.ts` already populates `search_performance`
+nightly via Google Service Account; the bridge just reads from it.
+
+CTR + position are recomputed from raw click/impression sums (not
+average-of-averages) so totals stay accurate when the date range is
+wider than one day. Position is impression-weighted.
+
+**Don't:** add actions that mutate or trigger external API calls. This
+endpoint is read-only DB access by design. Mirror refreshes go through
+the admin UI's `forceSyncNow`, not here.
+
+---
+
 ## Notes on ALG / Auto Labor Experts coupling
 
 1. **ALG is still the source of truth for counter activity.** Our
@@ -396,6 +469,12 @@ X-Snap-Signature: <hmac-sha256>
   `shopDriverEstimateSync.ts` service — exposes walk-in quote conversion
   and the declined-work recovery pool. Own freshness source
   (`getEstimateMirrorFreshness`) independent of the invoice mirror.
+- **v11.4** (2026-05-09) — `/api/nour-os/query` action surface documented
+  (Section 6). New `gsc_summary` + `gsc_top_queries` actions backing the
+  statenour COO so it stops fabricating GSC numbers; reads from the
+  `search_performance` table populated by `pipelines/gsc-data.ts`. CTR
+  + position recomputed from raw sums (not avg-of-avg) and position is
+  impression-weighted for accurate multi-day aggregates.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

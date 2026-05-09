@@ -250,23 +250,34 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
  */
 export async function getTopQueries(opts?: {
   startDate?: string;
+  endDate?: string;
   limit?: number;
-}): Promise<Array<{ query: string; clicks: number; impressions: number; avgPosition: number }>> {
+}): Promise<Array<{ query: string; clicks: number; impressions: number; ctr: number; avgPosition: number }>> {
   const d = await db();
   if (!d) return [];
 
   const limit = opts?.limit ?? 20;
   const startDate = opts?.startDate ?? getDefaultStartDate();
+  const endDate = opts?.endDate;
+
+  // Build WHERE: start always present, end only if supplied
+  const whereClause = endDate
+    ? sql`${searchPerformance.date} BETWEEN ${startDate} AND ${endDate}`
+    : gte(searchPerformance.date, startDate);
 
   const rows = await d
     .select({
       query: searchPerformance.query,
       clicks: sql<number>`SUM(${searchPerformance.clicks})`,
       impressions: sql<number>`SUM(${searchPerformance.impressions})`,
+      // CTR recomputed from sums (more accurate than averaging stored CTRs)
+      ctr: sql<number>`CASE WHEN SUM(${searchPerformance.impressions}) > 0
+        THEN ROUND((SUM(${searchPerformance.clicks}) * 100.0) / SUM(${searchPerformance.impressions}), 2)
+        ELSE 0 END`,
       avgPosition: sql<number>`ROUND(AVG(${searchPerformance.position}) / 100, 1)`,
     })
     .from(searchPerformance)
-    .where(gte(searchPerformance.date, startDate))
+    .where(whereClause)
     .groupBy(searchPerformance.query)
     .orderBy(sql`SUM(${searchPerformance.clicks}) DESC`)
     .limit(limit);
@@ -275,8 +286,52 @@ export async function getTopQueries(opts?: {
     query: r.query,
     clicks: Number(r.clicks),
     impressions: Number(r.impressions),
+    ctr: Number(r.ctr),
     avgPosition: Number(r.avgPosition),
   }));
+}
+
+/**
+ * Aggregate GSC summary across a date range (totals + derived CTR + impression-weighted position).
+ * Wave-110 (2026-05-09): backs the statenour bridge `gsc_summary` action so
+ * the AI COO has a single number for "how is SEO doing this month" instead
+ * of fabricating one. Same data source as `getTopQueries()` so totals reconcile.
+ */
+export async function getGscSummary(opts: {
+  startDate: string;
+  endDate?: string;
+}): Promise<{
+  from: string;
+  to: string;
+  totalClicks: number;
+  totalImpressions: number;
+  avgCtr: number;
+  avgPosition: number;
+}> {
+  const d = await db();
+  const today = new Date().toISOString().slice(0, 10);
+  const from = opts.startDate;
+  const to = opts.endDate ?? today;
+  if (!d) return { from, to, totalClicks: 0, totalImpressions: 0, avgCtr: 0, avgPosition: 0 };
+
+  const rows = await d
+    .select({
+      totalClicks: sql<number>`COALESCE(SUM(${searchPerformance.clicks}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${searchPerformance.impressions}), 0)`,
+      // Position is impression-weighted (more accurate than straight average across days)
+      posSum: sql<number>`COALESCE(SUM(${searchPerformance.position} * ${searchPerformance.impressions}), 0)`,
+    })
+    .from(searchPerformance)
+    .where(sql`${searchPerformance.date} BETWEEN ${from} AND ${to}`);
+
+  const r = rows[0] || { totalClicks: 0, totalImpressions: 0, posSum: 0 };
+  const totalClicks = Number(r.totalClicks);
+  const totalImpressions = Number(r.totalImpressions);
+  const posSum = Number(r.posSum);
+  const avgCtr = totalImpressions > 0 ? Number(((totalClicks / totalImpressions) * 100).toFixed(2)) : 0;
+  // posSum is in stored *100 units; divide by impressions (weighting) then by 100 (units)
+  const avgPosition = totalImpressions > 0 ? Number((posSum / totalImpressions / 100).toFixed(2)) : 0;
+  return { from, to, totalClicks, totalImpressions, avgCtr, avgPosition };
 }
 
 /**
