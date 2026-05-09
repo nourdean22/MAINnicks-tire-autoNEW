@@ -832,24 +832,56 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
       const paymentMethod = normalizePaymentMethod(ri.paymentMethod);
       const paymentStatus = normalizePaymentStatus(ri.paymentStatus);
 
-      await d.insert(invoices).values({
-        customerId: customerId ?? null,
-        customerName: ri.customerName,
-        customerPhone: ri.customerPhone || null,
-        invoiceNumber: ri.invoiceNumber,
-        totalAmount: ri.totalAmount,
-        partsCost: ri.partsCost || 0,
-        laborCost: ri.laborCost || 0,
-        taxAmount: ri.taxAmount || 0,
-        serviceDescription: ri.service || null,
-        vehicleInfo: ri.vehicleInfo || null,
-        paymentMethod,
-        paymentStatus,
-        invoiceDate: new Date(ri.date),
-        source: "shopdriver",
-        algTicketId: ri.algTicketId || null,
-      });
-      created++;
+      // wave-116c — race-safe insert. invoices.invoiceNumber is UNIQUE
+      // in schema. Two concurrent mirrors could both miss the SELECT
+      // above, both try to INSERT, second one fails with Duplicate-entry
+      // — convert to UPDATE so the latest data wins (mirrors the
+      // existing-row branch at L759-784).
+      try {
+        await d.insert(invoices).values({
+          customerId: customerId ?? null,
+          customerName: ri.customerName,
+          customerPhone: ri.customerPhone || null,
+          invoiceNumber: ri.invoiceNumber,
+          totalAmount: ri.totalAmount,
+          partsCost: ri.partsCost || 0,
+          laborCost: ri.laborCost || 0,
+          taxAmount: ri.taxAmount || 0,
+          serviceDescription: ri.service || null,
+          vehicleInfo: ri.vehicleInfo || null,
+          paymentMethod,
+          paymentStatus,
+          invoiceDate: new Date(ri.date),
+          source: "shopdriver",
+          algTicketId: ri.algTicketId || null,
+        });
+        created++;
+      } catch (insertErr) {
+        const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
+        if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
+          // Race lost — apply the same updates the existing-row branch
+          // would have applied. Match by invoiceNumber (the unique key).
+          await d.update(invoices).set({
+            customerId: customerId ?? undefined,
+            customerName: ri.customerName,
+            customerPhone: ri.customerPhone || undefined,
+            totalAmount: ri.totalAmount,
+            partsCost: ri.partsCost || undefined,
+            laborCost: ri.laborCost || undefined,
+            taxAmount: ri.taxAmount || undefined,
+            serviceDescription: ri.service || undefined,
+            vehicleInfo: ri.vehicleInfo || undefined,
+            paymentMethod,
+            paymentStatus,
+            invoiceDate: new Date(ri.date),
+            algTicketId: ri.algTicketId || undefined,
+          }).where(eq(invoices.invoiceNumber, ri.invoiceNumber));
+          updated++;
+          log.warn("[shopDriverMirror] Invoice race detected — INSERT → UPDATE", { invoiceNumber: ri.invoiceNumber });
+        } else {
+          throw insertErr;
+        }
+      }
     } catch (err) {
       log.warn(`Failed to upsert invoice ${ri.invoiceNumber}`, { error: err instanceof Error ? err.message : String(err) });
       skipped++;
