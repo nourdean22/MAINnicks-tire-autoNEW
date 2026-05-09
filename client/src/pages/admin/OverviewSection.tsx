@@ -472,9 +472,21 @@ export default function OverviewSection() {
     }
 
     // New/urgent leads
+    // wave-123 — was: include if status==="new" OR urgencyScore>=4. Bug:
+    // already-booked / closed / lost / completed leads with high urgency
+    // scores stayed in the queue forever (operator screenshot showed
+    // "Brennen Simmons" as Booked + urgency 36/5 still appearing in
+    // Action Queue). The action queue should show only items the operator
+    // can still ACT on. Now: exclude terminal statuses (booked, completed,
+    // closed, lost). Status "contacted" still shows IF urgency is high
+    // (operator may need to follow up again on a hot prospect).
+    const ACTIONABLE_LEAD_STATUS = new Set(["new", "contacted"]);
     if (allLeads) {
       allLeads
-        .filter((l: LeadItem) => l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4))
+        .filter((l: LeadItem) => {
+          if (!ACTIONABLE_LEAD_STATUS.has(l.status)) return false;
+          return l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4);
+        })
         .forEach((l: LeadItem) => {
           items.push({
             id: `lead-${l.id}`,
@@ -1126,7 +1138,22 @@ export default function OverviewSection() {
           color={priorityQueue.length > 0 ? "text-red-400" : "text-emerald-400"}
           trend={priorityQueue.length > 0 ? "up" : "neutral"}
           trendLabel={priorityQueue.length > 0 ? "Needs attention" : "All clear"}
-          targetSection="leads"
+          /* wave-123 — was targetSection="leads" which routed to a page
+             showing only ONE of the 4 sources (leads). The Action Queue
+             card actually counts bookings + leads + callbacks + work
+             orders; the only place that shows all 4 unified is the
+             Priority Action Queue panel inside this same section.
+             Click now scrolls to that panel rather than navigating
+             away. Operator screenshot confirmed the count-vs-list
+             mismatch this fixes. */
+          onClick={() => {
+            const target = document.getElementById("priority-action-queue");
+            if (target) {
+              target.scrollIntoView({ behavior: "smooth", block: "start" });
+              target.classList.add("ring-2", "ring-primary/60");
+              setTimeout(() => target.classList.remove("ring-2", "ring-primary/60"), 1500);
+            }
+          }}
         />
         <StatCard
           label="Today's Bookings" value={todaysBookings.length}
@@ -1163,8 +1190,11 @@ export default function OverviewSection() {
           (masterReport.summary, revIntel.recommendations, custIntel
           spendTiers + churnRisk + atRiskWhales) renders inline up there. */}
 
-      {/* ─── PRIORITY ACTION QUEUE ─── */}
-      <div className="stat-card !p-5 !border-primary/20">
+      {/* ─── PRIORITY ACTION QUEUE ───
+          wave-123 — id added so the Action Queue StatCard above can
+          scroll-into-view instead of navigating to /leads (which only
+          shows 1 of the 4 source types this list unifies). */}
+      <div id="priority-action-queue" className="stat-card !p-5 !border-primary/20 transition-all rounded-xl">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-semibold text-primary tracking-wide uppercase flex items-center gap-2">
             <Zap className="w-3.5 h-3.5" />
