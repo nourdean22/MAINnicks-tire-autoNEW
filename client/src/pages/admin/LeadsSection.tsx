@@ -271,17 +271,23 @@ export default function LeadsSection() {
     },
   );
 
-  const { data: leadsData, isLoading, refetch } = trpc.lead.list.useQuery(undefined, {
+  const utils = trpc.useUtils();
+  const { data: leadsData, isLoading } = trpc.lead.list.useQuery(undefined, {
     refetchInterval: 30000,
   });
 
+  // wave-116d — was `refetch()` on the local query instance. That only
+  // refreshed THIS component's lead list, so OverviewSection's lead
+  // queue (which is a sibling subscription) stayed stale. Switched to
+  // utils.lead.list.invalidate() which propagates to every mounted
+  // subscriber. OverviewSection already uses this pattern at L310-314.
   const updateLead = trpc.lead.update.useMutation({
-    onSuccess: () => { refetch(); toast.success("Lead updated"); },
+    onSuccess: () => { void utils.lead.list.invalidate(); toast.success("Lead updated"); },
     onError: (err) => toast.error("Failed: " + err.message),
   });
 
   const deleteLead = trpc.lead.delete.useMutation({
-    onSuccess: () => { refetch(); toast.success("Lead deleted"); },
+    onSuccess: () => { void utils.lead.list.invalidate(); toast.success("Lead deleted"); },
     onError: (err) => toast.error("Delete failed: " + err.message),
   });
 
@@ -509,7 +515,7 @@ export default function LeadsSection() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button onClick={() => refetch()} aria-label="Refresh data" className="p-2 text-foreground/50 hover:text-primary transition-colors">
+          <button onClick={() => void utils.lead.list.invalidate()} aria-label="Refresh data" className="p-2 text-foreground/50 hover:text-primary transition-colors">
             <RefreshCw className="w-4 h-4" />
           </button>
         </div>
