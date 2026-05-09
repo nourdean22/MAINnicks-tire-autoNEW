@@ -128,17 +128,24 @@ function RevenueContent() {
   return (
     <div className="space-y-6">
       {/* Header */}
+      {/* wave-112 — was 3 hand-styled <button>s; switched to canonical TabBar
+          (pill variant) so revenue sub-tabs match every other admin section.
+          Outer Revenue tabs already use TabBar; inner ones drifted. */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <p className="text-[12px] text-foreground/40">Real-time financial intelligence</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setTab("dashboard")} className={`px-3 py-1.5 text-[12px] tracking-wider ${tab === "dashboard" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>DASHBOARD</button>
-          <button onClick={() => setTab("invoices")} className={`px-3 py-1.5 text-[12px] tracking-wider ${tab === "invoices" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>INVOICES</button>
-          <button onClick={() => setTab("create")} className={`px-3 py-1.5 text-[12px] tracking-wider flex items-center gap-1 ${tab === "create" ? "bg-primary text-primary-foreground" : "bg-card border border-border/30 text-foreground/60"}`}>
-            <Plus className="w-3 h-3" /> NEW
-          </button>
-        </div>
+        <TabBar
+          tabs={[
+            { id: "dashboard" as const, label: "DASHBOARD" },
+            { id: "invoices" as const, label: "INVOICES" },
+            { id: "create" as const, label: "NEW", icon: <Plus className="w-3 h-3" /> },
+          ]}
+          activeTab={tab}
+          onChange={setTab}
+          variant="pill"
+          size="compact"
+        />
       </div>
 
       {tab === "dashboard" && <DashboardView stats={stats} topCustomers={topCustomers} kpi={kpi} shopFloor={shopFloor} funnel={funnel} period={period} setPeriod={setPeriod} intel={intel} intelPeriod={intelPeriod} setIntelPeriod={setIntelPeriod} custIntel={custIntel} />}

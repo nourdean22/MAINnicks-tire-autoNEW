@@ -54,17 +54,27 @@ export default function ContentSection() {
 // ─── CONTENT MANAGER (original ContentSection content) ──────────────
 
 function ContentManager() {
+  const utils = trpc.useUtils();
   const { data: articles, isLoading: articlesLoading } = trpc.contentAdmin.allArticles.useQuery();
   const { data: notifications, isLoading: notifsLoading } = trpc.contentAdmin.allNotifications.useQuery();
   const { data: genLog } = trpc.contentAdmin.generationLog.useQuery();
 
+  // wave-112 — was missing utils.X.invalidate() calls; PUBLISH/UNPUBLISH/
+  // RESTORE / DISABLE updates left the list + stat cards stale until a
+  // full page refresh. Now invalidates the relevant query on success.
   const updateArticle = trpc.contentAdmin.updateArticleStatus.useMutation({
-    onSuccess: () => toast.success("Article updated"),
+    onSuccess: () => {
+      void utils.contentAdmin.allArticles.invalidate();
+      toast.success("Article updated");
+    },
     onError: (err: { message: string }) => toast.error("Failed: " + err.message),
   });
 
   const toggleNotif = trpc.contentAdmin.toggleNotification.useMutation({
-    onSuccess: () => toast.success("Notification updated"),
+    onSuccess: () => {
+      void utils.contentAdmin.allNotifications.invalidate();
+      toast.success("Notification updated");
+    },
     onError: (err: { message: string }) => toast.error("Failed: " + err.message),
   });
 

@@ -4,9 +4,9 @@
  *
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
-import { useState, useEffect, lazy, Suspense } from "react";
+import { lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, Phone } from "lucide-react";
-import { PageHeader, TabBar } from "./shared";
+import { PageHeader, TabBar, useUrlFilter } from "./shared";
 
 const SmsSection = lazy(() => import("./SmsSection"));
 const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
@@ -40,22 +40,20 @@ function TabSpinner() {
 const VALID_OUTREACH_TABS: OutreachTab[] = ["campaigns", "sms", "followups", "reviews", "winback", "reengage"];
 
 export default function OutreachHubSection() {
-  // URL-persistent ?outreachTab=...
-  const [tab, setTab] = useState<OutreachTab>(() => {
-    if (typeof window === "undefined") return "campaigns";
-    const raw = new URLSearchParams(window.location.search).get("outreachTab");
-    return raw && (VALID_OUTREACH_TABS as string[]).includes(raw) ? (raw as OutreachTab) : "campaigns";
-  });
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const url = new URL(window.location.href);
-    // wave-111 — always write the active tab to URL (was: deleted on
-    // "campaigns", which silently stripped explicit ?outreachTab=campaigns
-    // deep-links on mount and broke URL-persistence on default tab).
-    url.searchParams.set("outreachTab", tab);
-    window.history.replaceState({}, "", url.toString());
-  }, [tab]);
+  // wave-112 — migrated from custom useState + useEffect URL writer to
+  // shared useUrlFilter (consistent with every other section). Note:
+  // useUrlFilter deletes the param when value === defaultValue ("campaigns"),
+  // which restores the cleaner-URL behavior wave-111 backed out of. The
+  // wave-111 deep-link-strip concern is mitigated because useUrlFilter's
+  // initial read still resolves to "campaigns" if the param is missing OR
+  // explicitly set to "campaigns" — both render the same tab, identical UX.
+  const [tab, setTab] = useUrlFilter<OutreachTab>(
+    "outreachTab",
+    "campaigns",
+    {
+      validate: (raw) => (VALID_OUTREACH_TABS.includes(raw as OutreachTab) ? (raw as OutreachTab) : null),
+    },
+  );
 
   return (
     <div className="space-y-6">

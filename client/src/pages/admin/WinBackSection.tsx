@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { toast } from "sonner";
 import { StatCard, PageHeader, useUrlFilter } from "./shared";
 
 // tRPC-inferred types — server router was fixed in same commit
@@ -50,7 +51,13 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   const { data: customerStats } = trpc.customers.stats.useQuery();
   const createMutation = trpc.winback.create.useMutation();
 
-  const segmentCount = (customerStats as any)?.[segment] ?? 0;
+  // wave-112 — was `as any`; now honest cast. customers.stats only
+  // exposes 4 of the 8 win-back segment keys (lapsed, recent, vipCount,
+  // commercial). For the others (dormant, lost, declined, tire_customer)
+  // the lookup is undefined → 0. TODO: add winback.segmentCounts server
+  // route exposing all 8 so the operator sees real counts before launching.
+  const stats = customerStats as Record<string, number> | undefined | null;
+  const segmentCount = stats?.[segment] ?? 0;
 
   async function handleCreate() {
     if (!name.trim()) return;
@@ -59,9 +66,15 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
       const result = await createMutation.mutateAsync({ name, targetSegment: segment });
       if (result.success && result.campaignId) {
         onCreated(result.campaignId);
+      } else {
+        // wave-112 — surface non-success path (was silent)
+        toast.error("Campaign creation returned no campaignId");
       }
     } catch (e) {
+      // wave-112 — was console.error only; operator now gets actionable feedback
       console.error("Failed to create campaign:", e);
+      const msg = e instanceof Error ? e.message : "Unknown error creating campaign";
+      toast.error(msg);
     } finally {
       setCreating(false);
     }
