@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
 import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap, X,
@@ -314,12 +315,19 @@ export default function DeclinedEstimatesSection() {
                 .toLocaleString()} potential recovery
             </span>
             <button
-              onClick={() => {
-                if (!confirm(`Send 7-day follow-up SMS to ${selectedIds.size} customers? Twilio rate-limit handling is built in. SMS_KILL_SWITCH is respected.`)) return;
+              onClick={async () => {
+                // wave-139 — was native confirm(); now ConfirmDialog
+                // (operator hits this on bulk recovery flows)
+                const ok = await confirmDialog({
+                  title: `Send 7-day SMS to ${selectedIds.size} customers?`,
+                  message: "Twilio rate-limit handling is built in. SMS_KILL_SWITCH is respected.",
+                  confirmLabel: "Send SMS batch",
+                });
+                if (!ok) return;
                 bulkFollowUpMutation.mutate({ ids: Array.from(selectedIds), tier: "7d" });
               }}
               disabled={bulkFollowUpMutation.isPending}
-              className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] tracking-wider font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-1.5 text-[11px] tracking-[0.15em] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-50 rounded-md"
             >
               {bulkFollowUpMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               SEND 7D SMS

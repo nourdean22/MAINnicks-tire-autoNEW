@@ -22,6 +22,7 @@ import ActivityPulse from "@/components/admin/ActivityPulse";
 import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
+import ConfirmDialog from "@/components/admin/ConfirmDialog";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 
@@ -509,6 +510,10 @@ export default function Admin() {
 
       {/* 2026-05-06 — Global drilldown drawer (event-bus triggered) */}
       <DrilldownDrawer />
+
+      {/* wave-139 — Global brand-consistent confirm dialog (replaces
+          window.confirm() which looks broken on mobile) */}
+      <ConfirmDialog />
 
       {/* Live activity pulse — toast stream from SSE */}
       <ActivityPulse />

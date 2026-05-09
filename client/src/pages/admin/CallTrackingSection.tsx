@@ -11,6 +11,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
   TrendingUp, BarChart3, Users, CheckCircle2, XCircle, MessageSquare,
@@ -43,12 +44,24 @@ export default function CallTrackingSection() {
     onError: (e) => toast.error(e.message),
   });
 
-  function handleMarkCalled(id: number, name: string) {
-    if (!confirm(`Mark callback for ${name} as completed?`)) return;
+  // wave-139 — was native window.confirm(); now brand-consistent
+  // promise-based modal that doesn't look broken on iOS Safari.
+  async function handleMarkCalled(id: number, name: string) {
+    const ok = await confirmDialog({
+      title: "Mark as completed?",
+      message: `Mark callback for ${name} as completed.`,
+      confirmLabel: "Mark complete",
+    });
+    if (!ok) return;
     callbackUpdateStatus.mutate({ id, status: "completed" });
   }
-  function handleMarkNoAnswer(id: number, name: string) {
-    if (!confirm(`Mark callback for ${name} as no-answer?`)) return;
+  async function handleMarkNoAnswer(id: number, name: string) {
+    const ok = await confirmDialog({
+      title: "Mark as no-answer?",
+      message: `Remove ${name} from the queue (stays in history).`,
+      confirmLabel: "No answer",
+    });
+    if (!ok) return;
     callbackUpdateStatus.mutate({ id, status: "no-answer" });
   }
 
