@@ -138,6 +138,9 @@ export const adminDashboardRouter = router({
         "lapsed_vips",
         "negative_reviews",
         "today_bookings",
+        // wave-124 — chat_sessions kind for the Overview "Chat Sessions"
+        // card (was firing fresh_leads against wrong table)
+        "chat_sessions",
       ]),
       limit: z.number().int().min(1).max(100).default(50),
     }))
@@ -313,6 +316,63 @@ export const adminDashboardRouter = router({
                 secondary: `${r.phone}${r.vehicle ? ` · ${r.vehicle}` : ""}`,
                 meta: r.problem?.slice(0, 80) || "",
                 value: `urgency ${r.urgencyScore}/5`,
+              })),
+            };
+          }
+          // wave-124 — chat_sessions: backs the "Chat Sessions" card on
+          // the Overview dashboard. Was incorrectly firing fresh_leads
+          // (wrong table) so the drawer always read "Nothing to show"
+          // even though the card showed a real count. Now pulls actual
+          // chat_sessions rows ordered by createdAt desc, surfacing
+          // the AI-extracted vehicle/problem and conversion status.
+          case "chat_sessions": {
+            const { chatSessions, leads } = await import("../../drizzle/schema");
+            // wave-124 — was filtered to last 7 days but the operator's
+            // card shows TOTAL sessions all-time. If chat traffic is
+            // sparse, a 7d filter renders empty drawer while card shows
+            // "17". Now: latest N regardless of age — matches the
+            // card's all-time semantics and beats the count-vs-list
+            // mismatch the operator reported.
+            // Left-join leads so converted sessions show the captured
+            // customer name + phone instead of just "Anonymous".
+            const rows = await d
+              .select({
+                id: chatSessions.id,
+                createdAt: chatSessions.createdAt,
+                vehicleInfo: chatSessions.vehicleInfo,
+                problemSummary: chatSessions.problemSummary,
+                converted: chatSessions.converted,
+                leadId: chatSessions.leadId,
+                leadName: leads.name,
+                leadPhone: leads.phone,
+              })
+              .from(chatSessions)
+              .leftJoin(leads, eq(chatSessions.leadId, leads.id))
+              .orderBy(desc(chatSessions.createdAt))
+              .limit(input.limit);
+            type ChatRow = {
+              id: number;
+              createdAt: Date;
+              vehicleInfo: string | null;
+              problemSummary: string | null;
+              converted: number;
+              leadId: number | null;
+              leadName: string | null;
+              leadPhone: string | null;
+            };
+            return {
+              title: "Chat Sessions",
+              subtitle: "Latest visitors who interacted with the AI chat — converted ones link to their lead row.",
+              rows: (rows as ChatRow[]).map((r) => ({
+                id: r.id,
+                primary: r.converted && r.leadName
+                  ? r.leadName
+                  : "Anonymous visitor",
+                secondary: r.converted && r.leadPhone
+                  ? `${r.leadPhone}${r.vehicleInfo ? ` · ${r.vehicleInfo}` : ""}`
+                  : (r.vehicleInfo || "No vehicle captured"),
+                meta: r.problemSummary?.slice(0, 100) || "No problem summary",
+                value: r.converted ? "→ Lead" : "—",
               })),
             };
           }

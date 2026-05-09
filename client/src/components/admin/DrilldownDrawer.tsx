@@ -28,7 +28,12 @@ type DrilldownKind =
   | "fresh_leads"
   | "lapsed_vips"
   | "negative_reviews"
-  | "today_bookings";
+  | "today_bookings"
+  // wave-124 — chat_sessions added because the Overview "Chat Sessions"
+  // card was firing fresh_leads (wrong table) and the drawer always said
+  // "Nothing to show". Now: real chat_sessions data, including which
+  // converted to leads + the AI-extracted vehicle/problem summary.
+  | "chat_sessions";
 
 export type DrilldownDetail = {
   kind: DrilldownKind;
