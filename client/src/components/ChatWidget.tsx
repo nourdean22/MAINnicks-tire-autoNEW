@@ -116,7 +116,7 @@ export default function ChatWidget() {
               setOpen(true);
               setPulseActive(false);
             }}
-            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-13 h-13 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
+            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-12 h-12 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
             aria-label="Chat with Nick's AI mechanic"
           >
             {/* Pulse ring — fires after 45s of dwell, once per session */}
