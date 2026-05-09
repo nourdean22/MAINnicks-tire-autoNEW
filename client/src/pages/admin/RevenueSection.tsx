@@ -200,8 +200,8 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
       {/* ═══ AT A GLANCE — scope adapts to period ═══ */}
       <div className="bg-gradient-to-r from-primary/10 to-emerald-500/10 border border-primary/20 p-5">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-bold text-lg text-foreground tracking-wider">
-            {period === 1 ? "TODAY" : period === 7 ? "THIS WEEK" : `LAST ${period} DAYS`}
+          <h2 className="text-[15px] font-semibold text-foreground tracking-tight">
+            {period === 1 ? "Today" : period === 7 ? "This week" : `Last ${period} days`}
           </h2>
           <span className="text-foreground/30 text-xs font-mono">{new Date().toLocaleDateString()}</span>
         </div>
@@ -970,19 +970,19 @@ function TireSalesPanel() {
       {/* KPI strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-border/10">
         <div className="bg-card p-4">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">TIRE REVENUE</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">TIRE REVENUE</span>
           <span className="font-bold text-2xl text-emerald-400">${totals.revenue.toLocaleString()}</span>
         </div>
         <div className="bg-card p-4">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">TIRE JOBS</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">TIRE JOBS</span>
           <span className="font-bold text-2xl text-foreground">{totals.jobs.toLocaleString()}</span>
         </div>
         <div className="bg-card p-4">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">AVG TICKET</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">AVG TICKET</span>
           <span className="font-bold text-2xl text-blue-400">${totals.avgTicket.toLocaleString()}</span>
         </div>
         <div className="bg-card p-4">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">UNIQUE CUSTOMERS</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">UNIQUE CUSTOMERS</span>
           <span className="font-bold text-2xl text-purple-400">{totals.uniqueCustomers.toLocaleString()}</span>
         </div>
       </div>
@@ -991,7 +991,7 @@ function TireSalesPanel() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-border/10">
         {/* Monthly trend */}
         <div className="bg-card p-5">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-3">MONTHLY REVENUE</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">MONTHLY REVENUE</span>
           {byMonth.length === 0 ? (
             <p className="text-[11px] text-foreground/30 italic">No tire jobs in window</p>
           ) : (
@@ -1015,7 +1015,7 @@ function TireSalesPanel() {
 
         {/* Top jobs */}
         <div className="bg-card p-5">
-          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-3">TOP TIRE JOBS</span>
+          <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">TOP TIRE JOBS</span>
           {topJobs.length === 0 ? (
             <p className="text-[11px] text-foreground/30 italic">No tire jobs in window</p>
           ) : (
@@ -1034,7 +1034,7 @@ function TireSalesPanel() {
 
       {/* Top tire customers */}
       <div className="bg-card p-5 border-t border-border/10">
-        <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-3">TOP TIRE CUSTOMERS</span>
+        <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">TOP TIRE CUSTOMERS</span>
         {topCustomers.length === 0 ? (
           <p className="text-[11px] text-foreground/30 italic">No tire customers in window</p>
         ) : (
@@ -1218,7 +1218,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                 {/* Vehicle + Customer secondary info */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
-                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                    <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">
                       <Car className="w-3 h-3 inline mr-1" />VEHICLE
                     </span>
                     <span className="text-xs text-foreground">
@@ -1226,7 +1226,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                     </span>
                   </div>
                   <div>
-                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                    <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">
                       <Hash className="w-3 h-3 inline mr-1" />SOURCE
                     </span>
                     <span className="text-xs text-foreground/70 uppercase">
@@ -1234,7 +1234,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                     </span>
                   </div>
                   <div>
-                    <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-1">
+                    <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">
                       <Calendar className="w-3 h-3 inline mr-1" />DATE
                     </span>
                     <span className="text-xs text-foreground/70">
@@ -1245,7 +1245,7 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
 
                 {/* Cost breakdown */}
                 <div>
-                  <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-2">
+                  <span className="block text-[10px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
                     <DollarSign className="w-3 h-3 inline mr-1" />COST BREAKDOWN
                   </span>
                   {(parts > 0 || labor > 0 || tax > 0) ? (
@@ -1258,28 +1258,28 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                       </div>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                         <div className="bg-card border border-border/20 p-2.5">
-                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">PARTS</span>
+                          <span className="block text-[10px] uppercase tracking-[0.12em] text-foreground/45 font-medium mb-0.5">PARTS</span>
                           <div className="flex items-baseline gap-2">
                             <span className="font-bold text-base text-blue-400">{parts > 0 ? formatCents(parts) : "—"}</span>
                             {parts > 0 && <span className="text-[9px] text-foreground/40">{partsPct}%</span>}
                           </div>
                         </div>
                         <div className="bg-card border border-border/20 p-2.5">
-                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">LABOR</span>
+                          <span className="block text-[10px] uppercase tracking-[0.12em] text-foreground/45 font-medium mb-0.5">LABOR</span>
                           <div className="flex items-baseline gap-2">
                             <span className="font-bold text-base text-emerald-400">{labor > 0 ? formatCents(labor) : "—"}</span>
                             {labor > 0 && <span className="text-[9px] text-foreground/40">{laborPct}%</span>}
                           </div>
                         </div>
                         <div className="bg-card border border-border/20 p-2.5">
-                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">TAX</span>
+                          <span className="block text-[10px] uppercase tracking-[0.12em] text-foreground/45 font-medium mb-0.5">TAX</span>
                           <div className="flex items-baseline gap-2">
                             <span className="font-bold text-base text-amber-400">{tax > 0 ? formatCents(tax) : "—"}</span>
                             {tax > 0 && <span className="text-[9px] text-foreground/40">{taxPct}%</span>}
                           </div>
                         </div>
                         <div className="bg-card border border-primary/30 p-2.5">
-                          <span className="font-mono text-[9px] text-foreground/40 tracking-wider block mb-0.5">TOTAL</span>
+                          <span className="block text-[10px] uppercase tracking-[0.12em] text-foreground/45 font-medium mb-0.5">TOTAL</span>
                           <span className="font-bold text-base text-primary">{formatCents(total)}</span>
                         </div>
                       </div>
@@ -1385,7 +1385,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
   return (
     <div className="max-w-2xl">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="font-bold text-lg text-foreground tracking-wider">CREATE INVOICE</h3>
+        <h3 className="text-[15px] font-semibold text-foreground tracking-tight">New invoice</h3>
         <button onClick={onDone} aria-label="Close" className="text-foreground/40 hover:text-foreground">
           <X className="w-5 h-5" />
         </button>
@@ -1411,7 +1411,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Payment Method</label>
+            <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Payment Method</label>
             <select value={form.paymentMethod} onChange={(e) => setForm(f => ({ ...f, paymentMethod: e.target.value as typeof f.paymentMethod }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="card">Card</option>
               <option value="cash">Cash</option>
@@ -1421,7 +1421,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
             </select>
           </div>
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Status</label>
+            <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Status</label>
             <select value={form.paymentStatus} onChange={(e) => setForm(f => ({ ...f, paymentStatus: e.target.value as typeof f.paymentStatus }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground">
               <option value="paid">Paid</option>
               <option value="pending">Pending</option>
@@ -1430,7 +1430,7 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
             </select>
           </div>
           <div>
-            <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">Date</label>
+            <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Date</label>
             <input type="date" value={form.invoiceDate} onChange={(e) => setForm(f => ({ ...f, invoiceDate: e.target.value }))} className="w-full bg-background border border-border/30 px-3 py-2 text-[12px] text-foreground" />
           </div>
         </div>
@@ -1467,7 +1467,7 @@ function FormField({ label, value, onChange, placeholder, type = "text", inputMo
 }) {
   return (
     <div>
-      <label className="font-mono text-[10px] text-foreground/50 tracking-wide block mb-1">{label}</label>
+      <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">{label}</label>
       <input
         type={type}
         inputMode={inputMode}
@@ -1487,7 +1487,7 @@ function KPICard({ label, value, icon, trend, trendLabel, color = "text-foregrou
   return (
     <div className="glow-on-hover bg-card border border-border/30 p-5">
       <div className="flex items-start justify-between mb-3">
-        <span className="font-mono text-[10px] text-foreground/50 tracking-wide">{label}</span>
+        <span className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium">{label}</span>
         <div className="text-foreground/30">{icon}</div>
       </div>
       <div className={`font-bold text-3xl tracking-tight ${color}`}>{value}</div>
@@ -1509,7 +1509,7 @@ function KPICard({ label, value, icon, trend, trendLabel, color = "text-foregrou
 function MiniKPI({ label, value, sub, alert = false }: { label: string; value: number; sub: string; alert?: boolean }) {
   return (
     <div className={`bg-card border p-3 ${alert ? "border-red-500/30" : "border-border/30"}`}>
-      <span className="font-mono text-[9px] text-foreground/40 tracking-wide block">{label}</span>
+      <span className="text-[10px] uppercase tracking-[0.12em] text-foreground/45 font-medium block">{label}</span>
       <span className={`font-bold text-2xl ${alert ? "text-red-400" : "text-foreground"}`}>{value}</span>
       <span className="font-mono text-[9px] text-foreground/30 ml-1">{sub}</span>
     </div>
