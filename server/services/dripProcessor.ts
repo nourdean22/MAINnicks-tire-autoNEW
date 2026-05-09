@@ -42,7 +42,7 @@ async function ensureTable(db: any): Promise<boolean> {
 }
 
 /**
- * Check if customer is already enrolled in a campaign (dedup guard).
+ * Check if customer is already enrolled in a SPECIFIC campaign (dedup guard).
  */
 export async function checkExistingEnrollment(phone: string, campaignId: string): Promise<boolean> {
   try {
@@ -63,6 +63,37 @@ export async function checkExistingEnrollment(phone: string, campaignId: string)
   } catch (e) {
     log.warn("[services/dripProcessor] operation failed:", e);
     return false;
+  }
+}
+
+/**
+ * wave-117b — Check if customer is in ANY active drip campaign.
+ * Cross-campaign dedup: prevents enrolling a customer simultaneously
+ * into two campaigns (e.g. "at-risk" + "declined-estimate" both fire
+ * on the same day, customer gets 2 parallel SMS sequences). Daily-tier
+ * cron jobs (churn-detection, declined-work-recovery) call this before
+ * enrolling so a customer who's already mid-campaign doesn't get
+ * piled on. Returns the active campaign id if any.
+ */
+export async function hasActiveDripEnrollment(phone: string): Promise<string | null> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return null;
+
+    await ensureTable(db);
+    const [rows] = await db.execute(sql`
+      SELECT campaignId FROM drip_enrollments
+      WHERE customerPhone = ${phone}
+        AND status = 'active'
+      LIMIT 1
+    `);
+    const list = (rows as Array<{ campaignId?: string }>) || [];
+    return list[0]?.campaignId || null;
+  } catch (e) {
+    log.warn("[services/dripProcessor] hasActiveDripEnrollment failed:", e);
+    return null;
   }
 }
 

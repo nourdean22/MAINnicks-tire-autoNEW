@@ -379,7 +379,21 @@ export async function enrollInDripCampaign(
 
     // Dedup check BEFORE sending — prevents double-SMS on race conditions
     try {
-      const { checkExistingEnrollment } = await import("./dripProcessor");
+      const { checkExistingEnrollment, hasActiveDripEnrollment } = await import("./dripProcessor");
+
+      // wave-117b — cross-campaign dedup. Was: only checked same-campaign
+      // enrollment, so a customer flagged BOTH "at-risk" + "declined-
+      // estimate" by the same daily cron tick would get enrolled into
+      // both campaigns simultaneously and receive 2 parallel SMS
+      // sequences. Now: if the customer is in ANY active campaign,
+      // skip the new enrollment. Operator gets one campaign at a time;
+      // when it ends (status → completed), the next trigger can fire.
+      const activeOther = await hasActiveDripEnrollment(customer.phone);
+      if (activeOther && activeOther !== campaign.id) {
+        log.info(`Drip skip (cross-campaign): ${customer.name} already in ${activeOther}, not enrolling in ${campaign.name}`);
+        return;
+      }
+
       const alreadyEnrolled = await checkExistingEnrollment(customer.phone, campaign.id);
       if (alreadyEnrolled) {
         log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
