@@ -977,29 +977,20 @@ export default function OverviewSection() {
         />
       </div>
 
-      {/* ─── SMART RECOMMENDATIONS ─── */}
-      {revIntel?.recommendations && revIntel.recommendations.length > 0 && (
-        <div className="stat-card !p-4 !border-amber-500/20">
-          <h3 className="text-[10px] font-bold tracking-wider text-amber-400 uppercase flex items-center gap-2 mb-3">
-            <Sparkles className="w-3.5 h-3.5" /> What To Do Now
-          </h3>
-          <div className="space-y-2">
-            {revIntel.recommendations.map((r: RevenueRecommendation, i: number) => (
-              <div key={i} className={`flex items-start gap-2 p-2 rounded text-xs ${
-                r.priority === "high" ? "bg-red-500/5 border border-red-500/15" : "bg-amber-500/5 border border-amber-500/10"
-              }`}>
-                <span className={`text-[8px] font-bold uppercase mt-0.5 shrink-0 ${
-                  r.type === "revenue" ? "text-emerald-400" : r.type === "risk" ? "text-red-400" : "text-blue-400"
-                }`}>{r.type}</span>
-                <span className="text-foreground/70 flex-1">{r.text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* ─── PULSE — merged 2026-05-09 ───
+          Was three cards: SMART RECOMMENDATIONS ("What To Do Now") + MASTER
+          INTELLIGENCE SUMMARY (score + topAlert/Opp/Risk) — both at the top
+          of /admin showing different framings of the same revenue gap.
+          Per Elon first-principles + Sam Altman focus: one apex card.
+          Operator's brain shouldn't be the merge layer.
 
-      {/* ─── MASTER INTELLIGENCE SUMMARY (click → intelligence engines) ─── */}
-      {masterReport?.summary && (
+          Combines:
+            • masterReport.summary.score (header, color-coded)
+            • masterReport.summary.{topAlert, topOpportunity, topRisk} (3-up insight grid)
+            • revIntel.recommendations (action list, only if non-trivial)
+          Click → /admin/intelligence (kept from MASTER card).
+          Renders only when at least one source has data. */}
+      {(masterReport?.summary || (revIntel?.recommendations && revIntel.recommendations.length > 0)) && (
         <div
           role="button"
           tabIndex={0}
@@ -1010,44 +1001,67 @@ export default function OverviewSection() {
         >
           <div className="flex items-center gap-3 mb-3">
             <Brain className="w-4 h-4 text-violet-400" />
-            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">INTELLIGENCE SUMMARY</span>
-            <div className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider ${
-              masterReport.summary.score >= 70 ? "bg-emerald-500/15 text-emerald-400" :
-              masterReport.summary.score >= 40 ? "bg-amber-500/15 text-amber-400" :
-              "bg-red-500/15 text-red-400"
-            }`}>
-              {masterReport.summary.score}/100
+            <span className="text-[10px] font-bold tracking-wider text-muted-foreground">PULSE</span>
+            {masterReport?.summary && (
+              <div className={`ml-auto px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wider ${
+                masterReport.summary.score >= 70 ? "bg-emerald-500/15 text-emerald-400" :
+                masterReport.summary.score >= 40 ? "bg-amber-500/15 text-amber-400" :
+                "bg-red-500/15 text-red-400"
+              }`}>
+                {masterReport.summary.score}/100
+              </div>
+            )}
+          </div>
+
+          {/* Top-line insights — alert / opportunity / risk */}
+          {masterReport?.summary && (masterReport.summary.topAlert || masterReport.summary.topOpportunity || masterReport.summary.topRisk) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+              {masterReport.summary.topAlert && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
+                  <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
+                    <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
+                  </div>
+                </div>
+              )}
+              {masterReport.summary.topOpportunity && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
+                  <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
+                    <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
+                  </div>
+                </div>
+              )}
+              {masterReport.summary.topRisk && (
+                <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
+                  <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
+                    <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {masterReport.summary.topAlert && (
-              <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
-                  <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
+          )}
+
+          {/* Action list — revenue recommendations (compact, only if any) */}
+          {revIntel?.recommendations && revIntel.recommendations.length > 0 && (
+            <div className="space-y-1.5 pt-2 border-t border-border/15">
+              <p className="text-[8px] font-bold tracking-wider text-muted-foreground uppercase mb-1.5">What To Do Now</p>
+              {revIntel.recommendations.map((r: RevenueRecommendation, i: number) => (
+                <div key={i} className={`flex items-start gap-2 p-2 rounded text-xs ${
+                  r.priority === "high" ? "bg-red-500/5 border border-red-500/15" : "bg-amber-500/5 border border-amber-500/10"
+                }`}>
+                  <span className={`text-[8px] font-bold uppercase mt-0.5 shrink-0 ${
+                    r.type === "revenue" ? "text-emerald-400" : r.type === "risk" ? "text-red-400" : "text-blue-400"
+                  }`}>{r.type}</span>
+                  <span className="text-foreground/70 flex-1">{r.text}</span>
                 </div>
-              </div>
-            )}
-            {masterReport.summary.topOpportunity && (
-              <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
-                  <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
-                </div>
-              </div>
-            )}
-            {masterReport.summary.topRisk && (
-              <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
-                <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
-                  <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
-                </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
