@@ -88,14 +88,23 @@ export default function ReviewRequestsSection() {
   };
 
   const handleSaveSettings = () => {
-    const data: Record<string, unknown> = {};
+    // wave-112 — was Record<string, unknown> + `as any` cast; now typed
+    // to match the actual zod schema on server/routers/reviewRequests.ts
+    // L177-183. If a server-side rename happens, TS will catch it here
+    // instead of silently dropping the field on the wire.
+    const data: {
+      enabled?: number;
+      delayMinutes?: number;
+      maxPerDay?: number;
+      cooldownDays?: number;
+      messageTemplate?: string | null;
+    } = {};
     if (formEnabled !== null) data.enabled = formEnabled;
     if (formDelay) data.delayMinutes = parseInt(formDelay);
     if (formMaxPerDay) data.maxPerDay = parseInt(formMaxPerDay);
     if (formCooldown) data.cooldownDays = parseInt(formCooldown);
     if (formTemplate !== undefined) data.messageTemplate = formTemplate || null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- partial update object doesn't match full mutation input
-    updateSettings.mutate(data as any);
+    updateSettings.mutate(data);
   };
 
   const statusConfig: Record<string, { label: string; color: string; icon: React.ReactNode }> = {

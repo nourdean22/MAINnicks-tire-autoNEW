@@ -80,7 +80,10 @@ export default function CampaignsSection() {
       const result = await previewQuery.refetch();
       if (result.data) setPreview(result.data);
     } catch (e) {
+      // wave-112 — was console.error only (silent failure); now actionable
       console.error("Failed to load preview:", e);
+      const msg = e instanceof Error ? e.message : "Unknown error loading preview";
+      toast.error(`Preview failed: ${msg}`);
     } finally {
       setPreviewLoading(false);
     }
@@ -119,9 +122,11 @@ export default function CampaignsSection() {
         }
       }
     } catch (e) {
+      // wave-112 — surface the actual error message instead of "check console"
+      // (which is unhelpful on mobile where console isn't accessible).
       console.error("Failed to create/send campaign:", e);
-      // wave-111 — was native alert(); now sonner toast (brand-consistent)
-      toast.error("Error creating campaign — check console for details");
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      toast.error(`Campaign error: ${msg}`);
     } finally {
       setCreating(false);
     }

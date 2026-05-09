@@ -382,7 +382,10 @@ export default function OverviewSection() {
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
   const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30000 });
   const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 15000 });
+  // wave-112 — was 15000ms (twice as fast as customers.stats above); unified
+  // to 30s so the customer total + campaign stats badges update on the same
+  // cadence (operator was seeing momentarily contradictory numbers).
+  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
   // Nick AI intelligence — shop pulse for real-time awareness
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
   // Shop load indicator — cars in shop, active WOs, today's bookings, wait time

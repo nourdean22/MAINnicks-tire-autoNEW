@@ -153,9 +153,13 @@ export default function DispatchSection() {
 
 // ─── Metrics Strip ──────────────────────────────────
 function MetricsStrip() {
-  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
-  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
-  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
+  // wave-112 — was 10s polling × 3 queries (request churn + 18 calls/min for
+  // a single visible tab). Unified to 30s, matching the rest of admin.
+  // Operator's "live shop floor" expectation is still met within ~30s of any
+  // bay/tech state change — well under any human reaction window.
+  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 30000 });
 
   const clockedIn = load?.techs.filter((t: Tech) => t.clockedIn).length || 0;
   const freeBays = load?.bays.filter((b: Bay) => !b.occupied).length || 0;

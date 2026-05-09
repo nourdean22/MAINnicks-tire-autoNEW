@@ -2,11 +2,10 @@
  * IntelligenceSection — All 50 engines across 7 category tabs.
  * Lazy-loaded per tab. 2min stale cache. No "use client".
  */
-import { useState } from "react";
 import {
   Brain, TrendingUp, Users, Wrench, Target, Rocket, Shield,
 } from "lucide-react";
-import { PageHeader, TabBar } from "./shared";
+import { PageHeader, TabBar, useUrlFilter } from "./shared";
 import OverviewTab from "./intelligence/OverviewTab";
 import RevenueTab from "./intelligence/RevenueTab";
 import CustomersTab from "./intelligence/CustomersTab";
@@ -27,8 +26,18 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: "safety", label: "SAFETY", icon: <Shield className="w-3.5 h-3.5" /> },
 ];
 
+const VALID_TABS: Tab[] = ["overview", "revenue", "customers", "operations", "marketing", "growth", "safety"];
+
 export default function IntelligenceSection() {
-  const [tab, setTab] = useState<Tab>("overview");
+  // wave-112 — was useState; URL-persistent so refresh / deep-link / back
+  // doesn't bounce operator off the active intelligence tab.
+  const [tab, setTab] = useUrlFilter<Tab>(
+    "intelligenceTab",
+    "overview",
+    {
+      validate: (raw) => (VALID_TABS.includes(raw as Tab) ? (raw as Tab) : null),
+    },
+  );
 
   return (
     <div className="space-y-6">
