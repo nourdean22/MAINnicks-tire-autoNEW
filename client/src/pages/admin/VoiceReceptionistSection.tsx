@@ -39,6 +39,7 @@ import {
   X,
   CheckCircle2,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -184,6 +185,8 @@ function DateRangeSelector({
   customUntil,
   onCustomSinceChange,
   onCustomUntilChange,
+  onRefresh,
+  refreshing,
 }: {
   preset: RangePreset;
   onPresetChange: (p: RangePreset) => void;
@@ -191,6 +194,11 @@ function DateRangeSelector({
   customUntil: string;
   onCustomSinceChange: (v: string) => void;
   onCustomUntilChange: (v: string) => void;
+  /** wave-111 — when auto-refresh is paused (preset !== "today"), give
+      the operator a manual refresh button instead of forcing a browser
+      reload or preset toggle. */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }) {
   return (
     <div className="bg-card border border-border/30 rounded p-3 flex items-center gap-3 flex-wrap">
@@ -237,9 +245,24 @@ function DateRangeSelector({
         </div>
       )}
       {preset !== "today" && (
-        <span className="text-[10px] text-foreground/40 ml-auto italic">
-          Auto-refresh paused — manually reload to pull fresh data
-        </span>
+        <div className="flex items-center gap-2 ml-auto">
+          <span className="text-[10px] text-foreground/40 italic">
+            Auto-refresh paused
+          </span>
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider uppercase px-2.5 py-1 border border-primary/40 text-primary rounded hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              aria-label="Refresh data"
+              title="Pull fresh metrics + calls for this date range"
+            >
+              <RefreshCw className={`w-3 h-3 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing" : "Refresh"}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -337,12 +360,18 @@ export default function VoiceReceptionistSection() {
   const range = rangeToISO(rangePreset, customSince, customUntil);
   const queryInput = { sinceISO: range.sinceISO, untilISO: range.untilISO };
 
-  const { data: metrics, isLoading: metricsLoading } = trpc.vapi.todayMetrics.useQuery(queryInput, {
+  const { data: metrics, isLoading: metricsLoading, refetch: refetchMetrics, isFetching: metricsFetching } = trpc.vapi.todayMetrics.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false, // only auto-poll for "today"
   });
-  const { data: calls, isLoading: callsLoading } = trpc.vapi.todayCalls.useQuery(queryInput, {
+  const { data: calls, isLoading: callsLoading, refetch: refetchCalls, isFetching: callsFetching } = trpc.vapi.todayCalls.useQuery(queryInput, {
     refetchInterval: rangePreset === "today" ? 60_000 : false,
   });
+  // wave-111 — manual refresh for non-"today" ranges (auto-poll off there).
+  const handleManualRefresh = () => {
+    void refetchMetrics();
+    void refetchCalls();
+  };
+  const refreshing = metricsFetching || callsFetching;
   const { data: vapiStatus } = trpc.vapi.status.useQuery(undefined, { staleTime: 5 * 60_000 });
 
   const rawCalls = calls ?? [];
@@ -413,7 +442,7 @@ export default function VoiceReceptionistSection() {
       {/* ─── Wave-102: free-form outbound call trigger ─ */}
       <OutboundCallCard />
 
-      {/* ─── Date range selector (wave-91) ───────────── */}
+      {/* ─── Date range selector (wave-91 + wave-111 manual refresh) ─ */}
       <DateRangeSelector
         preset={rangePreset}
         onPresetChange={setRangePreset}
@@ -421,6 +450,8 @@ export default function VoiceReceptionistSection() {
         customUntil={customUntil}
         onCustomSinceChange={setCustomSince}
         onCustomUntilChange={setCustomUntil}
+        onRefresh={handleManualRefresh}
+        refreshing={refreshing}
       />
 
       {/* ─── KPI Tiles ──────────────────────────────────── */}

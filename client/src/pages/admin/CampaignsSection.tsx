@@ -4,6 +4,7 @@
  */
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { toast } from "sonner";
 import { StatCard } from "./shared";
 
 type Campaign = NonNullable<RouterOutputs["campaigns"]["list"]>[number];
@@ -87,7 +88,8 @@ export default function CampaignsSection() {
 
   async function handleCreateAndSend() {
     if (!campaignName.trim()) {
-      alert("Please enter a campaign name");
+      // wave-111 — was native alert(); brand-consistent toast across admin
+      toast.error("Please enter a campaign name");
       return;
     }
 
@@ -107,7 +109,8 @@ export default function CampaignsSection() {
         });
 
         if (sendResult.success) {
-          alert(`Campaign created and sending to ${createResult.targetCount} customers!`);
+          // wave-111 — was native alert(); now sonner toast (brand-consistent)
+          toast.success(`Campaign sent to ${createResult.targetCount} customers`);
           setCampaignName("");
           setCustomMessage("");
           setPreview([]);
@@ -117,7 +120,8 @@ export default function CampaignsSection() {
       }
     } catch (e) {
       console.error("Failed to create/send campaign:", e);
-      alert("Error creating campaign. Check console.");
+      // wave-111 — was native alert(); now sonner toast (brand-consistent)
+      toast.error("Error creating campaign — check console for details");
     } finally {
       setCreating(false);
     }

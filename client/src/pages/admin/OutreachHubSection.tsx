@@ -50,8 +50,10 @@ export default function OutreachHubSection() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    if (tab === "campaigns") url.searchParams.delete("outreachTab");
-    else url.searchParams.set("outreachTab", tab);
+    // wave-111 — always write the active tab to URL (was: deleted on
+    // "campaigns", which silently stripped explicit ?outreachTab=campaigns
+    // deep-links on mount and broke URL-persistence on default tab).
+    url.searchParams.set("outreachTab", tab);
     window.history.replaceState({}, "", url.toString());
   }, [tab]);
 
