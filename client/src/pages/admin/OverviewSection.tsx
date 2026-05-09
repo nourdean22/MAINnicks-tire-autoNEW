@@ -436,11 +436,24 @@ export default function OverviewSection() {
     }
   }, [dashCollapsed]);
 
-  // Collect phones from queue items for VIP lookup
+  // Collect phones from queue items for VIP lookup.
+  // wave-128 — mirror the actionable-status filter from priorityQueue
+  // (wave-123). Was: include any lead with urgencyScore>=4 regardless
+  // of status — meaning we'd waste VIP-lookup capacity on already-
+  // booked / closed leads. Now: only "new" or "contacted" leads (the
+  // ones that can still appear in the queue) contribute phones.
   const queuePhones = useMemo(() => {
     const phones: string[] = [];
     if (allBookings) allBookings.filter((b: BookingItem) => b.status === "new" && b.phone).forEach((b: BookingItem) => phones.push(b.phone!));
-    if (allLeads) allLeads.filter((l: LeadItem) => (l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4)) && l.phone).forEach((l: LeadItem) => phones.push(l.phone!));
+    if (allLeads) {
+      allLeads
+        .filter((l: LeadItem) => {
+          if (!l.phone) return false;
+          if (l.status !== "new" && l.status !== "contacted") return false;
+          return l.status === "new" || (l.urgencyScore && l.urgencyScore >= 4);
+        })
+        .forEach((l: LeadItem) => phones.push(l.phone!));
+    }
     if (callbacks) (callbacks as CallbackItem[]).filter((c: CallbackItem) => (c.status === "new" || c.status === "pending") && c.phone).forEach((c: CallbackItem) => phones.push(c.phone!));
     return [...new Set(phones)].slice(0, 50);
   }, [allBookings, allLeads, callbacks]);

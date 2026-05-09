@@ -379,10 +379,18 @@ export default function LeadsSection() {
 
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
+    // wave-128 — operator screenshot bug: a booked lead with
+    // urgencyScore=4 was counted in "Urgent". Urgency only matters
+    // while the lead is in-flight; once it's booked/completed/closed/
+    // lost the lead has been actioned and shouldn't bleed into the
+    // urgent counter. Same fix as wave-123 Action Queue (Overview).
+    const TERMINAL = new Set(["booked", "completed", "closed", "lost"]);
     return {
       new: leadsData.filter((l: LeadItem) => l.status === "new").length,
       contacted: leadsData.filter((l: LeadItem) => l.status === "contacted").length,
-      urgent: leadsData.filter((l: LeadItem) => (l.urgencyScore ?? 0) >= 4).length,
+      urgent: leadsData.filter((l: LeadItem) =>
+        (l.urgencyScore ?? 0) >= 4 && !TERMINAL.has(l.status)
+      ).length,
       total: leadsData.length,
       booked: leadsData.filter((l: LeadItem) => l.status === "booked").length,
     };
