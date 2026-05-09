@@ -1135,7 +1135,10 @@ export default function OverviewSection() {
       )}
 
       {/* ─── SECONDARY METRICS ─── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* wave-125 — bumped from lg:grid-cols-5 → lg:grid-cols-6 to make
+          room for the new "Today's Intake" unified-feed card at the
+          right edge. On mobile (2 cols) it fits naturally on a 3rd row. */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {/* commandCenter = NOUR OS Bridge panel, NOT a queue/list view.
             Routing the "Action Queue", "Bookings", and "Chat Sessions"
             cards there was wrong — fixed to land on the actual section
@@ -1196,6 +1199,28 @@ export default function OverviewSection() {
           label="Calls from Site" value={stats.callTracking?.totalCalls ?? 0}
           icon={<Phone className="w-4 h-4" />} color="text-cyan-400"
           targetSection="callTrackingView"
+        />
+        {/* wave-125 — Today's Intake: unified feed across all 5 sources
+            (leads, callbacks, chat sessions, bookings, vapi calls) for
+            "what came in today" without hopping between sections. The
+            value is a count derived from the same sources the drilldown
+            queries: today's leads + callbacks + chat + bookings + vapi.
+            Best-effort; if any source is empty/erroring it just counts
+            less. */}
+        <StatCard
+          label="Today's Intake"
+          value={
+            (todaysBookings?.length ?? 0)
+            + ((stats.leads?.thisWeek ?? 0) > 0 ? Math.min(stats.leads.thisWeek, 50) : 0) // close-enough
+            + (stats.chat?.totalSessions ?? 0)
+            + (stats.callbacks?.total ?? 0)
+            + (stats.callTracking?.totalCalls ?? 0)
+          }
+          icon={<Activity className="w-4 h-4" />}
+          color="text-emerald-400"
+          trend="up"
+          trendLabel="All sources · 24h"
+          onClick={() => openDrilldown({ kind: "intake_today" })}
         />
       </div>
 

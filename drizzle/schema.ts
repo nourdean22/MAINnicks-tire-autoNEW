@@ -129,6 +129,13 @@ export const leads = mysqlTable("leads", {
   utmCampaign: varchar("utmCampaign", { length: 255 }),
   landingPage: varchar("landingPage", { length: 500 }),
   referrer: varchar("referrer", { length: 500 }),
+  // wave-125 — pipeline FKs. callbackId links a callback-source lead
+  // back to its callback_requests row (closes the "same person in two
+  // sections" gap). bookingId / invoiceId set on conversion so
+  // source-to-revenue analytics become a real query.
+  callbackId: int("callbackId"),
+  bookingId: int("bookingId"),
+  invoiceId: int("invoiceId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 }, (table) => [
@@ -136,6 +143,10 @@ export const leads = mysqlTable("leads", {
   index("idx_lead_status").on(table.status),
   index("idx_lead_source").on(table.source),
   index("idx_lead_created").on(table.createdAt),
+  // wave-125 — indexes on the new pipeline FKs for fast lookup
+  index("idx_lead_callback_id").on(table.callbackId),
+  index("idx_lead_booking_id").on(table.bookingId),
+  index("idx_lead_invoice_id").on(table.invoiceId),
 ]);
 
 export type Lead = typeof leads.$inferSelect;
@@ -1401,6 +1412,44 @@ export const callEvents = mysqlTable("call_events", {
 
 export type CallEvent = typeof callEvents.$inferSelect;
 export type InsertCallEvent = typeof callEvents.$inferInsert;
+
+/**
+ * Wave-125 — VAPI call logs. Persists every inbound voice call (the
+ * AI receptionist) with the AI-generated summary + extracted service
+ * mention. Closes the gap where calls that DIDN'T explicitly trigger
+ * a callback/booking left no DB trace.
+ *
+ * Operator can review "today's voice calls that mentioned brakes"
+ * even when the customer hung up without booking. Linked to leads
+ * + callbacks via FK when conversion happens.
+ */
+export const vapiCallLogs = mysqlTable("vapi_call_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  /** VAPI's call id — unique per call */
+  vapiCallId: varchar("vapiCallId", { length: 64 }).notNull().unique(),
+  phoneNumber: varchar("phoneNumber", { length: 30 }),
+  customerName: varchar("customerName", { length: 255 }),
+  durationSeconds: int("durationSeconds").default(0).notNull(),
+  endedReason: varchar("endedReason", { length: 64 }),
+  /** AI-generated 1-2 sentence summary of the call */
+  aiSummary: text("aiSummary"),
+  /** AI-extracted service mention (brakes, oil change, etc.) */
+  serviceMention: varchar("serviceMention", { length: 120 }),
+  /** Whether this call produced a callback / booking / lead row */
+  convertedToLead: int("convertedToLead").default(0).notNull(),
+  leadId: int("leadId"),
+  callbackId: int("callbackId"),
+  transcriptUrl: varchar("transcriptUrl", { length: 500 }),
+  recordingUrl: varchar("recordingUrl", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_vapi_log_created").on(table.createdAt),
+  index("idx_vapi_log_phone").on(table.phoneNumber),
+  index("idx_vapi_log_lead").on(table.leadId),
+]);
+
+export type VapiCallLog = typeof vapiCallLogs.$inferSelect;
+export type InsertVapiCallLog = typeof vapiCallLogs.$inferInsert;
 
 // 🔴 INTEGRATION FAILURES (Error Tracking)
 /**

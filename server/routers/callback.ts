@@ -9,6 +9,7 @@ import { syncLeadToSheet, syncCallbackToSheet } from "../sheets-sync";
 import { sendSms, callbackConfirmationSms } from "../sms";
 import { z } from "zod";
 import { leads } from "../../drizzle/schema";
+import { eq, and, gte } from "drizzle-orm";
 import { sanitizeText, sanitizePhone } from "../sanitize";
 import { sendLeadEvent } from "../meta-capi";
 import { SITE_URL } from "@shared/business";
@@ -64,19 +65,46 @@ export const callbackRouter = router({
 
       const d = await db();
       if (d) {
-        await d.insert(leads).values({
-          name,
-          phone,
-          source: "callback",
-          problem: input.context || "Callback request from " + (input.sourcePage || "website"),
-          urgencyScore: 4,
-          urgencyReason: "Customer requested immediate callback",
-          utmSource: input.utmSource || null,
-          utmMedium: input.utmMedium || null,
-          utmCampaign: input.utmCampaign || null,
-          landingPage: input.landingPage || null,
-          referrer: input.referrer || null,
-        }).catch((e: any) => log.warn("[callback:submit] lead insert failed:", e));
+        // wave-125 — link the duplicate lead row back to its
+        // callback_requests row via callbackId FK. Operator can now
+        // see the same person across CallTracking + Leads as ONE
+        // entity, and a future dedup view can collapse them.
+        // Also: skip the lead-row insert entirely if a recent (last
+        // 5 min) lead row with the same phone already exists — this
+        // catches the case where a customer submitted a popup lead
+        // moments before clicking the callback button.
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const [existing] = await d
+          .select({ id: leads.id })
+          .from(leads)
+          .where(and(
+            eq(leads.phone, phone),
+            gte(leads.createdAt, fiveMinAgo),
+          ))
+          .limit(1);
+
+        if (existing) {
+          // Dedup: existing lead row gets the callbackId added
+          await d.update(leads)
+            .set({ callbackId: result?.id ?? null })
+            .where(eq(leads.id, existing.id))
+            .catch((e: unknown) => log.warn("[callback:submit] lead dedup update failed:", e));
+        } else {
+          await d.insert(leads).values({
+            name,
+            phone,
+            source: "callback",
+            problem: input.context || "Callback request from " + (input.sourcePage || "website"),
+            urgencyScore: 4,
+            urgencyReason: "Customer requested immediate callback",
+            callbackId: result?.id ?? null,
+            utmSource: input.utmSource || null,
+            utmMedium: input.utmMedium || null,
+            utmCampaign: input.utmCampaign || null,
+            landingPage: input.landingPage || null,
+            referrer: input.referrer || null,
+          }).catch((e: unknown) => log.warn("[callback:submit] lead insert failed:", e));
+        }
       }
 
       notifyCallbackRequest({

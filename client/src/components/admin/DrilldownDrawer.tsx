@@ -33,7 +33,11 @@ type DrilldownKind =
   // card was firing fresh_leads (wrong table) and the drawer always said
   // "Nothing to show". Now: real chat_sessions data, including which
   // converted to leads + the AI-extracted vehicle/problem summary.
-  | "chat_sessions";
+  | "chat_sessions"
+  // wave-125 — unified intake feed across all 5 sources (leads,
+  // callbacks, chat sessions, bookings, vapi calls) in time order.
+  // Operator's "what came in today" answer.
+  | "intake_today";
 
 export type DrilldownDetail = {
   kind: DrilldownKind;

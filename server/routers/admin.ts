@@ -141,6 +141,10 @@ export const adminDashboardRouter = router({
         // wave-124 — chat_sessions kind for the Overview "Chat Sessions"
         // card (was firing fresh_leads against wrong table)
         "chat_sessions",
+        // wave-125 — intake_today: unified feed across all 5 sources
+        // (leads, callbacks, chat sessions, bookings, vapi calls) in
+        // time order. Closes the "what came in today" gap.
+        "intake_today",
       ]),
       limit: z.number().int().min(1).max(100).default(50),
     }))
@@ -373,6 +377,86 @@ export const adminDashboardRouter = router({
                   : (r.vehicleInfo || "No vehicle captured"),
                 meta: r.problemSummary?.slice(0, 100) || "No problem summary",
                 value: r.converted ? "→ Lead" : "—",
+              })),
+            };
+          }
+          // wave-125 — intake_today: unified feed across 5 sources.
+          // Operator's answer to "what came in today" without hopping
+          // between Leads, CallTracking, and Overview. Each source is
+          // queried separately and merged in JS by createdAt desc since
+          // the tables differ in shape (no clean SQL UNION). 24h window.
+          case "intake_today": {
+            const { leads, callbackRequests, chatSessions, bookings, vapiCallLogs } = await import("../../drizzle/schema");
+            const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            // Query each source. Each returns a {createdAt, kind, ...} shape.
+            const [leadRows, callbackRows, chatRows, bookingRows, vapiRows] = await Promise.all([
+              d.select({ id: leads.id, name: leads.name, phone: leads.phone, source: leads.source, problem: leads.problem, urgencyScore: leads.urgencyScore, createdAt: leads.createdAt })
+                .from(leads).where(gte(leads.createdAt, dayAgo)).orderBy(desc(leads.createdAt)).limit(50),
+              d.select({ id: callbackRequests.id, name: callbackRequests.name, phone: callbackRequests.phone, context: callbackRequests.context, sourcePage: callbackRequests.sourcePage, createdAt: callbackRequests.createdAt })
+                .from(callbackRequests).where(gte(callbackRequests.createdAt, dayAgo)).orderBy(desc(callbackRequests.createdAt)).limit(50),
+              d.select({ id: chatSessions.id, vehicleInfo: chatSessions.vehicleInfo, problemSummary: chatSessions.problemSummary, converted: chatSessions.converted, createdAt: chatSessions.createdAt })
+                .from(chatSessions).where(gte(chatSessions.createdAt, dayAgo)).orderBy(desc(chatSessions.createdAt)).limit(50),
+              d.select({ id: bookings.id, name: bookings.name, phone: bookings.phone, service: bookings.service, status: bookings.status, createdAt: bookings.createdAt })
+                .from(bookings).where(gte(bookings.createdAt, dayAgo)).orderBy(desc(bookings.createdAt)).limit(50),
+              // vapi_call_logs may not exist yet (pre-migration); defensive try/catch.
+              d.select({ id: vapiCallLogs.id, customerName: vapiCallLogs.customerName, phoneNumber: vapiCallLogs.phoneNumber, aiSummary: vapiCallLogs.aiSummary, serviceMention: vapiCallLogs.serviceMention, durationSeconds: vapiCallLogs.durationSeconds, createdAt: vapiCallLogs.createdAt })
+                .from(vapiCallLogs).where(gte(vapiCallLogs.createdAt, dayAgo)).orderBy(desc(vapiCallLogs.createdAt)).limit(50)
+                .catch(() => []),
+            ]);
+            // Merge into a single unified shape
+            type Unified = { id: string; primary: string; secondary?: string; meta?: string; value?: string; createdAt: Date };
+            const merged: Unified[] = [
+              ...(leadRows as Array<{ id: number; name: string; phone: string; source: string; problem: string | null; urgencyScore: number; createdAt: Date }>).map((r) => ({
+                id: `lead-${r.id}`,
+                primary: r.name,
+                secondary: `LEAD · ${r.source} · ${r.phone}`,
+                meta: r.problem?.slice(0, 80) ?? "",
+                value: `urg ${r.urgencyScore}/5`,
+                createdAt: r.createdAt,
+              })),
+              ...(callbackRows as Array<{ id: number; name: string; phone: string; context: string | null; sourcePage: string | null; createdAt: Date }>).map((r) => ({
+                id: `cb-${r.id}`,
+                primary: r.name,
+                secondary: `CALLBACK · ${r.phone}${r.sourcePage ? ` · from ${r.sourcePage}` : ""}`,
+                meta: r.context?.slice(0, 80) ?? "",
+                value: "📞",
+                createdAt: r.createdAt,
+              })),
+              ...(chatRows as Array<{ id: number; vehicleInfo: string | null; problemSummary: string | null; converted: number; createdAt: Date }>).map((r) => ({
+                id: `chat-${r.id}`,
+                primary: r.vehicleInfo || "Anonymous chat visitor",
+                secondary: `CHAT · ${r.converted ? "→ converted" : "no conversion"}`,
+                meta: r.problemSummary?.slice(0, 80) ?? "",
+                value: r.converted ? "✓" : "—",
+                createdAt: r.createdAt,
+              })),
+              ...(bookingRows as Array<{ id: number; name: string; phone: string; service: string | null; status: string; createdAt: Date }>).map((r) => ({
+                id: `booking-${r.id}`,
+                primary: r.name,
+                secondary: `BOOKING · ${r.service ?? "general"} · ${r.phone}`,
+                meta: `status: ${r.status}`,
+                value: "📅",
+                createdAt: r.createdAt,
+              })),
+              ...(Array.isArray(vapiRows) ? vapiRows as Array<{ id: number; customerName: string | null; phoneNumber: string | null; aiSummary: string | null; serviceMention: string | null; durationSeconds: number; createdAt: Date }> : []).map((r) => ({
+                id: `vapi-${r.id}`,
+                primary: r.customerName || r.phoneNumber || "VAPI caller",
+                secondary: `CALL · ${r.serviceMention ?? "no service mention"} · ${r.durationSeconds}s`,
+                meta: r.aiSummary?.slice(0, 80) ?? "",
+                value: "📞 AI",
+                createdAt: r.createdAt,
+              })),
+            ];
+            merged.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            return {
+              title: "Intake — last 24h",
+              subtitle: "Every lead, callback, chat, booking, and AI call across all 5 sources, in time order.",
+              rows: merged.slice(0, input.limit).map((r) => ({
+                id: r.id,
+                primary: r.primary,
+                secondary: r.secondary,
+                meta: r.meta,
+                value: r.value,
               })),
             };
           }

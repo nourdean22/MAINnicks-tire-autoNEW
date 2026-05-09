@@ -660,8 +660,11 @@ export const customersRouter = router({
       if (!d) return [];
 
       const phone = input.phone;
+      // wave-125 — extended event types to include chat + vapi calls.
+      // Operator now sees the FULL journey (chat → lead → booking →
+      // invoice) for any customer in one timeline.
       const events: Array<{
-        type: "booking" | "lead" | "callback" | "call" | "workOrder" | "invoice";
+        type: "booking" | "lead" | "callback" | "call" | "workOrder" | "invoice" | "chat" | "vapi_call";
         title: string;
         detail: string;
         status: string;
@@ -739,6 +742,49 @@ export const customersRouter = router({
           amount: wo.total ? Math.round(Number(wo.total) * 100) : undefined, // convert dollars to cents for consistency
           date: new Date(wo.createdAt),
         }));
+
+        // wave-125 — chat sessions linked to this customer's leads.
+        // Find leads with this phone, then sessions that converted to
+        // those leads. Surfaces the full intake journey: chat → lead.
+        try {
+          const { chatSessions } = await import("../../drizzle/schema");
+          const leadIds = lds.map((l: typeof lds[number]) => l.id);
+          if (leadIds.length > 0) {
+            const sessions = await d.select().from(chatSessions)
+              .where(sql`${chatSessions.leadId} IN (${sql.join(leadIds.map((id: number) => sql`${id}`), sql`, `)})`)
+              .limit(50);
+            sessions.forEach((s: typeof sessions[number]) => events.push({
+              type: "chat",
+              title: "AI Chat Session",
+              detail: s.problemSummary?.slice(0, 100) || s.vehicleInfo || "(no summary)",
+              status: s.converted ? "converted" : "no-conversion",
+              date: new Date(s.createdAt),
+            }));
+          }
+        } catch (chatErr) {
+          // Not fatal — table may not exist or no sessions; just skip
+          log.warn("[Customers] chat session timeline query failed:", chatErr instanceof Error ? chatErr.message : chatErr);
+        }
+
+        // wave-125 — VAPI call logs by phone (post-migration). Surfaces
+        // every inbound voice call even when no callback/lead was created.
+        try {
+          const { vapiCallLogs } = await import("../../drizzle/schema");
+          const calls = await d.select().from(vapiCallLogs)
+            .where(eq(vapiCallLogs.phoneNumber, phone))
+            .orderBy(desc(vapiCallLogs.createdAt))
+            .limit(50);
+          calls.forEach((c: typeof calls[number]) => events.push({
+            type: "vapi_call",
+            title: `AI Call · ${c.serviceMention || "no service mention"}`,
+            detail: c.aiSummary?.slice(0, 120) || `${c.durationSeconds}s · ${c.endedReason || ""}`,
+            status: c.convertedToLead ? "converted" : "info",
+            date: new Date(c.createdAt),
+          }));
+        } catch (vapiErr) {
+          // Pre-migration the table doesn't exist; skip silently
+          log.warn("[Customers] vapi_call_logs timeline query failed (table may not exist yet):", vapiErr instanceof Error ? vapiErr.message : vapiErr);
+        }
       } catch (err) {
         // Some tables may not exist yet
         log.warn("[Customers] Activity timeline query failed:", err instanceof Error ? err.message : err);
