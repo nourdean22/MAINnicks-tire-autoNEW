@@ -784,8 +784,13 @@ export default function OverviewSection() {
           trpc.intelligence.walkAwayEstimates which queries alg_estimates
           where matchedInvoiceId IS NULL. Different signal than declined-
           work line items — these are full estimates the customer never
-          converted. Highest-leverage recovery target per FCFS model. */}
-      {walkAway && walkAway.unmatchedCount > 0 && (
+          converted. Highest-leverage recovery target per FCFS model.
+
+          2026-05-09 — hidden per operator. To revive: change `false` back
+          to `walkAway && walkAway.unmatchedCount > 0`. The data still flows
+          (cron + trpc query untouched) so the SMS recovery cron still runs;
+          this only hides the strip from /admin overview. */}
+      {false && walkAway && walkAway.unmatchedCount > 0 && (
         <div className="bg-card border border-amber-500/30 p-4">
           <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
             <div>
