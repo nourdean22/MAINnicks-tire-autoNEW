@@ -199,42 +199,60 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
   );
 
   let processed = 0;
+  let perRowErrors = 0;
   for (const c of targets) {
-    if (!c.phone) continue;
+    // wave-117 — per-customer try/catch. Was: a Twilio error on customer
+    // N (e.g. invalid number, network blip) threw and aborted ALL
+    // remaining customers in the loop, leaving high-value retention
+    // candidates unprocessed silently. Now contained per row: log +
+    // continue.
+    try {
+      if (!c.phone) continue;
 
-    // Skip customers with a pending booking
-    const normalizedPhone = c.phone.replace(/\D/g, "").slice(-10);
-    if (phonesWithPendingBooking.has(normalizedPhone)) {
-      continue;
-    }
+      // Skip customers with a pending booking
+      const normalizedPhone = c.phone.replace(/\D/g, "").slice(-10);
+      if (phonesWithPendingBooking.has(normalizedPhone)) {
+        continue;
+      }
 
-    // Build vehicle string
-    const vehicleParts = [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean);
-    const vehicle = vehicleParts.length > 0 ? vehicleParts.join(" ") : "vehicle";
+      // Build vehicle string
+      const vehicleParts = [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean);
+      const vehicle = vehicleParts.length > 0 ? vehicleParts.join(" ") : "vehicle";
 
-    const firstName = c.firstName || "there";
-    const messageBody = tier.message(firstName, vehicle);
+      const firstName = c.firstName || "there";
+      const messageBody = tier.message(firstName, vehicle);
 
-    const result = await sendSms(c.phone, messageBody);
+      const result = await sendSms(c.phone, messageBody);
 
-    // Log to sms_messages table regardless of success
-    await logRetentionSms(c.phone, messageBody, result.sid);
+      // Log to sms_messages table regardless of success
+      await logRetentionSms(c.phone, messageBody, result.sid);
 
-    if (result.success) {
-      // Update the customer's retention tracking
-      await db
-        .update(customers)
-        .set({
-          lastRetentionTier: tier.days,
-          lastRetentionDate: new Date(),
-        })
-        .where(eq(customers.id, c.id));
-      processed++;
-    } else {
-      log.warn(`Retention ${tier.days}d SMS failed for customer #${c.id}`, {
-        error: result.error,
+      if (result.success) {
+        // Update the customer's retention tracking
+        await db
+          .update(customers)
+          .set({
+            lastRetentionTier: tier.days,
+            lastRetentionDate: new Date(),
+          })
+          .where(eq(customers.id, c.id));
+        processed++;
+      } else {
+        log.warn(`Retention ${tier.days}d SMS failed for customer #${c.id}`, {
+          error: result.error,
+        });
+      }
+    } catch (rowErr) {
+      perRowErrors++;
+      log.warn(`Retention ${tier.days}d row failed for customer #${c.id}`, {
+        error: rowErr instanceof Error ? rowErr.message : String(rowErr),
       });
+      // continue — don't kill the whole tier on one bad customer
     }
+  }
+
+  if (perRowErrors > 0) {
+    log.warn(`Retention ${tier.days}d: ${perRowErrors} customers errored — see logs above`);
   }
 
   if (processed > 0) {
