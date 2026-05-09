@@ -723,14 +723,17 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
               zip: rc.zip || undefined,
             }).where(eq(customers.phone, rc.phone));
             updated++;
-            log.warn(`[shopDriverMirror] Customer race detected — INSERT → UPDATE`, { phone: rc.phone });
+            // wave-122b (LOW S3) — mask phone in log to last-4 only
+            log.warn(`[shopDriverMirror] Customer race detected — INSERT → UPDATE`, { phoneTail: rc.phone?.replace(/\D/g, "").slice(-4) });
           } else {
             throw insertErr;
           }
         }
       }
     } catch (err) {
-      log.warn(`Failed to upsert customer ${rc.name}/${rc.phone}`, { error: err instanceof Error ? err.message : String(err) });
+      // wave-122b — mask phone in log; name is fine (less sensitive)
+      const phoneTail = rc.phone?.replace(/\D/g, "").slice(-4) || "";
+      log.warn(`Failed to upsert customer ${rc.name}/...${phoneTail}`, { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
