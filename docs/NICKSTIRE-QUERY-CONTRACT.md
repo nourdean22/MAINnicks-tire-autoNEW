@@ -397,7 +397,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `customer_search` | `term: string` | Top 20 matching customers |
 | `feature_flags` | none | All flags + enabled state |
 | `gsc_summary` | `from?, to?` (YYYY-MM-DD; default last 30d) | `{ totalClicks, totalImpressions, avgCtr, avgPosition }` (CTR is %, position is float) |
-| `gsc_top_queries` | `from?, to?, limit?` (default 30d, top 10, max 50) | `{ queries: [{ query, clicks, impressions, ctr, position }] }` |
+| `gsc_top_queries` | `from?, to?, limit?` (default 30d, top 10, max 50) | `{ queries: [{ query, clicks, impressions, ctr, avgPosition }] }` |
 | `leads_pipeline` | none | 30-day status breakdown |
 | `leads_today` | none | Today's leads (ET-anchored) |
 | `leads_urgent` | none | Urgency ≥ 4, status = new |
