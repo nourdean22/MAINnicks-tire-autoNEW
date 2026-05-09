@@ -173,7 +173,7 @@ function WOCard({ wo, onClick }: { wo: WOListItem; onClick: () => void }) {
       {/* Header: order number + priority */}
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-xs font-mono font-semibold text-foreground/80">{wo.orderNumber}</span>
-        <span className={`text-[9px] font-bold tracking-widest px-1.5 py-0.5 rounded border ${prio.bgColor} ${prio.color}`}>
+        <span className={`text-[10px] font-medium tracking-[0.12em] px-1.5 py-0.5 rounded border ${prio.bgColor} ${prio.color}`}>
           {prio.label}
         </span>
       </div>
@@ -412,7 +412,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                           </div>
                         </div>
                         {hasPart && (
-                          <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                          <span className={`text-[10px] font-medium tracking-[0.12em] px-1.5 py-0.5 rounded ${
                             item.partStatus === "received" || item.partStatus === "installed" ? "bg-emerald-500/10 text-emerald-400" :
                             item.partStatus === "ordered" ? "bg-amber-500/10 text-amber-400" :
                             "bg-blue-500/10 text-blue-400"
@@ -421,7 +421,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                           </span>
                         )}
                         {item.approved === false && (
-                          <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">DECLINED</span>
+                          <span className="text-[10px] font-medium tracking-[0.12em] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">DECLINED</span>
                         )}
                       </div>
                       {/* Part pipeline controls */}
@@ -529,8 +529,8 @@ function StatsBar() {
 function StatPill({ label, value, color, alert }: { label: string; value: number; color: string; alert?: boolean }) {
   return (
     <div className={`flex items-center gap-1.5 ${alert ? "animate-pulse" : ""}`}>
-      <span className="text-[10px] text-foreground/40">{label}</span>
-      <span className={`text-sm font-bold ${color}`}>{value}</span>
+      <span className="text-[11px] text-foreground/50 tracking-tight">{label}</span>
+      <span className={`text-[14px] font-semibold tabular-nums ${color}`}>{value}</span>
     </div>
   );
 }
@@ -572,7 +572,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
                     {p.supplierOrderRef && <span className="font-mono">Ref: {p.supplierOrderRef}</span>}
                   </div>
                 </div>
-                <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${
+                <span className={`text-[10px] font-medium tracking-[0.12em] px-1.5 py-0.5 rounded ${
                   p.partStatus === "ordered" ? "bg-amber-500/10 text-amber-400" : "bg-blue-500/10 text-blue-400"
                 }`}>
                   {p.partStatus?.toUpperCase()}
@@ -769,29 +769,30 @@ function ShopPulseMood() {
   }
 
   return (
-    <div className={`${bgColor} border-2 ${borderColor} rounded-lg p-4`}>
+    <div className={`${bgColor} border ${borderColor} rounded-lg p-4`}>
       <div className="flex items-center gap-4 flex-wrap">
-        {/* Mood emoji + label */}
+        {/* Mood emoji + label — wave-134 lighter weight (was font-black
+            tracking-widest uppercase) */}
         <div className="flex items-center gap-2.5">
           <span className="text-2xl">{emoji}</span>
-          <span className={`text-sm font-black tracking-widest uppercase ${textColor}`}>
+          <span className={`text-[13px] font-semibold tracking-[0.12em] uppercase ${textColor}`}>
             {moodLabel}
           </span>
         </div>
 
         {/* Metrics */}
-        <div className="flex items-center gap-4 ml-auto">
+        <div className="flex items-center gap-5 ml-auto">
           <div className="text-center">
-            <div className="text-lg font-bold text-foreground">{jobsClosed}</div>
-            <div className="text-[8px] text-muted-foreground tracking-widest">JOBS</div>
+            <div className="text-[17px] font-semibold text-foreground tabular-nums">{jobsClosed}</div>
+            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Jobs</div>
           </div>
           <div className="text-center">
-            <div className="text-lg font-bold text-foreground">${revenueToday.toLocaleString()}</div>
-            <div className="text-[8px] text-muted-foreground tracking-widest">REVENUE</div>
+            <div className="text-[17px] font-semibold text-foreground tabular-nums">${revenueToday.toLocaleString()}</div>
+            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Revenue</div>
           </div>
           <div className="text-center">
-            <div className={`text-lg font-bold ${textColor}`}>{pacePercent}%</div>
-            <div className="text-[8px] text-muted-foreground tracking-widest">PACE</div>
+            <div className={`text-[17px] font-semibold tabular-nums ${textColor}`}>{pacePercent}%</div>
+            <div className="text-[9px] text-muted-foreground/80 tracking-[0.18em] uppercase mt-0.5">Pace</div>
           </div>
         </div>
       </div>
