@@ -206,6 +206,27 @@ async function startServer() {
   app.use("/api/trpc/nourOsQuote.createQuote", formLimiter);
   app.use("/api/trpc/fleet.submit", formLimiter);
 
+  // wave-122 (CRITICAL S7/S8) — Vapi tool tRPC endpoints are
+  // documented as Vapi-HMAC protected, but the HMAC middleware only
+  // mounts on /api/webhooks/vapi — NOT on /api/trpc/voiceAgent.*.
+  // Without rate limit, anyone can POST to .sendConfirmationSms with
+  // arbitrary {phone, summary} and weaponize our Twilio account to
+  // spray SMS. formLimiter caps 10 req/min per IP — sufficient brake.
+  app.use("/api/trpc/voiceAgent.bookSlot", formLimiter);
+  app.use("/api/trpc/voiceAgent.escalate", formLimiter);
+  app.use("/api/trpc/voiceAgent.sendConfirmationSms", formLimiter);
+
+  // wave-122 (HIGH S5/S8) — payments endpoints. lookupInvoice was
+  // brute-forceable (invoice-number prefix + customer phone) under
+  // the loose 100 req/15min apiLimiter. createPaymentIntent burns
+  // real Stripe API quota per call. confirmPayment is the
+  // amount-verified write path (gated additionally by Stripe
+  // amount check at routers/payments.ts:147). All three need the
+  // tighter per-form ceiling.
+  app.use("/api/trpc/payments.lookupInvoice", formLimiter);
+  app.use("/api/trpc/payments.createPaymentIntent", formLimiter);
+  app.use("/api/trpc/payments.confirmPayment", formLimiter);
+
   // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
   // AI endpoints. v1.7 added statenourAuth middleware (closing the
   // unauth hole that let anyone burn OpenAI tokens). This adds a

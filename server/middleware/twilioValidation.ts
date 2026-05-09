@@ -26,8 +26,16 @@ const log = createLogger("twilio-auth");
 export function validateTwilioRequest(req: Request, res: Response, next: NextFunction): void {
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-  // Skip validation in development or if no auth token configured
-  if (!authToken || process.env.NODE_ENV !== "production") {
+  // wave-122 (HIGH S7) — was: skip validation if NODE_ENV !== production
+  // OR if no auth token. That meant any reachable staging or test
+  // environment could be hit with forged Twilio webhooks (bookings
+  // auto-confirmed, estimates auto-approved, etc.) by anyone who knew
+  // the URL. Now: skip ONLY when authToken is genuinely missing (dev
+  // boxes without Twilio config). If token is configured, validate
+  // ALWAYS regardless of environment. Log the bypass so it shows in
+  // boot logs.
+  if (!authToken) {
+    log.warn("[validateTwilioRequest] TWILIO_AUTH_TOKEN not set — webhook validation BYPASSED. Configure the token in any reachable environment.");
     return next();
   }
 

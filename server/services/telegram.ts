@@ -428,11 +428,17 @@ export function alertNewLead(lead: {
   const urgencyTag = lead.urgencyScore && lead.urgencyScore >= 4
     ? ` 🔴 HIGH PRIORITY`
     : "";
+  // wave-122 (MEDIUM S3) — phone-number masking. Telegram messages
+  // are stored indefinitely server-side + visible in chat history. If
+  // Telegram is compromised or the chat is shared, full customer
+  // numbers leak. Show last-4 only in display text; the tel: link
+  // target keeps the full number so the operator can still tap-to-call.
+  const phoneTail = lead.phone ? lead.phone.replace(/\D/g, "").slice(-4) : "";
   const lines = [
     `🔔 ${bold("NEW LEAD")}${urgencyTag}`,
     divider(),
     `👤 ${bold(lead.name)}`,
-    lead.phone ? `📱 ${link(lead.phone, `tel:${lead.phone.replace(/\D/g, "")}`)}` : "",
+    lead.phone ? `📱 ${link(`...${phoneTail}`, `tel:${lead.phone.replace(/\D/g, "")}`)}` : "",
     lead.service ? `🔧 ${lead.service}` : "",
     lead.source ? `📍 Source: ${lead.source}` : "",
     lead.urgencyScore ? `⚡ Urgency: ${lead.urgencyScore}/5` : "",
