@@ -7,6 +7,7 @@
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -1162,9 +1163,18 @@ function CustomersList() {
 
         {campaignStats && campaignStats.remaining > 0 && (
           <button
-            onClick={() => { if (confirm(`Send texts to next 50?`)) retryCampaign.mutate({ batchSize: 50 }); }}
+            onClick={async () => {
+              // wave-139 — was native confirm(); now ConfirmDialog
+              const ok = await confirmDialog({
+                title: "Send next batch?",
+                message: "Send texts to the next 50 queued customers.",
+                confirmLabel: "Send 50",
+              });
+              if (!ok) return;
+              retryCampaign.mutate({ batchSize: 50 });
+            }}
             disabled={retryCampaign.isPending}
-            className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-4 py-2.5 text-sm text-primary hover:bg-primary/20 transition-colors whitespace-nowrap disabled:opacity-50"
+            className="flex items-center gap-2 bg-primary/10 border border-primary/30 px-4 py-2.5 text-sm text-primary hover:bg-primary/20 transition-colors whitespace-nowrap disabled:opacity-50 rounded-md"
           >
             {retryCampaign.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             {retryCampaign.isPending ? "Sending..." : "Send Next 50"}

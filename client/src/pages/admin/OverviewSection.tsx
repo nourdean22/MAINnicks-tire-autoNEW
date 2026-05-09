@@ -25,6 +25,7 @@ import {
 } from "recharts";
 import WebVitalsPanel from "./WebVitalsPanel";
 import { openDrilldown } from "@/components/admin/DrilldownDrawer";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import AdminAlertBar, { type AdminAlert } from "@/components/admin/AdminAlertBar";
 import { SkeletonOverview } from "@/components/admin/AdminSkeletons";
 
@@ -321,8 +322,16 @@ export default function OverviewSection() {
     onSuccess: () => { toast.success("Callback updated"); refetchQueues(); },
     onError: (e) => toast.error(e.message),
   });
-  function handleMarkDone(item: ActionItem) {
-    if (!confirm(`Mark ${item.type} for ${item.name} as done/contacted?`)) return;
+  // wave-139 — replaced native confirm() with brand-consistent
+  // ConfirmDialog (mobile-friendly modal). Action Queue is the
+  // operator's most-frequented surface — these confirms fire daily.
+  async function handleMarkDone(item: ActionItem) {
+    const ok = await confirmDialog({
+      title: "Mark as done?",
+      message: `Mark ${item.type} for ${item.name} as done/contacted.`,
+      confirmLabel: "Mark done",
+    });
+    if (!ok) return;
     switch (item.type) {
       case "booking":
         bookingUpdateStatus.mutate({ id: item.entityId, status: "confirmed" });
@@ -338,8 +347,14 @@ export default function OverviewSection() {
         break;
     }
   }
-  function handleDelete(item: ActionItem) {
-    if (!confirm(`Delete ${item.type} for ${item.name}? This cannot be undone.`)) return;
+  async function handleDelete(item: ActionItem) {
+    const ok = await confirmDialog({
+      title: `Delete ${item.type}?`,
+      message: `Remove ${item.type} for ${item.name}. This cannot be undone.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     switch (item.type) {
       case "booking": bookingDelete.mutate({ id: item.entityId }); break;
       case "lead": leadDelete.mutate({ id: item.entityId }); break;
