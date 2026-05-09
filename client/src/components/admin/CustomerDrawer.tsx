@@ -76,12 +76,12 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
         <div className="p-5 text-sm text-foreground/50">Customer not found.</div>
       ) : (
         <div className="p-5 space-y-5">
-          {/* Name */}
+          {/* Name — wave-131 lighter weight, smaller, matches SideDrawer header */}
           <div>
-            <h3 className="text-lg font-bold text-foreground tracking-tight">
+            <h3 className="text-[17px] font-semibold text-foreground tracking-tight">
               {customer.firstName} {customer.lastName || ""}
             </h3>
-            <span className={`inline-flex items-center px-2 py-0.5 mt-1 text-[10px] tracking-wider ${
+            <span className={`inline-flex items-center px-2 py-0.5 mt-1.5 text-[10px] font-medium tracking-[0.12em] rounded ${
               customer.segment === "recent" ? "text-emerald-400 bg-emerald-500/10" :
               customer.segment === "lapsed" ? "text-amber-400 bg-amber-500/10" :
               "text-foreground/50 bg-foreground/5"
@@ -120,23 +120,23 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
             const activeWOs = woEvents.filter((e: any) => !["invoiced", "closed", "picked_up", "cancelled"].includes(e.status));
             return (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-background/50 border border-border/20 p-3">
+                <div className="bg-foreground/[0.03] border border-border/15 rounded-md p-3">
                   <span className="text-[10px] text-foreground/40 tracking-wide block">Visits</span>
-                  <span className="text-lg font-bold text-foreground">{customer.totalVisits ?? 0}</span>
+                  <span className="text-[17px] font-semibold text-foreground tabular-nums">{customer.totalVisits ?? 0}</span>
                 </div>
-                <div className="bg-background/50 border border-border/20 p-3">
+                <div className="bg-foreground/[0.03] border border-border/15 rounded-md p-3">
                   <span className="text-[10px] text-foreground/40 tracking-wide block">Total Spent</span>
-                  <span className="text-lg font-bold text-emerald-400">
+                  <span className="text-[17px] font-semibold text-emerald-400 tabular-nums">
                     ${(totalSpent / 100).toLocaleString("en-US", { minimumFractionDigits: 0 })}
                   </span>
                 </div>
-                <div className="bg-background/50 border border-border/20 p-3">
+                <div className="bg-foreground/[0.03] border border-border/15 rounded-md p-3">
                   <span className="text-[10px] text-foreground/40 tracking-wide block">Invoices</span>
-                  <span className="text-lg font-bold text-foreground">{invoiceEvents.length}</span>
+                  <span className="text-[17px] font-semibold text-foreground tabular-nums">{invoiceEvents.length}</span>
                 </div>
-                <div className="bg-background/50 border border-border/20 p-3">
+                <div className="bg-foreground/[0.03] border border-border/15 rounded-md p-3">
                   <span className="text-[10px] text-foreground/40 tracking-wide block">Active WOs</span>
-                  <span className={`text-lg font-bold ${activeWOs.length > 0 ? "text-primary" : "text-foreground/30"}`}>
+                  <span className={`text-[17px] font-semibold tabular-nums ${activeWOs.length > 0 ? "text-primary" : "text-foreground/30"}`}>
                     {activeWOs.length}
                   </span>
                 </div>

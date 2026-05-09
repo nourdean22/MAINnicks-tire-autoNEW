@@ -103,34 +103,35 @@ export default function DrilldownDrawer() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-[60] bg-black/55 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm"
             onClick={() => setActiveKind(null)}
             aria-hidden="true"
           />
-          {/* Drawer */}
+          {/* Drawer — wave-131 minimalist refresh */}
           <motion.aside
             key="drawer"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
-            className="fixed top-0 right-0 bottom-0 z-[61] w-full sm:w-[480px] bg-card border-l border-border/40 shadow-2xl flex flex-col"
+            className="fixed top-0 right-0 bottom-0 z-[61] w-full sm:w-[440px] bg-card border-l border-border/40 shadow-2xl flex flex-col"
             role="dialog"
             aria-modal="true"
           >
-            {/* Header */}
-            <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-border/30">
-              <div className="min-w-0">
-                <h2 className="font-bold text-foreground text-base tracking-tight truncate">
+            {/* Header — refined: lighter weight, smaller title, single
+                close affordance (X). No more bold text-base/cap-tracking. */}
+            <div className="shrink-0 flex items-start justify-between gap-3 px-5 py-4 border-b border-border/20">
+              <div className="min-w-0 flex-1">
+                <h2 className="font-semibold text-foreground text-[15px] tracking-tight truncate">
                   {isLoading ? "Loading…" : (titleOverride || data?.title || "Detail")}
                 </h2>
                 {data?.subtitle && (
-                  <p className="text-foreground/50 text-[12px] mt-0.5">{data.subtitle}</p>
+                  <p className="text-foreground/50 text-[12px] mt-0.5 truncate">{data.subtitle}</p>
                 )}
               </div>
               <button
                 onClick={() => setActiveKind(null)}
-                className="shrink-0 text-foreground/40 hover:text-foreground/80 transition-colors p-1 rounded-md hover:bg-foreground/5"
+                className="shrink-0 inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
                 aria-label="Close drilldown"
               >
                 <X className="w-4 h-4" />
@@ -155,7 +156,7 @@ export default function DrilldownDrawer() {
               )}
 
               {!isLoading && data && data.rows.length > 0 && (
-                <div className="divide-y divide-border/15">
+                <div className="divide-y divide-border/10">
                   {data.rows.map((row: DrilldownRowData) => (
                     <DrilldownRow key={row.id} row={row} />
                   ))}
@@ -163,17 +164,12 @@ export default function DrilldownDrawer() {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="shrink-0 flex items-center justify-between gap-3 px-5 py-3 border-t border-border/20 bg-background/40">
-              <span className="text-[10px] text-foreground/40">
-                {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} · Esc to close
+            {/* Footer — minimal: row count + Esc hint, no redundant
+                CLOSE button (X in header + backdrop click + Esc all close). */}
+            <div className="shrink-0 px-5 py-3 border-t border-border/15 bg-foreground/[0.02]">
+              <span className="text-[10px] text-foreground/40 tracking-wide">
+                {data?.rows.length ?? 0} row{data?.rows.length === 1 ? "" : "s"} · Esc or click outside to close
               </span>
-              <button
-                onClick={() => setActiveKind(null)}
-                className="text-[11px] font-bold tracking-wider px-3 py-1 border border-border/40 text-foreground/60 hover:text-foreground hover:border-foreground/30 rounded transition-colors"
-              >
-                CLOSE
-              </button>
             </div>
           </motion.aside>
         </>
