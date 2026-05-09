@@ -38,9 +38,10 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — wave-131 backdrop opacity 0.50 → 0.40 to match
+          DrilldownDrawer; less aggressive tint, same blur. */}
       <div
-        className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50 transition-opacity"
+        className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 transition-opacity"
         onClick={onClose}
       />
 
@@ -51,12 +52,12 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
           ${WIDTH_MAP[width]} max-w-[100vw]
           animate-in slide-in-from-right duration-200`}
       >
-        {/* Header */}
+        {/* Header — wave-131 minimalist match */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/20 shrink-0">
-          <h2 className="text-sm font-semibold text-foreground tracking-tight">{title}</h2>
+          <h2 className="text-[15px] font-semibold text-foreground tracking-tight">{title}</h2>
           <button
             onClick={onClose}
-            className="text-foreground/30 hover:text-foreground/60 transition-colors p-1 -mr-1"
+            className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
             aria-label="Close drawer"
           >
             <X className="w-4 h-4" />
