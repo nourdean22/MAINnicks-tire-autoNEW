@@ -229,7 +229,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
               </span>
-              <span className="text-[10px] font-bold tracking-widest text-emerald-400 uppercase">In the queue</span>
+              <span className="text-[10px] font-medium tracking-[0.15em] text-emerald-400 uppercase">In the queue</span>
             </div>
             <p className="text-sm text-foreground/80 leading-relaxed">
               <span className="font-semibold">{formData.service}</span>
@@ -246,7 +246,7 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
           {/* Referral incentive — per spec: "Share NICKS150 with a friend,
               you both save $25." Compounds the booking into another lead. */}
           <div className="mx-auto max-w-md rounded-lg border border-primary/30 bg-primary/5 p-3.5 text-left">
-            <div className="text-[10px] font-bold tracking-widest text-primary uppercase mb-1">
+            <div className="text-[10px] font-medium tracking-[0.15em] text-primary uppercase mb-1">
               Bonus
             </div>
             <p className="text-[13px] text-foreground/80 leading-relaxed">
