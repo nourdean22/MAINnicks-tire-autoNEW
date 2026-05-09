@@ -11,8 +11,43 @@ import { eq, desc, gte, lte, and, sql, asc } from "drizzle-orm";
 import {
   jobAssignments, invoices, customerMetrics, kpiSnapshots, portalSessions,
   bookings, customers, technicians, reviewRequests, leads, serviceHistory,
-  algEstimates,
+  algEstimates, shopSettings,
 } from "../../../drizzle/schema";
+
+// wave-115b — dismissed-estimates list lives in shop_settings as a JSON
+// array. Pattern matches vapi.saveTransferPreset (no migration required;
+// shop_settings is the canonical "operator-tunable JSON" bucket).
+const DISMISSED_KEY = "dismissed_alg_estimate_ids";
+
+async function readDismissedIds(d: NonNullable<Awaited<ReturnType<typeof db>>>): Promise<Set<number>> {
+  const [row] = await d.select().from(shopSettings).where(eq(shopSettings.key, DISMISSED_KEY)).limit(1);
+  if (!row?.value) return new Set();
+  try {
+    const parsed = JSON.parse(row.value) as unknown;
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((n): n is number => typeof n === "number"));
+  } catch {
+    return new Set();
+  }
+}
+
+async function writeDismissedIds(d: NonNullable<Awaited<ReturnType<typeof db>>>, ids: Set<number>): Promise<void> {
+  const json = JSON.stringify([...ids]);
+  const [row] = await d.select().from(shopSettings).where(eq(shopSettings.key, DISMISSED_KEY)).limit(1);
+  if (row) {
+    await d.update(shopSettings)
+      .set({ value: json, updatedBy: "admin" })
+      .where(eq(shopSettings.id, row.id));
+  } else {
+    await d.insert(shopSettings).values({
+      key: DISMISSED_KEY,
+      value: json,
+      label: "Permanently dismissed ALG declined estimates",
+      category: "general",
+      updatedBy: "admin",
+    });
+  }
+}
 
 import { db } from "../../lib/db-helper";
 
@@ -627,6 +662,11 @@ export const invoicesRouter = router({
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
 
+      // wave-115b — fetch the operator's "permanently dismissed" set.
+      // These are estimates the operator has explicitly closed out (customer
+      // said no, vehicle sold, etc.). Filtered out of the listing below.
+      const dismissedIds = await readDismissedIds(d);
+
       // Unmatched ALG estimates within the window — declined work
       const declined = await d
         .select({
@@ -648,7 +688,7 @@ export const invoicesRouter = router({
           sql`${algEstimates.matchedInvoiceId} IS NULL`,
         ))
         .orderBy(desc(algEstimates.estimateDate))
-        .limit(200);
+        .limit(200 + dismissedIds.size); // bump limit to absorb dismissed
 
       // Recovery rate = matched / total ALG estimates over last 90d
       const allTimeCutoff = new Date();
@@ -667,8 +707,15 @@ export const invoicesRouter = router({
       const totalEstimates90d = totalEstResult?.count ?? 0;
       const recoveryRate = totalEstimates90d > 0 ? Math.round((recovered / totalEstimates90d) * 100) : 0;
 
+      // wave-115b — drop dismissed estimates before shaping. Done in JS
+      // (not SQL) because the dismissed set lives in shop_settings JSON,
+      // not in algEstimates itself, so a JOIN would mean another query.
+      const filtered = dismissedIds.size > 0
+        ? declined.filter((e: typeof declined[number]) => !dismissedIds.has(e.id)).slice(0, 200)
+        : declined.slice(0, 200);
+
       // Map status field for UI compatibility — derive from follow-up flags
-      const estimatesShaped = declined.map((e: typeof declined[number]) => ({
+      const estimatesShaped = filtered.map((e: typeof filtered[number]) => ({
         ...e,
         // UI uses paymentStatus to color-code: "partial" = follow-up scheduled
         paymentStatus: e.followUp30dSent ? "30d-sent" : e.followUp7dSent ? "partial" : "pending",
@@ -704,6 +751,42 @@ export const invoicesRouter = router({
         .set({ followUp7dSent: 1, followUp7dSentAt: new Date() })
         .where(eq(algEstimates.id, input.id));
       return { success: true };
+    }),
+
+  /**
+   * wave-115b — Permanently dismiss a declined estimate so it stops
+   * appearing in the recovery queue. Use when:
+   *   · Customer said "no, never" definitively
+   *   · Vehicle was sold / totaled
+   *   · Estimate is a duplicate or data error
+   *
+   * Stored in shop_settings as a JSON array of dismissed ids — no
+   * schema migration required. Reversible via undismissEstimate.
+   */
+  dismissEstimate: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+      const ids = await readDismissedIds(d);
+      ids.add(input.id);
+      await writeDismissedIds(d, ids);
+      log.info("Estimate dismissed", { id: input.id, totalDismissed: ids.size });
+      return { ok: true as const, id: input.id };
+    }),
+
+  /**
+   * wave-115b — Restore a previously-dismissed estimate to the queue.
+   */
+  undismissEstimate: adminProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database not available");
+      const ids = await readDismissedIds(d);
+      ids.delete(input.id);
+      await writeDismissedIds(d, ids);
+      return { ok: true as const, id: input.id };
     }),
 
   /**
