@@ -18,11 +18,14 @@ const WinBackSection = lazy(() => import("./WinBackSection"));
 // /admin?tab=campaigns&outreachTab=reengage.
 const ReEngagementSection = lazy(() => import("./ReEngagementSection"));
 
-type OutreachTab = "campaigns" | "sms" | "followups" | "reviews" | "winback" | "reengage";
+type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "reengage";
 
+// Wave-129 — SMS (1-on-1 texting) is the most-used customer-touch surface,
+// so it leads. Campaigns/Follow-ups/etc. are scheduled/bulk tooling — they
+// belong to the right of the primary action.
 const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
+  { id: "sms", label: "Messages", icon: <Send className="w-3.5 h-3.5" /> },
   { id: "campaigns", label: "Campaigns", icon: <MessageSquare className="w-3.5 h-3.5" /> },
-  { id: "sms", label: "SMS", icon: <Send className="w-3.5 h-3.5" /> },
   { id: "followups", label: "Follow-Ups", icon: <Timer className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
@@ -37,42 +40,45 @@ function TabSpinner() {
   );
 }
 
-const VALID_OUTREACH_TABS: OutreachTab[] = ["campaigns", "sms", "followups", "reviews", "winback", "reengage"];
+const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "reengage"];
 
 export default function OutreachHubSection() {
-  // wave-112 — migrated from custom useState + useEffect URL writer to
-  // shared useUrlFilter (consistent with every other section). Note:
-  // useUrlFilter deletes the param when value === defaultValue ("campaigns"),
-  // which restores the cleaner-URL behavior wave-111 backed out of. The
-  // wave-111 deep-link-strip concern is mitigated because useUrlFilter's
-  // initial read still resolves to "campaigns" if the param is missing OR
-  // explicitly set to "campaigns" — both render the same tab, identical UX.
+  // wave-129 — default tab moved from "campaigns" → "sms". Operator
+  // screenshot showed they couldn't find the texting UI because Campaigns
+  // (an empty broadcast manager) was loading first. Texting is the highest-
+  // frequency action on this surface; it deserves the front door.
   const [tab, setTab] = useUrlFilter<OutreachTab>(
     "outreachTab",
-    "campaigns",
+    "sms",
     {
       validate: (raw) => (VALID_OUTREACH_TABS.includes(raw as OutreachTab) ? (raw as OutreachTab) : null),
     },
   );
 
+  // SMS tab uses its own header (it's a chat-style surface — full bleed)
+  if (tab === "sms") {
+    return (
+      <div className="space-y-4">
+        <TabBar tabs={TABS} activeTab={tab} onChange={setTab} variant="pill" />
+        <Suspense fallback={<TabSpinner />}>
+          <SmsSection />
+        </Suspense>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Outreach Hub"
-        subtitle="Campaigns · SMS broadcasts · Review requests · Win-back · Follow-ups · Loyalty — every customer touch in one place."
+        subtitle="Campaigns · review requests · win-back · follow-ups · loyalty — scheduled and bulk customer touches."
         icon={<Send className="w-5 h-5" />}
       />
-      <TabBar
-        tabs={TABS}
-        activeTab={tab}
-        onChange={setTab}
-        variant="pill"
-      />
+      <TabBar tabs={TABS} activeTab={tab} onChange={setTab} variant="pill" />
 
       {/* Content */}
       <Suspense fallback={<TabSpinner />}>
         {tab === "campaigns" && <CampaignsSection />}
-        {tab === "sms" && <SmsSection />}
         {tab === "followups" && <FollowUpsSection />}
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
