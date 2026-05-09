@@ -634,7 +634,7 @@ function AlgProbeBudgetPanel() {
       {/* Recent probes */}
       {probes.length > 0 && (
         <details className="border-t border-border/10 pt-3">
-          <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
+          <summary className="cursor-pointer text-[11px] font-medium tracking-[0.15em] text-foreground/50 hover:text-foreground/80">
             RECENT PROBES · LAST {probes.length}
           </summary>
           <div className="mt-2 space-y-1">
@@ -645,8 +645,8 @@ function AlgProbeBudgetPanel() {
               return (
                 <div key={p.id} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
                   <span className="text-foreground/40 w-24 shrink-0">{d} {t}</span>
-                  <span className={`font-bold tracking-wider w-20 shrink-0 ${reasonColor[p.reason] || "text-foreground/60"}`}>{p.reason.replace("_", " ").toUpperCase()}</span>
-                  <span className={`font-bold tracking-wider w-16 shrink-0 ${outcomeColor[p.outcome] || "text-foreground/60"}`}>{p.outcome.toUpperCase()}</span>
+                  <span className={`font-medium tracking-[0.12em] w-20 shrink-0 ${reasonColor[p.reason] || "text-foreground/60"}`}>{p.reason.replace("_", " ").toUpperCase()}</span>
+                  <span className={`font-medium tracking-[0.12em] w-16 shrink-0 ${outcomeColor[p.outcome] || "text-foreground/60"}`}>{p.outcome.toUpperCase()}</span>
                   <span className="text-foreground/50 w-20 shrink-0">{p.recordsProcessed} rec · {p.durationMs}ms</span>
                   {p.detail && <span className="text-foreground/40 truncate flex-1 italic">{p.detail}</span>}
                 </div>
@@ -721,7 +721,7 @@ function VapiPanel() {
             AI answers when no human picks up. Books slots, quotes ranges, escalates frustrated callers, sends recap SMS. Industry data: 27% of inbound auto-shop calls go unanswered during open hours; 68% after hours. Recovery target: ~$6-15k/mo at this shop's volume.
           </p>
         </div>
-        <span className={`px-2.5 py-1 text-[10px] font-bold tracking-wider rounded ${connected ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+        <span className={`px-2.5 py-1 text-[10px] font-medium tracking-[0.12em] rounded ${connected ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
           {connected
             ? `${status?.assistantCount ?? 0} ASSISTANT${(status?.assistantCount ?? 0) === 1 ? "" : "S"}`
             : "API KEY MISSING OR INVALID"}
@@ -786,7 +786,7 @@ function VapiPanel() {
       {/* Recent calls — enriched with structured data + success eval */}
       {connected && callsData?.calls && callsData.calls.length > 0 && (
         <details className="border-t border-border/10 pt-3" open>
-          <summary className="cursor-pointer text-[11px] font-bold tracking-wider text-foreground/50 hover:text-foreground/80">
+          <summary className="cursor-pointer text-[11px] font-medium tracking-[0.15em] text-foreground/50 hover:text-foreground/80">
             RECENT CALLS · LAST {callsData.calls.length}
           </summary>
           <div className="mt-2 space-y-3">
@@ -827,17 +827,17 @@ function VapiPanel() {
                     <span className="text-foreground/50 shrink-0">{dur}</span>
                     <span className="text-emerald-400/60 shrink-0">{cost}</span>
                     {callType && (
-                      <span className={`px-2 py-0.5 rounded font-bold tracking-wider text-[9px] ${callTypeColor}`}>
+                      <span className={`px-2 py-0.5 rounded font-medium tracking-[0.12em] text-[10px] ${callTypeColor}`}>
                         {callType.replace("_", " ").toUpperCase()}
                       </span>
                     )}
                     {c.successEvaluation && (
-                      <span className={`px-2 py-0.5 rounded font-bold tracking-wider text-[9px] ${successColor}`}>
+                      <span className={`px-2 py-0.5 rounded font-medium tracking-[0.12em] text-[10px] ${successColor}`}>
                         {c.successEvaluation}
                       </span>
                     )}
                     {followUpNeeded && (
-                      <span className="px-2 py-0.5 rounded font-bold tracking-wider text-[9px] bg-amber-500/15 text-amber-400">
+                      <span className="px-2 py-0.5 rounded font-medium tracking-[0.12em] text-[10px] bg-amber-500/15 text-amber-400">
                         FOLLOW UP
                       </span>
                     )}
@@ -906,7 +906,7 @@ function DeclinedRecoveryPanel() {
             7-day + 30-day SMS follow-ups to ALG estimates that never converted to invoice.
           </p>
         </div>
-        <span className={`px-2.5 py-1 text-[10px] font-bold tracking-wider rounded ${live ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+        <span className={`px-2.5 py-1 text-[10px] font-medium tracking-[0.12em] rounded ${live ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
           {live ? "FEATURE ENABLED" : "FEATURE OFF"}
         </span>
       </div>
@@ -1043,12 +1043,12 @@ function FeatureFlagsPanel() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-wide px-2 py-1 border ${
+          <span className={`inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.12em] px-2 py-1 border ${
             enabledCount > 0 ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" : "text-foreground/30 border-border/20"
           }`}>
             {enabledCount} ON
           </span>
-          <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold tracking-wide px-2 py-1 border text-foreground/30 border-border/20">
+          <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-[0.12em] px-2 py-1 border text-foreground/30 border-border/20">
             {allFlags.length - enabledCount} OFF
           </span>
         </div>
@@ -1095,7 +1095,7 @@ function FeatureFlagsPanel() {
                         <p className="text-foreground/40 text-[10px] truncate">{flag.description}</p>
                       )}
                     </div>
-                    <span className={`font-mono text-[10px] font-bold tracking-wide ${
+                    <span className={`text-[10px] font-medium tracking-[0.12em] ${
                       flag.value ? "text-emerald-400" : "text-foreground/20"
                     }`}>
                       {flag.value ? "ON" : "OFF"}
