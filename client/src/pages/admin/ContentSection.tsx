@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, StatusDot, PageHeader, TabBar, formatDate,
+  StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -79,11 +79,7 @@ function ContentManager() {
   });
 
   if (articlesLoading || notifsLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingState label="Loading content manager..." />;
   }
 
   return (
@@ -493,12 +489,7 @@ function AIIdeasEngine() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        <span className="ml-3 text-foreground/40 text-sm">Loading intelligence data...</span>
-      </div>
-    );
+    return <LoadingState label="Loading intelligence data..." />;
   }
 
   return (

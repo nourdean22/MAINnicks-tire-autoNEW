@@ -11,7 +11,7 @@ type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
-import { PageHeader, formatDate } from "./shared";
+import { PageHeader, formatDate, LoadingState, EmptyState } from "./shared";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   follow_up: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: "text-blue-400 bg-blue-500/10", label: "THANK YOU" },
@@ -103,7 +103,7 @@ export default function FollowUpsSection() {
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        <LoadingState label="Loading follow-ups..." />
       ) : (
         <>
           {/* Pending Follow-Ups */}
@@ -158,11 +158,11 @@ export default function FollowUpsSection() {
               RECENT FOLLOW-UPS
             </h3>
             {(recent?.length ?? 0) === 0 ? (
-              <div className="text-center py-12 text-foreground/40">
-                <Send className="w-8 h-8 mx-auto mb-3 opacity-30" />
-                <p className="text-[13px]">No follow-ups yet. They are generated when bookings are completed.</p>
-                <p className="text-[12px] text-foreground/30 mt-2">Click "Run Follow-Ups" to process eligible bookings.</p>
-              </div>
+              <EmptyState
+                icon={<Send className="w-8 h-8" />}
+                title="No follow-ups yet"
+                subtitle='Auto-generated when bookings complete. Click "Run Follow-Ups" to process eligible bookings now.'
+              />
             ) : (
               <div className="space-y-2">
                 {recent?.map((fu: RecentFollowUp) => {
