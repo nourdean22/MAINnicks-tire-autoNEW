@@ -21,7 +21,7 @@ import {
 const SpecialsSection = lazy(() => import("./SpecialsSection"));
 const FinancingSection = lazy(() => import("./FinancingSection"));
 const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
-const CustomersSection = lazy(() => import("./CustomersSection"));
+// wave-110 — CustomersSection removed; reachable as top-level /admin?tab=customers
 const DispatchSection = lazy(() => import("./DispatchSection"));
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
@@ -40,14 +40,14 @@ function formatDollars(dollars: number): string {
   return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-type SectionTab = "revenue" | "specials" | "financing" | "shopPulse" | "customers" | "shopStatus";
+// wave-110 — "customers" sub-tab removed (double-render w/ top-level Customers section)
+type SectionTab = "revenue" | "specials" | "financing" | "shopPulse" | "shopStatus";
 
 const REVENUE_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
   { id: "revenue", label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
   { id: "specials", label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
   { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
   { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
-  { id: "customers", label: "Customers", icon: <Users className="w-3.5 h-3.5" /> },
   { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
 ];
 
@@ -82,11 +82,6 @@ export default function RevenueSection() {
       {section === "shopPulse" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <WorkOrdersSection />
-        </Suspense>
-      )}
-      {section === "customers" && (
-        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-          <CustomersSection />
         </Suspense>
       )}
       {section === "shopStatus" && (
