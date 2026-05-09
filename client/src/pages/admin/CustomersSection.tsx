@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate } from "./shared";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -281,13 +281,13 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
               <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Last Visit</span>
               <span className="text-sm text-foreground flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-foreground/30" />
-                {customer.lastVisitDate ? new Date(customer.lastVisitDate).toLocaleDateString() : "Unknown"}
+                {customer.lastVisitDate ? formatDate(customer.lastVisitDate) : "Unknown"}
               </span>
             </div>
             <div>
               <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">First Visit</span>
               <span className="text-sm text-foreground/60">
-                {customer.firstVisitDate ? new Date(customer.firstVisitDate).toLocaleDateString() : "—"}
+                {formatDate(customer.firstVisitDate)}
               </span>
             </div>
           </div>
@@ -308,7 +308,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             {customer.smsCampaignSent ? (
               <span className="text-xs text-emerald-400 flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                Texted {customer.smsCampaignDate ? new Date(customer.smsCampaignDate).toLocaleDateString() : ""}
+                Texted {customer.smsCampaignDate ? formatDate(customer.smsCampaignDate) : ""}
               </span>
             ) : (
               <span className="text-xs text-foreground/40">Not yet texted</span>
@@ -784,7 +784,7 @@ function Customer360Panel({ customer, onSmsClick }: {
                     {historyData.invoices.map((inv: CustomerHistoryInvoice) => (
                       <tr key={inv.id} className="border-b border-border/10">
                         <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
-                          {new Date(inv.invoiceDate).toLocaleDateString()}
+                          {formatDate(inv.invoiceDate)}
                         </td>
                         <td className="py-1.5 pr-3 text-foreground/60 font-mono">
                           {inv.invoiceNumber || `#${inv.id}`}
@@ -844,7 +844,7 @@ function Customer360Panel({ customer, onSmsClick }: {
                     {historyData.declinedEstimates.map((est: CustomerDeclinedEstimate) => (
                       <tr key={est.id} className="border-b border-amber-500/5">
                         <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
-                          {new Date(est.estimateDate).toLocaleDateString()}
+                          {formatDate(est.estimateDate)}
                         </td>
                         <td className="py-1.5 pr-3 text-foreground/60 font-mono">
                           {est.externalId}
@@ -904,7 +904,7 @@ function Customer360Panel({ customer, onSmsClick }: {
                     {historyData.openWorkOrders.map((wo: CustomerOpenWorkOrder) => (
                       <tr key={wo.id} className="border-b border-blue-500/5">
                         <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap">
-                          {new Date(wo.createdAt).toLocaleDateString()}
+                          {formatDate(wo.createdAt)}
                         </td>
                         <td className="py-1.5 pr-3 text-foreground/60 font-mono">
                           {wo.orderNumber}
@@ -916,7 +916,7 @@ function Customer360Panel({ customer, onSmsClick }: {
                           {[wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ") || "—"}
                         </td>
                         <td className="py-1.5 pr-3 text-foreground/50 whitespace-nowrap text-[10px]">
-                          {wo.promisedAt ? new Date(wo.promisedAt).toLocaleDateString() : "—"}
+                          {formatDate(wo.promisedAt)}
                         </td>
                         <td className="py-1.5 pr-3 text-right font-mono text-blue-400 whitespace-nowrap">
                           {wo.total ? `$${Math.round(Number(wo.total)).toLocaleString()}` : "—"}

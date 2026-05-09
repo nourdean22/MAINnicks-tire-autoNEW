@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard } from "./shared";
+import { StatCard, formatDate } from "./shared";
 
 type Campaign = NonNullable<RouterOutputs["campaigns"]["list"]>[number];
 import {
@@ -429,7 +429,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
         <div className="mt-3 flex gap-4 text-xs text-foreground/60">
           <div>Failed: {detail.stats?.failed ?? 0}</div>
           <div>Pending: {detail.stats?.pending ?? 0}</div>
-          <div className="text-foreground/30">Created {new Date(campaign.createdAt).toLocaleDateString()}</div>
+          <div className="text-foreground/30">Created {formatDate(campaign.createdAt)}</div>
         </div>
       )}
     </div>

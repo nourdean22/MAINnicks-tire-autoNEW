@@ -11,7 +11,7 @@ type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, formatDate } from "./shared";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   follow_up: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: "text-blue-400 bg-blue-500/10", label: "THANK YOU" },
@@ -125,7 +125,7 @@ export default function FollowUpsSection() {
                         <span className="text-[12px] text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
                       </div>
                       <span className="font-mono text-[10px] text-foreground/30">
-                        {new Date(fu.createdAt).toLocaleDateString()}
+                        {formatDate(fu.createdAt)}
                       </span>
                       <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
@@ -177,7 +177,7 @@ export default function FollowUpsSection() {
                         <span className="text-[12px] text-foreground/40 ml-3">{fu.recipientPhone || "No phone"}</span>
                       </div>
                       <span className="font-mono text-[10px] text-foreground/30">
-                        {new Date(fu.createdAt).toLocaleDateString()}
+                        {formatDate(fu.createdAt)}
                       </span>
                       <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
