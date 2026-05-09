@@ -1,85 +1,33 @@
 /**
- * SmsSection — extracted from Admin.tsx for maintainability.
+ * SmsSection — wave-129 minimalist UI redo.
  *
- * Wave-105: added Conversations panel — list + thread + reply.
- * Operator can now see every customer SMS conversation and respond
- * inline without leaving the admin.
+ * Operator screenshot bug-class: "i don't think it's wired up to the SMS
+ * gateway / doesn't open an in-browser texting UI." The wiring was already
+ * correct (smsConversations.send → sendSms via shop F25e gateway). The
+ * problem was discoverability — the texting was buried two tabs deep with
+ * a Test/Manual send form pretending to be the primary action.
+ *
+ * This rewrite leads with the conversation pane, iPhone-Messages-style:
+ *   · 2-col on desktop (list left, thread right)
+ *   · single-col on mobile (list → drill to thread, back arrow)
+ *   · compact gateway pill in header (no oversized status card)
+ *   · "New" button to start a thread to any number
+ *   · day-divider in thread, bubble message rows
+ *   · single composer with cmd-enter send
+ *
+ * Backend untouched — server/routers/smsConversations.ts already routes
+ * outbound through the F25e shop gateway with Twilio fallback (wave-105).
  */
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import {
-  MessageSquare, Inbox, ArrowLeft, Send as SendIcon
+  ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X,
 } from "lucide-react";
 import { PageHeader } from "./shared";
 
-// ─── Wave-108: dual-gateway status card ────────────────
-function GatewayStatusCard() {
-  const status = trpc.sms.status.useQuery();
-  const health = trpc.sms.gatewayHealth.useQuery(undefined, {
-    refetchInterval: 60_000, // re-poll every minute
-  });
-
-  const shopConfigured = status.data?.shopGateway?.configured ?? false;
-  const twilioConfigured = status.data?.twilio?.configured ?? false;
-  const killSwitch = status.data?.twilio?.killSwitchActive ?? false;
-  const shopOnline = health.data?.online ?? false;
-  const ageMin = health.data && "ageMinutes" in health.data ? health.data.ageMinutes : null;
-
-  return (
-    <div className="bg-card border border-border/30 p-6">
-      <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SMS GATEWAYS</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Shop Gateway (primary) */}
-        <div className="border border-border/20 p-4 bg-foreground/[0.03]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-foreground/50 text-[10px] uppercase tracking-[0.2em]">Primary</span>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${shopConfigured && shopOnline ? "bg-emerald-400" : shopConfigured ? "bg-amber-400" : "bg-red-400"}`} />
-              <span className="text-[11px] text-foreground/60">
-                {!shopConfigured ? "NOT CONFIGURED" : shopOnline ? "ONLINE" : "OFFLINE"}
-              </span>
-            </div>
-          </div>
-          <p className="font-bold text-foreground tracking-[-0.01em]">Shop F25e Gateway</p>
-          <p className="text-foreground/50 text-[13px] mt-1">From: +1 216-862-0005</p>
-          {shopConfigured && (
-            <div className="mt-3 space-y-1 text-[12px] text-foreground/50">
-              {ageMin !== null && (
-                <p>Last seen: {ageMin === 0 ? "just now" : `${ageMin}m ago`}</p>
-              )}
-              {health.data?.deviceName && <p>Device: {health.data.deviceName}</p>}
-              {health.data && "error" in health.data && health.data.error && (
-                <p className="text-amber-400">{health.data.error}</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Twilio (fallback) */}
-        <div className="border border-border/20 p-4 bg-foreground/[0.03]">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-foreground/50 text-[10px] uppercase tracking-[0.2em]">Fallback</span>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${twilioConfigured && !killSwitch ? "bg-emerald-400" : "bg-amber-400"}`} />
-              <span className="text-[11px] text-foreground/60">
-                {!twilioConfigured ? "NOT CONFIGURED" : killSwitch ? "KILL SWITCH ON" : "READY"}
-              </span>
-            </div>
-          </div>
-          <p className="font-bold text-foreground tracking-[-0.01em]">Twilio</p>
-          <p className="text-foreground/50 text-[13px] mt-1">From: {status.data?.twilio?.fromNumber || "—"}</p>
-          {killSwitch && (
-            <p className="mt-3 text-[12px] text-amber-400">SMS_KILL_SWITCH=true — Twilio path blocked. Shop gateway still works. Set to false on Railway when Twilio is restored.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Wave-105: Conversation thread panel ────────────────
+// ─── Types ──────────────────────────────────────────────
 interface ConversationRow {
   id: number;
   customerPhone: string;
@@ -99,26 +47,79 @@ interface MessageRow {
   createdAt: string | Date;
 }
 
+// ─── Format helpers ─────────────────────────────────────
 function formatPhone(p: string): string {
   const d = (p || "").replace(/\D/g, "").slice(-10);
   if (d.length !== 10) return p;
-  return `(${d.slice(0,3)}) ${d.slice(3,6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 }
 
-function formatRelativeTime(iso: string | Date | null | undefined): string {
+function formatTime(iso: string | Date | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatRelative(iso: string | Date | null | undefined): string {
   if (!iso) return "";
   const t = new Date(iso).getTime();
   if (!t) return "";
   const diff = Date.now() - t;
   const mins = Math.floor(diff / 60_000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-function ConversationThread({
+function dayKey(iso: string | Date): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+}
+
+function dayLabel(iso: string | Date): string {
+  const d = new Date(iso);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === yest.toDateString()) return "Yesterday";
+  const diff = Date.now() - d.getTime();
+  const days = Math.floor(diff / 86_400_000);
+  if (days < 7) return d.toLocaleDateString([], { weekday: "long" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric", year: today.getFullYear() === d.getFullYear() ? undefined : "numeric" });
+}
+
+function initialsFor(name: string | null, phone: string): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/).slice(0, 2);
+    return parts.map((p) => p[0]?.toUpperCase()).filter(Boolean).join("") || phone.slice(-2);
+  }
+  return formatPhone(phone).replace(/\D/g, "").slice(-2);
+}
+
+// ─── Compact gateway status pill ────────────────────────
+function GatewayPill() {
+  const status = trpc.sms.status.useQuery();
+  const health = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
+  const shopOnline = health.data?.online ?? false;
+  const shopConfigured = status.data?.shopGateway?.configured ?? false;
+  const tone = !shopConfigured ? "bg-red-400" : shopOnline ? "bg-emerald-400" : "bg-amber-400";
+  const label = !shopConfigured ? "Gateway: not configured" : shopOnline ? "Live" : "Gateway offline";
+  return (
+    <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-foreground/[0.04] border border-border/30 rounded-full text-[11px] text-foreground/60">
+      <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
+      <span>{label}</span>
+      <span className="text-foreground/30">·</span>
+      <span className="font-mono">{BUSINESS.phone.dashed}</span>
+    </div>
+  );
+}
+
+// ─── Day-grouped messages ───────────────────────────────
+function ThreadView({
   conversation,
   onBack,
 }: {
@@ -127,12 +128,16 @@ function ConversationThread({
 }) {
   const utils = trpc.useUtils();
   const [reply, setReply] = useState("");
-  const messages = trpc.smsConversations.messages.useQuery({ conversationId: conversation.id, limit: 200 });
+  const messagesQ = trpc.smsConversations.messages.useQuery(
+    { conversationId: conversation.id, limit: 200 },
+    { refetchInterval: 15_000 },
+  );
   const markRead = trpc.smsConversations.markRead.useMutation();
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: () => {
-      void messages.refetch();
+      void messagesQ.refetch();
       void utils.smsConversations.list.invalidate();
+      void utils.smsConversations.unreadCount.invalidate();
       setReply("");
     },
   });
@@ -142,17 +147,32 @@ function ConversationThread({
   useEffect(() => {
     if ((conversation.unreadCount ?? 0) > 0) {
       markRead.mutate({ conversationId: conversation.id });
-      // Optimistic refresh of the list to clear the badge
       void utils.smsConversations.list.invalidate();
       void utils.smsConversations.unreadCount.invalidate();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages.data?.length]);
+  }, [messagesQ.data?.length]);
+
+  // Group by day
+  const grouped = useMemo(() => {
+    const rows = (messagesQ.data as MessageRow[] | undefined) ?? [];
+    const groups: { key: string; label: string; items: MessageRow[] }[] = [];
+    for (const m of rows) {
+      const k = dayKey(m.createdAt);
+      const last = groups[groups.length - 1];
+      if (last && last.key === k) {
+        last.items.push(m);
+      } else {
+        groups.push({ key: k, label: dayLabel(m.createdAt), items: [m] });
+      }
+    }
+    return groups;
+  }, [messagesQ.data]);
 
   const handleSend = async () => {
     if (!reply.trim()) return;
@@ -163,68 +183,93 @@ function ConversationThread({
         customerName: conversation.customerName || undefined,
       });
       if (res.success) toast.success("Sent");
-      else toast.error("Failed to send");
+      else toast.error("Send failed — check gateway status");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed");
     }
   };
 
+  const displayName = conversation.customerName || formatPhone(conversation.customerPhone);
+
   return (
-    <div className="bg-card border border-border/30">
+    <div className="flex flex-col h-full bg-card border border-border/30 rounded-lg overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b border-border/20">
+      <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-foreground/[0.02]">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-foreground/5 transition-colors"
+          className="lg:hidden p-1.5 -ml-1.5 hover:bg-foreground/5 rounded-md transition-colors"
           aria-label="Back to conversations"
         >
           <ArrowLeft className="w-4 h-4 text-foreground/70" />
         </button>
-        <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-foreground tracking-[-0.01em] truncate">
-            {conversation.customerName || formatPhone(conversation.customerPhone)}
-          </h3>
-          <p className="text-foreground/50 text-xs">{formatPhone(conversation.customerPhone)}</p>
+        <div className="w-9 h-9 rounded-full bg-primary/15 text-primary flex items-center justify-center font-semibold text-[13px] flex-shrink-0">
+          {initialsFor(conversation.customerName, conversation.customerPhone)}
         </div>
-      </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="font-semibold text-foreground tracking-tight truncate text-[15px]">{displayName}</h3>
+          <a href={`tel:${conversation.customerPhone}`} className="text-foreground/50 text-xs font-mono hover:text-primary transition-colors">
+            {formatPhone(conversation.customerPhone)}
+          </a>
+        </div>
+      </header>
 
       {/* Messages */}
-      <div ref={scrollRef} className="h-[420px] overflow-y-auto p-4 space-y-3 bg-foreground/[0.02]">
-        {messages.isLoading && (
-          <div className="text-foreground/40 text-sm text-center py-8">Loading…</div>
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-5 bg-background/40 min-h-[420px]">
+        {messagesQ.isLoading && (
+          <div className="text-foreground/40 text-sm text-center py-12">Loading messages…</div>
         )}
-        {messages.data && messages.data.length === 0 && (
-          <div className="text-foreground/40 text-sm text-center py-8">No messages yet</div>
+        {messagesQ.data && messagesQ.data.length === 0 && (
+          <div className="text-foreground/40 text-sm text-center py-12">No messages yet — say hi.</div>
         )}
-        {(messages.data as MessageRow[] | undefined)?.map((m) => {
-          const outbound = m.direction === "outbound";
-          return (
-            <div key={m.id} className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
-              <div
-                className={`max-w-[75%] px-3 py-2 text-sm leading-relaxed ${
-                  outbound
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-foreground/10 text-foreground"
-                }`}
-              >
-                <div className="whitespace-pre-wrap break-words">{m.body}</div>
-                <div className={`mt-1 text-[10px] uppercase tracking-wider ${outbound ? "text-primary-foreground/60" : "text-foreground/40"}`}>
-                  {formatRelativeTime(m.createdAt)}
-                </div>
-              </div>
+        {grouped.map((g) => (
+          <div key={g.key} className="space-y-2">
+            <div className="flex items-center gap-3 my-3">
+              <div className="flex-1 h-px bg-border/30" />
+              <span className="text-[10px] uppercase tracking-[0.2em] text-foreground/40 font-medium">{g.label}</span>
+              <div className="flex-1 h-px bg-border/30" />
             </div>
-          );
-        })}
+            {g.items.map((m) => {
+              const outbound = m.direction === "outbound";
+              const failed = m.status === "failed";
+              return (
+                <div key={m.id} className={`flex ${outbound ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[78%] flex flex-col ${outbound ? "items-end" : "items-start"}`}>
+                    <div
+                      className={`px-3.5 py-2 text-[14px] leading-relaxed rounded-2xl ${
+                        outbound
+                          ? failed
+                            ? "bg-red-500/15 text-red-300 border border-red-500/30 rounded-br-md"
+                            : "bg-primary text-primary-foreground rounded-br-md"
+                          : "bg-foreground/8 text-foreground rounded-bl-md"
+                      }`}
+                    >
+                      <div className="whitespace-pre-wrap break-words">{m.body}</div>
+                    </div>
+                    <div className="mt-1 px-1 text-[10px] text-foreground/40 flex items-center gap-1.5">
+                      <span>{formatTime(m.createdAt)}</span>
+                      {outbound && (
+                        <>
+                          <span>·</span>
+                          <span className={failed ? "text-red-400 font-medium" : ""}>{m.status === "failed" ? "Failed" : m.status === "delivered" ? "Delivered" : m.status === "sent" ? "Sent" : m.status}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
-      {/* Reply box */}
-      <div className="p-3 border-t border-border/20 bg-card">
-        <div className="flex gap-2">
+      {/* Composer */}
+      <div className="px-3 py-3 border-t border-border/20 bg-card">
+        <div className="flex items-end gap-2">
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
-            placeholder="Type a reply…"
-            rows={2}
+            placeholder="Message…"
+            rows={1}
             maxLength={1600}
             onKeyDown={(e) => {
               if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
@@ -232,231 +277,333 @@ function ConversationThread({
                 void handleSend();
               }
             }}
-            className="flex-1 bg-foreground/5 border border-border/30 px-3 py-2 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none text-sm"
+            className="flex-1 bg-foreground/5 border border-border/30 rounded-2xl px-4 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none text-[14px] max-h-32"
+            style={{ minHeight: "42px" }}
           />
           <button
             onClick={() => void handleSend()}
             disabled={send.isPending || !reply.trim()}
-            className="bg-primary text-primary-foreground px-4 py-2 font-bold text-sm tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="bg-primary text-primary-foreground w-10 h-10 rounded-full hover:bg-primary/90 disabled:opacity-30 transition-all flex items-center justify-center flex-shrink-0"
             title="Send (⌘/Ctrl + Enter)"
+            aria-label="Send"
           >
             <SendIcon className="w-4 h-4" />
-            {send.isPending ? "…" : "SEND"}
           </button>
         </div>
-        <p className="mt-1 text-foreground/30 text-[10px]">
-          {reply.length}/1600 · ⌘/Ctrl+Enter to send
-        </p>
+        <div className="mt-1.5 px-2 flex items-center justify-between text-[10px] text-foreground/30">
+          <span>{reply.length}/1600 · ⌘/Ctrl+Enter to send</span>
+          <span>via {BUSINESS.phone.dashed}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function ConversationsPanel() {
-  const list = trpc.smsConversations.list.useQuery({ limit: 50 });
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const selected = (list.data as ConversationRow[] | undefined)?.find((c) => c.id === selectedId) ?? null;
+// ─── New conversation composer ──────────────────────────
+function NewConversationDialog({
+  onClose,
+  onCreated,
+}: {
+  onClose: () => void;
+  onCreated: (conversationId: number) => void;
+}) {
+  const utils = trpc.useUtils();
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const send = trpc.smsConversations.send.useMutation({
+    onSuccess: (res) => {
+      if (res.success && res.conversationId) {
+        toast.success("Sent");
+        void utils.smsConversations.list.invalidate();
+        onCreated(res.conversationId);
+      } else {
+        toast.error("Send failed — check gateway status");
+      }
+    },
+    onError: (err) => toast.error(err.message || "Send failed"),
+  });
 
-  if (selected) {
-    return <ConversationThread conversation={selected as ConversationRow} onBack={() => setSelectedId(null)} />;
-  }
+  const phoneClean = phone.replace(/\D/g, "");
+  const valid = phoneClean.length >= 10 && message.trim().length > 0;
+
+  const submit = () => {
+    if (!valid) return;
+    send.mutate({ phone: phoneClean, message: message.trim(), customerName: name.trim() || undefined });
+  };
 
   return (
-    <div className="bg-card border border-border/30 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] flex items-center gap-2">
-          <Inbox className="w-5 h-5 text-foreground/70" /> CONVERSATIONS
-        </h3>
-        <button
-          onClick={() => void list.refetch()}
-          className="text-foreground/50 text-xs hover:text-foreground/80 transition-colors"
-        >
-          {list.isFetching ? "Refreshing…" : "Refresh"}
-        </button>
-      </div>
-      {list.isLoading && (
-        <div className="text-foreground/40 text-sm text-center py-8">Loading conversations…</div>
-      )}
-      {list.data && list.data.length === 0 && (
-        <div className="text-foreground/40 text-sm text-center py-8">
-          No conversations yet. New customer texts to <strong>{BUSINESS.phone.dashed}</strong> will show here.
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="w-full max-w-md bg-card border border-border/40 rounded-t-2xl sm:rounded-2xl shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center justify-between px-5 py-4 border-b border-border/20">
+          <h3 className="font-semibold text-foreground tracking-tight text-[15px]">New message</h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 -mr-1.5 hover:bg-foreground/5 rounded-md transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4 text-foreground/60" />
+          </button>
+        </header>
+        <div className="px-5 py-4 space-y-3">
+          <label className="block">
+            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">To</span>
+            <input
+              type="tel"
+              autoFocus
+              placeholder="(216) 555-1234"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="w-full bg-foreground/5 border border-border/30 rounded-md px-3 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 text-[14px]"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Name <span className="text-foreground/30 normal-case tracking-normal">(optional)</span></span>
+            <input
+              type="text"
+              placeholder="Customer name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full bg-foreground/5 border border-border/30 rounded-md px-3 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 text-[14px]"
+            />
+          </label>
+          <label className="block">
+            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Message</span>
+            <textarea
+              placeholder="Hey, this is Nick from Nick's Tire…"
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={4}
+              maxLength={1600}
+              className="w-full bg-foreground/5 border border-border/30 rounded-md px-3 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none text-[14px]"
+            />
+          </label>
+          <div className="text-[10px] text-foreground/40 flex items-center justify-between pt-1">
+            <span>{message.length}/1600</span>
+            <span>via {BUSINESS.phone.dashed}</span>
+          </div>
         </div>
-      )}
-      {list.data && list.data.length > 0 && (
-        <div className="divide-y divide-border/20">
-          {(list.data as ConversationRow[]).map((c) => {
+        <footer className="px-5 py-3.5 border-t border-border/20 flex items-center justify-end gap-2 bg-foreground/[0.02] rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-[13px] font-medium text-foreground/60 hover:text-foreground transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={submit}
+            disabled={!valid || send.isPending}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-md font-semibold text-[13px] hover:bg-primary/90 disabled:opacity-40 transition-colors flex items-center gap-2"
+          >
+            <SendIcon className="w-3.5 h-3.5" />
+            {send.isPending ? "Sending…" : "Send"}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+// ─── Conversation list ──────────────────────────────────
+function ConversationList({
+  selectedId,
+  onSelect,
+  onNew,
+  searchQ,
+  setSearchQ,
+}: {
+  selectedId: number | null;
+  onSelect: (id: number) => void;
+  onNew: () => void;
+  searchQ: string;
+  setSearchQ: (q: string) => void;
+}) {
+  const list = trpc.smsConversations.list.useQuery(
+    { limit: 100 },
+    { refetchInterval: 30_000 },
+  );
+
+  const filtered = useMemo(() => {
+    const rows = (list.data as ConversationRow[] | undefined) ?? [];
+    if (!searchQ.trim()) return rows;
+    const q = searchQ.toLowerCase();
+    return rows.filter((c) =>
+      (c.customerName?.toLowerCase().includes(q)) ||
+      formatPhone(c.customerPhone).toLowerCase().includes(q) ||
+      (c.lastMessage?.toLowerCase().includes(q))
+    );
+  }, [list.data, searchQ]);
+
+  const totalUnread = useMemo(() =>
+    ((list.data as ConversationRow[] | undefined) ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
+    [list.data]
+  );
+
+  return (
+    <div className="flex flex-col h-full bg-card border border-border/30 rounded-lg overflow-hidden">
+      <header className="px-4 pt-4 pb-2 border-b border-border/20">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="font-semibold text-foreground tracking-tight text-[15px]">Messages</h2>
+            {totalUnread > 0 && (
+              <p className="text-[11px] text-primary font-medium mt-0.5">{totalUnread} unread</p>
+            )}
+          </div>
+          <button
+            onClick={onNew}
+            className="bg-primary text-primary-foreground w-8 h-8 rounded-full hover:bg-primary/90 transition-colors flex items-center justify-center"
+            aria-label="New conversation"
+            title="New conversation"
+          >
+            <Plus className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-foreground/40" />
+          <input
+            type="text"
+            placeholder="Search"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            className="w-full bg-foreground/5 border border-border/20 rounded-full pl-9 pr-3 py-1.5 text-[13px] text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/40"
+          />
+        </div>
+      </header>
+      <div className="flex-1 overflow-y-auto">
+        {list.isLoading && (
+          <div className="text-foreground/40 text-sm text-center py-12">Loading…</div>
+        )}
+        {!list.isLoading && filtered.length === 0 && !searchQ && (
+          <div className="text-center py-12 px-4">
+            <MessageSquare className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
+            <p className="text-foreground/50 text-sm">No conversations yet</p>
+            <p className="text-foreground/30 text-xs mt-1">Customers texting {BUSINESS.phone.dashed} will land here.</p>
+            <button
+              onClick={onNew}
+              className="mt-4 text-primary text-[13px] font-medium hover:underline"
+            >
+              Send first message →
+            </button>
+          </div>
+        )}
+        {!list.isLoading && filtered.length === 0 && searchQ && (
+          <div className="text-foreground/40 text-sm text-center py-12">No matches for "{searchQ}"</div>
+        )}
+        <div className="divide-y divide-border/10">
+          {filtered.map((c) => {
             const unread = (c.unreadCount ?? 0) > 0;
+            const active = selectedId === c.id;
             return (
               <button
                 key={c.id}
-                onClick={() => setSelectedId(c.id)}
-                className={`w-full text-left py-3 hover:bg-foreground/[0.04] transition-colors flex items-start gap-3 ${unread ? "" : ""}`}
+                onClick={() => onSelect(c.id)}
+                className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${
+                  active ? "bg-primary/8" : "hover:bg-foreground/[0.04]"
+                }`}
               >
-                <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${unread ? "bg-primary" : "bg-transparent"}`} />
+                <div className={`w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center font-semibold text-[12px] ${
+                  unread ? "bg-primary/15 text-primary" : "bg-foreground/8 text-foreground/70"
+                }`}>
+                  {initialsFor(c.customerName, c.customerPhone)}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline justify-between gap-2">
-                    <p className={`truncate ${unread ? "text-foreground font-bold" : "text-foreground/85"}`}>
+                    <p className={`truncate text-[14px] ${unread ? "text-foreground font-semibold" : "text-foreground/90"}`}>
                       {c.customerName || formatPhone(c.customerPhone)}
                     </p>
-                    <span className="text-foreground/40 text-[11px] flex-shrink-0">{formatRelativeTime(c.lastMessageAt)}</span>
+                    <span className={`text-[11px] flex-shrink-0 ${unread ? "text-primary font-semibold" : "text-foreground/40"}`}>
+                      {formatRelative(c.lastMessageAt)}
+                    </span>
                   </div>
-                  <p className={`text-sm truncate ${unread ? "text-foreground/80" : "text-foreground/50"}`}>
-                    {c.lastMessage || <span className="italic">No messages</span>}
+                  <p className={`text-[13px] truncate mt-0.5 ${unread ? "text-foreground/70" : "text-foreground/45"}`}>
+                    {c.lastMessage || <span className="italic text-foreground/30">No messages</span>}
                   </p>
-                  <p className="text-foreground/40 text-[11px] mt-0.5">{formatPhone(c.customerPhone)}</p>
                 </div>
                 {unread && (
-                  <span className="bg-primary text-primary-foreground text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">
-                    {c.unreadCount}
+                  <span className="bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-1">
+                    {c.unreadCount! > 9 ? "9+" : c.unreadCount}
                   </span>
                 )}
               </button>
             );
           })}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
+// ─── Main section ───────────────────────────────────────
 export default function SmsSection() {
-  const { data: smsStatus } = trpc.sms.status.useQuery();
-  const sendTest = trpc.sms.sendTest.useMutation();
-  const sendManual = trpc.sms.sendManual.useMutation();
-  const [testPhone, setTestPhone] = useState("");
-  const [manualPhone, setManualPhone] = useState("");
-  const [manualMsg, setManualMsg] = useState("");
-  const [lastResult, setLastResult] = useState<{ success: boolean; sid?: string; error?: string } | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [showNew, setShowNew] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
+  const list = trpc.smsConversations.list.useQuery({ limit: 100 });
 
-  const handleSendTest = async () => {
-    if (!testPhone) return;
-    try {
-      const res = await sendTest.mutateAsync({ phone: testPhone });
-      setLastResult(res);
-      if (res.success) toast.success("Test SMS sent successfully!");
-      else toast.error(res.error || "Failed to send test SMS");
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to send");
-    }
-  };
-
-  const handleSendManual = async () => {
-    if (!manualPhone || !manualMsg) return;
-    try {
-      const res = await sendManual.mutateAsync({ phone: manualPhone, message: manualMsg });
-      setLastResult(res);
-      if (res.success) {
-        toast.success("SMS sent!");
-        setManualMsg("");
-      } else {
-        toast.error(res.error || "Failed to send");
-      }
-    } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : "Failed to send");
-    }
-  };
+  const selected = useMemo(
+    () => (list.data as ConversationRow[] | undefined)?.find((c) => c.id === selectedId) ?? null,
+    [list.data, selectedId],
+  );
 
   return (
-    <div className="space-y-8">
-      <PageHeader
-        title="SMS"
-        subtitle="Customer conversations · gateway status · ad-hoc send. Primary: shop F25e at 216-862-0005. Fallback: Twilio."
-        icon={<MessageSquare className="w-5 h-5" />}
-      />
+    <div className="space-y-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <PageHeader
+          title="Messages"
+          subtitle="Two-way SMS with customers · routes through the shop F25e gateway with Twilio fallback"
+          icon={<MessageSquare className="w-5 h-5" />}
+        />
+        <GatewayPill />
+      </div>
 
-      {/* Wave-105: Conversations panel — list + thread + reply */}
-      <ConversationsPanel />
+      {/* Two-pane on desktop · single-pane on mobile (drill in/out) */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-4 h-[calc(100vh-220px)] min-h-[560px]">
+        {/* List — hide on mobile when a conversation is selected */}
+        <div className={`${selected ? "hidden lg:flex" : "flex"} flex-col min-h-0`}>
+          <ConversationList
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onNew={() => setShowNew(true)}
+            searchQ={searchQ}
+            setSearchQ={setSearchQ}
+          />
+        </div>
 
-      {/* Wave-108: dual-gateway status card */}
-      <GatewayStatusCard />
-
-      {/* Auto-send reference */}
-      <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">AUTO-SEND TRIGGERS</h3>
-        <div className="bg-foreground/5 p-4 border border-border/20">
-          <p className="text-foreground/60 text-sm leading-relaxed">
-            <strong className="text-foreground/80">Through 216-862-0005 (shop gateway):</strong><br />
-            • Booking confirmations (when customer books online)<br />
-            • Drop-off recaps (when car checked in)<br />
-            • Callback confirmations (during business hours)<br />
-            • Nick AI's address text after a phone call<br />
-            • Lead confirmations + financing follow-ups<br />
-            • Manager-on-duty alerts on every new booking/lead/emergency<br /><br />
-            <strong className="text-foreground/80">Through Twilio (fallback / bulk):</strong><br />
-            • Marketing campaigns + winback drips<br />
-            • Review request batches<br />
-            • Cron-based bulk outreach (declined-work recovery, retention)<br />
-            • Anything that fails through the shop gateway (auto-fallback + Telegram alert)
-          </p>
+        {/* Thread — show on mobile only when a conversation is selected */}
+        <div className={`${selected ? "flex" : "hidden lg:flex"} flex-col min-h-0`}>
+          {selected ? (
+            <ThreadView conversation={selected} onBack={() => setSelectedId(null)} />
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center bg-card border border-border/30 rounded-lg text-center px-6">
+              <MessageSquare className="w-10 h-10 text-foreground/15 mb-4" />
+              <h3 className="font-semibold text-foreground/70 tracking-tight mb-1">Select a conversation</h3>
+              <p className="text-foreground/40 text-sm max-w-xs">
+                Pick a thread from the left, or start a new message to any phone number.
+              </p>
+              <button
+                onClick={() => setShowNew(true)}
+                className="mt-5 inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-full font-medium text-[13px] hover:bg-primary/90 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New message
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Send Test SMS */}
-      <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SEND TEST SMS</h3>
-        <p className="text-foreground/50 text-sm mb-4">Send a test message to verify Twilio is working correctly.</p>
-        <div className="flex gap-3">
-          <input
-            type="tel"
-            placeholder={`Phone number (e.g. ${BUSINESS.phone.dashed})`}
-            value={testPhone}
-            onChange={(e) => setTestPhone(e.target.value)}
-            className="flex-1 bg-foreground/5 border border-border/30 px-4 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
-          />
-          <button
-            onClick={handleSendTest}
-            disabled={sendTest.isPending || !testPhone}
-            className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {sendTest.isPending ? "SENDING..." : "SEND TEST"}
-          </button>
-        </div>
-      </div>
-
-      {/* Send Manual SMS */}
-      <div className="bg-card border border-border/30 p-6">
-        <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-4">SEND MANUAL SMS</h3>
-        <p className="text-foreground/50 text-sm mb-4">Send a custom message to any phone number.</p>
-        <div className="space-y-3">
-          <input
-            type="tel"
-            placeholder="Phone number"
-            value={manualPhone}
-            onChange={(e) => setManualPhone(e.target.value)}
-            className="w-full bg-foreground/5 border border-border/30 px-4 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
-          />
-          <textarea
-            placeholder="Type your message..."
-            value={manualMsg}
-            onChange={(e) => setManualMsg(e.target.value)}
-            rows={4}
-            maxLength={1600}
-            className="w-full bg-foreground/5 border border-border/30 px-4 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-foreground/30 text-xs">{manualMsg.length}/1600</span>
-            <button
-              onClick={handleSendManual}
-              disabled={sendManual.isPending || !manualPhone || !manualMsg}
-              className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {sendManual.isPending ? "SENDING..." : "SEND MESSAGE"}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Last Result */}
-      {lastResult && (
-        <div className={`p-4 border ${lastResult.success ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
-          <p className={`text-[13px] ${lastResult.success ? "text-emerald-400" : "text-red-400"}`}>
-            {lastResult.success ? `Sent successfully (SID: ${lastResult.sid})` : `Failed: ${lastResult.error}`}
-          </p>
-        </div>
+      {showNew && (
+        <NewConversationDialog
+          onClose={() => setShowNew(false)}
+          onCreated={(id) => {
+            setShowNew(false);
+            setSelectedId(id);
+          }}
+        />
       )}
     </div>
   );
 }
-
-// ─── MAIN ADMIN COMPONENT ───────────────────────────────
-
