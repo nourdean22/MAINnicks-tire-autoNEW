@@ -83,7 +83,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold text-lg text-foreground tracking-wider">CREATE WIN-BACK CAMPAIGN</h3>
+        <h3 className="text-[15px] font-semibold text-foreground tracking-tight">New win-back campaign</h3>
         <button onClick={onClose} className="text-foreground/30 hover:text-foreground/60 transition-colors">
           <X className="w-5 h-5" />
         </button>
@@ -272,7 +272,7 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
             <ChevronRight className="w-5 h-5 rotate-180" />
           </button>
           <div>
-            <h3 className="font-bold text-lg text-foreground tracking-wider">{campaign.name}</h3>
+            <h3 className="text-[16px] font-semibold text-foreground tracking-tight">{campaign.name}</h3>
             <div className="flex items-center gap-3 mt-1">
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] tracking-wider ${statusCfg.color} ${statusCfg.bgColor}`}>
                 {statusCfg.icon} {statusCfg.label.toUpperCase()}

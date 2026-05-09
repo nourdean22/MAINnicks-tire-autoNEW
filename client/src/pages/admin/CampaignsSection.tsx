@@ -10,7 +10,7 @@ import { StatCard, formatDate } from "./shared";
 type Campaign = NonNullable<RouterOutputs["campaigns"]["list"]>[number];
 import {
   Plus, Send, Clock, CheckCircle2, AlertCircle, Eye, X,
-  Loader2, MessageSquare, Users, TrendingUp, ChevronRight,
+  Loader2, MessageSquare, Users, TrendingUp,
 } from "lucide-react";
 
 type View = "list" | "create" | "preview";
@@ -135,10 +135,10 @@ export default function CampaignsSection() {
   if (view === "create" || view === "preview") {
     return (
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header — wave-132 sentence case, refined typography */}
         <div className="flex items-center justify-between">
-          <h3 className="font-bold text-lg text-foreground tracking-wider">
-            {view === "preview" ? "CAMPAIGN PREVIEW" : "CREATE SMS CAMPAIGN"}
+          <h3 className="text-[15px] font-semibold text-foreground tracking-tight">
+            {view === "preview" ? "Review and send" : "New campaign"}
           </h3>
           <button
             onClick={() => {
@@ -147,9 +147,10 @@ export default function CampaignsSection() {
               setCustomMessage("");
               setPreview([]);
             }}
-            className="text-foreground/30 hover:text-foreground/60 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
+            aria-label="Cancel"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -157,8 +158,8 @@ export default function CampaignsSection() {
           <div className="space-y-6">
             {/* Campaign Name */}
             <div>
-              <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">
-                CAMPAIGN NAME
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+                Campaign name
               </label>
               <input
                 type="text"
@@ -171,8 +172,8 @@ export default function CampaignsSection() {
 
             {/* Template Selection */}
             <div>
-              <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-3">
-                TEMPLATE
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+                Template
               </label>
               <div className="grid grid-cols-2 gap-3">
                 {(Object.keys(TEMPLATE_CONFIG) as Template[]).map(tmpl => (
@@ -200,8 +201,8 @@ export default function CampaignsSection() {
 
             {/* Segment Selection */}
             <div>
-              <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-3">
-                TARGET SEGMENT
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-3">
+                Target segment
               </label>
               <div className="grid grid-cols-3 gap-3">
                 {(Object.keys(SEGMENT_CONFIG) as Segment[]).map(seg => (
@@ -226,8 +227,8 @@ export default function CampaignsSection() {
 
             {/* Custom Message (Optional) */}
             <div>
-              <label className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-2">
-                CUSTOM MESSAGE (OPTIONAL)
+              <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">
+                Custom message <span className="normal-case tracking-normal text-foreground/30">(optional)</span>
               </label>
               <textarea
                 value={customMessage}
@@ -323,54 +324,52 @@ export default function CampaignsSection() {
     );
   }
 
-  // List View
+  // List View — wave-132 minimalist refresh
   return (
     <div className="space-y-6">
       {/* Header & Create Button */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-lg text-foreground tracking-wider">SMS CAMPAIGNS</h3>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-[15px] font-semibold text-foreground tracking-tight">Campaigns</h3>
+          <p className="text-foreground/50 text-[12px] mt-0.5">Schedule + send bulk SMS · routes through Twilio fallback path</p>
+        </div>
         <button
           onClick={() => setView("create")}
-          className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded hover:bg-primary/15 transition-colors text-sm font-mono"
+          className="inline-flex items-center gap-2 px-3.5 py-2 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
         >
-          <Plus className="w-4 h-4" />
-          New Campaign
+          <Plus className="w-3.5 h-3.5" />
+          <span>New campaign</span>
         </button>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard
-          label="Total Campaigns"
-          value={stats?.totalCampaigns ?? 0}
-          icon={<MessageSquare className="w-5 h-5" />}
-        />
-        <StatCard
-          label="Active"
-          value={stats?.activeCampaigns ?? 0}
-          icon={<Clock className="w-5 h-5" />}
-        />
-        <StatCard
-          label="Sent"
-          value={stats?.totalSent ?? 0}
-          icon={<CheckCircle2 className="w-5 h-5" />}
-        />
-        <StatCard
-          label="Failed"
-          value={stats?.totalFailed ?? 0}
-          icon={<AlertCircle className="w-5 h-5" />}
-        />
+      {/* Stats Grid — 2×2 on mobile, 4×1 on lg */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard label="Total" value={stats?.totalCampaigns ?? 0} icon={<MessageSquare className="w-4 h-4" />} />
+        <StatCard label="Active" value={stats?.activeCampaigns ?? 0} icon={<Clock className="w-4 h-4" />} color={stats?.activeCampaigns ? "text-amber-400" : "text-foreground"} />
+        <StatCard label="Sent" value={stats?.totalSent ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
+        <StatCard label="Failed" value={stats?.totalFailed ?? 0} icon={<AlertCircle className="w-4 h-4" />} color={stats?.totalFailed ? "text-red-400" : "text-foreground/50"} />
       </div>
 
       {/* Campaigns List */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         {campaigns && campaigns.length > 0 ? (
           campaigns.map((campaign: Campaign) => (
             <CampaignRow key={campaign.id} campaign={campaign} />
           ))
         ) : (
-          <div className="text-center py-8 text-foreground/50 font-mono text-sm">
-            No campaigns yet. Create one to get started.
+          <div className="bg-card border border-border/30 rounded-lg py-12 px-6 text-center">
+            <MessageSquare className="w-8 h-8 text-foreground/15 mx-auto mb-3" />
+            <h4 className="text-foreground/70 font-medium tracking-tight">No campaigns yet</h4>
+            <p className="text-foreground/40 text-[13px] mt-1 max-w-sm mx-auto">
+              Schedule your first SMS broadcast to a customer segment — maintenance reminder, special offer, or win-back.
+            </p>
+            <button
+              onClick={() => setView("create")}
+              className="mt-5 inline-flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Create first campaign
+            </button>
           </div>
         )}
       </div>
