@@ -571,15 +571,13 @@ export default function LeadsSection() {
 
           {/* Leads List */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
+            <LoadingState label="Loading leads..." />
           ) : filteredLeads.length === 0 ? (
-            <div className="text-center py-20 border border-border/30 bg-card">
-              <Users className="w-12 h-12 text-foreground/20 mx-auto mb-4" />
-              <p className="font-bold text-xl text-foreground/40 tracking-wider">NO LEADS</p>
-              <p className="text-foreground/30 text-[13px] mt-2">Leads from the popup and chat will appear here.</p>
-            </div>
+            <EmptyState
+              icon={<Users className="w-8 h-8" />}
+              title="No leads"
+              subtitle="Leads from the popup and chat will appear here."
+            />
           ) : (
             <div className="space-y-4">
               {filteredLeads.map((lead, _lIdx) => (
