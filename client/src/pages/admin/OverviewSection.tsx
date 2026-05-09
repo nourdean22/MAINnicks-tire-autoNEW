@@ -3,7 +3,7 @@
  * Top row: 6 stat cards (Cars, Revenue, Jobs, Leads, Health Score, ALG Status)
  * Then: Shop pulse, priority queue, timeline, charts, activity.
  */
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -14,7 +14,7 @@ import {
 } from "./shared";
 import {
   Activity, AlertTriangle, BarChart3, Bell, CalendarClock, CheckCircle2,
-  ChevronRight, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
+  ChevronRight, ChevronDown, ChevronUp, Clock, ExternalLink, FileSpreadsheet, FileText, Globe, Hash,
   Loader2, MessageSquare, Newspaper, PieChart, Phone, Send, Sparkles, Star,
   TrendingUp, Users, Wrench, XCircle, Zap, Timer, ArrowRight, PhoneCall, RotateCcw,
   Brain, Plug, Shield,
@@ -411,6 +411,20 @@ export default function OverviewSection() {
   const { data: masterReport } = trpc.intelligence.masterReport.useQuery(undefined, { staleTime: 300_000, refetchInterval: 300_000 });
 
   const [actionFilter, setActionFilter] = useState<"all" | "booking" | "lead" | "callback" | "workOrder">("all");
+
+  // Wave-2026-05-09 — SHOP DASHBOARD apex card collapse state.
+  // Lazy-initialized from localStorage so the operator's preference
+  // survives page refresh. Default = expanded so first-time users
+  // see the full card.
+  const [dashCollapsed, setDashCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("nickstire.adminDashCollapsed") === "1";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("nickstire.adminDashCollapsed", dashCollapsed ? "1" : "0");
+    }
+  }, [dashCollapsed]);
 
   // Collect phones from queue items for VIP lookup
   const queuePhones = useMemo(() => {
@@ -846,7 +860,7 @@ export default function OverviewSection() {
           className="bg-card border border-violet-500/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-violet-500/40 transition-shadow space-y-3"
           aria-label="Open intelligence dashboard"
         >
-          {/* Header — score + status + customer count pills */}
+          {/* Header — score + status + customer count pills + collapse toggle */}
           <div className="flex items-center gap-3 flex-wrap">
             <Brain className="w-4 h-4 text-violet-400" />
             <span className="text-[10px] font-bold tracking-wider text-muted-foreground">SHOP DASHBOARD</span>
@@ -872,6 +886,17 @@ export default function OverviewSection() {
                 {masterReport.summary.score}/100
               </div>
             )}
+            {/* Collapse toggle — stops propagation so the card click (→ /intelligence) doesn't fire */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setDashCollapsed(c => !c); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.stopPropagation(); }}
+              className={`${masterReport?.summary ? "" : "ml-auto"} p-1 rounded hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-colors`}
+              aria-label={dashCollapsed ? "Expand dashboard details" : "Collapse dashboard details"}
+              aria-expanded={!dashCollapsed}
+            >
+              {dashCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+            </button>
           </div>
 
           {/* Operations row — most-checked daily numbers (largest text) */}
@@ -903,6 +928,10 @@ export default function OverviewSection() {
               </div>
             </div>
           )}
+
+          {/* Everything below this line is collapsible per operator preference (line drawn during 2026-05-09 review).
+              When collapsed, only the header + operations row stay visible. */}
+          {!dashCollapsed && (<>
 
           {/* Customer cohort row — strategic, smaller text */}
           {custIntel && (
@@ -1012,6 +1041,8 @@ export default function OverviewSection() {
               )}
             </div>
           )}
+
+          </>)}{/* end !dashCollapsed wrapper */}
         </div>
       )}
 
