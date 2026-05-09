@@ -46,10 +46,24 @@ export function validateTwilioRequest(req: Request, res: Response, next: NextFun
     return;
   }
 
-  // Build the validation URL (Twilio uses the full URL including protocol)
-  const protocol = req.headers["x-forwarded-proto"] || req.protocol;
-  const host = req.headers.host || "";
-  const url = `${protocol}://${host}${req.originalUrl}`;
+  // wave-122b (MEDIUM S2) — was trusting `x-forwarded-proto` and
+  // `Host` headers from the request to compute the HMAC validation
+  // URL. A request with a manipulated Host header could force the
+  // HMAC computation against the wrong URL and bypass or mismatch
+  // validation. Now: prefer environment-pinned domain
+  // (RAILWAY_PUBLIC_DOMAIN or NICKSTIRE_PUBLIC_URL), fall back to
+  // request headers only if neither env var is set (dev convenience).
+  const envDomain = process.env.NICKSTIRE_PUBLIC_URL
+    ?? (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : null);
+  let url: string;
+  if (envDomain) {
+    url = `${envDomain.replace(/\/+$/, "")}${req.originalUrl}`;
+  } else {
+    const protocol = req.headers["x-forwarded-proto"] || req.protocol;
+    const host = req.headers.host || "";
+    url = `${protocol}://${host}${req.originalUrl}`;
+    log.warn("[twilioValidation] no env-pinned domain — falling back to request headers (dev OK, prod set NICKSTIRE_PUBLIC_URL)");
+  }
 
   // Sort POST parameters and append to URL
   let data = url;

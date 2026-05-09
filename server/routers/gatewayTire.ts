@@ -334,8 +334,19 @@ async function syncOrderToGoogleSheet(order: {
     const configContent = fs.readFileSync("/home/ubuntu/.gdrive-rclone.ini", "utf-8");
     const tokenJson = configContent.split("token = ")[1]?.trim();
     if (!tokenJson) return;
-    const tokenData = JSON.parse(tokenJson);
-    const accessToken = tokenData.access_token;
+    // wave-122b (MEDIUM S5) — JSON.parse on disk-stored token file
+    // could throw on corruption; wrap so a bad token doesn't crash
+    // the whole request handler. Validate the shape minimally
+    // (access_token must be a string).
+    let accessToken: string | undefined;
+    try {
+      const tokenData = JSON.parse(tokenJson) as { access_token?: unknown };
+      if (typeof tokenData.access_token !== "string") return;
+      accessToken = tokenData.access_token;
+    } catch (parseErr) {
+      console.warn("[gatewayTire] token JSON parse failed", parseErr);
+      return;
+    }
     const sheetId = process.env.GOOGLE_SHEETS_CRM_ID;
     if (!sheetId) return;
 
