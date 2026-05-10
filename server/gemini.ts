@@ -16,6 +16,7 @@ import { invokeLLM } from "./_core/llm";
 
 import { BUSINESS } from "@shared/business";
 import { createLogger } from "./lib/logger";
+import { getBusinessBehaviorDirective, resolveBusinessIntensity } from "./lib/ai-behavior/business-behavior-directive";
 
 const log = createLogger("gemini");
 // ─── TEMPORAL HELPERS ────────────────────────────────────
@@ -230,7 +231,7 @@ This customer has expressed interest in pricing. Adapt your approach:
     ? `\nConversation guidance: You've been talking for a while. If you haven't already, gently steer toward a concrete next step — booking, calling, or sharing contact info. Don't be pushy, but don't let the conversation drift without purpose.`
     : "";
 
-  return `You are the AI assistant for Nick's Tire & Auto, a trusted independent auto repair and tire shop at 17625 Euclid Ave, Cleveland, OH 44112. Phone: (216) 862-0005. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM.
+  const base = `You are the AI assistant for Nick's Tire & Auto, a trusted independent auto repair and tire shop at 17625 Euclid Ave, Cleveland, OH 44112. Phone: (216) 862-0005. Hours: Mon-Sat 8AM-6PM, Sun 9AM-4PM.
 
 ${personalityBlock}
 
@@ -317,6 +318,15 @@ When a customer seems ready to come in:
 - Use same-day framing: "If you get it here before 10am, we can usually have it done today"
 - Direct them to call (216) 862-0005 or just walk in at 17625 Euclid Ave
 - Make it easy: "No appointment needed — just pull up"${bookingGuidance}`;
+
+  // v10.0.488 · Inject business behavior directive (Anticipate & Elevate)
+  const intensity = resolveBusinessIntensity();
+  const directive = getBusinessBehaviorDirective(null, intensity);
+  if (directive) {
+    return base + `\n\n## BEHAVIOR DIRECTIVE (intensity: ${intensity.toLowerCase()})\n${directive}`;
+  }
+
+  return base;
 }
 
 // Backward-compatible static prompt for code that doesn't pass context
