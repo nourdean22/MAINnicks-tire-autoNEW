@@ -4,7 +4,6 @@
  * gold initial avatars, keyword highlighting, and sort options.
  */
 
-import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ReviewCTA from "@/components/ReviewCTA";
 import PageLayout from "@/components/PageLayout";
@@ -592,7 +591,6 @@ export default function ReviewsPage() {
         </div>
       </section>
 
-      <InternalLinks title="Explore Our Services" />
     </PageLayout>
   );
 }

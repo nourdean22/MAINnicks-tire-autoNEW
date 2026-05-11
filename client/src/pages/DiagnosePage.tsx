@@ -4,7 +4,6 @@
  * severity-coded result cards, and scan animation.
  */
 
-import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useState, useRef } from "react";
@@ -876,68 +875,8 @@ export default function DiagnosePage() {
           )}
         </AnimatePresence>
 
-        {/* Trust Section */}
-        <section className="bg-[#0A0A0A] py-16">
-          <div className="container max-w-3xl text-center">
-            <FadeIn>
-              <h2 className="font-heading text-2xl text-white tracking-tight mb-4">
-                WHY USE THIS <span className="text-[#FDB913]">TOOL</span>?
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Shield className="w-6 h-6 text-[#FDB913]" />
-                  </div>
-                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">UNDERSTAND FIRST</h3>
-                  <p className="text-white/50 text-sm">Know what might be wrong before you visit any shop. No surprises.</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Zap className="w-6 h-6 text-[#FDB913]" />
-                  </div>
-                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">FAST & FREE</h3>
-                  <p className="text-white/50 text-sm">Get a preliminary assessment in under 60 seconds. No cost, no obligation.</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-[#FDB913]/10 rounded-lg flex items-center justify-center mx-auto mb-3">
-                    <Wrench className="w-6 h-6 text-[#FDB913]" />
-                  </div>
-                  <h3 className="font-heading text-white tracking-wider text-sm mb-2">MECHANIC BACKED</h3>
-                  <p className="text-white/50 text-sm">Built on real diagnostic knowledge from professional auto technicians.</p>
-                </div>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
-
-        {/* CTA */}
-        <section className="bg-[#0A0A0A] py-16">
-          <div className="container pt-12 text-center">
-            <FadeIn>
-              <h2 className="font-heading text-3xl lg:text-4xl text-white tracking-tight">
-                PREFER TO <span className="text-[#FDB913]">TALK</span>?
-              </h2>
-              <p className="mt-4 text-white/60 text-lg max-w-xl mx-auto">
-                Our technicians are happy to discuss your vehicle's symptoms over the phone. Call us for a free consultation.
-              </p>
-              <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick("diagnose-cta")} className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-lg tracking-wider hover:bg-[#FDB913]/90 transition-colors">
-                  <Phone className="w-5 h-5" />
-                  CALL {BUSINESS.phone.display}
-                </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-lg tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors">
-                  SCHEDULE DROP-OFF
-                </Link>
-              </div>
-            </FadeIn>
-          </div>
-        </section>
       </main>
 
-      <section className="container pb-8">
-        <FinancingCTA variant="banner" />
-      </section>
-      <InternalLinks title="Related Services" />
     </PageLayout>
   );
 }

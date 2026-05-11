@@ -25,7 +25,6 @@ import {
 } from "lucide-react";
 import { motion, useInView } from "framer-motion";
 import { BUSINESS } from "@shared/business";
-import InternalLinks from "@/components/InternalLinks";
 
 function FadeIn({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
   const ref = useRef(null);
@@ -771,7 +770,6 @@ export default function BlogPost() {
         </section>
       )}
 
-      <InternalLinks />
-</PageLayout>
+    </PageLayout>
   );
 }

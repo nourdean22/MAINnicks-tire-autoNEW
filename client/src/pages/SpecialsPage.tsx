@@ -13,7 +13,6 @@ import {
   CreditCard, Copy, Check, TrendingUp,
 } from "lucide-react";
 import { BUSINESS } from "@shared/business";
-import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import { trpc } from "@/lib/trpc";
 import FadeIn from "@/components/FadeIn";
@@ -532,7 +531,6 @@ export default function SpecialsPage() {
         </div>
       </section>
 
-      <InternalLinks />
     </PageLayout>
   );
 }
