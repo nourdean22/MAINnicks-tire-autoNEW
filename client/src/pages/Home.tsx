@@ -68,7 +68,7 @@ function Hero() {
     staleTime: 60 * 60 * 1000,
     retry: 1,
   });
-  const rating = googleData?.rating ?? 4.9;
+  const rating = (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating;
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
 
   return (
@@ -339,7 +339,7 @@ function TrustNumbers() {
     retry: 1,
   });
   const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
-  const rating = googleData?.rating ?? BUSINESS.reviews.rating;
+  const rating = (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating;
 
   // 2026-05-07 wave-45 · design-spells: stats now count up from 0 to
   // their target when scrolled into view. The two numeric stats (rating
