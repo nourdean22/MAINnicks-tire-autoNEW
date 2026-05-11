@@ -43,16 +43,19 @@ export default function LossAversionStat({
   ctaHref,
   ctaLabel = "STOP THE LOSS",
 }: Props) {
-  // Animate the number upward when it scrolls into view
+  // Show the actual amount immediately (SSR-safe), animate on scroll
   const ref = useRef<HTMLDivElement>(null);
-  const [display, setDisplay] = useState(0);
+  const [display, setDisplay] = useState(amount);
+  const [hasAnimated, setHasAnimated] = useState(false);
 
   useEffect(() => {
-    if (!ref.current) return;
+    if (!ref.current || hasAnimated) return;
+    const el = ref.current;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) {
-          // Count up over 1.2 seconds
+        if (entries[0].isIntersecting && !hasAnimated) {
+          setHasAnimated(true);
+          // Start from 0 and count up to amount over 1.2 seconds
           const start = performance.now();
           const duration = 1200;
           const tick = (now: number) => {
@@ -61,15 +64,16 @@ export default function LossAversionStat({
             setDisplay(amount * eased);
             if (t < 1) requestAnimationFrame(tick);
           };
+          setDisplay(0);
           requestAnimationFrame(tick);
           observer.disconnect();
         }
       },
-      { threshold: 0.4 }
+      { threshold: 0.2 }
     );
-    observer.observe(ref.current);
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [amount]);
+  }, [amount, hasAnimated]);
 
   return (
     <motion.div
