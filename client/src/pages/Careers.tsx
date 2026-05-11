@@ -4,7 +4,6 @@
  * Built for search: JobPosting schema, plain-language job descriptions, local SEO.
  */
 import { useState } from "react";
-import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
@@ -614,46 +613,6 @@ export default function Careers() {
         </div>
       </section>
 
-      {/* ─── WHAT OUR CUSTOMERS SAY ─────────────────────── */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 lg:py-20 border-t border-border/20">
-        <div className="container">
-          <div className="mb-10">
-            <p className="text-xs font-semibold tracking-[0.12em] uppercase text-foreground/40 mb-3">
-              Don't take our word for it
-            </p>
-            <h2 className="font-heading text-4xl lg:text-5xl font-extrabold uppercase text-foreground leading-tight">
-              What Our <span className="text-nick-yellow">Customers</span> Say
-            </h2>
-            <p className="mt-4 text-foreground/55 max-w-xl leading-relaxed">
-              4.9 stars across 1,700+ Google reviews. When customers trust a shop like this, it means the
-              work is real, the team is solid, and the money keeps coming in.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 stagger-in">
-            {[
-              { text: "Fastest tire shop in Cleveland. I was in and out in 20 minutes. The guys know what they're doing and they don't waste your time.", author: "Mike R." },
-              { text: "I've been coming here for 3 years. They always tell me what's actually wrong — no upselling, no pressure. Honest shop, honest people.", author: "Jasmine T." },
-              { text: "They showed me my brakes before doing anything. Explained exactly what needed to be done and what could wait. This is how every shop should operate.", author: "David K." },
-            ].map((review) => (
-              <div key={review.author} className="stagger-in rounded-xl border border-border/25 bg-[oklch(0.07_0.004_260)] p-5">
-                <div className="flex items-center gap-0.5 mb-3">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <Star key={i} className="w-3.5 h-3.5 fill-nick-yellow text-nick-yellow" />
-                  ))}
-                </div>
-                <p className="text-sm text-foreground/70 leading-relaxed italic mb-3">"{review.text}"</p>
-                <p className="text-xs font-semibold text-foreground/50">{review.author}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-6 text-center">
-            <a href="https://www.google.com/maps/place/Nick's+Tire+%26+Auto/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary hover:opacity-80 transition-opacity">
-              See all 1,700+ reviews on Google <ArrowRight className="w-4 h-4" />
-            </a>
-          </div>
-        </div>
-      </section>
-
       {/* ─── APPLY NOW ────────────────────────────────────── */}
       <section id="apply" className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20 border-t border-border/20">
         <div className="container">
@@ -714,7 +673,6 @@ export default function Careers() {
           </p>
         </div>
       </div>
-      <InternalLinks />
     </PageLayout>
   );
 }

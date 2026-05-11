@@ -13,7 +13,6 @@ import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
 import { motion } from "framer-motion";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import InternalLinks from "@/components/InternalLinks";
 import {
   Phone,
   CheckCircle,
@@ -494,8 +493,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      <InternalLinks />
 
       {/* Tiny Footer */}
       <footer className="border-t border-white/10 py-4 text-center text-xs text-white/60">

@@ -8,7 +8,6 @@
  */
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trackPhoneClick } from "@/lib/analytics";
@@ -1051,37 +1050,6 @@ export default function TireFinder() {
                     </div>
                   </div>
 
-                  {/* Comparison to competitors */}
-                  <div className="mt-6 bg-card border border-border/30 rounded-lg p-6">
-                    <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
-                      <Heart className="w-4 h-4 text-primary" />
-                      Why Drivers Choose Nick's Over Big Box Stores
-                    </h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div className="flex items-start gap-3">
-                        <Timer className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-medium text-foreground">Fastest in Town</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">Most installs done in under an hour. No waiting for days.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <Gift className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-medium text-foreground">$289+ Free Services</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">Big box stores charge extra for everything. We include it all.</p>
-                        </div>
-                      </div>
-                      <div className="flex items-start gap-3">
-                        <BadgeCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-medium text-foreground">Thousands of Five-Star Reviews</p>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">1,700+ Google reviews · 4.9★ from real Cleveland drivers.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
                   {/* Info note */}
                   <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-4 h-4 shrink-0 mt-0.5" />
@@ -1436,27 +1404,18 @@ export default function TireFinder() {
               you swing in. Skip the dealer wait.
             </p>
 
-            <ul className="space-y-3 mb-6">
-              <li className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-foreground">Steering vibration / pull</strong>
-                  <span className="text-foreground/60"> — your hands fight the wheel on the highway. That's worn or off-spec alignment, not "the road."</span>
-                </div>
+            <ul className="space-y-2 mb-6 text-sm text-foreground/70">
+              <li className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Steering vibration or pull on the highway</span>
               </li>
-              <li className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-foreground">Uneven tire wear</strong>
-                  <span className="text-foreground/60"> — a bad camber or toe burns one shoulder of a $200 tire 60% faster than the other. New tires + bad alignment = $200 on the floor in 8,000 miles.</span>
-                </div>
+              <li className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Uneven tire wear — burns tires 60% faster</span>
               </li>
-              <li className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <strong className="text-foreground">Safety + stopping distance</strong>
-                  <span className="text-foreground/60"> — misaligned wheels reduce contact patch and lengthen wet-stop distance. This isn't comfort. It's brakes-don't-grip-the-way-you-think.</span>
-                </div>
+              <li className="flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Reduced wet stopping distance</span>
               </li>
             </ul>
 
@@ -1493,10 +1452,8 @@ export default function TireFinder() {
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-3">
               Shopping for tires? Pick your starting point.
             </h2>
-            <p className="text-foreground/65 leading-relaxed text-sm">
-              Each path below has its own dedicated guide — pricing, what's included, common questions.
-              Or call <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder-browse-by")} className="text-primary hover:underline">(216) 862-0005</a> with
-              your tire size and we'll quote it on the phone.
+            <p className="text-foreground/65 text-sm">
+              Call <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder-browse-by")} className="text-primary hover:underline">(216) 862-0005</a> with your tire size for a phone quote.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -1534,23 +1491,6 @@ export default function TireFinder() {
         </div>
       </section>
 
-      {/* ─── FINANCING CTA ─── */}
-      <section className="container py-8">
-        <FinancingCTA variant="banner" />
-      </section>
-
-      {/* ─── FOOTER ─── */}
-      <footer className="border-t border-border/30 py-8">
-        <div className="container text-center">
-          <p className="text-xs text-muted-foreground">
-            Nick's Tire & Auto — 17625 Euclid Ave, Cleveland, OH 44112 — (216) 862-0005
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Mon-Sat 8AM-6PM — <a href="/" className="text-primary hover:underline">Back to Main Site</a>
-          </p>
-        </div>
-      </footer>
-
       {/* ─── ORDER MODAL ─── */}
       {showOrder && (
         <OrderModal
@@ -1560,8 +1500,7 @@ export default function TireFinder() {
           onClose={() => { setShowOrder(false); setSelectedTire(null); }}
         />
       )}
-      </div>
-      <InternalLinks />
+    </div>
     </PageLayout>
   );
 }

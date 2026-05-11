@@ -25,7 +25,6 @@ import { useState, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
-import InternalLinks from "@/components/InternalLinks";
 import {
   DollarSign, Phone, CheckCircle, CreditCard,
   AlertCircle, Shield,
@@ -710,99 +709,10 @@ export default function Financing() {
         </div>
       </section>
 
-      {/* ─── Pull-Up Band — turns abstract financing into a real place ──── */}
-      {/* The financing page is the highest-anxiety surface on the site:
-          customers comparing pricing pages and wondering "is this real?"
-          The storefront photo answers that question without saying it. */}
-      <section className="relative overflow-hidden">
-        {/* 2026-05-06 wave-30 · mobile h-[360px] over-letterboxed the
-            contain'd 6.69:1 panorama. Trimmed mobile to h-[220px] so the
-            sign reads at a useful size on phones; sm+ keeps the dramatic
-            bands. */}
-        <div className="relative h-[220px] sm:h-[360px] lg:h-[440px] overflow-hidden">
-          {/* 2026-05-06 wave-28 · /brand-sign.webp is 1600x239 panorama
-              (6.69:1). At this h-[360-500px] band (~2.17-3:1) cover would
-              zoom 2x+ and crop the sides. Switched to contain so the
-              FULL sign + (216) 862-0005 reads. Same fix wave-27 applied
-              to SignFeature, PullUpBand, SiteFooter. */}
-          <img
-            src="/brand-sign.webp"
-            alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — payment programs on the spot at 17625 Euclid Ave"
-            className="absolute inset-0 w-full h-full object-contain"
-            style={{ objectPosition: "center center" }}
-            loading="lazy"
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#111111] via-[#111111]/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#111111]/65 via-transparent to-[#111111]/35" />
-        </div>
-
-        <div className="absolute inset-0 flex items-end">
-          <div className="container max-w-5xl pb-8 sm:pb-12 lg:pb-16">
-            <FadeIn>
-              <div className="max-w-xl">
-                <p className="text-[11px] uppercase tracking-[0.22em] font-bold text-[#FDB913] mb-2 drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                  17625 Euclid Ave · Cleveland
-                </p>
-                <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-white tracking-tight uppercase leading-[0.98] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
-                  This is where you'll sign the papers.
-                </h2>
-                <p className="mt-3 text-white/80 text-sm sm:text-base leading-relaxed drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
-                  Not a phone bot. Not a finance company you've never heard of. Walk in, sit in a chair that's older than some of our customers, get pre-qualified in 60 seconds.
-                </p>
-              </div>
-            </FadeIn>
-          </div>
-        </div>
-      </section>
-
       {/* ─── Approval range / honest social proof ─────────── */}
       <section className="bg-[#111111] py-16 lg:py-20">
         <div className="container max-w-4xl">
           <ApprovalRange />
-        </div>
-      </section>
-
-      {/* ─── How It Works ─────────────────────────────────── */}
-      <section className="bg-[#141414] py-16 lg:py-20">
-        <div className="container max-w-4xl">
-          <FadeIn>
-            <h2 className="font-heading text-3xl lg:text-4xl font-bold text-white tracking-tight uppercase text-center mb-12">
-              The Process — Three Steps
-            </h2>
-          </FadeIn>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
-            {[
-              {
-                num: "01",
-                icon: <FileText className="w-7 h-7" />,
-                title: "Diagnose & estimate",
-                desc: "Free inspection. Written estimate before you commit. We tell you what's urgent vs what can wait.",
-              },
-              {
-                num: "02",
-                icon: <CreditCard className="w-7 h-7" />,
-                title: "Apply (60 seconds)",
-                desc: "From your phone, while you grab a coffee, or at the counter. Soft check first — no impact on credit.",
-              },
-              {
-                num: "03",
-                icon: <Car className="w-7 h-7" />,
-                title: "Drive away today",
-                desc: "We do the work, you take a free Uber back if needed. Pay $0 down, then on the schedule that fits.",
-              },
-            ].map((step, i) => (
-              <FadeIn key={step.num} delay={i * 0.12}>
-                <div className="text-center">
-                  <span className="font-heading text-4xl font-bold text-[#2A2A2A]">{step.num}</span>
-                  <div className="w-14 h-14 mx-auto mt-3 mb-4 rounded-full bg-[#FDB913]/10 flex items-center justify-center text-[#FDB913]">
-                    {step.icon}
-                  </div>
-                  <h3 className="font-heading text-lg font-bold text-white uppercase tracking-wide mb-2">{step.title}</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">{step.desc}</p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
         </div>
       </section>
 
@@ -841,42 +751,6 @@ export default function Financing() {
           />
         </div>
       </section>
-
-      {/* ─── Bottom CTA — call OR pre-qual ────────────────── */}
-      <section className="bg-[#141414] py-14 lg:py-20">
-        <div className="container max-w-3xl text-center">
-          <FadeIn>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#FDB913]/30 bg-[#FDB913]/5 text-[10px] font-bold uppercase tracking-widest text-[#FDB913] mb-4">
-              <AlertCircle className="w-3 h-3" />
-              The repair gets bigger every day you wait
-            </div>
-            <h2 className="font-heading text-3xl lg:text-4xl font-bold text-white uppercase tracking-tight mb-4">
-              Stop putting it off.
-            </h2>
-            <p className="text-white/55 text-base mb-7 max-w-lg mx-auto">
-              Either pre-qualify now (60s, soft check) or call the shop and we'll walk you through it.
-            </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <button
-                onClick={() => setShowPreApproval(true)}
-                className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-7 py-3.5 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
-              >
-                <CreditCard className="w-4 h-4" />
-                CHECK IF I QUALIFY
-              </button>
-              <a
-                href={BUSINESS.phone.href}
-                className="inline-flex items-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-7 py-3.5 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/10 transition-colors"
-              >
-                <Phone className="w-4 h-4" />
-                CALL {BUSINESS.phone.display}
-              </a>
-            </div>
-          </FadeIn>
-        </div>
-      </section>
-
-      <InternalLinks title="Related Services" />
 
       <FinancingPreApprovalModal
         open={showPreApproval}

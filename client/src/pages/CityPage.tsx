@@ -14,7 +14,6 @@ import { Phone, MapPin, Star, ChevronRight, ArrowLeft, Navigation, CheckCircle, 
 import { motion } from "framer-motion";
 import { useState } from "react";
 import { BUSINESS } from "@shared/business";
-import InternalLinks from "@/components/InternalLinks";
 import FadeIn from "@/components/FadeIn";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
 import CityReviewsBlock from "@/components/CityReviewsBlock";
@@ -603,7 +602,6 @@ export default function CityPage() {
         </a>
       </div>
     
-      <InternalLinks />
-</PageLayout>
+    </PageLayout>
   );
 }

@@ -8,7 +8,6 @@ import { Link } from "wouter";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import PageLayout from "@/components/PageLayout";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
-import InternalLinks from "@/components/InternalLinks";
 import FinancingCTA from "@/components/FinancingCTA";
 import { BUSINESS } from "@shared/business";
 import { SERVICE_TYPES, SERVICE_CATEGORIES } from "@shared/serviceTypes";
@@ -584,51 +583,6 @@ export default function CostEstimator() {
         </div>
       </section>
 
-      {/* Trust Section */}
-      <section className="bg-[#0A0A0A] py-16 lg:py-20 border-t border-white/10">
-        <div className="container max-w-3xl">
-          <div className="grid md:grid-cols-3 gap-8 text-center stagger-in">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              className="space-y-2"
-            >
-              <div className="text-3xl font-bold text-primary">
-                {BUSINESS.reviews.countDisplay}
-              </div>
-              <p className="text-white/70">Google Reviews</p>
-              <p className="text-2xl font-bold text-white">{BUSINESS.reviews.rating}★</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="space-y-2"
-            >
-              <Wrench className="w-10 h-10 mx-auto text-primary" />
-              <p className="text-white font-semibold">No Surprise Fees</p>
-              <p className="text-white/70">What we quote is what you pay</p>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="space-y-2"
-            >
-              <Clock className="w-10 h-10 mx-auto text-primary" />
-              <p className="text-white font-semibold">Same-Day Service</p>
-              <p className="text-white/70">Most repairs completed today</p>
-            </motion.div>
-          </div>
-        </div>
-      </section>
-
-      <InternalLinks />
     </PageLayout>
   );
 }

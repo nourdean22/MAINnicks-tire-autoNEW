@@ -9,7 +9,6 @@ import BookingForm from "@/components/BookingForm";
 import FinancingCTA from "@/components/FinancingCTA";
 import LeadPopup from "@/components/LeadPopup";
 import ComparisonTable from "@/components/ComparisonTable";
-import InternalLinks from "@/components/InternalLinks";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake } from "lucide-react";
@@ -18,22 +17,17 @@ import { trpc } from "@/lib/trpc";
 import React from "react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
-import { SERVICES } from "@shared/services";
 import TrustStrip from "@/components/TrustStrip";
-import TrustBadges from "@/components/TrustBadges";
-import FastPaths from "@/components/FastPaths";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
 import Eyebrow from "@/components/Eyebrow";
 import CountUpNumber from "@/components/CountUpNumber";
 import ShopStatusWidget from "@/components/ShopStatusWidget";
 import UberDropoffWidget from "@/components/UberDropoffWidget";
-import PhotoRibbon from "@/components/PhotoRibbon";
 import RiseInView from "@/components/RiseInView";
 import HeroDustLayer from "@/components/HeroDustLayer";
 import StampLetters from "@/components/StampLetters";
 import SkylineDivider from "@/components/SkylineDivider";
-import SignFeature from "@/components/SignFeature";
 import ConesBlock from "@/components/ConesBlock";
 // Conversion-architecture components (Batch 1 of v1.1 spec)
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
@@ -342,15 +336,12 @@ function TrustNumbers() {
   const rating = (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating;
 
   // 2026-05-07 wave-45 · design-spells: stats now count up from 0 to
-  // their target when scrolled into view. The two numeric stats (rating
-  // + review count) get the magnetic count-up animation. The two
-  // non-numeric stats stay static (they're already declarative).
+  // their target when scrolled into view. Keeping only service-oriented
+  // stats here since rating/reviews appear prominently in hero.
   const stats: Array<
     | { kind: "count"; to: number; decimals?: number; suffix?: string; label: string }
     | { kind: "static"; value: string; label: string }
   > = [
-    { kind: "count", to: rating, decimals: 1, label: "Google Rating" },
-    { kind: "count", to: totalReviews, suffix: "+", label: "5-Star Reviews" },
     { kind: "static", value: "ON-SPOT", label: "Payment Programs" },
     { kind: "static", value: "Same Day", label: "Walk-Ins · Open Sunday" },
   ];
@@ -358,10 +349,10 @@ function TrustNumbers() {
   return (
     <section className="section-elevated py-16 border-y border-border">
       <div className="container">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-0">
+        <div className="grid grid-cols-2 lg:grid-cols-2 gap-8 lg:gap-0 max-w-2xl mx-auto">
           {stats.map((s, i) => (
             <FadeIn key={s.label} delay={i * 0.1}>
-              <div className={`text-center ${i > 0 ? "lg:border-l lg:border-border" : ""}`}>
+              <div className={`text-center ${i === 1 ? "lg:border-l lg:border-border" : ""}`}>
                 <div className="text-3xl lg:text-4xl font-bold text-[#FDB913] tracking-tight font-mono text-gradient-yellow letterpress-gold">
                   {s.kind === "count" ? (
                     <CountUpNumber
@@ -403,10 +394,7 @@ function UsedTiresCallout() {
                 USED TIRES — CLEVELAND'S BEST-KEPT SECRET
               </h2>
               <p className="mt-2 text-black/70 text-lg lg:text-xl font-medium max-w-lg body-pretty">
-                Every used tire passes a 4-point exam stricter than the Ohio driver's test — tread depth, sidewall, bead, age date. Walk in, hand us the keys, rolling before your coffee gets cold.
-              </p>
-              <p className="mt-1 text-black/50 text-sm lg:text-base max-w-lg body-pretty">
-                Free mount. Free balance. Free valve stems. Free zero-attitude. Payment programs on the spot. Open every day we're awake — rain, snow, lake-effect, Browns Sunday.
+                Every used tire passes a 4-point exam — tread depth, sidewall, bead, age date. Free mount, balance, and valve stems. Rolling before your coffee gets cold.
               </p>
             </FadeIn>
           </div>
@@ -468,24 +456,6 @@ const HERO_SERVICES = [
   },
 ];
 
-// Slugs already covered by the 3 hero tiles — exclude from "More Services"
-const HERO_SLUGS = new Set(["tires", "brakes", "diagnostics"]);
-
-// "More Services" grid auto-derived from canonical SERVICES.
-// Title stays in canonical case (CSS h3 has `uppercase` class anyway,
-// so the visual is identical regardless of source casing). Price line
-// picks the most concise pricingNote-ish field available; desc uses
-// shortDesc.
-const moreServices = SERVICES
-  .filter((svc) => !HERO_SLUGS.has(svc.slug))
-  .map((svc) => ({
-    title: svc.title,
-    slug: `/${svc.slug}`,
-    desc: svc.shortDesc,
-    // Prefer pricingNote (punchier) → priceRange → startingPrice → fallback
-    price: svc.pricingNote || svc.priceRange || svc.startingPrice || "Free estimate · honest pricing",
-  }));
-
 function Services() {
   return (
     <section id="services">
@@ -542,29 +512,6 @@ function Services() {
           </div>
         </div>
       ))}
-
-      {/* More services — compact grid */}
-      <div className="bg-[oklch(0.065_0.004_260)] py-20">
-        <div className="container">
-          <FadeIn>
-            <h2 className="font-heading text-3xl lg:text-4xl font-bold text-foreground tracking-tight text-center mb-12 uppercase">More Services</h2>
-          </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 stagger-in depth-stage stack-grid">
-            {moreServices.map((s, i) => (
-              <FadeIn key={s.slug} delay={i * 0.1}>
-                <Link href={s.slug} className="tilt-card group block p-8 border border-border rounded-2xl hover:border-foreground/20 transition-all card-gold-hover">
-                  <h3 className="font-heading text-xl font-semibold text-foreground tracking-tight group-hover:text-primary transition-colors uppercase">{s.title}</h3>
-                  <p className="mt-1 text-[#FDB913] font-semibold text-sm">{s.price}</p>
-                  <p className="mt-3 text-foreground/50 text-sm leading-relaxed">{s.desc}</p>
-                  <span className="inline-flex items-center gap-1 mt-5 text-sm text-foreground/40 group-hover:text-primary transition-colors">
-                    Learn more <ArrowRight className="w-3.5 h-3.5" />
-                  </span>
-                </Link>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
@@ -592,112 +539,13 @@ function WhyUs() {
                 Most Cleveland auto shops hand you a bill and hope you don't ask questions. We hand you a flashlight and walk you under your own car. The worn parts don't lie. Neither do we. Family-owned, 1,700+ five-star reviews, and a coffee maker older than half our customers.
               </p>
 
-              <div className="mt-10 space-y-6">
-                {[
-                  { title: "Honest Diagnostics", text: "We read the codes, test the components, and show you exactly what failed — on the lift, before a wrench moves. Bring binoculars if you want; we'll still let you watch." },
-                  { title: "Upfront Pricing", text: "Written estimates before work begins. No hidden fees, no surprise charges, no mysterious 'shop supplies' line item that costs more than lunch." },
-                  { title: "Payment Programs On The Spot", text: "Acima · Snap · Koalafi · American First. Approved in 90 seconds, no credit check, drive away today. We've seen approvals come through faster than the front-counter coffee finishes brewing." },
-                  { title: "Warranty That Actually Means Something", text: "We stand behind our work. If something isn't right, we make it right. We don't give you a sticker and a phone number that goes to voicemail." },
-                  { title: "The First Shop That Doesn't Talk Down to You", text: "Many of our regulars are women who say this is the first Cleveland auto shop where they felt safe, informed, and never patronized. Half our crew's mothers come here too — that should tell you something." },
-                ].map((item) => (
-                  <div key={item.title} className="flex gap-4">
-                    <div className="w-px bg-primary shrink-0 mt-1" style={{ minHeight: '2.5rem' }} />
-                    <div>
-                      <h3 className="font-semibold text-foreground text-sm tracking-wide">{item.title}</h3>
-                      <p className="text-foreground/40 text-sm mt-1 leading-relaxed">{item.text}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-10 flex flex-wrap gap-3">
+              <div className="mt-8 flex flex-wrap gap-3">
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('whyus-cta')} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
                   Call for Free Estimate
                 </a>
                 <Link href="/financing" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   See Payment Programs
                 </Link>
-              </div>
-            </div>
-          </FadeIn>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ─── PULL UP BAND — full-bleed storefront photo as trust anchor ─────────────
-// Lives between WhyUs and LossOpportunity. WhyUs claims; this proves.
-// The yellow sign with the phone number IS the conversion asset — most local
-// businesses bury their actual storefront. Ours is the loudest one on Euclid.
-function PullUpBand() {
-  return (
-    <section className="relative overflow-hidden">
-      {/* 2026-05-06 wave-30 · mobile band was h-[420px] which made the
-          contain'd 6.69:1 panorama render as a ~57px sliver inside a tall
-          mostly-empty band. Trimmed mobile to h-[260px] so the sign fills
-          a larger fraction of the band; sm+ keeps the dramatic taller
-          band where wider viewports give the panorama room to read. */}
-      <div className="relative h-[260px] sm:h-[420px] lg:h-[520px] overflow-hidden">
-        {/* 2026-05-06 wave-27 · /brand-sign.webp is a 1600×239 panoramic
-            banner (aspect 6.69:1). The PullUpBand container is ~1090×600
-            (aspect 1.82:1), so object-fit:cover would zoom the photo 4×
-            and crop ~73% of the sign horizontally regardless of object-
-            position. Switched to object-fit:contain so the FULL sign
-            and phone number "(216) 862-0005" stay readable end-to-end.
-            The existing top + side gradient overlays absorb the vertical
-            letterbox so the band still reads as a dramatic full-bleed
-            trust anchor. */}
-        <img
-          src="/brand-sign.webp"
-          alt="Nick's Tire & Auto storefront on Euclid Avenue Cleveland — yellow sign reading TIRE & AUTO REPAIR with phone (216) 862-0005, address 17625, Mechanic on Duty"
-          className="absolute inset-0 w-full h-full object-contain"
-          style={{ objectPosition: "center center" }}
-          loading="lazy"
-        />
-        {/* Multi-direction fades so overlay copy stays legible regardless of crop */}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-background/70 via-transparent to-background/40" />
-      </div>
-
-      {/* Overlay copy — anchored top-left, mock-formal voice (VOICE.md pattern 7) */}
-      <div className="absolute inset-0 flex items-end">
-        <div className="container pb-10 sm:pb-14 lg:pb-20">
-          {/* 2026-05-06 wave-31 · cinematic FadeIn for the main trust
-              band: heavier translate + blur transition + 850ms duration
-              gives the storefront copy a deliberate, agency-grade entry
-              instead of a snappy 600ms ease-out. */}
-          <FadeIn cinematic>
-            <div className="max-w-2xl">
-              <Eyebrow>17625 Euclid Ave · You can drive past it on accident</Eyebrow>
-              <h2 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight uppercase leading-[0.95] drop-shadow-[0_4px_16px_rgba(0,0,0,0.9)]">
-                Don't trust shops you can't see.<sup className="text-[#FDB913] text-2xl sm:text-4xl">*</sup>
-              </h2>
-              <p className="mt-4 sm:mt-5 text-white/85 text-base sm:text-lg leading-relaxed max-w-xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
-                That's our actual sign. Our actual block. Our actual phone number — painted on, not Photoshopped. The yellow's a little louder in person.
-              </p>
-              <p className="mt-3 text-white/55 text-xs sm:text-sm italic max-w-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]">
-                * Our address has been on Euclid Ave since 2018. The sign's been there longer than half the apps on your phone.
-              </p>
-
-              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row gap-3">
-                <a
-                  href="https://www.google.com/maps/dir//Nick%27s+Tire+%26+Auto+17625+Euclid+Ave+Cleveland+OH+44112"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-7 py-3.5 rounded-md font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors shadow-[0_4px_20px_rgba(253,185,19,0.4)]"
-                >
-                  Get Directions
-                  <ArrowRight className="w-4 h-4" />
-                </a>
-                <a
-                  href={BUSINESS.phone.href}
-                  onClick={() => trackPhoneClick("home-pull-up-band")}
-                  className="inline-flex items-center justify-center gap-2 border-2 border-white/30 bg-black/40 backdrop-blur-sm text-white px-7 py-3.5 rounded-md font-bold text-sm tracking-wide hover:bg-black/60 hover:border-white/60 transition-colors"
-                >
-                  <Phone className="w-4 h-4" />
-                  {BUSINESS.phone.display}
-                </a>
               </div>
             </div>
           </FadeIn>
@@ -1254,33 +1102,8 @@ export default function Home() {
         </div>
       </section>
       <TrustStrip />
-      <TrustBadges />
-      <FastPaths />
       <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
       <RiseInView className="parallax-rise"><TrustNumbers /></RiseInView>
-      {/* SIGN FEATURE — dedicated trust-anchor section featuring the
-          actual brand sign on Euclid Ave. Lands between stat density
-          and photo ribbon. The sign is the strongest visual recognition
-          asset; given its own surface it carries the trust load
-          better than competing inside the ribbon's 7-photo set. */}
-      <RiseInView className="parallax-rise"><SignFeature /></RiseInView>
-      {/* Cleveland skyline silhouette divider — small SVG, not a generic
-          wave. Marks the transition from stat-density into the physical
-          photo proof. Brand-specific, not SaaS-generic. */}
-      <div className="bg-[oklch(0.05_0.004_260)]">
-        <SkylineDivider tone="dim" height={42} />
-      </div>
-      {/* PHOTO RIBBON — 2026-05-06 cinematic depth wave. Real shop
-          photos in a horizontal scroll-snap rail, Ken Burns drift,
-          film-grain overlay. Reinforces the "lines of cars" mental
-          model with actual physical proof before any service copy
-          loads below. Replaces what would have been a Three.js scene
-          — real photos beat synthetic 3D for an auto shop.
-          dataDriven=true: once 25+ views land per top photo, the
-          ribbon auto-reorders by engagement so the leading photo
-          is the one customers actually look at most. Curated order
-          serves as fallback before significance threshold is met. */}
-      <PhotoRibbon dataDriven />
       {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
           generic service-tile decision flow with a Cialdini-architected
           "pick your symptom" pattern. PriceCompare anchors against
@@ -1293,7 +1116,6 @@ export default function Home() {
       <RiseInView className="parallax-rise"><SafetyFactsSection /></RiseInView>
       <RiseInView className="parallax-rise"><Services /></RiseInView>
       <RiseInView className="parallax-rise"><WhyUs /></RiseInView>
-      <RiseInView className="parallax-rise"><PullUpBand /></RiseInView>
       <RiseInView className="parallax-rise"><LossOpportunitySection /></RiseInView>
       <RiseInView className="parallax-rise"><Reviews /></RiseInView>
       <RiseInView className="parallax-rise"><ComparisonTable /></RiseInView>
@@ -1315,102 +1137,6 @@ export default function Home() {
         </div>
       </section>
       <Contact />
-      {/* SEO: Comprehensive internal link section for homepage link equity */}
-      <section className="bg-[oklch(0.055_0.004_260)] py-16 border-t border-border/30">
-        <div className="container">
-          <h2 className="font-heading text-2xl font-bold text-foreground tracking-tight uppercase mb-8">
-            Your Mechanic Near Me in Cleveland — Every Service, One Surprisingly Decent Shop
-          </h2>
-          <p className="text-foreground/50 text-sm leading-relaxed mb-8 max-w-3xl">
-            Whether you're hunting for a mechanic near me, auto repair near me, used tires Cleveland, cheap tires Cleveland, or a tire shop near me — Nick's Tire & Auto has you covered like Lake Erie covers the city in February. Brake repair, oil change, check engine light diagnostics, wheel alignment, AC repair, emissions / E-Check, transmission, electrical, exhaust — we handle the boring stuff so you don't have to think about it. Payment programs approved on the spot — no credit check, no shame. New and used tires installed free with our complete service package. Walk-ins welcome at 17625 Euclid Ave, serving Cleveland, Euclid, Lakewood, Parma, Parma Heights, East Cleveland, Cleveland Heights, Shaker Heights, South Euclid, Garfield Heights, Richmond Heights, Mentor, and Strongsville. We've also been known to help drivers from as far as Erie, but we won't tell anyone if you don't.
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Services column */}
-            <div>
-              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Our Services</h3>
-              <ul className="space-y-2">
-                {[
-                  { href: "/tires", label: "Tire Shop Near Me" },
-                  { href: "/brakes", label: "Brake Repair Cleveland" },
-                  { href: "/diagnostics", label: "Check Engine Light Near Me" },
-                  { href: "/emissions", label: "Emissions & E-Check" },
-                  { href: "/oil-change", label: "Oil Change Cleveland" },
-                  { href: "/general-repair", label: "Auto Repair Near Me" },
-                  { href: "/ac-repair", label: "AC & Heating" },
-                  { href: "/transmission", label: "Transmission" },
-                  { href: "/alignment", label: "Wheel Alignment Cleveland" },
-                  { href: "/electrical", label: "Electrical Repair" },
-                  { href: "/battery", label: "Battery Service" },
-                  { href: "/exhaust", label: "Muffler Shop Near Me" },
-                  { href: "/services", label: "View All Services" },
-                ].map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {/* Tools & Resources column */}
-            <div>
-              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Tools & Resources</h3>
-              <ul className="space-y-2">
-                {[
-                  { href: "/diagnose", label: "Diagnose My Car" },
-                  { href: "/pricing", label: "Price Estimator" },
-                  { href: "/financing", label: "Payment Programs — No Credit Check" },
-                  { href: "/booking", label: "Schedule Drop-Off Online" },
-                  { href: "/specials", label: "Specials & Coupons" },
-                  { href: "/blog", label: "Repair Tips Blog" },
-                  { href: "/car-care-guide", label: "Car Care Guide" },
-                  { href: "/faq", label: "FAQ" },
-                  { href: "/reviews", label: "Customer Reviews" },
-                  { href: "/fleet", label: "Fleet Accounts" },
-                  { href: "/rewards", label: "Rewards Program" },
-                  { href: "/about", label: "About Us" },
-                  { href: "/moes-tire-euclid", label: "Looking for Moe's Tire? (Same Spot)" },
-                  { href: "/muffler-shop-open-sunday-cleveland", label: "Muffler Shop Open Sunday" },
-                ].map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            {/* Service Areas column */}
-            <div>
-              <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-4">Areas We Serve</h3>
-              <ul className="space-y-2">
-                {[
-                  { href: "/cleveland-auto-repair", label: "Cleveland" },
-                  { href: "/euclid-auto-repair", label: "Euclid" },
-                  { href: "/lakewood-auto-repair", label: "Lakewood" },
-                  { href: "/parma-auto-repair", label: "Parma" },
-                  { href: "/parma-heights-auto-repair", label: "Parma Heights" },
-                  { href: "/east-cleveland-auto-repair", label: "East Cleveland" },
-                  { href: "/shaker-heights-auto-repair", label: "Shaker Heights" },
-                  { href: "/cleveland-heights-auto-repair", label: "Cleveland Heights" },
-                  { href: "/mentor-auto-repair", label: "Mentor" },
-                  { href: "/strongsville-auto-repair", label: "Strongsville" },
-                  { href: "/south-euclid-auto-repair", label: "South Euclid" },
-                  { href: "/garfield-heights-auto-repair", label: "Garfield Heights" },
-                  { href: "/richmond-heights-auto-repair", label: "Richmond Heights" },
-                ].map((link) => (
-                  <li key={link.href}>
-                    <Link href={link.href} className="text-sm text-foreground/50 hover:text-primary transition-colors">
-                      Auto Repair in {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
-      <InternalLinks title="Explore More" />
       <LeadPopup />
     </PageLayout>
   );
