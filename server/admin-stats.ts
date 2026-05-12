@@ -166,80 +166,128 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   try {
     // ─── BOOKINGS ─────────────────────────────────────
-    // wave-149 — was SELECT *.limit(1000) → 1000 fat rows transferred
-    // every dashboard poll. Column-restricted to ONLY the fields used
-    // downstream (status/createdAt for stats, service for byService,
-    // name/vehicle for recent activity, utmSource/referrer for source
-    // attribution) + cap halved to 500. ~95% bandwidth reduction.
+    // wave-158 — full SQL-aggregate rewrite. Was wave-149 hybrid (column-
+    // restricted SELECT + JS filter); now COUNT/SUM(CASE WHEN) + GROUP BY
+    // aggregates + a separate LIMIT 5 for recent activity. Bandwidth per
+    // dashboard load: ~30 small aggregate rows + 5 thin recent rows + small
+    // GROUP BY tables, vs 500 fat rows previously. ~99% reduction overall.
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    type BookingProj = Pick<Booking, "id" | "name" | "service" | "vehicle" | "status" | "createdAt" | "utmSource" | "referrer">;
-    const allBookings: BookingProj[] = await d.select({
-      id: bookings.id,
+
+    // 1. Booking status counts + thisWeek in a single aggregate query
+    const [bookingAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      new: sql<number>`SUM(CASE WHEN ${bookings.status} = 'new' THEN 1 ELSE 0 END)`,
+      confirmed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'confirmed' THEN 1 ELSE 0 END)`,
+      completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
+      cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${bookings.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+    }).from(bookings).where(gte(bookings.createdAt, ninetyDaysAgo));
+
+    // 2. Booking byService — GROUP BY aggregate
+    const bookingByServiceRows = await d.select({
+      service: sql<string>`COALESCE(${bookings.service}, 'Other')`,
+      count: sql<number>`COUNT(*)`,
+    }).from(bookings)
+      .where(gte(bookings.createdAt, ninetyDaysAgo))
+      .groupBy(sql`COALESCE(${bookings.service}, 'Other')`)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    // 3. Recent 5 bookings for the activity feed (column-restricted)
+    type BookingRecent = Pick<Booking, "name" | "service" | "vehicle" | "status" | "createdAt">;
+    const recentBookings: BookingRecent[] = await d.select({
       name: bookings.name,
       service: bookings.service,
       vehicle: bookings.vehicle,
       status: bookings.status,
       createdAt: bookings.createdAt,
-      utmSource: bookings.utmSource,
-      referrer: bookings.referrer,
     }).from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
       .orderBy(desc(bookings.createdAt))
-      .limit(500);
+      .limit(5);
+
+    // 4. Booking source attribution — GROUP BY with COALESCE fallback
+    const bookingBySourceRows = await d.select({
+      src: sql<string>`COALESCE(${bookings.utmSource}, CASE WHEN ${bookings.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(bookings)
+      .where(gte(bookings.createdAt, ninetyDaysAgo))
+      .groupBy(sql`COALESCE(${bookings.utmSource}, CASE WHEN ${bookings.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`);
+
     const bookingStats = {
-      total: allBookings.length,
-      new: allBookings.filter((b) => b.status === "new").length,
-      confirmed: allBookings.filter((b) => b.status === "confirmed").length,
-      completed: allBookings.filter((b) => b.status === "completed").length,
-      cancelled: allBookings.filter((b) => b.status === "cancelled").length,
-      thisWeek: allBookings.filter((b) => new Date(b.createdAt) >= weekAgo).length,
-      byService: Object.entries(
-        allBookings.reduce((acc: Record<string, number>, b) => {
-          const svc = b.service || "Other";
-          acc[svc] = (acc[svc] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>)
-      ).map(([service, count]) => ({ service, count: count as number })).sort((a, b) => b.count - a.count),
+      total: Number(bookingAgg?.total ?? 0),
+      new: Number(bookingAgg?.new ?? 0),
+      confirmed: Number(bookingAgg?.confirmed ?? 0),
+      completed: Number(bookingAgg?.completed ?? 0),
+      cancelled: Number(bookingAgg?.cancelled ?? 0),
+      thisWeek: Number(bookingAgg?.thisWeek ?? 0),
+      byService: bookingByServiceRows.map((r: { service: string; count: number }) => ({ service: r.service, count: Number(r.count) })),
     };
+    const bookingsBySource: Record<string, number> = {};
+    for (const row of bookingBySourceRows) {
+      bookingsBySource[row.src] = Number(row.count);
+    }
 
     // ─── LEADS ────────────────────────────────────────
-    // wave-149 — same treatment as bookings. Column-restricted + 500 cap.
-    type LeadProj = Pick<Lead, "id" | "name" | "problem" | "recommendedService" | "source" | "status" | "urgencyScore" | "createdAt" | "utmSource" | "referrer">;
-    const allLeads: LeadProj[] = await d.select({
-      id: leads.id,
+    // wave-158 — same aggregate treatment as bookings
+    const [leadAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      new: sql<number>`SUM(CASE WHEN ${leads.status} = 'new' THEN 1 ELSE 0 END)`,
+      contacted: sql<number>`SUM(CASE WHEN ${leads.status} = 'contacted' THEN 1 ELSE 0 END)`,
+      booked: sql<number>`SUM(CASE WHEN ${leads.status} = 'booked' THEN 1 ELSE 0 END)`,
+      closed: sql<number>`SUM(CASE WHEN ${leads.status} = 'closed' THEN 1 ELSE 0 END)`,
+      lost: sql<number>`SUM(CASE WHEN ${leads.status} = 'lost' THEN 1 ELSE 0 END)`,
+      urgent: sql<number>`SUM(CASE WHEN COALESCE(${leads.urgencyScore}, 0) >= 4 THEN 1 ELSE 0 END)`,
+      thisWeek: sql<number>`SUM(CASE WHEN ${leads.createdAt} >= ${weekAgo} THEN 1 ELSE 0 END)`,
+      avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
+    }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));
+
+    const leadBySourceRows = await d.select({
+      source: sql<string>`COALESCE(${leads.source}, 'unknown')`,
+      count: sql<number>`COUNT(*)`,
+    }).from(leads)
+      .where(gte(leads.createdAt, ninetyDaysAgo))
+      .groupBy(sql`COALESCE(${leads.source}, 'unknown')`)
+      .orderBy(sql`COUNT(*) DESC`);
+
+    type LeadRecent = Pick<Lead, "name" | "problem" | "recommendedService" | "status" | "urgencyScore" | "createdAt">;
+    const recentLeads: LeadRecent[] = await d.select({
       name: leads.name,
       problem: leads.problem,
       recommendedService: leads.recommendedService,
-      source: leads.source,
       status: leads.status,
       urgencyScore: leads.urgencyScore,
       createdAt: leads.createdAt,
-      utmSource: leads.utmSource,
-      referrer: leads.referrer,
     }).from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
       .orderBy(desc(leads.createdAt))
-      .limit(500);
+      .limit(5);
+
+    const leadByUtmSourceRows = await d.select({
+      src: sql<string>`COALESCE(${leads.utmSource}, CASE WHEN ${leads.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`,
+      count: sql<number>`COUNT(*)`,
+    }).from(leads)
+      .where(gte(leads.createdAt, ninetyDaysAgo))
+      .groupBy(sql`COALESCE(${leads.utmSource}, CASE WHEN ${leads.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`);
+
+    const leadTotal = Number(leadAgg?.total ?? 0);
     const leadStats = {
-      total: allLeads.length,
-      new: allLeads.filter((l) => l.status === "new").length,
-      contacted: allLeads.filter((l) => l.status === "contacted").length,
-      booked: allLeads.filter((l) => l.status === "booked").length,
-      closed: allLeads.filter((l) => l.status === "closed").length,
-      lost: allLeads.filter((l) => l.status === "lost").length,
-      urgent: allLeads.filter((l) => (l.urgencyScore ?? 0) >= 4).length,
-      thisWeek: allLeads.filter((l) => new Date(l.createdAt) >= weekAgo).length,
-      bySource: Object.entries(
-        allLeads.reduce((acc: Record<string, number>, l) => {
-          const src = l.source || "unknown";
-          acc[src] = (acc[src] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>)
-      ).map(([source, count]) => ({ source, count: count as number })).sort((a, b) => b.count - a.count),
-      avgUrgency: allLeads.length > 0
-        ? Math.round((allLeads.reduce((sum: number, l) => sum + (l.urgencyScore ?? 3), 0) / allLeads.length) * 10) / 10
+      total: leadTotal,
+      new: Number(leadAgg?.new ?? 0),
+      contacted: Number(leadAgg?.contacted ?? 0),
+      booked: Number(leadAgg?.booked ?? 0),
+      closed: Number(leadAgg?.closed ?? 0),
+      lost: Number(leadAgg?.lost ?? 0),
+      urgent: Number(leadAgg?.urgent ?? 0),
+      thisWeek: Number(leadAgg?.thisWeek ?? 0),
+      bySource: leadBySourceRows.map((r: { source: string; count: number }) => ({ source: r.source, count: Number(r.count) })),
+      avgUrgency: leadTotal > 0
+        ? Math.round((Number(leadAgg?.avgUrgencySum ?? 0) / leadTotal) * 10) / 10
         : 0,
     };
+    const leadsByUtmSource: Record<string, number> = {};
+    for (const row of leadByUtmSourceRows) {
+      leadsByUtmSource[row.src] = Number(row.count);
+    }
 
     // ─── CONTENT ──────────────────────────────────────
     const allArticles: Article[] = await d.select().from(dynamicArticles).limit(500);
@@ -276,8 +324,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     // ─── RECENT ACTIVITY ──────────────────────────────
     const recentActivity: ActivityItem[] = [];
 
-    // Recent bookings
-    allBookings.slice(0, 5).forEach((b) => {
+    // Recent bookings — wave-158 uses the pre-fetched recentBookings (5 rows)
+    recentBookings.forEach((b) => {
       recentActivity.push({
         type: "booking",
         title: `${b.name} — ${b.service}`,
@@ -287,8 +335,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       });
     });
 
-    // Recent leads
-    allLeads.slice(0, 5).forEach((l) => {
+    // Recent leads — wave-158 uses pre-fetched recentLeads (5 rows)
+    recentLeads.forEach((l) => {
       recentActivity.push({
         type: "lead",
         title: `${l.name} — ${l.recommendedService || "General"}`,
@@ -344,17 +392,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }
 
     // ─── SOURCE ATTRIBUTION ─────────────────────────
-    const bookingsBySource: Record<string, number> = {};
-    allBookings.forEach((b) => {
-      const src = b.utmSource || (b.referrer ? "referral" : "direct");
-      bookingsBySource[src] = (bookingsBySource[src] || 0) + 1;
-    });
-
-    const leadsByUtmSource: Record<string, number> = {};
-    allLeads.forEach((l) => {
-      const src = l.utmSource || (l.referrer ? "referral" : "direct");
-      leadsByUtmSource[src] = (leadsByUtmSource[src] || 0) + 1;
-    });
+    // wave-158 — bookingsBySource and leadsByUtmSource are computed via
+    // SQL GROUP BY in the bookings/leads aggregate blocks above.
 
     // ─── CALL TRACKING ────────────────────────────────
     let callTrackingStats = { totalCalls: 0, thisWeek: 0, byPage: [] as { page: string; count: number }[] };
