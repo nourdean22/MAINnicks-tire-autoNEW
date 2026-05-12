@@ -6,6 +6,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Loader2, XCircle, Zap, Tag } from "lucide-react";
 import { PageHeader } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 type Special = RouterOutputs["specials"]["getActive"][number];
 
@@ -240,8 +241,8 @@ export default function SpecialsSection() {
                 </div>
               </div>
               <button
-                onClick={() => {
-                  if (confirm("Delete this special?")) deleteSpecial.mutate({ id: s.id });
+                onClick={async () => {
+                  if (await confirmDialog({ title: "Delete special?", message: `Remove "${s.title}".`, confirmLabel: "Delete", tone: "danger" })) deleteSpecial.mutate({ id: s.id });
                 }}
                 className="text-foreground/30 hover:text-red-400 transition-colors"
               >

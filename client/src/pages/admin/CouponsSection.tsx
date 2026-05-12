@@ -10,6 +10,7 @@ import {
   Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift
 } from "lucide-react";
 import { PageHeader } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 export default function CouponsSection() {
   const { data: coupons, isLoading } = trpc.coupons.all.useQuery();
@@ -139,7 +140,7 @@ export default function CouponsSection() {
                   <Power className="w-3 h-3" />
                   {c.isActive === 1 ? "ACTIVE" : "INACTIVE"}
                 </button>
-                <button onClick={() => { if (confirm("Delete this coupon?")) deleteCoupon.mutate({ id: c.id }); }} className="text-foreground/30 hover:text-red-400 transition-colors">
+                <button onClick={async () => { if (await confirmDialog({ title: "Delete coupon?", message: `Remove "${c.code}". Customers can no longer redeem it.`, confirmLabel: "Delete", tone: "danger" })) deleteCoupon.mutate({ id: c.id }); }} className="text-foreground/30 hover:text-red-400 transition-colors">
                   <XCircle className="w-4 h-4" />
                 </button>
               </div>
