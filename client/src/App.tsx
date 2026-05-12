@@ -75,6 +75,9 @@ const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
 // wave-181.5 · keyword-led SERP-fix pages (competitor-analyzer findings)
 const NoCreditCheckTiresPage = lazy(() => import("./pages/NoCreditCheckTiresPage"));
 const TireShopOpenSundayPage = lazy(() => import("./pages/TireShopOpenSundayPage"));
+// wave-181.7 · keyword-led SERP-fix pages (Ahrefs/GSC audit moves #5, #6)
+const TireRepairPage = lazy(() => import("./pages/TireRepairPage"));
+const WheelAlignmentClevelandPage = lazy(() => import("./pages/WheelAlignmentClevelandPage"));
 const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
 const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage"));
@@ -161,6 +164,8 @@ function Router() {
             <Route path={"/brakes"} component={BrakeRepairPage} />
             <Route path={"/no-credit-check-tires-cleveland"} component={NoCreditCheckTiresPage} />
             <Route path={"/tire-shop-open-sunday-cleveland"} component={TireShopOpenSundayPage} />
+            <Route path={"/tire-repair-cleveland"} component={TireRepairPage} />
+            <Route path={"/wheel-alignment-cleveland"} component={WheelAlignmentClevelandPage} />
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
             {/* v1.7 Grounded&Reliable strategy · diagnostic-authority silo */}
             <Route path={"/check-engine-light-diagnostic"} component={CheckEngineLightDiagnosticPage} />

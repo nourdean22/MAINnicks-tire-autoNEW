@@ -1,103 +1,89 @@
-wave-181.5+6: 2 new SERP-fix pages + CTR-crisis title rewrites + schema pricing
+wave-181.7: 2 new SERP-fix pages (tire-repair + wheel-alignment) + /tires cannibalization fix
 
-Combining 2 separate but related improvements into one push:
+Aggressive continuation of the audit-driven SEO roadmap.
 
-=== wave-181.5 · new keyword-led SERP-fix pages ===
+=== NEW PAGES (audit moves #5 + #6) ===
 
-From the competitor-analyzer agent run earlier this session: Nick's not
-in top 10 for any high-commercial-intent Cleveland query. Three highest-
-leverage targets surfaced. Per pre-flight check, /brake-repair-cleveland
-is redundant — existing /brakes already has keyword-led H1 "CLEVELAND
-BRAKE REPAIR..." Skipping that one to avoid splitting rank signal.
+client/src/pages/TireRepairPage.tsx (new · 143KB rendered):
+- /tire-repair-cleveland route
+- Targets the tire-repair cluster currently in striking distance per GSC:
+  * "tire repair" — pos 28.4
+  * "tire repair near me" — pos 7.2 (page 1)
+  * "tire repair cleveland" — pos 20.7
+  * "tire repair parma" — pos 43.6
+  * "tire repair 44129" — pos 30.4
+- No dedicated tire-repair landing existed before — content was buried in /tires body
+- Hero: $25 plug or patch · 15-min walk-in · free inspection first
+- Pricing tiers: plug ($25), plug+patch combo ($35), used-tire fallback ($40)
+- 8-FAQ schema including RMA repair-vs-replace rules + TPMS reset
+- Fear stats: 47% wear increase + 11% MPG loss + $280 tow cost
+- LossStats: $12/day slow-leak cost + $280 blowout cost
+- Cross-sell to /tires + /wheel-alignment-cleveland + /brakes
+- Expected: +20-30 clicks/mo per audit projection
 
-NEW PAGES SHIPPED:
+client/src/pages/WheelAlignmentClevelandPage.tsx (new · 144KB rendered):
+- /wheel-alignment-cleveland route (separate from existing /alignment which targets generic "alignment near me")
+- Targets the city-aware alignment cluster per GSC:
+  * "wheel alignment cleveland" — pos 36.2 (page 4)
+  * "wheel alignment in cleveland ohio" — pos 40.2
+  * Combined 121 impressions/mo across the cluster
+- Hero: $89 typical · same-day · free pull-check first
+- Pricing tiers: 2-wheel ($69), 4-wheel ($89), post-collision ($129)
+- 8-FAQ schema · alignment-specific intent
+- Fear stats: 47% wear + $1,200 tire-set replacement + 3-5% MPG
+- Cross-sell to /tires + /tire-repair-cleveland + /services
+- Expected: +25-35 clicks/mo per audit projection
 
-client/src/pages/NoCreditCheckTiresPage.tsx (new · 200KB rendered):
-- /no-credit-check-tires-cleveland route
-- Targets a SERP currently owned by blog farms + one local shop -- ALL
-  chains absent because they all require credit pulls. Nick's $10 down
-  + 4 sub-prime lenders (Acima · Snap · Koalafi · American First) is
-  the only honest answer in the Cleveland market.
-- Hero: $10 down + no FICO + 4 lenders compete
-- Anchor table: Firestone $149 min, Conrad's Affirm soft pull, Mavis
-  card hard pull, Nick's $10
-- Fear stats: stopping distance + accident cost + MPG loss on bald
-- 8-FAQ schema · all credit/financing specific
-- Cross-sell to /financing + /brakes
-- LossStats: Uber-cost + MPG-loss
-
-client/src/pages/TireShopOpenSundayPage.tsx (new · 200KB rendered):
-- /tire-shop-open-sunday-cleveland route
-- Targets the Sunday-specific intent SERP currently owned by Walmart +
-  Dara Tires. Conrad's is literally closed Sunday, Mavis hides Sunday
-  hours behind a widget. Nick's runs 9am-4pm every Sunday.
-- Anchor table: per-competitor Sunday hours (Conrad's CLOSED, Nick's
-  9-4 walk-in)
-- 8-FAQ schema · all Sunday-operations specific
-- Fear stats: Cleveland Monday rain + Uber cost + accident risk on wet
-- Cross-sell to /tires + /brakes + /booking
-- LossStats: Uber-cost + time-cost of calling around Monday
+=== /tires CANNIBALIZATION FIX ===
 
 shared/routes.ts:
-- Added both new routes with sitemap:true + prerender:true.
+- Diagnosed: both /tires (priority 1.0) and /used-tires-cleveland (priority
+  0.85) led with "Used tires from $60" in meta description. Google picked
+  the higher-priority /tires for "used tires Cleveland" intent → ZERO
+  impressions on /used-tires-cleveland in 30 days (per GSC audit).
+- Fix: rewrote /tires meta to lead with general tire-shop intent
+  ("Tire shop in Cleveland on Euclid Ave · walk-in 7 days, new + used
+  in stock, free install with purchase") so "used tires" intent flows to
+  /used-tires-cleveland.
+- Both pages re-rendered. /tires title unchanged (still "Tire Shop
+  Cleveland · New & Used · Free Install").
+
+=== ROUTING ===
 
 client/src/App.tsx:
-- Lazy imports + Route entries for both pages.
+- Lazy imports + Route entries for both new pages.
+
+shared/routes.ts:
+- Both new routes added with sitemap:true + prerender:true.
 
 scripts/prerender-comparison-only.mjs:
-- Added the 2 new routes to the targeted prerender list. Both rendered
-  successfully (200KB+ each, real HTML, FAQ schema verified).
+- Added 4 new routes to targeted list (tire-repair, wheel-alignment,
+  tires re-render, used-tires-cleveland re-render).
 
-=== wave-181.5 schema hardening ===
-
-client/src/components/LocalBusinessSchema.tsx:
-- Added priceSpecification minPrice + descriptions on 5 services that
-  had Offer entries but no price data: Flat Repair ($25+), Brake Repair
-  (free inspection), Oil Change Conventional ($45+), Oil Change Full
-  Synthetic ($75+), Engine Diagnostics (credited toward repair).
-- Unlocks Google price-rich-result eligibility on the 5 most commercially
-  important services. SEO audit found ZERO competitors emit price schema.
-
-=== wave-181.6 · CTR-crisis title rewrites from GSC data ===
-
-From the Ahrefs-pivoted-to-GSC audit: Nick's gets 5,000 impr/mo but only
-~52 clicks (~1% CTR vs 3-5% benchmark). Three high-impression / zero-CTR
-queries identified — pure title+meta rewrites, no new content needed.
-
-shared/routes.ts (3 rewrites):
-- /alignment · was "Wheel Alignment Cleveland — Same Day, Walk-Ins"
-  (ranking pos 7.5 with 74 impr/mo and 0% CTR). NOW leads with the
-  literal search phrase: "Wheel Alignment Near Me · Cleveland · Same-Day
-  Walk-In". Page-1 ranking we were throwing away.
-
-- /oil-change · was "Oil Change Cleveland — From $39, Walk-Ins 7 Days"
-  (ranking pos 1.0 for "oil change service station" with 114 impr/mo
-  and 0% CTR — title didn't match the literal search phrase). NOW:
-  "Oil Change Service Station Cleveland · $39 · Walk-In Today".
-
-- /cleveland-auto-repair · was "Auto Repair Cleveland OH — Nick's Tire
-  & Auto" (ranking pos 24.4 for "auto repair near me" with 79 impr/mo
-  and 0% CTR). NOW: "Auto Repair Near Me · Cleveland · Walk-In Today ·
-  1,700★".
-
-Expected impact (per GSC audit projections):
-- /alignment alone: +25-35 clicks/mo when CTR moves to 5%+ from 0%
-- /oil-change anomaly resolution: +20-30 clicks/mo if title fixes the
-  query-match issue
-- /cleveland-auto-repair: marginal — pos 24 still page 3, but every
-  impression that does CTR helps
-- Total expected: +50-75 clicks/mo from these 3 title fixes alone
-
-=== Verified ===
+=== VERIFIED ===
 
 - tsc clean, prettier clean
-- Both new pages prerendered (200KB+ real HTML)
-- 15 existing comparison pages re-rendered with the latest schema +
-  CTR-rewrite changes baked in
-- All sitemap entries valid
-- Title rewrites match query intent per GSC audit recommendations
+- 21 routes prerendered successfully (no hangs · the PRERENDER_MODE flag
+  from wave-181.3 continues to work)
+- New pages: 143KB + 144KB real HTML (not SPA shells)
+- /tires + /used-tires re-rendered with new meta descriptions
 
-=== Operator queue updates ===
+=== AUDIT ROADMAP STATUS ===
 
-No new operator actions required. Railway picks up the push and
-redeploys; new pages will be crawlable + indexable within the day.
+Completed this session (wave-181.x):
+  - Move #4: /tires striking-distance boost (cannibalization fix) ✓
+  - Move #5: /wheel-alignment-cleveland new page ✓
+  - Move #6: /tire-repair-cleveland new page ✓
+  - Move #7: /brakes cluster (already ~80% done · Midas in anchor,
+            city pages already link)
+  - Move #10: /no-credit-check-tires-cleveland (wave-181.5) ✓
+
+Deferred:
+  - Move #1: /synthetic-oil-change content beef-up (exists at pos 65)
+  - Move #2: Removed from list (not in current audit)
+  - Move #3: /parma-heights-auto-repair title tighten
+  - Move #8: Brand-search overflow ("nick's auto repair near me" pos 23)
+  - Move #9: Sunday cluster expansion (partly done with new Sunday page)
+  - Voice-contract enforcement (banned words on /financing, /booking, /about)
+  - /used-tires-cleveland live verification (after Railway redeploy)
+  - Apify competitor scrape retry (died on API overload mid-session)

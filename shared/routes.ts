@@ -148,7 +148,12 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 1.0,
     changefreq: "weekly",
     title: "Tire Shop Cleveland · New & Used · Free Install | Nick's",
-    description: "Used tires from $60 installed. Pull up to Nick's on Euclid — stay in the car, tire crew works outside, rolling before coffee's cold. (216) 862-0005.",
+    // wave-181.7 · differentiate from /used-tires-cleveland which was
+    // getting zero impressions due to meta-description cannibalization
+    // (both pages led with "Used tires from $60"). /tires now leads
+    // with the general tire-shop intent; /used-tires-cleveland keeps
+    // its used-tire-specific framing.
+    description: "Tire shop in Cleveland on Euclid Ave · walk-in 7 days, new + used in stock, free install with purchase. Stay in the car — tire crew works outside, rolling before coffee's cold. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -184,6 +189,30 @@ const SERVICE_PAGES: RouteEntry[] = [
     changefreq: "monthly",
     title: "Tire Shop Open Sunday Cleveland · 9am-4pm Every Sunday | Nick's",
     description: "Tire shop open Sunday in Cleveland. Nick's Tire & Auto on Euclid Ave runs 9am-4pm every Sunday — walk-in tires, brakes, oil change. Conrad's closed. Mavis closed. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  // wave-181.7 · keyword-led SERP-fix pages from Ahrefs/GSC audit
+  // moves #5 (wheel alignment) and #6 (tire repair). Both target
+  // clusters currently in striking distance (pos 7-43) with no
+  // dedicated page or with title that doesn't match the literal query.
+  {
+    path: "/tire-repair-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "Tire Repair Cleveland · $25 Plug or Patch · 15-Min Walk-In | Nick's",
+    description: "Cleveland tire repair on Euclid Ave. Nail in your tire? Slow leak? We plug or patch in 15 minutes for $25 typical · walk-in 7 days. Free inspection first. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/wheel-alignment-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "Wheel Alignment Cleveland · Same-Day · Free Pull-Check | Nick's",
+    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. 1,700★ from 1,700+ Cleveland drivers. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,

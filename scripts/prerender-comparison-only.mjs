@@ -55,6 +55,14 @@ const ROUTES = [
   // wave-181.5 · new keyword-led SERP-fix pages
   "/no-credit-check-tires-cleveland",
   "/tire-shop-open-sunday-cleveland",
+  // wave-181.7 · audit moves #5 + #6
+  "/tire-repair-cleveland",
+  "/wheel-alignment-cleveland",
+  // wave-181.7 cannibalization fix · /tires meta-description rewrite
+  // to stop competing with /used-tires-cleveland for "used tires"
+  // intent. Also re-render /used-tires-cleveland so both ship together.
+  "/tires",
+  "/used-tires-cleveland",
 ];
 
 function findFreePort() {
