@@ -128,8 +128,18 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
       res.status(401).json({ error: "invalid_signature" });
       return;
     }
+  } else if (process.env.NODE_ENV === "production") {
+    // wave-141b — in production, refuse unsigned requests outright
+    // instead of silently accepting them. An attacker who discovers
+    // this endpoint without the secret could otherwise inject fake
+    // inbound SMS events (including opt-outs that flag legit
+    // customers). Dev/test environments still allow unsigned so
+    // local Capevace simulators work.
+    log.error("SHOP_SMS_GATEWAY_WEBHOOK_SECRET not set in production — rejecting webhook");
+    res.status(500).json({ error: "webhook_misconfigured" });
+    return;
   } else {
-    log.warn("SHOP_SMS_GATEWAY_WEBHOOK_SECRET not set — accepting unsigned request");
+    log.warn("SHOP_SMS_GATEWAY_WEBHOOK_SECRET not set — accepting unsigned request (non-production)");
   }
 
   const event = req.body as SmsGatewayEvent;

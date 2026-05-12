@@ -13,6 +13,7 @@ import { sanitizeText, sanitizePhone, csvSafe } from "../sanitize";
 import { saveReviewStatsToDb } from "../google-reviews";
 
 import { db } from "../lib/db-helper";
+import { BoundedTtlMap } from "../lib/boundedTtlMap";
 
 import { createLogger } from "../lib/logger";
 
@@ -1195,6 +1196,17 @@ async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
 }
 
 // ─── CALL TRACKING ─────────────────────────────────────
+
+// wave-141b — IP rate limit on logCall (15 events/min/IP). The procedure
+// is publicProcedure because legit phone-click tracking fires from the
+// public site, but the SMS-scheduling side-effect (scheduleCallReviewRequest)
+// made it an SMS-spam vector — any actor could POST arbitrary phone
+// numbers + trigger review-request SMS to them. Combined with the
+// per-phone cooldown already inside scheduleCallReviewRequest, this
+// prevents both burst-spray attacks and same-target floods.
+const logCallIpLimit = new BoundedTtlMap<number>({ ttlMs: 60_000, maxEntries: 10_000 });
+const LOG_CALL_MAX_PER_MIN = 15;
+
 export const callTrackingRouter = router({
   /** Log a phone click event from the frontend */
   logCall: publicProcedure
@@ -1213,7 +1225,15 @@ export const callTrackingRouter = router({
       referrer: z.string().max(500).nullish(),
       userAgent: z.string().max(500).nullish(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
+      // wave-141b — per-IP rate limit guards the SMS side-effect.
+      const ip = ctx.req?.ip || ctx.req?.socket?.remoteAddress || "unknown";
+      const count = (logCallIpLimit.get(ip) ?? 0) + 1;
+      logCallIpLimit.set(ip, count);
+      if (count > LOG_CALL_MAX_PER_MIN) {
+        throw new TRPCError({ code: "TOO_MANY_REQUESTS", message: "Too many call-tracking events from this client" });
+      }
+
       const d = await db();
       if (!d) return { success: false };
       try {
