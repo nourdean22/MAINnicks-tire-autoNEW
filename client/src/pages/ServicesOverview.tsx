@@ -84,9 +84,16 @@ export default function ServicesOverview() {
       {/* 2026-05-06 copy wave · GSC: 734 imps at 0.8% CTR, pos 2.6.
           Page 1 placement, terrible click-through. Title rewrite is
           the highest-leverage CTR move available. */}
+      {/* wave-174 — GSC data (28d) revealed /services ranks position 1.7
+          for "nicks tires" with 120 impressions and 0.0% CTR. People search
+          the BRAND, see a result that doesn't lead with "Nick's" (old title
+          buried it after a generic "Auto Repair Cleveland"), and scroll
+          past. New title leads with "Nick's Tire & Auto" so brand searches
+          recognize the match. Description trimmed from 175 → 152 chars so
+          the phone number survives SERP truncation on mobile. */}
       <SEOHead
-        title="Auto Repair Cleveland · No Mystery Fees, Walk-Ins 7 Days | Nick's"
-        description={`Cleveland auto shop where invoice line items make sense. Tires, brakes, oil, diagnostics, AC, transmission, exhaust. Walk-ins 7 days. 4.9★ 1,700+ reviews. ${BUSINESS.phone.display}`}
+        title="Nick's Tire & Auto Cleveland · Walk-In Auto Repair 7 Days"
+        description={`Nick's Tire & Auto on Euclid Ave, Cleveland. Tires, brakes, oil, diagnostics, AC, transmission. Walk in 7 days. 4.9★ from 1,700+ reviews. ${BUSINESS.phone.display}`}
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
