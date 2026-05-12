@@ -4,7 +4,7 @@
  * Runs daily — checks for warranties expiring in 14 days.
  */
 import { createLogger } from "../../lib/logger";
-import { and, eq, gte, lte, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql, inArray } from "drizzle-orm";
 
 import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:warranty");
@@ -44,17 +44,28 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
 
     if (expiring.length === 0) return { recordsProcessed: 0 };
 
+    // wave-165: batch the customer lookup. Previously did 1 DB query per
+    // expiring warranty (up to 50 sequential round-trips inside the loop),
+    // which would timeout the cron under load and delay all subsequent jobs.
+    const alsIdsSet = new Set<string>();
+    for (const w of expiring) {
+      if (typeof w.customerId === "string" && w.customerId.length > 0) alsIdsSet.add(w.customerId);
+    }
+    const alsIds: string[] = Array.from(alsIdsSet);
+    type CustomerRow = typeof customers.$inferSelect;
+    const customerRows: CustomerRow[] = alsIds.length > 0
+      ? await db.select().from(customers).where(inArray(customers.alsCustomerId, alsIds))
+      : [];
+    const customerByAlsId = new Map<string, CustomerRow>();
+    for (const c of customerRows) {
+      if (c.alsCustomerId) customerByAlsId.set(c.alsCustomerId, c);
+    }
+
     const { sendSms } = await import("../../sms");
     let processed = 0;
 
     for (const w of expiring) {
-      // warranties.customerId is the ALS external ID — match via alsCustomerId
-      const [customer] = await db
-        .select()
-        .from(customers)
-        .where(eq(customers.alsCustomerId, w.customerId))
-        .limit(1);
-
+      const customer = customerByAlsId.get(w.customerId);
       if (!customer?.phone) continue;
       if (customer.smsOptOut) {
         await db.update(warranties).set({ reminderSent: true }).where(eq(warranties.id, w.id));

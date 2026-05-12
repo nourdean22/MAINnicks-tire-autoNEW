@@ -280,15 +280,24 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     const resultHeader = rows as RawRow;
     const affected = Number(resultHeader?.affectedRows || resultHeader?.changedRows || 0);
 
-    // Batch INSERT audit trail records (eliminates N+1 INSERT loop)
+    // Batch INSERT audit trail records (eliminates N+1 INSERT loop).
+    // wave-165: mirror the integer-coercion pattern used at line 66-68 +
+    // line 128-130. RawRow `id` is typed `unknown`; without
+    // Number.isInteger we'd swallow a malformed-SQL crash in the catch
+    // block and never know the audit row never wrote.
     if (affected > 0 && woIds.length > 0) {
-      try {
-        const values = woIds.map((id) => `(${id}, 'completed', 'invoiced', 'system:cron', 'Auto-advanced after 24h in completed', NOW())`).join(",");
-        await d.execute(sql`
-          INSERT INTO work_order_transitions (work_order_id, from_status, to_status, changed_by, note, created_at)
-          VALUES ${sql.raw(values)}
-        `);
-      } catch { /* transition table may not exist yet — non-critical */ }
+      const numericWoIds = woIds
+        .map((id) => Number(id))
+        .filter((n): n is number => Number.isFinite(n) && Number.isInteger(n));
+      if (numericWoIds.length > 0) {
+        try {
+          const values = numericWoIds.map((id) => `(${id}, 'completed', 'invoiced', 'system:cron', 'Auto-advanced after 24h in completed', NOW())`).join(",");
+          await d.execute(sql`
+            INSERT INTO work_order_transitions (work_order_id, from_status, to_status, changed_by, note, created_at)
+            VALUES ${sql.raw(values)}
+          `);
+        } catch { /* transition table may not exist yet — non-critical */ }
+      }
       log.info(`Auto-advanced ${affected} WOs from completed to invoiced (audit trail written)`);
     }
     return { recordsProcessed: affected, details: `${affected} WOs auto-advanced to invoiced` };

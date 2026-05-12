@@ -554,7 +554,12 @@ export function registerBridgeRoutes(app: Express): void {
     }
   });
 
-  // Ad-hoc diagnostic query (read-only)
+  // Ad-hoc diagnostic query (read-only) — hardened wave-165
+  // Even behind bridgeAuth this surface was dangerous: trim+startsWith("SELECT")
+  // is bypassed by multi-statement attacks ("SELECT 1; DROP TABLE..."),
+  // SELECT INTO OUTFILE exfil, and UNION-based blind injection. We now apply
+  // five layered guards before passing anything to sql.raw. A compromised
+  // bridge key must no longer translate to arbitrary DB access.
   app.post("/api/bridge/diag", bridgeAuth, async (req, res) => {
     try {
       const { getDb } = await import("../db");
@@ -563,10 +568,31 @@ export function registerBridgeRoutes(app: Express): void {
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
       const query = req.body.query;
       if (!query || typeof query !== "string") { res.status(400).json({ error: "query required" }); return; }
-      // Only allow SELECT for safety
-      if (!query.trim().toUpperCase().startsWith("SELECT")) { res.status(400).json({ error: "SELECT only" }); return; }
-      const [rows] = await db.execute(sql.raw(query));
-      res.json({ rows, timestamp: new Date().toISOString() });
+      const q = query.trim();
+
+      // Guard 1: length cap — diagnostic queries are short
+      if (q.length > 2000) { res.status(400).json({ error: "query too long (max 2000 chars)" }); return; }
+
+      // Guard 2: must start with SELECT (case-insensitive)
+      if (!/^select\s/i.test(q)) { res.status(400).json({ error: "SELECT only" }); return; }
+
+      // Guard 3: no statement separators (kills multi-statement injection)
+      // Strip the optional trailing semicolon first so legitimate "SELECT ...;" still passes.
+      const qNoTrailing = q.replace(/;\s*$/, "");
+      if (qNoTrailing.includes(";")) { res.status(400).json({ error: "multi-statement queries forbidden" }); return; }
+
+      // Guard 4: dangerous patterns — exfiltration + privilege probes
+      const FORBIDDEN = /\b(into\s+outfile|into\s+dumpfile|load_file|load\s+data|sys_exec|benchmark|sleep|information_schema\.user_privileges|mysql\.user)\b/i;
+      if (FORBIDDEN.test(qNoTrailing)) { res.status(400).json({ error: "forbidden pattern" }); return; }
+
+      // Guard 5: no write keywords (defence-in-depth even though we required SELECT prefix)
+      const WRITE = /\b(insert|update|delete|drop|truncate|alter|create|rename|grant|revoke|replace)\b/i;
+      if (WRITE.test(qNoTrailing)) { res.status(400).json({ error: "write keyword detected" }); return; }
+
+      const [rows] = await db.execute(sql.raw(qNoTrailing));
+      // Cap response to first 500 rows so an unbounded SELECT can't dump the whole table.
+      const limited = Array.isArray(rows) ? rows.slice(0, 500) : rows;
+      res.json({ rows: limited, truncated: Array.isArray(rows) && rows.length > 500, timestamp: new Date().toISOString() });
     } catch (err: unknown) {
       res.status(500).json({ error: (err as Error).message });
     }

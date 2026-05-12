@@ -147,6 +147,21 @@ function rangeToDays(range: string | undefined): number {
   }
 }
 
+/**
+ * wave-165: defense-in-depth integer guard before any sql.raw(String(days))
+ * interpolation. Even though rangeToDays() currently can't return anything
+ * else, this prevents a future contributor from accidentally widening the
+ * switch and introducing an INTERVAL-NaN-DAY DB crash (or worse). Throws
+ * loudly rather than silently returning a default so the bug is found at
+ * test time, not in production.
+ */
+function safeDays(d: number): number {
+  if (!Number.isInteger(d) || d < 1 || d > 730) {
+    throw new Error(`statenour-bridge: invalid days=${d}`);
+  }
+  return d;
+}
+
 // ─── Registration ──────────────────────────────────────
 export function registerStatenourBridgeRoutes(app: Express): void {
 
@@ -258,7 +273,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               END) / 60 AS avgHours,
               COALESCE(SUM(CASE WHEN matched_invoice_id IS NULL THEN estimated_amount ELSE 0 END), 0) AS declinedCents
             FROM alg_estimates
-            WHERE estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+            WHERE estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
           `),
           exec(d, sql`
             SELECT customer_name AS name, service_description AS service,
@@ -266,7 +281,7 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               TIMESTAMPDIFF(DAY, estimate_date, NOW()) AS daysOld
             FROM alg_estimates
             WHERE matched_invoice_id IS NULL
-              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+              AND estimate_date >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
             ORDER BY estimated_amount DESC
             LIMIT 5
           `),
@@ -323,14 +338,14 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               ELSE NULL
             END) / 60 AS avgHours
           FROM estimates_log
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
         `),
         exec(d, sql`
           SELECT service,
             COUNT(*) AS given,
             SUM(CASE WHEN converted = 1 THEN 1 ELSE 0 END) AS converted
           FROM estimates_log
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
           GROUP BY service
           ORDER BY given DESC
           LIMIT 10
@@ -529,14 +544,14 @@ export function registerStatenourBridgeRoutes(app: Express): void {
               THEN 1 ELSE 0
             END) AS walk_ins
           FROM bookings
-          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+          WHERE createdAt >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
             AND status != 'cancelled'
         `),
         // Count Uber-out trackings from audit_log (requires uber-code endpoint to log there)
         exec(d, sql`
           SELECT COUNT(*) AS cnt FROM audit_log
           WHERE action = 'customer.uber_requested'
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(days))} DAY)
+            AND created_at >= DATE_SUB(CURDATE(), INTERVAL ${sql.raw(String(safeDays(days)))} DAY)
         `),
       ]);
 
