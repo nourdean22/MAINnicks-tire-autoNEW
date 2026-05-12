@@ -9,6 +9,7 @@ import { trpc } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { toast } from "sonner";
 import {
   Loader2, ArrowLeft, Shield, XCircle, RefreshCw,
@@ -378,8 +379,13 @@ function NotificationsPanel() {
                   {notif.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
                 <button
-                  onClick={() => {
-                    if (confirm("Delete this notification?")) {
+                  onClick={async () => {
+                    if (await confirmDialog({
+                      title: "Delete notification?",
+                      message: "This removes it from the rotation. Cannot be undone.",
+                      confirmLabel: "Delete",
+                      tone: "danger",
+                    })) {
                       deleteNotif.mutate({ id: notif.id });
                     }
                   }}
