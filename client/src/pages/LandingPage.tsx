@@ -364,12 +364,14 @@ export default function LandingPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4 bg-white/5 border border-white/10 rounded-xl p-6 lg:p-8">
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label htmlFor="lp-name" className="block text-sm font-semibold text-white mb-2">
                 Name
               </label>
               <input
+                id="lp-name"
                 type="text"
                 required
+                autoComplete="name"
                 value={formData.name}
                 onChange={(e) => handleFormChange("name", e.target.value)}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 hover:bg-white/15 hover:border-white/20 transition-all focus:outline-none focus:border-yellow-400"
@@ -378,12 +380,15 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label htmlFor="lp-phone" className="block text-sm font-semibold text-white mb-2">
                 Phone
               </label>
               <input
+                id="lp-phone"
                 type="tel"
                 required
+                autoComplete="tel"
+                inputMode="tel"
                 value={formData.phone}
                 onChange={(e) => handleFormChange("phone", e.target.value)}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 hover:bg-white/15 hover:border-white/20 transition-all focus:outline-none focus:border-yellow-400"
@@ -392,10 +397,11 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label htmlFor="lp-vehicle" className="block text-sm font-semibold text-white mb-2">
                 Vehicle (optional)
               </label>
               <input
+                id="lp-vehicle"
                 type="text"
                 value={formData.vehicle}
                 onChange={(e) => handleFormChange("vehicle", e.target.value)}
@@ -405,10 +411,11 @@ export default function LandingPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-white mb-2">
+              <label htmlFor="lp-problem" className="block text-sm font-semibold text-white mb-2">
                 What's the issue? (optional)
               </label>
               <textarea
+                id="lp-problem"
                 value={formData.problem}
                 onChange={(e) => handleFormChange("problem", e.target.value)}
                 className="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/10 text-white placeholder-white/50 hover:bg-white/15 hover:border-white/20 transition-all focus:outline-none focus:border-yellow-400"

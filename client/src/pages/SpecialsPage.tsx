@@ -438,7 +438,7 @@ export default function SpecialsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-[11px] uppercase tracking-[0.2em] text-primary font-bold mb-1">Pro tip</div>
                   <h3 className="font-heading text-xl lg:text-2xl font-bold text-white uppercase tracking-tight mb-2">
-                    Stack any deal with $0-down financing.
+                    Stack any deal with $10-down financing.
                   </h3>
                   <p className="text-foreground/65 text-sm leading-relaxed mb-4">
                     The discount applies first, then you finance the remainder. Soft credit pre-qualification takes 60 seconds with no impact on your score — see what you'd qualify for before deciding.
@@ -447,7 +447,7 @@ export default function SpecialsPage() {
                     href="/financing"
                     className="inline-flex items-center gap-2 text-primary font-bold text-sm hover:underline"
                   >
-                    See $0-down options
+                    See $10-down options
                     <ChevronRight className="w-4 h-4" />
                   </Link>
                 </div>

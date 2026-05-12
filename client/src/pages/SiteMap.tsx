@@ -77,7 +77,7 @@ const CUSTOMER_TOOLS: LinkItem[] = [
   { label: "Cost Estimator", href: "/cost-estimator" },
   { label: "Track My Job", href: "/status", note: "See where your car is in service" },
   { label: "My Garage", href: "/my-garage", note: "Your service history" },
-  { label: "Payment Programs", href: "/financing", note: "$0 down via Snap/Acima/Koalafi" },
+  { label: "Payment Programs", href: "/financing", note: "$10 down via Snap/Acima/Koalafi" },
   { label: "Rewards & Loyalty", href: "/rewards" },
   { label: "Leave a Review", href: "/review" },
   { label: "Request Callback", href: "/contact" },

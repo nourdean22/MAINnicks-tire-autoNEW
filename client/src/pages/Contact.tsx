@@ -32,8 +32,8 @@ function ContactSchema() {
     },
     geo: {
       "@type": "GeoCoordinates",
-      latitude: 41.5525118,
-      longitude: -81.5571875,
+      latitude: BUSINESS.geo.lat,
+      longitude: BUSINESS.geo.lng,
     },
     openingHoursSpecification: [
       {

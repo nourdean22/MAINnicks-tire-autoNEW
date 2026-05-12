@@ -162,7 +162,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
             {segment === "declined" && (
               <>
                 <StepPreview step={1} delay="Immediately" desc="Follow-up: Did you get the work done? Estimate still valid" />
-                <StepPreview step={2} delay="Day 7" desc="Urgency: Problems get worse + $0 down financing available" />
+                <StepPreview step={2} delay="Day 7" desc="Urgency: Problems get worse + $10 down financing available" />
                 <StepPreview step={3} delay="Day 21" desc="Expiry: Estimate expires in 7 days, re-inspection needed after" />
               </>
             )}

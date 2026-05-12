@@ -23,7 +23,7 @@ const ROWS: Row[] = [
   { feature: "Shows you the worn part on a lift",                nicks: "yes", dealership: "warn", chain: "no"   },
   { feature: "Done before your Uber driver gets bored",          nicks: "yes", dealership: "no",   chain: "warn" },
   { feature: "Works on whatever you drive",                       nicks: "yes", dealership: "no",   chain: "yes"  },
-  { feature: "$0 down financing — no credit check",              nicks: "yes", dealership: "warn", chain: "no"   },
+  { feature: "$10 down financing — no credit check",              nicks: "yes", dealership: "warn", chain: "no"   },
   { feature: "Open Sunday — exhaust never breaks Tuesday",       nicks: "yes", dealership: "no",   chain: "warn" },
   { feature: `${BUSINESS.reviews.countDisplay} Cleveland drivers think so`, nicks: "yes", dealership: "warn", chain: "no" },
   { feature: "Won't sell you what you don't need",               nicks: "yes", dealership: "no",   chain: "no"   },

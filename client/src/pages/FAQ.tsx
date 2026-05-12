@@ -31,7 +31,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "General",
     question: "What are your hours of operation?",
-    answer: "We are open Monday through Saturday from 8:00 AM to 6:00 PM, and Sunday from 9:00 AM to 4:00 PM. Walk-ins are welcome, but appointments are recommended for faster service."
+    answer: "We are open Monday through Saturday from 8:00 AM to 6:00 PM, and Sunday from 9:00 AM to 4:00 PM. No appointment needed — first come, first served, 7 days a week."
   },
   {
     category: "General",
