@@ -202,6 +202,15 @@ export function registerAllJobs(): void {
     return processAppointmentReminders24h();
   });
 
+  // wave-166: resume stuck SMS campaigns (every 5 min). If Railway restarts
+  // a dyno mid-campaign, processCampaignSends() dies and the campaign sits
+  // in status='active' with unsent pending rows. This recovers them so
+  // real customers never get permanently skipped.
+  registerJob("campaign-resume", 5 * 60 * 1000, async () => {
+    const { resumeStuckCampaigns } = await import("../routers/campaigns");
+    return resumeStuckCampaigns();
+  });
+
   // Review requests (every 30 min)
   registerJob("review-requests", 30 * 60 * 1000, async () => {
     const { processReviewRequests } = await import("./jobs/reviewRequests");
