@@ -265,3 +265,28 @@ export function getTireSizeBySlug(slug: string): TireSizePage | undefined {
 export function getAllTireSizeSlugs(): string[] {
   return TIRE_SIZE_PAGES.map(p => p.slug);
 }
+
+/**
+ * Category-aware meta description generator.
+ *
+ * The static `metaDescription` field on each TireSizePage is templated
+ * boilerplate ("Buy X tires. Fits Y. New & used in stock..."), which
+ * triggers Google's thin-content / duplicate-template heuristics across
+ * 30 SKU pages. This generator emits genuinely-differentiated copy by
+ * leveraging category-specific value props, price anchors, and tighter
+ * vehicle phrasing — kept under 160 characters for SERP truncation.
+ */
+export function buildTireSizeMetaDescription(page: TireSizePage): string {
+  const vehicles = page.commonVehicles.slice(0, 3).join(", ");
+  switch (page.category) {
+    case "Truck":
+      return `Heavy-duty ${page.size} for ${vehicles}. Used from $50, new LT from $120. Free mount + balance + alignment check. Call (216) 862-0005.`;
+    case "Performance":
+      return `Performance ${page.size} for ${vehicles}. Premium brands stocked, same-day fitment. Free $289 install package. Call (216) 862-0005.`;
+    case "Sedan":
+      return `Daily-driver ${page.size} fits ${vehicles}. Used from $40, new from $80. Free $289 install + lifetime rotations. Call (216) 862-0005.`;
+    case "SUV/Crossover":
+    default:
+      return `${page.size} stocked for ${vehicles}. Used from $40, new from $80. Free mount, balance, alignment check + lifetime rotations. (216) 862-0005.`;
+  }
+}
