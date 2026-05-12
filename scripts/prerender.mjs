@@ -168,7 +168,12 @@ function startServer() {
   return new Promise((resolve, reject) => {
     const proc = spawn("node", ["dist/index.js"], {
       cwd: ROOT,
-      env: { ...process.env, NODE_ENV: "production", PORT: "4173" },
+      // wave-181.3 · PRERENDER_MODE=true tells server/_core/index.ts to
+      // skip cron scheduler + SMS queue + Telegram batch + NOUR OS bridge
+      // so puppeteer can reach networkidle0 without competing background
+      // network traffic. Without this, prerender hung indefinitely on
+      // routes 55+ because the server's network was never idle.
+      env: { ...process.env, NODE_ENV: "production", PORT: "4173", PRERENDER_MODE: "true" },
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -182,7 +187,10 @@ function startServer() {
 
     proc.stdout.on("data", (data) => {
       const line = data.toString();
-      if (line.includes("Server running") && !started) {
+      // wave-181.3: server now emits "[server:ready]" (pino-style) not the
+      // old "Server running" string. Match either so this stays compatible
+      // if logging is refactored again.
+      if ((line.includes("[server:ready]") || line.includes("Server running")) && !started) {
         started = true;
         clearTimeout(timeout);
         resolve({ proc, port: 4173 });
@@ -413,6 +421,19 @@ async function main() {
               }
               console.log(`    [links] Injected internal links for ${routePath} (had ${internalLinkCount} internal links)`);
             }
+          }
+
+          // wave-181.3 SEO audit · strip admin bundle modulepreload from
+          // public pages. Vite auto-injects modulepreload for every chunk
+          // in the dependency graph, including the admin chunk, which
+          // wastes ~140KB of bandwidth on every mobile first paint. Admin
+          // is lazy-loaded in App.tsx so the preload is purely waste.
+          // Strip it on every route except /admin/*.
+          if (!routePath.startsWith("/admin")) {
+            html = html.replace(
+              /\s*<link\s+rel="modulepreload"\s+crossorigin\s+href="\/assets\/admin-[^"]+\.js"\s*\/?>\s*/g,
+              ""
+            );
           }
 
           // Add prerendered marker

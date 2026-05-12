@@ -42,7 +42,10 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       )
       .limit(50);
 
-    if (expiring.length === 0) return { recordsProcessed: 0 };
+    if (expiring.length === 0) {
+      log.info("[cron:warranty] no warranties due in next 12-16d");
+      return { recordsProcessed: 0 };
+    }
 
     // wave-165: batch the customer lookup. Previously did 1 DB query per
     // expiring warranty (up to 50 sequential round-trips inside the loop),
@@ -59,6 +62,19 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
     const customerByAlsId = new Map<string, CustomerRow>();
     for (const c of customerRows) {
       if (c.alsCustomerId) customerByAlsId.set(c.alsCustomerId, c);
+    }
+
+    // wave-181.3 silent-failure audit finding #3 · alarm if expiring
+    // warranties exist but NO customers matched (data drift between
+    // warranties.customerId and customers.alsCustomerId). Without this
+    // every iteration would hit `continue` and 0 reminders go out
+    // silently while the cron table says "completed".
+    if (expiring.length > 0 && customerRows.length === 0) {
+      log.error("[cron:warranty] expiring warranties have NO matching customers — likely customerId/alsCustomerId drift", {
+        errorId: "WARRANTY_CUSTOMER_LOOKUP_MISMATCH",
+        expiringCount: expiring.length,
+        alsIdsCount: alsIds.length,
+      });
     }
 
     const { sendSms } = await import("../../sms");
@@ -89,7 +105,15 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
     log.info(`Warranty alerts sent: ${processed}`);
     return { recordsProcessed: processed };
   } catch (err) {
-    log.error("Warranty alert processing failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0 };
+    // wave-181.3 silent-failure audit finding #3 · the previous catch
+    // returned { recordsProcessed: 0 } which caused the cron runner to
+    // mark the run "completed" with status=success — silent failure
+    // invisible to ops. Rethrow so runJob writes status='failed' to
+    // cron_log and the operator gets the alert.
+    log.error("Warranty alert processing failed", {
+      errorId: "WARRANTY_CRON_THREW",
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   }
 }

@@ -94,6 +94,27 @@ export function StampLetters({
       custom={{ delay, stagger }}
       aria-label={text}
     >
+      {/* wave-181.3 SEO audit · defensive fallback for crawlers that
+          tokenize by text node and don't respect aria-label. The motion
+          spans below carry aria-hidden, so AT users get the aria-label —
+          but bare-text scrapers see "P u l l u p f o r t i r e s". A
+          single sr-only text node here gives them a clean phrase to read.
+          Position-absolute keeps it out of the visual flow. */}
+      <span
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: -1,
+          overflow: "hidden",
+          clip: "rect(0,0,0,0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      >
+        {text}
+      </span>
       {words.map((word, wIdx) => {
         const wordNode = (
           <span

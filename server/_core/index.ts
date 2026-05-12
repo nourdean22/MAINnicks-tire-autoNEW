@@ -444,27 +444,38 @@ async function startServer() {
     }).catch(err => serverLog.warn("Feature flag seeding failed", { error: err instanceof Error ? err.message : String(err) }));
   });
 
-  // ─── Tiered Cron Scheduler ──────────────────────────────
-  // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
-  // + 2 standalone: morning brief + daily report (12h)
-  import("../cron/scheduler").then(({ startTieredScheduler }) => {
-    startTieredScheduler();
-    serverLog.info("Tiered scheduler started");
-  }).catch(err => console.error("[Scheduler] Failed to start:", err));
+  // wave-181.3 · PRERENDER_MODE skips all background workers (cron,
+  // SMS queue, Telegram batch, NOUR OS bridge). Without this, the
+  // prerender Puppeteer step couldn't reach networkidle0 because cron
+  // jobs constantly fired Twilio SMS attempts during the prerender
+  // run — turning a 15-min job into a multi-hour hang.
+  const isPrerenderMode = process.env.PRERENDER_MODE === "true";
 
-  // Explicitly start background timers (removed auto-start from module imports)
-  import("../sms").then(({ startDelayedQueueProcessor }) => {
-    startDelayedQueueProcessor();
-    serverLog.info("SMS delayed queue processor started");
-  }).catch(e => console.warn("[server:init] SMS queue processor startup failed:", e));
-  import("../services/telegram").then(({ startBatchTimer }) => {
-    startBatchTimer();
-    serverLog.info("Telegram batch timer started");
-  }).catch(e => console.warn("[server:init] Telegram batch timer startup failed:", e));
-  import("../nour-os-bridge").then(({ startRetryProcessor }) => {
-    startRetryProcessor();
-    serverLog.info("NOUR OS bridge retry processor started");
-  }).catch(e => console.warn("[server:init] NOUR OS bridge retry processor startup failed:", e));
+  if (!isPrerenderMode) {
+    // ─── Tiered Cron Scheduler ──────────────────────────────
+    // 4 tiers: heartbeat(5m), pulse(15m), hourly(2h), daily(24h)
+    // + 2 standalone: morning brief + daily report (12h)
+    import("../cron/scheduler").then(({ startTieredScheduler }) => {
+      startTieredScheduler();
+      serverLog.info("Tiered scheduler started");
+    }).catch(err => console.error("[Scheduler] Failed to start:", err));
+
+    // Explicitly start background timers (removed auto-start from module imports)
+    import("../sms").then(({ startDelayedQueueProcessor }) => {
+      startDelayedQueueProcessor();
+      serverLog.info("SMS delayed queue processor started");
+    }).catch(e => console.warn("[server:init] SMS queue processor startup failed:", e));
+    import("../services/telegram").then(({ startBatchTimer }) => {
+      startBatchTimer();
+      serverLog.info("Telegram batch timer started");
+    }).catch(e => console.warn("[server:init] Telegram batch timer startup failed:", e));
+    import("../nour-os-bridge").then(({ startRetryProcessor }) => {
+      startRetryProcessor();
+      serverLog.info("NOUR OS bridge retry processor started");
+    }).catch(e => console.warn("[server:init] NOUR OS bridge retry processor startup failed:", e));
+  } else {
+    serverLog.info("[prerender-mode] Skipping cron scheduler, SMS queue, Telegram batch, NOUR OS bridge");
+  }
 
   // ─── Real-time SSE for admin dashboards ─────────────────
   // v1.7 audit fix · pre-fix this SSE stream of admin activity was

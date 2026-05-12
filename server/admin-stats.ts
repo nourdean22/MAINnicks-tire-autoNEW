@@ -23,6 +23,10 @@ type Callback = typeof callbackRequests.$inferSelect;
 type WorkOrder = typeof workOrders.$inferSelect;
 
 export interface DashboardStats {
+  // wave-181.3 · stamped by the outer catch when the stats pipeline
+  // throws. Consumers should check _degraded before trusting any field.
+  _degraded?: boolean;
+  _errorId?: string;
   bookings: {
     total: number;
     new: number;
@@ -536,8 +540,28 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       shopFloor: shopFloorStats,
     };
   } catch (error) {
-    log.error("[AdminStats] Error fetching stats:", error);
-    return defaultStats;
+    // wave-181.3 silent-failure audit finding #2 · the entire dashboard
+    // was silently returning all-zeros on ANY query failure — operator
+    // could not distinguish "quiet day" from "stats pipeline broken".
+    // Now: log the error, alert ops via Telegram (rate-limited inside
+    // sendTelegram helper), and stamp the response so the UI can surface
+    // a degraded-data banner. Defaults are still returned so the page
+    // renders, but consumers know the data isn't trustworthy.
+    log.error("[AdminStats] FATAL: dashboard pipeline failure — returning degraded data", error);
+    try {
+      const { sendTelegramMessage } = await import("./services/telegram");
+      await sendTelegramMessage(
+        `🔴 Admin dashboard stats pipeline FAILED\n\nOne or more queries in getDashboardStats() threw. Dashboard is showing degraded (all-zero) data until fixed.\n\nError: ${error instanceof Error ? error.message : String(error)}\n\nCheck Sentry / Railway logs for the full stack.`,
+        "critical"
+      );
+    } catch {
+      // Telegram itself can fail — don't let that mask the original error.
+    }
+    return {
+      ...defaultStats,
+      _degraded: true,
+      _errorId: "DASHBOARD_PIPELINE_FAILED",
+    } as DashboardStats & { _degraded: true; _errorId: string };
   }
 }
 

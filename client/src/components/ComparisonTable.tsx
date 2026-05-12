@@ -149,17 +149,32 @@ export default function ComparisonTable() {
             Dealership vs Chain Shop). The hub names the actual chains —
             Conrad's, Mavis, Firestone, NTB, Discount Tire, Monro, Big O
             — and runs head-to-head on each. Highest-traffic surface on
-            the site → 14 high-intent comparison pages. */}
+            the site → 14 high-intent comparison pages.
+            wave-181.3 SEO audit · added inline anchor links to top-3
+            competitor comparison pages so the homepage passes equity to
+            the comparison spokes directly (audit found 0 internal links
+            from / to /compare or any comparison page → SERP-absence). */}
         <div className="max-w-3xl mx-auto mt-8 text-center">
           <p className="text-foreground/55 text-sm sm:text-base mb-4 body-pretty">
-            Want the named matchup? See how Nick's compares to Conrad's, Mavis,
-            Firestone, NTB, Discount Tire, Monro, and Big O — head-to-head, no spin.
+            Want the named matchup? See how Nick's compares to{" "}
+            <Link href="/nicks-tire-vs-mavis-cleveland" className="text-[#FDB913] underline-offset-2 hover:underline">
+              Mavis
+            </Link>
+            ,{" "}
+            <Link href="/nicks-tire-vs-conrads-cleveland" className="text-[#FDB913] underline-offset-2 hover:underline">
+              Conrad's
+            </Link>
+            ,{" "}
+            <Link href="/nicks-tire-vs-firestone-cleveland" className="text-[#FDB913] underline-offset-2 hover:underline">
+              Firestone
+            </Link>
+            , NTB, Discount Tire, Monro, and Big O — head-to-head, no spin.
           </p>
           <Link
-            href="/best-tire-shops-cleveland"
+            href="/compare"
             className="group inline-flex items-center gap-2 bg-[#FDB913] text-[#0A0A0A] px-6 py-3 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:shadow-[0_4px_20px_rgba(253,185,19,0.4)] active:scale-[0.98]"
           >
-            See the named comparison
+            See all comparisons
             <ArrowRight className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1" />
           </Link>
         </div>
