@@ -102,24 +102,71 @@ async function dispatchToolCall(call: VapiToolCall): Promise<{
     let output: unknown;
 
     switch (call.function.name) {
+      // ─── shop info / status ──────────────────────────────
       case "shopInfo":
         output = await caller.shopInfo();
         break;
       case "capacityCheck":
         output = await caller.capacityCheck(args as { day?: string });
         break;
+      // wave-179: real-time wait estimate from current booking queue.
+      // Caller asks "how busy are you" → accurate "open / busy / loaded"
+      // answer instead of generic FCFS line.
+      case "getCurrentWaitTime":
+        output = await caller.getCurrentWaitTime();
+        break;
+
+      // ─── pricing / quoting ───────────────────────────────
       case "quoteRange":
         output = await caller.quoteRange(args as { service: string; vehicleYear?: number; vehicleMake?: string });
         break;
+      // wave-179: vehicle Y/M/M → tire-size lookup. AI hears "F-150"
+      // → calls this → returns "265/70R17" so it can pitch correctly.
+      // Already existed in router but wasn't wired to webhook dispatcher.
+      case "tireSizeFromVehicle":
+        output = await caller.tireSizeFromVehicle(args as { year: number; make: string; model: string });
+        break;
+
+      // ─── customer recognition ────────────────────────────
+      // wave-179: caller phone → existing customer record. AI personalizes
+      // greeting ("Hi Robert! Welcome back!") + skips redundant info-gather.
+      // Highest-impact retention move on the voice channel.
+      case "lookupCustomer":
+        output = await caller.lookupCustomer(args as { phone: string });
+        break;
+      // wave-179: caller phone → any open ALG estimate awaiting decision.
+      // Targets the $321K declined-work pipeline from the phone channel:
+      // "I see we quoted you $487 back in March — still relevant?"
+      case "getDeclinedEstimate":
+        output = await caller.getDeclinedEstimate(args as { phone: string });
+        break;
+
+      // ─── booking actions ─────────────────────────────────
       case "bookSlot":
         output = await caller.bookSlot(args as { name: string; phone: string; service: string; vehicle?: string; preferredDay?: string; callId?: string });
         break;
+      // wave-179: warm-lead capture for tire inquiries that don't yet
+      // commit. Already existed but wasn't wired. Now Vapi can call
+      // tireInquiry → lead lands in admin with source="callback" + a
+      // [VOICE-AGENT TIRE INQUIRY] marker.
+      case "tireInquiry":
+        output = await caller.tireInquiry(args as { name: string; phone: string; tireSize?: string; vehicle?: string; newOrUsed?: "new" | "used" | "either"; installationNeeded?: boolean; callId?: string });
+        break;
+      // wave-179: after-hours callback capture. Writes to callbackRequests
+      // (same table the website's CallbackModal uses) so front desk sees
+      // every overnight call as a first-thing-morning callback queue.
+      case "scheduleCallback":
+        output = await caller.scheduleCallback(args as { name: string; phone: string; reason?: string; preferredTime?: string; callId?: string });
+        break;
+
+      // ─── escalations + confirmations ─────────────────────
       case "escalate":
         output = await caller.escalate(args as { name: string; phone: string; reason: string; urgency?: "low" | "medium" | "high"; callId?: string });
         break;
       case "sendConfirmationSms":
         output = await caller.sendConfirmationSms(args as { phone: string; summary: string; mapLink?: string });
         break;
+
       default:
         output = { error: `Unknown tool: ${call.function.name}` };
     }
