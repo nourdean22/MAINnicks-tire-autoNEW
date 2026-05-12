@@ -56,14 +56,26 @@ const TIRES_IMG = "/photos/rugged-tire-tread-closeup.webp";
 const DIAG_IMG = "/photos/interior-service-bay-car-lift.webp";
 const BRAKES_IMG = "/photos/undercar-brake-repair-action.webp";
 
+/**
+ * wave-172b: shared review-data shape lifted to Home root. Hero,
+ * TrustNumbers, and Reviews previously each called
+ * `trpc.reviews.google.useQuery` independently — React Query
+ * deduplicates the fetch but each component still subscribed to the
+ * cache and re-rendered separately on data arrival (3 re-renders for
+ * 1 data event + 3 staleTime instances that could drift).
+ *
+ * Now Home calls the query once, computes the unified shape, and
+ * passes props down. Cleaner architecture + single re-render.
+ */
+interface HomeReviewData {
+  rating: number;
+  totalReviews: number;
+  googleReviews?: Array<{ authorName: string; rating: number; text: string }>;
+}
+
 // ─── HERO — Full-viewport cinematic with left content ────
-function Hero() {
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
-    staleTime: 60 * 60 * 1000,
-    retry: 1,
-  });
-  const rating = (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating;
-  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
+function Hero({ reviewData }: { reviewData: HomeReviewData }) {
+  const { rating, totalReviews } = reviewData;
 
   return (
     <section className="relative h-[100svh] flex items-center overflow-hidden hero-stage">
@@ -80,7 +92,11 @@ function Hero() {
             per the placement guide keeps the sign in frame after
             object-cover crop. */}
         <picture>
-          <source media="(max-width: 768px)" srcSet={HERO_IMG_MOBILE} />
+          {/* wave-172: mobile gets the small (320px) variant for fast LCP,
+              medium viewports (≤1024px) get -medium (560px), desktop gets
+              full hero. Saves ~354KB on mobile alone. */}
+          <source media="(max-width: 768px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-small.webp" />
+          <source media="(max-width: 1024px)" srcSet="/photos/shopfront-clear-vertical-sign-bays-medium.webp" />
           <img
             src={HERO_IMG}
             alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
@@ -214,18 +230,22 @@ function Hero() {
                 aggressively
               · drop-shadow added to match the H1 readability stack in case
                 any character clips into the sign edge at unusual viewports */}
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.5, ease: "easeOut" }}
-            className="mt-6 text-base sm:text-lg lg:text-xl font-sans text-[#D4D4D4] max-w-sm body-pretty"
+          {/* wave-172d: framer-motion → pure CSS for the simple enter-on-mount
+              fade. animate-fade-in is a project Tailwind utility defined in
+              tailwind.config (motion-safe + reduce-motion-respecting). Same
+              visual effect; one fewer animated component for framer-motion
+              to manage at hero mount. */}
+          <p
+            className="mt-6 text-base sm:text-lg lg:text-xl font-sans text-[#D4D4D4] max-w-sm body-pretty motion-safe:animate-[fadeIn_0.6s_ease-out_0.5s_both]"
             style={{
               textShadow:
                 "0 1px 6px rgba(0,0,0,0.95), 0 0 14px rgba(0,0,0,0.6)",
+              opacity: 0,
+              animationFillMode: "forwards",
             }}
           >
             Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$60</span> installed. Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
-          </motion.p>
+          </p>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
               Red CALL NOW · Yellow SCHEDULE DROP-OFF · Outline GET DIRECTIONS.
@@ -242,11 +262,9 @@ function Hero() {
               Magnetic physics from wave-31 preserved on all three:
               custom cubic-bezier, active:scale, group-hover icon
               choreography. */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.7, ease: "easeOut" }}
-            className="mt-8 flex flex-col sm:flex-row gap-3"
+          <div
+            className="mt-8 flex flex-col sm:flex-row gap-3 motion-safe:animate-[fadeInUp_0.6s_ease-out_0.7s_both]"
+            style={{ opacity: 0 }}
           >
             <a
               href="#booking"
@@ -284,17 +302,15 @@ function Hero() {
               <MapPin className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-[-2px]" />
               GET DIRECTIONS
             </a>
-          </motion.div>
+          </div>
 
           {/* 2026-05-06 audit fix · 5-point trust strip per mockup spec:
               4.9★ · FCFS · $60 tires · Payment programs · Open 7 days.
               Replaces "Financing" (banned) with "Payment programs."
               Drops "free coffee · free opinions" — moved to body. */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.9, ease: "easeOut" }}
-            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base"
+          <div
+            className="mt-8 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm sm:text-base motion-safe:animate-[fadeIn_0.6s_ease-out_0.9s_both]"
+            style={{ opacity: 0 }}
           >
             <span className="inline-flex items-center gap-1.5 text-[#FDB913]">
               <span className="flex gap-0.5">
@@ -308,39 +324,27 @@ function Hero() {
             <span className="text-[#A0A0A0]">&bull; Used tires from $60</span>
             <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 1.1, ease: "easeOut" }}
-            className="mt-3"
+          </div>
+          <div
+            className="mt-3 motion-safe:animate-[fadeIn_0.5s_ease-out_1.1s_both]"
+            style={{ opacity: 0 }}
           >
             <LiveVisitorCounter minToShow={3} />
-          </motion.div>
+          </div>
         </div>
       </div>
 
-      {/* Scroll indicator */}
+      {/* Scroll indicator — pure CSS bounce, no framer-motion needed */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2">
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-        >
-          <ChevronDown className="w-5 h-5 text-foreground/30" />
-        </motion.div>
+        <ChevronDown className="w-5 h-5 text-foreground/30 motion-safe:animate-bounce" />
       </div>
     </section>
   );
 }
 
 // ─── TRUST NUMBERS — Single horizontal strip ─────────────
-function TrustNumbers() {
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
-    staleTime: 60 * 60 * 1000,
-    retry: 1,
-  });
-  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
-  const rating = (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating;
+function TrustNumbers({ reviewData }: { reviewData: HomeReviewData }) {
+  const { rating, totalReviews } = reviewData;
 
   // 2026-05-07 wave-45 · design-spells: stats now count up from 0 to
   // their target when scrolled into view. Keeping only service-oriented
@@ -471,15 +475,25 @@ function Services() {
           so phone users don't feel like the homepage is endless. Desktop keeps
           the cinematic 80vh feel. Group hover + ken-burns zoom is desktop-only
           (mobile has no cursor hover). */}
-      {HERO_SERVICES.map((s) => (
+      {HERO_SERVICES.map((s) => {
+        // wave-172: srcset for the three service tiles. Mobile/tablet
+        // (≤1024px) gets the -medium 560px variant which saves ~270KB
+        // per tile vs the desktop full image. Desktop keeps full res
+        // since these are 80vh hero tiles.
+        const mediumSrc = s.img.replace(/\.webp$/, "-medium.webp");
+        return (
         <div key={s.slug} className="group relative min-h-[65vh] sm:min-h-[80vh] flex items-end overflow-hidden">
           <div className="absolute inset-0">
-            <img
-              src={s.img}
-              alt={`${s.title} service at Nick's Tire and Auto`}
-              className="w-full h-full object-cover transition-transform duration-[1500ms] ease-out group-hover:scale-[1.04]"
-              loading="lazy"
-            />
+            <picture>
+              <source media="(max-width: 1024px)" srcSet={mediumSrc} />
+              <img
+                src={s.img}
+                alt={`${s.title} service at Nick's Tire and Auto`}
+                className="w-full h-full object-cover transition-transform duration-[1500ms] ease-out group-hover:scale-[1.04]"
+                loading="lazy"
+                decoding="async"
+              />
+            </picture>
             {/* Bottom-fade for headline legibility */}
             <div className="absolute inset-0 bg-gradient-to-t from-background via-background/55 to-transparent" />
             {/* Side-vignette pulls focus to center */}
@@ -518,7 +532,8 @@ function Services() {
             </FadeIn>
           </div>
         </div>
-      ))}
+        );
+      })}
     </section>
   );
 }
@@ -531,7 +546,14 @@ function WhyUs() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
             <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" decoding="async" width="1600" height="900" style={{ objectPosition: "center 50%" }} />
+              {/* wave-172: srcset for the "Why Us" photo. Aspect-[4/3]
+                  at lg breakpoint is ~480×360 — small variant covers 2x retina.
+                  Saves ~354KB per Home load on mobile. */}
+              <picture>
+                <source media="(max-width: 768px)" srcSet="/photos/busy-shop-action-mechanics-small.webp" />
+                <source media="(max-width: 1024px)" srcSet="/photos/busy-shop-action-mechanics-medium.webp" />
+                <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" decoding="async" width="1600" height="900" style={{ objectPosition: "center 50%" }} />
+              </picture>
             </div>
           </FadeIn>
 
@@ -569,15 +591,10 @@ const FALLBACK_REVIEWS = [
   { name: "Tammy Hicks", stars: 5, text: "Jahnah was so helpful and kind! She made sure I got the best tires for my vehicle at a great price. The service was fast and professional." },
 ];
 
-function Reviews() {
-  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
-    staleTime: 60 * 60 * 1000,
-    retry: 1,
-  });
-
-  const totalReviews = googleData?.totalReviews ?? BUSINESS.reviews.count;
-  const displayReviews = googleData?.reviews && googleData.reviews.length > 0
-    ? googleData.reviews.slice(0, 3).map(r => ({ name: r.authorName, stars: r.rating, text: r.text }))
+function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
+  const { totalReviews, googleReviews } = reviewData;
+  const displayReviews = googleReviews && googleReviews.length > 0
+    ? googleReviews.slice(0, 3).map(r => ({ name: r.authorName, stars: r.rating, text: r.text }))
     : FALLBACK_REVIEWS;
 
   return (
@@ -1011,6 +1028,20 @@ function LossOpportunitySection() {
 
 // ─── PAGE ────────────────────────────────────────────────
 export default function Home() {
+  // wave-172b: single useQuery at the page root. Hero, TrustNumbers,
+  // and Reviews receive the unified shape via props — one re-render
+  // when the data arrives instead of three independent subscriptions
+  // drifting on different stale-time clocks.
+  const { data: googleData } = trpc.reviews.google.useQuery(undefined, {
+    staleTime: 60 * 60 * 1000,
+    retry: 1,
+  });
+  const reviewData = {
+    rating: (googleData?.rating && googleData.rating > 0) ? googleData.rating : BUSINESS.reviews.rating,
+    totalReviews: googleData?.totalReviews ?? BUSINESS.reviews.count,
+    googleReviews: googleData?.reviews,
+  };
+
   return (
     <PageLayout activeHref="/" showChat={true}>
       {/* 2026-05-06 wave 2 · cannibalization fix.
@@ -1099,7 +1130,7 @@ export default function Home() {
           (snow / heat / rain / surge demand). Per the conversion spec:
           no manufactured urgency on a calm 70°F day. */}
       <WeatherBanner />
-      <Hero />
+      <Hero reviewData={reviewData} />
       {/* CONES BLOCK — 2026-05-06 audit fix · per HOMEPAGE_MOCKUP spec.
           The single most defensible visual differentiator the site can
           ship: explains the FCFS tire-line ritual + drop-off model in
@@ -1114,7 +1145,7 @@ export default function Home() {
       </section>
       <TrustStrip />
       <RiseInView className="parallax-rise"><UsedTiresCallout /></RiseInView>
-      <RiseInView className="parallax-rise"><TrustNumbers /></RiseInView>
+      <RiseInView className="parallax-rise"><TrustNumbers reviewData={reviewData} /></RiseInView>
       {/* CONVERSION ARCHITECTURE (v1.1 spec) — TriageGrid replaces the
           generic service-tile decision flow with a Cialdini-architected
           "pick your symptom" pattern. PriceCompare anchors against
@@ -1128,7 +1159,7 @@ export default function Home() {
       <RiseInView className="parallax-rise"><Services /></RiseInView>
       <RiseInView className="parallax-rise"><WhyUs /></RiseInView>
       <RiseInView className="parallax-rise"><LossOpportunitySection /></RiseInView>
-      <RiseInView className="parallax-rise"><Reviews /></RiseInView>
+      <RiseInView className="parallax-rise"><Reviews reviewData={reviewData} /></RiseInView>
       <RiseInView className="parallax-rise"><ComparisonTable /></RiseInView>
       {/* ── DROP-OFF + UBER-OUT — Pillar 4, the killer flywheel ──────────── */}
       <section className="bg-[oklch(0.055_0.004_260)] py-14 border-t border-border/30 halftone-light">
