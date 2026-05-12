@@ -193,18 +193,29 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone || !formData.service) return;
-    
+    // wave-144 — gate hardened. Was: any name + any phone + any service.
+    // Now: 10-digit phone (strip non-digits, count) + either a service
+    // picked OR notSureMode with a non-empty problem description.
+    const phoneDigits = formData.phone.replace(/\D/g, "");
+    if (!formData.name.trim() || phoneDigits.length !== 10) return;
+    const hasServiceOrProblem = !!formData.service || (notSureMode && !!formData.message.trim());
+    if (!hasServiceOrProblem) return;
+
+    // If they used the "Not Sure" path, send a fallback service so the
+    // server-side schema (which requires `service`) accepts the booking.
+    const effectiveService = formData.service || "General Repair / Other";
+
     const { leadEventId, scheduleEventId } = trackBookingSubmission({
-      service: formData.service,
+      service: effectiveService,
       vehicle: [formData.vehicleYear, formData.vehicleMake, formData.vehicleModel].filter(Boolean).join(" "),
     });
     const userData = getUserDataForCAPI();
     const photoUrls = photos.filter((p) => p.url).map((p) => p.url!);
     const utmData = getUtmData();
-    
+
     mutation.mutate({
       ...formData,
+      service: effectiveService,
       photoUrls,
       urgency: formData.urgency,
       pixelEventIds: { leadEventId, scheduleEventId },
@@ -214,8 +225,14 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   };
 
   const canGoNext = (s: Step): boolean => {
-    if (s === 1) return !!formData.service;
-    if (s === 2) return !!formData.name && formData.phone.length >= 7;
+    // wave-144 — step 1 was blocked for "Not Sure?" mode users (they
+    // type their problem in a textarea but service stays empty → Next
+    // permanently disabled). Now: either a service OR a non-empty
+    // problem description in notSureMode unblocks Next.
+    if (s === 1) return !!formData.service || (notSureMode && !!formData.message.trim());
+    // wave-144 — step 2 phone gate was `phone.length >= 7` which let
+    // garbage like "(123) 4" advance. Now: require 10 actual digits.
+    if (s === 2) return !!formData.name.trim() && formData.phone.replace(/\D/g, "").length === 10;
     return true;
   };
 
