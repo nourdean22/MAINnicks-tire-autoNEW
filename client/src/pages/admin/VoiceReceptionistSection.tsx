@@ -55,6 +55,7 @@ import {
   Tooltip,
 } from "recharts";
 import { CHART_THEME } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // ─── VAPI dashboard URL helpers (wave-89) ───────────────────
 // Operator wants escape hatches into the VAPI dashboard for things
@@ -1012,9 +1013,14 @@ function TransferDestinationCard() {
                   </div>
                 </button>
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    if (confirm(`Delete preset "${p.label}"?`)) {
+                    if (await confirmDialog({
+                      title: "Delete preset?",
+                      message: `Remove "${p.label}" from your saved presets.`,
+                      confirmLabel: "Delete",
+                      tone: "danger",
+                    })) {
                       deletePreset.mutate({ label: p.label });
                     }
                   }}
@@ -1104,8 +1110,12 @@ function FollowUpTransferCard() {
     return null;
   };
 
-  const resetToShop = () => {
-    if (!confirm("Reset Follow-Up Caller transfer to the shop landline (216) 862-0005?")) return;
+  const resetToShop = async () => {
+    if (!await confirmDialog({
+      title: "Reset transfer destination?",
+      message: "Restore Follow-Up Caller transfer to the shop landline (216) 862-0005.",
+      confirmLabel: "Reset",
+    })) return;
     setDest.mutate({
       phoneNumber: SHOP_LANDLINE,
       target: "followUp",
@@ -1113,18 +1123,19 @@ function FollowUpTransferCard() {
     });
   };
 
-  const submitEdit = () => {
+  const submitEdit = async () => {
     const e164 = toE164(draftNumber);
     if (!e164) {
       toast.error("Invalid number — type a 10-digit US number");
       return;
     }
     if (e164 !== SHOP_LANDLINE) {
-      const ok = confirm(
-        "⚠️ This redirects outbound campaign callbacks AWAY from the shop landline.\n\n" +
-        `New destination: ${fmtPhone(e164)}\n\n` +
-        "Customers calling back from your follow-up campaigns will reach this number instead of the shop. Are you sure?",
-      );
+      const ok = await confirmDialog({
+        title: "Redirect callbacks away from shop?",
+        message: `New destination: ${fmtPhone(e164)}\n\nCustomers calling back from your follow-up campaigns will reach this number instead of the shop landline. Are you sure?`,
+        confirmLabel: "Redirect",
+        tone: "danger",
+      });
       if (!ok) return;
     }
     setDest.mutate({
@@ -1316,16 +1327,18 @@ function OutboundCallCard() {
           Caller ID: <span className="font-mono">+1 216 424 9249</span> · Assistant: <span className="font-mono">Nick's Tire Follow-Up Caller</span>
         </div>
         <button
-          onClick={() => {
+          onClick={async () => {
             if (!phoneValid) {
               toast.error("Phone needs to be 10 or 11 digits");
               return;
             }
             const finalName = name.trim() || "buddy";
-            const confirm = window.confirm(
-              `Call ${phone} as a follow-up?\n\nNick will say:\n"${finalName}? ... Hope you're doing good, this is Nick from Nick's Tire and Auto, just following up after your last visit. How is everything?"\n\nProceed?`
-            );
-            if (!confirm) return;
+            const ok = await confirmDialog({
+              title: `Call ${phone} as a follow-up?`,
+              message: `Nick will say:\n"${finalName}? ... Hope you're doing good, this is Nick from Nick's Tire and Auto, just following up after your last visit. How is everything?"`,
+              confirmLabel: "Call",
+            });
+            if (!ok) return;
             mutation.mutate({
               customerName: finalName,
               phone,

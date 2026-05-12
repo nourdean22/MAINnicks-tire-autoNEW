@@ -15,6 +15,7 @@ import {
 import {
   AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
 } from "lucide-react";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // ── Lead type ──
 interface LeadItem {
@@ -774,8 +775,13 @@ export default function LeadsSection() {
                         </button>
                       )}
                       <button
-                        onClick={() => {
-                          if (window.confirm(`Delete lead from ${lead.name}? This cannot be undone.`)) {
+                        onClick={async () => {
+                          if (await confirmDialog({
+                            title: "Delete lead?",
+                            message: `Remove ${lead.name}'s lead. This cannot be undone.`,
+                            confirmLabel: "Delete",
+                            tone: "danger",
+                          })) {
                             deleteLead.mutate({ id: lead.id });
                           }
                         }}
