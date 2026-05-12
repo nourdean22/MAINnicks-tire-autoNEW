@@ -11,10 +11,15 @@ import FadeIn from "@/components/FadeIn";
 export default function NotFound() {
   return (
     <PageLayout>
+      {/* wave-147 — was canonicalPath="/404" + no robots, which let Google
+          index a "Page Not Found" page as legitimate content. Now: noindex,
+          nofollow + canonical pointing to "/" so any link equity that did
+          land here flows back to the homepage. */}
       <SEOHead
         title="Page Not Found | Nick's Tire & Auto Cleveland"
         description="Page not found. Pull up to the homepage. Nick's Tire & Auto — Cleveland auto repair on Euclid Ave."
-        canonicalPath="/404"
+        canonicalPath="/"
+        robots="noindex, nofollow"
       />
 
       <section className="bg-[#141414] min-h-[80vh] flex items-center justify-center px-4 py-20">

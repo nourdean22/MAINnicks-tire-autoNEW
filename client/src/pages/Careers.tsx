@@ -227,9 +227,13 @@ function PositionCard({ pos }: { pos: Position }) {
       <div className="px-6 pt-6 pb-4 border-b border-border/20">
         <div className="flex flex-wrap items-start justify-between gap-3 stagger-in">
           <div>
-            <h3 className="font-heading text-2xl font-extrabold uppercase text-foreground tracking-wide">
+            {/* wave-147 — was h3 which skipped from page h1 → h3 with no
+                intervening h2. Breaks document outline + JobPosting rich-
+                result eligibility. Position title is the most semantically
+                important heading per card; h2 is the right level. */}
+            <h2 className="font-heading text-2xl font-extrabold uppercase text-foreground tracking-wide">
               {pos.title}
-            </h3>
+            </h2>
             <p className="mt-1 text-sm text-foreground/50">{pos.level}</p>
           </div>
           <span className="text-xs font-semibold tracking-wide uppercase text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full shrink-0">
