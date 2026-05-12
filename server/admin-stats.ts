@@ -166,11 +166,26 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
   try {
     // ─── BOOKINGS ─────────────────────────────────────
+    // wave-149 — was SELECT *.limit(1000) → 1000 fat rows transferred
+    // every dashboard poll. Column-restricted to ONLY the fields used
+    // downstream (status/createdAt for stats, service for byService,
+    // name/vehicle for recent activity, utmSource/referrer for source
+    // attribution) + cap halved to 500. ~95% bandwidth reduction.
     const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
-    const allBookings: Booking[] = await d.select().from(bookings)
+    type BookingProj = Pick<Booking, "id" | "name" | "service" | "vehicle" | "status" | "createdAt" | "utmSource" | "referrer">;
+    const allBookings: BookingProj[] = await d.select({
+      id: bookings.id,
+      name: bookings.name,
+      service: bookings.service,
+      vehicle: bookings.vehicle,
+      status: bookings.status,
+      createdAt: bookings.createdAt,
+      utmSource: bookings.utmSource,
+      referrer: bookings.referrer,
+    }).from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
       .orderBy(desc(bookings.createdAt))
-      .limit(1000);
+      .limit(500);
     const bookingStats = {
       total: allBookings.length,
       new: allBookings.filter((b) => b.status === "new").length,
@@ -188,10 +203,23 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── LEADS ────────────────────────────────────────
-    const allLeads: Lead[] = await d.select().from(leads)
+    // wave-149 — same treatment as bookings. Column-restricted + 500 cap.
+    type LeadProj = Pick<Lead, "id" | "name" | "problem" | "recommendedService" | "source" | "status" | "urgencyScore" | "createdAt" | "utmSource" | "referrer">;
+    const allLeads: LeadProj[] = await d.select({
+      id: leads.id,
+      name: leads.name,
+      problem: leads.problem,
+      recommendedService: leads.recommendedService,
+      source: leads.source,
+      status: leads.status,
+      urgencyScore: leads.urgencyScore,
+      createdAt: leads.createdAt,
+      utmSource: leads.utmSource,
+      referrer: leads.referrer,
+    }).from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
       .orderBy(desc(leads.createdAt))
-      .limit(1000);
+      .limit(500);
     const leadStats = {
       total: allLeads.length,
       new: allLeads.filter((l) => l.status === "new").length,
