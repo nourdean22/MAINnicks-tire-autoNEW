@@ -25,8 +25,8 @@ export const customersRouter = router({
         segment: z.enum(["all", "recent", "lapsed", "new", "unknown"]).default("all"),
         sortBy: z.enum(["name", "visits", "lastVisit", "totalSpent", "firstVisit", "created", "declined", "backlog"]).default("lastVisit"),
         sortDir: z.enum(["asc", "desc"]).default("desc"),
-        /** Filter by last visit within N days */
-        lastVisitDays: z.number().optional(),
+        /** Filter by last visit within N days (int, 1..3650 = 10y cap) */
+        lastVisitDays: z.number().int().min(1).max(3650).optional(),
         /** Filter by minimum total spent (cents) */
         minSpent: z.number().optional(),
         /** Filter by minimum visit count */
@@ -56,7 +56,10 @@ export const customersRouter = router({
       if (segment !== "all") {
         conditions.push(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"));
       }
-      if (input?.lastVisitDays) {
+      if (input?.lastVisitDays && Number.isInteger(input.lastVisitDays) && input.lastVisitDays >= 1) {
+        // wave-168: belt + suspenders. Zod already enforces .int().min(1).max(3650)
+        // but sql.raw() interpolation deserves a second runtime guard — same
+        // pattern as crudAutomation.ts line 66-68.
         conditions.push(sql`${customers.lastVisitDate} >= DATE_SUB(NOW(), INTERVAL ${sql.raw(String(input.lastVisitDays))} DAY)`);
       }
       if (input?.minSpent) {

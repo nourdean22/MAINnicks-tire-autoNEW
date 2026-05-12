@@ -315,10 +315,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
 
     // ─── USERS ────────────────────────────────────────
-    const allUsers: User[] = await d.select().from(users);
+    // wave-168: SQL aggregate instead of full-table fetch. Same class of
+    // bug wave-158 fixed for bookings/leads. Today users is small but any
+    // OAuth signup growth compounds the cost — same fix surface.
+    const [userAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      admins: sql<number>`SUM(CASE WHEN ${users.role} = 'admin' THEN 1 ELSE 0 END)`,
+    }).from(users);
     const userStats = {
-      total: allUsers.length,
-      admins: allUsers.filter((u) => u.role === "admin").length,
+      total: Number(userAgg?.total ?? 0),
+      admins: Number(userAgg?.admins ?? 0),
     };
 
     // ─── RECENT ACTIVITY ──────────────────────────────

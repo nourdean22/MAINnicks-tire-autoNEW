@@ -77,7 +77,7 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
     },
     {
       step: 2, delayDays: 7,
-      template: `{firstName}, car problems rarely fix themselves. The {lastService} we quoted you on could get worse (and more expensive) with time. We offer $0 down financing if cost was the concern. ${STORE_PHONE}`,
+      template: `{firstName}, car problems rarely fix themselves. The {lastService} we quoted you on could get worse (and more expensive) with time. We offer $10 down financing if cost was the concern. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 21,

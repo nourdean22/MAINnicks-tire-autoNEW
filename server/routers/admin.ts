@@ -246,10 +246,15 @@ export const adminDashboardRouter = router({
               rows: rows.map((r: { id: number; name: string; phone: string; context: string | null; createdAt: Date }) => {
                 const ageMin = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / 60_000);
                 const ageLabel = ageMin < 60 ? `${ageMin}m` : ageMin < 1440 ? `${Math.floor(ageMin / 60)}h` : `${Math.floor(ageMin / 1440)}d`;
+                // wave-168: redact phone to last-4 in drilldown rows. Admin
+                // surface is screen-shared / phone-mirrored / browser-extension-
+                // scrapable; full PII shouldn't ride in listing payloads. The
+                // detail panel can fetch full info on demand.
+                const tail = r.phone ? r.phone.slice(-4) : "";
                 return {
                   id: r.id,
                   primary: r.name,
-                  secondary: r.phone,
+                  secondary: tail ? `•••${tail}` : "",
                   meta: r.context?.slice(0, 80) || "",
                   value: `${ageLabel} waiting`,
                 };
@@ -410,7 +415,9 @@ export const adminDashboardRouter = router({
               ...(leadRows as Array<{ id: number; name: string; phone: string; source: string; problem: string | null; urgencyScore: number; createdAt: Date }>).map((r) => ({
                 id: `lead-${r.id}`,
                 primary: r.name,
-                secondary: `LEAD · ${r.source} · ${r.phone}`,
+                // wave-168: phone tail-redacted in intake feed; full phone is
+                // pulled by the detail view on click.
+                secondary: `LEAD · ${r.source} · •••${r.phone ? r.phone.slice(-4) : ""}`,
                 meta: r.problem?.slice(0, 80) ?? "",
                 value: `urg ${r.urgencyScore}/5`,
                 createdAt: r.createdAt,
@@ -418,7 +425,7 @@ export const adminDashboardRouter = router({
               ...(callbackRows as Array<{ id: number; name: string; phone: string; context: string | null; sourcePage: string | null; createdAt: Date }>).map((r) => ({
                 id: `cb-${r.id}`,
                 primary: r.name,
-                secondary: `CALLBACK · ${r.phone}${r.sourcePage ? ` · from ${r.sourcePage}` : ""}`,
+                secondary: `CALLBACK · •••${r.phone ? r.phone.slice(-4) : ""}${r.sourcePage ? ` · from ${r.sourcePage}` : ""}`,
                 meta: r.context?.slice(0, 80) ?? "",
                 value: "📞",
                 createdAt: r.createdAt,
@@ -1078,61 +1085,84 @@ export const weeklyReportRouter = router({
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-    const weekBookings = await d.select().from(bookings)
-      .where(gte(bookings.createdAt, weekAgo))
-      .orderBy(desc(bookings.createdAt));
+    // wave-168: replaced unbounded `select().from(...)` row-scans with COUNT/SUM
+    // aggregates. Pre-fix this fetched every row in bookings/leads/callbacks/
+    // notifications from the last 7 days into Node memory just to compute
+    // totals + breakdowns. At hundreds of weekly rows it OOMs the dyno; the
+    // exact same class of bug wave-158 fixed for getDashboardStats().
 
-    const weekLeads = await d.select().from(leads)
-      .where(gte(leads.createdAt, weekAgo))
-      .orderBy(desc(leads.createdAt));
+    const [bookingAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      completed: sql<number>`SUM(CASE WHEN ${bookings.status} = 'completed' THEN 1 ELSE 0 END)`,
+      cancelled: sql<number>`SUM(CASE WHEN ${bookings.status} = 'cancelled' THEN 1 ELSE 0 END)`,
+      emergency: sql<number>`SUM(CASE WHEN ${bookings.urgency} = 'emergency' THEN 1 ELSE 0 END)`,
+    }).from(bookings).where(gte(bookings.createdAt, weekAgo));
 
-    const weekCallbacks = await d.select().from(callbackRequests)
-      .where(gte(callbackRequests.createdAt, weekAgo))
-      .orderBy(desc(callbackRequests.createdAt));
+    const bookingByService = await d.select({
+      service: bookings.service,
+      count: sql<number>`COUNT(*)`,
+    }).from(bookings).where(gte(bookings.createdAt, weekAgo)).groupBy(bookings.service);
 
-    const weekNotifs = await d.select().from(customerNotifications)
-      .where(gte(customerNotifications.createdAt, weekAgo));
+    const bookingByUrgency = await d.select({
+      urgency: sql<string>`COALESCE(${bookings.urgency}, 'whenever')`,
+      count: sql<number>`COUNT(*)`,
+    }).from(bookings).where(gte(bookings.createdAt, weekAgo)).groupBy(sql`COALESCE(${bookings.urgency}, 'whenever')`);
 
-    type Booking = typeof weekBookings[number];
-    type Lead = typeof weekLeads[number];
-    type Callback = typeof weekCallbacks[number];
-    type Notif = typeof weekNotifs[number];
+    const [leadAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      highUrgency: sql<number>`SUM(CASE WHEN ${leads.urgencyScore} >= 4 THEN 1 ELSE 0 END)`,
+      converted: sql<number>`SUM(CASE WHEN ${leads.status} = 'booked' THEN 1 ELSE 0 END)`,
+    }).from(leads).where(gte(leads.createdAt, weekAgo));
+
+    const leadBySource = await d.select({
+      source: leads.source,
+      count: sql<number>`COUNT(*)`,
+    }).from(leads).where(gte(leads.createdAt, weekAgo)).groupBy(leads.source);
+
+    const [callbackAgg] = await d.select({
+      total: sql<number>`COUNT(*)`,
+      completed: sql<number>`SUM(CASE WHEN ${callbackRequests.status} = 'completed' THEN 1 ELSE 0 END)`,
+      pending: sql<number>`SUM(CASE WHEN ${callbackRequests.status} = 'new' THEN 1 ELSE 0 END)`,
+    }).from(callbackRequests).where(gte(callbackRequests.createdAt, weekAgo));
+
+    const [notifAgg] = await d.select({
+      sent: sql<number>`SUM(CASE WHEN ${customerNotifications.status} = 'sent' THEN 1 ELSE 0 END)`,
+      pending: sql<number>`SUM(CASE WHEN ${customerNotifications.status} = 'pending' THEN 1 ELSE 0 END)`,
+    }).from(customerNotifications).where(gte(customerNotifications.createdAt, weekAgo));
 
     const serviceBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: Booking) => {
-      serviceBreakdown[b.service] = (serviceBreakdown[b.service] || 0) + 1;
-    });
+    bookingByService.forEach((r: { service: string; count: number }) => { serviceBreakdown[r.service] = Number(r.count); });
 
     const urgencyBreakdown: Record<string, number> = {};
-    weekBookings.forEach((b: Booking) => {
-      const u = b.urgency || "whenever";
-      urgencyBreakdown[u] = (urgencyBreakdown[u] || 0) + 1;
-    });
+    bookingByUrgency.forEach((r: { urgency: string; count: number }) => { urgencyBreakdown[r.urgency] = Number(r.count); });
+
+    const sources: Record<string, number> = {};
+    leadBySource.forEach((r: { source: string; count: number }) => { sources[r.source] = Number(r.count); });
 
     const report = {
       period: { start: weekAgo.toISOString(), end: now.toISOString() },
       bookings: {
-        total: weekBookings.length,
-        completed: weekBookings.filter((b: Booking) => b.status === "completed").length,
-        cancelled: weekBookings.filter((b: Booking) => b.status === "cancelled").length,
-        emergency: weekBookings.filter((b: Booking) => b.urgency === "emergency").length,
+        total: Number(bookingAgg?.total ?? 0),
+        completed: Number(bookingAgg?.completed ?? 0),
+        cancelled: Number(bookingAgg?.cancelled ?? 0),
+        emergency: Number(bookingAgg?.emergency ?? 0),
         serviceBreakdown,
         urgencyBreakdown,
       },
       leads: {
-        total: weekLeads.length,
-        highUrgency: weekLeads.filter((l: Lead) => l.urgencyScore >= 4).length,
-        converted: weekLeads.filter((l: Lead) => l.status === "booked").length,
-        sources: weekLeads.reduce((acc: Record<string, number>, l: Lead) => { acc[l.source] = (acc[l.source] || 0) + 1; return acc; }, {} as Record<string, number>),
+        total: Number(leadAgg?.total ?? 0),
+        highUrgency: Number(leadAgg?.highUrgency ?? 0),
+        converted: Number(leadAgg?.converted ?? 0),
+        sources,
       },
       callbacks: {
-        total: weekCallbacks.length,
-        completed: weekCallbacks.filter((c: Callback) => c.status === "completed").length,
-        pending: weekCallbacks.filter((c: Callback) => c.status === "new").length,
+        total: Number(callbackAgg?.total ?? 0),
+        completed: Number(callbackAgg?.completed ?? 0),
+        pending: Number(callbackAgg?.pending ?? 0),
       },
       notifications: {
-        sent: weekNotifs.filter((n: Notif) => n.status === "sent").length,
-        pending: weekNotifs.filter((n: Notif) => n.status === "pending").length,
+        sent: Number(notifAgg?.sent ?? 0),
+        pending: Number(notifAgg?.pending ?? 0),
       },
     };
 
@@ -1144,7 +1174,7 @@ export const weeklyReportRouter = router({
 
     sendNotification({
       category: "weekly_report",
-      subject: `Weekly Report: ${weekBookings.length} bookings, ${weekLeads.length} leads`,
+      subject: `Weekly Report: ${report.bookings.total} bookings, ${report.leads.total} leads`,
       body: `NICK'S TIRE & AUTO — WEEKLY INTELLIGENCE REPORT\n${"-".repeat(50)}\nPeriod: ${weekAgo.toLocaleDateString()} — ${now.toLocaleDateString()}\n\nBOOKINGS: ${report.bookings.total} total\n  Completed: ${report.bookings.completed}\n  Emergency: ${report.bookings.emergency}\n  Cancelled: ${report.bookings.cancelled}\n\nTop Services:\n${topServices || "  No bookings this week"}\n\nLEADS: ${report.leads.total} total\n  High Urgency: ${report.leads.highUrgency}\n  Converted to Booking: ${report.leads.converted}\n\nCALLBACKS: ${report.callbacks.total} total\n  Completed: ${report.callbacks.completed}\n  Still Pending: ${report.callbacks.pending}\n\nFOLLOW-UPS SENT: ${report.notifications.sent}\nFOLLOW-UPS PENDING: ${report.notifications.pending}`,
     }).catch((e) => { log.warn("[routers/admin] fire-and-forget failed:", e); });
 
