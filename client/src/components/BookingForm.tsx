@@ -112,6 +112,32 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           lastTouchedField: lastTouchedField.current,
           timeOnFormSec: Math.round((Date.now() - formMountTime.current) / 1000),
         });
+
+        // wave-173: server-side partial-capture on abandon. If the user
+        // entered a valid 10-digit phone before bouncing, fire a
+        // lead.submit so we can recover them via SMS follow-up. The
+        // existing 5-min phone-dedup on lead.submit prevents duplicates
+        // for users who completed the booking moments later (a separate
+        // booking row + a related lead row is the correct outcome — they
+        // disambiguate cleanly via source field). Skips if no valid phone
+        // OR if savePartial already fired in this session OR if a partial
+        // save was already triggered by the field-blur handler (see
+        // partialSavedRef below).
+        const fd = formDataRef.current;
+        const phoneDigits = fd.phone.replace(/\D/g, "");
+        if (!partialSavedRef.current && phoneDigits.length === 10) {
+          partialSavedRef.current = true;
+          const vehicleStr = [fd.vehicleYear, fd.vehicleMake, fd.vehicleModel].filter(Boolean).join(" ").trim();
+          const problemNote = `[BOOKING_PARTIAL] Service: ${fd.service || "not selected"} · Last step: ${step} · TimeOnForm: ${Math.round((Date.now() - formMountTime.current) / 1000)}s · LastField: ${lastTouchedField.current}`;
+          // Fire-and-forget; cleanup effects can't await
+          savePartial.mutate({
+            name: fd.name.trim() || "Booking abandoner",
+            phone: fd.phone,
+            vehicle: vehicleStr || null,
+            problem: problemNote,
+            source: "popup",
+          });
+        }
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: capture step at unmount via ref
@@ -121,6 +147,20 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   useEffect(() => {
     submittedRef.current = submitted;
   }, [submitted]);
+
+  // wave-173: server-side partial-capture for abandons. Mirrors formData
+  // into a ref so the unmount-cleanup effect (which captures formData at
+  // mount time and can't read live state) can decide whether to fire the
+  // savePartial mutation based on the LATEST entered phone + service.
+  const formDataRef = useRef<{ phone: string; name: string; service: string; vehicleYear: string; vehicleMake: string; vehicleModel: string }>({
+    phone: "",
+    name: "",
+    service: defaultService || "",
+    vehicleYear: "",
+    vehicleMake: "",
+    vehicleModel: "",
+  });
+  const partialSavedRef = useRef(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -136,6 +176,21 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
     urgency: "whenever" as "emergency" | "this-week" | "whenever",
   });
 
+  // wave-173: keep formDataRef synced with the latest formData state so
+  // the unmount cleanup above sees the user's most-recently-entered phone
+  // and service — useEffect cleanups capture state at mount, refs bypass
+  // that snapshot.
+  useEffect(() => {
+    formDataRef.current = {
+      phone: formData.phone,
+      name: formData.name,
+      service: formData.service,
+      vehicleYear: formData.vehicleYear,
+      vehicleMake: formData.vehicleMake,
+      vehicleModel: formData.vehicleModel,
+    };
+  }, [formData.phone, formData.name, formData.service, formData.vehicleYear, formData.vehicleMake, formData.vehicleModel]);
+
   const mutation = trpc.booking.create.useMutation({
     onSuccess: (data) => {
       setSubmitted(true);
@@ -147,6 +202,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   });
 
   const uploadPhoto = trpc.booking.uploadPhoto.useMutation();
+
+  // wave-173: server-side partial-capture mutation. Reuses the existing
+  // lead.submit pipeline (with its built-in 5-min phone dedup) so an
+  // abandoner who entered a valid phone is recoverable via SMS follow-up.
+  // Source: "popup" + a "[BOOKING_PARTIAL]" marker in `problem` so admin
+  // can distinguish these from regular leads + see step/service context.
+  const savePartial = trpc.lead.submit.useMutation();
 
   // wave-171: real backend wire for the "Add to appointment" upsell button.
   // Appends to the booking's adminNotes + fires Telegram to staff so the
