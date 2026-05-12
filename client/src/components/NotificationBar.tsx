@@ -400,7 +400,11 @@ export default function NotificationBar() {
       : strategyStyles[current.strategy];
 
   return (
-    <div className="fixed bottom-4 left-4 z-50 max-w-[360px] sm:max-w-[420px]">
+    // wave-150 — cap max-width below 360px viewports so the bar can
+    // never visually crowd the floating ChatWidget bubble (right-aligned
+    // at right-4, w-12 = needs ~64px+ of right-side clearance). At
+    // 360px viewport: (360 - 16 left-4 - 64 right-clearance) = 280px.
+    <div className="fixed bottom-4 left-4 z-50 w-[calc(100vw-5rem)] max-w-[360px] sm:max-w-[420px]">
       <AnimatePresence mode="wait">
         <motion.div
           key={current.id}

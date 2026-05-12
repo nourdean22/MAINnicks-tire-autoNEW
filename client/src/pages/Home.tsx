@@ -1141,6 +1141,34 @@ export default function Home() {
         </div>
       </section>
       <Contact />
+
+      {/* wave-150 — lightweight internal-link block restored after the
+          wave-4ab4c7 CRO sweep removed the full InternalLinks component
+          from Home. Home is the highest-PageRank page; it should still
+          distribute equity to top city + service surfaces. This is a
+          flat list, not the full nav-style block — no scroll bloat. */}
+      <section className="bg-background border-t border-border/20 py-10">
+        <div className="container max-w-5xl mx-auto px-4">
+          <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/50 font-medium mb-4">
+            Browse by service or neighborhood
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
+            <a href="/brake-repair" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
+            <a href="/alignment" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
+            <a href="/oil-change" className="text-foreground/70 hover:text-primary transition-colors">Oil Change</a>
+            <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Diagnostics</a>
+            <a href="/tires" className="text-foreground/70 hover:text-primary transition-colors">Tire Finder</a>
+            <a href="/financing" className="text-foreground/70 hover:text-primary transition-colors">Financing</a>
+            <a href="/cleveland-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">Cleveland</a>
+            <a href="/euclid-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">Euclid</a>
+            <a href="/east-cleveland-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">East Cleveland</a>
+            <a href="/areas-served" className="text-foreground/70 hover:text-primary transition-colors">All neighborhoods →</a>
+            <a href="/specials" className="text-foreground/70 hover:text-primary transition-colors">Specials</a>
+            <a href="/about" className="text-foreground/70 hover:text-primary transition-colors">About Us</a>
+          </div>
+        </div>
+      </section>
+
       <LeadPopup />
     </PageLayout>
   );
