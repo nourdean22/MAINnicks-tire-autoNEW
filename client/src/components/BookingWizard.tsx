@@ -786,12 +786,15 @@ export default function BookingWizard({ defaultService }: { defaultService?: str
                   {mutation.isPending ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Reserving your spot...
+                      Sending your request…
                     </>
                   ) : (
                     <>
                       <CheckCircle className="w-5 h-5" />
-                      Lock In My Spot
+                      {/* wave-146 — was "Lock In My Spot" which contradicts
+                          the FCFS model + the post-submit "You're in the
+                          queue" copy. Now matches the queue framing. */}
+                      Get In The Queue
                     </>
                   )}
                 </button>

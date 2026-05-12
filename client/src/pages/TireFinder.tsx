@@ -779,7 +779,11 @@ export default function TireFinder() {
       {/* ─── HERO ─── */}
       <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
         <div className="container max-w-3xl mx-auto text-center">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+          {/* wave-146 — was initial={{opacity:0,y:20}} which hid the H1
+              until JS hydrated, delaying measured LCP. Hero H1 is the
+              LCP candidate on TireFinder (no above-fold image). Now: starts
+              visible; the y:20 animation still plays after first paint. */}
+          <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
             <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Cleveland Tire Shop · New + Used · Walk-In or Order Online</span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-foreground mt-4 leading-[1.1] tracking-tight">
               Order Tires Online
@@ -803,6 +807,9 @@ export default function TireFinder() {
               <Search className="w-5 h-5 text-muted-foreground ml-4 shrink-0" />
               <input
                 type="text"
+                name="tire-size"
+                aria-label="Search tire size"
+                id="tire-size-search"
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSearch()}
