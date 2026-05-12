@@ -44,8 +44,10 @@ jobs:
           fetch-depth: 1
 
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+        # wave-181.3 · removed explicit version pin so pnpm/action-setup
+        # reads the packageManager field from package.json (currently
+        # pnpm@10.4.1). The explicit `version: 9` conflicted with that
+        # field and caused ERR_PNPM_BAD_PM_VERSION on every run.
 
       - uses: actions/setup-node@v4
         with:
