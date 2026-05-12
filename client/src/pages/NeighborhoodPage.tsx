@@ -218,10 +218,14 @@ export default function NeighborhoodPage() {
 
   return (
     <PageLayout showChat={true}>
+      {/* wave-151 SEO quality-gate fix \u2014 see IntersectionPage.tsx for the
+          full rationale. Same noindex,follow pattern across 122 thin
+          neighborhood template pages. */}
       <SEOHead
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
         description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}
         canonicalPath={`/${neighborhood.slug}`}
+        robots="noindex, follow"
       />
       <NeighborhoodSchema neighborhood={neighborhood} />
 

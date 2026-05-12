@@ -97,10 +97,21 @@ export default function IntersectionPage() {
 
   return (
     <PageLayout showChat={true}>
+      {/* wave-151 SEO quality-gate fix — was indexed across 154 thin
+          intersection pages (template fill-in, only name + drive minutes
+          varied per page). CLAUDE.md quality gate: 50+ location pages =
+          HARD STOP. Total before fix: 299 (23 cities + 122 neighborhoods
+          + 154 intersections). noindex,follow removes the thin pages
+          from Google's index while preserving the URLs + internal link
+          equity flow. Operator can re-index by removing the robots line
+          on individual pages once they're enriched with unique data
+          (drive time computed from coords, real Google review excerpts,
+          local landmark references, etc.). */}
       <SEOHead
         title={buildTitle(intersection)}
         description={buildDescription(intersection)}
         canonicalPath={`/near/${intersection.slug}`}
+        robots="noindex, follow"
       />
       <LocalBusinessSchema
         pageName={`Nick's Tire & Auto — Near ${intersection.name}`}
