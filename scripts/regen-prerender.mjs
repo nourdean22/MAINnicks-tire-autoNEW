@@ -78,7 +78,12 @@ const port = await findFreePort();
 console.log(`\n[regen] Step 2/4 — launching server on :${port}…`);
 const serverProc = spawn("node", ["dist/index.js"], {
   cwd: ROOT,
-  env: { ...process.env, NODE_ENV: "production", PORT: String(port) },
+  // wave-181.3 · PRERENDER_MODE=true tells server/_core/index.ts to
+  // skip cron scheduler + SMS queue + Telegram batch + NOUR OS bridge
+  // so puppeteer can reach networkidle0 without competing background
+  // network traffic. Critical — without this, prerender hangs after
+  // ~50 routes when cron jobs start firing Twilio SMS attempts.
+  env: { ...process.env, NODE_ENV: "production", PORT: String(port), PRERENDER_MODE: "true" },
   stdio: ["ignore", "pipe", "pipe"],
 });
 const serverLog = path.join(ROOT, "tmp", "regen-server.log");
