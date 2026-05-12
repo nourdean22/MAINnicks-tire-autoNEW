@@ -750,6 +750,68 @@ export const voiceAgentRouter = router({
     }),
 
   /**
+   * wave-181: checkTireStock — front-desk-physical-rack-check workflow.
+   *
+   * For callers who refuse to drive over without confirmed stock. The
+   * 14-day call audit identified 5+ high-intent callers who escalated
+   * to a manager because the AI couldn't say "yes we have it" with
+   * confidence. Instead of transferring (kills the call), this tool
+   * captures the lead with PHYSICAL RACK CHECK REQUESTED + bumps it
+   * to urgency 5 so the front desk walks the rack within 15 minutes
+   * and texts/calls the result.
+   *
+   * Reuses the tireInquiry pipeline (same leads table, same recovery
+   * flow). The difference is the explicit flag + the 15-min SLA
+   * promised to the caller.
+   */
+  checkTireStock: voiceAgentInternalProcedure
+    .input(z.object({
+      name: z.string().min(2).max(200),
+      phone: z.string().min(7).max(20),
+      tireSize: z.string().min(1).max(50),
+      vehicle: z.string().max(200).optional(),
+      callId: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { leads } = await import("../../drizzle/schema");
+        const d = await db();
+        if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+
+        await d.insert(leads).values({
+          name: input.name,
+          phone: input.phone.replace(/\D/g, ""),
+          email: null,
+          problem: `[VOICE-AGENT RACK CHECK]${input.callId ? ` callId=${input.callId}` : ""} — Size: ${input.tireSize}${input.vehicle ? ` · Vehicle: ${input.vehicle}` : ""} · PHYSICAL RACK CHECK REQUESTED — promised 15 min callback`,
+          vehicle: input.vehicle || null,
+          source: "callback",
+          status: "new",
+          urgencyScore: 5,
+          utmSource: "voice-agent",
+          utmMedium: "phone",
+          utmCampaign: "vapi-rack-check",
+        });
+
+        // Fire-and-forget Telegram so front desk sees it immediately
+        import("../services/telegram")
+          .then(({ sendTelegram }) =>
+            sendTelegram(`🚨 RACK CHECK · 15-min callback promised · ${input.name} · ${input.phone}\nSize: ${input.tireSize}${input.vehicle ? ` · ${input.vehicle}` : ""}`),
+          )
+          .catch((e) => log.warn("[voiceAgent:checkTireStock] telegram alert failed:", e));
+
+        log.info("Voice agent rack-check captured", { name: input.name, size: input.tireSize });
+        return {
+          success: true,
+          message: `Got it — front desk will walk the rack and call you back within 15 minutes with a yes or no on ${input.tireSize}. That way you don't drive over for nothing.`,
+        };
+      } catch (err) {
+        log.error("Voice agent checkTireStock failed", { err: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Rack check capture failed" });
+      }
+    }),
+
+  /**
    * wave-179: scheduleCallback
    *
    * After-hours capture. Caller dials outside business hours, AI offers
