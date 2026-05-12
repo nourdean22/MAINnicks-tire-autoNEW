@@ -444,3 +444,90 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
 
   console.info(`[campaigns:done] Campaign ${campaignId} completed: ${totalSent} sent, ${totalFailed} failed`);
 }
+
+/**
+ * wave-166: recover stuck campaigns abandoned by dyno restart.
+ *
+ * processCampaignSends() runs in-process. If Railway restarts the dyno
+ * mid-campaign (OOM, deploy, health-check failure), the loop dies without
+ * completing — the campaign stays status='active' with pending sends rows
+ * that nobody ever processes. Real customers never get their SMS.
+ *
+ * This handler is registered as a cron job (every 5 min). For each active
+ * campaign it checks "has any send row been updated in the last 90 seconds?"
+ * — if yes, the campaign is in-flight on a live dyno, leave it alone. If
+ * no, the campaign is abandoned → resume by calling processCampaignSends.
+ *
+ * The 90-second heuristic works because processCampaignSends rate-limits
+ * to 1 SMS/sec, so any live run will produce a sentAt update at least once
+ * per second. A 90-second gap means the loop is dead.
+ */
+export async function resumeStuckCampaigns(): Promise<{ recordsProcessed: number; details?: string }> {
+  const d = await db();
+  if (!d) return { recordsProcessed: 0, details: "no db" };
+
+  // Find all campaigns currently in "active" status
+  const activeCampaigns = await d.select()
+    .from(smsCampaigns)
+    .where(eq(smsCampaigns.status, "active"));
+
+  if (activeCampaigns.length === 0) return { recordsProcessed: 0 };
+
+  let resumed = 0;
+  const NINETY_SECONDS_MS = 90 * 1000;
+
+  for (const campaign of activeCampaigns) {
+    // Look for ANY send row touched in the last 90s — sentAt for completed
+    // sends, the row updatedAt would also work but we don't have one. Use
+    // sentAt because both success + failure paths set sentAt OR errorMessage
+    // and we know completed sends always have sentAt populated.
+    const [recentActivity] = await d.select({
+      latest: sql<Date | null>`MAX(${smsCampaignSends.sentAt})`,
+    })
+      .from(smsCampaignSends)
+      .where(eq(smsCampaignSends.campaignId, campaign.id));
+
+    const latestMs = recentActivity?.latest ? new Date(recentActivity.latest).getTime() : 0;
+    const ageMs = Date.now() - latestMs;
+
+    // If activity is fresh (< 90s), assume a live dyno is processing
+    if (latestMs > 0 && ageMs < NINETY_SECONDS_MS) continue;
+
+    // Confirm there are still pending rows before resuming. If everything
+    // is sent/failed and only the status update is missing, mark complete.
+    const [pendingProbe] = await d.select({ c: sql<number>`COUNT(*)` })
+      .from(smsCampaignSends)
+      .where(
+        and(
+          eq(smsCampaignSends.campaignId, campaign.id),
+          eq(smsCampaignSends.status, "pending")
+        )
+      );
+
+    const pendingCount = Number(pendingProbe?.c ?? 0);
+    if (pendingCount === 0) {
+      // No pending rows — the previous run finished sending but died before
+      // setting status='completed'. Just close it.
+      await d.update(smsCampaigns).set({
+        status: "completed",
+        completedAt: new Date(),
+      }).where(eq(smsCampaigns.id, campaign.id));
+      log.info(`[campaigns:resume] Closed abandoned-but-finished campaign ${campaign.id}`);
+      resumed++;
+      continue;
+    }
+
+    // Real resume — pick up where the previous dyno died. processCampaignSends
+    // is idempotent at the row level (eq(status, 'pending')) so it will only
+    // touch rows the previous dyno never got to.
+    log.info(`[campaigns:resume] Resuming campaign ${campaign.id} — ${pendingCount} pending sends, age=${Math.round(ageMs / 1000)}s`);
+    try {
+      await processCampaignSends(campaign.id);
+      resumed++;
+    } catch (err) {
+      log.error(`[campaigns:resume] Failed to resume campaign ${campaign.id}`, { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  return { recordsProcessed: resumed, details: `${resumed} stuck campaigns resumed` };
+}
