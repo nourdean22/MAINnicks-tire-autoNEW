@@ -112,8 +112,13 @@ export default function StatusTracker() {
             <div className="flex gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-nick-teal/40" />
+                {/* wave-153 — was unlabeled; screen readers announced
+                    as just "edit field". Now: aria-label switches with
+                    the active search type. */}
                 <input
                   type={searchType === "phone" ? "tel" : "text"}
+                  aria-label={searchType === "phone" ? "Search by phone number" : "Search by reference code"}
+                  name={searchType === "phone" ? "phone-search" : "ref-search"}
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setSearched(false); }}
                   placeholder={searchType === "phone" ? BUSINESS.phone.placeholder : "NT-XXXXXX"}

@@ -63,30 +63,31 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
       <h3 className="font-semibold font-bold text-foreground text-xl tracking-wide mb-6">ADD A VEHICLE</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* wave-153 — htmlFor/id pairs on all 5 fields */}
           <div>
-            <label className="block text-foreground/60 text-sm mb-1">Year</label>
-            <select value={year} onChange={(e) => setYear(e.target.value)} required className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
+            <label htmlFor="garage-year" className="block text-foreground/60 text-sm mb-1">Year</label>
+            <select id="garage-year" value={year} onChange={(e) => setYear(e.target.value)} required className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
               <option value="">Select Year</option>
               {years.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1">Make</label>
-            <input type="text" value={make} onChange={(e) => setMake(e.target.value)} required placeholder="e.g. Toyota" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
+            <label htmlFor="garage-make" className="block text-foreground/60 text-sm mb-1">Make</label>
+            <input id="garage-make" type="text" value={make} onChange={(e) => setMake(e.target.value)} required placeholder="e.g. Toyota" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1">Model</label>
-            <input type="text" value={model} onChange={(e) => setModel(e.target.value)} required placeholder="e.g. Camry" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
+            <label htmlFor="garage-model" className="block text-foreground/60 text-sm mb-1">Model</label>
+            <input id="garage-model" type="text" value={model} onChange={(e) => setModel(e.target.value)} required placeholder="e.g. Camry" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-foreground/60 text-sm mb-1">Current Mileage (optional)</label>
-            <input type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 85000" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
+            <label htmlFor="garage-mileage" className="block text-foreground/60 text-sm mb-1">Current Mileage (optional)</label>
+            <input id="garage-mileage" type="number" value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="e.g. 85000" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
           <div>
-            <label className="block text-foreground/60 text-sm mb-1">Nickname (optional)</label>
-            <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Daily Driver" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
+            <label htmlFor="garage-nickname" className="block text-foreground/60 text-sm mb-1">Nickname (optional)</label>
+            <input id="garage-nickname" type="text" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="e.g. Daily Driver" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
           </div>
         </div>
         <div className="flex gap-3 pt-2">

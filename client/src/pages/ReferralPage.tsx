@@ -129,17 +129,17 @@ export default function ReferralPage() {
                     <h3 className="font-semibold font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR INFORMATION</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Your Name *</label>
-                        <input type="text" required value={form.referrerName} onChange={(e) => setForm({ ...form, referrerName: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ref-your-name" className="block text-foreground/60 text-sm mb-1">Your Name *</label>
+                        <input id="ref-your-name" type="text" required value={form.referrerName} onChange={(e) => setForm({ ...form, referrerName: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Your Phone *</label>
-                        <input type="tel" required value={form.referrerPhone} onChange={(e) => setForm({ ...form, referrerPhone: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ref-your-phone" className="block text-foreground/60 text-sm mb-1">Your Phone *</label>
+                        <input id="ref-your-phone" type="tel" required value={form.referrerPhone} onChange={(e) => setForm({ ...form, referrerPhone: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                     </div>
                     <div className="mt-4">
-                      <label className="block text-foreground/60 text-sm mb-1">Your Email (optional)</label>
-                      <input type="email" value={form.referrerEmail} onChange={(e) => setForm({ ...form, referrerEmail: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                      <label htmlFor="ref-your-email" className="block text-foreground/60 text-sm mb-1">Your Email (optional)</label>
+                      <input id="ref-your-email" type="email" value={form.referrerEmail} onChange={(e) => setForm({ ...form, referrerEmail: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                     </div>
                   </div>
 
@@ -148,17 +148,17 @@ export default function ReferralPage() {
                     <h3 className="font-semibold font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR FRIEND'S INFORMATION</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Friend's Name *</label>
-                        <input type="text" required value={form.refereeName} onChange={(e) => setForm({ ...form, refereeName: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ref-friend-name" className="block text-foreground/60 text-sm mb-1">Friend's Name *</label>
+                        <input id="ref-friend-name" type="text" required value={form.refereeName} onChange={(e) => setForm({ ...form, refereeName: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Friend's Phone *</label>
-                        <input type="tel" required value={form.refereePhone} onChange={(e) => setForm({ ...form, refereePhone: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ref-friend-phone" className="block text-foreground/60 text-sm mb-1">Friend's Phone *</label>
+                        <input id="ref-friend-phone" type="tel" required value={form.refereePhone} onChange={(e) => setForm({ ...form, refereePhone: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                     </div>
                     <div className="mt-4">
-                      <label className="block text-foreground/60 text-sm mb-1">Friend's Email (optional)</label>
-                      <input type="email" value={form.refereeEmail} onChange={(e) => setForm({ ...form, refereeEmail: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                      <label htmlFor="ref-friend-email" className="block text-foreground/60 text-sm mb-1">Friend's Email (optional)</label>
+                      <input id="ref-friend-email" type="email" value={form.refereeEmail} onChange={(e) => setForm({ ...form, refereeEmail: e.target.value })} className="w-full bg-background/50 border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                     </div>
                   </div>
 
