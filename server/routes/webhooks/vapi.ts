@@ -90,7 +90,15 @@ async function dispatchToolCall(call: VapiToolCall): Promise<{
     // Each tool delegates to the corresponding voiceAgent procedure.
     // We import the router lazily to avoid circular import + cold-start cost.
     const { voiceAgentRouter } = await import("../../routers/voiceAgent");
-    const caller = voiceAgentRouter.createCaller({ user: null } as never);
+    // wave-148 — pass isVoiceAgentInternal=true so the protected write
+    // mutations (bookSlot/escalate/sendConfirmationSms) accept this
+    // dispatch. The VAPI webhook signature was already verified at the
+    // route handler entry; this flag certifies "trust from the webhook
+    // layer to the internal procedure call".
+    const caller = voiceAgentRouter.createCaller({
+      user: null,
+      isVoiceAgentInternal: true,
+    } as never);
     let output: unknown;
 
     switch (call.function.name) {
