@@ -57,9 +57,19 @@ export default function ChatWidget() {
 
   const sendMessage = trpc.chat.message.useMutation({
     onSuccess: (data) => {
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply }]);
+      // wave-146 — was `messages.length >= 4` evaluated against the
+      // stale closure (count BEFORE this assistant reply gets pushed).
+      // Side effect: lead form appeared one turn earlier than the
+      // intended 4-message threshold. Now: use the freshly-updated
+      // length from setMessages' functional updater.
+      let updatedLen = 0;
+      setMessages(prev => {
+        const next = [...prev, { role: "assistant" as const, content: data.reply }];
+        updatedLen = next.length;
+        return next;
+      });
       if (data.sessionId) setSessionId(data.sessionId);
-      if (messages.length >= 4 && !leadSubmitted && !showLeadCapture) {
+      if (updatedLen >= 4 && !leadSubmitted && !showLeadCapture) {
         setShowLeadCapture(true);
       }
     },

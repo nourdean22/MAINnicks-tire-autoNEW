@@ -355,12 +355,17 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           </div>
         )}
 
-        {/* Referral Callout */}
+        {/* Referral Callout — wave-146 unified with BookingWizard's
+            canonical "$25 + NICKS150" copy (spec-anchored at
+            BookingWizard.tsx:246). Was "$20" — conflicting messages
+            across the two post-submit paths confused customers. */}
         <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 text-center">
           <p className="text-foreground/60 text-sm">
-            Know someone who needs car help?{" "}
+            Know someone who needs car help? Share code{" "}
+            <span className="font-mono font-bold text-primary">NICKS150</span>
+            {" "}— you both save $25 on your next service.{" "}
             <a href="/refer" className="text-primary font-semibold hover:underline">
-              Refer a friend and earn $20 →
+              Get your link →
             </a>
           </p>
         </div>
