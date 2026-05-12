@@ -52,6 +52,9 @@ const ROUTES = [
   "/best-conrads-tire-alternatives-cleveland",
   "/conrads-vs-mavis-tire-cleveland",
   "/firestone-vs-discount-tire-cleveland",
+  // wave-181.5 · new keyword-led SERP-fix pages
+  "/no-credit-check-tires-cleveland",
+  "/tire-shop-open-sunday-cleveland",
 ];
 
 function findFreePort() {

@@ -142,27 +142,27 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Flat Tire Repair", description: "Professional plug-and-patch repair in 15 minutes." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "25", description: "Flat repair from $25 typical" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Brake Repair", description: "Pads, rotors, calipers, ABS. Free brake inspection." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Free inspection · written estimate before any work" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, multi-point inspection, and tire pressure check." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "45", description: "Conventional oil change from $45" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Full Synthetic", description: "Mobil 1, Pennzoil Platinum, or equivalent." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "75", description: "Full synthetic oil change from $75" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Engine Diagnostics", description: "OBD-II code reading, diagnostic fee credited toward repair." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Diagnostic fee credited toward repair · free if we do the work" },
         },
         {
           "@type": "Offer",

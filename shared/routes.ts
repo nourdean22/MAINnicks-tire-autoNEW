@@ -165,6 +165,29 @@ const SERVICE_PAGES: RouteEntry[] = [
     sitemap: true,
     prerender: true,
   },
+  // wave-181.5 · keyword-led SERP-fix pages from competitor-analyzer.
+  // Both target chain-free or chain-weak SERPs that Nick's was absent
+  // from. Prerender:true so bots get real HTML on first crawl.
+  {
+    path: "/no-credit-check-tires-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "No Credit Check Tires Cleveland · $10 Down, Drive Today | Nick's",
+    description: "No credit check tires in Cleveland. $10 down. 4 lenders (Acima · Snap · Koalafi · American First) approve when banks don't. Drive home on new tires today. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
+  {
+    path: "/tire-shop-open-sunday-cleveland",
+    priority: 0.85,
+    changefreq: "monthly",
+    title: "Tire Shop Open Sunday Cleveland · 9am-4pm Every Sunday | Nick's",
+    description: "Tire shop open Sunday in Cleveland. Nick's Tire & Auto on Euclid Ave runs 9am-4pm every Sunday — walk-in tires, brakes, oil change. Conrad's closed. Mavis closed. (216) 862-0005",
+    group: "service",
+    sitemap: true,
+    prerender: true,
+  },
   {
     path: "/diagnostics",
     priority: 0.9,
@@ -288,8 +311,12 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/oil-change",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Oil Change Cleveland — From $39, Walk-Ins 7 Days | Nick's Tire",
-    description: "Cleveland oil change faster than your barista finishes your name. Conventional + synthetic, free 27-point inspection every time. Walk-ins 7 days. (216) 862-0005.",
+    // wave-181.6 · CTR-crisis fix · "oil change service station" was
+    // ranking pos 1.0 with 114 impr/mo but 0% CTR — title didn't match
+    // the literal search phrase. Rewrite includes "service station"
+    // since that's how the high-volume query frames the intent.
+    title: "Oil Change Service Station Cleveland · $39 · Walk-In Today | Nick's",
+    description: "Cleveland oil change service station on Euclid Ave · $39 conventional, $75 full synthetic, 30-minute walk-in service 7 days. Free 27-point inspection. (216) 862-0005.",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -308,8 +335,12 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/alignment",
     priority: 0.8,
     changefreq: "monthly",
-    title: "Wheel Alignment Cleveland — Same Day, Walk-Ins | Nick's Tire",
-    description: "Wheel alignment in Cleveland — fix pulling, uneven wear, crooked steering. Same-day service. ★4.9 from 1,700+ reviews. Free check. Walk-ins 7 days. (216) 862-0005",
+    // wave-181.6 · CTR-crisis fix from GSC audit. /alignment was ranking
+    // pos 7.5 (page 1) for "wheel alignment near me" with 74 impr/mo
+    // but 0% CTR — title lacked "near me" trigger + lacked a hard price
+    // anchor. Rewrite leads with the literal search phrase.
+    title: "Wheel Alignment Near Me · Cleveland · Same-Day Walk-In | Nick's",
+    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. 1,700★ reviews. Free pull-check + written estimate before any work. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -386,8 +417,11 @@ const CITY_PAGES: RouteEntry[] = [
     path: "/cleveland-auto-repair",
     priority: 0.9,
     changefreq: "weekly",
-    title: "Auto Repair Cleveland OH — Nick's Tire & Auto",
-    description: "Cleveland auto shop on Euclid Ave where the worn part comes out of your car and onto the counter before you pay. 7 years, 1,700+ five-star reviews. Walk-ins 7 days.",
+    // wave-181.6 · CTR-crisis · "auto repair near me" was ranking pos
+    // 24.4 with 79 impr/mo but 0% CTR. Improved title leads with the
+    // literal search intent + walk-in + price-anchor signal.
+    title: "Auto Repair Near Me · Cleveland · Walk-In Today · 1,700★ | Nick's",
+    description: "Auto repair near you in Cleveland · 17625 Euclid Ave · walk-in 7 days, free written estimate, the worn part comes out and onto the counter before you pay. 1,700+ five-star reviews. (216) 862-0005",
     group: "city",
     sitemap: true,
     prerender: true,
