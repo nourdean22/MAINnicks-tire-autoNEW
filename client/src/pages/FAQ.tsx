@@ -185,7 +185,7 @@ function FAQAccordion({ item, index }: { item: FAQItem; index: number }) {
           className="w-full flex items-center justify-between p-5 text-left hover:bg-card/50 transition-colors"
           aria-expanded={open}
         >
-          <span className="font-semibold font-bold text-foreground text-sm sm:text-base tracking-wide pr-4">{item.question}</span>
+          <span className="font-bold text-foreground text-sm sm:text-base tracking-wide pr-4">{item.question}</span>
           <ChevronDown className={`w-5 h-5 text-primary flex-shrink-0 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
         </button>
         <AnimatePresence>
@@ -276,7 +276,7 @@ export default function FAQ() {
             </FadeIn>
             <FadeIn delay={0.1}>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide mt-4 block">Common Questions</span>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
                 FREQUENTLY ASKED<br />
                 <span className="text-primary">QUESTIONS</span>
               </h1>
@@ -320,18 +320,18 @@ export default function FAQ() {
             {/* CTA */}
             <FadeIn delay={0.2}>
               <div className="mt-12 text-center bg-card/30 border border-border/50 rounded-lg p-8">
-                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-tight mb-3">
+                <h2 className="font-bold text-2xl text-foreground tracking-tight mb-3">
                   STILL HAVE QUESTIONS?
                 </h2>
                 <p className="text-foreground/60 mb-6">
                   Our team is happy to help. Give us a call or stop by the shop.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
-                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                  <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('faq-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                  <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-sm tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                     VISIT CONTACT PAGE
                   </Link>
                 </div>

@@ -81,7 +81,7 @@ export default function Blog() {
 
           <FadeIn delay={0.1}>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">Mechanic Tips & Advice</span>
-            <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.9]">
+            <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.9]">
               AUTO REPAIR<br />
               <span className="text-primary">TIPS & BLOG</span>
             </h1>
@@ -191,13 +191,13 @@ export default function Blog() {
                         {article.readTime}
                       </span>
                     </div>
-                    <h2 className="font-semibold font-bold text-xl text-foreground tracking-wider group-hover:text-primary transition-colors mb-3 leading-tight">
+                    <h2 className="font-bold text-xl text-foreground tracking-wider group-hover:text-primary transition-colors mb-3 leading-tight">
                       {article.title}
                     </h2>
                     <p className="text-foreground/60 text-sm leading-relaxed line-clamp-3">
                       {article.excerpt}
                     </p>
-                    <div className="mt-4 flex items-center gap-2 stagger-in text-primary font-semibold font-bold text-xs tracking-wide">
+                    <div className="mt-4 flex items-center gap-2 stagger-in text-primary font-bold text-xs tracking-wide">
                       READ MORE
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
@@ -214,18 +214,18 @@ export default function Blog() {
         
         <div className="container text-center pt-12">
           <FadeIn>
-            <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-4">
+            <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-4">
               NEED A REPAIR?
             </h2>
             <p className="text-foreground/60 text-lg mb-8 max-w-xl mx-auto">
               If something does not feel right with your vehicle, bring it in. We will diagnose the problem and explain your options.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
-              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors">
+              <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors">
                 <Phone className="w-5 h-5" />
                 {BUSINESS.phone.display}
               </a>
-              <Link href="/booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+              <Link href="/booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                 Drop-Off
               </Link>
             </div>

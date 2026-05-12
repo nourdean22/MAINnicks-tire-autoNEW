@@ -55,10 +55,10 @@ function SeasonalNavbar({ season }: { season: string }) {
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="flex items-center gap-3 stagger-in">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
-            <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
+            <span className="font-bold text-primary-foreground text-lg">N</span>
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
+            <span className="font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
             <span className="text-muted-foreground text-xs tracking-wide flex items-center gap-1 stagger-in">
               <SeasonIcon className="w-3 h-3" /> {season} Car Care
             </span>
@@ -69,7 +69,7 @@ function SeasonalNavbar({ season }: { season: string }) {
           <a href="#checklist" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Checklist</a>
           <a href="#problems" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Common Problems</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Drop-Off</a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
           </a>
@@ -90,7 +90,7 @@ function SeasonalNavbar({ season }: { season: string }) {
             <a href="#checklist" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Checklist</a>
             <a href="#problems" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Common Problems</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Drop-Off</a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
             </a>
@@ -115,8 +115,8 @@ export default function SeasonalPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
-          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <h1 className="font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -156,7 +156,7 @@ export default function SeasonalPage() {
                 <SeasonIcon className="w-5 h-5 text-primary" />
                 <span className="font-mono text-primary text-sm tracking-wide">SEASONAL SERVICE</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {page.heroHeadline}
               </h1>
             </FadeIn>
@@ -169,11 +169,11 @@ export default function SeasonalPage() {
 
             <FadeIn delay={0.3}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   SCHEDULE {page.season.toUpperCase()} SERVICE
                 </a>
-                <a href="#checklist" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <a href="#checklist" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   VIEW CHECKLIST
                   <ChevronRight className="w-5 h-5" />
                 </a>
@@ -198,7 +198,7 @@ export default function SeasonalPage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">{page.season} Preparation</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 {page.season.toUpperCase()} VEHICLE CHECKLIST
               </h2>
             </FadeIn>
@@ -209,7 +209,7 @@ export default function SeasonalPage() {
                   <div className="bg-card/30 border border-border/50 rounded-lg p-6 h-full">
                     <div className="flex items-start gap-3 stagger-in mb-3">
                       <CheckCircle className="w-5 h-5 text-nick-blue-light flex-shrink-0 mt-0.5" />
-                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">{item.title}</h3>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">{item.title}</h3>
                     </div>
                     <p className="text-foreground/60 text-sm leading-relaxed pl-8">{item.description}</p>
                   </div>
@@ -224,7 +224,7 @@ export default function SeasonalPage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Diagnostics</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 COMMON {page.season.toUpperCase()} PROBLEMS
               </h2>
             </FadeIn>
@@ -236,7 +236,7 @@ export default function SeasonalPage() {
                     <div className="p-6 lg:p-8">
                       <div className="flex items-start gap-3 stagger-in mb-4">
                         <AlertTriangle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                        <h3 className="font-semibold font-bold text-xl text-foreground tracking-wider">{cp.problem}</h3>
+                        <h3 className="font-bold text-xl text-foreground tracking-wider">{cp.problem}</h3>
                       </div>
                       <div className="pl-8 space-y-4">
                         <div>
@@ -263,7 +263,7 @@ export default function SeasonalPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Actionable Advice</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 {page.season.toUpperCase()} CAR CARE TIPS FROM OUR MECHANICS
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
@@ -279,7 +279,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Your Battery Before the First Freeze</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Check Your Battery Before the First Freeze</h3>
                         <p className="text-foreground/70 leading-relaxed">Cold weather cuts battery capacity by up to 50%. If your battery is over three years old or your engine cranks slowly, get it tested before temperatures drop. A dead battery on a 10-degree morning is preventable. We test batteries for free — just stop by the shop.</p>
                       </div>
                     </div>
@@ -288,7 +288,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Switch to Winter Tires or Check Your Tread</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Switch to Winter Tires or Check Your Tread</h3>
                         <p className="text-foreground/70 leading-relaxed">All-season tires lose grip below 45 degrees. If you're driving on tread below 4/32", you're sliding, not stopping. <Link href="/tires" className="text-nick-blue-light hover:underline">Winter tires</Link> make a real difference on Cleveland streets. Already have them? We'll mount and balance your winter set for a quick swap.</p>
                       </div>
                     </div>
@@ -297,7 +297,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Flush Your Coolant — Antifreeze Degrades</h3>
                         <p className="text-foreground/70 leading-relaxed">Antifreeze protects your engine down to -34 degrees, but only if it's fresh. Old coolant loses its freeze protection and can cause a cracked block or blown head gasket. If it's been more than two years or 30,000 miles, get a <Link href="/coolant-flush-cleveland" className="text-nick-blue-light hover:underline">coolant flush</Link> before winter hits.</p>
                       </div>
                     </div>
@@ -306,7 +306,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Brakes Before Ice Season</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Inspect Your Brakes Before Ice Season</h3>
                         <p className="text-foreground/70 leading-relaxed">Stopping distances double on wet and icy roads. Worn <Link href="/brakes" className="text-nick-blue-light hover:underline">brake pads</Link> make it even worse. If you hear squealing or feel pulsation when braking, don't wait. A brake inspection takes 20 minutes and could save you from a winter collision.</p>
                       </div>
                     </div>
@@ -315,7 +315,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Top Off Washer Fluid & Check Wipers</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Top Off Washer Fluid & Check Wipers</h3>
                         <p className="text-foreground/70 leading-relaxed">Salt spray from highway driving burns through washer fluid fast. Use winter-rated fluid that won't freeze in the reservoir. Replace wiper blades if they streak — visibility is everything when the sun sets at 5 PM and the roads are wet.</p>
                       </div>
                     </div>
@@ -327,7 +327,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
                         <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair-cleveland" className="text-nick-blue-light hover:underline">AC inspection</Link> in spring before every shop in Cleveland has a two-week wait.</p>
                       </div>
                     </div>
@@ -336,7 +336,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Check Tire Pressure as Temperatures Rise</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Check Tire Pressure as Temperatures Rise</h3>
                         <p className="text-foreground/70 leading-relaxed">Tire pressure increases about 1 PSI for every 10-degree rise in temperature. Over-inflated tires wear unevenly and reduce grip. Check your pressure when tires are cold and adjust to the number on your door jamb — not the tire sidewall. Need new <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link>? We carry all major brands.</p>
                       </div>
                     </div>
@@ -345,7 +345,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Inspect Your Cooling System</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Inspect Your Cooling System</h3>
                         <p className="text-foreground/70 leading-relaxed">Summer heat is the number one engine killer. Check your coolant level, look for leaks around hoses and the radiator, and make sure your fans are working. If your temperature gauge creeps past the midpoint, bring it in immediately — overheating causes thousands of dollars in damage.</p>
                       </div>
                     </div>
@@ -354,7 +354,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Replace Worn Wiper Blades from Winter</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Replace Worn Wiper Blades from Winter</h3>
                         <p className="text-foreground/70 leading-relaxed">Ice and salt destroy wiper blades over the winter. Summer thunderstorms hit fast in Ohio, and streaky wipers are a visibility hazard. Good blades cost under $30 and take five minutes to install — we'll swap them while you wait.</p>
                       </div>
                     </div>
@@ -363,7 +363,7 @@ export default function SeasonalPage() {
                     <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
-                        <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Get an Oil Change If You're Overdue</h3>
+                        <h3 className="font-bold text-foreground text-lg mb-2">Get an Oil Change If You're Overdue</h3>
                         <p className="text-foreground/70 leading-relaxed">Heat breaks down oil faster. If you're past your change interval, old oil can't protect your engine from the extra thermal stress of summer driving. A quick <Link href="/oil-change" className="text-nick-blue-light hover:underline">oil change</Link> with a courtesy inspection takes about 30 minutes and is the cheapest insurance against engine damage.</p>
                       </div>
                     </div>
@@ -385,7 +385,7 @@ export default function SeasonalPage() {
             <FadeIn>
               <div className="text-center mb-10">
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
-                <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+                <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                   BOOK YOUR {page.season.toUpperCase()} SERVICE
                 </h2>
                 <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
@@ -402,7 +402,7 @@ export default function SeasonalPage() {
         {/* Other seasonal pages */}
         <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
           <div className="container">
-            <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">MORE SEASONAL GUIDES</h3>
+            <h3 className="font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">MORE SEASONAL GUIDES</h3>
             <div className="flex flex-wrap gap-3 stagger-in">
               {SEASONAL_PAGES.filter(s => s.slug !== page.slug).map((s) => (
                 <Link key={s.slug} href={`/${s.slug}`} className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors flex items-center gap-2 stagger-in">
@@ -423,11 +423,11 @@ export default function SeasonalPage() {
 
       {/* Mobile Sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2 stagger-in">
-        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('seasonal-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           {BUSINESS.phone.display}
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
           Drop-Off
         </a>
       </div>

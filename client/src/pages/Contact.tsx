@@ -99,7 +99,7 @@ export default function Contact() {
               {/* SEO/a11y · keep visual line break via <br> but include a
                   literal space so text extraction (Google, screen readers)
                   doesn't render this as "OURCLEVELAND". */}
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground mt-3 tracking-tight leading-[0.95]">
                 CONTACT OUR{" "}<br />
                 <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
@@ -118,7 +118,7 @@ export default function Contact() {
               <FadeIn>
                 <div className="space-y-8">
                   <div>
-                    <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
+                    <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
                       SHOP <span className="text-primary">INFORMATION</span>
                     </h2>
                   </div>
@@ -129,7 +129,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
                         <Phone className="w-5 h-5 text-primary" />
                       </div>
-                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Phone</h3>
                     </div>
                     <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
                       {BUSINESS.phone.display}
@@ -143,7 +143,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-nick-blue/10 flex items-center justify-center rounded-md">
                         <MapPin className="w-5 h-5 text-nick-blue-light" />
                       </div>
-                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Address</h3>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Address</h3>
                     </div>
                     <p className="font-mono text-foreground/80 text-lg">{BUSINESS.address.street}</p>
                     <p className="font-mono text-foreground/80 text-lg">Cleveland, OH 44112</p>
@@ -164,7 +164,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
                         <Clock className="w-5 h-5 text-primary" />
                       </div>
-                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Hours</h3>
                     </div>
 
                     <div className="mt-4 p-3 bg-primary/10 border border-primary/20 rounded-md">
@@ -186,7 +186,7 @@ export default function Contact() {
 
                   {/* Areas Served */}
                   <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6">
-                    <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase mb-3">Areas We Serve</h3>
+                    <h3 className="font-bold text-foreground tracking-wider text-sm uppercase mb-3">Areas We Serve</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">
                       Cleveland, Euclid, East Cleveland, South Euclid, Richmond Heights, Lyndhurst, Wickliffe, Willoughby, and surrounding Northeast Ohio communities. If you can drive to us, we can help.
                     </p>
@@ -202,7 +202,7 @@ export default function Contact() {
                       <div className="w-10 h-10 bg-primary/10 flex items-center justify-center rounded-md">
                         <Star className="w-5 h-5 text-primary" />
                       </div>
-                      <h3 className="font-semibold font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
+                      <h3 className="font-bold text-foreground tracking-wider text-sm uppercase">Google Reviews</h3>
                     </div>
                     <div className="flex items-center gap-2 mb-3">
                       <div className="flex gap-0.5">
@@ -239,7 +239,7 @@ export default function Contact() {
 
               <FadeIn delay={0.15}>
                 <div>
-                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
+                  <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
                     REQUEST AN <span className="text-primary">APPOINTMENT</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
@@ -256,7 +256,7 @@ export default function Contact() {
         <section className="bg-[oklch(0.065_0.004_260)] py-16 lg:py-20">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-8">
+              <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-8">
                 FIND US ON <span className="text-primary">EUCLID AVE</span>
               </h2>
               <div className="w-full aspect-[21/9] bg-card rounded-lg border border-border/50 overflow-hidden">

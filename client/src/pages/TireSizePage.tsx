@@ -54,7 +54,7 @@ export default function TireSizePage() {
         <div className="relative container">
           <Breadcrumbs items={breadcrumbs} />
           <FadeIn>
-            <h1 className="font-semibold font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[0.9] tracking-tight mt-6">
+            <h1 className="font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[0.9] tracking-tight mt-6">
               <span className="text-primary">{page.size}</span>
               <br />Tires Cleveland
             </h1>
@@ -82,13 +82,13 @@ export default function TireSizePage() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick(`tire-size-${page.slug}-hero`)}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />CALL FOR PRICE
               </a>
               <Link
                 href="/tires"
-                className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
+                className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
                 <Search className="w-5 h-5" />SEARCH {page.size} ONLINE
               </Link>
@@ -242,13 +242,13 @@ export default function TireSizePage() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick(`tire-size-${page.slug}-cta`)}
-                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors"
               >
                 <Phone className="w-5 h-5" />{BUSINESS.phone.display}
               </a>
               <Link
                 href="/tires"
-                className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
+                className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
               >
                 BROWSE ALL TIRES <ChevronRight className="w-5 h-5" />
               </Link>

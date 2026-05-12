@@ -78,7 +78,7 @@ export default function AskMechanicPage() {
                 <MessageCircle className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Free Mechanic Advice</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 ASK A<br />
                 <span className="text-primary">MECHANIC</span>
               </h1>
@@ -87,7 +87,7 @@ export default function AskMechanicPage() {
               </p>
               <button
                 onClick={() => setShowForm(true)}
-                className="mt-6 inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                className="mt-6 inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
               >
                 ASK YOUR QUESTION
                 <ChevronRight className="w-4 h-4" />
@@ -102,7 +102,7 @@ export default function AskMechanicPage() {
             <div className="container max-w-2xl">
               <FadeIn>
                 <div className="border border-primary/30 bg-background/50 p-6 lg:p-8">
-                  <h2 className="font-semibold font-bold text-xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR QUESTION</h2>
+                  <h2 className="font-bold text-xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR QUESTION</h2>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     {/* wave-153 — htmlFor/id pairs on all 5 fields */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -133,10 +133,10 @@ export default function AskMechanicPage() {
                       <textarea id="ask-question" required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30 resize-none" />
                     </div>
                     <div className="flex gap-3">
-                      <button type="submit" disabled={submitQuestion.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
+                      <button type="submit" disabled={submitQuestion.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
                         {submitQuestion.isPending ? "SUBMITTING..." : "SUBMIT QUESTION"}
                       </button>
-                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+                      <button type="button" onClick={() => setShowForm(false)} className="border border-foreground/30 text-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                         CANCEL
                       </button>
                     </div>
@@ -152,9 +152,9 @@ export default function AskMechanicPage() {
             <div className="container max-w-2xl text-center">
               <FadeIn>
                 <CheckCircle className="w-12 h-12 text-primary mx-auto mb-4" />
-                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">QUESTION SUBMITTED</h2>
+                <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">QUESTION SUBMITTED</h2>
                 <p className="text-foreground/60 mb-6">Our team will review and answer your question. Check back soon.</p>
-                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
+                <button onClick={() => { setSubmitted(false); setShowForm(false); setForm({ questionerName: "", questionerEmail: "", question: "", vehicleInfo: "", category: "" }); }} className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                   ASK ANOTHER QUESTION
                 </button>
               </FadeIn>
@@ -167,7 +167,7 @@ export default function AskMechanicPage() {
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-6">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight mb-6">
                 ANSWERED <span className="text-primary">QUESTIONS</span>
               </h2>
             </FadeIn>
@@ -220,7 +220,7 @@ export default function AskMechanicPage() {
                         </div>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-semibold font-bold text-foreground text-sm tracking-wider">{q.questionerName}</span>
+                            <span className="font-bold text-foreground text-sm tracking-wider">{q.questionerName}</span>
                             {q.vehicleInfo && <span className="text-nick-blue-light text-xs">• {q.vehicleInfo}</span>}
                             {q.category && <span className="text-foreground/30 text-xs bg-foreground/5 px-1.5 py-0.5 rounded">{q.category}</span>}
                           </div>
@@ -230,7 +230,7 @@ export default function AskMechanicPage() {
                       {q.answer && (
                         <div className="mt-4 ml-14 pl-4 border-l-2 border-nick-blue/30">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="font-semibold font-bold text-nick-blue-light text-xs tracking-wide">{q.answeredBy || "Nick's Tire & Auto"}</span>
+                            <span className="font-bold text-nick-blue-light text-xs tracking-wide">{q.answeredBy || "Nick's Tire & Auto"}</span>
                           </div>
                           <p className="text-foreground/70 leading-relaxed text-sm">{q.answer}</p>
                         </div>
@@ -242,11 +242,11 @@ export default function AskMechanicPage() {
             ) : (
               <div className="text-center py-16">
                 <MessageCircle className="w-12 h-12 text-primary/20 mx-auto mb-4" />
-                <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">
+                <h3 className="font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">
                   {searchQuery || filterCategory !== "All" ? "NO MATCHING QUESTIONS" : "NO QUESTIONS YET"}
                 </h3>
                 <p className="text-foreground/40 text-sm mb-6">Be the first to ask a question.</p>
-                <button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
+                <button onClick={() => setShowForm(true)} className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                   ASK A QUESTION
                 </button>
               </div>

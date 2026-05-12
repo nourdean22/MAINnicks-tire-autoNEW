@@ -676,7 +676,7 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           SERVING" pattern from CityPage.tsx:560 so styling is consistent. */}
       <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
         <div className="container">
-          <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">CITIES WE SERVE</h3>
+          <h3 className="font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">CITIES WE SERVE</h3>
           <div className="flex flex-wrap gap-3">
             {CITIES.slice(0, 8).map((c) => (
               <Link

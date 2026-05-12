@@ -41,10 +41,10 @@ function CityNavbar({ city }: { city: CityData }) {
       <div className="container flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="flex items-center gap-3 stagger-in">
           <div className="w-10 h-10 bg-primary flex items-center justify-center rounded-sm">
-            <span className="font-semibold font-bold text-primary-foreground text-lg">N</span>
+            <span className="font-bold text-primary-foreground text-lg">N</span>
           </div>
           <div className="flex flex-col">
-            <span className="font-semibold font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
+            <span className="font-bold text-primary text-lg leading-tight tracking-wide">NICK'S TIRE & AUTO</span>
             <span className="text-muted-foreground text-xs tracking-wide">Serving {city.name}</span>
           </div>
         </Link>
@@ -53,7 +53,7 @@ function CityNavbar({ city }: { city: CityData }) {
           <a href="#services" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Services</a>
           <a href="#about" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">About</a>
           <a href="#booking" className="font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary transition-colors">Drop-Off</a>
-          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+          <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-desktop')} className="flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-2.5 rounded-md font-bold text-sm tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
             <Phone className="w-4 h-4" />
             {BUSINESS.phone.display}
           </a>
@@ -74,7 +74,7 @@ function CityNavbar({ city }: { city: CityData }) {
             <a href="#services" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Services</a>
             <a href="#about" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">About</a>
             <a href="#booking" onClick={() => setMobileOpen(false)} className="font-semibold text-lg tracking-wide text-foreground/80 hover:text-primary transition-colors py-2">Drop-Off</a>
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-semibold font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-navbar-mobile')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-5 py-3 rounded-md font-bold text-sm tracking-wide mt-2" aria-label="Call Nick's Tire and Auto at 216-862-0005">
               <Phone className="w-4 h-4" />
               {BUSINESS.phone.display}
             </a>
@@ -194,9 +194,9 @@ export default function CityPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
+          <h1 className="font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">This city page does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -243,7 +243,7 @@ export default function CityPage() {
                 </div>
                 <span className="text-[13px] text-primary tracking-wider">{BUSINESS.reviews.rating} STARS — {BUSINESS.reviews.countDisplay} REVIEWS</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl whitespace-pre-line">
                 {city.heroHeadline}
               </h1>
             </FadeIn>
@@ -256,11 +256,11 @@ export default function CityPage() {
 
             <FadeIn delay={0.3}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-hero-cta')} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors" aria-label="Call Nick's Tire and Auto at 216-862-0005">
                   <Phone className="w-5 h-5" />
                   CALL FOR A FREE QUOTE
                 </a>
-                <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
+                <a href="#booking" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors">
                   SCHEDULE DROP-OFF
                   <ChevronRight className="w-5 h-5" />
                 </a>
@@ -289,7 +289,7 @@ export default function CityPage() {
               <FadeIn>
                 <div>
                   <span className="font-mono text-nick-blue-light text-sm tracking-wide">Serving {city.name}, Ohio</span>
-                  <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
+                  <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
                     WHY {city.name.toUpperCase()} DRIVERS<br />
                     <span className="text-primary">CHOOSE US</span>
                   </h2>
@@ -303,17 +303,17 @@ export default function CityPage() {
                 <div className="bg-card/50 border border-border/50 rounded-lg p-8">
                   <div className="flex items-center gap-3 stagger-in mb-6">
                     <Star className="w-6 h-6 fill-nick-yellow text-primary" />
-                    <span className="font-semibold font-bold text-foreground text-lg">CUSTOMER REVIEW</span>
+                    <span className="font-bold text-foreground text-lg">CUSTOMER REVIEW</span>
                   </div>
                   <blockquote className="text-foreground/80 text-lg leading-relaxed italic mb-6">
                     "{city.testimonial.text}"
                   </blockquote>
                   <div className="flex items-center gap-3 stagger-in">
                     <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                      <span className="font-semibold font-bold text-primary text-sm">{city.testimonial.author.charAt(0)}</span>
+                      <span className="font-bold text-primary text-sm">{city.testimonial.author.charAt(0)}</span>
                     </div>
                     <div>
-                      <p className="font-semibold font-bold text-foreground text-sm">{city.testimonial.author}</p>
+                      <p className="font-bold text-foreground text-sm">{city.testimonial.author}</p>
                       <p className="text-foreground/50 text-xs">{city.testimonial.location}</p>
                     </div>
                   </div>
@@ -334,7 +334,7 @@ export default function CityPage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Our Services</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 WHAT WE FIX FOR {city.name.toUpperCase()} DRIVERS
               </h2>
             </FadeIn>
@@ -353,11 +353,11 @@ export default function CityPage() {
             {/* Links to full service pages */}
             <FadeIn delay={0.3}>
               <div className="mt-12">
-                <h3 className="font-semibold font-bold text-xl text-foreground mb-6 tracking-wider">EXPLORE OUR SERVICES</h3>
+                <h3 className="font-bold text-xl text-foreground mb-6 tracking-wider">EXPLORE OUR SERVICES</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 stagger-in">
                   {topServices.map((s) => (
                     <Link key={s.slug} href={`/${s.slug}`} className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
-                      <span className="font-semibold font-bold text-sm text-foreground/80 group-hover:text-primary transition-colors tracking-wider">{s.title}</span>
+                      <span className="font-bold text-sm text-foreground/80 group-hover:text-primary transition-colors tracking-wider">{s.title}</span>
                     </Link>
                   ))}
                 </div>
@@ -396,7 +396,7 @@ export default function CityPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">The Nick's Difference</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 WHY {city.name.toUpperCase()} DRIVERS TRUST NICK'S
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
@@ -408,7 +408,7 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Transparent Pricing, No Surprises</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Transparent Pricing, No Surprises</h3>
                     <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees, no upsells, no pressure. What we quote is what you pay.</p>
                   </div>
                 </div>
@@ -417,7 +417,7 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Walk-Ins Welcome, First Come First Served</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Walk-Ins Welcome, First Come First Served</h3>
                     <p className="text-foreground/70 leading-relaxed">No appointment needed for most services. Drive in from {city.name} and we'll get you taken care of. We operate on a first-come, first-served basis — the earlier you arrive, the sooner you're back on the road. Our shop is open {BUSINESS.hours.display}, including Sundays from 9 to 4.</p>
                   </div>
                 </div>
@@ -426,7 +426,7 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Affordable Financing From $10 Down</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Affordable Financing From $10 Down</h3>
                     <p className="text-foreground/70 leading-relaxed">Need tires or a major repair but can't pay in full today? We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing starting at just $10 down</Link>. Get the repair done now and pay over time — so you're never stuck driving on unsafe brakes or bald tires.</p>
                   </div>
                 </div>
@@ -435,7 +435,7 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
                     <p className="text-foreground/70 leading-relaxed">Our technicians work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we diagnose the actual problem — not just the most expensive one.</p>
                   </div>
                 </div>
@@ -449,7 +449,7 @@ export default function CityPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Popular in {city.name}</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
                 COMMON REPAIRS FOR {city.name.toUpperCase()} VEHICLES
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
@@ -459,37 +459,37 @@ export default function CityPage() {
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
               <FadeIn delay={0.05}>
                 <Link href="/tires" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">Tire Replacement & Repair</h3>
+                  <h3 className="font-bold text-foreground mb-2">Tire Replacement & Repair</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Potholes on {city.name} roads cause flats, sidewall damage, and uneven wear. We carry new and used tires from all major brands — mounted and balanced while you wait.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.1}>
                 <Link href="/brakes" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">Brake Pads, Rotors & Lines</h3>
+                  <h3 className="font-bold text-foreground mb-2">Brake Pads, Rotors & Lines</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Stop-and-go traffic wears brakes fast. Squealing, grinding, or a soft pedal? We inspect and replace pads, rotors, calipers, and brake lines same-day in most cases.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.15}>
                 <Link href="/check-engine-light-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">Check Engine Light Diagnostics</h3>
+                  <h3 className="font-bold text-foreground mb-2">Check Engine Light Diagnostics</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">That dashboard warning could be a loose gas cap or a failing catalytic converter. We pull codes, run full diagnostics, and tell you exactly what's wrong before recommending any repairs.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.2}>
                 <Link href="/oil-change" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">Oil Changes & Fluid Services</h3>
+                  <h3 className="font-bold text-foreground mb-2">Oil Changes & Fluid Services</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Regular oil changes are the cheapest way to avoid expensive engine damage. We do conventional and synthetic oil changes with a courtesy inspection included — no appointment needed.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.25}>
                 <Link href="/emissions" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
+                  <h3 className="font-bold text-foreground mb-2">E-Check & Emissions Testing</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Need to pass Ohio E-Check for your registration renewal? We handle emissions testing and can fix whatever's causing a failure so you pass the first time.</p>
                 </Link>
               </FadeIn>
               <FadeIn delay={0.3}>
                 <Link href="/suspension-repair-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
-                  <h3 className="font-semibold font-bold text-foreground mb-2">Suspension & Steering</h3>
+                  <h3 className="font-bold text-foreground mb-2">Suspension & Steering</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">Hitting Cleveland potholes takes a toll on struts, shocks, tie rods, and ball joints. If your car pulls, bounces, or the steering feels loose, bring it in before it gets worse.</p>
                 </Link>
               </FadeIn>
@@ -502,26 +502,26 @@ export default function CityPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Common Questions</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight mb-10">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight mb-10">
                 FREQUENTLY ASKED QUESTIONS
               </h2>
             </FadeIn>
             <div className="space-y-6">
               <FadeIn delay={0.05}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
-                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">Do I need an appointment, or can I just walk in?</h3>
+                  <h3 className="font-bold text-lg text-foreground mb-3">Do I need an appointment, or can I just walk in?</h3>
                   <p className="text-foreground/70 leading-relaxed">No appointments — Nick's is first-come, first-served, 7 days a week. Pull up any time during open hours and we'll get you in line. If you want to skip the wait, <Link href="/booking" className="text-nick-blue-light hover:underline">schedule a drop-off online</Link> or call {BUSINESS.phone.display}. We're open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
                 </div>
               </FadeIn>
               <FadeIn delay={0.1}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
-                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">How far is Nick's from {city.name}?</h3>
+                  <h3 className="font-bold text-lg text-foreground mb-3">How far is Nick's from {city.name}?</h3>
                   <p className="text-foreground/70 leading-relaxed">Our shop at {BUSINESS.address.full} is about {city.distance} from {city.name} — roughly a {city.driveTime} drive. We're right on Euclid Ave with easy access from I-90 and Route 2. Plenty of {city.name} residents already make the drive because of our honest pricing and fast turnaround.</p>
                 </div>
               </FadeIn>
               <FadeIn delay={0.15}>
                 <div className="border border-border/40 p-6 bg-card/30 rounded-lg">
-                  <h3 className="font-semibold font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
+                  <h3 className="font-bold text-lg text-foreground mb-3">What if I can't afford the repair right now?</h3>
                   <p className="text-foreground/70 leading-relaxed">We offer <Link href="/financing" className="text-nick-blue-light hover:underline">financing from just $10 down</Link> on tires and major repairs. Get the work done today and pay over time. We never want you driving on unsafe equipment because of cost — we'll find a way to make it work.</p>
                 </div>
               </FadeIn>
@@ -533,7 +533,7 @@ export default function CityPage() {
         <section className="py-16 lg:py-20 bg-[oklch(0.065_0.004_260)]">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-8">
+              <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-8">
                 NEIGHBORHOODS WE SERVE IN {city.name.toUpperCase()}
               </h2>
               <div className="flex flex-wrap gap-3 stagger-in">
@@ -556,7 +556,7 @@ export default function CityPage() {
             <FadeIn>
               <div className="text-center mb-10">
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
-                <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+                <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                   SCHEDULE YOUR DROP-OFF
                 </h2>
                 <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
@@ -573,7 +573,7 @@ export default function CityPage() {
         {/* Other Cities */}
         <section className="py-12 lg:py-16 bg-[oklch(0.065_0.004_260)] border-t border-border/50">
           <div className="container">
-            <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">ALSO SERVING</h3>
+            <h3 className="font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">ALSO SERVING</h3>
             <div className="flex flex-wrap gap-3 stagger-in">
               {CITIES.filter(c => c.slug !== city.slug).map((c) => (
                 <Link key={c.slug} href={`/${c.slug}`} className="px-4 py-2 bg-card/50 border border-border/50 rounded-md text-sm text-foreground/70 hover:text-primary hover:border-primary/30 transition-colors">
@@ -593,11 +593,11 @@ export default function CityPage() {
 
       {/* Mobile Sticky CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/90 backdrop-blur-md border-t border-primary/30 p-3 flex gap-2 stagger-in">
-        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
+        <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('city-mobile-sticky')} className="flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium flex-1 py-3.5 rounded-md font-bold text-sm tracking-wide" aria-label="Call Nick's Tire and Auto at 216-862-0005">
           <Phone className="w-4 h-4" />
           {BUSINESS.phone.display}
         </a>
-        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-semibold font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
+        <a href="#booking" className="flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue text-nick-blue-light flex-1 py-3.5 rounded-md font-bold text-sm tracking-wide" aria-label="Schedule a drop-off online">
           Drop-Off
         </a>
       </div>

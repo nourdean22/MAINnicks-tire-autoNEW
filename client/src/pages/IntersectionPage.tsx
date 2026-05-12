@@ -79,9 +79,9 @@ export default function IntersectionPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
+          <h1 className="font-bold text-4xl text-foreground mb-4">PAGE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">This intersection page does not exist.</p>
-          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-sm tracking-wide">
+          <Link href="/" className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO HOME
           </Link>
@@ -142,7 +142,7 @@ export default function IntersectionPage() {
           </FadeIn>
 
           <FadeIn delay={0.1}>
-            <h1 className="font-semibold font-bold text-3xl sm:text-4xl lg:text-5xl text-foreground leading-tight tracking-tight mt-6 max-w-3xl">
+            <h1 className="font-bold text-3xl sm:text-4xl lg:text-5xl text-foreground leading-tight tracking-tight mt-6 max-w-3xl">
               AUTO REPAIR NEAR{" "}
               <span className="text-primary">{intersection.name.toUpperCase()}</span>
             </h1>
@@ -174,7 +174,7 @@ export default function IntersectionPage() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick("intersection-hero-cta")}
-                className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 aria-label="Call Nick's Tire and Auto"
               >
                 <Phone className="w-5 h-5" />
@@ -184,7 +184,7 @@ export default function IntersectionPage() {
                 href={directionsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+                className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
               >
                 <Navigation className="w-5 h-5" />
                 GET DIRECTIONS
@@ -202,7 +202,7 @@ export default function IntersectionPage() {
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">
                 {intersection.driveMinutes} Minutes From Our Shop
               </span>
-              <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight leading-tight">
+              <h2 className="font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight leading-tight">
                 WHY DRIVERS NEAR {intersection.name.toUpperCase()}{" "}
                 <span className="text-primary">CHOOSE NICK'S</span>
               </h2>
@@ -215,7 +215,7 @@ export default function IntersectionPage() {
               <div className="mt-8 bg-card/50 border border-border/50 rounded-lg p-6">
                 <div className="flex items-center gap-3 stagger-in mb-4">
                   <MapPin className="w-5 h-5 text-primary" />
-                  <span className="font-semibold font-bold text-foreground">OUR SHOP</span>
+                  <span className="font-bold text-foreground">OUR SHOP</span>
                 </div>
                 <p className="text-foreground/70 text-sm">{BUSINESS.address.full}</p>
                 <p className="text-foreground/50 text-sm mt-1">{BUSINESS.hours.fullDisplay}</p>
@@ -239,7 +239,7 @@ export default function IntersectionPage() {
         <div className="container max-w-4xl">
           <FadeIn>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">The Nick's Difference</span>
-            <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
+            <h2 className="font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
               WHAT TO EXPECT AT OUR SHOP
             </h2>
             <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
@@ -249,25 +249,25 @@ export default function IntersectionPage() {
           <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
             <FadeIn delay={0.05}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
-                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">WALK-INS WELCOME</h3>
+                <h3 className="font-bold text-foreground text-sm mb-2">WALK-INS WELCOME</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">No appointment needed for most services. We operate first-come, first-served — drive in and we'll take care of you. Open {BUSINESS.hours.display} and Sundays 9 AM to 4 PM.</p>
               </div>
             </FadeIn>
             <FadeIn delay={0.1}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
-                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">HONEST QUOTES UPFRONT</h3>
+                <h3 className="font-bold text-foreground text-sm mb-2">HONEST QUOTES UPFRONT</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">We tell you what's wrong, what it costs, and let you decide. No upsells, no pressure. If something changes mid-repair, we call you before doing any additional work.</p>
               </div>
             </FadeIn>
             <FadeIn delay={0.15}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
-                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">PAYMENT PROGRAMS · $10 DOWN</h3>
+                <h3 className="font-bold text-foreground text-sm mb-2">PAYMENT PROGRAMS · $10 DOWN</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">Can't pay in full today? <Link href="/financing" className="text-nick-blue-light hover:underline">Payment programs available — $10 down</Link> on tires and major repairs. Get the fix now, pay over time.</p>
               </div>
             </FadeIn>
             <FadeIn delay={0.2}>
               <div className="bg-card/30 border border-border/50 rounded-lg p-5">
-                <h3 className="font-semibold font-bold text-foreground text-sm mb-2">FULL-SERVICE SHOP</h3>
+                <h3 className="font-bold text-foreground text-sm mb-2">FULL-SERVICE SHOP</h3>
                 <p className="text-foreground/60 text-sm leading-relaxed">From <Link href="/tires" className="text-nick-blue-light hover:underline">tires</Link> and <Link href="/brakes" className="text-nick-blue-light hover:underline">brakes</Link> to <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine lights</Link> and <Link href="/emissions" className="text-nick-blue-light hover:underline">emissions testing</Link>, we handle it all under one roof. Most repairs are completed same-day.</p>
               </div>
             </FadeIn>
@@ -280,7 +280,7 @@ export default function IntersectionPage() {
         <div className="container">
           <FadeIn>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">Our Services</span>
-            <h2 className="font-semibold font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
+            <h2 className="font-bold text-2xl lg:text-4xl text-foreground mt-3 tracking-tight">
               WHAT WE FIX
             </h2>
           </FadeIn>
@@ -293,7 +293,7 @@ export default function IntersectionPage() {
                   href={`/${s.slug}`}
                   className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group"
                 >
-                  <span className="font-semibold font-bold text-sm text-foreground/80 group-hover:text-primary transition-colors tracking-wider">
+                  <span className="font-bold text-sm text-foreground/80 group-hover:text-primary transition-colors tracking-wider">
                     {s.title}
                   </span>
                 </Link>
@@ -343,7 +343,7 @@ export default function IntersectionPage() {
           <FadeIn>
             <div className="text-center mb-10">
               <span className="font-mono text-nick-blue-light text-sm tracking-wide">Schedule Service</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                 SCHEDULE YOUR DROP-OFF
               </h2>
               <p className="mt-4 text-foreground/60 max-w-lg mx-auto">
@@ -362,7 +362,7 @@ export default function IntersectionPage() {
         <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)] border-t border-border/50">
           <div className="container">
             <FadeIn>
-              <h3 className="font-semibold font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">
+              <h3 className="font-bold text-lg text-foreground/60 tracking-[-0.01em] mb-6">
                 NEARBY IN {(intersection.neighborhood || "CLEVELAND").toUpperCase()}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 stagger-in">

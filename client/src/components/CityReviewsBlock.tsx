@@ -36,7 +36,7 @@ export default function CityReviewsBlock({ city, cityName }: CityReviewsBlockPro
         <FadeIn>
           <div>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Reviews</span>
-            <h3 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
+            <h3 className="font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
               WHAT <span className="text-primary">{cityName.toUpperCase()}</span> DRIVERS SAY
             </h3>
             <p className="mt-3 text-foreground/70 text-sm">

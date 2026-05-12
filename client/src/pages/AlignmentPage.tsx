@@ -81,7 +81,7 @@ function AlignmentHero() {
         </FadeIn>
 
         <FadeIn delay={0.1}>
-          <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl mt-4">
+          <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground leading-[0.9] tracking-tight max-w-3xl mt-4">
             WHEEL ALIGNMENT CLEVELAND OH
           </h1>
         </FadeIn>
@@ -99,7 +99,7 @@ function AlignmentHero() {
           <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
             <a
               href={BUSINESS.phone.href}
-              className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+              className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
               aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
             >
               <Phone className="w-5 h-5" />
@@ -107,7 +107,7 @@ function AlignmentHero() {
             </a>
             <a
               href="#booking"
-              className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-semibold font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
+              className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-nick-blue/50 text-nick-blue-light px-8 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
             >
               SCHEDULE DROP-OFF
             </a>
@@ -145,7 +145,7 @@ function SignsSection() {
       <div className="container">
         <FadeIn>
           <span className="font-mono text-nick-blue-light text-sm tracking-wide">Common Signs</span>
-          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+          <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
             SIGNS YOU NEED AN <span className="text-primary">ALIGNMENT</span>
           </h2>
           <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
@@ -177,7 +177,7 @@ function SignsSection() {
                 <div className="flex items-start gap-4 stagger-in">
                   <AlertTriangle className="w-6 h-6 text-primary shrink-0 mt-1" />
                   <div>
-                    <h3 className="font-semibold font-bold text-lg text-foreground tracking-wide mb-2">
+                    <h3 className="font-bold text-lg text-foreground tracking-wide mb-2">
                       {sign.title}
                     </h3>
                     <p className="text-foreground/70 leading-relaxed">{sign.description}</p>
@@ -199,7 +199,7 @@ function BenefitsSection() {
       <div className="container">
         <FadeIn>
           <span className="font-mono text-nick-blue-light text-sm tracking-wide">Why Alignment Matters</span>
-          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+          <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
             BENEFITS OF REGULAR <span className="text-primary">ALIGNMENT</span>
           </h2>
           <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
@@ -228,7 +228,7 @@ function BenefitsSection() {
             <FadeIn key={i} delay={i * 0.08}>
               <div className="bg-[oklch(0.055_0.004_260)] border border-nick-blue/10 rounded-lg p-8">
                 <div className="text-4xl mb-4">{benefit.icon}</div>
-                <h3 className="font-semibold font-bold text-xl text-foreground mb-3">{benefit.title}</h3>
+                <h3 className="font-bold text-xl text-foreground mb-3">{benefit.title}</h3>
                 <p className="text-foreground/70 leading-relaxed">{benefit.description}</p>
               </div>
             </FadeIn>
@@ -249,7 +249,7 @@ function FAQSection() {
       <div className="container">
         <FadeIn>
           <span className="font-mono text-nick-blue-light text-sm tracking-wide">Questions</span>
-          <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
+          <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight">
             FREQUENTLY ASKED <span className="text-primary">QUESTIONS</span>
           </h2>
           <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
@@ -265,7 +265,7 @@ function FAQSection() {
                 className="w-full text-left border-b border-nick-blue/15 py-6 group"
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold font-bold text-lg lg:text-xl text-foreground tracking-wider group-hover:text-primary transition-colors">
+                  <h3 className="font-bold text-lg lg:text-xl text-foreground tracking-wider group-hover:text-primary transition-colors">
                     {faq.question}
                   </h3>
                   <ChevronDown
@@ -304,7 +304,7 @@ function BookingSection() {
           <FadeIn>
             <div>
               <span className="font-mono text-primary text-sm tracking-wide">Get Started</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
                 SCHEDULE YOUR
                 <br />
                 <span className="text-primary">ALIGNMENT SERVICE</span>
