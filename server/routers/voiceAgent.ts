@@ -667,7 +667,12 @@ export const voiceAgentRouter = router({
               gte(algEstimates.estimateDate, oneTwentyDaysAgo),
               // Match either exact digits OR last-10-digits to handle
               // formatting variation (parens, dashes, spaces) in ALG
-              sql`REPLACE(REPLACE(REPLACE(REPLACE(${algEstimates.customerPhone}, '-', ''), '(', ''), ')', ''), ' ', '') = ${phoneDigits}`,
+              // wave-181.1 smoke-test caught: my REPLACE chain handled
+              // dashes/parens/spaces but NOT plus signs, country codes,
+              // or other non-digit chars. ALG phones like "+1 216-862-
+              // 0005" never matched. Now: normalize BOTH sides to last
+              // 10 digits using REGEXP_REPLACE — handles any formatting.
+              sql`RIGHT(REGEXP_REPLACE(${algEstimates.customerPhone}, '[^0-9]', ''), 10) = RIGHT(${phoneDigits}, 10)`,
             ),
           )
           .orderBy(desc(algEstimates.estimateDate))
