@@ -52,8 +52,14 @@ export default function NoShowRiskSection() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editedBody, setEditedBody] = useState("");
   const [sentMap, setSentMap] = useState<Record<number, boolean>>({});
+  // wave-143 — per-row pending state. Was using sendMutation.isPending
+  // which disabled EVERY row's Send button while any one SMS was in
+  // flight. On a phone with latency, tapping Send on row 1 froze the
+  // whole list. Now: only the row being sent is disabled.
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set());
 
   async function handleSend(bookingId: number, phone: string, body: string) {
+    setPendingIds((s) => new Set(s).add(bookingId));
     try {
       const result = await sendMutation.mutateAsync({ bookingId, phone, body });
       if (result.success) {
@@ -64,6 +70,12 @@ export default function NoShowRiskSection() {
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Send failed");
+    } finally {
+      setPendingIds((s) => {
+        const next = new Set(s);
+        next.delete(bookingId);
+        return next;
+      });
     }
   }
 
@@ -287,10 +299,10 @@ export default function NoShowRiskSection() {
                       <>
                         <button
                           onClick={() => handleSend(b.bookingId, b.customerPhone, b.suggestedSms)}
-                          disabled={sendMutation.isPending || isSent || b.alreadyConfirmed}
+                          disabled={pendingIds.has(b.bookingId) || isSent || b.alreadyConfirmed}
                           className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-[#FDB913] text-black hover:bg-[#e3a811] transition-colors disabled:opacity-50"
                         >
-                          <Send className="w-3.5 h-3.5" /> Send confirmation
+                          <Send className="w-3.5 h-3.5" /> {pendingIds.has(b.bookingId) ? "Sending…" : "Send confirmation"}
                         </button>
                         <button
                           onClick={() => {
