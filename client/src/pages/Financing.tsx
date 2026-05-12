@@ -649,6 +649,21 @@ export default function Financing() {
               90-day same-as-cash option
             </span>
           </div>
+
+          {/* wave-171: high-intent escape hatch for the hottest segment —
+              customers physically at the shop who pulled out their phone to
+              research financing. One line + tel: link captures the lead
+              before they leave the lot. */}
+          <div className="mt-6 text-center text-sm text-white/65">
+            Already at the shop?{" "}
+            <a
+              href={BUSINESS.phone.href}
+              className="text-[#FDB913] hover:text-[#FDB913]/80 font-semibold underline-offset-4 hover:underline"
+            >
+              Call {BUSINESS.phone.display}
+            </a>{" "}
+            — we'll run all 4 lenders in 2 minutes while you wait.
+          </div>
         </div>
       </section>
 
@@ -749,6 +764,33 @@ export default function Financing() {
               }),
             }}
           />
+        </div>
+      </section>
+
+      {/* wave-171: bottom-of-page re-anchor CTA. Users who scroll the full
+          FAQ are the most qualified leads on the page — they read every
+          objection answer. Not re-anchoring them at the bottom is a
+          conversion leak. Re-uses the same pre-approval modal already
+          open at the hero. */}
+      <section className="bg-[#0d0d0d] py-14 lg:py-20 border-t border-[#1f1f1f]">
+        <div className="container max-w-2xl text-center">
+          <h2 className="font-heading text-3xl lg:text-4xl font-bold text-white tracking-tight uppercase leading-[1.05]">
+            Still on the fence?
+          </h2>
+          <p className="mt-3 text-white/65 text-base lg:text-lg max-w-xl mx-auto">
+            Soft check, 60 seconds, no commitment. Find out which of our four lenders approves you before you decide.
+          </p>
+          <button
+            onClick={() => setShowPreApproval(true)}
+            className="mt-7 inline-flex items-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-base tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+          >
+            <CreditCard className="w-5 h-5" aria-hidden="true" />
+            Check If I Qualify
+            <ArrowRight className="w-5 h-5" aria-hidden="true" />
+          </button>
+          <div className="mt-4 text-xs text-white/40">
+            Or call <a href={BUSINESS.phone.href} className="text-[#FDB913] hover:underline">{BUSINESS.phone.display}</a> — we'll walk you through every option in 2 minutes.
+          </div>
         </div>
       </section>
 

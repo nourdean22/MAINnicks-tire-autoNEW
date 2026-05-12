@@ -77,6 +77,12 @@ interface PhotoFile {
 export default function BookingForm({ defaultService }: { defaultService?: string } = {}) {
   const [step, setStep] = useState<Step>(1);
   const [submitted, setSubmitted] = useState(false);
+  // wave-171: capture booking id on success so the post-confirmation
+  // upsell buttons can wire to a real backend mutation instead of being
+  // dead UI. Also tracks which upsells the customer has already added,
+  // so the button can flip to a confirmed-state with no double-fire.
+  const [confirmedBookingId, setConfirmedBookingId] = useState<number | null>(null);
+  const [addedUpsells, setAddedUpsells] = useState<Set<string>>(new Set());
   const [photos, setPhotos] = useState<PhotoFile[]>([]);
   const [notSureMode, setNotSureMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -131,11 +137,31 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
   });
 
   const mutation = trpc.booking.create.useMutation({
-    onSuccess: () => setSubmitted(true),
+    onSuccess: (data) => {
+      setSubmitted(true);
+      // wave-171: capture id for the upsell-interest mutation below
+      const id = (data as { id?: number })?.id;
+      if (typeof id === "number") setConfirmedBookingId(id);
+    },
     onError: () => toast.error("Booking failed. Please verify your details or call us at (216) 862-0005."),
   });
 
   const uploadPhoto = trpc.booking.uploadPhoto.useMutation();
+
+  // wave-171: real backend wire for the "Add to appointment" upsell button.
+  // Appends to the booking's adminNotes + fires Telegram to staff so the
+  // front desk knows to bring it up at check-in. Previously dead UI.
+  const addUpsell = trpc.booking.addUpsellInterest.useMutation({
+    onSuccess: (_data, vars) => {
+      setAddedUpsells((prev) => {
+        const next = new Set(prev);
+        next.add(vars.upsellTitle);
+        return next;
+      });
+      toast.success("Added — we'll bring it up at check-in.");
+    },
+    onError: () => toast.error("Couldn't save right now. Mention it at check-in and we'll add it then."),
+  });
 
   const update = (field: string, value: string) => {
     // Mark form as "started" on first edit + track which field user is on
@@ -342,12 +368,27 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                   </div>
                   <div className="flex flex-col items-end gap-2 flex-shrink-0">
                     <div className="text-primary font-bold text-sm">{upsell.price}</div>
-                    <button
-                      type="button"
-                      className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded hover:bg-primary/30 transition-colors font-medium whitespace-nowrap"
-                    >
-                      Add to appointment
-                    </button>
+                    {addedUpsells.has(upsell.suggestion) ? (
+                      <span className="text-xs bg-emerald-500/15 text-emerald-400 px-3 py-1.5 rounded font-medium whitespace-nowrap inline-flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3" aria-hidden="true" /> Added
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!confirmedBookingId || addUpsell.isPending}
+                        onClick={() => {
+                          if (!confirmedBookingId) return;
+                          addUpsell.mutate({
+                            bookingId: confirmedBookingId,
+                            upsellTitle: upsell.suggestion,
+                            upsellPrice: upsell.price,
+                          });
+                        }}
+                        className="text-xs bg-primary/20 text-primary px-3 py-1.5 rounded hover:bg-primary/30 transition-colors font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {addUpsell.isPending ? "Adding…" : "Add to appointment"}
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
