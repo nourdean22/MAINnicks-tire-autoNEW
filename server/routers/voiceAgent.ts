@@ -579,11 +579,15 @@ export const voiceAgentRouter = router({
       try {
         const { db } = await import("../lib/db-helper");
         const { customers } = await import("../../drizzle/schema");
-        const { eq } = await import("drizzle-orm");
+        const { sql } = await import("drizzle-orm");
         const d = await db();
         if (!d) return { found: false, reason: "DB unavailable" };
         const phoneDigits = input.phone.replace(/\D/g, "");
         if (phoneDigits.length < 10) return { found: false, reason: "Invalid phone format" };
+        // wave-181.2: phone is stored E.164 ("+12168620005") via normalizePhone.
+        // Compare on the LAST 10 digits (strip "+" and country code) so any
+        // inbound format — "+12168620005", "12168620005", "2168620005",
+        // "(216) 862-0005" — all match the same row.
         const [c] = await d
           .select({
             firstName: customers.firstName,
@@ -597,7 +601,7 @@ export const voiceAgentRouter = router({
             balanceDue: customers.balanceDue,
           })
           .from(customers)
-          .where(eq(customers.phone, phoneDigits))
+          .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = RIGHT(${phoneDigits}, 10)`)
           .limit(1);
         if (!c) return { found: false };
         const daysSinceLastVisit = c.lastVisitDate
