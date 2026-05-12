@@ -31,6 +31,68 @@ const twilioCB = getOrCreateBreaker("twilio-sms", {
   timeoutMs: 15_000,
 });
 
+// ─── Opt-out Cache ──────────────────────────────────
+// wave-142a — replaces the per-send full-table LIKE scan with an
+// in-memory Set of normalized opted-out phones. 5-min TTL, plus
+// write-through invalidation via markPhoneOptedOut / markPhoneOptedIn
+// so opt-outs propagate immediately for TCPA compliance.
+let optOutCache: Set<string> | null = null;
+let optOutCacheLoadedAt = 0;
+const OPT_OUT_CACHE_TTL_MS = 5 * 60 * 1000;
+
+async function ensureOptOutCache(): Promise<Set<string>> {
+  const now = Date.now();
+  if (optOutCache && now - optOutCacheLoadedAt < OPT_OUT_CACHE_TTL_MS) {
+    return optOutCache;
+  }
+  try {
+    const { getDb } = await import("./db");
+    const { customers } = await import("../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return optOutCache ?? new Set();
+    const rows = await db
+      .select({ phone: customers.phone })
+      .from(customers)
+      .where(eq(customers.smsOptOut, 1));
+    const fresh = new Set<string>();
+    for (const r of rows) {
+      const norm = (r.phone || "").replace(/\D/g, "").slice(-10);
+      if (norm.length === 10) fresh.add(norm);
+    }
+    optOutCache = fresh;
+    optOutCacheLoadedAt = now;
+    return fresh;
+  } catch (err) {
+    log.warn("opt-out cache refresh failed — using stale or empty", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return optOutCache ?? new Set();
+  }
+}
+
+/**
+ * Mark a phone as opted out — call this from any code path that sets
+ * smsOptOut=1 in the customers table. Updates the cache immediately so
+ * the very next sendSms() call respects the opt-out (TCPA requirement).
+ */
+export function markPhoneOptedOut(phone: string): void {
+  const norm = (phone || "").replace(/\D/g, "").slice(-10);
+  if (norm.length !== 10) return;
+  if (!optOutCache) optOutCache = new Set();
+  optOutCache.add(norm);
+}
+
+/**
+ * Inverse — call when a customer texts START/UNSTOP and smsOptOut goes
+ * back to 0. Removes from cache so future sends to this number resume.
+ */
+export function markPhoneOptedIn(phone: string): void {
+  const norm = (phone || "").replace(/\D/g, "").slice(-10);
+  if (norm.length !== 10) return;
+  optOutCache?.delete(norm);
+}
+
 // ─── TWILIO CLIENT ─────────────────────────────────────
 
 function getTwilioClient() {
@@ -682,24 +744,23 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     return { success: false, error: "Daily SMS limit reached for this number" };
   }
 
-  // TCPA compliance: check SMS opt-out before sending
+  // TCPA compliance: check SMS opt-out before sending.
+  // wave-142a — was `like(customers.phone, '%${last10}')` which is a
+  // leading-wildcard that MySQL/TiDB cannot index, meaning every single
+  // outbound SMS did a full sequential scan of the customers table.
+  // At bulk-campaign volume (thousands of sends/min) this was the dominant
+  // cost. Now: in-memory Set<string> of opted-out normalized phones,
+  // refreshed lazily (5 min TTL) + invalidated on opt-out write via
+  // markPhoneOptedOut/markPhoneOptedIn (called from smsBot + responseParser).
+  // First send after process boot pays for the scan once; every subsequent
+  // send is O(1).
   if (!opts?.skipOptOutCheck) {
     try {
-      const { getDb } = await import("./db");
-      const { customers } = await import("../drizzle/schema");
-      const { like } = await import("drizzle-orm");
-      const db = await getDb();
-      if (db) {
-        const last10 = normalized.slice(-10);
-        const [customer] = await db
-          .select({ smsOptOut: customers.smsOptOut })
-          .from(customers)
-          .where(like(customers.phone, `%${last10}`))
-          .limit(1);
-        if (customer?.smsOptOut) {
-          smsStats.totalOptedOut++;
-          return { success: false, error: "Customer opted out of SMS" };
-        }
+      const last10 = normalized.slice(-10);
+      const optOuts = await ensureOptOutCache();
+      if (optOuts.has(last10)) {
+        smsStats.totalOptedOut++;
+        return { success: false, error: "Customer opted out of SMS" };
       }
     } catch (err) {
       log.warn("Opt-out check failed, proceeding with send", {

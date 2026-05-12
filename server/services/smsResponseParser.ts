@@ -153,10 +153,14 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
         if (db) {
           const { customers } = await import("../../drizzle/schema");
           const { like } = await import("drizzle-orm");
+          const { markPhoneOptedOut } = await import("../sms");
           const normalized = phone.replace(/\D/g, "").slice(-10);
           await db.update(customers)
             .set({ smsOptOut: 1 })
             .where(like(customers.phone, `%${normalized}`));
+          // wave-142a — write-through cache invalidation (TCPA: opt-out
+          // must propagate immediately to the next sendSms call).
+          markPhoneOptedOut(normalized);
           log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
         }
         return { executed: true, action: "unsubscribe-customer" };

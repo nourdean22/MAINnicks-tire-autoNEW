@@ -100,10 +100,14 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       const { getDb } = await import("../db");
       const { customers } = await import("../../drizzle/schema");
       const { like } = await import("drizzle-orm");
+      const { markPhoneOptedOut } = await import("../sms");
       const db = await getDb();
       if (db) {
         await db.update(customers).set({ smsOptOut: 1 }).where(like(customers.phone, `%${phone}`));
       }
+      // wave-142a — write-through invalidation so the opt-out cache
+      // sees this immediately (TCPA: opt-outs must propagate instantly).
+      markPhoneOptedOut(phone);
     } catch (err) {
       log.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
     }
@@ -117,10 +121,12 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       const { getDb } = await import("../db");
       const { customers } = await import("../../drizzle/schema");
       const { like } = await import("drizzle-orm");
+      const { markPhoneOptedIn } = await import("../sms");
       const db = await getDb();
       if (db) {
         await db.update(customers).set({ smsOptOut: 0 }).where(like(customers.phone, `%${phone}`));
       }
+      markPhoneOptedIn(phone);
     } catch (err) {
       log.error("[SMSBot] Failed to persist opt-in to DB:", err instanceof Error ? err.message : err);
     }
