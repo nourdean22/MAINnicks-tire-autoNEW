@@ -524,7 +524,7 @@ function WhyUs() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           <FadeIn>
             <div className="relative rounded-2xl overflow-hidden aspect-[4/3]">
-              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" style={{ objectPosition: "center 50%" }} />
+              <img src={MECHANIC_IMG} alt="Inside the bay at Nick's Tire & Auto Cleveland — a vehicle on the lift mid-job, real tools, real shop" className="w-full h-full object-cover" loading="lazy" decoding="async" width="1600" height="900" style={{ objectPosition: "center 50%" }} />
             </div>
           </FadeIn>
 

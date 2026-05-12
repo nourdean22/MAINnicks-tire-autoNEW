@@ -139,6 +139,8 @@ export default function Blog() {
                       alt={`${featured.title} — Nick's Tire & Auto Cleveland blog`}
                       className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-500"
                       loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
                     />
                   </div>
                   <div className="p-7 lg:p-10 flex flex-col justify-center">
@@ -180,6 +182,10 @@ export default function Blog() {
                       src={article.heroImage}
                       alt={`${article.title} — Nick's Tire & Auto Cleveland blog post`}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                      decoding="async"
+                      width="800"
+                      height="450"
                     />
                   </div>
                   <div className="p-6">

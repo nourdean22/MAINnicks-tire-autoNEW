@@ -8,6 +8,7 @@ import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import FadeIn from "@/components/FadeIn";
+import BookingForm from "@/components/BookingForm";
 import { trackPhoneClick } from "@/lib/analytics";
 
 export default function TireSizePage() {
@@ -39,6 +40,26 @@ export default function TireSizePage() {
     .filter(p => p.slug !== page.slug && p.category === page.category)
     .slice(0, 6);
 
+  // FAQ source-of-truth — drives both rendered FAQ section + FAQPage JSON-LD
+  const FAQS = [
+    {
+      q: `How much do ${page.size} tires cost?`,
+      a: `Prices vary by brand and type. Used ${page.size} tires start around $40-60 each. New tires range from $80-200+ per tire depending on the brand. All prices include our free premium installation package ($289 value).`,
+    },
+    {
+      q: `Do you have ${page.size} tires in stock?`,
+      a: `Yes — ${page.size} is one of our most popular sizes. We typically have multiple options in stock, both new and used. Call us at ${BUSINESS.phone.display} to confirm current availability.`,
+    },
+    {
+      q: `Can I buy just one or two ${page.size} tires?`,
+      a: `Absolutely. We sell tires individually, in pairs, or as a full set. For best performance and safety, we recommend replacing at least two tires at a time on the same axle.`,
+    },
+    {
+      q: `Do you have payment programs for ${page.size} tires?`,
+      a: `Yes. Payment programs available — $10 down. No credit check required. Get the tires you need today and pay over time.`,
+    },
+  ];
+
   return (
     <PageLayout showChat={true}>
       <SEOHead
@@ -47,6 +68,21 @@ export default function TireSizePage() {
         canonicalPath={`/tires/${page.slug}`}
       />
       <LocalBusinessSchema pageName={`${page.size} Tires Cleveland - Nick's Tire & Auto`} />
+      {/* FAQPage as its own top-level JSON-LD — drives rich results */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": FAQS.map((f) => ({
+              "@type": "Question",
+              "name": f.q,
+              "acceptedAnswer": { "@type": "Answer", "text": f.a },
+            })),
+          }),
+        }}
+      />
 
       {/* Hero */}
       <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
@@ -82,9 +118,10 @@ export default function TireSizePage() {
               <a
                 href={BUSINESS.phone.href}
                 onClick={() => trackPhoneClick(`tire-size-${page.slug}-hero`)}
+                aria-label={`Call Nick's Tire & Auto at ${BUSINESS.phone.display} for ${page.size} tire pricing`}
                 className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors"
               >
-                <Phone className="w-5 h-5" />CALL FOR PRICE
+                <Phone className="w-5 h-5" aria-hidden="true" />CALL FOR PRICE
               </a>
               <Link
                 href="/tires"
@@ -196,36 +233,30 @@ export default function TireSizePage() {
           <FadeIn>
             <h2 className="font-semibold text-3xl text-foreground mb-8">Frequently Asked Questions</h2>
             <div className="space-y-6">
-              <div>
-                <h3 className="font-semibold text-foreground mb-2">How much do {page.size} tires cost?</h3>
-                <p className="text-foreground/70">
-                  Prices vary by brand and type. Used {page.size} tires start around $40-60 each. New tires range from $80-200+ per tire
-                  depending on the brand. All prices include our free premium installation package ($289 value).
-                </p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-2">Do you have {page.size} tires in stock?</h3>
-                <p className="text-foreground/70">
-                  Yes — {page.size} is one of our most popular sizes. We typically have multiple options in stock,
-                  both new and used. Call us at {BUSINESS.phone.display} to confirm current availability.
-                </p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-2">Can I buy just one or two {page.size} tires?</h3>
-                <p className="text-foreground/70">
-                  Absolutely. We sell tires individually, in pairs, or as a full set. For best performance and safety,
-                  we recommend replacing at least two tires at a time on the same axle.
-                </p>
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground mb-2">Do you have payment programs for {page.size} tires?</h3>
-                <p className="text-foreground/70">
-                  Yes. Payment programs available — $10 down. No credit check required.
-                  Get the tires you need today and pay over time.
-                </p>
-              </div>
+              {FAQS.map((faq) => (
+                <div key={faq.q}>
+                  <h3 className="font-semibold text-foreground mb-2">{faq.q}</h3>
+                  <p className="text-foreground/70">{faq.a}</p>
+                </div>
+              ))}
             </div>
           </FadeIn>
+        </div>
+      </section>
+
+      {/* BOOKING — primary conversion path */}
+      <section id="booking" className="py-16 bg-card/50 border-y border-border/30">
+        <div className="container max-w-3xl">
+          <FadeIn>
+            <h2 className="font-semibold text-3xl text-foreground mb-3">
+              Get a quote on {page.size} tires
+            </h2>
+            <p className="text-foreground/65 mb-6">
+              Tell us your vehicle, we'll quote {page.size} options at every price tier
+              and get you scheduled. Walk-ins always welcome.
+            </p>
+          </FadeIn>
+          <BookingForm defaultService="tires" />
         </div>
       </section>
 

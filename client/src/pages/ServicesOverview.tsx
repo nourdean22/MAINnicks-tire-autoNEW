@@ -98,6 +98,8 @@ export default function ServicesOverview() {
           alt="Panoramic view of Nick's Tire & Auto on Euclid Ave Cleveland — full lot, multiple bays, real working shop"
           className="absolute inset-0 w-full h-full object-cover"
           loading="eager"
+          fetchPriority="high"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-background/95 via-background/60 to-background/40" />
         <div className="absolute inset-0 flex items-end pb-10">
@@ -153,9 +155,9 @@ export default function ServicesOverview() {
               >
                 <div className="flex items-center gap-4 mb-4">
                   <div className="text-primary">{service.icon}</div>
-                  <h2 className="font-bold text-2xl text-foreground tracking-wide group-hover:text-primary transition-colors">
+                  <h3 className="font-bold text-2xl text-foreground tracking-wide group-hover:text-primary transition-colors">
                     {service.title}
-                  </h2>
+                  </h3>
                 </div>
                 <p className="text-foreground/70 leading-relaxed mb-4">{service.shortDesc}</p>
                 <div className="space-y-2">
