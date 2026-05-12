@@ -176,7 +176,10 @@ function MetricsStrip() {
   ];
 
   return (
-    <div className="grid grid-cols-7 gap-2">
+    // wave-155 — was grid-cols-7 fixed. On 375px viewport each cell
+    // was ~50px wide × 2 lines of text (font-mono numbers + label).
+    // Now: 2 cols mobile, 4 cols sm, 7 cols lg.
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
       {metrics.map(m => (
         <div key={m.label} className="bg-card border border-border/40 rounded-lg p-3 text-center">
           <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>

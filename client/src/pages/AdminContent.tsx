@@ -5,7 +5,7 @@
  */
 
 import { useAuth } from "@/_core/hooks/useAuth";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { getLoginUrl } from "@/const";
 import { useState, useMemo } from "react";
 import { Link } from "wouter";
@@ -150,10 +150,13 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
     onError: (err) => toast.error(err.message),
   });
 
-  const filtered = useMemo(() => {
+  // wave-155 — was filter((a: any) => ...) — replaced with the proper
+  // RouterOutputs type so TS catches any future schema renames.
+  type Article = RouterOutputs["contentAdmin"]["allArticles"][number];
+  const filtered = useMemo<Article[]>(() => {
     if (!articles) return [];
     if (filter === "all") return articles;
-    return articles.filter((a: any) => a.status === filter);
+    return articles.filter((a: Article) => a.status === filter);
   }, [articles, filter]);
 
   if (isLoading) {
@@ -200,7 +203,7 @@ function ArticlesPanel({ expandedArticle, setExpandedArticle }: { expandedArticl
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((article: any) => {
+          {filtered.map((article) => {
             const isExpanded = expandedArticle === article.id;
             const statusConfig = ARTICLE_STATUS_CONFIG[article.status as ArticleStatus];
             let sections: { heading: string; content: string }[] = [];
