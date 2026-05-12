@@ -155,7 +155,16 @@ export const campaignsRouter = router({
       }));
     }),
 
-  /** Send campaign SMS to all target customers (with rate limiting) */
+  /** Send campaign SMS to all target customers (with rate limiting).
+   *
+   * wave-141a — atomic claim pattern protects against the race condition
+   * where two concurrent send clicks (or two Railway instances handling
+   * the request) both passed the draft check and double-sent every customer.
+   *
+   * The fix: encode the draft check inside the UPDATE's WHERE clause and
+   * inspect affectedRows. Only one caller wins the claim; the other gets
+   * 0 affected rows and bails out cleanly.
+   */
   send: adminProcedure
     .input(z.object({
       campaignId: z.number(),
@@ -164,23 +173,42 @@ export const campaignsRouter = router({
       const d = await db();
       if (!d) return { success: false, error: "Database not available" };
 
-      // Get campaign
+      // Read campaign metadata (template/segment/customMessage). Safe to
+      // read without locking — the atomic claim below is the source of truth.
       const [campaign] = await d.select().from(smsCampaigns).where(eq(smsCampaigns.id, input.campaignId));
-      if (!campaign || campaign.status !== "draft") {
-        return { success: false, error: "Campaign not found or not in draft status" };
+      if (!campaign) {
+        return { success: false, error: "Campaign not found" };
+      }
+      if (campaign.status !== "draft") {
+        return { success: false, error: `Campaign already in '${campaign.status}' state` };
       }
 
-      // Get target customers
+      // Atomic claim — only one caller can transition draft → active.
+      // Drizzle/mysql2 returns [ResultSetHeader, FieldPacket[]] for UPDATE;
+      // affectedRows=0 means a concurrent caller already won.
+      const claimResult = await d.update(smsCampaigns)
+        .set({ status: "active", startedAt: new Date() })
+        .where(and(
+          eq(smsCampaigns.id, input.campaignId),
+          eq(smsCampaigns.status, "draft"),
+        ));
+      const claimedRows = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
+        ? (claimResult[0] as { affectedRows?: number }).affectedRows
+        : (claimResult as { affectedRows?: number }).affectedRows) ?? 0;
+      if (claimedRows === 0) {
+        return { success: false, error: "Campaign already started by another request" };
+      }
+
+      // Get target customers — only the winning claim does this work.
       const targetCustomers = await getSegmentCustomers(campaign.segment as any);
 
       if (targetCustomers.length === 0) {
+        // Roll the claim back to draft so the operator can edit + retry.
+        await d.update(smsCampaigns)
+          .set({ status: "draft", startedAt: null })
+          .where(eq(smsCampaigns.id, input.campaignId));
         return { success: false, error: "No customers in target segment" };
       }
-
-      // Update campaign to active
-      await d.update(smsCampaigns)
-        .set({ status: "active", startedAt: new Date() })
-        .where(eq(smsCampaigns.id, input.campaignId));
 
       // Create send records for all customers (batch insert)
       const messageBody = campaign.customMessage ||
