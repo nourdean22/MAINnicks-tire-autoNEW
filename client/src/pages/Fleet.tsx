@@ -297,13 +297,17 @@ export default function Fleet() {
               onSubmit={handleSubmit}
               className="bg-[#141414] border border-[#2A2A2A] rounded-2xl p-6 lg:p-8 space-y-5"
             >
+              {/* wave-153 — all 6 form fields now have programmatic
+                  label/input association (htmlFor+id). Was visual-only
+                  labels which fail WCAG 2.1 Level A (SC 1.3.1). */}
               {/* Name + Company */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
                 <div>
-                  <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="fleet-name" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Name *
                   </label>
                   <input
+                    id="fleet-name"
                     required
                     type="text"
                     value={form.contactName}
@@ -312,10 +316,11 @@ export default function Fleet() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="fleet-company" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Company *
                   </label>
                   <input
+                    id="fleet-company"
                     required
                     type="text"
                     value={form.companyName}
@@ -328,10 +333,11 @@ export default function Fleet() {
               {/* Phone + Email */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 stagger-in">
                 <div>
-                  <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="fleet-phone" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Phone *
                   </label>
                   <input
+                    id="fleet-phone"
                     required
                     type="tel"
                     value={form.phone}
@@ -340,10 +346,11 @@ export default function Fleet() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                  <label htmlFor="fleet-email" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                     Email
                   </label>
                   <input
+                    id="fleet-email"
                     type="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -354,10 +361,11 @@ export default function Fleet() {
 
               {/* Fleet Size */}
               <div>
-                <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="fleet-size" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                   Fleet Size *
                 </label>
                 <input
+                  id="fleet-size"
                   required
                   type="number"
                   min={1}
@@ -370,10 +378,11 @@ export default function Fleet() {
 
               {/* Message */}
               <div>
-                <label className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
+                <label htmlFor="fleet-message" className="text-xs text-foreground/50 uppercase tracking-wider block mb-1.5">
                   Message
                 </label>
                 <textarea
+                  id="fleet-message"
                   rows={3}
                   value={form.message}
                   onChange={(e) => setForm({ ...form, message: e.target.value })}

@@ -104,32 +104,33 @@ export default function AskMechanicPage() {
                 <div className="border border-primary/30 bg-background/50 p-6 lg:p-8">
                   <h2 className="font-semibold font-bold text-xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR QUESTION</h2>
                   <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* wave-153 — htmlFor/id pairs on all 5 fields */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Your Name *</label>
-                        <input type="text" required value={form.questionerName} onChange={(e) => setForm({ ...form, questionerName: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ask-name" className="block text-foreground/60 text-sm mb-1">Your Name *</label>
+                        <input id="ask-name" type="text" required value={form.questionerName} onChange={(e) => setForm({ ...form, questionerName: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Email (optional, for reply)</label>
-                        <input type="email" value={form.questionerEmail} onChange={(e) => setForm({ ...form, questionerEmail: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
+                        <label htmlFor="ask-email" className="block text-foreground/60 text-sm mb-1">Email (optional, for reply)</label>
+                        <input id="ask-email" type="email" value={form.questionerEmail} onChange={(e) => setForm({ ...form, questionerEmail: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none" />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Vehicle (optional)</label>
-                        <input type="text" value={form.vehicleInfo} onChange={(e) => setForm({ ...form, vehicleInfo: e.target.value })} placeholder="e.g. 2018 Honda Civic" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
+                        <label htmlFor="ask-vehicle" className="block text-foreground/60 text-sm mb-1">Vehicle (optional)</label>
+                        <input id="ask-vehicle" type="text" value={form.vehicleInfo} onChange={(e) => setForm({ ...form, vehicleInfo: e.target.value })} placeholder="e.g. 2018 Honda Civic" className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30" />
                       </div>
                       <div>
-                        <label className="block text-foreground/60 text-sm mb-1">Category</label>
-                        <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
+                        <label htmlFor="ask-category" className="block text-foreground/60 text-sm mb-1">Category</label>
+                        <select id="ask-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none">
                           <option value="">Select Category</option>
                           {CATEGORIES.filter(c => c !== "All").map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-foreground/60 text-sm mb-1">Your Question *</label>
-                      <textarea required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30 resize-none" />
+                      <label htmlFor="ask-question" className="block text-foreground/60 text-sm mb-1">Your Question *</label>
+                      <textarea id="ask-question" required rows={4} value={form.question} onChange={(e) => setForm({ ...form, question: e.target.value })} placeholder="Describe your car problem or question in detail..." className="w-full bg-background border border-primary/20 text-foreground px-3 py-2.5 focus:border-primary outline-none placeholder:text-foreground/30 resize-none" />
                     </div>
                     <div className="flex gap-3">
                       <button type="submit" disabled={submitQuestion.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
