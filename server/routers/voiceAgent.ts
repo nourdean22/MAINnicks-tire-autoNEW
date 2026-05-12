@@ -481,6 +481,11 @@ export const voiceAgentRouter = router({
       vehicle: z.string().max(200).optional(),
       newOrUsed: z.enum(["new", "used", "either"]).default("either"),
       installationNeeded: z.boolean().default(true),
+      // wave-180: free-form flag for special-attention inquiries.
+      // Currently used for "PHYSICAL RACK CHECK REQUESTED — promised
+      // 15 min callback" when caller wanted stock confirmation BEFORE
+      // driving over. Appears in the admin notes column.
+      notes: z.string().max(500).optional(),
       callId: z.string().max(100).optional(),
     }))
     .mutation(async ({ input }) => {
@@ -496,7 +501,12 @@ export const voiceAgentRouter = router({
           input.tireSize ? `Size: ${input.tireSize}` : null,
           input.vehicle ? `Vehicle: ${input.vehicle}` : null,
           input.installationNeeded ? "Wants install" : "No install needed",
+          input.notes || null,
         ].filter(Boolean).join(" · ");
+
+        // wave-180: rack-check requests bump urgency to 5 so the front
+        // desk surfaces them above ordinary warm leads (15-min promise).
+        const isRackCheck = !!input.notes && /rack.?check/i.test(input.notes);
 
         await d.insert(leads).values({
           name: input.name,
@@ -506,10 +516,10 @@ export const voiceAgentRouter = router({
           vehicle: input.vehicle || null,
           source: "callback",
           status: "new",
-          urgencyScore: 4, // Tires-specific = high intent
+          urgencyScore: isRackCheck ? 5 : 4,
           utmSource: "voice-agent",
           utmMedium: "phone",
-          utmCampaign: "vapi-tire-inquiry",
+          utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
         });
         log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize });
         return {
