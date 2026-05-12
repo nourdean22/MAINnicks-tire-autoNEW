@@ -250,8 +250,13 @@ async function main() {
   let success = 0;
   let failed = 0;
 
-  // Process routes in batches to avoid overwhelming the server
-  const BATCH_SIZE = 5;
+  // Process routes in batches to avoid overwhelming the server.
+  // wave-181.3 · BATCH_SIZE reduced 5→2 to investigate hang at route ~54.
+  // BATCH_SIZE=5 was creating 5 simultaneous puppeteer pages per batch;
+  // if one hung at networkidle0 the whole batch waited 45s+. With
+  // PRERENDER_MODE skipping cron, contention should be low enough that 2
+  // works fine and pinpoints which route hangs.
+  const BATCH_SIZE = 2;
   for (let i = 0; i < routes.length; i += BATCH_SIZE) {
     const batch = routes.slice(i, i + BATCH_SIZE);
     await Promise.all(
