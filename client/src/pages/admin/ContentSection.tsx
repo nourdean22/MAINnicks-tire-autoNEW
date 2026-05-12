@@ -97,7 +97,7 @@ function ContentManager() {
         <div className="flex items-center gap-3">
           <Sparkles className="w-5 h-5 text-primary" />
           <div>
-            <p className="font-bold text-sm text-foreground tracking-wider">FULL CONTENT MANAGER</p>
+            <p className="text-[13px] font-semibold text-foreground tracking-tight">Full content manager</p>
             <p className="text-[12px] text-foreground/40">Generate articles, manage notifications, view generation logs</p>
           </div>
         </div>

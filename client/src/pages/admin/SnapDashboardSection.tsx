@@ -37,7 +37,8 @@ function timeAgo(d: Date | string): string {
 }
 
 export default function SnapDashboardSection() {
-  const { data, isLoading, refetch } = trpc.snap.list.useQuery(undefined, {
+  const utils = trpc.useUtils();
+  const { data, isLoading } = trpc.snap.list.useQuery(undefined, {
     refetchInterval: 60_000,
   });
   const summary = trpc.snap.summary.useQuery(undefined, {
@@ -61,8 +62,11 @@ export default function SnapDashboardSection() {
         : "Logged locally (Snap API not configured)");
       setShowForm(false);
       setForm({ customerName: "", customerPhone: "", customerEmail: "", amount: "", vehicle: "", service: "" });
-      refetch();
-      summary.refetch();
+      // wave-143 — invalidate cache instead of refetch() so any sibling
+      // component subscribed to snap.list/summary also updates (cache
+      // coherence). Pattern used everywhere else in the codebase.
+      void utils.snap.list.invalidate();
+      void utils.snap.summary.invalidate();
     },
     onError: (e) => toast.error(e.message),
   });

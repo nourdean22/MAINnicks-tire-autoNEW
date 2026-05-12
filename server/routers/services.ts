@@ -3,6 +3,7 @@
  * loyalty, customer notifications, and SMS.
  */
 import { publicProcedure, protectedProcedure, adminProcedure, router } from "../_core/trpc";
+import { TRPCError } from "@trpc/server";
 import {
   createCoupon, getActiveCoupons, getAllCoupons, updateCoupon, deleteCoupon,
   getCustomerVehicles, addCustomerVehicle, updateCustomerVehicle, deleteCustomerVehicle,
@@ -338,6 +339,38 @@ export const loyaltyRouter = router({
     }))
     .mutation(async ({ input }) => {
       return awardPoints(input.userId, input.points, input.description, input.serviceHistoryId);
+    }),
+  /**
+   * Award points by phone — looks up the customer server-side and
+   * awards in a single round-trip. Replaces the wave-126-era client
+   * pattern that fetched `customers.list` (paginated → silently missed
+   * any customer past page 1) then phone-matched in JS.
+   */
+  awardPointsByPhone: adminProcedure
+    .input(z.object({
+      phone: z.string().min(7).max(20),
+      points: z.number().min(1),
+      description: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { getDb } = await import("../db");
+      const { customers } = await import("../../drizzle/schema");
+      const { sql } = await import("drizzle-orm");
+      const d = await getDb();
+      if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+      const normalized = input.phone.replace(/\D/g, "").slice(-10);
+      if (normalized.length !== 10) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Phone must be 10 digits" });
+      }
+      const [customer] = await d
+        .select({ id: customers.id })
+        .from(customers)
+        .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), ' ', ''), '(', ''), ')', ''), 10) = ${normalized}`)
+        .limit(1);
+      if (!customer) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Customer not found for this phone number" });
+      }
+      return awardPoints(customer.id, input.points, input.description);
     }),
   createReward: adminProcedure
     .input(z.object({

@@ -39,6 +39,12 @@ export default function LoyaltyAdminSection() {
     onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
     onError: (err: { message: string }) => toast.error(err.message),
   });
+  // wave-143 — replaces the client-side `customers.list.fetch() + JS phone match`
+  // pattern, which silently missed any customer past page 1 of the paginated list.
+  const awardPointsByPhone = trpc.loyalty.awardPointsByPhone.useMutation({
+    onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
+    onError: (err: { message: string }) => toast.error(err.message),
+  });
 
   const { data: rewards, isLoading: rewardsLoading } = trpc.loyalty.rewards.useQuery();
   const utils = trpc.useUtils();
@@ -107,18 +113,18 @@ export default function LoyaltyAdminSection() {
           <input placeholder="Customer Phone" type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Points" type="number" inputMode="numeric" value={points} onChange={e => setPoints(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
           <input placeholder="Description" value={desc} onChange={e => setDesc(e.target.value)} className="bg-background border border-border/30 px-3 py-2 text-sm text-foreground" />
-          <button onClick={async () => {
-            // Look up customer by phone to get real userId
-            try {
-              const normalized = phone.replace(/\D/g, "").slice(-10);
-              const customersRaw = await utils.customers.list.fetch() as unknown;
-              const customerList: CustomerLookup[] = Array.isArray(customersRaw) ? customersRaw : ((customersRaw as Record<string, unknown>)?.customers as CustomerLookup[]) ?? [];
-              const match = customerList.find((c: CustomerLookup) => c.phone?.replace(/\D/g, "").includes(normalized));
-              if (!match) { toast.error("Customer not found for this phone number"); return; }
-              awardPoints.mutate({ userId: match.id, points: parseInt(points) || 0, description: desc || "Manual award" });
-            } catch { toast.error("Failed to look up customer"); }
-          }} disabled={awardPoints.isPending || !phone || !points} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50">
-            {awardPoints.isPending ? "AWARDING..." : "AWARD"}
+          <button
+            onClick={() => {
+              awardPointsByPhone.mutate({
+                phone,
+                points: parseInt(points) || 0,
+                description: desc || "Manual award",
+              });
+            }}
+            disabled={awardPointsByPhone.isPending || !phone || !points}
+            className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs tracking-wide disabled:opacity-50"
+          >
+            {awardPointsByPhone.isPending ? "AWARDING..." : "AWARD"}
           </button>
         </div>
       </div>
@@ -163,7 +169,10 @@ export default function LoyaltyAdminSection() {
                 </div>
                 <div className="text-right">
                   <span className="font-bold text-primary text-sm">{r.pointsCost} pts</span>
-                  <p className="text-[12px] text-foreground/40">${r.discountValue} off</p>
+                  {/* wave-143 — was $r.discountValue which doesn't exist in
+                      schema (form submits rewardValue, DB stores rewardValue).
+                      Rendered "$undefined off". */}
+                  <p className="text-[12px] text-foreground/40">${r.rewardValue ?? r.discountValue ?? 0} off</p>
                 </div>
               </div>
             ))}
