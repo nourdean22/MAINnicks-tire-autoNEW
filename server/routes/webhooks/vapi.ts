@@ -158,6 +158,12 @@ async function dispatchToolCall(call: VapiToolCall): Promise<{
       case "scheduleCallback":
         output = await caller.scheduleCallback(args as { name: string; phone: string; reason?: string; preferredTime?: string; callId?: string });
         break;
+      // wave-181: physical rack-check capture. Caller refused to drive
+      // over without stock confirmation → AI promises a 15-min callback,
+      // tool flags lead with urgency=5 + fires Telegram to front desk.
+      case "checkTireStock":
+        output = await caller.checkTireStock(args as { name: string; phone: string; tireSize: string; vehicle?: string; callId?: string });
+        break;
 
       // ─── escalations + confirmations ─────────────────────
       case "escalate":
