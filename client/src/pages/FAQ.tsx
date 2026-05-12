@@ -101,8 +101,14 @@ const FAQ_DATA: FAQItem[] = [
   },
   {
     category: "Pricing & Warranty",
+    // wave-154 — strengthened to mirror the About page's documented
+    // guarantee ("12 months / 12,000 miles, whichever comes first,
+    // in writing"). Previous answer was deliberately vague, which
+    // weakened the trust signal vs the About guarantee + sent FAQ
+    // readers to a lower confidence level than visitors who saw
+    // About. Now consistent across pages.
     question: "Do you offer any warranty on repairs?",
-    answer: "Yes. We stand behind our work with a warranty on parts and labor. The specific warranty terms depend on the type of repair and parts used. Ask your service advisor for details on the warranty coverage for your specific repair."
+    answer: "Yes — parts and labor are covered for 12 months or 12,000 miles, whichever comes first. The warranty is in writing on every receipt. Some specialty parts (custom-order or tire-specific) follow the manufacturer's separate warranty; we'll flag those upfront on the estimate. Ask your service advisor if you want the specifics for your repair."
   },
   // Problem-specific questions
   {
