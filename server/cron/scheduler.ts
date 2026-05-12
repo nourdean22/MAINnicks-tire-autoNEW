@@ -766,6 +766,17 @@ export function startTieredScheduler(): void {
           return processCustomerSegmentation();
         },
       },
+      // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
+      // Pulls VAPI call list, derives end-to-end latency, captures
+      // rows in voice_latency_events, fires Telegram alert when
+      // breach streak ≥ 3 consecutive call-days exceed 500ms p50.
+      {
+        name: "vapi-latency-sync",
+        handler: async () => {
+          const { processVapiLatencySync } = await import("./jobs/vapiLatencySync");
+          return processVapiLatencySync();
+        },
+      },
       {
         name: "retention-all",
         handler: async () => {

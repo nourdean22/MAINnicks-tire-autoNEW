@@ -538,6 +538,120 @@ async function startServer() {
     res.json({ success: true, breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
   });
 
+  // ─── VAPI Voice Latency Observability (admin) ────
+  // wave-181.4 · migrated from statenour-os v10.0.527 Arc A F4 per the
+  // business-separation directive. Surfaces P50/P95 per stage + breach
+  // streak + recommended-delta from the voice_latency_events table.
+  app.get("/api/admin/voice-latency", requireAdminApiKey, async (req, res) => {
+    try {
+      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
+      const { getVoiceLatencyState } = await import("../services/voice-latency");
+      const state = await getVoiceLatencyState(days);
+      res.json(state);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ─── VAPI Call Analytics (admin) ─────────────────
+  // wave-181.4 · proxies VAPI's /call list endpoint with aggregations.
+  // Migrated from statenour-os v10.0.269 (/api/system/vapi-calls).
+  app.get("/api/admin/vapi-calls", requireAdminApiKey, async (req, res) => {
+    const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
+    const since = new Date(Date.now() - days * 86_400_000);
+    const apiKey = (process.env.VAPI_API_KEY || "").trim();
+    if (!apiKey) {
+      res.json({
+        windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
+        byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
+        mostRecent: null, totalCostUsd: 0, error: "VAPI_API_KEY not set",
+      });
+      return;
+    }
+    interface VapiCall {
+      id: string;
+      status?: string;
+      endedReason?: string | null;
+      createdAt?: string;
+      startedAt?: string | null;
+      endedAt?: string | null;
+      cost?: number;
+      costBreakdown?: { total?: number };
+    }
+    try {
+      const r = await fetch(`https://api.vapi.ai/call?limit=100&createdAtGt=${encodeURIComponent(since.toISOString())}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!r.ok) {
+        res.json({
+          windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
+          byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
+          mostRecent: null, totalCostUsd: 0, error: `VAPI returned ${r.status}`,
+        });
+        return;
+      }
+      const calls = (await r.json()) as VapiCall[];
+      const byStatus: Record<string, number> = {};
+      const byEndedReason: Record<string, number> = {};
+      let durationSum = 0;
+      let durationCount = 0;
+      let costSum = 0;
+      for (const c of calls) {
+        byStatus[c.status ?? "(unknown)"] = (byStatus[c.status ?? "(unknown)"] ?? 0) + 1;
+        byEndedReason[c.endedReason ?? "(none)"] = (byEndedReason[c.endedReason ?? "(none)"] ?? 0) + 1;
+        if (c.startedAt && c.endedAt) {
+          const durMs = new Date(c.endedAt).getTime() - new Date(c.startedAt).getTime();
+          if (durMs > 0) {
+            durationSum += durMs;
+            durationCount += 1;
+          }
+        }
+        const cost = c.costBreakdown?.total ?? c.cost ?? 0;
+        if (typeof cost === "number") costSum += cost;
+      }
+      const mostRecent = calls[0]
+        ? {
+            id: calls[0].id,
+            createdAt: calls[0].createdAt,
+            status: calls[0].status,
+            endedReason: calls[0].endedReason,
+            durationSec: calls[0].startedAt && calls[0].endedAt
+              ? Math.round((new Date(calls[0].endedAt).getTime() - new Date(calls[0].startedAt).getTime()) / 1000)
+              : null,
+          }
+        : null;
+      res.json({
+        windowDays: days, sinceIso: since.toISOString(), totalCalls: calls.length,
+        byStatus, byEndedReason,
+        avgDurationSec: durationCount > 0 ? Math.round(durationSum / durationCount / 1000) : 0,
+        mostRecent, totalCostUsd: Number(costSum.toFixed(2)),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // ─── Bridge endpoint for statenour Ultron tile (read-only) ───
+  // wave-181.4 · the statenour Ultron voice-latency-tile reads from
+  // this endpoint after the VAPI migration. Auth via STATENOUR_SYNC_KEY
+  // bearer matching the existing bridge pattern.
+  app.get("/api/bridge/voice-latency", async (req, res) => {
+    const expected = (process.env.STATENOUR_SYNC_KEY || "").trim();
+    const got = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
+    if (!expected || !got || expected !== got) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    try {
+      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
+      const { getVoiceLatencyState } = await import("../services/voice-latency");
+      const state = await getVoiceLatencyState(days);
+      res.json(state);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // ─── PWA Push Notification Subscription ──────────────────
   app.post("/api/push/subscribe", express.json(), async (req, res) => {
     try {

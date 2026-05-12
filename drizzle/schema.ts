@@ -2615,4 +2615,42 @@ export const userRoles = mysqlTable("user_roles", {
 ]);
 
 export type UserRole = typeof userRoles.$inferSelect;
+
+// ─── voice_latency_events · wave-181.4 ──────────────────────────
+// Per-VAPI-call STT/LLM/TTS latency telemetry. Migrated from
+// statenour-os (was v10.0.527 Arc A F3) per the business-separation
+// directive — VAPI is shop infrastructure, belongs on nickstire.
+//
+// Stages captured:
+//   stt_start, stt_end, llm_start, llm_first_token, tts_start,
+//   tts_first_byte, end_to_end
+//
+// Target: voice-agents skill ceiling is sub-800ms end-to-end; alert
+// fires when 3 consecutive call-days exceed VOICE_LATENCY_TARGET_MS
+// (500ms p50). See server/services/voice-latency.ts for the
+// aggregation + breach-streak logic.
+//
+// FAIL-OPEN: every write in the service swallows DB errors so an
+// un-applied migration never breaks a VAPI webhook in production.
+export const voiceLatencyEvents = mysqlTable("voice_latency_events", {
+  id: int("id").autoincrement().primaryKey(),
+  /** VAPI call ID — uuid string */
+  callId: varchar("call_id", { length: 64 }).notNull(),
+  /** VAPI assistant ID — the receptionist or follow-up assistant */
+  assistantId: varchar("assistant_id", { length: 64 }).notNull(),
+  /** Stage enum · see service file for canonical list */
+  stage: varchar("stage", { length: 32 }).notNull(),
+  /** Latency in milliseconds */
+  latencyMs: int("latency_ms").notNull(),
+  /** Optional capture context (toolCalls, source, error_id, etc.) */
+  metadata: json("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => [
+  // Cron uses (callId, stage) to dedupe events on replay
+  index("voice_latency_events_call_stage_idx").on(table.callId, table.stage),
+  // Drives P50/P95-by-stage rolling-window scan + breach-streak read
+  index("voice_latency_events_created_at_idx").on(table.createdAt),
+]);
+
+export type VoiceLatencyEvent = typeof voiceLatencyEvents.$inferSelect;
 export type InsertUserRole = typeof userRoles.$inferInsert;
