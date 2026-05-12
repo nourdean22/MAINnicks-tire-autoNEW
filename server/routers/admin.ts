@@ -438,17 +438,21 @@ export const adminDashboardRouter = router({
                 value: r.converted ? "✓" : "—",
                 createdAt: r.createdAt,
               })),
+              // wave-178 STRIDE I: phone tail-redacted across all four
+              // drilldown row types. Pattern matches the wave-168 fix
+              // already applied to pending_callbacks + intake_today
+              // leads/callbacks. Bookings + VAPI rows were missed.
               ...(bookingRows as Array<{ id: number; name: string; phone: string; service: string | null; status: string; createdAt: Date }>).map((r) => ({
                 id: `booking-${r.id}`,
                 primary: r.name,
-                secondary: `BOOKING · ${r.service ?? "general"} · ${r.phone}`,
+                secondary: `BOOKING · ${r.service ?? "general"} · •••${r.phone ? r.phone.slice(-4) : ""}`,
                 meta: `status: ${r.status}`,
                 value: "📅",
                 createdAt: r.createdAt,
               })),
               ...(Array.isArray(vapiRows) ? vapiRows as Array<{ id: number; customerName: string | null; phoneNumber: string | null; aiSummary: string | null; serviceMention: string | null; durationSeconds: number; createdAt: Date }> : []).map((r) => ({
                 id: `vapi-${r.id}`,
-                primary: r.customerName || r.phoneNumber || "VAPI caller",
+                primary: r.customerName || (r.phoneNumber ? `Caller •••${r.phoneNumber.slice(-4)}` : "VAPI caller"),
                 secondary: `CALL · ${r.serviceMention ?? "no service mention"} · ${r.durationSeconds}s`,
                 meta: r.aiSummary?.slice(0, 80) ?? "",
                 value: "📞 AI",
@@ -496,7 +500,8 @@ export const adminDashboardRouter = router({
                 return {
                   id: r.id,
                   primary: [r.firstName, r.lastName].filter(Boolean).join(" ") || "Customer",
-                  secondary: r.phone || "—",
+                  // wave-178 STRIDE I: phone tail-redacted in lapsed_vips drilldown
+                  secondary: r.phone ? `•••${r.phone.slice(-4)}` : "—",
                   meta: `${r.totalVisits} visit${r.totalVisits === 1 ? "" : "s"} lifetime`,
                   value: `$${Math.round(r.totalSpent / 100).toLocaleString()} · ${last}d ago`,
                 };
@@ -558,7 +563,8 @@ export const adminDashboardRouter = router({
               rows: rows.map((r: { id: number; name: string; phone: string; vehicle: string | null; service: string; status: string; preferredTime: string }) => ({
                 id: r.id,
                 primary: r.name,
-                secondary: `${r.phone} · ${r.vehicle || "—"}`,
+                // wave-178 STRIDE I: phone tail-redacted in today_bookings drilldown
+                secondary: `${r.phone ? `•••${r.phone.slice(-4)}` : "—"} · ${r.vehicle || "—"}`,
                 meta: r.service,
                 value: `${r.status} · ${r.preferredTime}`,
               })),

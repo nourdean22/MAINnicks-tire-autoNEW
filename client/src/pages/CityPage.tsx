@@ -176,6 +176,48 @@ function CitySchema({ city }: { city: CityData }) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageSchema) }} />
+      {/* wave-178: per-city Service entity so Google can match this
+          URL to "[service] [city]" intent queries. Previously CityPage
+          only emitted AutoRepair (LocalBusiness) — no Service entity
+          to attach the city's specific service intent to. Each city
+          page now declares "Auto Repair" as the service with the
+          target city as the primary areaServed. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: `Auto Repair Near ${city.name}`,
+            description: city.metaDescription,
+            serviceType: "Auto Repair",
+            provider: {
+              "@type": "AutoRepair",
+              name: "Nick's Tire & Auto",
+              telephone: `+1-${BUSINESS.phone.dashed}`,
+              url: `https://nickstire.org/${city.slug}`,
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: BUSINESS.address.street,
+                addressLocality: "Cleveland",
+                addressRegion: "OH",
+                postalCode: "44112",
+                addressCountry: "US",
+              },
+              aggregateRating: {
+                "@type": "AggregateRating",
+                ratingValue: String(BUSINESS.reviews.rating),
+                reviewCount: String(BUSINESS.reviews.count),
+              },
+            },
+            areaServed: {
+              "@type": "City",
+              name: city.name,
+              containedInPlace: { "@type": "State", name: "Ohio" },
+            },
+          }),
+        }}
+      />
     </>
   );
 }
@@ -470,7 +512,12 @@ export default function CityPage() {
                 </Link>
               </FadeIn>
               <FadeIn delay={0.15}>
-                <Link href="/check-engine-light-cleveland" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
+                {/* wave-178: route from every CityPage's check-engine card
+                    to /diagnostics (the GSC-buried service page at pos 51.8)
+                    instead of /check-engine-light-cleveland. Consolidates
+                    inbound link equity from dozens of city pages onto the
+                    one canonical diagnostic landing. */}
+                <Link href="/diagnostics" className="bg-card/30 border border-border/50 rounded-lg p-5 hover:border-primary/30 transition-colors block">
                   <h3 className="font-bold text-foreground mb-2">Check Engine Light Diagnostics</h3>
                   <p className="text-foreground/60 text-sm leading-relaxed">That dashboard warning could be a loose gas cap or a failing catalytic converter. We pull codes, run full diagnostics, and tell you exactly what's wrong before recommending any repairs.</p>
                 </Link>

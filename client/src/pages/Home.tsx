@@ -1195,10 +1195,16 @@ export default function Home() {
             Browse by service or neighborhood
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-2 text-sm">
-            <a href="/brake-repair" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
+            {/* wave-178: fixed broken /brake-repair → /brakes (was a dead
+                outbound link from the homepage — wasting equity to the
+                GSC-buried /brakes page). Also enriched the /diagnostics
+                anchor text from "Diagnostics" → "Check Engine Light
+                Diagnostics" so the highest-PageRank inbound link to
+                /diagnostics carries keyword weight. */}
+            <a href="/brakes" className="text-foreground/70 hover:text-primary transition-colors">Brake Repair</a>
             <a href="/alignment" className="text-foreground/70 hover:text-primary transition-colors">Wheel Alignment</a>
             <a href="/oil-change" className="text-foreground/70 hover:text-primary transition-colors">Oil Change</a>
-            <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Diagnostics</a>
+            <a href="/diagnostics" className="text-foreground/70 hover:text-primary transition-colors">Check Engine Light Diagnostics</a>
             <a href="/tires" className="text-foreground/70 hover:text-primary transition-colors">Tire Finder</a>
             <a href="/financing" className="text-foreground/70 hover:text-primary transition-colors">Financing</a>
             <a href="/cleveland-auto-repair" className="text-foreground/70 hover:text-primary transition-colors">Cleveland</a>

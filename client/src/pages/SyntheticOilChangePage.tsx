@@ -282,6 +282,53 @@ export default function SyntheticOilChangePage() {
           }),
         }}
       />
+      {/* wave-178: top-level Service entity with provider + areaServed.
+          Previously this page only emitted an OfferCatalog inside
+          LocalBusiness — Google saw the offers but not a Service entity
+          for "synthetic oil change Cleveland" queries to attach to.
+          Now there's an explicit Service that Google can rank for. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: "Synthetic Oil Change",
+            description: "Full synthetic oil change in Cleveland from $69. Mobil 1, Pennzoil Platinum, Valvoline. 30-minute service, walk-ins 7 days. 10,000-mile intervals.",
+            serviceType: "Oil Change",
+            image: "https://nickstire.org/photos/interior-service-bay-car-lift.webp",
+            provider: {
+              "@type": "AutoRepair",
+              name: "Nick's Tire & Auto",
+              telephone: "+1-216-862-0005",
+              url: "https://nickstire.org/synthetic-oil-change",
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: "17625 Euclid Ave",
+                addressLocality: "Cleveland",
+                addressRegion: "OH",
+                postalCode: "44112",
+                addressCountry: "US",
+              },
+            },
+            areaServed: [
+              { "@type": "City", name: "Cleveland" },
+              { "@type": "City", name: "Euclid" },
+              { "@type": "City", name: "Parma" },
+              { "@type": "City", name: "Lakewood" },
+              { "@type": "City", name: "Cleveland Heights" },
+              { "@type": "City", name: "East Cleveland" },
+            ],
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "USD",
+              lowPrice: "39",
+              highPrice: "89",
+              offerCount: "3",
+            },
+          }),
+        }}
+      />
 
       <Hero />
       <PricingSection />
