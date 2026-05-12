@@ -292,7 +292,12 @@ async function startServer() {
   app.post("/api/track-abandoned", express.json(), async (req, res) => {
     try {
       const { name, phone, service, vehicle, step: formStep } = req.body || {};
-      if (!name && !phone) return res.sendStatus(204);
+      // wave-147 — was `if (!name && !phone) return sendStatus(204)`,
+      // which silently dropped the majority of step-1 abandonment events
+      // (users who picked a service + bounced before touching name/phone).
+      // Now: keep at least one of {name, phone, service} as the signal of
+      // real engagement; only reject totally-empty beacons.
+      if (!name && !phone && !service) return res.sendStatus(204);
       const { savePartialForm } = await import("../services/abandonedForms");
       const sessionId = `beacon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       savePartialForm({

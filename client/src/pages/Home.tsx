@@ -581,8 +581,12 @@ function Reviews() {
             <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
               {totalReviews.toLocaleString()}+ five&#8209;star reviews.<sup className="text-primary text-xl">*</sup>
             </h2>
-            <p className="mt-4 text-foreground/40 text-lg">Verified by Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
-            <p className="mt-3 text-foreground/30 text-sm italic">* Yes, all real. Google catches fakes faster than we do.</p>
+            {/* wave-147 — was text-foreground/40 (~2.5:1 contrast) and
+                text-foreground/30 (~2:1) on the dark background — both
+                fail WCAG 1.4.3 (4.5:1 minimum for normal text). Floored
+                at /60 (≈5:1) and /50 (≈4.5:1) for the disclaimer. */}
+            <p className="mt-4 text-foreground/60 text-lg">Verified by Google. Written by real Cleveland drivers — bus drivers, nurses, Browns fans, the lady whose Civic survived 287,000 miles. No bots, no buyouts, no fake reviews.</p>
+            <p className="mt-3 text-foreground/50 text-sm italic">* Yes, all real. Google catches fakes faster than we do.</p>
           </div>
         </FadeIn>
 
