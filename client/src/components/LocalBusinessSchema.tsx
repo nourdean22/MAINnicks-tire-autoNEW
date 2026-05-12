@@ -48,7 +48,12 @@ export default function LocalBusinessSchema({
       "Nicks Auto",
       "Nick's Auto",
     ],
-    image: `${BUSINESS.urls.website}/favicon.ico`,
+    // wave-145 — was favicon.ico (16×16). Google rich-result spec requires
+    // an image at least 696px wide; favicon FAILS validation and suppresses
+    // LocalBusiness rich results across every page that renders this schema.
+    // Now: the same shop-exterior hero image used as the OG default in SEO.tsx
+    // (1200px+ wide, optimized webp). Consistent with the OG signal.
+    image: `${BUSINESS.urls.website}/photos/shop-exterior-hero-wide-sign-bays.webp`,
     telephone: `+1-${BUSINESS.phone.dashed}`,
     url: BUSINESS.urls.website,
     email: "info@nickstire.org",
@@ -217,15 +222,16 @@ export default function LocalBusinessSchema({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
       />
-      {includeHowTo && (
-        <link rel="alternate" type="application/ld+json" href="/howto-schemas.json" />
-      )}
-      {includeReviews && (
-        <link rel="alternate" type="application/ld+json" href="/reviews-schema.json" />
-      )}
-      {includeServices && (
-        <link rel="alternate" type="application/ld+json" href="/services-schema.json" />
-      )}
+      {/* wave-145 — removed 3 <link rel="alternate" type="application/ld+json">
+          entries. Google does NOT recognize this pattern (only inline
+          <script type="application/ld+json"> or src-loaded scripts count for
+          structured data discovery), AND the referenced files
+          (/howto-schemas.json, /reviews-schema.json, /services-schema.json)
+          don't exist in public/ anyway — they 404 silently. Pure dead code.
+          If we ever want supplemental schema graphs, inline them into the
+          main script block above or emit them as separate inline <script>
+          tags per page. The includeHowTo/includeReviews/includeServices
+          props remain reserved for future use. */}
     </>
   );
 }
