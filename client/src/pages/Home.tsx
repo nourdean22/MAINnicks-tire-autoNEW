@@ -1057,9 +1057,13 @@ export default function Home() {
       {/* 2026-05-06 audit fix · meta leads with FCFS positioning + $60
           anchor + master tagline phrasing in description. Brand still
           in title for "nicks tires" branded query. */}
+      {/* wave-174 — GSC showed homepage at pos 10.7 with 1.37% CTR over
+          3,514 impressions. Description was 178 chars → SERP truncated at
+          ~160, cutting off the phone number. Trimmed to 156 chars so the
+          phone CTA survives + "$60 used tires" hooks earlier. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
-        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $60. Walk in 7 days. Written estimate before any wrench moves. Payment programs available."
+        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $60. Walk in 7 days. Free estimate every job. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

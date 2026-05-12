@@ -82,9 +82,13 @@ export default function Contact() {
           · Walk-Ins Always Welcome" — 493 imps / 0 clicks in 90 days.
           Front-load phone + address + 7-day-open in the title so the SERP
           result IS the answer to the searcher's intent. */}
+      {/* wave-174 — GSC showed /contact at pos 8.9 with 0.50% CTR over
+          201 impressions. Description was 188 chars → truncated, cutting
+          off the hours + walk-in line. Trimmed to 134 chars: phone +
+          address + hours + walk-in all visible. */}
       <SEOHead
         title="Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave"
-        description={`Call Nick's Tire & Auto at ${BUSINESS.phone.display}. ${BUSINESS.address.full}. Open ${BUSINESS.hours.display}. Walk-ins 7 days. Free written estimate before any work.`}
+        description={`Nick's Tire & Auto · ${BUSINESS.phone.display} · 17625 Euclid Ave, Cleveland. Mon-Sat 8-6, Sun 9-4. Walk in 7 days. Free written estimates.`}
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
