@@ -611,15 +611,19 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             <span className="text-sm font-medium text-nick-teal">Walk-ins welcome! Same-day appointments available.</span>
           </div>
 
-          {/* Contact Info */}
+          {/* Contact Info — wave-150 a11y: programmatic label/input
+              association via htmlFor + id (was visual-only labels with
+              aria-label; this satisfies WCAG 1.3.1 properly + improves
+              click-to-focus on the label text). */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
+              <label htmlFor="bf-name" className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Your Name *
               </label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
+                  id="bf-name"
                   type="text"
                   required
                   value={formData.name}
@@ -632,12 +636,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
 
             <div>
-              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
+              <label htmlFor="bf-phone" className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Phone Number *
               </label>
               <div className="relative">
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
+                  id="bf-phone"
                   type="tel"
                   inputMode="numeric"
                   autoComplete="tel"
@@ -676,12 +681,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             </div>
 
             <div className="sm:col-span-2">
-              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
+              <label htmlFor="bf-email" className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Email (Optional)
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
+                  id="bf-email"
                   type="email"
                   inputMode="email"
                   autoComplete="email"
