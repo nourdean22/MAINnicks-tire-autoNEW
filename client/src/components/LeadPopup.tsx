@@ -62,9 +62,18 @@ export default function LeadPopup() {
       if (sessionStorage.getItem(STORAGE_KEY)) return;
     } catch {}
 
-    // Suppress on conversion pages
+    // Suppress on conversion pages — wave-144 added /tires + /diagnose
+    // to the list because both run their own conversion flows that this
+    // popup competes with (TireFinder selection + DiagnosePage symptom
+    // capture). Operator sees two CTAs fighting if we don't suppress.
     const path = window.location.pathname;
-    if (path === "/contact" || path === "/book" || path === "/booking") return;
+    if (
+      path === "/contact" ||
+      path === "/book" ||
+      path === "/booking" ||
+      path === "/tires" ||
+      path === "/diagnose"
+    ) return;
 
     const mobile = isMobile();
     const delay = mobile ? DELAY_MS_MOBILE : DELAY_MS;
@@ -119,6 +128,18 @@ export default function LeadPopup() {
     };
   }, [show]);
 
+  // wave-144 — Escape closes the popup (WCAG 2.1 keyboard operability).
+  // Combined with role="dialog" + aria-modal="true" on the container
+  // below, the popup now satisfies WCAG 2.1 Level A.
+  useEffect(() => {
+    if (!visible) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [visible, dismiss]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim() || !form.phone.trim()) return;
@@ -154,9 +175,12 @@ export default function LeadPopup() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="lead-popup-title"
         >
           {/* Backdrop */}
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} />
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={dismiss} aria-hidden="true" />
 
           {/* Popup */}
           <motion.div
@@ -166,15 +190,20 @@ export default function LeadPopup() {
             transition={{ duration: 0.2, ease: "easeOut" }}
             className="relative bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl w-full max-w-md z-10 overflow-hidden shadow-2xl shadow-black/40"
           >
-            {/* HEADER */}
+            {/* HEADER — wave-144 a11y: id on title for aria-labelledby,
+                focus ring on close button */}
             <div className="bg-primary/[0.06] border-b border-primary/10 px-6 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-primary" />
-                <span className="font-semibold text-foreground text-[14px] tracking-[-0.01em]">
+                <span id="lead-popup-title" className="font-semibold text-foreground text-[14px] tracking-[-0.01em]">
                   Car Problem?
                 </span>
               </div>
-              <button onClick={dismiss} className="text-foreground/50 hover:text-foreground/50 transition-colors p-1">
+              <button
+                onClick={dismiss}
+                className="text-foreground/50 hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none rounded-md p-1 transition-colors"
+                aria-label="Close popup"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>

@@ -5,7 +5,7 @@
  * Server-side handles SMS confirmation + Telegram alert.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { X, CreditCard, CheckCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
@@ -29,10 +29,15 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
     },
   });
 
+  // wave-144 — 10-digit phone validation (was just `.trim() !== ""`,
+  // which let "1" through and saved a lead with garbage phone → SMS
+  // confirmation fired to nowhere → financing lead lost).
+  const phoneValid = phone.replace(/\D/g, "").length === 10;
+
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
       e.preventDefault();
-      if (!name.trim() || !phone.trim()) return;
+      if (!name.trim() || !phoneValid) return;
 
       submitMutation.mutate({
         name: name.trim(),
@@ -43,7 +48,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
         vehicle: undefined,
       });
     },
-    [name, phone, email, amount, submitMutation]
+    [name, phone, phoneValid, email, amount, submitMutation]
   );
 
   const handleClose = useCallback(() => {
@@ -54,6 +59,18 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
     setSubmitted(false);
     onClose();
   }, [onClose]);
+
+  // wave-144 — a11y: Escape closes the modal (WCAG 2.1 keyboard
+  // operability). Combined with role="dialog" + aria-modal="true"
+  // below, this brings the modal to WCAG 2.1 Level A.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, handleClose]);
 
   return (
     <AnimatePresence>
@@ -68,12 +85,15 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
             className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
           />
 
-          {/* Modal */}
+          {/* Modal — wave-144 a11y: role + aria-modal + aria-labelledby */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="financing-modal-title"
             className="fixed inset-0 flex items-center justify-center z-50 p-4"
           >
             <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
@@ -84,7 +104,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                     <CreditCard className="w-5 h-5 text-[#FDB913]" />
                   </div>
                   <div>
-                    <h2 className="font-heading text-lg font-bold text-white tracking-wide">
+                    <h2 id="financing-modal-title" className="font-heading text-lg font-bold text-white tracking-wide">
                       Check If You Qualify
                     </h2>
                     <p className="text-white/50 text-xs">No credit check required</p>
@@ -92,7 +112,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                 </div>
                 <button
                   onClick={handleClose}
-                  className="text-white/40 hover:text-white/70 transition-colors"
+                  className="text-white/40 hover:text-white/70 focus-visible:text-white focus-visible:ring-2 focus-visible:ring-[#FDB913]/50 focus-visible:outline-none rounded-md p-1 -mr-1 transition-colors"
                   aria-label="Close"
                 >
                   <X className="w-5 h-5" />
@@ -208,10 +228,10 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                       </span>
                     </div>
 
-                    {/* Submit */}
+                    {/* Submit — wave-144 phoneValid gate */}
                     <button
                       type="submit"
-                      disabled={submitMutation.isPending || !name.trim() || !phone.trim()}
+                      disabled={submitMutation.isPending || !name.trim() || !phoneValid}
                       className="w-full bg-[#FDB913] text-black py-3 rounded-lg font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       {submitMutation.isPending ? (
