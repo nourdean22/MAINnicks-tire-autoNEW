@@ -24,8 +24,15 @@ const CONFIG: ServicePageConfig = {
   title: "Car Diagnostic Cleveland · Code Pull + Real Cause | Nick's",
   description: "Cleveland car diagnostic at Nick's Tire & Auto — free OBD code pull, real diagnosis (not parts cannon). ★4.9 · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
-  h1: "THE LIGHT'S ON.\nWE FIND OUT *WHY* — NOT GUESS.",
-  sub: "Check engine light on, flashing, or playing peek-a-boo? Pull up to Nick's on Euclid Ave for a free code pull — that's mechanic for OBD-II scan. We tell you what the code means in real English, not engineer-speak, and what the fix actually costs, before you authorize a single wrench. Most scans wrap up before your coffee's cold. Most codes fixed same day. 30+ years diagnosing every weird Cleveland-car symptom you can name — and a few we still can't.",
+  // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
+  // H1 had ZERO keyword target ("THE LIGHT'S ON. WE FIND OUT *WHY*").
+  // Same pattern wave-176 fixed on /brakes — Google can't classify the
+  // page for "car diagnostic" / "check engine light" queries when the
+  // H1 doesn't contain either phrase. Adding "CLEVELAND CAR DIAGNOSTIC"
+  // as primary H1 + keeping the "find out why, not guess" brand voice
+  // as secondary line. Sub adds neighborhood mentions for local signal.
+  h1: "CLEVELAND CAR DIAGNOSTIC\nTHAT FINDS THE WHY — NOT GUESSES.",
+  sub: "Check engine light on, flashing, or playing peek-a-boo? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest diagnostic shop — serving Euclid, Cleveland Heights, Parma, Lakewood, Lyndhurst, East Cleveland and every neighborhood between. Free OBD-II code pull. We tell you what the code means in real English — not engineer-speak — and what the fix actually costs before you authorize a single wrench. Most scans wrap up before your coffee's cold. Most codes fixed same day. 30+ years diagnosing every weird Cleveland-car symptom you can name — and a few we still can't.",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",
   pricingSub: "Starts free. Anything beyond a code scan gets a written estimate before we start.",
