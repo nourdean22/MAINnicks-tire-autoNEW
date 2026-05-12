@@ -131,7 +131,7 @@ function AlignmentHero() {
               Payment options available — <Link href="/financing?utm_source=alignment" className="text-emerald-400 hover:text-emerald-300">lease-to-own from $10 down</Link>
             </span>
           </div>
-          <p className="text-[9px] text-foreground/25 mt-1 ml-6">{ACIMA_COMPACT_DISCLOSURE}</p>
+          <p className="text-[10px] text-foreground/50 mt-1 ml-6">{ACIMA_COMPACT_DISCLOSURE}</p>
         </FadeIn>
       </div>
     </section>

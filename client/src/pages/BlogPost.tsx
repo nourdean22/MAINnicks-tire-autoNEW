@@ -586,7 +586,7 @@ export default function BlogPost() {
       <section className="relative min-h-[50vh] lg:min-h-[60vh] flex items-end overflow-hidden">
         <div className="absolute inset-0">
           {/* LCP fix · article hero */}
-          <img loading="eager" fetchPriority="high" src={article.heroImage} alt={`${article.title} — auto repair guide from Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
+          <img loading="eager" fetchPriority="high" decoding="async" width="1600" height="900" src={article.heroImage} alt={`${article.title} — auto repair guide from Nick's Tire & Auto Cleveland`} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background/40" />
         </div>
 
