@@ -221,6 +221,11 @@ router.post("/vapi", async (req: Request, res: Response) => {
     switch (event.type) {
       case "function-call":
       case "tool-calls": {
+        // wave-181.4 · capture LLM→tool→ack round-trip latency so the
+        // /api/admin/voice-latency observability tile can surface it.
+        // Anchored at handler entry; the actual write happens AFTER
+        // results assemble so a telemetry bug can't break the response.
+        const webhookReceivedAt = Date.now();
         // Multiple tool calls arrive in one webhook. Run in parallel.
         // wave-116 — was Promise.all; a single rejection caused the
         // webhook to 500, prompting VAPI to retry the WHOLE batch and
@@ -243,6 +248,23 @@ router.post("/vapi", async (req: Request, res: Response) => {
           };
         });
         res.json({ results });
+
+        // Fire-and-forget latency capture · service swallows all errors
+        // so a missing migration or transient DB issue never breaks the
+        // webhook response above.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-latency").then(({ captureVoiceLatency }) =>
+            captureVoiceLatency({
+              callId,
+              assistantId: assistantId ?? "unknown",
+              stage: "llm_first_token",
+              latencyMs: Date.now() - webhookReceivedAt,
+              metadata: { source: "vapi-webhook", toolCalls: calls.length },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
         return;
       }
 
