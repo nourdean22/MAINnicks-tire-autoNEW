@@ -6,6 +6,7 @@ import { describe, it, expect } from "vitest";
 import { BUSINESS } from "@shared/business";
 import { SERVICE_TYPES, SERVICE_CATEGORIES } from "@shared/serviceTypes";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
+import { GBP_PLACE_URL, GBP_EMBED_URL } from "@shared/const";
 
 describe("BUSINESS constants", () => {
   it("has correct phone number", () => {
@@ -59,6 +60,33 @@ describe("BUSINESS constants", () => {
     expect(BUSINESS.geo.lat).toBeLessThan(42);
     expect(BUSINESS.geo.lng).toBeGreaterThan(-82);
     expect(BUSINESS.geo.lng).toBeLessThan(-81);
+  });
+
+  // wave-170 guard: schema.org LocalBusiness.geo MUST match the GBP-pinned
+  // location. If these drift, Google's entity-graph reconciliation between
+  // the JSON-LD on the site and the Google Business Profile breaks — bad
+  // for Local Pack rank + Knowledge Panel accuracy. We previously shipped
+  // wave-167 with a divergent value that took two more waves to detect +
+  // revert. This test prevents the next drift.
+  it("BUSINESS.geo coordinates match the GBP-pinned location embedded in GBP_PLACE_URL", () => {
+    const placeMatch = GBP_PLACE_URL.match(/@([-\d.]+),([-\d.]+),/);
+    expect(placeMatch).toBeTruthy();
+    if (!placeMatch) return;
+    const [, urlLat, urlLng] = placeMatch;
+    expect(BUSINESS.geo.lat).toBeCloseTo(parseFloat(urlLat), 6);
+    expect(BUSINESS.geo.lng).toBeCloseTo(parseFloat(urlLng), 6);
+  });
+
+  it("BUSINESS.geo latitude matches the GBP-pinned location embedded in GBP_EMBED_URL", () => {
+    // Embed URL format: ...!2d{lng}!3d{lat}!2m...
+    // Note: Google Maps embed URLs include a small lng offset (~250m)
+    // for camera framing vs the actual pin — we only enforce latitude
+    // here since that's the canonical pin component.
+    const embedMatch = GBP_EMBED_URL.match(/!2d(-?[\d.]+)!3d(-?[\d.]+)!/);
+    expect(embedMatch).toBeTruthy();
+    if (!embedMatch) return;
+    const [, , embedLat] = embedMatch;
+    expect(BUSINESS.geo.lat).toBeCloseTo(parseFloat(embedLat), 6);
   });
 });
 

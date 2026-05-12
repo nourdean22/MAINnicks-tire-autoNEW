@@ -41,9 +41,20 @@ export const BUSINESS = {
   },
 
   // ─── COORDINATES ─────────────────────────────────────
+  // wave-170: REVERTED to Google's GBP-pinned coordinates after
+  // wave-167 broadcast incorrect 41.5855/-81.5268 to the schema.org
+  // LocalBusiness.geo field on every page. The Google Business Profile
+  // pin is canonical for Local Pack ranking + Maps reconciliation, and
+  // it points to 41.5525118/-81.5571875 — the same coords baked into
+  // GBP_PLACE_URL and GBP_EMBED_URL in shared/const.ts. These MUST stay
+  // in sync; a divergent schema.org geo field confuses Google's
+  // entity-graph reconciliation. The wave-167 audit agent's claim that
+  // "BUSINESS.geo is correct, Contact hardcoded is 3.6km off" was
+  // inverted — the hardcoded coords matched Google. Lesson: when audit
+  // agents and Google disagree, Google wins.
   geo: {
-    lat: 41.5855,
-    lng: -81.5268,
+    lat: 41.5525118,
+    lng: -81.5571875,
   },
 
   // ─── TIMEZONE ─────────────────────────────────────────
