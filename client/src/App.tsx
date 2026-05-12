@@ -123,6 +123,7 @@ const BestTireShopsCleveland = lazy(() => import("./pages/compare/BestTireShopsC
 const BestConradsAlternativesCleveland = lazy(() => import("./pages/compare/BestConradsAlternativesCleveland"));
 const ConradsVsMavis = lazy(() => import("./pages/compare/ConradsVsMavis"));
 const FirestoneVsDiscountTire = lazy(() => import("./pages/compare/FirestoneVsDiscountTire"));
+const CompareHub = lazy(() => import("./pages/compare/CompareHub"));
 
 function Router() {
   const [location, setLocation] = useLocation();
@@ -387,6 +388,7 @@ function Router() {
             <Route path={"/best-conrads-tire-alternatives-cleveland"} component={BestConradsAlternativesCleveland} />
             <Route path={"/conrads-vs-mavis-tire-cleveland"} component={ConradsVsMavis} />
             <Route path={"/firestone-vs-discount-tire-cleveland"} component={FirestoneVsDiscountTire} />
+            <Route path={"/compare"} component={CompareHub} />
 
             <Route path={"/404"} component={NotFound} />
             {/* Final fallback route */}
