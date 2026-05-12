@@ -167,6 +167,14 @@ Allowed: gentle dry humor when the moment calls for it. Honest "I don't know" wh
 
 Call them when you need real data. Don't guess.
 
+· lookupCustomer({ phone }) — wave-179 NEW. CALL THIS FIRST on every call. The caller's phone number is in the call metadata. Returns { found, firstName, vehicle, lastVisitDays, segment, hasOutstandingBalance }. If found:true, GREET THEM BY FIRST NAME and reference their vehicle. Example: "Hi Robert! Welcome back. Still driving the 2017 Civic?" Skip asking for info we already have on file.
+
+· getDeclinedEstimate({ phone }) — wave-179 NEW. After lookupCustomer matches, ALSO call this. Returns the most recent unconverted ALG estimate within 120 days. If found:true, USE THE aiHint FIELD to decide whether to mention it. Don't pitch hard. Only bring it up if the caller seems to be revisiting the same topic.
+
+· getCurrentWaitTime() — wave-179 NEW. CALL THIS when caller asks "how busy are you?" / "can I just walk in?" / "what's the wait?" Returns load: open | busy | loaded plus an aiHint string telling you how to answer. Don't make up wait times.
+
+· scheduleCallback({ name, phone, reason, preferredTime }) — wave-179 NEW. Use this for AFTER-HOURS callers who aren't an emergency but want a callback. Writes to the morning callback queue. Better than asking them to call back tomorrow.
+
 · tireSizeFromVehicle({ year, make, model }) — returns common stock tire sizes for that vehicle. CALL THIS when customer says "I have a [vehicle]" and asks about tires. Even if customer doesn't know the size, you can confirm what fits.
 
 · tireInquiry({ name, phone, tireSize, vehicle, newOrUsed, installationNeeded }) — log a tire-specific inquiry. Use this when a tire customer gives you a size/vehicle but can't book yet. Captures them as a lead so the shop can follow up if they don't walk in.
@@ -1090,6 +1098,63 @@ const VAPI_TOOLS: VapiToolDef[] = [
           mapLink: { type: "string", description: "Optional Google Maps link." },
         },
         required: ["phone", "summary"],
+      },
+    },
+  },
+  // wave-179 · 4 new tools that turn the AI receptionist from "answers
+  // questions" into "knows the customer + recovers declined work".
+  // Backend procedures defined in server/routers/voiceAgent.ts;
+  // webhook dispatcher cases in server/routes/webhooks/vapi.ts.
+  {
+    type: "function",
+    function: {
+      name: "lookupCustomer",
+      description: "Look up the caller in our customer database by phone number. CALL THIS FIRST on every call. Returns { found, firstName, lastName, totalVisits, lastVisitDays, vehicle, segment, hasOutstandingBalance }. If found:true, greet them by first name + reference their vehicle. If found:false, proceed with normal new-caller flow.",
+      parameters: {
+        type: "object",
+        properties: {
+          phone: { type: "string", description: "Caller phone number (any format — we normalize)." },
+        },
+        required: ["phone"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getDeclinedEstimate",
+      description: "Check if the caller has an unconverted estimate awaiting decision (within last 120 days). Returns { found, customerName, vehicle, service, estimateDollars, daysOld, aiHint }. USE THE aiHint FIELD to decide whether to mention it. Do NOT pitch hard. Only bring it up if the caller seems to be revisiting the same topic.",
+      parameters: {
+        type: "object",
+        properties: {
+          phone: { type: "string", description: "Caller phone number (any format)." },
+        },
+        required: ["phone"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "getCurrentWaitTime",
+      description: "Get the current shop wait estimate based on active bookings. Returns { load: open|busy|loaded, estimatedWaitMinutes, aiHint }. CALL THIS when caller asks 'how busy are you?' or 'can I just walk in?' Don't guess wait times — use the aiHint.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "scheduleCallback",
+      description: "Schedule a callback for an after-hours caller (or any caller who wants a callback). Writes to the morning callback queue. Use INSTEAD of asking them to call back themselves.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Customer name." },
+          phone: { type: "string", description: "Phone number to call back at." },
+          reason: { type: "string", description: "Brief reason for the callback." },
+          preferredTime: { type: "string", description: "Free-form like 'tomorrow morning' or 'after 3pm'." },
+        },
+        required: ["name", "phone"],
       },
     },
   },
