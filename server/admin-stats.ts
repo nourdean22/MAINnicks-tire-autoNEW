@@ -292,9 +292,14 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       });
     });
 
-    // Recent work orders
+    // Recent work orders — wave-142b: bound by updatedAt to avoid full
+    // table scan if idx_work_orders_updated_at isn't selected; 90 days
+    // is always sufficient for "recent" activity surfacing.
     try {
-      const recentWOs: WorkOrder[] = await d.select().from(workOrders).orderBy(desc(workOrders.updatedAt)).limit(5);
+      const recentWOs: WorkOrder[] = await d.select().from(workOrders)
+        .where(gte(workOrders.updatedAt, ninetyDaysAgo))
+        .orderBy(desc(workOrders.updatedAt))
+        .limit(5);
       recentWOs.forEach((wo) => {
         const vehicle = [wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ");
         const amount = wo.total ? `$${(Number(wo.total)).toLocaleString()}` : "";
