@@ -346,7 +346,7 @@ export default function BookingPage() {
           <p>
             Worried about cost? We do{" "}
             <Link href="/financing" className="text-primary hover:underline">
-              $0-down financing
+              $10-down financing
             </Link>{" "}
             with same-day approval.
           </p>

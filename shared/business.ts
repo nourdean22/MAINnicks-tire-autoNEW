@@ -101,10 +101,16 @@ export const BUSINESS = {
   ] as readonly string[],
 
   // ─── TRUST SIGNALS ──────────────────────────────────
+  // wave-167: reconciled to 12mo/12k. The shop's written warranty on
+  // every receipt is "12 months / 12,000 miles, whichever comes first."
+  // The FAQ, About body copy, BrakeRepairPage, BookingPage,
+  // AutoRepairNearMePage, and BlogPost all state 12mo. LocalBusinessSchema
+  // + About SEO meta previously claimed 36mo — broadcasting a false promise
+  // to Google's Knowledge Panel + SERP description. Real warranty wins.
   warranty: {
-    months: 36,
-    display: "36-month warranty",
-    shortDisplay: "36-mo warranty",
+    months: 12,
+    display: "12-month warranty",
+    shortDisplay: "12-mo warranty",
   },
   founded: {
     year: 2018,

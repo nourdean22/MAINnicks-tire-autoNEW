@@ -3,7 +3,7 @@
  * Appears on all pages. Captures name + phone only.
  * Submits to leads table with source "callback" and triggers owner notification.
  */
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { PhoneCall, X, Check, Loader2 } from "lucide-react";
@@ -14,6 +14,32 @@ export default function CallbackModal() {
   const [submitted, setSubmitted] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const firstFieldRef = useRef<HTMLInputElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+
+  // wave-167 a11y: Escape closes the modal + autofocus first input on open
+  // + restore focus to the trigger on close. Without these, keyboard users
+  // were trapped — no Escape, no focus management, no role="dialog".
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    // Autofocus first field shortly after render so the modal is keyboardable
+    const t = setTimeout(() => firstFieldRef.current?.focus(), 50);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      clearTimeout(t);
+    };
+  }, [open]);
+
+  // Restore focus to the trigger button when modal closes
+  useEffect(() => {
+    if (!open && triggerRef.current && typeof document !== "undefined" && document.activeElement === document.body) {
+      triggerRef.current.focus();
+    }
+  }, [open]);
 
   const mutation = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -47,32 +73,40 @@ export default function CallbackModal() {
     <>
       {/* Floating button — bottom-right, above mobile CTA */}
       <button
+        ref={triggerRef}
         onClick={() => setOpen(true)}
         className="fixed bottom-20 lg:bottom-6 right-4 z-40 bg-primary text-primary-foreground w-14 h-14 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
         aria-label="Request a callback"
+        aria-haspopup="dialog"
+        aria-expanded={open}
       >
         <PhoneCall className="w-6 h-6" />
       </button>
 
       {/* Modal overlay */}
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="callback-modal-title"
+        >
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} aria-hidden="true" />
           <div className="relative bg-nick-charcoal border border-border rounded-lg w-full max-w-sm p-6">
             <button
               onClick={() => setOpen(false)}
               className="absolute top-3 right-3 text-foreground/70 hover:text-foreground transition-colors"
-              aria-label="Close"
+              aria-label="Close callback dialog"
             >
-              <X className="w-5 h-5" />
+              <X className="w-5 h-5" aria-hidden="true" />
             </button>
 
             {submitted ? (
               <div className="text-center py-6">
                 <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-6 h-6 text-green-400" />
+                  <Check className="w-6 h-6 text-green-400" aria-hidden="true" />
                 </div>
-                <h3 className="text-lg font-semibold text-foreground">We'll call you back</h3>
+                <h3 id="callback-modal-title" className="text-lg font-semibold text-foreground">We'll call you back</h3>
                 <p className="text-foreground/70 text-sm mt-2">
                   Expect a call from {BUSINESS.phone.display} shortly.
                 </p>
@@ -82,28 +116,34 @@ export default function CallbackModal() {
               </div>
             ) : (
               <>
-                <h3 className="text-lg font-semibold text-foreground mb-1">Request a Callback</h3>
+                <h3 id="callback-modal-title" className="text-lg font-semibold text-foreground mb-1">Request a Callback</h3>
                 <p className="text-foreground/70 text-sm mb-5">
                   Leave your name and number. We'll call you back — usually within 30 minutes during business hours.
                 </p>
 
                 <form onSubmit={handleSubmit} className="space-y-3">
+                  <label htmlFor="callback-name" className="sr-only">Your name</label>
                   <input
+                    ref={firstFieldRef}
+                    id="callback-name"
                     type="text"
                     placeholder="Your name"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
-                    aria-label="Name"
+                    autoComplete="name"
                     className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
+                  <label htmlFor="callback-phone" className="sr-only">Phone number</label>
                   <input
+                    id="callback-phone"
                     type="tel"
                     placeholder="Phone number"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     required
-                    aria-label="Phone"
+                    autoComplete="tel"
+                    inputMode="tel"
                     className="w-full bg-background border border-border rounded-md px-4 py-3 text-sm text-foreground placeholder:text-foreground/50 focus:outline-none focus:ring-1 focus:ring-nick-yellow"
                   />
                   <button

@@ -220,7 +220,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                       </span>
                       <span className="flex items-center gap-1">
                         <CheckCircle className="w-3 h-3 text-[#FDB913]" />
-                        $0 down options
+                        $10 down options
                       </span>
                       <span className="flex items-center gap-1">
                         <CheckCircle className="w-3 h-3 text-[#FDB913]" />

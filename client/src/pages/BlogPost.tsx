@@ -242,7 +242,7 @@ function MidArticleCTA({ category }: { category: string }) {
   const svc = CATEGORY_TO_SERVICE[category] || {
     slug: "general-repair",
     label: "Cleveland's Local Mechanic",
-    pitch: "Free written estimate. 12-month warranty. $0-down financing. Walk-ins welcome 7 days.",
+    pitch: "Free written estimate. 12-month warranty. $10-down financing. Walk-ins welcome 7 days.",
   };
   return (
     <FadeIn>
@@ -318,7 +318,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
           </p>
           <ul className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4 text-[13px] text-foreground/70">
             <li className="flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5 text-primary" /> 12-mo / 12,000-mi warranty</li>
-            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $0-down financing available</li>
+            <li className="flex items-center gap-2"><CreditCard className="w-3.5 h-3.5 text-primary" /> $10-down financing available</li>
             <li className="flex items-center gap-2"><Clock className="w-3.5 h-3.5 text-primary" /> Most repairs same/next day</li>
             <li className="flex items-center gap-2"><MessageSquare className="w-3.5 h-3.5 text-primary" /> Text updates throughout</li>
           </ul>
@@ -342,7 +342,7 @@ function UpgradedBottomCTA({ category }: { category: string }) {
             href="/financing"
             className="block text-center text-foreground/50 hover:text-primary text-[12px] uppercase tracking-wider font-semibold pt-2 transition-colors"
           >
-            Or check $0-down financing →
+            Or check $10-down financing →
           </Link>
         </div>
       </div>

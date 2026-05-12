@@ -545,7 +545,7 @@ function FinancingSchema() {
     "@context": "https://schema.org",
     "@type": "FinancialProduct",
     name: "Auto Repair Financing at Nick's Tire & Auto",
-    description: "Flexible $0-down financing for auto repairs in Cleveland with no traditional credit check. Four lenders: Acima, Snap, Koalafi, American First. Soft pre-qualification available.",
+    description: "Flexible $10-down financing for auto repairs in Cleveland with no traditional credit check. Four lenders: Acima, Snap, Koalafi, American First. Soft pre-qualification available.",
     provider: {
       "@type": "AutoRepair",
       name: BUSINESS.name,
@@ -603,7 +603,7 @@ export default function Financing() {
         <div className="container max-w-4xl text-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#FDB913]/30 bg-[#FDB913]/5 text-[11px] font-bold uppercase tracking-widest text-[#FDB913] mb-5">
             <CreditCard className="w-3.5 h-3.5" />
-            $0 down · No hard credit pull · 4 lenders
+            $10 down · No hard credit pull · 4 lenders
           </div>
           <h1 className="font-heading text-5xl lg:text-7xl font-bold text-white tracking-tight uppercase leading-[1.05]">
             Don't postpone the repair.{" "}
