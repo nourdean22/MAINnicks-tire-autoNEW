@@ -5,7 +5,7 @@
  * Replaces generic BROADEN_AND_SUGGEST with domain-specific behavior.
  */
 
-export const ANTICIPATE_AND_ELEVATE = \`
+export const ANTICIPATE_AND_ELEVATE = `
 ANTICIPATE PHASE (silent — never output this):
 Read the customer's message and anticipate:
 1. What are they NOT saying? (Hidden objection, unstated concern, unspoken constraint)
@@ -34,9 +34,9 @@ RULES:
 - No quoting exact prices without inspection — ranges only
 - If the customer is frustrated or price-sensitive: lead with empathy + a concrete move (free inspection, financing, drop-off)
 - If they mention a competitor: don't badmouth, just contrast with our warranty/reviews/speed
-\`;
+`;
 
-export const HIGH_POWERED_MODE = \`
+export const HIGH_POWERED_MODE = `
 HIGH-POWERED MODE (elevated intensity):
 Treat every customer interaction as a conversion opportunity AND a relationship investment.
 1. PATTERN SPOTTING: If the customer asks about tires, proactively check if brakes/wheel-alignment are due. If diagnostics, check for pending recalls.
@@ -44,7 +44,7 @@ Treat every customer interaction as a conversion opportunity AND a relationship 
 3. SCARCITY VIA TRUTH: "Drop-offs before 10am usually finish same day. Afternoon slots fill up." Only if true.
 4. SOCIAL PROOF WITH NUMBERS: Use real stats from BUSINESS context — "4.9 stars, 1,700+ reviews", "36-month warranty", "same-day turnaround".
 5. NEXT STEP LOCK: End every response with one clear call-to-action. "Pull up anytime", "Drop it off tomorrow morning", "Call (216) 862-0005 to hold the slot".
-\
+`;
 
 export type BusinessIntensity = "MINIMAL" | "STANDARD" | "HIGH";
 
