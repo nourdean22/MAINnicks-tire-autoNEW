@@ -290,6 +290,99 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     });
     return { from, to, queries, count: queries.length };
   },
+
+  // ─── Marketing attribution (added 2026-05-12 · ADR-0011 Tier 3) ──
+  // Closes Nour's most-asked-and-vague category: "what's actually
+  // working for lead-gen?" Source-by-source breakdown of leads +
+  // booking/invoice conversions + revenue. leads table already has
+  // source enum + utmSource + invoiceId FK (wave-125), so the join
+  // is real, not a stub.
+  //
+  // Returns ranked source attribution for the operator's most-asked
+  // question. statenour-side tool registration mirrors the GSC
+  // pattern at v10.0.487.
+  "marketing_attribution": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const today = new Date().toISOString().slice(0, 10);
+    const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    const from = String(filters.from || thirtyAgo);
+    const to = String(filters.to || today);
+
+    // Per-source rollup of leads + conversion + revenue. Joins
+    // leads → invoices via the invoiceId FK (set on conversion).
+    // Cents → dollars done in JS to keep SQL readable.
+    const [rows] = await d.execute(sql`
+      SELECT
+        l.source                                            AS source,
+        l.utmSource                                         AS utmSource,
+        COUNT(*)                                            AS leadCount,
+        SUM(CASE WHEN l.status = 'booked' THEN 1 ELSE 0 END) AS bookedCount,
+        SUM(CASE WHEN l.status = 'completed' THEN 1 ELSE 0 END) AS completedCount,
+        SUM(CASE WHEN l.status = 'lost' THEN 1 ELSE 0 END)   AS lostCount,
+        COUNT(DISTINCT l.invoiceId)                          AS conversionCount,
+        COALESCE(SUM(i.totalAmount), 0)                      AS totalCents,
+        COALESCE(AVG(i.totalAmount), 0)                      AS avgTicketCents
+      FROM leads l
+      LEFT JOIN invoices i ON i.id = l.invoiceId
+      WHERE l.createdAt BETWEEN ${from} AND ${to}
+      GROUP BY l.source, l.utmSource
+      ORDER BY totalCents DESC, leadCount DESC
+      LIMIT 50
+    `);
+
+    // Format rows so the model sees dollars and conversion rates,
+    // not raw cents and ratios. Each row becomes a citeable fact.
+    const sources = (rows as Record<string, unknown>[]).map((r) => {
+      const leadCount = Number(r.leadCount || 0);
+      const conversionCount = Number(r.conversionCount || 0);
+      const totalCents = Number(r.totalCents || 0);
+      const avgTicketCents = Number(r.avgTicketCents || 0);
+      return {
+        source: String(r.source ?? "(unknown)"),
+        utmSource: r.utmSource ? String(r.utmSource) : null,
+        leadCount,
+        bookedCount: Number(r.bookedCount || 0),
+        completedCount: Number(r.completedCount || 0),
+        lostCount: Number(r.lostCount || 0),
+        conversionCount,
+        conversionRate: leadCount > 0 ? Math.round((conversionCount / leadCount) * 1000) / 10 : 0,
+        totalDollars: Math.round(totalCents) / 100,
+        avgTicketDollars: Math.round(avgTicketCents) / 100,
+      };
+    });
+
+    const totals = sources.reduce(
+      (acc, s) => ({
+        leadCount: acc.leadCount + s.leadCount,
+        conversionCount: acc.conversionCount + s.conversionCount,
+        totalDollars: acc.totalDollars + s.totalDollars,
+      }),
+      { leadCount: 0, conversionCount: 0, totalDollars: 0 },
+    );
+
+    return {
+      from,
+      to,
+      sources,
+      totals: {
+        leadCount: totals.leadCount,
+        conversionCount: totals.conversionCount,
+        conversionRate:
+          totals.leadCount > 0
+            ? Math.round((totals.conversionCount / totals.leadCount) * 1000) / 10
+            : 0,
+        totalDollars: Math.round(totals.totalDollars * 100) / 100,
+      },
+      topSource: sources[0]?.source ?? null,
+      note:
+        sources.length === 0
+          ? "No leads in the window · operator should pick a wider range or seed leads"
+          : `${sources.length} source rows · top by revenue: ${sources[0]?.source} ($${sources[0]?.totalDollars})`,
+    };
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {
