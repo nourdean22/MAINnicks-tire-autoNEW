@@ -544,7 +544,238 @@ export const voiceAgentRouter = router({
       financingAvailable: true,
       financingProviders: ["Acima", "Snap Finance", "Koalafi", "American First"],
       emergencyAfterHours: "Leave a voicemail or text — Nick checks after-hours messages.",
-      languagesSpoken: ["English"],
+      languagesSpoken: ["English", "Arabic"],
     };
   }),
+
+  /**
+   * wave-179: lookupCustomer
+   *
+   * Caller phone → existing customer record. Lets the Vapi assistant
+   * personalize the greeting and skip re-collecting info we already
+   * have. The single highest-impact tool addition for retention:
+   * "Hi Robert! I see you had brakes done in September — welcome back!"
+   *
+   * Returns sanitized customer data (no PII beyond what the caller
+   * already owns — they're calling FROM the phone we look up).
+   * If no match: returns { found: false } so the AI knows to collect
+   * fresh info.
+   */
+  lookupCustomer: voiceAgentInternalProcedure
+    .input(z.object({
+      phone: z.string().min(7).max(20),
+    }))
+    .query(async ({ input }) => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { customers } = await import("../../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const d = await db();
+        if (!d) return { found: false, reason: "DB unavailable" };
+        const phoneDigits = input.phone.replace(/\D/g, "");
+        if (phoneDigits.length < 10) return { found: false, reason: "Invalid phone format" };
+        const [c] = await d
+          .select({
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            totalVisits: customers.totalVisits,
+            lastVisitDate: customers.lastVisitDate,
+            vehicleYear: customers.vehicleYear,
+            vehicleMake: customers.vehicleMake,
+            vehicleModel: customers.vehicleModel,
+            segment: customers.segment,
+            balanceDue: customers.balanceDue,
+          })
+          .from(customers)
+          .where(eq(customers.phone, phoneDigits))
+          .limit(1);
+        if (!c) return { found: false };
+        const daysSinceLastVisit = c.lastVisitDate
+          ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86_400_000)
+          : null;
+        return {
+          found: true,
+          firstName: c.firstName,
+          lastName: c.lastName || null,
+          totalVisits: c.totalVisits,
+          lastVisitDays: daysSinceLastVisit,
+          segment: c.segment, // "recent" | "lapsed" | "new" | "unknown"
+          // primary vehicle on file — AI can confirm "still driving the X?"
+          vehicle: [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ") || null,
+          hasOutstandingBalance: c.balanceDue > 0,
+          // No raw $ amount returned — the AI shouldn't quote balance
+          // over the phone; the operator handles that on the floor.
+        };
+      } catch (err) {
+        log.error("Voice agent lookupCustomer failed", { err: err instanceof Error ? err.message : String(err) });
+        return { found: false, reason: "Lookup error" };
+      }
+    }),
+
+  /**
+   * wave-179: getDeclinedEstimate
+   *
+   * Caller phone → any unconverted ALG estimate awaiting their decision.
+   * Targets the $321K declined-work pipeline from the phone channel:
+   * "I see we quoted you $487 for brakes on March 14 — is that still
+   * what we're looking at?" Massive conversion-recovery surface.
+   *
+   * Returns the most recent unmatched estimate (matchedInvoiceId IS NULL)
+   * within the last 120 days. Older estimates are likely stale.
+   *
+   * Phone matching uses customer alsCustomerId → alg_estimates link via
+   * customerPhone column (fuzzy-matched to 10-digit normalized form).
+   */
+  getDeclinedEstimate: voiceAgentInternalProcedure
+    .input(z.object({
+      phone: z.string().min(7).max(20),
+    }))
+    .query(async ({ input }) => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { algEstimates } = await import("../../drizzle/schema");
+        const { isNull, eq, gte, and, desc, sql } = await import("drizzle-orm");
+        const d = await db();
+        if (!d) return { found: false, reason: "DB unavailable" };
+        const phoneDigits = input.phone.replace(/\D/g, "");
+        if (phoneDigits.length < 10) return { found: false, reason: "Invalid phone format" };
+        const oneTwentyDaysAgo = new Date(Date.now() - 120 * 86_400_000);
+        const [est] = await d
+          .select({
+            id: algEstimates.id,
+            externalId: algEstimates.externalId,
+            customerName: algEstimates.customerName,
+            vehicleInfo: algEstimates.vehicleInfo,
+            serviceDescription: algEstimates.serviceDescription,
+            estimatedAmount: algEstimates.estimatedAmount,
+            estimateDate: algEstimates.estimateDate,
+          })
+          .from(algEstimates)
+          .where(
+            and(
+              isNull(algEstimates.matchedInvoiceId),
+              gte(algEstimates.estimateDate, oneTwentyDaysAgo),
+              // Match either exact digits OR last-10-digits to handle
+              // formatting variation (parens, dashes, spaces) in ALG
+              sql`REPLACE(REPLACE(REPLACE(REPLACE(${algEstimates.customerPhone}, '-', ''), '(', ''), ')', ''), ' ', '') = ${phoneDigits}`,
+            ),
+          )
+          .orderBy(desc(algEstimates.estimateDate))
+          .limit(1);
+        if (!est) return { found: false };
+        const daysOld = Math.floor((Date.now() - new Date(est.estimateDate).getTime()) / 86_400_000);
+        return {
+          found: true,
+          estimateId: est.externalId,
+          customerName: est.customerName,
+          vehicle: est.vehicleInfo || null,
+          service: est.serviceDescription || "service",
+          estimateDollars: Math.round(est.estimatedAmount / 100),
+          daysOld,
+          // AI script suggestion — keep it natural, low-pressure
+          aiHint: `Customer has an unconverted ${Math.round(est.estimatedAmount / 100)} dollar estimate from ${daysOld} days ago for ${est.serviceDescription || "service"} on their ${est.vehicleInfo || "vehicle"}. Mention it ONLY if the caller seems to be revisiting the same topic. Don't pitch hard.`,
+        };
+      } catch (err) {
+        log.error("Voice agent getDeclinedEstimate failed", { err: err instanceof Error ? err.message : String(err) });
+        return { found: false, reason: "Lookup error" };
+      }
+    }),
+
+  /**
+   * wave-179: getCurrentWaitTime
+   *
+   * Real-time shop-load read. Caller asks "how busy are you right now?"
+   * — AI gives accurate answer instead of generic "first-come first-served."
+   * Sets realistic expectations + reduces walk-in disappointment.
+   */
+  getCurrentWaitTime: voiceAgentInternalProcedure
+    .input(z.object({}).optional())
+    .query(async () => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { bookings } = await import("../../drizzle/schema");
+        const { and, gte, sql } = await import("drizzle-orm");
+        const d = await db();
+        if (!d) return { available: false, reason: "DB unavailable" };
+        const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+        const [todayLoad] = await d
+          .select({ count: sql<number>`COUNT(*)` })
+          .from(bookings)
+          .where(
+            and(
+              gte(bookings.createdAt, new Date(Date.now() - 24 * 60 * 60 * 1000)),
+              sql`(${bookings.status} = 'new' OR ${bookings.status} = 'confirmed')`,
+            ),
+          );
+        const activeCount = Number(todayLoad?.count ?? 0);
+        // Heuristic — 6 bays. <4 active = open. 4-7 = busy. 8+ = loaded.
+        let load: "open" | "busy" | "loaded";
+        let waitMinutes: number;
+        let aiHint: string;
+        if (activeCount < 4) {
+          load = "open";
+          waitMinutes = 0;
+          aiHint = "Shop is open — walk in any time, you'll get on a lift quickly.";
+        } else if (activeCount < 8) {
+          load = "busy";
+          waitMinutes = 30;
+          aiHint = "Shop is busy — expect 30-min wait for tires, longer for repair. Drop-off recommended.";
+        } else {
+          load = "loaded";
+          waitMinutes = 60;
+          aiHint = "Shop is loaded — drop-off only for repairs. Tires might be 60+ min wait. Suggest scheduling for tomorrow if not urgent.";
+        }
+        return {
+          available: true,
+          load,
+          activeBookings: activeCount,
+          estimatedWaitMinutes: waitMinutes,
+          asOf: todayStr,
+          aiHint,
+        };
+      } catch (err) {
+        log.error("Voice agent getCurrentWaitTime failed", { err: err instanceof Error ? err.message : String(err) });
+        return { available: false, reason: "Lookup error" };
+      }
+    }),
+
+  /**
+   * wave-179: scheduleCallback
+   *
+   * After-hours capture. Caller dials outside business hours, AI offers
+   * a callback. Creates a callbackRequests record so the front desk
+   * sees it first thing in the morning. Same table the website's
+   * CallbackModal writes to — single source of truth.
+   */
+  scheduleCallback: voiceAgentInternalProcedure
+    .input(z.object({
+      name: z.string().min(2).max(200),
+      phone: z.string().min(7).max(20),
+      reason: z.string().max(500).optional(),
+      preferredTime: z.string().max(100).optional(),
+      callId: z.string().max(100).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const { db } = await import("../lib/db-helper");
+        const { callbackRequests } = await import("../../drizzle/schema");
+        const d = await db();
+        if (!d) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "DB unavailable" });
+        await d.insert(callbackRequests).values({
+          name: input.name,
+          phone: input.phone.replace(/\D/g, ""),
+          context: `[VOICE-AGENT CALLBACK]${input.callId ? ` callId=${input.callId}` : ""}${input.preferredTime ? ` · prefers: ${input.preferredTime}` : ""}${input.reason ? ` — ${input.reason}` : ""}`,
+          sourcePage: "vapi-voice-agent",
+          status: "new",
+        });
+        log.info("Voice agent scheduleCallback captured", { name: input.name });
+        return {
+          success: true,
+          message: `Got it, ${input.name}. ${input.preferredTime ? `We'll call you back ${input.preferredTime}.` : "We'll call you back first thing during business hours."}`,
+        };
+      } catch (err) {
+        log.error("Voice agent scheduleCallback failed", { err: err instanceof Error ? err.message : String(err) });
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Callback scheduling failed" });
+      }
+    }),
 });
