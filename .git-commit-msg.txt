@@ -1,0 +1,103 @@
+wave-181.5+6: 2 new SERP-fix pages + CTR-crisis title rewrites + schema pricing
+
+Combining 2 separate but related improvements into one push:
+
+=== wave-181.5 · new keyword-led SERP-fix pages ===
+
+From the competitor-analyzer agent run earlier this session: Nick's not
+in top 10 for any high-commercial-intent Cleveland query. Three highest-
+leverage targets surfaced. Per pre-flight check, /brake-repair-cleveland
+is redundant — existing /brakes already has keyword-led H1 "CLEVELAND
+BRAKE REPAIR..." Skipping that one to avoid splitting rank signal.
+
+NEW PAGES SHIPPED:
+
+client/src/pages/NoCreditCheckTiresPage.tsx (new · 200KB rendered):
+- /no-credit-check-tires-cleveland route
+- Targets a SERP currently owned by blog farms + one local shop -- ALL
+  chains absent because they all require credit pulls. Nick's $10 down
+  + 4 sub-prime lenders (Acima · Snap · Koalafi · American First) is
+  the only honest answer in the Cleveland market.
+- Hero: $10 down + no FICO + 4 lenders compete
+- Anchor table: Firestone $149 min, Conrad's Affirm soft pull, Mavis
+  card hard pull, Nick's $10
+- Fear stats: stopping distance + accident cost + MPG loss on bald
+- 8-FAQ schema · all credit/financing specific
+- Cross-sell to /financing + /brakes
+- LossStats: Uber-cost + MPG-loss
+
+client/src/pages/TireShopOpenSundayPage.tsx (new · 200KB rendered):
+- /tire-shop-open-sunday-cleveland route
+- Targets the Sunday-specific intent SERP currently owned by Walmart +
+  Dara Tires. Conrad's is literally closed Sunday, Mavis hides Sunday
+  hours behind a widget. Nick's runs 9am-4pm every Sunday.
+- Anchor table: per-competitor Sunday hours (Conrad's CLOSED, Nick's
+  9-4 walk-in)
+- 8-FAQ schema · all Sunday-operations specific
+- Fear stats: Cleveland Monday rain + Uber cost + accident risk on wet
+- Cross-sell to /tires + /brakes + /booking
+- LossStats: Uber-cost + time-cost of calling around Monday
+
+shared/routes.ts:
+- Added both new routes with sitemap:true + prerender:true.
+
+client/src/App.tsx:
+- Lazy imports + Route entries for both pages.
+
+scripts/prerender-comparison-only.mjs:
+- Added the 2 new routes to the targeted prerender list. Both rendered
+  successfully (200KB+ each, real HTML, FAQ schema verified).
+
+=== wave-181.5 schema hardening ===
+
+client/src/components/LocalBusinessSchema.tsx:
+- Added priceSpecification minPrice + descriptions on 5 services that
+  had Offer entries but no price data: Flat Repair ($25+), Brake Repair
+  (free inspection), Oil Change Conventional ($45+), Oil Change Full
+  Synthetic ($75+), Engine Diagnostics (credited toward repair).
+- Unlocks Google price-rich-result eligibility on the 5 most commercially
+  important services. SEO audit found ZERO competitors emit price schema.
+
+=== wave-181.6 · CTR-crisis title rewrites from GSC data ===
+
+From the Ahrefs-pivoted-to-GSC audit: Nick's gets 5,000 impr/mo but only
+~52 clicks (~1% CTR vs 3-5% benchmark). Three high-impression / zero-CTR
+queries identified — pure title+meta rewrites, no new content needed.
+
+shared/routes.ts (3 rewrites):
+- /alignment · was "Wheel Alignment Cleveland — Same Day, Walk-Ins"
+  (ranking pos 7.5 with 74 impr/mo and 0% CTR). NOW leads with the
+  literal search phrase: "Wheel Alignment Near Me · Cleveland · Same-Day
+  Walk-In". Page-1 ranking we were throwing away.
+
+- /oil-change · was "Oil Change Cleveland — From $39, Walk-Ins 7 Days"
+  (ranking pos 1.0 for "oil change service station" with 114 impr/mo
+  and 0% CTR — title didn't match the literal search phrase). NOW:
+  "Oil Change Service Station Cleveland · $39 · Walk-In Today".
+
+- /cleveland-auto-repair · was "Auto Repair Cleveland OH — Nick's Tire
+  & Auto" (ranking pos 24.4 for "auto repair near me" with 79 impr/mo
+  and 0% CTR). NOW: "Auto Repair Near Me · Cleveland · Walk-In Today ·
+  1,700★".
+
+Expected impact (per GSC audit projections):
+- /alignment alone: +25-35 clicks/mo when CTR moves to 5%+ from 0%
+- /oil-change anomaly resolution: +20-30 clicks/mo if title fixes the
+  query-match issue
+- /cleveland-auto-repair: marginal — pos 24 still page 3, but every
+  impression that does CTR helps
+- Total expected: +50-75 clicks/mo from these 3 title fixes alone
+
+=== Verified ===
+
+- tsc clean, prettier clean
+- Both new pages prerendered (200KB+ real HTML)
+- 15 existing comparison pages re-rendered with the latest schema +
+  CTR-rewrite changes baked in
+- All sitemap entries valid
+- Title rewrites match query intent per GSC audit recommendations
+
+=== Operator queue updates ===
+
+No new operator actions required. Railway picks up the push and
+redeploys; new pages will be crawlable + indexable within the day.

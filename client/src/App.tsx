@@ -72,6 +72,9 @@ const ServicesOverview = lazy(() => import("./pages/ServicesOverview"));
 const AlignmentPage = lazy(() => import("./pages/AlignmentPage"));
 const SyntheticOilChangePage = lazy(() => import("./pages/SyntheticOilChangePage"));
 const BrakeRepairPage = lazy(() => import("./pages/BrakeRepairPage"));
+// wave-181.5 · keyword-led SERP-fix pages (competitor-analyzer findings)
+const NoCreditCheckTiresPage = lazy(() => import("./pages/NoCreditCheckTiresPage"));
+const TireShopOpenSundayPage = lazy(() => import("./pages/TireShopOpenSundayPage"));
 const DiagnosticsPage = lazy(() => import("./pages/DiagnosticsPage"));
 const CheckEngineLightDiagnosticPage = lazy(() => import("./pages/CheckEngineLightDiagnosticPage"));
 const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage"));
@@ -156,6 +159,8 @@ function Router() {
             <Route path={"/tires"} component={TireFinder} />
             {/* High-traffic / bespoke pages (hand-written copy + config) */}
             <Route path={"/brakes"} component={BrakeRepairPage} />
+            <Route path={"/no-credit-check-tires-cleveland"} component={NoCreditCheckTiresPage} />
+            <Route path={"/tire-shop-open-sunday-cleveland"} component={TireShopOpenSundayPage} />
             <Route path={"/diagnostics"} component={DiagnosticsPage} />
             {/* v1.7 Grounded&Reliable strategy · diagnostic-authority silo */}
             <Route path={"/check-engine-light-diagnostic"} component={CheckEngineLightDiagnosticPage} />
