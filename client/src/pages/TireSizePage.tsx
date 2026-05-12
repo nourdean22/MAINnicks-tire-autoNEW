@@ -3,7 +3,7 @@ import { useParams } from "wouter";
 import { Link } from "wouter";
 import { Phone, ChevronRight, ShieldCheck, Clock, Package, Search } from "lucide-react";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
-import { getTireSizeBySlug, TIRE_SIZE_PAGES } from "@shared/tireSizes";
+import { getTireSizeBySlug, TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -64,7 +64,7 @@ export default function TireSizePage() {
     <PageLayout showChat={true}>
       <SEOHead
         title={page.metaTitle}
-        description={page.metaDescription}
+        description={buildTireSizeMetaDescription(page)}
         canonicalPath={`/tires/${page.slug}`}
       />
       <LocalBusinessSchema pageName={`${page.size} Tires Cleveland - Nick's Tire & Auto`} />
