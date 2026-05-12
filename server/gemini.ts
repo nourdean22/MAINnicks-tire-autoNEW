@@ -125,6 +125,10 @@ export interface NickAIContext {
   priceSensitivity?: "price_sensitive" | "not_detected";
   /** Whether this visitor has chatted before (has memories from prior sessions) */
   isReturningVisitor?: boolean;
+  /** Last user message — fed into the business-behavior-directive's
+   *  frustration auto-damp regex so the directive strips itself when
+   *  the customer is angry/price-sensitive (per business-behavior-directive.ts). */
+  lastUserMessage?: string;
 }
 
 /**
@@ -320,8 +324,12 @@ When a customer seems ready to come in:
 - Make it easy: "No appointment needed — just pull up"${bookingGuidance}`;
 
   // v10.0.488 · Inject business behavior directive (Anticipate & Elevate)
+  // wave-140 · was `getBusinessBehaviorDirective(null, ...)` which bypassed
+  // the frustration regex check inside the directive function. Now passes
+  // the actual last user message so angry/scam/ripoff customers get a
+  // softer empathy-first response instead of HIGH-POWERED scarcity pitch.
   const intensity = resolveBusinessIntensity();
-  const directive = getBusinessBehaviorDirective(null, intensity);
+  const directive = getBusinessBehaviorDirective(ctx.lastUserMessage ?? null, intensity);
   if (directive) {
     return base + `\n\n## BEHAVIOR DIRECTIVE (intensity: ${intensity.toLowerCase()})\n${directive}`;
   }
@@ -429,8 +437,12 @@ export async function chatWithAssistant(
   const recentMessages = messages.slice(-MAX_SESSION_MESSAGES);
 
   // Build context-aware system prompt with temporal, seasonal, memory, and intelligence layers
+  // wave-140 · lastUserMessage extracted from the trailing user turn so the
+  // business-behavior-directive's frustration auto-damp regex can fire.
+  const lastUser = [...recentMessages].reverse().find((m) => m.role === "user");
   const systemPrompt = buildSystemPrompt({
     memories: memoryContext,
+    lastUserMessage: lastUser?.content,
     ...extraContext,
   });
 
