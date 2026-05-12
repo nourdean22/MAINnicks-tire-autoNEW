@@ -19,7 +19,7 @@
  */
 
 import { z } from "zod";
-import { router, publicProcedure } from "../_core/trpc";
+import { router, publicProcedure, voiceAgentInternalProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { SERVICES } from "../../shared/services";
 import { BUSINESS } from "../../shared/business";
@@ -182,7 +182,9 @@ export const voiceAgentRouter = router({
    * source: "voice-agent" so admin can filter Vapi-driven bookings.
    * Returns a reference code the AI reads back to the caller.
    */
-  bookSlot: publicProcedure
+  // wave-148 — write mutation gated on internal context (VAPI webhook
+  // signed dispatch) or VOICE_AGENT_INTERNAL_SECRET header.
+  bookSlot: voiceAgentInternalProcedure
     .input(z.object({
       name: z.string().min(2).max(200),
       phone: z.string().min(7).max(20),
@@ -237,7 +239,8 @@ export const voiceAgentRouter = router({
    * Escalate — caller wants a human, AI is confused, or sentiment
    * went bad. Writes to callback_requests + alerts Nick via Telegram.
    */
-  escalate: publicProcedure
+  // wave-148 — write mutation: callback_requests row + Telegram alert.
+  escalate: voiceAgentInternalProcedure
     .input(z.object({
       name: z.string().min(2).max(200),
       phone: z.string().min(7).max(20),
@@ -301,7 +304,8 @@ export const voiceAgentRouter = router({
    * verbally confirm the address instead of pretending a text went out.
    * The lead is still captured server-side either way.
    */
-  sendConfirmationSms: publicProcedure
+  // wave-148 — side-effect mutation: fires SMS to arbitrary phone.
+  sendConfirmationSms: voiceAgentInternalProcedure
     .input(z.object({
       phone: z.string().min(7).max(20),
       summary: z.string().min(2).max(500),

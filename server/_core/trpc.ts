@@ -89,3 +89,36 @@ export const adminProcedure = t.procedure.use(loggerMiddleware).use(
     });
   }),
 );
+
+/**
+ * wave-148 — voiceAgentInternalProcedure: gates write mutations on the
+ * voiceAgent router so they only succeed when called by the VAPI webhook
+ * handler (which sets ctx.isVoiceAgentInternal=true via createCaller),
+ * NOT when invoked directly over HTTP /api/trpc/voiceAgent.*
+ *
+ * Two acceptable paths:
+ *   1. Internal createCaller dispatch from server/routes/webhooks/vapi.ts
+ *      (already VAPI-signature-verified at the webhook layer)
+ *   2. HTTP request with `x-voice-agent-secret` header matching the
+ *      VOICE_AGENT_INTERNAL_SECRET env var (for testing / future tools)
+ *
+ * Without either, throws UNAUTHORIZED. The previous publicProcedure
+ * exposed bookSlot/escalate/sendConfirmationSms to anyone who could
+ * POST to /api/trpc — letting an attacker insert arbitrary bookings,
+ * callback queue entries, and trigger SMS sends to arbitrary numbers.
+ */
+export const voiceAgentInternalProcedure = t.procedure.use(loggerMiddleware).use(
+  t.middleware(async opts => {
+    const { ctx, next } = opts;
+    if (ctx.isVoiceAgentInternal === true) return next();
+    const secret = process.env.VOICE_AGENT_INTERNAL_SECRET;
+    if (secret) {
+      const headerSecret = ctx.req?.headers?.["x-voice-agent-secret"];
+      if (typeof headerSecret === "string" && headerSecret === secret) return next();
+    }
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "Voice-agent write mutations are internal-only — call via the VAPI webhook.",
+    });
+  }),
+);
