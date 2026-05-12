@@ -219,8 +219,21 @@ export default function NeighborhoodPage() {
   return (
     <PageLayout showChat={true}>
       {/* wave-151 SEO quality-gate fix \u2014 see IntersectionPage.tsx for the
-          full rationale. Same noindex,follow pattern across 122 thin
-          neighborhood template pages. */}
+          full rationale. Same noindex,follow pattern across 121 thin
+          neighborhood template pages.
+
+          wave-172c audit: ran word-count analysis on every entry in
+          shared/neighborhoods.ts. Max localContent = 35 words, average
+          \u224824, distribution 16-35. Zero entries exceed 40 words. The
+          improvement-audit agent's earlier claim that "neighborhoods
+          have substantive content" was incorrect by measurement.
+
+          Path to flipping these to indexable: enrich localContent +
+          directionsFrom to 120-180 words EACH for the highest-traffic
+          neighborhoods (East 185th, Five Points, Richmond Heights,
+          Cleveland Heights, Collinwood). Until that content investment
+          ships, noindex,follow is the correct call \u2014 122 thin pages
+          would dilute the entire site's quality score. Hold the line. */}
       <SEOHead
         title={`Auto Repair Near ${neighborhood.name} | Nick's Tire & Auto Cleveland`}
         description={`${neighborhood.name} auto repair and tire shop. ${neighborhood.driveMiles} from Nick's Tire & Auto. Walk-ins welcome 7 days. ${BUSINESS.reviews.rating}\u2605 rated. ${BUSINESS.phone.display}`}

@@ -1550,6 +1550,19 @@ p.body-pretty {
   }
 }
 
+/* wave-172d: simple enter-on-mount keyframes used by Home hero to
+   replace framer-motion `initial={{opacity:0,y:20}} animate={{...}}`
+   patterns. CSS-only, motion-safe via the @media query below, and
+   reduce-motion-respecting. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* Reduced-motion: kill all rotation + drift animations. */
 @media (prefers-reduced-motion: reduce) {
   .ken-burns,
