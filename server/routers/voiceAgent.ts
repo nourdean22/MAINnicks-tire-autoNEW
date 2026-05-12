@@ -468,7 +468,12 @@ export const voiceAgentRouter = router({
    * Different from a general escalation — these are warm leads, not
    * complaints. They go to the leads table tagged source="voice-tire".
    */
-  tireInquiry: publicProcedure
+  // wave-178 STRIDE: gated behind voiceAgentInternalProcedure. This was
+  // previously publicProcedure with no rate limit — any internet caller
+  // could POST high-urgency leads into the table and poison the admin
+  // feed. Same internal-only gate that wave-165 applied to bookSlot /
+  // escalate / sendConfirmationSms.
+  tireInquiry: voiceAgentInternalProcedure
     .input(z.object({
       name: z.string().min(2).max(200),
       phone: z.string().min(7).max(20),

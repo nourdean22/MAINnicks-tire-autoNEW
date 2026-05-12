@@ -198,18 +198,25 @@ export function registerBridgeRoutes(app: Express): void {
 
   // ─── BRIDGE ACTIONS (bidirectional — NOUR OS triggers actions) ────
 
-  // Mark a lead as contacted
+  // Mark a lead as contacted — wave-178 STRIDE T (Tampering) fix:
+  // leadId went straight into eq() with no integer validation. A non-
+  // integer or coerced-falsy value could produce a malformed WHERE
+  // matching unintended rows. Same Number.isInteger guard the rest
+  // of the codebase already uses for sql.raw interpolation sites.
   app.post("/api/bridge/actions/mark-contacted", bridgeAuth, async (req, res) => {
     try {
-      const { leadId } = req.body;
-      if (!leadId) { res.status(400).json({ error: "leadId required" }); return; }
+      const leadIdParsed = parseInt(String(req.body.leadId), 10);
+      if (!Number.isInteger(leadIdParsed) || leadIdParsed <= 0) {
+        res.status(400).json({ error: "leadId must be a positive integer" });
+        return;
+      }
       const { getDb } = await import("../db");
       const { leads } = await import("../../drizzle/schema");
       const { eq } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
-      await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadId));
-      res.json({ success: true, leadId });
+      await db.update(leads).set({ status: "contacted" }).where(eq(leads.id, leadIdParsed));
+      res.json({ success: true, leadId: leadIdParsed });
     } catch (err: unknown) {
       log.error("[Bridge] Action error:", err);
       res.status(500).json({ error: "Internal error" });
@@ -535,11 +542,43 @@ export function registerBridgeRoutes(app: Express): void {
     res.json(results);
   });
 
+  // wave-178 STRIDE D (Denial of Service): allowlist of cron jobs the
+  // bridge endpoint is allowed to fire on demand. Previously accepted
+  // ANY job name from the request body — a compromised BRIDGE_API_KEY
+  // (or a tight polling loop) could fire expensive long-running jobs
+  // (full ALG mirror sync, historical backfill) in rapid succession,
+  // exhausting the DB connection pool or ALG session limits.
+  //
+  // This list intentionally excludes destructive ops (anything that
+  // writes outbound SMS, ALG sync, or financial mutations). Add to it
+  // explicitly when you genuinely need to run a job over the bridge.
+  const BRIDGE_RUN_JOB_ALLOWLIST = new Set([
+    "enrich-customer-data",
+    "customer-segmentation",
+    "vendor-health",
+    "dashboard-sync",
+    "self-healing",
+    "weather-intel",
+    "review-monitor",
+    "staff-performance",
+    "fleet-scoring",
+  ]);
+
   // Run a specific cron job by name (e.g. enrich-customer-data)
   app.post("/api/bridge/run-job", bridgeAuth, async (req, res) => {
     try {
       const { jobName } = req.body;
-      if (!jobName) { res.status(400).json({ error: "jobName required" }); return; }
+      if (!jobName || typeof jobName !== "string") {
+        res.status(400).json({ error: "jobName required (string)" });
+        return;
+      }
+      if (!BRIDGE_RUN_JOB_ALLOWLIST.has(jobName)) {
+        res.status(403).json({
+          error: "jobName not allowed via bridge",
+          allowed: Array.from(BRIDGE_RUN_JOB_ALLOWLIST),
+        });
+        return;
+      }
       // Try legacy registry first, then tiered scheduler
       const { runJobByName } = await import("../cron/index");
       let result = await runJobByName(jobName);

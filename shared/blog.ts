@@ -210,7 +210,10 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "We carry new and quality used tires for all vehicle types at fair prices. Every tire purchase includes professional mounting, balancing, and TPMS sensor service. We help you choose the right tire for your vehicle and driving conditions — whether you need all-season performance or winter grip for Cleveland roads. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
-    relatedServices: ["/tires"],
+    // wave-178: article body explicitly says "it usually indicates an
+    // alignment problem" — adding /alignment to relatedServices
+    // distributes authority to a GSC-buried page (pos 31.6).
+    relatedServices: ["/tires", "/alignment"],
     tags: ["tire replacement", "tire shop Cleveland", "tire tread", "winter tires", "Cleveland tires"]
   },
   {
@@ -249,7 +252,10 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "At Nick's Tire & Auto, we offer a complete spring vehicle inspection that covers all of these items and more. We check your vehicle from top to bottom and let you know what needs attention now and what can wait. No pressure, no upselling — just honest advice from experienced technicians. Serving Cleveland, Euclid, and Northeast Ohio. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
-    relatedServices: ["/tires", "/brakes", "/oil-change", "/general-repair"],
+    // wave-178: spring article body covers "vehicle pulling to one side"
+    // — primary alignment symptom. Dropping /general-repair (generic) for
+    // /alignment (specific + GSC-buried at pos 31.6).
+    relatedServices: ["/tires", "/brakes", "/oil-change", "/alignment"],
     tags: ["spring maintenance", "Cleveland auto repair", "car maintenance checklist", "seasonal maintenance", "spring car care"]
   },
   {

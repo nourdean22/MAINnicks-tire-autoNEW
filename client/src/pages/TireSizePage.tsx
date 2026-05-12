@@ -83,6 +83,60 @@ export default function TireSizePage() {
           }),
         }}
       />
+      {/* wave-178: Service schema scoped to this specific tire size.
+          The 30 TireSizePage SKU routes previously emitted only
+          LocalBusiness + FAQPage. Adding a per-page Service entity
+          tells Google "this URL is the canonical answer for [size]
+          tire install" so rich results can fire on size-specific
+          queries. Each page gets a unique Service.name / offers
+          tied to the size, so Google's entity graph doesn't
+          collapse the 30 pages into one. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Service",
+            name: `${page.size} Tire Sales & Installation`,
+            description: `${page.size} tires in Cleveland — new and used in stock, fits ${vehicleList}. Free premium installation package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
+            serviceType: "Tire Installation",
+            image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
+            provider: {
+              "@type": "AutoRepair",
+              name: "Nick's Tire & Auto",
+              telephone: "+1-216-862-0005",
+              url: `https://nickstire.org/tires/${page.slug}`,
+              address: {
+                "@type": "PostalAddress",
+                streetAddress: "17625 Euclid Ave",
+                addressLocality: "Cleveland",
+                addressRegion: "OH",
+                postalCode: "44112",
+                addressCountry: "US",
+              },
+            },
+            areaServed: [
+              { "@type": "City", name: "Cleveland" },
+              { "@type": "City", name: "Euclid" },
+              { "@type": "City", name: "Parma" },
+              { "@type": "City", name: "Lakewood" },
+              { "@type": "City", name: "Cleveland Heights" },
+              { "@type": "City", name: "East Cleveland" },
+              { "@type": "City", name: "Lyndhurst" },
+              { "@type": "City", name: "Shaker Heights" },
+            ],
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "USD",
+              lowPrice: "40",
+              highPrice: "200",
+              offerCount: "2",
+              availability: "https://schema.org/InStock",
+              itemOffered: { "@type": "Product", name: `${page.size} Tires` },
+            },
+          }),
+        }}
+      />
 
       {/* Hero */}
       <section className="relative pt-28 pb-16 lg:pt-36 lg:pb-24">
