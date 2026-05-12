@@ -392,13 +392,14 @@ export default function AlignmentPage() {
 
   return (
     <PageLayout showChat={true}>
-      {/* 2026-05-06 copy wave · GSC: 214 imps at 0% CTR, pos 25.
-          Title was already on-brand ("Pothole Survivors Welcome").
-          Description tightened with operator 1 (specificity:
-          camber/caster/toe) + operator 5 (insider vocab). */}
+      {/* wave-176 · GSC (28d): /alignment at pos 31.6 / 0% CTR over
+          300 impressions. Title is fine (62 chars, keyword-led). Old
+          description was 200 chars → truncated mid-sentence on mobile
+          SERP, hiding the phone + free-check offer. Trimmed to 152
+          chars so the value props all survive. */}
       <SEOHead
         title="Wheel Alignment Cleveland · Pothole Survivors Welcome | Nick's"
-        description="Cleveland alignment shop where camber, caster, and toe go on a printout you take home. Fix the pull, the wander, the chewing tire edge. Free alignment check every visit. 4.9★ 1,700+ reviews."
+        description="Cleveland wheel alignment on Euclid Ave. Hunter rack, camber/caster/toe printout, free check every visit. Walk in 7 days. (216) 862-0005"
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />
