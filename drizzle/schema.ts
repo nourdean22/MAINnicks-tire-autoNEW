@@ -1999,6 +1999,42 @@ export const cronLog = mysqlTable("cron_log", {
 ]);
 
 /**
+ * wave-168 · Cron Locks — race-safe job orchestration across dyno restart.
+ *
+ * The in-memory job.running flag in server/cron/index.ts protects against
+ * overlap within a single Node process but does nothing when Railway
+ * restarts the dyno mid-cron — the new process starts with running=false
+ * and immediately fires duplicate work on top of the dying dyno's still-
+ * in-flight jobs. Customers receive duplicate SMS in the worst case.
+ *
+ * The lock acquire pattern uses MySQL's "INSERT ... ON DUPLICATE KEY UPDATE"
+ * with a token-comparison check so it stays race-safe under concurrent
+ * acquire attempts from multiple processes:
+ *   1. caller generates a UUID lockToken
+ *   2. INSERT (name, lockToken, lockedUntil) ON DUPLICATE KEY UPDATE
+ *      SET lockToken = IF(lockedUntil < NOW(), VALUES(lockToken), lockToken),
+ *          lockedUntil = IF(lockedUntil < NOW(), VALUES(lockedUntil), lockedUntil)
+ *   3. SELECT lockToken WHERE name = ? — if it matches our token, we own
+ *      the lock; if not, somebody else has it
+ *   4. on completion, DELETE WHERE name = ? AND lockToken = ?
+ *
+ * The lockedUntil acts as a self-healing TTL: if a dyno crashes without
+ * releasing, the next acquire after expiry takes over cleanly.
+ */
+export const cronLocks = mysqlTable("cron_locks", {
+  /** Job name (matches CronJob.name in server/cron/index.ts) */
+  name: varchar("name", { length: 100 }).primaryKey(),
+  /** UUID token identifying which acquire attempt owns the lock */
+  lockToken: varchar("lock_token", { length: 36 }).notNull(),
+  /** Hostname or dyno-id of the holder (debug only) */
+  holder: varchar("holder", { length: 100 }).notNull(),
+  /** When this lock was acquired */
+  lockedAt: timestamp("locked_at").defaultNow().notNull(),
+  /** When this lock auto-expires (typically lockedAt + 2 * job max duration) */
+  lockedUntil: timestamp("locked_until").notNull(),
+});
+
+/**
  * Webhook Deliveries — retry queue for failed external API calls
  */
 export const webhookDeliveries = mysqlTable("webhook_deliveries", {

@@ -148,6 +148,17 @@ function CustomerJourney({ phone }: { phone: string }) {
 }
 
 function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: () => void }) {
+  // wave-168 a11y: Escape closes the modal. The fixed-overlay div lacked
+  // role="dialog"/aria-modal/Escape handling — keyboard-only operators (and
+  // PWA users on iOS where there's no hardware back gesture) were trapped
+  // until they Tab-cycled to the X button. ConfirmDialog was upgraded
+  // wave-139 but this full-page modal was missed.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const utils = trpc.useUtils();
   const { data: customer, isLoading } = trpc.customers.getById.useQuery({ id: customerId });
   const [smsOpen, setSmsOpen] = useState(false);
@@ -205,19 +216,25 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="customer-detail-title"
+    >
       <div className="bg-card border border-border/30 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between p-6 border-b border-border/20">
           <div>
-            <h3 className="font-bold text-xl text-foreground tracking-tight">
+            <h3 id="customer-detail-title" className="font-bold text-xl text-foreground tracking-tight">
               {customer.firstName} {customer.lastName || ""}
             </h3>
             <div className="flex items-center gap-2 mt-1">
               <SegmentBadge segment={customer.segment} />
             </div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="text-foreground/30 hover:text-foreground/60 transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} aria-label="Close customer detail" className="text-foreground/30 hover:text-foreground/60 transition-colors">
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -494,10 +511,20 @@ function FollowUpButton({ customerName, phone }: {
   customerName: string;
   phone: string;
 }) {
+  // wave-168: replaced native window.prompt() with an inline expandable input.
+  // window.prompt() blocks the JS thread, is suppressed in iOS PWA standalone
+  // mode (where Nour operates), and breaks the minimalist admin aesthetic.
+  // Same class of native-primitive bug that wave-139 fixed for window.confirm().
+  const [expanded, setExpanded] = useState(false);
+  const [lastService, setLastService] = useState("");
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+
   const mutation = trpc.vapi.makeFollowUpCall.useMutation({
     onSuccess: (result) => {
       if (result.success && result.callId) {
         toast.success(`Follow-up call queued (${result.callId.slice(0, 8)}...). Nick is dialing now.`);
+        setExpanded(false);
+        setLastService("");
       } else {
         toast.error(`Follow-up failed: ${result.error || "unknown error"}`);
       }
@@ -505,20 +532,59 @@ function FollowUpButton({ customerName, phone }: {
     onError: (err) => toast.error(`Follow-up failed: ${err.message}`),
   });
 
+  useEffect(() => {
+    if (expanded) inputRef.current?.focus();
+  }, [expanded]);
+
+  const triggerCall = () => {
+    mutation.mutate({
+      customerName,
+      phone,
+      lastService: lastService.trim() || "recent visit",
+    });
+  };
+
+  if (expanded) {
+    return (
+      <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={lastService}
+          onChange={(e) => setLastService(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") triggerCall();
+            if (e.key === "Escape") { setExpanded(false); setLastService(""); }
+          }}
+          placeholder='Service (e.g. "tires", or blank)'
+          aria-label={`Last service for ${customerName.split(" ")[0]} follow-up call`}
+          className="px-2 py-1 bg-card border border-emerald-500/30 text-foreground text-[10px] tracking-wider placeholder:text-foreground/30 focus:outline-none focus:border-emerald-400 w-44"
+        />
+        <button
+          onClick={triggerCall}
+          disabled={mutation.isPending}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[10px] tracking-wider hover:bg-emerald-500/25 disabled:opacity-50"
+          aria-label="Trigger follow-up call now"
+        >
+          {mutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" /> : <Phone className="w-3 h-3" aria-hidden="true" />}
+          CALL
+        </button>
+        <button
+          onClick={() => { setExpanded(false); setLastService(""); }}
+          className="px-2 py-1 text-foreground/40 hover:text-foreground/70 text-[10px]"
+          aria-label="Cancel follow-up"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={(e) => {
         e.stopPropagation();
-        const last = prompt(
-          `Call ${customerName.split(" ")[0]} for a post-repair follow-up?\n\nWhat was their last service? (e.g. "tires", "brake job", "oil change", or leave blank for "recent visit")`,
-          ""
-        );
-        if (last === null) return; // cancelled
-        mutation.mutate({
-          customerName,
-          phone,
-          lastService: last.trim() || "recent visit",
-        });
+        setExpanded(true);
       }}
       disabled={mutation.isPending}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 disabled:opacity-50 transition-colors"

@@ -280,7 +280,7 @@ const MATH_ARGUMENTS = [
     today: { amount: "$487", thing: "brake job today" },
     later: { amount: "$2,100", thing: "brake + caliper + rotor job in 30 days if pads grind metal" },
     explanation: "Cleveland salt eats brake hardware faster than dry-state cars. Catching it early IS the maintenance.",
-    finance: "Acima · Snap · Koalafi · $0 down today · pay it down monthly",
+    finance: "Acima · Snap · Koalafi · $10 down today · pay it down monthly",
     imageHint: "side-by-side: worn pad ($487) and chewed-up rotor ($2,100) with prices overlaid in brand yellow",
   },
   {

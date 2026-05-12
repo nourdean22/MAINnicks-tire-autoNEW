@@ -24,7 +24,7 @@ type CreditTier = "excellent" | "good" | "fair" | "poor" | "no-credit";
 const PROVIDERS = [
   {
     name: "Acima",
-    description: "No credit needed. Lease-to-own. $0 down options available.",
+    description: "No credit needed. Lease-to-own. $10 down options available.",
     creditTiers: ["excellent", "good", "fair", "poor", "no-credit"] as CreditTier[],
     minAmount: 300,
     maxAmount: 4000,

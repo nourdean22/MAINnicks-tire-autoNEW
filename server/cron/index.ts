@@ -78,20 +78,157 @@ export function stopAllJobs(): void {
 }
 
 const MAX_JOB_DURATION_MS = 5 * 60 * 1000; // 5 min safety timeout
+// Lock TTL = 2× max job duration. If a dyno crashes without releasing,
+// the next acquire-attempt waits this long before stealing the lock —
+// long enough that a slow-but-alive job isn't preempted, short enough
+// that a dead lock self-heals within ~10 minutes.
+const LOCK_TTL_MS = MAX_JOB_DURATION_MS * 2;
+
+// Dyno identity — stable for this process lifetime. Used as the
+// `holder` column for debugging which Railway dyno owns each lock.
+const DYNO_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "local"}:${process.pid}`;
+
+/**
+ * wave-168 (review-pass): branded token + reason-tagged fallback + release-
+ * by-LockResult. Two parallel review agents (silent-failure-hunter and
+ * type-design-analyzer) converged on the same critique:
+ *   - Untyped `string` tokens let release(wrongToken) compile silently
+ *   - `fallback` variant with no reason can't be observed differently
+ *     for "table missing during migration window" vs "DB hiccup"
+ *   - TTL-expiry steal would be silent (zero-affected-row DELETE swallowed)
+ * This rev addresses all three without growing the surface.
+ */
+type LockToken = string & { readonly __brand: "LockToken" };
+type LockResult =
+  | { status: "acquired"; jobName: string; token: LockToken }
+  | { status: "held-by-other" }
+  | { status: "fallback"; reason: "db-null" | "table-missing" | "query-error"; error?: string };
+
+// MySQL error code for "table doesn't exist" — used to distinguish the
+// expected "migration not yet applied" case from real SQL bugs.
+const ER_NO_SUCH_TABLE = 1146;
+
+// One-shot health flag: once we hit table-missing we suppress the per-
+// tick warn-spam so a single startup-time error remains visible to ops
+// without the noise. Reset on process restart.
+let _lockTableMissingLogged = false;
+
+/**
+ * Race-safe distributed lock acquire. Uses MySQL INSERT ... ON DUPLICATE
+ * KEY UPDATE with a token-comparison check — atomic at row-level under
+ * concurrent processes. If locked_until is in the past, the UPDATE branch
+ * steals; otherwise the row is untouched.
+ */
+async function acquireCronLock(jobName: string): Promise<LockResult> {
+  const { getDb } = await import("../db");
+  const { sql } = await import("drizzle-orm");
+  const db = await getDb();
+  if (!db) return { status: "fallback", reason: "db-null" };
+
+  const newToken = randomUUID() as LockToken;
+  const ttlSeconds = Math.ceil(LOCK_TTL_MS / 1000);
+
+  try {
+    // Atomic acquire-or-steal-if-expired in a single statement.
+    await db.execute(sql`
+      INSERT INTO cron_locks (name, lock_token, holder, locked_at, locked_until)
+      VALUES (${jobName}, ${newToken}, ${DYNO_ID}, NOW(), DATE_ADD(NOW(), INTERVAL ${sql.raw(String(ttlSeconds))} SECOND))
+      ON DUPLICATE KEY UPDATE
+        lock_token = IF(locked_until < NOW(), VALUES(lock_token), lock_token),
+        holder     = IF(locked_until < NOW(), VALUES(holder),     holder),
+        locked_at  = IF(locked_until < NOW(), VALUES(locked_at),  locked_at),
+        locked_until = IF(locked_until < NOW(), VALUES(locked_until), locked_until)
+    `);
+
+    // Verify whether WE own the lock now.
+    const [rows] = await db.execute(sql`
+      SELECT lock_token, holder FROM cron_locks WHERE name = ${jobName} LIMIT 1
+    `);
+    const arr = rows as Array<{ lock_token: string; holder: string }>;
+    if (arr.length === 0) return { status: "held-by-other" };
+    return arr[0].lock_token === newToken
+      ? { status: "acquired", jobName, token: newToken }
+      : { status: "held-by-other" };
+  } catch (err) {
+    // Differentiate "table missing" (expected during migration window —
+    // proceed with in-memory lock) from "query error" (real bug — still
+    // proceed because we don't want to stall all cron, but log loud at
+    // error level once + tag distinctly so alerts can route correctly).
+    const code = (err as { errno?: number; code?: string })?.errno;
+    if (code === ER_NO_SUCH_TABLE) {
+      if (!_lockTableMissingLogged) {
+        log.warn("[cron] cron_locks table missing — running with in-memory locks only. Apply drizzle/0037_wave168_cron_locks.sql then restart to enable cross-dyno locking.", { errorId: "CRON_LOCK_TABLE_MISSING" });
+        _lockTableMissingLogged = true;
+      }
+      return { status: "fallback", reason: "table-missing" };
+    }
+    log.error(`[cron] lock acquire query error for ${jobName}; falling back to in-memory only`, { errorId: "CRON_LOCK_ACQUIRE_QUERY_ERROR", jobName, error: err instanceof Error ? err.message : String(err) });
+    return { status: "fallback", reason: "query-error", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Release a lock we own. Takes the full discriminated-union variant so
+ * the type system prevents releasing without acquiring (both reviewers
+ * called this out). The affected-row check turns the formerly-silent
+ * "TTL expired and someone stole our lock while we ran past timeout"
+ * into a loud signal — that exact scenario is the double-fire the
+ * lock subsystem exists to prevent.
+ */
+async function releaseCronLock(lock: Extract<LockResult, { status: "acquired" }>): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) return;
+    const [result] = await db.execute(sql`DELETE FROM cron_locks WHERE name = ${lock.jobName} AND lock_token = ${lock.token}`);
+    // mysql2 returns { affectedRows: N } on DELETE
+    const affected = (result as { affectedRows?: number })?.affectedRows ?? 0;
+    if (affected === 0) {
+      log.error("[cron] Cron exceeded TTL — possible double-fire. Lock was stolen by another dyno before we released.", {
+        errorId: "CRON_LOCK_TTL_EXCEEDED",
+        jobName: lock.jobName,
+        ourToken: lock.token,
+      });
+    }
+  } catch (err) {
+    log.error(`[cron] lock release failed for ${lock.jobName}`, { errorId: "CRON_LOCK_RELEASE_FAILED", jobName: lock.jobName, error: err instanceof Error ? err.message : String(err) });
+  }
+}
 
 /** Run a single job with logging (skip if already running to prevent overlap) */
 async function runJob(job: CronJob): Promise<void> {
+  // wave-168: two-tier lock. In-memory (fast path, prevents same-process
+  // overlap) PLUS DB-level (slow path, prevents cross-dyno overlap +
+  // self-heals after crash). If either layer says "someone else is on it"
+  // we skip.
   if (job.running) {
-    // Safety: if a job has been "running" for over MAX_JOB_DURATION_MS, force-reset it
     const stuckMs = job.lastRun ? Date.now() - job.lastRun.getTime() : 0;
     if (stuckMs > MAX_JOB_DURATION_MS * 2) {
       log.warn(`Cron force-reset (stuck ${Math.round(stuckMs / 1000)}s): ${job.name}`);
       job.running = false;
     } else {
-      log.info(`Cron skipped (still running): ${job.name}`);
+      log.info(`Cron skipped (still running in-memory): ${job.name}`);
       return;
     }
   }
+
+  // DB-level acquire. Three explicit outcomes:
+  //   acquired      → safe to run on this dyno
+  //   held-by-other → another dyno owns it, SKIP this tick (no double-fire)
+  //   fallback      → cron_locks table unavailable or DB error; proceed
+  //                   using only the in-memory lock so we don't stall cron
+  //                   when the wave-168 migration hasn't been hand-applied
+  //                   yet. The reason field discriminates "expected" from
+  //                   "real bug" for observability.
+  // We keep the full LockResult in scope (rather than collapsing to
+  // string | null) so releaseCronLock can take the typed variant.
+  const lockResult = await acquireCronLock(job.name);
+  if (lockResult.status === "held-by-other") {
+    log.info(`Cron skipped (held by another dyno): ${job.name}`);
+    return;
+  }
+
   job.running = true;
   const startedAt = new Date();
 
@@ -119,6 +256,11 @@ async function runJob(job: CronJob): Promise<void> {
   } finally {
     if (jobTimeout) clearTimeout(jobTimeout);
     job.running = false;
+    // Only release if we actually acquired the DB lock. Fallback path
+    // never wrote a row, so there's nothing to delete.
+    if (lockResult.status === "acquired") {
+      await releaseCronLock(lockResult);
+    }
   }
 }
 
