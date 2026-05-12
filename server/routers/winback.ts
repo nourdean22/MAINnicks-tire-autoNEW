@@ -357,19 +357,27 @@ export const winbackRouter = router({
         .where(eq(winbackMessages.campaignId, input.campaignId))
         .orderBy(winbackMessages.step);
 
-      // Get all target customers (exclude SMS opt-outs — TCPA compliance)
+      // Get all target customers (exclude SMS opt-outs — TCPA compliance).
+      // wave-142b — defensive .limit(10_000) cap. The 'lost' segment can
+      // be thousands of rows; without a cap an admin could accidentally
+      // load 50K+ customers into Node memory + queue 50K×N message
+      // inserts. 10K is generous (any larger campaign should be split).
       const targetCustomers = await d.select()
         .from(customers)
-        .where(buildSegmentFilter(campaign.targetSegment));
+        .where(buildSegmentFilter(campaign.targetSegment))
+        .limit(10_000);
 
       const now = new Date();
       let created = 0;
 
-      // Create send records for each customer × each message step
+      // wave-142b — was N×M individual inserts (one per customer × message).
+      // For 5K customers × 3 messages that's 15K round-trips. Now batched
+      // 500 rows per insert, ~30 round-trips for the same workload.
+      const sendRecords: typeof winbackSends.$inferInsert[] = [];
       for (const customer of targetCustomers) {
         for (const msg of messages) {
           const scheduledAt = new Date(now.getTime() + msg.delayDays * 24 * 60 * 60 * 1000);
-          await d.insert(winbackSends).values({
+          sendRecords.push({
             campaignId: input.campaignId,
             customerId: customer.id,
             messageId: msg.id,
@@ -379,7 +387,15 @@ export const winbackRouter = router({
             scheduledAt,
             status: "pending",
           });
-          created++;
+        }
+      }
+
+      // Batch insert in chunks of 500 to stay under MySQL query size cap
+      for (let i = 0; i < sendRecords.length; i += 500) {
+        const chunk = sendRecords.slice(i, i + 500);
+        if (chunk.length > 0) {
+          await d.insert(winbackSends).values(chunk);
+          created += chunk.length;
         }
       }
 
