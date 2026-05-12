@@ -16,11 +16,20 @@ const CONFIG: ServicePageConfig = {
   // per PLACEMENT_GUIDE.md "Brakes page" row — brakes are safety-driven,
   // the under-car scene reads serious + mechanical
   heroImage: "/photos/undercar-brake-repair-action.webp",
-  title: "Brake Repair Cleveland — We Hand You The Flashlight | Nick's",
-  description: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free inspection, written estimate first, same-day repair. 4.9★ 1,700+ reviews.",
+  // wave-176 · GSC data: /brakes ranks position 34.8 with 0% CTR over
+  // 544 imp/28d. Diagnosis: title buried "Brake Repair Cleveland" behind
+  // brand-voice tagline; H1 contained ZERO keyword target. Google can't
+  // confidently classify the page for "brake repair" queries.
+  //
+  // Fix: title leads with the literal search-intent phrase, H1 leads
+  // with "Cleveland Brake Repair" + keeps the flashlight imagery as the
+  // second line. Sub adds explicit service-area mentions (Cleveland,
+  // Euclid, Cleveland Heights, Parma) for local relevance signal.
+  title: "Brake Repair Cleveland · Free Inspection · Same-Day | Nick's Tire & Auto",
+  description: "Cleveland brake repair on Euclid Ave. Free inspection, written estimate before any wrench moves, same-day on most jobs. 4.9★ from 1,700+ reviews. (216) 862-0005",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",
-  h1: "WE HAND YOU THE FLASHLIGHT.\nYOU SEE THE WORN PADS YOURSELF.",
-  sub: "Squealing? Grinding? Pedal that goes soft like Cleveland weather in March? Pull up to Nick's on Euclid Ave — we'll lift the car, hand you the flashlight, and walk you under it so you can see what's worn. We don't replace what doesn't need replacing. Most brake jobs out the door before lunch. Cheaper than the dealer. More honest than the chain. 4.9★ from 1,700+ Cleveland drivers who came in skeptical and left with a car that stops.",
+  h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
+  sub: "Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest brake shop — serving Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and every neighborhood between. We lift the car, hand you the flashlight, and walk you under it so you SEE what's worn. We don't replace what doesn't need replacing. Most brake jobs out the door before lunch. Cheaper than the dealer. More honest than the chain. Free written estimate before any wrench moves. 4.9★ from 1,700+ Cleveland drivers who came in skeptical and left with a car that stops.",
   startingPrice: "Free inspection · written estimate",
   pricingTitle: "BRAKE SERVICE — THREE LEVELS, ONE PROMISE",
   pricingSub: "Every estimate is free, written, and explained in human English. We show you the worn part before we touch the bill — bring binoculars if you want.",
