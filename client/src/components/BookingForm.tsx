@@ -471,15 +471,16 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
             )}
           </div>
 
-          {/* Vehicle Information */}
+          {/* Vehicle Information — wave-157 htmlFor pairs on all 3 selects/input */}
           <div>
-            <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
+            <label htmlFor="bf-year" className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-2">
               Vehicle Information (Optional)
             </label>
             <div className="grid grid-cols-3 gap-3">
               <div className="relative">
                 <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <select
+                  id="bf-year"
                   value={formData.vehicleYear}
                   onChange={(e) => update("vehicleYear", e.target.value)}
                   aria-label="Vehicle year"
@@ -492,6 +493,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 </select>
               </div>
               <select
+                id="bf-make"
                 value={formData.vehicleMake}
                 onChange={(e) => update("vehicleMake", e.target.value)}
                 aria-label="Vehicle make"
@@ -503,6 +505,7 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
                 ))}
               </select>
               <input
+                id="bf-model"
                 type="text"
                 value={formData.vehicleModel}
                 onChange={(e) => update("vehicleModel", e.target.value)}
@@ -726,12 +729,13 @@ export default function BookingForm({ defaultService }: { defaultService?: strin
           {/* Preferred Date & Time */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
+              <label htmlFor="bf-date" className="text-[12px] font-medium text-foreground/70 tracking-wide block mb-1.5">
                 Preferred Date (Optional)
               </label>
               <div className="relative">
                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-nick-teal/40" />
                 <input
+                  id="bf-date"
                   type="date"
                   value={formData.preferredDate}
                   onChange={(e) => update("preferredDate", e.target.value)}

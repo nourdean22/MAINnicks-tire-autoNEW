@@ -220,7 +220,8 @@ export const invoicesRouter = router({
    * revenue · 191 unique customers · top job "REPLACE TIRES (4 WHEELS)".
    */
   tireSalesReport: adminProcedure
-    .input(z.object({ months: z.number().default(12) }).optional())
+    // wave-157 — tightened: int+bounded so sql.raw stays safe.
+    .input(z.object({ months: z.number().int().min(1).max(120).default(12) }).optional())
     .query(async ({ input }) => {
       const d = await db();
       if (!d) return {
@@ -307,7 +308,8 @@ export const invoicesRouter = router({
 
   /** Revenue dashboard stats */
   stats: adminProcedure
-    .input(z.object({ days: z.number().default(30) }).optional())
+    // wave-157 — tightened: int+bounded so sql.raw stays safe.
+    .input(z.object({ days: z.number().int().min(1).max(3650).default(30) }).optional())
     .query(async ({ input }) => {
       const d = await db();
       if (!d) return {
@@ -652,7 +654,8 @@ export const invoicesRouter = router({
    */
   declined: adminProcedure
     .input(z.object({
-      days: z.number().default(30),
+      // wave-157 — tightened: int+bounded so sql.raw stays safe.
+      days: z.number().int().min(1).max(3650).default(30),
     }).optional())
     .query(async ({ input }) => {
       const d = await db();

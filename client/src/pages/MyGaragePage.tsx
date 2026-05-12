@@ -128,7 +128,20 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
           </div>
         </div>
         <button
-          onClick={() => { if (confirm("Remove this vehicle?")) deleteVehicle.mutate({ id: vehicle.id }); }}
+          onClick={async () => {
+            // wave-157 — native confirm() → ConfirmDialog. Was missed
+            // by prior sweeps because this is the only customer-facing
+            // confirm() left (everything else in admin).
+            const { confirmDialog } = await import("@/components/admin/ConfirmDialog");
+            if (await confirmDialog({
+              title: "Remove this vehicle?",
+              message: `Delete ${vehicle.year} ${vehicle.make} ${vehicle.model} from your garage. Service history stays in your account.`,
+              confirmLabel: "Remove",
+              tone: "danger",
+            })) {
+              deleteVehicle.mutate({ id: vehicle.id });
+            }
+          }}
           className="text-foreground/30 hover:text-red-400 transition-colors p-1"
         >
           <Trash2 className="w-4 h-4" />
