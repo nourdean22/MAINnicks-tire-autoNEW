@@ -58,7 +58,7 @@ export default function ReferralPage() {
                 <Heart className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Referral Program</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 REFER A FRIEND<br />
                 <span className="text-primary">BOTH SAVE $25</span>
               </h1>
@@ -74,7 +74,7 @@ export default function ReferralPage() {
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground tracking-tight text-center mb-10">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight text-center mb-10">
                 HOW IT <span className="text-primary">WORKS</span>
               </h2>
             </FadeIn>
@@ -89,8 +89,8 @@ export default function ReferralPage() {
                     <div className="w-16 h-16 bg-primary/10 flex items-center justify-center rounded-md mx-auto mb-4 text-primary">
                       {step.icon}
                     </div>
-                    <span className="font-semibold font-bold text-4xl text-primary/20">{step.num}</span>
-                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wide mt-2">{step.title}</h3>
+                    <span className="font-bold text-4xl text-primary/20">{step.num}</span>
+                    <h3 className="font-bold text-foreground text-lg tracking-wide mt-2">{step.title}</h3>
                     <p className="text-foreground/60 mt-2 leading-relaxed text-sm">{step.desc}</p>
                   </div>
                 </FadeIn>
@@ -106,15 +106,15 @@ export default function ReferralPage() {
               <FadeIn>
                 <div className="text-center py-16">
                   <CheckCircle className="w-16 h-16 text-primary mx-auto mb-6" />
-                  <h2 className="font-semibold font-bold text-3xl text-foreground tracking-[-0.01em] mb-4">REFERRAL SUBMITTED</h2>
+                  <h2 className="font-bold text-3xl text-foreground tracking-[-0.01em] mb-4">REFERRAL SUBMITTED</h2>
                   <p className="text-foreground/70 text-lg leading-relaxed mb-8">
                     Thank you for the referral. When your friend visits, you will both receive $25 off. We will reach out to confirm.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                    <button onClick={() => { setSubmitted(false); setForm({ referrerName: "", referrerPhone: "", referrerEmail: "", refereeName: "", refereePhone: "", refereeEmail: "" }); }} className="bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
+                    <button onClick={() => { setSubmitted(false); setForm({ referrerName: "", referrerPhone: "", referrerEmail: "", refereeName: "", refereePhone: "", refereeEmail: "" }); }} className="bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:opacity-90 transition-colors">
                       REFER ANOTHER FRIEND
                     </button>
-                    <Link href="/" className="border border-foreground/30 text-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors text-center">
+                    <Link href="/" className="border border-foreground/30 text-foreground px-6 py-3 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors text-center">
                       BACK TO HOME
                     </Link>
                   </div>
@@ -122,11 +122,11 @@ export default function ReferralPage() {
               </FadeIn>
             ) : (
               <FadeIn>
-                <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR REFERRAL</h2>
+                <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">SUBMIT YOUR REFERRAL</h2>
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {/* Your Info */}
                   <div>
-                    <h3 className="font-semibold font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR INFORMATION</h3>
+                    <h3 className="font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR INFORMATION</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="ref-your-name" className="block text-foreground/60 text-sm mb-1">Your Name *</label>
@@ -145,7 +145,7 @@ export default function ReferralPage() {
 
                   {/* Friend's Info */}
                   <div>
-                    <h3 className="font-semibold font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR FRIEND'S INFORMATION</h3>
+                    <h3 className="font-bold text-nick-blue-light text-sm tracking-wide mb-4">YOUR FRIEND'S INFORMATION</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="ref-friend-name" className="block text-foreground/60 text-sm mb-1">Friend's Name *</label>
@@ -166,7 +166,7 @@ export default function ReferralPage() {
                     By submitting, you confirm your friend is aware of the referral. Both parties receive $25 off services of $75 or more.
                   </p>
 
-                  <button type="submit" disabled={submitReferral.isPending} className="w-full bg-primary text-primary-foreground py-3.5 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
+                  <button type="submit" disabled={submitReferral.isPending} className="w-full bg-primary text-primary-foreground py-3.5 font-bold text-lg tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
                     {submitReferral.isPending ? "SUBMITTING..." : "SUBMIT REFERRAL"}
                   </button>
                 </form>

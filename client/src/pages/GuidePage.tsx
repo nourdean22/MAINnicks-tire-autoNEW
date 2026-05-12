@@ -43,9 +43,9 @@ export default function GuidePage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">GUIDE NOT FOUND</h1>
+          <h1 className="font-bold text-4xl text-foreground mb-4">GUIDE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">The guide you are looking for does not exist.</p>
-          <Link href="/guides" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide">
+          <Link href="/guides" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO GUIDES
           </Link>
@@ -126,7 +126,7 @@ export default function GuidePage() {
             <span className="inline-block px-3 py-1 bg-primary/10 border border-primary/30 text-primary text-[12px] font-semibold tracking-wide mb-4">
               {categoryLabel.toUpperCase()}
             </span>
-            <h1 className="font-semibold font-bold text-3xl sm:text-4xl lg:text-5xl text-foreground leading-[0.95] tracking-tight max-w-4xl">
+            <h1 className="font-bold text-3xl sm:text-4xl lg:text-5xl text-foreground leading-[0.95] tracking-tight max-w-4xl">
               {guide.title.toUpperCase()}
             </h1>
           </FadeIn>
@@ -146,7 +146,7 @@ export default function GuidePage() {
             {guide.sections.map((section, i) => (
               <FadeIn key={i} delay={i * 0.05}>
                 <div className="mb-12">
-                  <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4">
+                  <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4">
                     {section.heading}
                   </h2>
                   <p className="text-foreground/70 text-lg leading-relaxed">
@@ -159,18 +159,18 @@ export default function GuidePage() {
             {/* CTA */}
             <FadeIn>
               <div className="mt-12 bg-primary/10 border border-primary/30 p-8 text-center">
-                <h3 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">
+                <h3 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-3">
                   NEED HELP WITH YOUR VEHICLE?
                 </h3>
                 <p className="text-foreground/60 mb-6">
                   Our technicians are ready to help. Call or schedule a drop-off online.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors">
+                  <a href={BUSINESS.phone.href} className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-8 py-4 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors">
                     <Phone className="w-4 h-4" />
                     CALL {BUSINESS.phone.display}
                   </a>
-                  <Link href="/booking" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+                  <Link href="/booking" className="inline-flex items-center justify-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                     SCHEDULE DROP-OFF
                   </Link>
                 </div>
@@ -186,7 +186,7 @@ export default function GuidePage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Keep Reading</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
                 RELATED GUIDES
               </h2>
             </FadeIn>
@@ -202,7 +202,7 @@ export default function GuidePage() {
                           {GUIDE_CATEGORY_LABELS[rel.category]}
                         </span>
                       </div>
-                      <h3 className="font-semibold font-bold text-lg text-foreground tracking-wider group-hover:text-primary transition-colors leading-tight line-clamp-2">
+                      <h3 className="font-bold text-lg text-foreground tracking-wider group-hover:text-primary transition-colors leading-tight line-clamp-2">
                         {rel.title.replace(/ \| Nick.*$/, "")}
                       </h3>
                       <p className="mt-2 text-foreground/50 text-sm line-clamp-2">
@@ -216,7 +216,7 @@ export default function GuidePage() {
 
             <FadeIn delay={0.2}>
               <div className="mt-8 text-center">
-                <Link href="/guides" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <Link href="/guides" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                   VIEW ALL GUIDES
                   <ArrowRight className="w-4 h-4" />
                 </Link>

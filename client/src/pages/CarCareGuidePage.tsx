@@ -128,7 +128,7 @@ export default function CarCareGuidePage() {
                 <BookOpen className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Maintenance Education</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 CAR CARE<br />
                 <span className="text-primary">GUIDE</span>
               </h1>
@@ -144,7 +144,7 @@ export default function CarCareGuidePage() {
           <div className="hidden" />
           <div className="container pt-12">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 SEASONAL <span className="text-primary">MAINTENANCE</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -158,7 +158,7 @@ export default function CarCareGuidePage() {
                 <button
                   key={guide.season}
                   onClick={() => setActiveSeason(i)}
-                  className={`flex items-center gap-2 stagger-in px-5 py-2.5 font-semibold font-bold text-sm tracking-wide transition-colors ${
+                  className={`flex items-center gap-2 stagger-in px-5 py-2.5 font-bold text-sm tracking-wide transition-colors ${
                     activeSeason === i
                       ? "bg-primary text-primary-foreground btn-premium"
                       : "border border-primary/20 text-foreground/60 hover:border-primary/50"
@@ -179,7 +179,7 @@ export default function CarCareGuidePage() {
                       {SEASONAL_GUIDES[activeSeason].icon}
                     </div>
                     <div>
-                      <h3 className="font-semibold font-bold text-foreground text-2xl lg:text-3xl tracking-wider">{SEASONAL_GUIDES[activeSeason].title}</h3>
+                      <h3 className="font-bold text-foreground text-2xl lg:text-3xl tracking-wider">{SEASONAL_GUIDES[activeSeason].title}</h3>
                       <p className="text-foreground/50 text-sm">{SEASONAL_GUIDES[activeSeason].subtitle}</p>
                     </div>
                   </div>
@@ -191,7 +191,7 @@ export default function CarCareGuidePage() {
                           <CheckCircle className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                          <h4 className="font-semibold font-bold text-foreground text-base tracking-wide">{tip.title}</h4>
+                          <h4 className="font-bold text-foreground text-base tracking-wide">{tip.title}</h4>
                           <p className="text-foreground/70 leading-relaxed mt-1">{tip.desc}</p>
                         </div>
                       </div>
@@ -202,7 +202,7 @@ export default function CarCareGuidePage() {
                     <a
                       href={BUSINESS.phone.href}
                       onClick={() => trackPhoneClick("car_care_guide_seasonal")}
-                      className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                      className="inline-flex items-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-6 py-3 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
                       SCHEDULE {SEASONAL_GUIDES[activeSeason].season.toUpperCase()} SERVICE
@@ -218,7 +218,7 @@ export default function CarCareGuidePage() {
         <section className="py-12 lg:py-16 bg-background">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 MILEAGE <span className="text-primary">MILESTONES</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -234,7 +234,7 @@ export default function CarCareGuidePage() {
                       <div className="text-nick-blue-light">{item.icon}</div>
                       <span className="font-mono text-primary text-sm tracking-wider">{item.miles} MI</span>
                     </div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg tracking-wide mb-2">{item.service}</h3>
+                    <h3 className="font-bold text-foreground text-lg tracking-wide mb-2">{item.service}</h3>
                     <p className="text-foreground/60 text-sm leading-relaxed">{item.desc}</p>
                   </div>
                 </FadeIn>
@@ -247,7 +247,7 @@ export default function CarCareGuidePage() {
         <section className="py-12 lg:py-16 bg-[oklch(0.055_0.004_260)]">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 WARNING <span className="text-primary">SIGNS</span>
               </h2>
               <p className="mt-3 text-foreground/60 max-w-2xl">
@@ -263,10 +263,10 @@ export default function CarCareGuidePage() {
                       <AlertTriangle className="w-5 h-5 text-primary" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold font-bold text-foreground text-base tracking-wide">{item.sign}</h3>
+                      <h3 className="font-bold text-foreground text-base tracking-wide">{item.sign}</h3>
                       <p className="text-foreground/60 text-sm mt-1 leading-relaxed">{item.action}</p>
                     </div>
-                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 stagger-in text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
+                    <Link href={item.link} className="shrink-0 inline-flex items-center gap-1 stagger-in text-primary text-sm font-bold tracking-wide hover:text-primary transition-colors">
                       LEARN MORE
                       <ChevronRight className="w-4 h-4" />
                     </Link>
@@ -281,7 +281,7 @@ export default function CarCareGuidePage() {
         <section className="py-16 lg:py-20 bg-background">
           <div className="container text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-foreground tracking-tight">
                 QUESTIONS ABOUT YOUR <span className="text-primary">VEHICLE</span>?
               </h2>
               <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
@@ -291,14 +291,14 @@ export default function CarCareGuidePage() {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("car_care_guide_cta")}
-                  className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
+                  className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-bold text-lg tracking-wide hover:opacity-90 transition-colors"
                 >
                   <Phone className="w-5 h-5" />
                   {BUSINESS.phone.display}
                 </a>
                 <Link
                   href="/diagnose"
-                  className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
+                  className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors"
                 >
                   DIAGNOSE MY CAR
                   <ChevronRight className="w-5 h-5" />

@@ -98,7 +98,7 @@ export default function GuidesIndex() {
         <div className="container">
           <FadeIn>
             <span className="font-mono text-primary text-sm tracking-wide">Mechanic-Grade</span>
-            <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
+            <h1 className="font-bold text-4xl sm:text-5xl lg:text-6xl text-foreground mt-3 tracking-tight leading-[0.95]">
               AUTO REPAIR GUIDES
             </h1>
             <p className="mt-6 text-lg text-foreground/70 max-w-2xl leading-relaxed">
@@ -176,7 +176,7 @@ export default function GuidesIndex() {
                 return (
                   <div key={cat} className="mb-16 last:mb-0">
                     <FadeIn>
-                      <h2 className="font-semibold font-bold text-2xl text-foreground tracking-tight mb-6 flex items-center gap-3">
+                      <h2 className="font-bold text-2xl text-foreground tracking-tight mb-6 flex items-center gap-3">
                         <BookOpen className="w-5 h-5 text-primary" />
                         {GUIDE_CATEGORY_LABELS[cat].toUpperCase()}
                       </h2>

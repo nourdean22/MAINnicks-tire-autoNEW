@@ -115,7 +115,7 @@ export function EmergencyMode() {
                   <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
-                  <h2 className="font-semibold font-bold text-foreground text-lg tracking-wide">EMERGENCY REQUEST</h2>
+                  <h2 className="font-bold text-foreground text-lg tracking-wide">EMERGENCY REQUEST</h2>
                 </div>
                 <button
                   onClick={() => setShowForm(false)}
@@ -130,7 +130,7 @@ export function EmergencyMode() {
                   <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                     <span className="text-green-400 text-2xl">✓</span>
                   </div>
-                  <h3 className="font-semibold font-bold text-foreground mb-2">REQUEST SUBMITTED!</h3>
+                  <h3 className="font-bold text-foreground mb-2">REQUEST SUBMITTED!</h3>
                   <p className="text-foreground/60 text-sm">
                     We'll contact you first thing at {nextOpenTime} to confirm your appointment.
                   </p>
@@ -232,7 +232,7 @@ export function EmergencyMode() {
                   <button
                     type="submit"
                     disabled={submitEmergency.isPending}
-                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 font-semibold font-bold text-sm tracking-wide transition-colors disabled:opacity-50 mt-6"
+                    className="w-full bg-red-500 hover:bg-red-600 text-white py-3 font-bold text-sm tracking-wide transition-colors disabled:opacity-50 mt-6"
                   >
                     {submitEmergency.isPending ? "SUBMITTING..." : "SUBMIT EMERGENCY REQUEST"}
                   </button>
@@ -252,7 +252,7 @@ export function EmergencyMode() {
         initial={{ opacity: 0, scale: 0.8 }}
         animate={{ opacity: 1, scale: 1 }}
         onClick={() => setShowForm(true)}
-        className="fixed bottom-6 right-6 z-40 bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-semibold font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-8 lg:right-8"
+        className="fixed bottom-6 right-6 z-40 bg-red-500 hover:bg-red-600 text-white p-4 rounded-full font-bold text-sm tracking-wide transition-colors shadow-lg flex items-center gap-2 lg:bottom-8 lg:right-8"
       >
         <motion.span
           animate={{ scale: [1, 1.2, 1] }}

@@ -78,7 +78,7 @@ export default function ProblemPage() {
           <div className="relative container">
             <Breadcrumbs items={breadcrumbs} />
             <FadeIn>
-              <h1 className="font-semibold font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[0.9] tracking-tight mt-6">
+              <h1 className="font-bold text-5xl sm:text-6xl lg:text-7xl text-foreground leading-[0.9] tracking-tight mt-6">
                 {page.heroHeadline.split("\n").map((line, i) => (
                   <span key={i}>
                     {i === 0 ? <span className="text-primary">{line}</span> : line}
@@ -94,10 +94,10 @@ export default function ProblemPage() {
             </FadeIn>
             <FadeIn delay={0.2}>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-hero`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary/90 transition-colors">
                   <Phone className="w-5 h-5" />CALL FOR DIAGNOSIS
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:border-primary hover:text-primary transition-colors">
                   SCHEDULE ONLINE <ChevronRight className="w-5 h-5" />
                 </Link>
               </div>
@@ -110,7 +110,7 @@ export default function ProblemPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Understanding the Problem</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
                 WHAT IS HAPPENING
               </h2>
               <p className="text-foreground/70 leading-relaxed text-lg">{page.problemDescription}</p>
@@ -125,7 +125,7 @@ export default function ProblemPage() {
               <div className="flex items-start gap-4 stagger-in">
                 <AlertOctagon className="w-8 h-8 text-red-400 shrink-0 mt-1" />
                 <div>
-                  <h2 className="font-semibold font-bold text-xl lg:text-2xl text-red-400 tracking-tight mb-3">
+                  <h2 className="font-bold text-xl lg:text-2xl text-red-400 tracking-tight mb-3">
                     WHEN TO STOP DRIVING
                   </h2>
                   <p className="text-foreground/80 leading-relaxed">{page.whenToStop}</p>
@@ -140,7 +140,7 @@ export default function ProblemPage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Root Causes</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight">
                 POSSIBLE CAUSES
               </h2>
             </FadeIn>
@@ -149,7 +149,7 @@ export default function ProblemPage() {
                 <FadeIn key={i} delay={i * 0.08}>
                   <div className="border border-border/40 p-6 bg-card/30">
                     <div className="flex items-start justify-between mb-3 flex-wrap gap-2 stagger-in">
-                      <h3 className="font-semibold font-bold text-lg text-foreground">{cause.cause}</h3>
+                      <h3 className="font-bold text-lg text-foreground">{cause.cause}</h3>
                       <LikelihoodBadge likelihood={cause.likelihood} />
                     </div>
                     <p className="text-foreground/70 leading-relaxed mb-3">{cause.explanation}</p>
@@ -169,7 +169,7 @@ export default function ProblemPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Our Approach</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
                 HOW WE DIAGNOSE THIS
               </h2>
               <p className="text-foreground/70 leading-relaxed text-lg">{page.diagnosticProcess}</p>
@@ -182,7 +182,7 @@ export default function ProblemPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Our Repair Process</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-6">
                 HOW WE FIX THIS AT NICK'S
               </h2>
               <p className="text-foreground/70 leading-relaxed text-lg mb-8">
@@ -194,10 +194,10 @@ export default function ProblemPage() {
               <FadeIn delay={0.05}>
                 <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="font-semibold font-bold text-primary text-sm">1</span>
+                    <span className="font-bold text-primary text-sm">1</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
                     <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome — no appointment needed for diagnostics. Tell our front desk what you're experiencing and we'll get your vehicle into the bay. Most diagnostic inspections start within 30 minutes of arrival.</p>
                   </div>
                 </div>
@@ -205,10 +205,10 @@ export default function ProblemPage() {
               <FadeIn delay={0.1}>
                 <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="font-semibold font-bold text-primary text-sm">2</span>
+                    <span className="font-bold text-primary text-sm">2</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
                     <p className="text-foreground/70 leading-relaxed">Our technicians use professional scan tools, visual inspection, and road testing when needed. We don't just read a code and guess — we trace the problem to its root cause so we fix it right the first time.</p>
                   </div>
                 </div>
@@ -216,10 +216,10 @@ export default function ProblemPage() {
               <FadeIn delay={0.15}>
                 <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="font-semibold font-bold text-primary text-sm">3</span>
+                    <span className="font-bold text-primary text-sm">3</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Honest Quote, Your Decision</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Honest Quote, Your Decision</h3>
                     <p className="text-foreground/70 leading-relaxed">We'll call you with exactly what we found, what needs to be fixed, and what it costs. No pressure, no upsells. If you want a second opinion, no hard feelings. We give you the information and you make the call.</p>
                   </div>
                 </div>
@@ -227,10 +227,10 @@ export default function ProblemPage() {
               <FadeIn delay={0.2}>
                 <div className="flex items-start gap-4 stagger-in">
                   <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="font-semibold font-bold text-primary text-sm">4</span>
+                    <span className="font-bold text-primary text-sm">4</span>
                   </div>
                   <div>
-                    <h3 className="font-semibold font-bold text-foreground text-lg mb-2">Repair & Quality Check</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Repair & Quality Check</h3>
                     <p className="text-foreground/70 leading-relaxed">Once approved, we get to work. Most standard repairs are completed same-day. Before handing your keys back, we verify the fix with a final inspection to make sure everything is solid.</p>
                   </div>
                 </div>
@@ -239,7 +239,7 @@ export default function ProblemPage() {
 
             <FadeIn delay={0.25}>
               <div className="mt-10 bg-card/50 border border-border/50 rounded-lg p-6">
-                <h3 className="font-semibold font-bold text-foreground text-lg mb-3">Estimated Turnaround Times</h3>
+                <h3 className="font-bold text-foreground text-lg mb-3">Estimated Turnaround Times</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-in text-sm">
                   <div className="flex justify-between text-foreground/70">
                     <span>Diagnostic inspection</span>
@@ -268,7 +268,7 @@ export default function ProblemPage() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Why Nick's</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
                 TRUSTED BY CLEVELAND DRIVERS
               </h2>
             </FadeIn>
@@ -315,7 +315,7 @@ export default function ProblemPage() {
           <div className="container max-w-4xl">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Common Questions</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
                 FREQUENTLY ASKED QUESTIONS
               </h2>
             </FadeIn>
@@ -323,7 +323,7 @@ export default function ProblemPage() {
               {page.faqs.map((faq, i) => (
                 <FadeIn key={i} delay={i * 0.08}>
                   <div className="border border-border/40 p-6 bg-card/30">
-                    <h3 className="font-semibold font-bold text-lg text-foreground mb-3">{faq.question}</h3>
+                    <h3 className="font-bold text-lg text-foreground mb-3">{faq.question}</h3>
                     <p className="text-foreground/70 leading-relaxed">{faq.answer}</p>
                   </div>
                 </FadeIn>
@@ -336,7 +336,7 @@ export default function ProblemPage() {
         <section className="py-16 lg:py-20">
           <div className="container">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-8">
+              <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-tight mb-8">
                 RELATED SERVICES
               </h2>
             </FadeIn>
@@ -344,7 +344,7 @@ export default function ProblemPage() {
               {page.relatedPages.map((relSlug, i) => (
                 <FadeIn key={relSlug} delay={i * 0.05}>
                   <Link href={`/${relSlug}`} className="block p-5 border border-border/40 bg-card/30 hover:bg-card/50 hover:border-primary/50 transition-colors group">
-                    <span className="font-semibold font-bold text-foreground group-hover:text-primary transition-colors tracking-wide text-sm">
+                    <span className="font-bold text-foreground group-hover:text-primary transition-colors tracking-wide text-sm">
                       {relSlug.replace(/-/g, " ").replace("cleveland", "").trim()}
                     </span>
                     <ChevronRight className="w-4 h-4 text-primary mt-2" />
@@ -359,17 +359,17 @@ export default function ProblemPage() {
         <section className="py-16 lg:py-24 bg-primary">
           <div className="container text-center">
             <FadeIn>
-              <h2 className="font-semibold font-bold text-3xl lg:text-5xl text-primary-foreground tracking-tight">
+              <h2 className="font-bold text-3xl lg:text-5xl text-primary-foreground tracking-tight">
                 LET US DIAGNOSE THE PROBLEM
               </h2>
               <p className="mt-4 text-primary-foreground/80 text-lg max-w-xl mx-auto">
                 We will find the exact cause, explain your options, and give you an honest quote. No guesswork. No unnecessary repairs.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
-                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-background text-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
+                <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-bottom-cta`)} className="inline-flex items-center justify-center gap-2 stagger-in bg-background text-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-background/90 transition-colors">
                   <Phone className="w-5 h-5" />{BUSINESS.phone.display}
                 </a>
-                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-semibold font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
+                <Link href="/contact" className="inline-flex items-center justify-center gap-2 stagger-in border-2 border-primary-foreground text-primary-foreground px-8 py-4 font-bold text-lg tracking-wide hover:bg-primary-foreground/10 transition-colors">
                   SCHEDULE ONLINE
                 </Link>
               </div>
@@ -383,10 +383,10 @@ export default function ProblemPage() {
         {/* Sticky Mobile CTA */}
         <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/95 backdrop-blur-md border-t border-border p-3">
           <div className="flex gap-2 stagger-in">
-            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium py-3 font-semibold font-bold text-sm tracking-wide">
+            <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick(`problem-${page.slug}-sticky`)} aria-label="Call Nick's Tire and Auto" className="flex-1 flex items-center justify-center gap-2 stagger-in bg-primary text-primary-foreground btn-premium py-3 font-bold text-sm tracking-wide">
               <Phone className="w-4 h-4" />{BUSINESS.phone.display}
             </a>
-            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 stagger-in border border-primary text-primary py-3 font-semibold font-bold text-sm tracking-wide">
+            <Link href="/contact" className="flex-1 flex items-center justify-center gap-2 stagger-in border border-primary text-primary py-3 font-bold text-sm tracking-wide">
               Drop-Off
             </Link>
           </div>

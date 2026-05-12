@@ -60,7 +60,7 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
 
   return (
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="border border-primary/30 bg-background/50 p-6 lg:p-8">
-      <h3 className="font-semibold font-bold text-foreground text-xl tracking-wide mb-6">ADD A VEHICLE</h3>
+      <h3 className="font-bold text-foreground text-xl tracking-wide mb-6">ADD A VEHICLE</h3>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* wave-153 — htmlFor/id pairs on all 5 fields */}
@@ -91,10 +91,10 @@ function AddVehicleForm({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex gap-3 pt-2">
-          <button type="submit" disabled={addVehicle.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
+          <button type="submit" disabled={addVehicle.isPending} className="bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors disabled:opacity-50">
             {addVehicle.isPending ? "ADDING..." : "ADD VEHICLE"}
           </button>
-          <button type="button" onClick={onClose} className="border border-foreground/30 text-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+          <button type="button" onClick={onClose} className="border border-foreground/30 text-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
             CANCEL
           </button>
         </div>
@@ -119,7 +119,7 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
             <Car className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold font-bold text-foreground text-lg tracking-wider">
+            <h3 className="font-bold text-foreground text-lg tracking-wider">
               {vehicle.year} {vehicle.make} {vehicle.model}
             </h3>
             {vehicle.nickname && (
@@ -144,7 +144,7 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
 
       {/* Maintenance Recommendations */}
       <div className="mt-4 pt-4 border-t border-primary/10">
-        <h4 className="font-semibold font-bold text-foreground/80 text-xs tracking-wide mb-3">RECOMMENDED MAINTENANCE</h4>
+        <h4 className="font-bold text-foreground/80 text-xs tracking-wide mb-3">RECOMMENDED MAINTENANCE</h4>
         <div className="space-y-2">
           {getMaintenanceItems(vehicle.mileage).map((item, i) => (
             <div key={i} className={`flex items-center gap-2 text-sm ${item.due ? "text-primary" : "text-foreground/40"}`}>
@@ -157,7 +157,7 @@ function VehicleCard({ vehicle }: { vehicle: any }) {
       </div>
 
       <div className="mt-4 pt-4 border-t border-primary/10">
-        <Link href="/contact" className="inline-flex items-center gap-2 text-primary text-sm font-semibold font-bold tracking-wide hover:text-primary transition-colors">
+        <Link href="/contact" className="inline-flex items-center gap-2 text-primary text-sm font-bold tracking-wide hover:text-primary transition-colors">
           BOOK SERVICE FOR THIS VEHICLE
           <ChevronRight className="w-4 h-4" />
         </Link>
@@ -214,7 +214,7 @@ export default function MyGaragePage() {
                 <Car className="w-6 h-6 text-primary" />
                 <span className="font-mono text-nick-blue-light text-sm tracking-wide">Your Vehicles</span>
               </div>
-              <h1 className="font-semibold font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
+              <h1 className="font-bold text-4xl sm:text-5xl lg:text-7xl text-foreground tracking-tight leading-[0.95]">
                 MY <span className="text-primary">GARAGE</span>
               </h1>
               <p className="mt-4 text-foreground/70 text-lg max-w-2xl leading-relaxed">
@@ -236,13 +236,13 @@ export default function MyGaragePage() {
               <FadeIn>
                 <div className="text-center py-20 max-w-lg mx-auto">
                   <Car className="w-16 h-16 text-primary/30 mx-auto mb-6" />
-                  <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-4">SIGN IN TO ACCESS YOUR GARAGE</h2>
+                  <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-4">SIGN IN TO ACCESS YOUR GARAGE</h2>
                   <p className="text-foreground/60 mb-8 leading-relaxed">
                     Create an account or sign in to save your vehicles, track service history, and get personalized maintenance reminders.
                   </p>
                   <a
                     href={getLoginUrl()}
-                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                    className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-8 py-3 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                   >
                     SIGN IN
                     <ChevronRight className="w-4 h-4" />
@@ -255,7 +255,7 @@ export default function MyGaragePage() {
                 <FadeIn>
                   <div className="flex items-center justify-between mb-8">
                     <div>
-                      <h2 className="font-semibold font-bold text-2xl text-foreground tracking-wider">
+                      <h2 className="font-bold text-2xl text-foreground tracking-wider">
                         {user?.name ? `Welcome back, ${user.name.split(" ")[0]}` : "Your Vehicles"}
                       </h2>
                       <p className="text-foreground/50 text-sm mt-1">
@@ -264,7 +264,7 @@ export default function MyGaragePage() {
                     </div>
                     <button
                       onClick={() => setShowAddForm(true)}
-                      className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                      className="flex items-center gap-2 bg-primary text-primary-foreground px-5 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                     >
                       <Plus className="w-4 h-4" />
                       ADD VEHICLE
@@ -302,11 +302,11 @@ export default function MyGaragePage() {
                   <FadeIn>
                     <div className="text-center py-16 border border-dashed border-primary/20">
                       <Car className="w-12 h-12 text-primary/20 mx-auto mb-4" />
-                      <h3 className="font-semibold font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">NO VEHICLES YET</h3>
+                      <h3 className="font-bold text-foreground/60 text-lg tracking-[-0.01em] mb-2">NO VEHICLES YET</h3>
                       <p className="text-foreground/40 text-sm mb-6">Add your first vehicle to get personalized maintenance reminders.</p>
                       <button
                         onClick={() => setShowAddForm(true)}
-                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-semibold font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
+                        className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-sm tracking-wide hover:opacity-90 transition-colors"
                       >
                         <Plus className="w-4 h-4" />
                         ADD YOUR FIRST VEHICLE
@@ -318,7 +318,7 @@ export default function MyGaragePage() {
                 {/* Service History */}
                 {serviceHistory && serviceHistory.length > 0 && (
                   <div className="mt-12">
-                    <h2 className="font-semibold font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">SERVICE HISTORY</h2>
+                    <h2 className="font-bold text-2xl text-foreground tracking-[-0.01em] mb-6">SERVICE HISTORY</h2>
                     <div className="space-y-4">
                       {serviceHistory.map((record: any) => (
                         <div key={record.id} className="border border-primary/10 bg-background/30 p-5 flex items-center gap-4">
@@ -326,7 +326,7 @@ export default function MyGaragePage() {
                             <Wrench className="w-5 h-5 text-nick-blue-light" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-semibold font-bold text-foreground text-sm tracking-wide">{record.serviceType}</h4>
+                            <h4 className="font-bold text-foreground text-sm tracking-wide">{record.serviceType}</h4>
                             {record.description && <p className="text-foreground/50 text-sm mt-1">{record.description}</p>}
                           </div>
                           <div className="text-right shrink-0">

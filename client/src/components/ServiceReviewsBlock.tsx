@@ -37,7 +37,7 @@ export default function ServiceReviewsBlock({ service, serviceTitle }: ServiceRe
         <FadeIn>
           <div>
             <span className="font-mono text-nick-blue-light text-sm tracking-wide">Real Reviews</span>
-            <h3 className="font-semibold font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
+            <h3 className="font-bold text-2xl lg:text-3xl text-foreground mt-2 tracking-tight">
               WHAT CLEVELAND DRIVERS SAY ABOUT OUR{" "}
               <span className="text-primary">{serviceTitle.toUpperCase()}</span>
             </h3>

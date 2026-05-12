@@ -466,9 +466,9 @@ export default function BlogPost() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="font-semibold font-bold text-4xl text-foreground mb-4">ARTICLE NOT FOUND</h1>
+          <h1 className="font-bold text-4xl text-foreground mb-4">ARTICLE NOT FOUND</h1>
           <p className="text-foreground/60 mb-8">The article you are looking for does not exist.</p>
-          <Link href="/blog" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-semibold font-bold text-sm tracking-wide">
+          <Link href="/blog" className="inline-flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide">
             <ArrowLeft className="w-4 h-4" />
             BACK TO BLOG
           </Link>
@@ -614,7 +614,7 @@ export default function BlogPost() {
                 {new Date(article.publishDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
               </span>
             </div>
-            <h1 className="font-semibold font-bold text-3xl sm:text-4xl lg:text-6xl text-foreground leading-[0.95] tracking-tight max-w-4xl">
+            <h1 className="font-bold text-3xl sm:text-4xl lg:text-6xl text-foreground leading-[0.95] tracking-tight max-w-4xl">
               {article.title.toUpperCase()}
             </h1>
           </FadeIn>
@@ -643,7 +643,7 @@ export default function BlogPost() {
                   <div className="mb-12">
                     <h2
                       id={slugify(section.heading)}
-                      className="font-semibold font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4 scroll-mt-24"
+                      className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-4 scroll-mt-24"
                     >
                       {section.heading}
                     </h2>
@@ -688,13 +688,13 @@ export default function BlogPost() {
               {article.relatedServices.length > 0 && (
                 <FadeIn>
                   <div className="mt-8 bg-card border border-primary/20 p-6">
-                    <h3 className="font-semibold font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
+                    <h3 className="font-bold text-lg text-foreground tracking-[-0.01em] mb-3">RELATED SERVICES</h3>
                     <div className="flex flex-wrap gap-3">
                       {article.relatedServices.map(svc => (
                         <Link
                           key={svc}
                           href={svc}
-                          className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-semibold font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
+                          className="inline-flex items-center gap-2 bg-primary/10 border border-primary/30 text-primary px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/20 transition-colors"
                         >
                           {/* Strip leading slash + replace ALL hyphens with spaces.
                               Was `.replace("-", " ")` which only replaced the FIRST
@@ -725,7 +725,7 @@ export default function BlogPost() {
           <div className="container">
             <FadeIn>
               <span className="font-mono text-primary text-sm tracking-wide">Keep Reading</span>
-              <h2 className="font-semibold font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
+              <h2 className="font-bold text-3xl lg:text-4xl text-foreground mt-3 tracking-tight mb-10">
                 MORE TIPS
               </h2>
             </FadeIn>
@@ -749,7 +749,7 @@ export default function BlogPost() {
                           {rel.readTime}
                         </span>
                       </div>
-                      <h3 className="font-semibold font-bold text-lg text-foreground tracking-wider group-hover:text-primary transition-colors leading-tight">
+                      <h3 className="font-bold text-lg text-foreground tracking-wider group-hover:text-primary transition-colors leading-tight">
                         {rel.title}
                       </h3>
                     </div>
@@ -760,7 +760,7 @@ export default function BlogPost() {
 
             <FadeIn delay={0.2}>
               <div className="mt-8 text-center">
-                <Link href="/blog" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-semibold font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
+                <Link href="/blog" className="inline-flex items-center gap-2 border-2 border-foreground/30 text-foreground px-8 py-4 font-bold text-sm tracking-wide hover:border-primary hover:text-primary transition-colors">
                   VIEW ALL ARTICLES
                   <ArrowRight className="w-4 h-4" />
                 </Link>
