@@ -106,6 +106,13 @@ export default function TireSizePage() {
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary text-sm font-medium rounded-sm">
                 <Package className="w-4 h-4" />{page.category}
               </span>
+              {/* wave-171: price anchor above-the-fold answers "how much" — the
+                  dominant search intent for tire-size queries. Previously the
+                  only price info was buried in the FAQ ~4 sections below the
+                  fold; competitors who show pricing in the hero get the click. */}
+              <span className="inline-flex items-center px-3 py-1.5 bg-emerald-500/10 text-emerald-400 text-sm font-semibold rounded-sm">
+                Used $40+ · New $80+ · Free install
+              </span>
               {page.commonVehicles.map(v => (
                 <span key={v} className="inline-flex items-center px-3 py-1.5 bg-foreground/5 text-foreground/70 text-sm rounded-sm">
                   {v}

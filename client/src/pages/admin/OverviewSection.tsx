@@ -204,6 +204,7 @@ const URGENCY_DOTS: Record<number, string> = {
 function NextBestActions() {
   const { data, isLoading } = trpc.intelligence.nextBestActions.useQuery(undefined, {
     refetchInterval: 30000,
+    staleTime: 25_000, // wave-171: prevent stale=true on every refetch tick
   });
 
   if (isLoading) return null;
@@ -402,18 +403,18 @@ export default function OverviewSection() {
   const allLeads = bundle?.leads ?? null;
   const callbacks = bundle?.callbacks ?? null;
   const { data: sheetInfo } = trpc.lead.sheetUrl.useQuery();
-  const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: bridgeStatus } = trpc.nourOsBridge.status.useQuery(undefined, { refetchInterval: 30000, staleTime: 25_000 });
+  const { data: customerStats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000, staleTime: 25_000 });
   // wave-112 — was 15000ms (twice as fast as customers.stats above); unified
   // to 30s so the customer total + campaign stats badges update on the same
   // cadence (operator was seeing momentarily contradictory numbers).
-  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000, staleTime: 25_000 });
   // Nick AI intelligence — shop pulse for real-time awareness
   const { data: shopPulse } = trpc.nickActions.shopPulse.useQuery(undefined, { refetchInterval: 15000 });
   // Shop load indicator — cars in shop, active WOs, today's bookings, wait time
-  const { data: shopLoad } = trpc.intelligence.shopLoad.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: shopLoad } = trpc.intelligence.shopLoad.useQuery(undefined, { refetchInterval: 30000, staleTime: 25_000 });
   // Work order stats from NOUR OS bridge
-  const { data: workOrderStats } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: workOrderStats } = trpc.nourOsBridge.shopFloor.useQuery(undefined, { refetchInterval: 30000, staleTime: 25_000 });
   // Active work orders for priority queue (blocked, overdue, urgent)
   const { data: activeWorkOrders } = trpc.workOrders.list.useQuery(
     { limit: 30 },

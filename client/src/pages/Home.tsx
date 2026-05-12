@@ -258,23 +258,30 @@ function Hero() {
                 <ArrowRight className="w-4 h-4" />
               </span>
             </a>
+            {/* wave-171: CTA hierarchy fix. Previously CALL NOW (red) and
+                SCHEDULE DROP-OFF (gold) had equal visual weight at py-3.5 +
+                text-lg — competing for the eye and forcing the user to
+                deliberate. Now SCHEDULE DROP-OFF stays dominant; CALL NOW
+                drops one size tier (py-3 text-base); GET DIRECTIONS drops
+                two tiers (py-2.5 text-sm + lower border opacity). Awwwards
+                3-tier CTA hierarchy. */}
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick("hero")}
-              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-7 py-3.5 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(239,68,68,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-premium"
+              className="group inline-flex items-center justify-center gap-2 bg-red-500 text-white px-6 py-3 rounded-lg font-bold text-base shadow-[0_4px_24px_rgba(239,68,68,0.3)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-red-600 hover:shadow-[0_6px_32px_rgba(239,68,68,0.45)] active:scale-[0.98] btn-premium"
               aria-label={`Call Nick's Tire and Auto at ${BUSINESS.phone.display}`}
             >
-              <Phone className="w-5 h-5 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
+              <Phone className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:rotate-[-8deg]" />
               CALL NOW
             </a>
             <a
               href="https://www.google.com/maps/dir//Nick's+Tire+And+Auto+Euclid,+17625+Euclid+Ave,+Cleveland,+OH+44112"
               target="_blank"
               rel="noopener noreferrer"
-              className="group inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/70 text-[#FDB913] px-7 py-3.5 rounded-lg font-bold text-lg transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 hover:border-[#FDB913] active:scale-[0.98] btn-premium"
+              className="group inline-flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913]/90 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913]/10 hover:border-[#FDB913]/70 hover:text-[#FDB913] active:scale-[0.98] btn-premium"
               aria-label="Get directions to Nick's Tire and Auto on Euclid Ave"
             >
-              <MapPin className="w-5 h-5 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-[-2px]" />
+              <MapPin className="w-4 h-4 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-y-[-2px]" />
               GET DIRECTIONS
             </a>
           </motion.div>

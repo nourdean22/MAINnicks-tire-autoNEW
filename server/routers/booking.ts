@@ -452,6 +452,50 @@ export const bookingRouter = router({
       return { url };
     }),
 
+  /**
+   * wave-171: capture upsell-interest from the BookingForm success card.
+   *
+   * Previously the "Add to appointment" button on the post-submit upsell
+   * suggestions was a dead UI element — zero onClick handler. Customers
+   * tapping it at the highest-intent moment in the funnel got silence,
+   * which destroyed trust right at the conversion peak.
+   *
+   * Now: appends the upsell suggestion to the booking's adminNotes so
+   * staff sees the customer's interest when they pull up the booking +
+   * fires a Telegram alert so the front desk knows to bring it up at
+   * check-in. Public procedure (the customer's session has just created
+   * the booking and owns its id).
+   */
+  addUpsellInterest: publicProcedure
+    .input(z.object({
+      bookingId: z.number().int().positive(),
+      upsellTitle: z.string().min(1).max(200),
+      upsellPrice: z.string().max(50).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { success: false, error: "DB unavailable" };
+      const [booking] = await d.select().from(bookings).where(eq(bookings.id, input.bookingId)).limit(1);
+      if (!booking) return { success: false, error: "Booking not found" };
+
+      const noteLine = `[UPSELL INTEREST] ${input.upsellTitle}${input.upsellPrice ? ` (${input.upsellPrice})` : ""} — added by customer at confirmation`;
+      const existing = booking.adminNotes ? booking.adminNotes + "\n" : "";
+      // Don't duplicate — if note already contains this exact line, skip the append
+      const newNotes = existing.includes(noteLine) ? booking.adminNotes : existing + noteLine;
+      if (newNotes !== booking.adminNotes) {
+        await d.update(bookings).set({ adminNotes: newNotes }).where(eq(bookings.id, input.bookingId));
+      }
+
+      // Fire-and-forget Telegram so front desk sees it before customer arrives
+      import("../services/telegram")
+        .then(({ sendTelegram }) =>
+          sendTelegram(`🎯 UPSELL added by customer · booking #${booking.id} (${booking.name})\n${input.upsellTitle}${input.upsellPrice ? ` · ${input.upsellPrice}` : ""}`)
+        )
+        .catch((e) => log.warn("[booking:addUpsellInterest] telegram alert failed:", e));
+
+      return { success: true };
+    }),
+
   list: adminProcedure.query(async () => {
     return getBookings();
   }),
