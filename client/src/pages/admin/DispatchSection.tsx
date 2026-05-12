@@ -439,18 +439,26 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
   const { data: checklist, isLoading } = trpc.dispatch.getQcChecklist.useQuery({ workOrderId });
   const utils = trpc.useUtils();
 
+  // wave-152 — were silent on error. A failed QC pass/fail gave the
+  // operator zero feedback; they tapped the button + saw nothing happen.
+  // assignMut already had the toast pattern (v1.7 audit); these two
+  // were missed.
   const passMut = trpc.dispatch.passQc.useMutation({
     onSuccess: () => {
       utils.dispatch.invalidate();
       utils.workOrders.list.invalidate();
+      toast.success("QC passed");
     },
+    onError: (e) => toast.error(`QC pass failed: ${e.message}`),
   });
 
   const failMut = trpc.dispatch.failQc.useMutation({
     onSuccess: () => {
       utils.dispatch.invalidate();
       utils.workOrders.list.invalidate();
+      toast.info("Sent back for rework");
     },
+    onError: (e) => toast.error(`QC fail failed: ${e.message}`),
   });
 
   if (isLoading) return <div className="flex justify-center py-8"><Loader2 className="w-4 h-4 animate-spin" /></div>;

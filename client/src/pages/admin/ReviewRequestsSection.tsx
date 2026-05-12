@@ -2,7 +2,7 @@
  * ReviewRequestsSection — admin panel for managing automated Google review SMS requests.
  * Shows stats, request list, settings, and backfill blast controls.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard, PageHeader, useUrlFilter, FilterChips } from "./shared";
@@ -76,8 +76,13 @@ export default function ReviewRequestsSection() {
   const [formTemplate, setFormTemplate] = useState<string>("");
   const [showTemplate, setShowTemplate] = useState(false);
 
-  // Initialize form when settings load
-  const initForm = () => {
+  // wave-152 — was an imperative initForm() called only on Settings tab
+  // click. If the operator deep-linked into ?reviewTab=settings (the URL
+  // is persistent), the form stayed empty-string and handleSaveSettings
+  // sent NaN to the server via parseInt(""). Now: useEffect runs the
+  // moment `settings` resolves regardless of tab, so the form is always
+  // populated before submit. The deep-link path works correctly.
+  useEffect(() => {
     if (settings) {
       setFormEnabled(settings.enabled);
       setFormDelay(String(settings.delayMinutes));
@@ -85,7 +90,7 @@ export default function ReviewRequestsSection() {
       setFormCooldown(String(settings.cooldownDays));
       setFormTemplate(settings.messageTemplate || "");
     }
-  };
+  }, [settings]);
 
   const handleSaveSettings = () => {
     // wave-112 — was Record<string, unknown> + `as any` cast; now typed
@@ -165,7 +170,7 @@ export default function ReviewRequestsSection() {
         ]).map(t => (
           <button
             key={t.id}
-            onClick={() => { setTab(t.id); if (t.id === "settings") initForm(); }}
+            onClick={() => setTab(t.id)}
             className={`flex items-center gap-2 px-4 py-2.5 text-[12px] tracking-wide transition-colors border-b-2 -mb-[1px] ${
               tab === t.id
                 ? "border-primary text-primary"

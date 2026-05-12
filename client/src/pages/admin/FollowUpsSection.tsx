@@ -12,6 +12,7 @@ import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
 import { PageHeader, formatDate, LoadingState, EmptyState } from "./shared";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
   follow_up: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: "text-blue-400 bg-blue-500/10", label: "THANK YOU" },
@@ -132,11 +133,19 @@ export default function FollowUpsSection() {
                       <span className={`px-2 py-0.5 text-[10px] ${STATUS_STYLES[fu.status]}`}>
                         {fu.status.toUpperCase()}
                       </span>
-                      {/* wave-115 — per-row cancel button */}
+                      {/* wave-115 — per-row cancel button.
+                          wave-152 — migrated native confirm() to ConfirmDialog
+                          to close the broken-contract gap (this should have
+                          been part of the wave-150 sweep). */}
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirm(`Cancel follow-up to ${fu.recipientName}? It won't be sent.`)) {
+                        onClick={async () => {
+                          if (await confirmDialog({
+                            title: "Cancel follow-up?",
+                            message: `Stop the queued follow-up SMS to ${fu.recipientName}. It won't send.`,
+                            confirmLabel: "Cancel send",
+                            tone: "danger",
+                          })) {
                             cancelFollowUp.mutate({ id: fu.id });
                           }
                         }}
