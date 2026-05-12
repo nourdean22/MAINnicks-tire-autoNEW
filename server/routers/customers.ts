@@ -501,11 +501,18 @@ export const customersRouter = router({
       if (!d) return { csv: "" };
 
       const segment = input?.segment ?? "all";
+      // wave-165: hard cap to 10000 rows. Before this, segment="all" returned
+      // every customer row + PII (phone/email/address) with no LIMIT — at
+      // 10k+ customers this would OOM the dyno or time out on Railway.
+      // Truncation is surfaced in the response so the UI can flag it.
+      const EXPORT_CAP = 10000;
       const query = d.select().from(customers);
       if (segment !== "all") {
         query.where(eq(customers.segment, segment));
       }
-      const results = await query.orderBy(desc(customers.lastVisitDate));
+      const results = await query.orderBy(desc(customers.lastVisitDate)).limit(EXPORT_CAP + 1);
+      const truncated = results.length > EXPORT_CAP;
+      if (truncated) results.length = EXPORT_CAP;
 
       // Build CSV (csvSafe imported from ../sanitize)
       const headers = ["First Name", "Last Name", "Phone", "Email", "City", "State", "Segment", "Total Visits", "Last Visit", "Customer Type"];
@@ -523,7 +530,7 @@ export const customersRouter = router({
       ]);
 
       const csv = [headers.join(","), ...rows.map((r: string[]) => r.map((v: string) => `"${v.replace(/"/g, '""')}"`).join(","))].join("\n");
-      return { csv, count: results.length };
+      return { csv, count: results.length, truncated };
     }),
 
   /** Quick send SMS to a customer */

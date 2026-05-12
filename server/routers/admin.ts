@@ -1192,7 +1192,11 @@ async function scheduleCallReviewRequest(phoneNumber: string): Promise<void> {
     trackingToken,
   });
 
-  console.info(`[calltracking:review] Scheduled for ${normalizedPhone} at ${scheduledAt.toISOString()}`);
+  // wave-165: redact phone PII in Railway stdout. console.info bypasses
+  // the createLogger redaction layer, so full customer phones were
+  // landing in retained dyno logs visible to anyone with project access.
+  const phoneTail = normalizedPhone.slice(-4);
+  console.info(`[calltracking:review] Scheduled for phone ending ***${phoneTail} at ${scheduledAt.toISOString()}`);
 }
 
 // ─── CALL TRACKING ─────────────────────────────────────
