@@ -31,25 +31,39 @@ import { getConversionDataForSlug } from "@/data/serviceConversionData";
 
 // ─── SERVICE DATA → PAGE CONFIG ADAPTER ─────────────────────
 function serviceDataToConfig(service: ServiceData): ServicePageConfig {
-  // Pricing tiers — Nick's policy (2026-04-26): we close in person, not on
-  // the website. Show the tier structure (3-tier visual hierarchy stays for
-  // conversion architecture), but every tier reads "Free estimate" so the
-  // visitor calls / walks in instead of self-closing on a public number.
+  // Pricing tiers — wave-181.24 reversal of 2026-04-26 policy.
+  //
+  // The 2026-04-26 policy forced every tier to read "Free estimate"
+  // under the theory "we close in person." Wave-181.20 CRO audit
+  // reversed this on /brakes after evidence that visitors bounce when
+  // they can't see a price range — "$149-$299" reduces budget anxiety
+  // before the call, and the call still happens (just with a more
+  // qualified lead).
+  //
+  // Now: surface t.range from shared/services.ts directly. If a range
+  // contains an explicit FREE/Yes value, render that; otherwise show
+  // the dollar range from the data (e.g. "$149–$299"). The 3-tier
+  // visual hierarchy and "free written estimate before any work"
+  // commitment stay intact via pricingSub + includedTitle.
   const tiers: ServicePricingTier[] = (service.pricingTiers && service.pricingTiers.length > 0)
-    ? service.pricingTiers.map((t, i) => ({
+    ? service.pricingTiers.slice(0, 3).map((t, i, arr) => ({
         name: t.label,
-        price: "Free estimate",
-        // sub is intentionally not set to t.range — that field carried explicit
-        // dollar ranges ("$60–$120") which we no longer expose. Tier `name`
-        // and `use` carry enough context.
+        price: t.range,
         sub: undefined,
-        use: i === 0 ? "Standard service for most vehicles" : i === 1 ? "Recommended for most customers" : "Extensive service when needed",
-        featured: i === 1, // middle tier featured
+        use:
+          arr.length === 1
+            ? "Standard service for most vehicles"
+            : i === 0
+              ? "Standard service for most vehicles"
+              : i === Math.floor(arr.length / 2)
+                ? "Recommended for most customers"
+                : "Extensive service when needed",
+        featured: arr.length > 1 && i === Math.floor(arr.length / 2),
       }))
     : [
         {
           name: service.title,
-          price: "Free estimate",
+          price: "Free written estimate",
           sub: service.duration ? `Typically ${service.duration}` : undefined,
           use: service.shortDesc || "Professional service at Nick's Tire & Auto",
           featured: true,
@@ -74,13 +88,14 @@ function serviceDataToConfig(service: ServiceData): ServicePageConfig {
     eyebrow: service.title,
     h1: service.heroHeadline.replace(/\n/g, " "),
     sub: service.heroSubline,
-    // 2026-04-26 close-in-person policy: hero startingPrice no longer
-    // surfaces explicit dollar amounts. Hero shows "Free estimate" badge
-    // instead — the tier section + free written estimate carries the
-    // commitment without exposing a self-close price.
-    startingPrice: "Free estimate",
-    pricingTitle: `${service.title.toUpperCase()} — FREE ESTIMATE`,
-    pricingSub: "Free written estimate before any work. We show you what's needed before you commit.",
+    // wave-181.24 reversal of 2026-04-26 close-in-person policy.
+    // Surface the canonical startingPrice from shared/services.ts —
+    // visitors who see a real number bounce less and call more.
+    // The "free written estimate before any work" promise stays in
+    // pricingSub so the trust commitment is preserved.
+    startingPrice: service.startingPrice || "Free written estimate",
+    pricingTitle: `${service.title.toUpperCase()} — TRANSPARENT PRICING`,
+    pricingSub: "Concrete starting prices below. Free written estimate before any wrench moves — you see what's needed before you commit.",
     tiers,
     includedTitle: "WHAT'S INCLUDED",
     includedSub: service.whyChooseUs || `Every ${service.title.toLowerCase()} at Nick's comes with this — no games.`,
