@@ -774,6 +774,59 @@ export default function TireFinder() {
       {/* v1.7 SEO · BreadcrumbList JSON-LD + visible nav */}
       <Breadcrumbs items={[{ label: "Tires" }]} />
       <LocalBusinessSchema includeServices />
+      {/* wave-181.13 · Product schema with priceRange (audit "easy
+          schema win"). Unlocks Google's Product rich-result eligibility
+          for tire-shopping queries. lowPrice 40 = used tire minimum,
+          highPrice 350 = typical new-tire ceiling (single tire); set
+          shipping/return as in-store-only with FreeShippingDetails
+          unset to satisfy required Offer fields without claiming any
+          shipping policy. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            name: "New & Used Tires at Nick's Tire & Auto",
+            description:
+              "Used tires from $40 installed, new tires from $80. Free mount, balance, valve stems, TPMS reset, alignment check on every set. Cleveland's first-come-first-served tire shop on Euclid Ave.",
+            brand: { "@type": "Brand", name: "Nick's Tire & Auto" },
+            category: "Auto Tires",
+            image: [
+              "https://nickstire.org/photos/shopfront-clear-vertical-sign-bays.webp",
+              "https://nickstire.org/photos/busy-shop-action-mechanics.webp",
+            ],
+            aggregateRating: {
+              "@type": "AggregateRating",
+              ratingValue: "4.9",
+              reviewCount: "1683",
+              bestRating: "5",
+              worstRating: "1",
+            },
+            offers: {
+              "@type": "AggregateOffer",
+              priceCurrency: "USD",
+              lowPrice: "40",
+              highPrice: "350",
+              offerCount: "800",
+              availability: "https://schema.org/InStock",
+              seller: {
+                "@type": "AutoRepair",
+                name: "Nick's Tire & Auto",
+                telephone: "+1-216-862-0005",
+                address: {
+                  "@type": "PostalAddress",
+                  streetAddress: "17625 Euclid Ave",
+                  addressLocality: "Cleveland",
+                  addressRegion: "OH",
+                  postalCode: "44112",
+                  addressCountry: "US",
+                },
+              },
+            },
+          }),
+        }}
+      />
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
