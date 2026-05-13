@@ -1,89 +1,90 @@
-wave-181.7: 2 new SERP-fix pages (tire-repair + wheel-alignment) + /tires cannibalization fix
+wave-181.8: city-page title sharpening + brand overflow + CRITICAL redirect-removal for wave-181.7 pages
 
-Aggressive continuation of the audit-driven SEO roadmap.
+=== CRITICAL FIX (the rest of this wave doesn't matter if this isn't pushed first) ===
 
-=== NEW PAGES (audit moves #5 + #6) ===
+server/_core/redirects.ts:
+Found a P1 deploy issue verifying wave-181.7 went live as Googlebot:
 
-client/src/pages/TireRepairPage.tsx (new · 143KB rendered):
-- /tire-repair-cleveland route
-- Targets the tire-repair cluster currently in striking distance per GSC:
-  * "tire repair" — pos 28.4
-  * "tire repair near me" — pos 7.2 (page 1)
-  * "tire repair cleveland" — pos 20.7
-  * "tire repair parma" — pos 43.6
-  * "tire repair 44129" — pos 30.4
-- No dedicated tire-repair landing existed before — content was buried in /tires body
-- Hero: $25 plug or patch · 15-min walk-in · free inspection first
-- Pricing tiers: plug ($25), plug+patch combo ($35), used-tire fallback ($40)
-- 8-FAQ schema including RMA repair-vs-replace rules + TPMS reset
-- Fear stats: 47% wear increase + 11% MPG loss + $280 tow cost
-- LossStats: $12/day slow-leak cost + $280 blowout cost
-- Cross-sell to /tires + /wheel-alignment-cleveland + /brakes
-- Expected: +20-30 clicks/mo per audit projection
+  /tire-repair-cleveland → HTTP 301 → /tires
+  /wheel-alignment-cleveland → HTTP 301 → /tires
 
-client/src/pages/WheelAlignmentClevelandPage.tsx (new · 144KB rendered):
-- /wheel-alignment-cleveland route (separate from existing /alignment which targets generic "alignment near me")
-- Targets the city-aware alignment cluster per GSC:
-  * "wheel alignment cleveland" — pos 36.2 (page 4)
-  * "wheel alignment in cleveland ohio" — pos 40.2
-  * Combined 121 impressions/mo across the cluster
-- Hero: $89 typical · same-day · free pull-check first
-- Pricing tiers: 2-wheel ($69), 4-wheel ($89), post-collision ($129)
-- 8-FAQ schema · alignment-specific intent
-- Fear stats: 47% wear + $1,200 tire-set replacement + 3-5% MPG
-- Cross-sell to /tires + /tire-repair-cleveland + /services
-- Expected: +25-35 clicks/mo per audit projection
+The new SERP-fix pages from wave-181.7 were being 301-redirected to
+/tires by hardcoded rules in server/_core/redirects.ts that predated
+the new pages. Bot HTML response was 40 bytes ("Moved Permanently.
+Redirecting to /tires") instead of the 158KB and 159KB real pages.
 
-=== /tires CANNIBALIZATION FIX ===
+Removed both redirects (commented with reason · so the audit trail
+shows the intent change). The /brake-repair-cleveland → /brakes
+redirect STAYS because /brakes still owns that slot (no separate page
+was built for /brake-repair-cleveland per the wave-181.7 decision).
 
-shared/routes.ts:
-- Diagnosed: both /tires (priority 1.0) and /used-tires-cleveland (priority
-  0.85) led with "Used tires from $60" in meta description. Google picked
-  the higher-priority /tires for "used tires Cleveland" intent → ZERO
-  impressions on /used-tires-cleveland in 30 days (per GSC audit).
-- Fix: rewrote /tires meta to lead with general tire-shop intent
-  ("Tire shop in Cleveland on Euclid Ave · walk-in 7 days, new + used
-  in stock, free install with purchase") so "used tires" intent flows to
-  /used-tires-cleveland.
-- Both pages re-rendered. /tires title unchanged (still "Tire Shop
-  Cleveland · New & Used · Free Install").
+Without this fix, wave-181.7's two new pages would have ZERO SEO
+value despite all the prerendered HTML — Google would have followed
+the 301 and dropped the new pages from its index.
 
-=== ROUTING ===
+=== CITY-PAGE TITLE SHARPENING (audit move #3) ===
 
-client/src/App.tsx:
-- Lazy imports + Route entries for both new pages.
+shared/routes.ts (7 rewrites mirroring the winning /parma-auto-repair
+pattern: "[City] Auto Repair · [Differentiator] | Nick's"):
+
+- /parma-heights-auto-repair · was "Auto Repair Near Parma Heights OH
+  — Nick's Tire & Auto" (pos 38-44 across 7 queries per GSC audit)
+- /lakewood-auto-repair · was "Auto Repair Near Lakewood OH"
+- /cleveland-heights-auto-repair · was "Auto Repair Cleveland Heights"
+- /shaker-heights-auto-repair · was "Auto Repair Shaker Heights OH"
+- /euclid-auto-repair · was "Auto Repair Euclid OH" (literally on Euclid Ave,
+  now leads with the actual street address)
+- /east-cleveland-auto-repair · was "Auto Repair East Cleveland OH"
+- /lyndhurst-auto-repair · was "Auto Repair Near Lyndhurst OH"
+
+All rewrites now lead with "[City] Auto Repair" + key differentiator
+(Used Tires $60, Open Sundays, distance, ★4.9). Generic "Near X OH"
+pattern was unranked-mid-table baseline; new pattern is what the
+winning /parma-auto-repair page uses.
+
+Expected upside per audit projection on /parma-heights-auto-repair alone:
+~156 impressions/mo currently at pos 38-44. Moving to top half of
+page 1 would yield ~25-40 clicks/mo from this page alone. Repeat
+across 6 other city pages (smaller impressions each) for additional
+~15-25 clicks/mo aggregate.
+
+=== BRAND-OVERFLOW FIX (audit move #8) ===
 
 shared/routes.ts:
-- Both new routes added with sitemap:true + prerender:true.
+- /auto-repair-near-me · was "Auto Repair Near Me — Cleveland's Local
+  Mechanic | Nick's Tire & Auto". Per GSC audit, "nick's auto repair
+  near me" was ranking pos 23. Rewrite leads with "Nick's Auto Repair
+  Near Me" — captures both brand + intent in front position.
+  Expected upside: +10-20 clicks/mo from brand-overflow rescue.
+
+=== SYNTHETIC OIL TITLE TIGHTEN ===
+
+shared/routes.ts:
+- /synthetic-oil-change · was "Synthetic Oil Change Cleveland | From
+  $69 | Same Day | Nick's Tire & Auto" (62 chars · verbose). Page
+  ranks pos 65 for "synthetic oil change" at 179 impressions/mo.
+  Tightened to lead with "Synthetic Oil Change Near Me · Cleveland".
+  Expected upside: ranking lift + CTR improvement.
+
+=== PRERENDER (30 routes regenerated) ===
 
 scripts/prerender-comparison-only.mjs:
-- Added 4 new routes to targeted list (tire-repair, wheel-alignment,
-  tires re-render, used-tires-cleveland re-render).
+- Added 9 affected routes to targeted prerender list.
 
-=== VERIFIED ===
+prerendered/**/index.html:
+- 30 routes regenerated. New pages now at sizes proving real HTML:
+  - /tire-repair-cleveland: 158KB (was 143KB before redirect-fix
+    triggered server template differences)
+  - /wheel-alignment-cleveland: 159KB
+  - All 7 city pages: 152-163KB
+  - /auto-repair-near-me: 194KB
+  - /synthetic-oil-change: 147KB
+
+=== Verified ===
 
 - tsc clean, prettier clean
-- 21 routes prerendered successfully (no hangs · the PRERENDER_MODE flag
-  from wave-181.3 continues to work)
-- New pages: 143KB + 144KB real HTML (not SPA shells)
-- /tires + /used-tires re-rendered with new meta descriptions
-
-=== AUDIT ROADMAP STATUS ===
-
-Completed this session (wave-181.x):
-  - Move #4: /tires striking-distance boost (cannibalization fix) ✓
-  - Move #5: /wheel-alignment-cleveland new page ✓
-  - Move #6: /tire-repair-cleveland new page ✓
-  - Move #7: /brakes cluster (already ~80% done · Midas in anchor,
-            city pages already link)
-  - Move #10: /no-credit-check-tires-cleveland (wave-181.5) ✓
-
-Deferred:
-  - Move #1: /synthetic-oil-change content beef-up (exists at pos 65)
-  - Move #2: Removed from list (not in current audit)
-  - Move #3: /parma-heights-auto-repair title tighten
-  - Move #8: Brand-search overflow ("nick's auto repair near me" pos 23)
-  - Move #9: Sunday cluster expansion (partly done with new Sunday page)
-  - Voice-contract enforcement (banned words on /financing, /booking, /about)
-  - /used-tires-cleveland live verification (after Railway redeploy)
-  - Apify competitor scrape retry (died on API overload mid-session)
+- 30 routes prerendered without hangs
+- Redirect removal verified locally (server now returns 200 not 301)
+- After push: Railway redeploys, the prod 301 issue resolves itself
+- Wave-181.7 pages will then become discoverable to Googlebot for the
+  first time

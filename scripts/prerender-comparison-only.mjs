@@ -63,6 +63,17 @@ const ROUTES = [
   // intent. Also re-render /used-tires-cleveland so both ship together.
   "/tires",
   "/used-tires-cleveland",
+  // wave-181.8 · city-page title rewrites (audit move #3) + brand
+  // overflow fix on /auto-repair-near-me + synthetic-oil sharpening.
+  "/parma-heights-auto-repair",
+  "/lakewood-auto-repair",
+  "/cleveland-heights-auto-repair",
+  "/shaker-heights-auto-repair",
+  "/euclid-auto-repair",
+  "/east-cleveland-auto-repair",
+  "/lyndhurst-auto-repair",
+  "/auto-repair-near-me",
+  "/synthetic-oil-change",
 ];
 
 function findFreePort() {
