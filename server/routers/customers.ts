@@ -886,6 +886,37 @@ export const customersRouter = router({
     }
   }),
 
+  /**
+   * wave-181.27 · expose `customer_metrics` freshness so the admin UI
+   * can show a "last computed Xm ago" badge next to the Recompute
+   * button. Operator sees at a glance whether the materialized
+   * aggregates are minutes-old (trust them) or hours-old (recompute).
+   *
+   * Reads max(computedAt) across the table — single-row scalar query,
+   * indexed by primary key. Returns null if the table is empty or DB
+   * is offline (UI renders "—" in that case).
+   */
+  metricsFreshness: adminProcedure.query(async () => {
+    try {
+      const d = await db();
+      if (!d) return { lastComputedAt: null, rowCount: 0 };
+      const [maxRow] = await d
+        .select({ maxComputed: sql<Date | null>`MAX(${customerMetrics.computedAt})`, count: sql<number>`COUNT(*)` })
+        .from(customerMetrics);
+      return {
+        lastComputedAt: maxRow?.maxComputed instanceof Date
+          ? maxRow.maxComputed.toISOString()
+          : maxRow?.maxComputed
+            ? String(maxRow.maxComputed)
+            : null,
+        rowCount: Number(maxRow?.count ?? 0),
+      };
+    } catch (err) {
+      log.error("[Customers] Metrics freshness query failed:", err instanceof Error ? err.message : err);
+      return { lastComputedAt: null, rowCount: 0 };
+    }
+  }),
+
   /** Customer forecast — revenue projections relevant to customer behavior */
   customerForecast: adminProcedure.query(async () => {
     try {

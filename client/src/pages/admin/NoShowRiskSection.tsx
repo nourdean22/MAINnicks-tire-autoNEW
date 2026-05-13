@@ -7,7 +7,7 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { PageHeader, LoadingState } from "./shared";
+import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
   AlertTriangle, Phone, Send, Clock, User, Car, Check, Edit2, X,
   Sparkles, TrendingUp, TrendingDown,
@@ -45,7 +45,7 @@ function daysUntil(dateStr: string | null): string {
 
 export default function NoShowRiskSection() {
   const [limit, setLimit] = useState(50);
-  const { data, isLoading, refetch } = trpc.noShow.listAtRisk.useQuery({ limit });
+  const { data, isLoading, isError, refetch } = trpc.noShow.listAtRisk.useQuery({ limit });
   const { data: stats } = trpc.noShow.stats.useQuery({ days: 30 });
   const sendMutation = trpc.noShow.sendConfirmation.useMutation();
 
@@ -162,6 +162,8 @@ export default function NoShowRiskSection() {
       {/* ── List ───────────────────────────────────── */}
       {isLoading ? (
         <LoadingState />
+      ) : isError ? (
+        <ErrorState message="Couldn't load no-show risk data" onRetry={() => refetch()} />
       ) : !data || data.bookings.length === 0 ? (
         <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
           <Check className="w-8 h-8 mx-auto mb-3 text-emerald-400/80" />

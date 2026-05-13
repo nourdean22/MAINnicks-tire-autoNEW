@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import {
-  StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState,
+  StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState, ErrorState,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -55,8 +55,8 @@ export default function ContentSection() {
 
 function ContentManager() {
   const utils = trpc.useUtils();
-  const { data: articles, isLoading: articlesLoading } = trpc.contentAdmin.allArticles.useQuery();
-  const { data: notifications, isLoading: notifsLoading } = trpc.contentAdmin.allNotifications.useQuery();
+  const { data: articles, isLoading: articlesLoading, isError: articlesError, refetch: refetchArticles } = trpc.contentAdmin.allArticles.useQuery();
+  const { data: notifications, isLoading: notifsLoading, isError: notifsError, refetch: refetchNotifs } = trpc.contentAdmin.allNotifications.useQuery();
   const { data: genLog } = trpc.contentAdmin.generationLog.useQuery();
 
   // wave-112 — was missing utils.X.invalidate() calls; PUBLISH/UNPUBLISH/
@@ -80,6 +80,9 @@ function ContentManager() {
 
   if (articlesLoading || notifsLoading) {
     return <LoadingState label="Loading content manager..." />;
+  }
+  if (articlesError || notifsError) {
+    return <ErrorState message="Couldn't load content data" onRetry={() => { refetchArticles(); refetchNotifs(); }} />;
   }
 
   return (
@@ -385,10 +388,10 @@ const SEASONAL_TOPICS: Record<string, ContentIdea[]> = {
 };
 
 function AIIdeasEngine() {
-  const { data: chatFunnel, isLoading: chatLoading } = trpc.intelligence.chatFunnel.useQuery();
-  const { data: seasonal, isLoading: seasonalLoading } = trpc.intelligence.seasonalDemand.useQuery();
-  const { data: competitor, isLoading: compLoading } = trpc.intelligence.competitorGap.useQuery();
-  const { data: contentPerf, isLoading: contentLoading } = trpc.intelligence.contentPerformance.useQuery();
+  const { data: chatFunnel, isLoading: chatLoading, isError: chatError, refetch: refetchChat } = trpc.intelligence.chatFunnel.useQuery();
+  const { data: seasonal, isLoading: seasonalLoading, isError: seasonalError, refetch: refetchSeasonal } = trpc.intelligence.seasonalDemand.useQuery();
+  const { data: competitor, isLoading: compLoading, isError: compError, refetch: refetchComp } = trpc.intelligence.competitorGap.useQuery();
+  const { data: contentPerf, isLoading: contentLoading, isError: contentError, refetch: refetchContent } = trpc.intelligence.contentPerformance.useQuery();
 
   const generateArticle = trpc.contentAdmin.generateArticle.useMutation({
     onSuccess: () => toast.success("Article generated! Check Content Manager tab to review."),
@@ -396,6 +399,8 @@ function AIIdeasEngine() {
   });
 
   const isLoading = chatLoading || seasonalLoading || compLoading || contentLoading;
+  const isError = chatError || seasonalError || compError || contentError;
+  const refetchAll = () => { refetchChat(); refetchSeasonal(); refetchComp(); refetchContent(); };
 
   // Build ideas from intelligence data
   const ideas: ContentIdea[] = [];
@@ -490,6 +495,9 @@ function AIIdeasEngine() {
 
   if (isLoading) {
     return <LoadingState label="Loading intelligence data..." />;
+  }
+  if (isError) {
+    return <ErrorState message="Couldn't load intelligence data" onRetry={refetchAll} />;
   }
 
   return (

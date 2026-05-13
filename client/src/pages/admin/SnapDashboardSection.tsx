@@ -9,7 +9,7 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { PageHeader, LoadingState } from "./shared";
+import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
   CreditCard, ExternalLink, CheckCircle2, XCircle, Clock,
   User, Phone, Car, DollarSign, Plus, X,
@@ -38,7 +38,7 @@ function timeAgo(d: Date | string): string {
 
 export default function SnapDashboardSection() {
   const utils = trpc.useUtils();
-  const { data, isLoading } = trpc.snap.list.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.snap.list.useQuery(undefined, {
     refetchInterval: 60_000,
   });
   const summary = trpc.snap.summary.useQuery(undefined, {
@@ -220,6 +220,8 @@ export default function SnapDashboardSection() {
       {/* Applications list */}
       {isLoading ? (
         <LoadingState />
+      ) : isError ? (
+        <ErrorState message="Couldn't load Snap applications" onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
           <CreditCard className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />

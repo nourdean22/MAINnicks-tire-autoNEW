@@ -1014,6 +1014,21 @@ function Customer360Panel({ customer, onSmsClick }: {
 
 type SortByExt = "name" | "visits" | "lastVisit" | "totalSpent" | "firstVisit" | "created" | "declined" | "backlog";
 
+// wave-181.27 · format relative age for the metrics-freshness badge.
+// Returns "computed Xm ago" / "Xh ago" / "Xd ago" — short form for chip.
+function formatMetricsAge(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (Number.isNaN(t)) return "computed —";
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 60) return `computed ${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `computed ${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `computed ${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `computed ${day}d ago`;
+}
+
 export default function CustomersSection() {
   // URL-persistent tab state (matches Settings pattern via ?customersTab=...)
   const [activeTab, setActiveTab] = useState<CustomerTab>(() => {
@@ -1117,11 +1132,21 @@ function CustomersList() {
       if (result.success) {
         toast.success(`Recomputed ${result.customersUpdated} customer aggregates · ${result.durationMs}ms`);
         utils.customers.list.invalidate();
+        utils.customers.metricsFreshness.invalidate();
       } else {
         toast.error("Metrics refresh failed");
       }
     },
     onError: () => toast.error("Metrics refresh failed"),
+  });
+
+  // wave-181.27 · materialized-metrics freshness probe. Refetches
+  // every minute so the "computed Xm ago" badge tracks the table
+  // state without forcing a manual reload. Auto-invalidated above
+  // when the Recompute button succeeds.
+  const { data: freshness } = trpc.customers.metricsFreshness.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   const retryCampaign = trpc.customers.retryCampaign.useMutation({
@@ -1329,11 +1354,28 @@ function CustomersList() {
             onClick={() => refreshMetricsMutation.mutate()}
             disabled={refreshMetricsMutation.isPending}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs tracking-wide bg-card border border-amber-500/30 text-amber-400 hover:bg-amber-500/10 disabled:opacity-50 whitespace-nowrap"
-            title="Recompute declined-work + backlog totals from local DB. No ALG fetch. Auto-runs on login."
+            title={
+              freshness?.lastComputedAt
+                ? `Last recomputed ${freshness.lastComputedAt} · ${freshness.rowCount} rows. Click to force a fresh DB scan (no ALG fetch).`
+                : "Recompute declined-work + backlog totals from local DB. No ALG fetch. Auto-runs on login."
+            }
           >
             {refreshMetricsMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
             Recompute
           </button>
+          {/* wave-181.27 · freshness badge — shows when the materialized
+              customer_metrics aggregates were last computed. If the
+              numbers look wrong, the operator first checks this badge
+              to know whether to recompute or look deeper. */}
+          {freshness?.lastComputedAt && (
+            <span
+              className="hidden md:inline-flex items-center gap-1 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.12em] font-medium text-foreground/45 bg-card/50 border border-border/25 whitespace-nowrap"
+              title={`Materialized aggregates last computed at ${freshness.lastComputedAt} (${freshness.rowCount} rows)`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/70" />
+              {formatMetricsAge(freshness.lastComputedAt)}
+            </span>
+          )}
         </div>
 
         {/* Advanced Filters */}

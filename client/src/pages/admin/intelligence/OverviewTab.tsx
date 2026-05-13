@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
-import { Spinner, NoData, STALE_TIME } from "./utils";
+import { Spinner, NoData, INTELLIGENCE_QUERY_OPTS } from "./utils";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import {
@@ -9,9 +9,7 @@ import {
 } from "lucide-react";
 
 export default function OverviewTab() {
-  const { data, isLoading, error } = trpc.intelligence.masterReport.useQuery(undefined, {
-    staleTime: STALE_TIME,
-  });
+  const { data, isLoading, error } = trpc.intelligence.masterReport.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   if (isLoading) return <Spinner />;
   if (error || !data) return <NoData label="Master report unavailable" />;

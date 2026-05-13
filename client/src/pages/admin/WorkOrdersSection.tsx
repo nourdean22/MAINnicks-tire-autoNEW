@@ -5,7 +5,7 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState } from "./shared";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
@@ -813,7 +813,7 @@ export default function WorkOrdersSection() {
   const [showTerminal, setShowTerminal] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [view, setView] = useState<"board" | "parts" | "blockers" | "pickup">("board");
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({
+  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({
     includeTerminal: showTerminal,
     limit: 200,
   }, { refetchInterval: 15000 });
@@ -946,6 +946,8 @@ export default function WorkOrdersSection() {
         <div className="flex items-center justify-center py-20">
           <Loader2 className="w-6 h-6 animate-spin text-primary/60" />
         </div>
+      ) : isError ? (
+        <ErrorState message="Couldn't load work orders" onRetry={() => refetch()} />
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4" style={{ minHeight: 400 }}>
           {columns.map(col => (

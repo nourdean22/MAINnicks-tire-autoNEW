@@ -15,7 +15,7 @@
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { PageHeader, LoadingState, SectionInsightStrip } from "./shared";
+import { PageHeader, LoadingState, ErrorState, SectionInsightStrip } from "./shared";
 import {
   RotateCcw, Send, Phone, User, Clock, AlertTriangle,
   CheckCircle2, Calendar, Edit2, X, Sparkles,
@@ -37,7 +37,7 @@ function daysAgoLabel(days: number): string {
 
 export default function ReEngagementSection() {
   const [limit, setLimit] = useState(50);
-  const { data, isLoading, refetch } = trpc.reEngagement.listDue.useQuery({ limit });
+  const { data, isLoading, isError, refetch } = trpc.reEngagement.listDue.useQuery({ limit });
   const sendMutation = trpc.reEngagement.sendSuggestion.useMutation();
 
   const [editingPhone, setEditingPhone] = useState<string | null>(null);
@@ -99,6 +99,8 @@ export default function ReEngagementSection() {
 
       {isLoading ? (
         <LoadingState />
+      ) : isError ? (
+        <ErrorState message="Couldn't load re-engagement suggestions" onRetry={() => refetch()} />
       ) : !data || data.suggestions.length === 0 ? (
         <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
           <CheckCircle2 className="w-8 h-8 mx-auto mb-3 text-emerald-400/80" />

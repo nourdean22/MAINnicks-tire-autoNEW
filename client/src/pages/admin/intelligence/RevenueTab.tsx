@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
-import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
+import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, INTELLIGENCE_QUERY_OPTS } from "./utils";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 import {
@@ -10,13 +10,13 @@ import {
 } from "lucide-react";
 
 export default function RevenueTab() {
-  const forecast = trpc.intelligence.forecast.useQuery(undefined, { staleTime: STALE_TIME });
-  const anomaly = trpc.intelligence.revenueAnomaly.useQuery(undefined, { staleTime: STALE_TIME });
-  const cashFlow = trpc.intelligence.cashFlow.useQuery(undefined, { staleTime: STALE_TIME });
-  const margins = trpc.intelligence.profitMargins.useQuery(undefined, { staleTime: STALE_TIME });
-  const ticket = trpc.intelligence.ticketTrend.useQuery(undefined, { staleTime: STALE_TIME });
-  const concentration = trpc.intelligence.revenueConcentration.useQuery(undefined, { staleTime: STALE_TIME });
-  const payments = trpc.intelligence.paymentTrends.useQuery(undefined, { staleTime: STALE_TIME });
+  const forecast = trpc.intelligence.forecast.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const anomaly = trpc.intelligence.revenueAnomaly.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const cashFlow = trpc.intelligence.cashFlow.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const margins = trpc.intelligence.profitMargins.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const ticket = trpc.intelligence.ticketTrend.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const concentration = trpc.intelligence.revenueConcentration.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const payments = trpc.intelligence.paymentTrends.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">
