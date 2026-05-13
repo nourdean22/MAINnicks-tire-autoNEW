@@ -20,7 +20,7 @@ import {
   ThermometerSun, Cog, CircleDot, ArrowRight, RefreshCw, XCircle,
   Activity, Wifi, WifiOff, Plug
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState } from "./shared";
 
 // ─── TYPES ──────────────────────────────────────────────
 type Tab = "tires" | "labor" | "estimate";
@@ -49,7 +49,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 // ─── VENDOR HEALTH STRIP ────────────────────────────────
 function VendorHealthStrip() {
-  const { data: health, isLoading } = trpc.adminDashboard.syncHealth.useQuery(undefined, {
+  const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.syncHealth.useQuery(undefined, {
     refetchInterval: 60_000,
   });
   const refreshMut = trpc.adminDashboard.refreshHealth.useMutation({
@@ -64,6 +64,10 @@ function VendorHealthStrip() {
         Checking vendor integrations...
       </div>
     );
+  }
+
+  if (isError) {
+    return <ErrorState message="Couldn't load vendor health checks" onRetry={() => refetch()} />;
   }
 
   if (!health) return null;

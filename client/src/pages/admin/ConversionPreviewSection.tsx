@@ -12,7 +12,7 @@
  */
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState, LoadingState } from "./shared";
 import LiveVisitorCounter from "@/components/conversion/LiveVisitorCounter";
 import UrgencyWidget from "@/components/conversion/UrgencyWidget";
 import ExitIntentModal from "@/components/conversion/ExitIntentModal";
@@ -45,18 +45,14 @@ const SOURCE_LABELS: Record<string, string> = {
  * via the new `trpc.conversion.leadFunnel` admin-only query.
  */
 function ConversionDashboard() {
-  const { data, isLoading } = trpc.conversion.leadFunnel.useQuery(undefined, {
+  const { data, isLoading, isError, refetch } = trpc.conversion.leadFunnel.useQuery(undefined, {
     refetchInterval: 60_000,
     staleTime: 45_000,
   });
 
-  if (isLoading || !data) {
-    return (
-      <section className="rounded-2xl border border-border/30 bg-card/40 p-8 text-center text-foreground/40 text-sm">
-        Loading conversion funnel...
-      </section>
-    );
-  }
+  if (isLoading) return <LoadingState label="Loading conversion funnel..." />;
+  if (isError) return <ErrorState message="Couldn't load conversion funnel" onRetry={() => refetch()} />;
+  if (!data) return <LoadingState label="Loading conversion funnel..." />;
 
   const t = data.totals;
   const bookingToInvoice = t.bookings30d > 0

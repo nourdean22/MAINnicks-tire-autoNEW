@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, ErrorState } from "./shared";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -443,7 +443,7 @@ export default function WinBackSection() {
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 
   const { data: stats } = trpc.winback.campaignStats.useQuery();
-  const { data: campaigns, isLoading } = trpc.winback.campaigns.useQuery();
+  const { data: campaigns, isLoading, isError, refetch } = trpc.winback.campaigns.useQuery();
 
   function openDetail(id: number) {
     setSelectedCampaignId(id);
@@ -499,6 +499,8 @@ export default function WinBackSection() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
+      ) : isError ? (
+        <ErrorState message="Couldn't load win-back campaigns" onRetry={() => refetch()} />
       ) : !campaigns || campaigns.length === 0 ? (
         <div className="bg-card border border-border/30 p-12 text-center">
           <RotateCcw className="w-10 h-10 text-foreground/20 mx-auto mb-4" />

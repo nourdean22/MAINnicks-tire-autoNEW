@@ -99,14 +99,14 @@ export default function SnapDashboardSection() {
               href="https://portal.snapfinance.com"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-secondary hover:bg-secondary/80 transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Snap Portal
             </a>
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-bold"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-bold"
             >
               <Plus className="w-3.5 h-3.5" />
               {showForm ? "Cancel" : "New Application"}
@@ -118,22 +118,22 @@ export default function SnapDashboardSection() {
       {/* Summary cards */}
       {summary.data && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+          <div className="border border-border/30 bg-card/50 p-3">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Total</div>
             <div className="font-mono font-black text-2xl text-foreground">{summary.data.total}</div>
           </div>
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3">
+          <div className="border border-amber-500/30 bg-amber-500/5 p-3">
             <div className="text-[10px] uppercase tracking-widest text-amber-400">Pending</div>
             <div className="font-mono font-black text-2xl text-amber-400">{summary.data.pending}</div>
           </div>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3">
+          <div className="border border-emerald-500/30 bg-emerald-500/5 p-3">
             <div className="text-[10px] uppercase tracking-widest text-emerald-400">Approved</div>
             <div className="font-mono font-black text-2xl text-emerald-400">{summary.data.approved}</div>
             <div className="text-[10px] text-emerald-400/70 font-mono mt-0.5">
               ${summary.data.totalApprovedAmount.toLocaleString()}
             </div>
           </div>
-          <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-3">
+          <div className="border border-red-500/30 bg-red-500/5 p-3">
             <div className="text-[10px] uppercase tracking-widest text-red-400">Declined</div>
             <div className="font-mono font-black text-2xl text-red-400">{summary.data.declined}</div>
           </div>
@@ -151,28 +151,28 @@ export default function SnapDashboardSection() {
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
           >
-            <div className="rounded-xl border border-border/30 bg-card/50 p-4 space-y-3">
+            <div className="border border-border/30 bg-card/50 p-4 space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input
                   required
                   placeholder="Customer name *"
                   value={form.customerName}
                   onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
                   required
                   placeholder="Phone *"
                   value={form.customerPhone}
                   onChange={(e) => setForm((f) => ({ ...f, customerPhone: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
                   type="email"
                   placeholder="Email (optional)"
                   value={form.customerEmail}
                   onChange={(e) => setForm((f) => ({ ...f, customerEmail: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
                   type="number"
@@ -181,33 +181,33 @@ export default function SnapDashboardSection() {
                   placeholder="Amount requested ($)"
                   value={form.amount}
                   onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
                   placeholder="Vehicle (year make model)"
                   value={form.vehicle}
                   onChange={(e) => setForm((f) => ({ ...f, vehicle: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
                 <input
                   placeholder="Service"
                   value={form.service}
                   onChange={(e) => setForm((f) => ({ ...f, service: e.target.value }))}
-                  className="bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm"
+                  className="bg-background/50 border border-border/30 px-3 py-2 text-sm"
                 />
               </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="text-xs px-3 py-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                  className="text-xs px-3 py-2 bg-secondary hover:bg-secondary/80 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submit.isPending}
-                  className="text-xs px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                  className="text-xs px-4 py-2 bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {submit.isPending ? "Submitting…" : "Submit Application"}
                 </button>
@@ -223,7 +223,7 @@ export default function SnapDashboardSection() {
       ) : isError ? (
         <ErrorState message="Couldn't load Snap applications" onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
-        <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
+        <div className="border border-border/30 bg-card/50 p-10 text-center">
           <CreditCard className="w-8 h-8 mx-auto mb-3 text-muted-foreground/60" />
           <h3 className="text-sm font-bold">No Snap applications yet</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -235,7 +235,7 @@ export default function SnapDashboardSection() {
           {data.map((app) => {
             const cfg = statusCfg(app.status);
             return (
-              <div key={app.id} className={`rounded-xl border bg-card/50 p-4 ${cfg.bgColor}`}>
+              <div key={app.id} className={`border bg-card/50 p-4 ${cfg.bgColor}`}>
                 <div className="flex items-start gap-3 flex-wrap">
                   <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold tracking-wider ${cfg.color}`}>
                     {cfg.icon}
