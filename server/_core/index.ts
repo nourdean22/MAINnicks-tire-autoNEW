@@ -581,6 +581,11 @@ async function startServer() {
     try {
       const r = await fetch(`https://api.vapi.ai/call?limit=100&createdAtGt=${encodeURIComponent(since.toISOString())}`, {
         headers: { Authorization: `Bearer ${apiKey}` },
+        // wave-181.16 code-review F2 · was unbounded fetch. The cron
+        // version uses AbortSignal.timeout(30_000). Admin tile UX wants
+        // a faster fail, so 15s here so a slow VAPI doesn't starve the
+        // Express request pool.
+        signal: AbortSignal.timeout(15_000),
       });
       if (!r.ok) {
         res.json({
@@ -590,7 +595,12 @@ async function startServer() {
         });
         return;
       }
-      const calls = (await r.json()) as VapiCall[];
+      // wave-181.16 code-review F5 · was assuming VAPI's default sort.
+      // Explicit DESC sort so calls[0] is guaranteed-most-recent
+      // regardless of upstream behavior changes.
+      const calls = ((await r.json()) as VapiCall[])
+        .filter((c) => c.createdAt)
+        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
       const byStatus: Record<string, number> = {};
       const byEndedReason: Record<string, number> = {};
       let durationSum = 0;
@@ -627,7 +637,16 @@ async function startServer() {
         mostRecent, totalCostUsd: Number(costSum.toFixed(2)),
       });
     } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      // wave-181.16 code-review F4 · was returning bare { error } with 500,
+      // diverging from the other two failure paths which return full shape
+      // with 200. Statenour Ultron tile crashes if shape diverges. Now
+      // uniformly returns the full shape with the error annotation.
+      res.json({
+        windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
+        byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
+        mostRecent: null, totalCostUsd: 0,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   });
 

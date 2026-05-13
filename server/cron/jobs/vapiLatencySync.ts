@@ -69,7 +69,14 @@ export async function processVapiLatencySync(): Promise<{ recordsProcessed: numb
       log.error("vapi_call_list_failed", { status: r.status, errorId: "VAPI_LATENCY_SYNC_HTTP_ERROR" });
       throw new Error(`VAPI /call returned ${r.status}`);
     }
-    calls = (await r.json()) as VapiCallApi[];
+    // wave-181.16 code-review F5 · explicit DESC sort so the iteration
+    // order is deterministic regardless of VAPI's default response order.
+    // Dedup is by callId so order doesn't change correctness, but it
+    // makes the cron log predictable + future-proofs against upstream
+    // sort changes.
+    calls = ((await r.json()) as VapiCallApi[])
+      .filter((c) => c.createdAt)
+      .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
   } catch (err) {
     log.error("vapi_call_fetch_error", {
       errorId: "VAPI_LATENCY_SYNC_FETCH_THREW",

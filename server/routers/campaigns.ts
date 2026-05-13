@@ -474,6 +474,7 @@ export async function resumeStuckCampaigns(): Promise<{ recordsProcessed: number
   if (activeCampaigns.length === 0) return { recordsProcessed: 0 };
 
   let resumed = 0;
+  const failedCampaigns: number[] = [];
   const NINETY_SECONDS_MS = 90 * 1000;
 
   for (const campaign of activeCampaigns) {
@@ -525,9 +526,28 @@ export async function resumeStuckCampaigns(): Promise<{ recordsProcessed: number
       await processCampaignSends(campaign.id);
       resumed++;
     } catch (err) {
-      log.error(`[campaigns:resume] Failed to resume campaign ${campaign.id}`, { error: err instanceof Error ? err.message : String(err) });
+      // wave-181.16 · silent-failure audit Finding #4 · was logging
+      // + continuing silently. If processCampaignSends consistently
+      // fails for one campaign (corrupt row, FK violation, gateway
+      // outage), the next 5-min cron tick picks it up + fails the
+      // same way forever. Track failures so the cron return reflects
+      // partial failure.
+      log.error(`[campaigns:resume] Failed to resume campaign ${campaign.id}`, {
+        errorId: "CAMPAIGN_RESUME_FAILED",
+        campaignId: campaign.id,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      failedCampaigns.push(campaign.id);
     }
   }
 
+  // wave-181.16 · throw so the cron runner writes status='failed'
+  // when ANY campaign failed to resume. Operator gets a real signal
+  // instead of seeing recordsProcessed=N (where N excludes the failures).
+  if (failedCampaigns.length > 0) {
+    throw new Error(
+      `Failed to resume ${failedCampaigns.length} campaign(s): [${failedCampaigns.join(",")}] · ${resumed} succeeded`,
+    );
+  }
   return { recordsProcessed: resumed, details: `${resumed} stuck campaigns resumed` };
 }

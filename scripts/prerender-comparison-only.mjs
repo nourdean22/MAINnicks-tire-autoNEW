@@ -66,6 +66,17 @@ const ROUTES = [
   // wave-181.7 · audit moves #5 + #6
   "/tire-repair-cleveland",
   "/wheel-alignment-cleveland",
+  // wave-181.16 · these existing service pages all use FocusedServicePage
+  // which had its review-count + offer-price-zero fixes this wave. Need
+  // to re-prerender so schema reflects BUSINESS.reviews.count and skips
+  // $0 offer entries.
+  "/brakes",
+  "/diagnostics",
+  "/oil-change",
+  "/alignment",
+  "/synthetic-oil-change",
+  "/auto-repair-near-me",
+  "/tire-shop-near-me",
   // wave-181.7 cannibalization fix · /tires meta-description rewrite
   // to stop competing with /used-tires-cleveland for "used tires"
   // intent. Also re-render /used-tires-cleveland so both ship together.

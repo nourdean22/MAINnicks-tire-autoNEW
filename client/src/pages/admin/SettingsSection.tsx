@@ -22,6 +22,7 @@ import {
   Activity, Shield, Plug, Settings,
 } from "lucide-react";
 import { PageHeader, SectionInsightStrip, TabBar, Panel, StatCard } from "./shared";
+import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
@@ -152,6 +153,7 @@ export default function SettingsSection() {
         subtitle="ShopDriver/ALG sync · system health · compliance audit · vendor integrations · feature flags"
         icon={<Settings className="w-5 h-5" />}
       />
+      <DegradedDataBanner stats={invoiceStats} />
       <SectionInsightStrip section="settings" />
 
       {/* Tab bar — survives page reloads via ?settingsTab URL param */}

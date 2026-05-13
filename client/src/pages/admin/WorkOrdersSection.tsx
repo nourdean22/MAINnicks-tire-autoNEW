@@ -6,6 +6,7 @@ import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { PageHeader } from "./shared";
+import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
   Wrench, Clock, AlertTriangle, User, ChevronRight, Plus, RefreshCw,
@@ -816,6 +817,11 @@ export default function WorkOrdersSection() {
     includeTerminal: showTerminal,
     limit: 200,
   }, { refetchInterval: 15000 });
+  // wave-181.16 · dashboard stats query for the DegradedDataBanner.
+  // Same data ShopPulseMood already fetches above (line 724), but
+  // the WorkOrders main component needs its own copy to surface the
+  // _degraded marker if the stats pipeline throws.
+  const { data: dashboardStats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
   const utils = trpc.useUtils();
 
   // Filter work orders by search query
@@ -857,6 +863,7 @@ export default function WorkOrdersSection() {
         subtitle="Kanban board grouped by lifecycle phase — queue, parts, in-shop, QC/pickup. Refreshes every 15 seconds."
         icon={<Wrench className="w-5 h-5" />}
       />
+      <DegradedDataBanner stats={dashboardStats} />
       {/* View switcher + actions */}
       <div className="flex items-center justify-end">
         <div className="flex items-center gap-2">
