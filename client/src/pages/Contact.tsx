@@ -138,7 +138,7 @@ export default function Contact() {
                     <a href={BUSINESS.phone.href} className="font-mono text-2xl text-foreground hover:text-primary transition-colors">
                       {BUSINESS.phone.display}
                     </a>
-                    <p className="text-foreground/50 text-sm mt-2">Call for appointments, quotes, or questions. Walk-ins always welcome.</p>
+                    <p className="text-foreground/50 text-sm mt-2">Answered by an actual person at the shop — no phone tree, no call-center. Open hours: under 30 seconds typical. After hours: leave a message, called back first thing next morning.</p>
                   </div>
 
                   {/* Address */}

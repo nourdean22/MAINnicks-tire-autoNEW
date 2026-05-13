@@ -84,7 +84,7 @@ export const SERVICES: ServiceData[] = [
     num: "01",
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
-    metaTitle: "Tires Cleveland · Used From $60, Stay In The Car | Nick's",
+    metaTitle: "Tires Cleveland · Used From $40, Stay In The Car | Nick's",
     metaDescription: "Used tires from $40 installed. Pull up to Nick's on Euclid — stay in the car, tire crew works outside, rolling before coffee's cold. (216) 862-0005.",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
     heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $40, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
