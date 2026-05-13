@@ -74,6 +74,21 @@ const ROUTES = [
   "/lyndhurst-auto-repair",
   "/auto-repair-near-me",
   "/synthetic-oil-change",
+  // wave-181.9 · remaining 11 city pages with the same generic "Near
+  // X OH" weak title pattern. Mirroring the winning pattern that's
+  // now standard on Parma + the wave-181.8 batch.
+  "/mentor-auto-repair",
+  "/strongsville-auto-repair",
+  "/south-euclid-auto-repair",
+  "/garfield-heights-auto-repair",
+  "/richmond-heights-auto-repair",
+  "/willoughby-auto-repair",
+  "/maple-heights-auto-repair",
+  "/bedford-auto-repair",
+  "/warrensville-heights-auto-repair",
+  "/beachwood-auto-repair",
+  "/mayfield-heights-auto-repair",
+  "/university-heights-auto-repair",
 ];
 
 function findFreePort() {

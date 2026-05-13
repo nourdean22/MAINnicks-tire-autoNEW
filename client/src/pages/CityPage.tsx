@@ -413,20 +413,32 @@ export default function CityPage() {
                     <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">{s.title}</span>
                   </Link>
                 ))}
-                <Link href="/alignment" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
-                  <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">ALIGNMENT</span>
+                {/* wave-181.9 · point all 18 city pages at the new wave-181.7
+                    keyword-led pages (wheel-alignment-cleveland + tire-repair-
+                    cleveland). The /alignment generic version is kept by the
+                    rest of the page; the keyword-led version captures the
+                    city-aware intent cluster. */}
+                <Link href="/wheel-alignment-cleveland" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
+                  <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">WHEEL ALIGNMENT</span>
+                </Link>
+                <Link href="/tire-repair-cleveland" className="bg-card/80 border border-border/50 rounded-lg p-4 text-center hover:border-primary/30 hover:bg-card transition-colors group">
+                  <span className="font-semibold text-xs text-foreground/60 group-hover:text-primary transition-colors tracking-wider">TIRE REPAIR</span>
                 </Link>
               </div>
             </FadeIn>
 
             <div className="mt-8 flex flex-wrap justify-center gap-4 stagger-in text-sm text-foreground/50">
-              <Link href="/financing" className="text-emerald-400 hover:underline">Payment programs from $10 down</Link>
+              {/* wave-181.9 · link the city pages at the new SERP-fix pages
+                  for internal-link authority transfer. Each city page sees
+                  ~5-15 impressions/mo. With 18 city pages, that's a real
+                  link-equity boost on the keyword-led targets. */}
+              <Link href="/no-credit-check-tires-cleveland" className="text-emerald-400 hover:underline">No-credit-check tires · $10 down</Link>
+              <span className="text-foreground/20">|</span>
+              <Link href="/tire-shop-open-sunday-cleveland" className="hover:text-primary transition-colors">Sunday tire shop</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/booking" className="hover:text-primary transition-colors">Schedule drop-off</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/diagnose" className="hover:text-primary transition-colors">Diagnose my car</Link>
-              <span className="text-foreground/20">|</span>
-              <Link href="/blog" className="hover:text-primary transition-colors">Repair tips blog</Link>
               <span className="text-foreground/20">|</span>
               <Link href="/reviews" className="hover:text-primary transition-colors">Read reviews</Link>
             </div>
