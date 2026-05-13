@@ -9,12 +9,25 @@ import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import {
   Phone, Star, ArrowRight, CreditCard,
   Camera, Car, FileCheck, Wrench, Award, ShieldCheck,
+  MapPin, Quote,
 } from "lucide-react";
 import FadeIn from "@/components/FadeIn";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
 import ResponsivePhoto from "@/components/ResponsivePhoto";
+import { CURATED_TESTIMONIALS } from "@shared/customer-testimonials";
+
+// wave-181.23 · /about social-proof wall.
+// Three hand-picked testimonials surface the strongest brand-voice
+// trust patterns: anti-upsell, flashlight-tour philosophy, "honest
+// work" customer language. Pulled from the curated set so they survive
+// even when review_replies hasn't populated from the live Google feed.
+const ABOUT_QUOTES = [
+  CURATED_TESTIMONIALS.find((t) => t.name === "Amber S."),
+  CURATED_TESTIMONIALS.find((t) => t.name === "Greg M."),
+  CURATED_TESTIMONIALS.find((t) => t.name === "Marcus L."),
+].filter((t): t is NonNullable<typeof t> => Boolean(t));
 
 // 2026-05-06 wave-16 · pro photo pack swap per PLACEMENT_GUIDE.md
 // "About page" row: top hero = full storefront, inside-shop = real
@@ -162,6 +175,134 @@ export default function About() {
                 </p>
               </div>
             </FadeIn>
+          </div>
+        </div>
+      </section>
+
+      {/* wave-181.23 · Pull-quote testimonial wall.
+          Placed right after the Philosophy split so the visitor sees
+          real customer language reinforcing the philosophy they just
+          read. Three quotes covering the three highest-trust patterns:
+          (1) honest work + price, (2) anti-upsell discipline,
+          (3) flashlight-tour transparency. */}
+      <section className="bg-[oklch(0.06_0.004_260)] py-20 lg:py-28 border-y border-white/5">
+        <div className="container max-w-6xl">
+          <FadeIn>
+            <div className="text-center mb-12">
+              <div className="text-xs uppercase tracking-[0.2em] text-primary font-bold mb-2">
+                In our customers' words
+              </div>
+              <h2 className="text-3xl lg:text-4xl font-bold text-foreground tracking-tight uppercase">
+                4.9★ from {totalReviews.toLocaleString()}+ Cleveland drivers.
+                <span className="block text-primary text-2xl lg:text-3xl mt-2 normal-case">
+                  These are three of them.
+                </span>
+              </h2>
+            </div>
+          </FadeIn>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {ABOUT_QUOTES.map((q, i) => (
+              <FadeIn key={q.name} delay={i * 0.1}>
+                <figure className="h-full bg-[#141414] border border-[#2A2A2A] rounded-2xl p-6 lg:p-7 flex flex-col">
+                  <Quote className="w-6 h-6 text-primary/40 mb-3" aria-hidden />
+                  <blockquote className="text-foreground/80 text-[14px] lg:text-[15px] leading-relaxed flex-1">
+                    {q.text}
+                  </blockquote>
+                  <figcaption className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-foreground text-sm">{q.name}</div>
+                      <div className="text-foreground/40 text-[11px] uppercase tracking-[0.1em] mt-0.5">
+                        Google · {q.date}
+                      </div>
+                    </div>
+                    <div className="flex gap-0.5">
+                      {[...Array(q.rating)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-primary text-primary" />
+                      ))}
+                    </div>
+                  </figcaption>
+                </figure>
+              </FadeIn>
+            ))}
+          </div>
+          <FadeIn delay={0.4}>
+            <div className="text-center mt-10">
+              <Link
+                href="/reviews"
+                className="inline-flex items-center gap-1.5 text-primary hover:text-primary/80 text-sm font-semibold tracking-tight transition-colors"
+              >
+                Read {totalReviews.toLocaleString()}+ more reviews
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* wave-181.23 · "Real shop" triple-anchor.
+          The single most effective trust device a small business can
+          deploy: name the physical address, the phone number, and the
+          street so the visitor mentally pictures driving past it.
+          Anti-pattern: corporate-looking shops with no clear physical
+          address get filtered by skeptical Cleveland drivers. */}
+      <section className="bg-[#0B0B0B] py-14 lg:py-16 border-b border-[#1F1F1F]">
+        <div className="container max-w-5xl">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="flex items-start gap-4 p-5 rounded-xl border border-[#1F1F1F] bg-[#101010]">
+              <MapPin className="w-6 h-6 text-primary mt-0.5 shrink-0" aria-hidden />
+              <div>
+                <div className="text-foreground/50 text-[10px] uppercase tracking-[0.18em] font-bold mb-1.5">
+                  The address
+                </div>
+                <div className="text-foreground font-semibold text-[15px] leading-tight">
+                  {BUSINESS.address.street}
+                </div>
+                <div className="text-foreground/60 text-[13px] mt-0.5">
+                  {BUSINESS.address.city}, {BUSINESS.address.state} {BUSINESS.address.zip}
+                </div>
+                <div className="text-foreground/35 text-[11px] mt-2">
+                  Yellow sign · open bays · real building you can drive past
+                </div>
+              </div>
+            </div>
+            <a
+              href={BUSINESS.phone.href}
+              onClick={() => trackPhoneClick("about-real-phone")}
+              className="flex items-start gap-4 p-5 rounded-xl border border-[#1F1F1F] bg-[#101010] hover:border-primary/30 hover:bg-[#FDB913]/[0.02] transition-all group"
+            >
+              <Phone className="w-6 h-6 text-primary mt-0.5 shrink-0" aria-hidden />
+              <div>
+                <div className="text-foreground/50 text-[10px] uppercase tracking-[0.18em] font-bold mb-1.5">
+                  The phone
+                </div>
+                <div className="text-foreground font-semibold text-[15px] leading-tight group-hover:text-primary transition-colors">
+                  {BUSINESS.phone.display}
+                </div>
+                <div className="text-foreground/60 text-[13px] mt-0.5">
+                  Answered by an actual person at the shop
+                </div>
+                <div className="text-foreground/35 text-[11px] mt-2">
+                  No phone tree · no call-center · 7 days a week
+                </div>
+              </div>
+            </a>
+            <div className="flex items-start gap-4 p-5 rounded-xl border border-[#1F1F1F] bg-[#101010]">
+              <Wrench className="w-6 h-6 text-primary mt-0.5 shrink-0" aria-hidden />
+              <div>
+                <div className="text-foreground/50 text-[10px] uppercase tracking-[0.18em] font-bold mb-1.5">
+                  The bay
+                </div>
+                <div className="text-foreground font-semibold text-[15px] leading-tight">
+                  4 lifts · 30+ years combined experience
+                </div>
+                <div className="text-foreground/60 text-[13px] mt-0.5">
+                  Master + journeyman techs on the floor
+                </div>
+                <div className="text-foreground/35 text-[11px] mt-2">
+                  Snap-on / Autel scan tools · manufacturer-grade
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

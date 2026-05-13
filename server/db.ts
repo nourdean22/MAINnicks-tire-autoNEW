@@ -924,16 +924,27 @@ export async function getReviewRequestStats() {
 
 /**
  * Get review settings (single-row, id=1). Creates defaults if not exists.
+ *
+ * wave-181.23 · bumped default delayMinutes from 120 (2h) to 1440 (24h).
+ * Industry data on auto-shop review-request timing:
+ *   · 2h post-service: customer often still in transit, no time to
+ *     verify the fix actually held → lower 5★ rate, higher 1★ rate
+ *   · 24h post-service: customer has driven on the repair, knows it
+ *     stuck → highest 5★ conversion rate
+ *   · 72h+: forgetting curve kicks in, lower response rate overall
+ * Operators can still customize via Admin → Reviews → Settings.
+ * Existing prod rows keep their current value; only new installs
+ * (and the DB-unavailable fallback) get the 24h default.
  */
 export async function getReviewSettings() {
   const db = await getDb();
-  if (!db) return { id: 1, enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+  if (!db) return { id: 1, enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
   const [existing] = await db.select().from(reviewSettings).limit(1);
   if (existing) return existing;
   // Create defaults
-  await db.insert(reviewSettings).values({ enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30 });
+  await db.insert(reviewSettings).values({ enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30 });
   const [created] = await db.select().from(reviewSettings).limit(1);
-  return created || { id: 1, enabled: 1, delayMinutes: 120, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
+  return created || { id: 1, enabled: 1, delayMinutes: 1440, maxPerDay: 20, cooldownDays: 30, messageTemplate: null, updatedAt: new Date() };
 }
 
 /**
