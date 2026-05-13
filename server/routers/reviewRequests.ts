@@ -108,12 +108,45 @@ export async function scheduleReviewRequest(bookingId: number, name: string, pho
 }
 
 /**
+ * Returns the current hour (0-23) in America/New_York (Cleveland) time.
+ * Used by the send-window guard so review-request SMS never fires
+ * outside polite hours (9am–7pm local).
+ */
+function getClevelandHour(): number {
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "2-digit",
+    hour12: false,
+  });
+  const part = fmt.formatToParts(new Date()).find((p) => p.type === "hour")?.value ?? "0";
+  // "24" can appear when hour12:false rolls past midnight on some engines.
+  const n = parseInt(part, 10);
+  return Number.isFinite(n) ? n % 24 : 0;
+}
+
+/**
  * Process pending review requests — called periodically.
  * Sends SMS for requests past their scheduled time.
+ *
+ * wave-181.23 · added a polite-hours send-window guard. Customers
+ * complained (and TCPA case law confirms) that SMS marketing
+ * messages outside 8am-9pm local time are a hard violation. We
+ * tighten further to 9am-7pm Cleveland local because:
+ *   · review-request SMS at 8am wakes commuters
+ *   · review-request SMS after 7pm reads as desperate
+ *   · the 9-7 window catches lunch + after-work browse time
+ * If the queue is invoked outside this window, it returns early
+ * without sending. Pending requests stay queued for the next run.
  */
 export async function processReviewRequestQueue() {
   const settings = await getReviewSettings();
   if (!settings.enabled) return { processed: 0, sent: 0, failed: 0 };
+
+  // Quiet-hours guard — only send 9am–7pm Cleveland local (America/New_York).
+  const hour = getClevelandHour();
+  if (hour < 9 || hour >= 19) {
+    return { processed: 0, sent: 0, failed: 0, reason: `Outside send window (Cleveland ${hour}:00 · window is 9–19)` };
+  }
 
   const sentToday = await getReviewRequestsSentToday();
   if (sentToday >= settings.maxPerDay) {
