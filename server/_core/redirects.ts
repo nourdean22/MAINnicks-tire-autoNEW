@@ -30,7 +30,11 @@ const REDIRECTS: RedirectRule[] = [
   // SEO service-alias pages. Generic service pages at /{slug} rank better
   // once Google consolidates signals from these aliases.
   { from: "/brake-repair-cleveland",          to: "/brakes",       reason: "duplicate of /brakes; was splitting rank" },
-  { from: "/tire-repair-cleveland",           to: "/tires",        reason: "duplicate of /tires" },
+  // wave-181.8 · REMOVED /tire-repair-cleveland redirect. We now have a
+  // dedicated TireRepairPage at /tire-repair-cleveland (wave-181.7) that
+  // targets the "tire repair near me" cluster currently at pos 7.2.
+  // Letting the redirect stay would 301 the new page back into /tires.
+  // { from: "/tire-repair-cleveland",        to: "/tires",        reason: "duplicate of /tires" },
   { from: "/ac-repair-cleveland",             to: "/ac-repair",    reason: "duplicate of /ac-repair" },
   { from: "/diagnostics-cleveland",           to: "/diagnostics",  reason: "duplicate of /diagnostics" },
   { from: "/check-engine-light-cleveland",    to: "/diagnostics",  reason: "symptom alias → canonical service page" },
@@ -47,12 +51,15 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/oil-change-cleveland",            to: "/oil-change",   reason: "duplicate of /oil-change" },
   { from: "/oil-change-service-station",      to: "/oil-change",   reason: "intent variant alias — bundle services framing → canonical /oil-change" },
   { from: "/wheel-alignment",                 to: "/alignment",    reason: "keyword alias → /alignment (which already ranks for 'wheel alignment cleveland')" },
-  // 2026-05-02 update · Nour redirected the geo-suffixed alignment
-  // query into /tires per the Grounded & Reliable strategy. The
-  // /tires page hosts the alignment-bay visual + Schedule Alignment
-  // CTA in-page; one consolidated tire+alignment landing converts
-  // better than splitting the customer down two paths.
-  { from: "/wheel-alignment-cleveland",       to: "/tires",        reason: "alignment-cleveland geo query routes into /tires per 2026-05-02 silo decision (alignment is bundled with tire install)" },
+  // wave-181.8 · REMOVED /wheel-alignment-cleveland redirect. The
+  // 2026-05-02 silo decision routed this geo query into /tires, but
+  // the Ahrefs/GSC audit (2026-05-12) showed the city-aware alignment
+  // cluster (combined 121 impr/mo at pos 36-40) has demand that doesn't
+  // belong on the /tires landing. Built a dedicated
+  // WheelAlignmentClevelandPage (wave-181.7) targeting this cluster
+  // directly. Letting the redirect stay would 301 the new page back
+  // into /tires and lose the strategic SERP slot.
+  // { from: "/wheel-alignment-cleveland",    to: "/tires",        reason: "alignment-cleveland geo query routes into /tires per 2026-05-02 silo decision (alignment is bundled with tire install)" },
 
   // General-repair cluster
   { from: "/general-repair-cleveland",        to: "/auto-repair-near-me", reason: "general-repair got merged into /auto-repair-near-me" },
