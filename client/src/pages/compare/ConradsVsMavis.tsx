@@ -17,7 +17,7 @@ export default function ConradsVsMavis() {
       seoTitle="Conrad's vs Mavis Tire Cleveland · Honest Compare + 3rd Option"
       seoDescription="Conrad's Tire vs Mavis Discount Tire in Cleveland. Hours, pricing, walk-ins, used tires — head-to-head. Plus the third option neither chain wants you to know about."
       h1="Conrad's vs Mavis Tire — Cleveland honest compare"
-      intro="Conrad's is Cleveland's hometown chain since 1934 — 37 locations, established, full-service. Mavis is the national chain that bought NTB in 2021 — aggressive growth, low advertised tire prices. Both close Sunday. Both want an appointment. Both have the same surprise-charge-at-checkout pattern in their reviews. If neither feels right, the third option Cleveland drivers actually use: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $60 installed, the estimate in writing before any wrench moves. The yellow sign you've probably driven past."
+      intro="Conrad's is Cleveland's hometown chain since 1934 — 37 locations, established, full-service. Mavis is the national chain that bought NTB in 2021 — aggressive growth, low advertised tire prices. Both close Sunday. Both want an appointment. Both have the same surprise-charge-at-checkout pattern in their reviews. If neither feels right, the third option Cleveland drivers actually use: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $40 installed, the estimate in writing before any wrench moves. The yellow sign you've probably driven past."
       extraFaqs={[
         {
           question: "Conrad's or Mavis — which has better pricing?",
@@ -29,7 +29,7 @@ export default function ConradsVsMavis() {
         },
         {
           question: "Why would I pick Nick's over Conrad's or Mavis?",
-          answer: "Three reasons. One: open Sunday — both Conrad's and Mavis close Sunday, Nick's is open 9am–4pm. Two: walk-in policy — Nick's is first-come-first-served, no appointment, both chains are appointment-preferred. Three: written estimate before any wrench moves — eliminates the surprise-at-checkout pattern. Plus used tires from $60 (chains don't sell them).",
+          answer: "Three reasons. One: open Sunday — both Conrad's and Mavis close Sunday, Nick's is open 9am–4pm. Two: walk-in policy — Nick's is first-come-first-served, no appointment, both chains are appointment-preferred. Three: written estimate before any wrench moves — eliminates the surprise-at-checkout pattern. Plus used tires from $40 (chains don't sell them).",
         },
         {
           question: "Is Nick's a chain?",

@@ -248,7 +248,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-4">
               <p className="text-xs font-semibold text-primary mb-3">Pay to Confirm Your Order:</p>
               <a
-                href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
+                href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
                 className="block w-full text-center bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
               >
                 Call to Pay — (216) 862-0005
@@ -945,7 +945,7 @@ export default function TireFinder() {
                 { label: "Chain shop (Pep Boys / Firestone)", price: "$120 + $99 install" },
                 { label: "Nick's — tire + free install package", price: "From $60", ours: true },
               ]}
-              source="Nick's free Premium Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $60."
+              source="Nick's free Premium Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $40."
             />
             <div className="mt-8">
               <FearCalibrationBlock
@@ -961,7 +961,7 @@ export default function TireFinder() {
                   {
                     value: "$1,200",
                     consequence:
-                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $60 used tire would have prevented it.",
+                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $40 used tire would have prevented it.",
                     source: "City of Cleveland pothole-claim data; in-shop incident reports.",
                   },
                   {
@@ -991,7 +991,7 @@ export default function TireFinder() {
               ) : isError ? (
                 <div className="text-center py-16">
                   <p className="text-muted-foreground mb-4">Unable to search tires right now.</p>
-                  <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us at (216) 862-0005</a>
+                  <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us at (216) 862-0005</a>
                 </div>
               ) : data?.tires && data.tires.length > 0 ? (
                 <>
@@ -1129,7 +1129,7 @@ export default function TireFinder() {
                   </p>
                   <div className="flex flex-col sm:flex-row gap-3 justify-center">
                     <a
-                      href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
+                      href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
                       className="inline-flex items-center justify-center gap-2 bg-primary text-primary-foreground px-6 py-3 rounded-md text-sm font-medium hover:bg-primary/90 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -1203,7 +1203,7 @@ export default function TireFinder() {
 
                   <div className="mt-5 flex flex-col sm:flex-row gap-3">
                     <a
-                      href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")}
+                      href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
                       className="inline-flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 px-6 py-3 rounded-md text-sm font-medium hover:bg-red-500/20 transition-colors"
                     >
                       <Phone className="w-4 h-4" />
@@ -1263,7 +1263,7 @@ export default function TireFinder() {
                   </div>
 
                   <p className="text-sm text-muted-foreground mt-5 leading-relaxed">
-                    Used tire inventory changes daily. <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> or stop by to see what we have in your size. Walk-ins welcome.
+                    Used tire inventory changes daily. <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> or stop by to see what we have in your size. Walk-ins welcome.
                   </p>
                 </div>
               </div>
@@ -1405,7 +1405,7 @@ export default function TireFinder() {
                 Your tire size is printed on the sidewall of your current tires. It looks like <strong className="text-foreground">215/60R16</strong> or <strong className="text-foreground">P225/65R17</strong>.
               </p>
               <p className="text-sm text-muted-foreground leading-relaxed">
-                You can also find it on the sticker inside your driver's door jamb, or in your vehicle owner's manual. Not sure? <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> and we will help you find it.
+                You can also find it on the sticker inside your driver's door jamb, or in your vehicle owner's manual. Not sure? <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")} className="text-primary hover:underline">Call us</a> and we will help you find it.
               </p>
             </div>
 
@@ -1492,7 +1492,7 @@ export default function TireFinder() {
                 Schedule Alignment
               </a>
               <a
-                href="tel:2168620005"
+                href="tel:+12168620005"
                 onClick={() => trackPhoneClick("tire-finder-alignment")}
                 className="inline-flex items-center gap-2 border border-border/60 px-5 py-3 rounded-md font-semibold text-sm tracking-wide text-foreground/80 hover:text-primary hover:border-primary/40 transition-colors"
               >
@@ -1517,13 +1517,13 @@ export default function TireFinder() {
               Shopping for tires? Pick your starting point.
             </h2>
             <p className="text-foreground/65 text-sm">
-              Call <a href="tel:2168620005" onClick={() => trackPhoneClick("tire-finder-browse-by")} className="text-primary hover:underline">(216) 862-0005</a> with your tire size for a phone quote.
+              Call <a href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder-browse-by")} className="text-primary hover:underline">(216) 862-0005</a> with your tire size for a phone quote.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <a href="/used-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">
               <p className="text-xs font-mono text-primary tracking-wider mb-1">USED TIRES</p>
-              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $60 installed</h3>
+              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $40 installed</h3>
               <p className="text-foreground/60 text-xs leading-relaxed">Quality-inspected. Tread, sidewall, DOT date verified before install.</p>
             </a>
             <a href="/new-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">

@@ -12,8 +12,8 @@ export default function BigOAlternative() {
       primary={COMPETITORS["big-o"]}
       slug="big-o-tires-alternative-cleveland"
       seoTitle="Big O Tires Alternative Cleveland · Closer, Honest, Open Sundays | Nick's"
-      seoDescription="Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $60, the estimate in writing before any wrench moves."
-      intro="Big O Tires runs decent house-brand tire warranties — Big Foot, Legacy lines, road hazard programs. The catch in Cleveland: Big O's footprint is thin here. A handful of stores serving Greater Cleveland. If the closest Big O is 20 miles away and you're on the East Side, Nick's Tire & Auto on Euclid Ave is closer, open later, open Sunday, and willing to sell you a used tire from $60 if a used tire fits. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person."
+      seoDescription="Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the estimate in writing before any wrench moves."
+      intro="Big O Tires runs decent house-brand tire warranties — Big Foot, Legacy lines, road hazard programs. The catch in Cleveland: Big O's footprint is thin here. A handful of stores serving Greater Cleveland. If the closest Big O is 20 miles away and you're on the East Side, Nick's Tire & Auto on Euclid Ave is closer, open later, open Sunday, and willing to sell you a used tire from $40 if a used tire fits. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person."
       extraFaqs={[
         {
           question: "Is Big O Tires worth the drive in Cleveland?",
@@ -21,7 +21,7 @@ export default function BigOAlternative() {
         },
         {
           question: "Does Nick's match Big O's road hazard warranty?",
-          answer: "We don't run a national-chain road hazard program — that's a Big O strength we acknowledge. Nick's offers honest used tires from $60 installed, free mount/balance/valve stems on every install, and an alignment check included. Different value proposition: lower-friction service, lower-friction install, no warranty paperwork.",
+          answer: "We don't run a national-chain road hazard program — that's a Big O strength we acknowledge. Nick's offers honest used tires from $40 installed, free mount/balance/valve stems on every install, and an alignment check included. Different value proposition: lower-friction service, lower-friction install, no warranty paperwork.",
         },
         {
           question: "Why are Big O prices higher than Nick's on most installs?",

@@ -95,7 +95,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
           <a
             href={BUSINESS.phone.href}
             onClick={() => trackPhoneClick("navbar")}
-            className="flex items-center gap-1.5 text-[13px] font-semibold bg-foreground/[0.08] border border-foreground/[0.08] text-foreground px-4 py-[7px] rounded-full hover:bg-foreground/[0.12] hover:border-foreground/[0.12] transition-all duration-200"
+            className="flex items-center gap-1.5 text-[13px] font-semibold bg-foreground/[0.08] border border-foreground/[0.08] text-foreground px-4 py-2 min-h-[44px] rounded-full hover:bg-foreground/[0.12] hover:border-foreground/[0.12] transition-all duration-200"
             aria-label="Call Nick's Tire and Auto"
           >
             <Phone className="w-3.5 h-3.5" />
@@ -164,11 +164,11 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
                 <a
                   href={BUSINESS.phone.href}
                   onClick={() => trackPhoneClick("navbar-mobile")}
-                  className="flex items-center gap-2.5 text-foreground/70 hover:text-foreground transition-colors"
+                  className="flex items-center justify-center gap-2.5 min-h-[48px] py-3 px-4 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/15 transition-colors"
                   aria-label="Call Nick's Tire and Auto"
                 >
-                  <Phone className="w-4 h-4" />
-                  <span className="text-[15px] font-medium">{BUSINESS.phone.display}</span>
+                  <Phone className="w-5 h-5" />
+                  <span className="text-[16px] font-semibold">Call {BUSINESS.phone.display}</span>
                 </a>
               </div>
             </div>

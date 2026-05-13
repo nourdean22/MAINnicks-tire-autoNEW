@@ -39,7 +39,7 @@ export default function BestConradsAlternativesCleveland() {
         },
         {
           question: "Where can I find used tires when Conrad's only sells new?",
-          answer: "Nick's Tire & Auto sells used tires from $60 installed. Most chains including Conrad's, Mavis, NTB, Firestone, Big O don't sell used tires at all — corporate policy. If a used tire fits your car (tread depth, age, condition) Nick's will install it with free mount, balance, valve stems, TPMS reset, and alignment check.",
+          answer: "Nick's Tire & Auto sells used tires from $40 installed. Most chains including Conrad's, Mavis, NTB, Firestone, Big O don't sell used tires at all — corporate policy. If a used tire fits your car (tread depth, age, condition) Nick's will install it with free mount, balance, valve stems, TPMS reset, and alignment check.",
         },
       ]}
     />

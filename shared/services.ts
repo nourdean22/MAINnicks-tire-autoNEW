@@ -85,12 +85,12 @@ export const SERVICES: ServiceData[] = [
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     metaTitle: "Tires Cleveland · Used From $60, Stay In The Car | Nick's",
-    metaDescription: "Used tires from $60 installed. Pull up to Nick's on Euclid — stay in the car, tire crew works outside, rolling before coffee's cold. (216) 862-0005.",
-    heroHeadline: "Tires from $60.\nOr whatever your budget says.",
-    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $60, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
+    metaDescription: "Used tires from $40 installed. Pull up to Nick's on Euclid — stay in the car, tire crew works outside, rolling before coffee's cold. (216) 862-0005.",
+    heroHeadline: "Tires from $40.\nOr whatever your budget says.",
+    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $40, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
-    pricingNote: "Stay in your car · We come to you · Used tires from $60 · All major brands",
+    pricingNote: "Stay in your car · We come to you · Used tires from $40 · All major brands",
     urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
@@ -555,7 +555,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: "A conventional oil change in Cleveland typically costs between $30 and $50. A full synthetic oil change ranges from $60 to $90 depending on the vehicle and oil capacity. At Nick's Tire & Auto, every oil change includes a new filter and a free multi-point vehicle inspection. Call (216) 862-0005."
+        answer: "A conventional oil change in Cleveland typically costs between $30 and $50. A full synthetic oil change ranges from $40 to $90 depending on the vehicle and oil capacity. At Nick's Tire & Auto, every oil change includes a new filter and a free multi-point vehicle inspection. Call (216) 862-0005."
       },
       {
         question: "What is the difference between synthetic and conventional oil?",

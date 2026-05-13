@@ -136,8 +136,8 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Used Tires", description: "Quality-inspected used tires starting at $60 installed." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "60" },
+          itemOffered: { "@type": "Service", name: "Used Tires", description: "Quality-inspected used tires starting at $40 installed." },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "40" },
         },
         {
           "@type": "Offer",

@@ -476,7 +476,7 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
           <Link href="/contact" className="px-6 py-2.5 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors">
             HOLD MY BAY
           </Link>
-          <a href="tel:2168620005" onClick={() => trackPhoneClick("customer-portal")} className="px-6 py-2.5 border border-foreground/20 text-foreground font-bold text-sm tracking-wider hover:border-primary hover:text-primary transition-colors">
+          <a href="tel:+12168620005" onClick={() => trackPhoneClick("customer-portal")} className="px-6 py-2.5 border border-foreground/20 text-foreground font-bold text-sm tracking-wider hover:border-primary hover:text-primary transition-colors">
             CALL (216) 862-0005
           </a>
         </div>

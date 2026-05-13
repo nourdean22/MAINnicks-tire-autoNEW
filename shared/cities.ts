@@ -27,7 +27,7 @@ export const CITIES: CityData[] = [
   {
     slug: "euclid-auto-repair",
     name: "Euclid",
-    metaTitle: "Euclid Auto Repair · 17625 Euclid Ave · Used Tires $60 | Nick's",
+    metaTitle: "Euclid Auto Repair · 17625 Euclid Ave · Used Tires $40 | Nick's",
     metaDescription: "Nick's Tire & Auto — literally on Euclid Ave. Brakes, tires, diagnostics for Euclid drivers. 4.9★ 1,700+ reviews. Walk-ins 7 days. Payment programs on the spot.",
     heroHeadline: "AUTO REPAIR\nLITERALLY ON EUCLID AVE",
     heroSubline: "We are literally on Euclid Avenue — that's not a marketing flourish, it's the address. Pull up, we put the car on a lift, hand you the flashlight, write the estimate before any wrench moves. The kind of repairs your grandfather would've nodded at, with the diagnostic gear your kid's Tesla actually needs. Walk in any day. Payment programs on the spot.",
@@ -52,7 +52,7 @@ export const CITIES: CityData[] = [
   {
     slug: "lakewood-auto-repair",
     name: "Lakewood",
-    metaTitle: "Lakewood Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Lakewood Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Lakewood drivers cross town for honest auto repair. Brakes, tires, diagnostics, emissions — explained in plain English. 4.9★ 1,700+ reviews. Walk-ins 7 days.",
     heroHeadline: "AUTO REPAIR FOR\nLAKEWOOD DRIVERS",
     heroSubline: "Lakewood has plenty of mechanics. Our regulars from Birdtown and Gold Coast still drive 20 minutes east — because the diagnosis comes before the bill, the worn parts get shown on a lift, and nobody talks down to anyone. Brakes, tires, diagnostics, emissions — and a coffee maker that's been with us longer than some marriages.",
@@ -89,8 +89,8 @@ export const CITIES: CityData[] = [
     // want LOCAL Parma) wasn't overcome by the Uber drive-time bait.
     // Reframing around price + Sunday-hours value props that local Parma
     // shops don't offer — the only thing that overcomes 25-min drive.
-    metaTitle: "Parma Auto Repair · Used Tires $60 · Open Sundays | Nick's",
-    metaDescription: "Parma drivers — Nick's Tire & Auto. Used tires from $60 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    metaTitle: "Parma Auto Repair · Used Tires $40 · Open Sundays | Nick's",
+    metaDescription: "Parma drivers — Nick's Tire & Auto. Used tires from $40 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
     heroHeadline: "AUTO REPAIR\nWORTH THE DRIVE FROM PARMA",
     heroSubline: "Parma drivers tired of three different local shops giving three different prices for the same job come to Nick's Tire & Auto for one answer — the honest one. 25 minutes up I-480, and we Uber you home and back so you don't sacrifice a Saturday sitting around. 4.9★ from 1,700+ Cleveland-area drivers who came in skeptical and left with a working car.",
     distance: "15 miles",
@@ -118,7 +118,7 @@ export const CITIES: CityData[] = [
     // matching landing page. This page captures all 4 query variants.
     slug: "parma-heights-auto-repair",
     name: "Parma Heights",
-    metaTitle: "Parma Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Parma Heights Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,700+ reviews. Free Uber drop-off + pick-up. Brakes, tires, diagnostics. Walk-ins 7 days.",
     heroHeadline: "PARMA HEIGHTS\nAUTO REPAIR — WORTH THE DRIVE",
     heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest diagnostics, written estimates before any wrench moves, and payment programs approved on the spot. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around.",
@@ -168,7 +168,7 @@ export const CITIES: CityData[] = [
   {
     slug: "shaker-heights-auto-repair",
     name: "Shaker Heights",
-    metaTitle: "Shaker Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Shaker Heights Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Shaker Heights drivers trust Nick's Tire & Auto for quality auto repair. Brakes, tires, diagnostics. 4.9 stars, 1700+ reviews. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR SHAKER HEIGHTS",
     heroSubline: "Shaker Heights drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. We show you the problem before we fix it.",
@@ -193,7 +193,7 @@ export const CITIES: CityData[] = [
   {
     slug: "cleveland-heights-auto-repair",
     name: "Cleveland Heights",
-    metaTitle: "Cleveland Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Cleveland Heights Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Cleveland Heights auto repair at Nick's Tire & Auto, 15 min away. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nCLEVELAND HEIGHTS",
     heroSubline: "Cleveland Heights drivers trust Nick's Tire & Auto for honest diagnostics, quality repairs, and transparent pricing. No surprises, no upselling.",
@@ -243,7 +243,7 @@ export const CITIES: CityData[] = [
   {
     slug: "strongsville-auto-repair",
     name: "Strongsville",
-    metaTitle: "Strongsville Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Strongsville Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 1700+ five-star reviews. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR FOR\nSTRONGSVILLE DRIVERS",
     heroSubline: "Strongsville drivers choose Nick's Tire & Auto for the kind of honest, thorough auto repair that is hard to find. We diagnose it right the first time.",
@@ -368,7 +368,7 @@ export const CITIES: CityData[] = [
   {
     slug: "willoughby-auto-repair",
     name: "Willoughby",
-    metaTitle: "Willoughby Auto Repair · Used Tires $60 · Open Sundays | Nick's",
+    metaTitle: "Willoughby Auto Repair · Used Tires $40 · Open Sundays | Nick's",
     metaDescription: "Willoughby drivers trust Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics. 4.9 stars, fair pricing. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR WILLOUGHBY DRIVERS",
     heroSubline: "Willoughby drivers make the drive to Nick's Tire & Auto for expert diagnostics, honest assessments, and quality repairs at fair prices.",

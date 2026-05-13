@@ -104,6 +104,8 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             style={{ objectPosition: "right 42%" }}
             loading="eager"
             fetchPriority="high"
+            width="1920"
+            height="1080"
           />
         </picture>
         {/* 2026-05-06 wave-18 · Headline-readability fix.
@@ -218,7 +220,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           {/* Subheadline */}
           {/* 2026-05-06 audit fix · subhead now leads with FCFS model +
               required language: first-come-first-served · used tires
-              from $60 · written estimate before any wrench moves ·
+              from $40 · written estimate before any wrench moves ·
               payment programs (NOT "financing", banned word).
               Closes on the loss-aversion anchor. */}
           {/* 2026-05-06 wave-22 · subhead repositioned to stay clear of the
@@ -321,7 +323,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $60</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $40</span>
             <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
@@ -1060,10 +1062,10 @@ export default function Home() {
       {/* wave-174 — GSC showed homepage at pos 10.7 with 1.37% CTR over
           3,514 impressions. Description was 178 chars → SERP truncated at
           ~160, cutting off the phone number. Trimmed to 156 chars so the
-          phone CTA survives + "$60 used tires" hooks earlier. */}
+          phone CTA survives + "$40 used tires" hooks earlier. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
-        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $60. Walk in 7 days. Free estimate every job. (216) 862-0005"
+        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $40. Walk in 7 days. Free estimate every job. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

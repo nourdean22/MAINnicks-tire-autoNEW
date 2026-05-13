@@ -113,7 +113,7 @@ const CONFIG: ServicePageConfig = {
         tone: "warning",
         icon: <Gauge className="w-5 h-5" />,
         symptom: "Budget-tight, can't do new today",
-        consequence: "Inspected used tires from $60 installed.",
+        consequence: "Inspected used tires from $40 installed.",
         relief: "Same install standards. Lower price.",
         ctaLabel: "USED TIRE OPTIONS",
         ctaHref: "/used-tires-cleveland",
