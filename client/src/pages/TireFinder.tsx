@@ -943,7 +943,7 @@ export default function TireFinder() {
               rows={[
                 { label: "Big-box (Costco / Sam's tire centers)", price: "$135 + $89 install" },
                 { label: "Chain shop (Pep Boys / Firestone)", price: "$120 + $99 install" },
-                { label: "Nick's — tire + free install package", price: "From $60", ours: true },
+                { label: "Nick's — tire + free install package", price: "From $40", ours: true },
               ]}
               source="Nick's free Premium Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $40."
             />

@@ -33,13 +33,13 @@ const CONFIG: ServicePageConfig = {
   // as secondary line. Sub adds neighborhood mentions for local signal.
   h1: "CLEVELAND CAR DIAGNOSTIC\nTHAT FINDS THE WHY — NOT GUESSES.",
   sub: "Check engine light on, flashing, or playing peek-a-boo? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest diagnostic shop — serving Euclid, Cleveland Heights, Parma, Lakewood, Lyndhurst, East Cleveland and every neighborhood between. Free OBD-II code pull. We tell you what the code means in real English — not engineer-speak — and what the fix actually costs before you authorize a single wrench. Most scans wrap up before your coffee's cold. Most codes fixed same day. 30+ years diagnosing every weird Cleveland-car symptom you can name — and a few we still can't.",
-  startingPrice: "Free code scan",
+  startingPrice: "Free code scan · diagnostic from $89 · credited back if we fix it",
   pricingTitle: "DIAGNOSTIC LEVELS",
-  pricingSub: "Starts free. Anything beyond a code scan gets a written estimate before we start.",
+  pricingSub: "Starts free. Concrete starting prices below — credited back to your invoice if we do the repair. No 'diagnostic fee' line item shows up at checkout unless we already told you up front.",
   tiers: [
-    { name: "Code Scan", price: "FREE", sub: "OBD-II pull + code lookup", use: "You want to know what triggered the light" },
-    { name: "Full Diagnostic", price: "Free estimate", sub: "credited toward repair if we fix it", use: "Tough intermittent problem requiring live data + component testing", featured: true },
-    { name: "Electrical / Wiring", price: "Free estimate", sub: "complex harness, CAN bus, parasitic draw", use: "Harness damage, CAN bus faults, parasitic battery drain" },
+    { name: "Code Scan", price: "FREE", sub: "OBD-II pull + code lookup · plain-English explanation", use: "You want to know what triggered the light" },
+    { name: "Full Diagnostic", price: "From $89", sub: "live data + component testing · credited toward repair", use: "Tough intermittent problem requiring live data + component testing", featured: true },
+    { name: "Electrical / Wiring", price: "From $149", sub: "complex harness, CAN bus, parasitic draw · credited if fixed", use: "Harness damage, CAN bus faults, parasitic battery drain" },
   ],
   includedTitle: "WHAT'S INCLUDED",
   includedSub: "Honest diagnosis, clear explanation. No fear tactics.",

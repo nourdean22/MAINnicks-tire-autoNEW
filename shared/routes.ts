@@ -258,7 +258,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     path: "/used-tires-cleveland",
     priority: 0.85,
     changefreq: "monthly",
-    title: "Used Tires Cleveland | From $60 Installed | Nick's Tire & Auto",
+    title: "Used Tires Cleveland | From $40 Installed | Nick's Tire & Auto",
     description: "Used tires in Cleveland from $40, fully installed. Every tire passes a 4-point inspection — tread, sidewall, DOT date, plug history. (216) 862-0005",
     group: "service",
     sitemap: true,
@@ -1102,7 +1102,7 @@ const COMPARISON_PAGES: RouteEntry[] = [
   { path: "/firestone-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Firestone Alternative Cleveland · No Chain Pricing | Nick's", description: "Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address.", group: "comparison", sitemap: true, prerender: true },
   { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire quality varies wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
   { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Tires Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the estimate in writing before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $60, estimate up front.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $40, estimate up front.", group: "comparison", sitemap: true, prerender: true },
   // Format 3: You vs Competitor — direct head-to-head
   { path: "/nicks-tire-vs-conrads-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Conrad's Cleveland · Honest Compare", description: "Conrad's vs Nick's Tire & Auto in Cleveland. Hours, pricing, walk-in policy, used tires, written estimates — head-to-head, no spin.", group: "comparison", sitemap: true, prerender: true },
   { path: "/nicks-tire-vs-mavis-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Mavis Cleveland · Honest Compare", description: "Mavis advertised price low, ticket high? Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, estimate in writing before wrench moves.", group: "comparison", sitemap: true, prerender: true },

@@ -30,7 +30,7 @@ const HERO_IMAGE = "/photos/busy-shop-action-mechanics.webp";
 const ALIGNMENT_FAQS = [
   {
     question: "How much does a wheel alignment cost?",
-    answer: "Alignment pricing depends on your vehicle and whether you need a two-wheel or four-wheel alignment. We provide a free alignment inspection so you know exactly what your vehicle needs before any work begins.",
+    answer: "Two-wheel alignment from $89. Four-wheel alignment from $129. Free alignment inspection so you know exactly what your vehicle needs before any work begins — if your alignment is within spec, we tell you and you owe nothing. Specialty vehicles (large SUV, AWD performance, or vehicles with adjustable rear camber) may run higher; we'll quote that in writing before any wrench moves.",
   },
   {
     question: "How long does an alignment take?",
@@ -54,7 +54,7 @@ const ALIGNMENT_FAQS = [
   },
   {
     question: "How much does wheel alignment cost in Cleveland?",
-    answer: "Alignment pricing depends on your vehicle type and whether you need two-wheel or four-wheel service. We offer free alignment checks at Nick's Tire & Auto in Cleveland so you know if your vehicle actually needs adjustment before paying anything.",
+    answer: "Nick's Tire & Auto on Euclid Ave: two-wheel alignment from $89, four-wheel alignment from $129. Cleveland dealerships typically charge $129-$179 for the same service. Free alignment inspection — if your alignment is within spec, you owe nothing and we'll tell you so.",
   },
 ];
 

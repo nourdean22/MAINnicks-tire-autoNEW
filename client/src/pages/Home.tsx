@@ -246,7 +246,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               animationFillMode: "forwards",
             }}
           >
-            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$60</span> installed. Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
+            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$40</span> installed. Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
           </p>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
@@ -307,7 +307,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           </div>
 
           {/* 2026-05-06 audit fix · 5-point trust strip per mockup spec:
-              4.9★ · FCFS · $60 tires · Payment programs · Open 7 days.
+              4.9★ · FCFS · $40 tires · Payment programs · Open 7 days.
               Replaces "Financing" (banned) with "Payment programs."
               Drops "free coffee · free opinions" — moved to body. */}
           <div
