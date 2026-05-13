@@ -326,7 +326,7 @@ export default function ConversionPreviewSection() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="TIRES BALD OR LOW?"
             consequence="Stopping distance doubles in rain."
-            relief="Used tires from $60, new from $89, installed in 20 min."
+            relief="Used tires from $40, new from $89, installed in 20 min."
             ctaLabel="GET TIRES TODAY"
             ctaHref="/tires"
           />

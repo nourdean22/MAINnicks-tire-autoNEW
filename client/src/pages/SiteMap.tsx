@@ -183,7 +183,7 @@ export default function SiteMap() {
             <p className="text-foreground/60 mt-3 max-w-2xl">
               Every page on Nick&apos;s Tire &amp; Auto in one place. {totalPages} pages
               covering services, locations, diagnostic guides, tools, and articles. Find
-              what you need or call <a href="tel:2168620005" className="text-primary hover:underline">(216) 862-0005</a>.
+              what you need or call <a href="tel:+12168620005" className="text-primary hover:underline">(216) 862-0005</a>.
             </p>
           </div>
 

@@ -23,7 +23,7 @@ export const BUSINESS = {
   // ─── CONTACT ─────────────────────────────────────────
   phone: {
     display: "(216) 862-0005",    // For visible text
-    href: "tel:2168620005",       // For tel: links
+    href: "tel:+12168620005",       // For tel: links
     raw: "2168620005",            // For data attributes / tracking
     dashed: "216-862-0005",       // Alternative display format
     placeholder: "(216) 555-0000", // For form input placeholders
@@ -161,7 +161,7 @@ export const BUSINESS = {
 
   // ─── USED TIRES (the "too good to be true" hook) ────
   usedTires: {
-    priceDisplay: "from $60",
+    priceDisplay: "from $40",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
   },

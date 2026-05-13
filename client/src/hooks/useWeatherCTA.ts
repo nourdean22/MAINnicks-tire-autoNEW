@@ -9,7 +9,7 @@
  *
  * Examples (auto-generated based on weather state):
  *   - Snow forecast 3 days out:
- *       "Lake-effect snow is 3 days away. Winter tires from $60 — now
+ *       "Lake-effect snow is 3 days away. Winter tires from $40 — now
  *        or pay for a tow truck Wednesday. → /tires"
  *   - Today freezing rain:
  *       "Freezing rain right now. Worn tires kill — book a brake +
@@ -75,7 +75,7 @@ export function useWeatherCTA(): WeatherCTA | null {
   if (/snow|ice|sleet|blizzard|freezing rain/.test(desc)) {
     return {
       message: "Snow on the road right now",
-      sub: "Worn tires fail in 2-3 stopping distances. Tires from $60 installed today.",
+      sub: "Worn tires fail in 2-3 stopping distances. Tires from $40 installed today.",
       urgency: "high",
       ctaLabel: "GET WINTER-RATED TIRES",
       ctaHref: "/tires",
@@ -89,7 +89,7 @@ export function useWeatherCTA(): WeatherCTA | null {
     const daysUntil = feed.forecast?.indexOf(snowForecast) ?? 1;
     return {
       message: `Lake-effect snow forecast in ${daysUntil + 1} day${daysUntil === 0 ? "" : "s"}`,
-      sub: "Get winter-rated tires before the rush. From $60 installed.",
+      sub: "Get winter-rated tires before the rush. From $40 installed.",
       urgency: daysUntil <= 1 ? "high" : "medium",
       ctaLabel: "BEAT THE STORM",
       ctaHref: "/tires",

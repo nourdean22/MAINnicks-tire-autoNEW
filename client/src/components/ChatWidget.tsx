@@ -126,7 +126,7 @@ export default function ChatWidget() {
               setOpen(true);
               setPulseActive(false);
             }}
-            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-12 h-12 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
+            className="fixed bottom-36 lg:bottom-6 right-4 z-[90] w-12 h-12 bg-primary text-primary-foreground rounded-full shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity"
             aria-label="Chat with Nick's AI mechanic"
           >
             {/* Pulse ring — fires after 45s of dwell, once per session */}
@@ -149,7 +149,7 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="fixed bottom-20 lg:bottom-6 right-4 z-[90] w-[360px] max-w-[calc(100vw-2rem)] bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl shadow-2xl shadow-black/30 flex flex-col overflow-hidden"
+            className="fixed bottom-36 lg:bottom-6 right-4 z-[90] w-[360px] max-w-[calc(100vw-2rem)] bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl shadow-2xl shadow-black/30 flex flex-col overflow-hidden"
             style={{ height: "480px" }}
           >
             {/* ─── HEADER ─── */}

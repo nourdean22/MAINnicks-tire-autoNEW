@@ -425,7 +425,7 @@ export default function NotificationBar() {
             {current.cta && current.ctaHref && (
               <a
                 href={current.ctaHref}
-                className="inline-block mt-1.5 text-[oklch(0.10_0.005_260)] font-semibold text-[10px] tracking-wide bg-white/90 px-3 py-1 rounded-full hover:bg-white transition-colors"
+                className="inline-flex items-center mt-1.5 text-[oklch(0.10_0.005_260)] font-semibold text-[12px] tracking-wide bg-white/90 px-4 py-2 min-h-[36px] rounded-full hover:bg-white transition-colors"
               >
                 {current.cta}
               </a>
@@ -448,12 +448,17 @@ export default function NotificationBar() {
             <button
               key={i}
               onClick={() => setCurrentIndex(i)}
-              className={`w-1 h-1 rounded-full transition-all duration-300 ${
-                i === currentIndex % Math.min(activeNotifications.length, 8)
-                  ? "bg-white/70 scale-125"
-                  : "bg-white/20 hover:bg-white/40"
-              }`}
-            />
+              aria-label={`Show notification ${i + 1} of ${Math.min(activeNotifications.length, 8)}`}
+              className="relative w-6 h-6 flex items-center justify-center"
+            >
+              <span
+                className={`w-1 h-1 rounded-full transition-all duration-300 ${
+                  i === currentIndex % Math.min(activeNotifications.length, 8)
+                    ? "bg-white/70 scale-125"
+                    : "bg-white/20 hover:bg-white/40"
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

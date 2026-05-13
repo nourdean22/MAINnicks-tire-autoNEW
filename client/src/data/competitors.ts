@@ -90,7 +90,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
       "Appointment-preferred model means longer waits as a walk-in",
       "Chain-pricing structure — labor rates and shop fees set by corporate, not the bay",
       "Reviews mention surprise add-ons appearing on final invoice (TPMS service, valve stems, disposal fees)",
-      "Doesn't sell used tires — new only, even when a $60 used tire would solve the problem",
+      "Doesn't sell used tires — new only, even when a $40 used tire would solve the problem",
     ],
     bestFor: [
       "Drivers who want chain-brand reassurance and don't mind waiting",
@@ -101,7 +101,7 @@ export const COMPETITORS: Record<string, CompetitorProfile> = {
     notIdealFor: [
       "Anyone who needs Sunday service",
       "Drivers who want a clear written estimate before any wrench moves",
-      "Shoppers looking for used tires from $60 installed",
+      "Shoppers looking for used tires from $40 installed",
       "Customers who can't sit in a waiting room for 2-3 hours",
     ],
     commonComplaints: [
@@ -427,7 +427,7 @@ export const NICKS_TIRE: CompetitorProfile = {
     "First-come-first-served — no appointment needed, walk in any day we're awake",
     "Open Sundays 9am-4pm — the chains close, we don't",
     "Drop-off + Uber/Lyft pickup model — leave the car, get a ride back to work, return when it's done",
-    "Used tires from $60 installed — when a $60 used tire solves it, we don't push you to a $200 new one",
+    "Used tires from $40 installed — when a $40 used tire solves it, we don't push you to a $200 new one",
     "Written estimate before any wrench moves — no surprise shop fees at checkout",
     "Mechanic-owned — the person quoting you the work is the person doing it",
     "4.9★ Google rating from real Cleveland drivers",
@@ -456,7 +456,7 @@ export const NICKS_TIRE: CompetitorProfile = {
     "Some customers wish we had a second location closer to the West Side",
   ],
   pricingNotes:
-    "Used tires from $60 installed (mount, balance, valve stems, TPMS reset, alignment check — all free). New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
+    "Used tires from $40 installed (mount, balance, valve stems, TPMS reset, alignment check — all free). New tires at competitive market rates. Labor disclosed in writing before the wrench moves. Open 7 days.",
   usedTireFloor: 60,
 };
 

@@ -17,7 +17,7 @@ export interface ServiceCityPage {
 }
 
 const SERVICES = [
-  { slug: "tires", name: "Tires", price: "from $60" },
+  { slug: "tires", name: "Tires", price: "from $40" },
   { slug: "brakes", name: "Brake Repair", price: "from $89" },
   { slug: "oil-change", name: "Oil Change", price: "from $39" },
   { slug: "diagnostics", name: "Engine Diagnostics", price: "from $49" },

@@ -11,7 +11,7 @@ import { GBP_PLACE_URL, GBP_EMBED_URL } from "@shared/const";
 describe("BUSINESS constants", () => {
   it("has correct phone number", () => {
     expect(BUSINESS.phone.display).toBe("(216) 862-0005");
-    expect(BUSINESS.phone.href).toBe("tel:2168620005");
+    expect(BUSINESS.phone.href).toBe("tel:+12168620005");
     expect(BUSINESS.phone.raw).toBe("2168620005");
   });
 

@@ -1578,3 +1578,22 @@ p.body-pretty {
     transition: none;
   }
 }
+
+/* ─── iOS Safari auto-zoom kill (wave-181.20) ───
+ * Mobile Safari zooms the viewport on focus when a form field's
+ * computed font-size is below 16px. This applies a 16px floor to
+ * all interactive form fields on screens ≤640px (the iPhone range),
+ * leaving desktop typography untouched.
+ *
+ * Scoped to mobile so we don't override Tailwind text-[13px] sizing
+ * on form fields throughout the site at desktop breakpoints — and
+ * applied with !important to win over Tailwind's specificity at the
+ * same media-query layer.
+ */
+@media (max-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
