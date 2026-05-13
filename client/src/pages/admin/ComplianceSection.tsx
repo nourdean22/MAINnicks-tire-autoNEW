@@ -6,7 +6,7 @@
 
 import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { PageHeader, LoadingState } from "./shared";
+import { PageHeader, LoadingState, ErrorState } from "./shared";
 import {
   Shield, UserCheck, UserX, LogIn, AlertTriangle, Clock, Globe,
 } from "lucide-react";
@@ -24,8 +24,8 @@ type Tab = "logins" | "consent" | "failures";
 
 export default function ComplianceSection() {
   const [tab, setTab] = useState<Tab>("logins");
-  const { data: loginData } = trpc.controlCenter.recentAdminLogins.useQuery({ limit: 50 });
-  const { data: consentData } = trpc.controlCenter.smsConsentAudit.useQuery({ limit: 200 });
+  const { data: loginData, isError: loginsError, refetch: refetchLogins } = trpc.controlCenter.recentAdminLogins.useQuery({ limit: 50 });
+  const { data: consentData, isError: consentError, refetch: refetchConsent } = trpc.controlCenter.smsConsentAudit.useQuery({ limit: 200 });
 
   return (
     <div className="space-y-6">
@@ -76,7 +76,9 @@ export default function ComplianceSection() {
       {/* ─── Admin Logins ──────────────────────────── */}
       {tab === "logins" && (
         <div className="space-y-3">
-          {!loginData ? (
+          {loginsError ? (
+            <ErrorState message="Couldn't load admin login audit" onRetry={() => refetchLogins()} />
+          ) : !loginData ? (
             <LoadingState />
           ) : loginData.successes.length === 0 ? (
             <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
@@ -145,7 +147,9 @@ export default function ComplianceSection() {
       {/* ─── SMS Consent ───────────────────────────── */}
       {tab === "consent" && (
         <div className="space-y-4">
-          {!consentData ? (
+          {consentError ? (
+            <ErrorState message="Couldn't load SMS consent audit" onRetry={() => refetchConsent()} />
+          ) : !consentData ? (
             <LoadingState />
           ) : (
             <>
@@ -225,7 +229,9 @@ export default function ComplianceSection() {
       {/* ─── Login Failures ─────────────────────────── */}
       {tab === "failures" && (
         <div>
-          {!loginData ? (
+          {loginsError ? (
+            <ErrorState message="Couldn't load login audit" onRetry={() => refetchLogins()} />
+          ) : !loginData ? (
             <LoadingState />
           ) : loginData.failures.length === 0 ? (
             <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">

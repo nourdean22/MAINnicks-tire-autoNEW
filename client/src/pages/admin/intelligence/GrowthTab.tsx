@@ -1,18 +1,18 @@
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "../shared";
-import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
+import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, INTELLIGENCE_QUERY_OPTS } from "./utils";
 import {
   TrendingUp, Users, Heart, Globe, Calendar, MapPin, Layers,
 } from "lucide-react";
 
 export default function GrowthTab() {
-  const velocity = trpc.intelligence.customerVelocity.useQuery(undefined, { staleTime: STALE_TIME });
-  const referral = trpc.intelligence.referralNetwork.useQuery(undefined, { staleTime: STALE_TIME });
-  const portfolio = trpc.intelligence.portfolioLTV.useQuery(undefined, { staleTime: STALE_TIME });
-  const market = trpc.intelligence.marketShare.useQuery(undefined, { staleTime: STALE_TIME });
-  const seasonal = trpc.intelligence.seasonalDemand.useQuery(undefined, { staleTime: STALE_TIME });
-  const geo = trpc.intelligence.geoRevenue.useQuery(undefined, { staleTime: STALE_TIME });
-  const bundles = trpc.intelligence.serviceBundles.useQuery(undefined, { staleTime: STALE_TIME });
+  const velocity = trpc.intelligence.customerVelocity.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const referral = trpc.intelligence.referralNetwork.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const portfolio = trpc.intelligence.portfolioLTV.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const market = trpc.intelligence.marketShare.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const seasonal = trpc.intelligence.seasonalDemand.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const geo = trpc.intelligence.geoRevenue.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const bundles = trpc.intelligence.serviceBundles.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">

@@ -11,7 +11,7 @@ type RecentFollowUp = NonNullable<RouterOutputs["followUps"]["recent"]>[number];
 import {
   Loader2, Send, RefreshCw, CheckCircle2, Clock, MessageSquare, Star, AlertCircle, X, RotateCw
 } from "lucide-react";
-import { PageHeader, formatDate, LoadingState, EmptyState } from "./shared";
+import { PageHeader, formatDate, LoadingState, EmptyState, ErrorState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
@@ -32,8 +32,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function FollowUpsSection() {
   const utils = trpc.useUtils();
-  const { data: pending, isLoading: pendingLoading } = trpc.followUps.pending.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: recent, isLoading: recentLoading } = trpc.followUps.recent.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: pending, isLoading: pendingLoading, isError: pendingError, refetch: refetchPending } = trpc.followUps.pending.useQuery(undefined, { refetchInterval: 30000 });
+  const { data: recent, isLoading: recentLoading, isError: recentError, refetch: refetchRecent } = trpc.followUps.recent.useQuery(undefined, { refetchInterval: 30000 });
 
   const runFollowUps = trpc.followUps.run.useMutation({
     onSuccess: (data) => {
@@ -107,6 +107,8 @@ export default function FollowUpsSection() {
 
       {isLoading ? (
         <LoadingState label="Loading follow-ups..." />
+      ) : pendingError || recentError ? (
+        <ErrorState message="Couldn't load follow-ups" onRetry={() => { refetchPending(); refetchRecent(); }} />
       ) : (
         <>
           {/* Pending Follow-Ups */}

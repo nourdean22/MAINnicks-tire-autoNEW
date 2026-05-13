@@ -1,18 +1,18 @@
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "../shared";
-import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
+import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, INTELLIGENCE_QUERY_OPTS } from "./utils";
 import {
   Wrench, Clock, Package, BarChart3, AlertTriangle, Gauge,
 } from "lucide-react";
 
 export default function OperationsTab() {
-  const tech = trpc.intelligence.techEfficiency.useQuery(undefined, { staleTime: STALE_TIME });
-  const bay = trpc.intelligence.bayUtilization.useQuery(undefined, { staleTime: STALE_TIME });
-  const turnaround = trpc.intelligence.turnaroundTime.useQuery(undefined, { staleTime: STALE_TIME });
-  const parts = trpc.intelligence.partsCost.useQuery(undefined, { staleTime: STALE_TIME });
-  const capacity = trpc.intelligence.capacityForecast.useQuery(undefined, { staleTime: STALE_TIME });
-  const bottlenecks = trpc.intelligence.bottlenecks.useQuery(undefined, { staleTime: STALE_TIME });
-  const shopLoad = trpc.intelligence.shopLoad.useQuery(undefined, { staleTime: STALE_TIME });
+  const tech = trpc.intelligence.techEfficiency.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const bay = trpc.intelligence.bayUtilization.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const turnaround = trpc.intelligence.turnaroundTime.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const parts = trpc.intelligence.partsCost.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const capacity = trpc.intelligence.capacityForecast.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const bottlenecks = trpc.intelligence.bottlenecks.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const shopLoad = trpc.intelligence.shopLoad.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">

@@ -1,18 +1,18 @@
 import { trpc } from "@/lib/trpc";
 import { StatCard } from "../shared";
-import { SectionSpinner, NoData, EngineCard, MiniTable, Badge, fmt, STALE_TIME } from "./utils";
+import { SectionSpinner, NoData, EngineCard, MiniTable, Badge, fmt, INTELLIGENCE_QUERY_OPTS } from "./utils";
 import {
   Users, AlertTriangle, Heart, Activity, Star, RefreshCw, UserCheck,
 } from "lucide-react";
 
 export default function CustomersTab() {
-  const churn = trpc.intelligence.churnPrediction.useQuery(undefined, { staleTime: STALE_TIME });
-  const risk = trpc.intelligence.riskScores.useQuery(undefined, { staleTime: STALE_TIME });
-  const repeat = trpc.intelligence.repeatVisit.useQuery(undefined, { staleTime: STALE_TIME });
-  const value = trpc.intelligence.valueTrend.useQuery(undefined, { staleTime: STALE_TIME });
-  const affinity = trpc.intelligence.serviceAffinity.useQuery(undefined, { staleTime: STALE_TIME });
-  const firstVisit = trpc.intelligence.firstVisitConversion.useQuery(undefined, { staleTime: STALE_TIME });
-  const ltv = trpc.intelligence.ltv.useQuery(undefined, { staleTime: STALE_TIME });
+  const churn = trpc.intelligence.churnPrediction.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const risk = trpc.intelligence.riskScores.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const repeat = trpc.intelligence.repeatVisit.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const value = trpc.intelligence.valueTrend.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const affinity = trpc.intelligence.serviceAffinity.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const firstVisit = trpc.intelligence.firstVisitConversion.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const ltv = trpc.intelligence.ltv.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">

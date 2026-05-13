@@ -1,17 +1,17 @@
 import { trpc } from "@/lib/trpc";
-import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, STALE_TIME } from "./utils";
+import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, INTELLIGENCE_QUERY_OPTS } from "./utils";
 import {
   Target, Star, MessageSquare, Zap, Globe, BarChart3, MessageCircle,
 } from "lucide-react";
 
 export default function MarketingTab() {
-  const channel = trpc.intelligence.channelROI.useQuery(undefined, { staleTime: STALE_TIME });
-  const review = trpc.intelligence.reviewVelocity.useQuery(undefined, { staleTime: STALE_TIME });
-  const sms = trpc.intelligence.smsEngagement.useQuery(undefined, { staleTime: STALE_TIME });
-  const lead = trpc.intelligence.leadResponseTime.useQuery(undefined, { staleTime: STALE_TIME });
-  const content = trpc.intelligence.contentPerformance.useQuery(undefined, { staleTime: STALE_TIME });
-  const competitor = trpc.intelligence.competitorGap.useQuery(undefined, { staleTime: STALE_TIME });
-  const chat = trpc.intelligence.chatFunnel.useQuery(undefined, { staleTime: STALE_TIME });
+  const channel = trpc.intelligence.channelROI.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const review = trpc.intelligence.reviewVelocity.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const sms = trpc.intelligence.smsEngagement.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const lead = trpc.intelligence.leadResponseTime.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const content = trpc.intelligence.contentPerformance.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const competitor = trpc.intelligence.competitorGap.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  const chat = trpc.intelligence.chatFunnel.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">

@@ -6,20 +6,33 @@ import { BUSINESS } from "@shared/business";
 import {
   Activity, BarChart3, CheckCircle2, ExternalLink, Eye, FileSpreadsheet, Gauge, Globe, Loader2, MapPin, PieChart, RefreshCw, Search, Sparkles, Star, TrendingUp, XCircle, Heart
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState } from "./shared";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend
 } from "recharts";
 
 export default function SiteHealthSection() {
-  const { data: health, isLoading } = trpc.adminDashboard.siteHealth.useQuery();
+  const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.siteHealth.useQuery();
   const { data: reviews } = trpc.reviews.google.useQuery();
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Site Health"
+          subtitle="Domain status · search rankings · review velocity · GA4 + GSC · vendor uptime"
+          icon={<Heart className="w-5 h-5" />}
+        />
+        <ErrorState message="Couldn't load site-health data" onRetry={() => refetch()} />
       </div>
     );
   }

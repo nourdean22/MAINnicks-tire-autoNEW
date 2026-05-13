@@ -1,6 +1,6 @@
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard } from "../shared";
-import { Spinner, NoData, EngineCard, Badge, STALE_TIME } from "./utils";
+import { Spinner, NoData, EngineCard, Badge, INTELLIGENCE_QUERY_OPTS } from "./utils";
 import {
   Shield, AlertTriangle, CheckCircle2, XCircle,
 } from "lucide-react";
@@ -16,9 +16,7 @@ type CategoryCheck = SafetyCheckResult[Category];
 type SafetyAlert = CategoryCheck["alerts"][number];
 
 export default function SafetyTab() {
-  const { data, isLoading, error } = trpc.intelligence.safetyCheck.useQuery(undefined, {
-    staleTime: STALE_TIME,
-  });
+  const { data, isLoading, error } = trpc.intelligence.safetyCheck.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   if (isLoading) return <Spinner />;
   if (error || !data) return <NoData label="Safety check unavailable" />;
