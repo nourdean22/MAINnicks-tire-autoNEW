@@ -91,3 +91,20 @@ export function Badge({ label, level }: { label: string; level: string }) {
 }
 
 export const STALE_TIME = 120_000;
+
+// wave-181.26 · auto-refetch interval for intelligence-tab queries.
+// Without this, the 30+ Intelligence queries used `staleTime: 120_000`
+// but had NO `refetchInterval` — meaning data was only re-fetched on
+// component remount (tab switch). Operator staying on the Intelligence
+// tab for >2 min saw stale data with zero re-fetch until manual reload.
+// Setting refetchInterval to match staleTime gives a true "every 2 min
+// auto-refresh" cadence which matches the dashboard expectation.
+export const REFETCH_INTERVAL = 120_000;
+
+// Standard React Query options for intelligence queries — apply via:
+//   const { data } = trpc.x.useQuery(input, INTELLIGENCE_QUERY_OPTS);
+export const INTELLIGENCE_QUERY_OPTS = {
+  staleTime: STALE_TIME,
+  refetchInterval: REFETCH_INTERVAL,
+  refetchOnWindowFocus: true,
+} as const;

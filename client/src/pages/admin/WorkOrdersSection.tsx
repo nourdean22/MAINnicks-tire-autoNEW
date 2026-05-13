@@ -245,7 +245,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const [bayInput, setBayInput] = useState("");
 
   if (isLoading) return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-[62] flex">
       <div className="fixed inset-0 bg-black/60" onClick={onClose} />
       <div className="ml-auto w-full max-w-lg bg-background border-l border-border/40 p-6 overflow-y-auto relative z-10">
         <div className="flex items-center justify-center h-64"><Loader2 className="w-6 h-6 animate-spin text-primary/60" /></div>
@@ -278,7 +278,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   if (s === "on_hold") nextStatuses.push({ status: "approved", label: "Resume" });
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-[62] flex">
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       {/* wave-133 — pb-[env(safe-area-inset-bottom)] so iOS home-indicator
           area doesn't obscure the bottom action buttons (operator runs

@@ -1365,7 +1365,7 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
 
   return (
     <div
-      className="fixed inset-0 z-50 flex"
+      className="fixed inset-0 z-[62] flex"
       role="dialog"
       aria-modal="true"
       onClick={onClose}

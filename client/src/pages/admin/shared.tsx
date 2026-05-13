@@ -50,14 +50,21 @@ export const TIME_LABELS: Record<string, string> = {
   "no-preference": "No Preference",
 };
 
-export const CHART_COLORS = ["#F5A623", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
+// wave-181.26 · brand-yellow reconciliation. CHART_COLORS[0] and
+// CHART_THEME.primary were #F5A623 (slightly orange) — close to but
+// 2% off the canonical brand yellow #FDB913 used on CTAs everywhere
+// else. Result: every Recharts bar/area in the admin rendered
+// orangish while action buttons stayed golden — two yellows on the
+// same screen, breaking the ONE-aesthetic principle. Realigned to
+// brand #FDB913 so chart series visually match the rest of the UI.
+export const CHART_COLORS = ["#FDB913", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
 
 /** Shared chart styling — single source of truth for all Recharts components */
 export const CHART_THEME = {
   grid: "#333",
   axis: "#666",
   tooltip: { background: "#1a1a1a", border: "1px solid #333", fontSize: 12 },
-  primary: "#F5A623",
+  primary: "#FDB913",
   secondary: "#3B82F6",
   tertiary: "#10B981",
   quaternary: "#8B5CF6",

@@ -194,7 +194,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
   if (isLoading) {
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4">
         <div className="bg-card border border-border/30 p-8 max-w-lg w-full">
           <div className="flex items-center justify-center py-12">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -206,7 +206,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
   if (!customer) {
     return (
-      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4">
         <div className="bg-card border border-border/30 p-8 max-w-lg w-full">
           <p className="text-foreground/50">Customer not found.</p>
           <button onClick={onClose} className="mt-4 text-sm text-primary hover:underline">Close</button>
@@ -217,7 +217,7 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
