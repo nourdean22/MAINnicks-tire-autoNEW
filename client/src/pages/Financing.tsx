@@ -634,15 +634,15 @@ export default function Financing() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-white/50">
             <span className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-[#FDB913]" />
-              No traditional credit check
+              No hard credit pull · 0 impact to your score
             </span>
             <span className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-[#FDB913]" />
-              Decision in seconds
+              Decision in 60 seconds
             </span>
             <span className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-[#FDB913]" />
-              Up to $7,500
+              $1,500–$4,000 typical · up to $7,500
             </span>
             <span className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-[#FDB913]" />
@@ -778,7 +778,7 @@ export default function Financing() {
             Still on the fence?
           </h2>
           <p className="mt-3 text-white/65 text-base lg:text-lg max-w-xl mx-auto">
-            Soft check, 60 seconds, no commitment. Find out which of our four lenders approves you before you decide.
+            Soft check, 60 seconds, no commitment, zero impact to your credit score. Find out which of our four lenders approves you — and for how much — before you decide anything.
           </p>
           <button
             onClick={() => setShowPreApproval(true)}

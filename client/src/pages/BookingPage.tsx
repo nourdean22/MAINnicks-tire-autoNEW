@@ -283,13 +283,13 @@ export default function BookingPage() {
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/30 bg-primary/5 text-xs font-semibold uppercase tracking-wider text-primary mb-4">
             <Clock className="w-3.5 h-3.5" />
-            60 seconds · no credit card
+            60 seconds · no credit card · no commitment to fix
           </div>
           <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight mb-3">
-            Drop it off.
+            Just drop it off.
           </h1>
           <p className="text-foreground/65 text-lg max-w-xl mx-auto">
-            Tell us what's going on with your car. We'll call back within 15 minutes during open hours with a written estimate before any wrench moves. First-come, first-served — pull up any day we're open.
+            Tell us what's going on with your car. A real master tech — not a call-center — calls back within 15 minutes during open hours with a written estimate before any wrench moves. First-come, first-served — pull up any day we're open.
           </p>
 
           {/* 2026-05-07 wave-47 · social-proof-architect: review proof
