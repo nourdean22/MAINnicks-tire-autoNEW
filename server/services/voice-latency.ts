@@ -83,6 +83,18 @@ export interface CaptureVoiceLatencyInput {
  * end_to_end events). Webhook captures don't dedupe · the volume
  * is bounded by VAPI's per-call rate.
  */
+// wave-181.17 silent-failure F7 · warn-burst rate-limit state.
+// captureVoiceLatency is called ~10-50 times per VAPI call. When a DB
+// issue causes per-call failures, the un-throttled log.warn produced
+// 50+ identical entries per minute, consuming Sentry alert budget +
+// drowning out real signal. Now: one error-aggregate log per minute
+// when failure rate exceeds threshold.
+const CAPTURE_FAIL_BURST_THRESHOLD = 10;
+const CAPTURE_FAIL_BURST_WINDOW_MS = 60_000;
+let captureFailureCount = 0;
+let captureFailureWindowStart = Date.now();
+let captureFailureBurstReported = false;
+
 export async function captureVoiceLatency(
   input: CaptureVoiceLatencyInput,
 ): Promise<{ ok: boolean }> {
@@ -102,13 +114,36 @@ export async function captureVoiceLatency(
     });
     return { ok: true };
   } catch (err) {
-    // Fail-open · table may not have migration applied yet. We log
-    // (so /api/admin/errors surfaces the drift) but never throw.
-    log.warn("capture_failed", {
-      callId: input.callId,
-      stage: input.stage,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    // wave-181.17 · throttle the warn-burst when failures cluster.
+    // Window starts on first failure; aggregate one error log when
+    // threshold is hit; reset on the next window. Individual failures
+    // still increment the counter but don't emit until the burst
+    // threshold or window-reset boundary.
+    const now = Date.now();
+    if (now - captureFailureWindowStart > CAPTURE_FAIL_BURST_WINDOW_MS) {
+      captureFailureCount = 0;
+      captureFailureWindowStart = now;
+      captureFailureBurstReported = false;
+    }
+    captureFailureCount += 1;
+
+    if (captureFailureCount >= CAPTURE_FAIL_BURST_THRESHOLD && !captureFailureBurstReported) {
+      log.error("voice_latency_capture_burst", {
+        errorId: "VOICE_LATENCY_CAPTURE_BURST",
+        failureCount: captureFailureCount,
+        windowMs: CAPTURE_FAIL_BURST_WINDOW_MS,
+        latestError: err instanceof Error ? err.message : String(err),
+        note: "DB issue suspected. Subsequent failures in this minute will be silenced.",
+      });
+      captureFailureBurstReported = true;
+    } else if (captureFailureCount < CAPTURE_FAIL_BURST_THRESHOLD) {
+      // Below threshold = real first-N-of-burst, log normally
+      log.warn("capture_failed", {
+        callId: input.callId,
+        stage: input.stage,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
     return { ok: false };
   }
 }
@@ -126,7 +161,15 @@ export interface StageStats {
  * Compute P50/P95 per stage over the last N days. Uses an in-process
  * sort because the row count per stage per day is bounded (<2k for
  * 24h of VAPI calls).
+ *
+ * wave-181.17 silent-failure F6 · added LIMIT to guard the 90-day path
+ * which could pull 1.26M rows (90d * 7 stages * 2k/day) into Node memory
+ * = ~100MB heap balloon. 50k rows = ~4MB and covers ~25 days of typical
+ * traffic per stage. Beyond that we truncate (better than OOM) and emit
+ * a warning so the operator knows to ship a percentile-pushdown query.
  */
+const VOICE_LATENCY_ROW_LIMIT = 50_000;
+
 export async function getP50P95ByStage(days = 7): Promise<StageStats[]> {
   const windowDays = Math.max(1, Math.min(90, Math.round(days)));
   const since = new Date(Date.now() - windowDays * 86_400_000);
@@ -138,7 +181,16 @@ export async function getP50P95ByStage(days = 7): Promise<StageStats[]> {
     rows = await d
       .select({ stage: voiceLatencyEvents.stage, latencyMs: voiceLatencyEvents.latencyMs })
       .from(voiceLatencyEvents)
-      .where(gte(voiceLatencyEvents.createdAt, since));
+      .where(gte(voiceLatencyEvents.createdAt, since))
+      .limit(VOICE_LATENCY_ROW_LIMIT);
+    if (rows.length === VOICE_LATENCY_ROW_LIMIT) {
+      log.warn("p50p95_truncated", {
+        errorId: "VOICE_LATENCY_ROW_LIMIT_HIT",
+        windowDays,
+        limit: VOICE_LATENCY_ROW_LIMIT,
+        note: "Push percentile math into MySQL via PERCENTILE_DISC before this becomes a regular event.",
+      });
+    }
   } catch (err) {
     log.warn("aggregate_failed", { error: err instanceof Error ? err.message : String(err) });
     return VOICE_LATENCY_STAGES.map((stage) => ({ stage, count: 0, p50: 0, p95: 0 }));
@@ -204,11 +256,15 @@ export async function getCurrentBreachStreak(): Promise<BreachStreak> {
   try {
     const d = await db();
     if (!d) throw new Error("DB unavailable");
+    // wave-181.17 silent-failure F6 · same LIMIT guard as
+    // getP50P95ByStage. 14-day end_to_end only, much narrower than the
+    // 90-day all-stage scan above but still cap for safety.
     rows = await d
       .select({ createdAt: voiceLatencyEvents.createdAt, latencyMs: voiceLatencyEvents.latencyMs })
       .from(voiceLatencyEvents)
       .where(and(eq(voiceLatencyEvents.stage, "end_to_end"), gte(voiceLatencyEvents.createdAt, since)))
-      .orderBy(desc(voiceLatencyEvents.createdAt));
+      .orderBy(desc(voiceLatencyEvents.createdAt))
+      .limit(VOICE_LATENCY_ROW_LIMIT);
   } catch (err) {
     log.warn("breach_streak_failed", { error: err instanceof Error ? err.message : String(err) });
     return { streak: 0, alertReady: false, recentP50s: [] };
