@@ -52,8 +52,14 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/services",
     priority: 0.9,
     changefreq: "weekly",
-    title: "Auto Repair Near Me · Tires Brakes Diagnostics | Cleveland | Nick's",
-    description: "Cleveland auto repair near you — tires, brakes, diagnostics, emissions, oil. Walk-ins welcome 7 days. Free written estimates. 4.9★ from 1,700+ reviews. (216) 862-0005",
+    // wave-181.29 GSC tune · /services was cannibalizing the homepage for
+    // branded queries ("nicks tire and auto" — /services ranked pos 1.8,
+    // / ranked pos 2.1). Stripped "Nick's" + "| Nick's" from the title
+    // so this page stops competing for brand queries and stays anchored
+    // to "auto repair services" intent. Description keeps social-proof
+    // anchor but de-emphasizes brand-name in first 80 chars.
+    title: "Auto Repair Services Cleveland · Tires Brakes Diagnostics Oil",
+    description: "All Cleveland auto repair services — tires, brakes, diagnostics, emissions, oil, alignment. Walk-in 7 days. Free written estimates. 4.9★ from 1,700+ drivers.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -78,8 +84,14 @@ const CORE_PAGES: RouteEntry[] = [
     // queries; the title didn't promise to answer those. Front-loading
     // the actual phone number + address + 7-day-open signal so the SERP
     // result IS the answer the searcher was looking for.
+    //
+    // wave-181.29 — Title stays as the SERP answer (high intent → zero-
+    // click search is the expected outcome). Tightened description to
+    // ADD a click-incentive: "Schedule drop-off online · most jobs
+    // same day · free Uber within 5 miles." Pulls in the smaller
+    // segment of visitors who want more than just phone/address.
     title: "Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave",
-    description: "Call Nick's Tire & Auto at (216) 862-0005. 17625 Euclid Ave, Cleveland OH 44112. Mon-Sat 8a-6p, Sun 9a-4p. Walk-ins 7 days. Free written estimate before any work.",
+    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Most jobs same day · free Uber within 5 miles · written estimate before any wrench.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -88,8 +100,13 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/reviews",
     priority: 0.7,
     changefreq: "weekly",
-    title: "Nick's Tire & Auto Reviews · ★4.9 from 1,683 Cleveland Drivers",
-    description: "Read 1,700+ Google reviews for Nick's Tire & Auto. 4.9-star rating. See why Cleveland trusts us for tires, brakes, diagnostics, and auto repair.",
+    // wave-181.29 GSC tune · was pos 6.9 with 34 impr / 0 clicks (90d).
+    // Page-1 ranking, zero CTR — title/desc not selling the click.
+    // Synced "1,683" → "1,700+" (count was stale + round number is more
+    // click-worthy). Description now leads with concrete number-of-drivers
+    // + multi-platform (Google + Yelp + BBB) for trust anchoring.
+    title: "Nick's Tire & Auto · 4.9★ · 1,700+ Reviews Cleveland",
+    description: "1,700+ Cleveland drivers reviewed Nick's Tire & Auto on Euclid Ave. 4.9★ across Google, Yelp, BBB. Real customers on tires, brakes, diagnostics, honest pricing.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -902,8 +919,12 @@ const UTILITY_PAGES: RouteEntry[] = [
     path: "/specials",
     priority: 0.8,
     changefreq: "weekly",
-    title: "Auto Repair Deals & Specials Cleveland · $25 Plug · $39 Oil | Nick's",
-    description: "Current deals and coupons at Nick's Tire & Auto, Cleveland. Save on tires, brakes, oil changes, diagnostics. Updated weekly.",
+    // wave-181.29 GSC tune · was pos 6.9 with 34 impr / 0 clicks (90d).
+    // Page-1 ranking, zero CTR — title was over 60ch (truncating in
+    // SERP) AND description didn't lead with the specific dollar hooks
+    // people clicking "Cleveland auto specials" actually want.
+    title: "Cleveland Auto Specials · $25 Tire Plug · $39 Oil | Nick's",
+    description: "Cleveland auto deals at Nick's on Euclid Ave — $25 tire plug, $39 synthetic oil change, brake & alignment specials. Walk-in 7 days. Updated weekly. (216) 862-0005",
     group: "utility",
     sitemap: true,
     prerender: true,
