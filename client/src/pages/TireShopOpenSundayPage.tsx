@@ -79,7 +79,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Firestone is open Sundays too — why pick Nick's?",
-      a: "Honest answer: Firestone Cleveland Downtown (3917 Prospect Ave) IS open Sundays 9-5. The differentiator isn't hours — it's rating depth. Firestone Downtown sits at 4.0 stars on 250 Google reviews. Nick's: 4.9 stars on 1,683 reviews. That's a 0.9-star gap AND 6.7× the review depth at one location vs Firestone's biggest Cleveland presence. Plus Firestone is appointment-led + chain pricing; Nick's is walk-in + transparent estimates + the free Uber drop-off.",
+      a: "Honest answer: Firestone Cleveland Downtown (3917 Prospect Ave) IS open Sundays 9-5. The differentiator isn't hours — it's rating depth. Firestone Downtown sits at 4.0 stars on 250 Google reviews. Nick's: 4.9 stars on 1,700+ reviews. That's a 0.9-star gap AND 6.7× the review depth at one location vs Firestone's biggest Cleveland presence. Plus Firestone is appointment-led + chain pricing; Nick's is walk-in + transparent estimates + the free Uber drop-off.",
     },
     {
       q: "Can I walk in on Sunday or do I need an appointment?",
@@ -122,7 +122,7 @@ const CONFIG: ServicePageConfig = {
       { label: "Mavis Discount Tire (Pearl Rd / Mayfield)", price: "Closed Sun" },
       { label: "NTB Independence (only Sun-open NTB)", price: "9-5 appt" },
       { label: "Firestone Downtown · 4.0★ · 250 reviews", price: "9-5 Sun" },
-      { label: "Nick's Tire & Auto — 4.9★ · 1,683 reviews", price: "9-4 walk-in", ours: true },
+      { label: "Nick's Tire & Auto — 4.9★ · 1,700+ reviews", price: "9-4 walk-in", ours: true },
     ],
     source: "Source: live competitor scrape May 2026 (econrads.com · mavis.com · firestonecompleteautocare.com · Google Maps ratings). Conrad's chain-wide Sunday closure verified verbatim. Firestone IS open Sunday — Nick's differentiator is rating depth (0.9★ gap + 6.7× more reviews than Firestone Downtown).",
   },

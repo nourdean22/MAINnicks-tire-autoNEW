@@ -174,7 +174,20 @@ async function dispatchToolCall(call: VapiToolCall): Promise<{
         break;
 
       default:
-        output = { error: `Unknown tool: ${call.function.name}` };
+        // wave-181.15 · silent-failure audit Finding #8: was returning
+        // { error: "Unknown tool: <name>" } as if it were a valid tool
+        // RESULT, which VAPI reads literally and sometimes recites to
+        // the caller. Now: log it loudly + return a graceful message
+        // the AI can decline with.
+        log.error("Unknown tool requested by VAPI", {
+          errorId: "VAPI_UNKNOWN_TOOL",
+          toolName: call.function.name,
+          toolCallId: call.id,
+        });
+        output = {
+          error: "Tool not implemented",
+          graceful: "I don't have access to that right now — please rephrase or I can transfer you to the shop.",
+        };
     }
 
     return { toolCallId: call.id, result: JSON.stringify(output) };

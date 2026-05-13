@@ -798,8 +798,12 @@ export default function TireFinder() {
             ],
             aggregateRating: {
               "@type": "AggregateRating",
-              ratingValue: "4.9",
-              reviewCount: "1683",
+              // wave-181.15 · silent-failure audit Finding #5 · was
+              // hardcoded "1683" / "4.9" which drift from the canonical
+              // BUSINESS constant. Now pulls from shared/business.ts
+              // so when the GBP review count grows, schema follows.
+              ratingValue: String(BUSINESS.reviews.rating),
+              reviewCount: String(BUSINESS.reviews.count),
               bestRating: "5",
               worstRating: "1",
             },
