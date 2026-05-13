@@ -70,6 +70,20 @@ export function createPrerenderMiddleware(prerenderedDir: string) {
     // Only intercept GET requests
     if (req.method !== "GET") return next();
 
+    // wave-181.12 · CRITICAL bypass during prerender runs.
+    // The prerender puppeteer identifies as Googlebot to avoid getting
+    // the SPA shell. Without this bypass, the middleware would serve
+    // the OLD prerendered HTML BACK to puppeteer, which would then
+    // capture it as "fresh" — a circular bug where every prerender pass
+    // just replays the prior output. Setting PRERENDER_MODE=true on the
+    // spawned server (via scripts/prerender.mjs + regen-prerender.mjs +
+    // prerender-comparison-only.mjs) makes the middleware fall through,
+    // letting puppeteer hit the live React render. Captured for the
+    // first time in wave-181.12 after diagnosing why /parma-heights had
+    // a stale "Free Uber Both Ways" title even after cities.ts was
+    // updated to "Used Tires $60 · Open Sundays".
+    if (process.env.PRERENDER_MODE === "true") return next();
+
     // Only intercept if it's a bot
     const userAgent = req.get("user-agent") || "";
     if (!isBot(userAgent)) return next();
