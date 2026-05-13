@@ -226,7 +226,7 @@ export default function WalkInCalculatorSection() {
             <button
               key={i}
               onClick={() => addPreset(p)}
-              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-card border border-border/30 hover:border-[#FDB913]/40 hover:text-foreground active:scale-95 transition-all"
+              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-card border border-border/30 hover:border-primary/40 hover:text-foreground active:scale-95 transition-all"
             >
               <Plus className="w-3 h-3" />
               {p.description}
@@ -234,7 +234,7 @@ export default function WalkInCalculatorSection() {
           ))}
           <button
             onClick={addBlank}
-            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-[#FDB913]/10 border border-[#FDB913]/40 text-[#FDB913] hover:bg-[#FDB913]/20 active:scale-95 transition-all"
+            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/40 text-primary hover:bg-primary/20 active:scale-95 transition-all"
           >
             <Plus className="w-3 h-3" />
             Custom row
@@ -366,7 +366,7 @@ export default function WalkInCalculatorSection() {
 
       {/* Totals */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 rounded-xl border border-[#FDB913]/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
+        <div className="sticky bottom-0 rounded-xl border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Subtotal</div>
@@ -383,8 +383,8 @@ export default function WalkInCalculatorSection() {
               </div>
             )}
             <div>
-              <div className="text-[10px] uppercase tracking-widest text-[#FDB913]">Customer pays</div>
-              <div className="font-mono font-black text-2xl text-[#FDB913]">
+              <div className="text-[10px] uppercase tracking-widest text-primary">Customer pays</div>
+              <div className="font-mono font-black text-2xl text-primary">
                 {formatCents(totals.totalCents)}
               </div>
             </div>

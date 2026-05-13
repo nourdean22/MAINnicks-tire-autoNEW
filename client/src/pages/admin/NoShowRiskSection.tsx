@@ -284,7 +284,7 @@ export default function NoShowRiskSection() {
                             setEditingId(null);
                           }}
                           disabled={sendMutation.isPending}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-[#FDB913] text-black hover:bg-[#e3a811] transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                           <Send className="w-3.5 h-3.5" /> Send edited
                         </button>
@@ -300,7 +300,7 @@ export default function NoShowRiskSection() {
                         <button
                           onClick={() => handleSend(b.bookingId, b.customerPhone, b.suggestedSms)}
                           disabled={pendingIds.has(b.bookingId) || isSent || b.alreadyConfirmed}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-[#FDB913] text-black hover:bg-[#e3a811] transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                           <Send className="w-3.5 h-3.5" /> {pendingIds.has(b.bookingId) ? "Sending…" : "Send confirmation"}
                         </button>

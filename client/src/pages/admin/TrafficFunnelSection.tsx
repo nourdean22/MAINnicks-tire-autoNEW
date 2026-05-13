@@ -371,7 +371,7 @@ function CustomerEventsPanel({ range }: { range: Range }) {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
             Customer-Side Events ({range})
           </div>
           <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
@@ -550,7 +550,7 @@ function SitemapSubmissionPanel() {
     <div className="space-y-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
             Search Console
           </div>
           <h3 className="font-bold text-base text-foreground tracking-wide uppercase">
@@ -678,7 +678,7 @@ function GscAuditPanel({ range }: { range: Range }) {
     <div className="space-y-4">
       <div className="flex items-end justify-between flex-wrap gap-3">
         <div>
-          <div className="text-[#FDB913] text-[10px] font-mono uppercase tracking-widest mb-1">
+          <div className="text-primary text-[10px] font-mono uppercase tracking-widest mb-1">
             Search Console Audit ({range})
           </div>
           <h3 className="font-bold text-base text-foreground tracking-wide uppercase">

@@ -106,7 +106,7 @@ export default function SnapDashboardSection() {
             </a>
             <button
               onClick={() => setShowForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#FDB913] text-black hover:bg-[#e3a811] transition-colors font-bold"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-bold"
             >
               <Plus className="w-3.5 h-3.5" />
               {showForm ? "Cancel" : "New Application"}
@@ -207,7 +207,7 @@ export default function SnapDashboardSection() {
                 <button
                   type="submit"
                   disabled={submit.isPending}
-                  className="text-xs px-4 py-2 rounded-lg bg-[#FDB913] text-black font-bold hover:bg-[#e3a811] transition-colors disabled:opacity-50"
+                  className="text-xs px-4 py-2 rounded-lg bg-primary text-primary-foreground font-bold hover:bg-primary/90 transition-colors disabled:opacity-50"
                 >
                   {submit.isPending ? "Submitting…" : "Submit Application"}
                 </button>

@@ -597,9 +597,29 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
   // Import sheets info
   const { isSheetConfigured, getSpreadsheetUrl } = await import("./sheets-sync");
 
+  // wave-181.26 · sitemap page count was hardcoded to 68 (March 2026
+  // snapshot). Since then wave-181 added 4 SERP-fix pages, wave-95-101
+  // surfaced more route paths, and ~150 auto-generated pages exist via
+  // PRERENDER_ROUTES. Pulling the live count from shared/routes.ts so
+  // this number tracks the codebase automatically.
+  let sitemapPageCount = 0;
+  try {
+    const { PRERENDER_ROUTES } = await import("@shared/routes");
+    sitemapPageCount = PRERENDER_ROUTES.filter((r) => r.sitemap !== false).length;
+  } catch (err) {
+    log.error("[AdminStats] Sitemap count from routes.ts failed:", err instanceof Error ? err.message : err);
+    sitemapPageCount = 68; // fall back to the March 2026 baseline
+  }
+
+  // wave-181.26 · "indexed" / "not indexed" used to be hardcoded from
+  // March 2026 GSC. Without live GSC integration, we report `null` so
+  // the admin UI knows to show a "GSC sync required" state instead of
+  // displaying stale numbers as if they were current. When the
+  // GOOGLE_SEARCH_CONSOLE_KEY is wired up, this will pull live counts.
+  // For now: honest unknowns instead of confidently-wrong constants.
   return {
     domains: ["nickstire.org", "www.nickstire.org", "autonicks.com", "www.autonicks.com"],
-    sitemapPageCount: 68, // 68 URLs in sitemap as of March 2026
+    sitemapPageCount,
     totalBlogPosts: 6 + dynamicBlogPosts, // 6 hardcoded + dynamic
     hardcodedBlogPosts: 6,
     dynamicBlogPosts,
@@ -607,9 +627,9 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
     googleReviewCount: null,
     sheetsConfigured: isSheetConfigured(),
     sheetsUrl: getSpreadsheetUrl(),
-    indexedPages: 57, // From GSC: 68 sitemap - 11 not indexed = 57 indexed
-    notIndexedPages: 11, // From GSC: 6 crawled + 5 discovered not indexed
-    crawledNotIndexed: 6, // From GSC: crawled but not indexed
-    discoveredNotIndexed: 5, // From GSC: discovered but not indexed
+    indexedPages: 0, // 0 = "unknown, GSC sync required" — UI should render badge
+    notIndexedPages: 0,
+    crawledNotIndexed: 0,
+    discoveredNotIndexed: 0,
   };
 }

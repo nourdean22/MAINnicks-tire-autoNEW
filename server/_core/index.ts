@@ -1211,6 +1211,17 @@ ${urls.join("\n")}
     const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
     const rssMB = Math.round(mem.rss / 1024 / 1024);
     console.info(`[server:ready] http://localhost:${port}/ | Memory: heap=${heapMB}MB rss=${rssMB}MB`);
+
+    // wave-181.26 · arm admin-activity for 2 min post-restart so the
+    // first pulse-tier pass of ShopDriver/ALG mirrors doesn't skip
+    // with "admin inactive." Without this, post-Railway-restart
+    // invoice + estimate data on the dashboard can be 25+ min stale.
+    import("../lib/adminActivity").then(({ armAdminActivityForStartup }) => {
+      armAdminActivityForStartup();
+      console.info("[server:ready] admin-activity armed for 2 min post-startup grace (catches first ALG/ShopDriver mirror pass)");
+    }).catch((err) => {
+      console.error("[server:ready] adminActivity startup arm failed:", err);
+    });
   });
 }
 

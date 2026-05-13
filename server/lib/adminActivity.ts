@@ -45,6 +45,37 @@ export function touchAdminActivity(source: string = "unknown"): void {
 }
 
 /**
+ * wave-181.26 · post-restart grace arm.
+ *
+ * Why this exists:
+ *   After Railway redeploys/restarts the Express process, the in-memory
+ *   state above resets — lastTouchMs goes back to 0. The pulse-tier
+ *   ShopDriver/ALG mirror jobs run every 15 min and gate on
+ *   isAdminSessionActive(). If no human touches /admin in the first
+ *   15 minutes post-restart, those jobs skip — and invoice + estimate
+ *   data stays stale for up to 30 min. Operator opens admin, sees
+ *   yesterday's numbers, perceives the admin as "stale."
+ *
+ * Fix:
+ *   Call this once on server boot. It back-dates lastTouchMs so the
+ *   activity window has ~2 minutes remaining — enough for the first
+ *   pulse-tier pass to run (catches the post-restart data refresh),
+ *   short enough that it doesn't override the shop-protection if the
+ *   operator isn't actually on /admin (after 2 min, the gate re-closes
+ *   and the rest of the day operates normally).
+ *
+ * Tradeoff: up to 2 minutes of "false-positive admin active" after
+ * every restart. Vs. up to 30 min of stale invoice/estimate data
+ * on the admin dashboard until a manual touch. We accept the 2 min.
+ */
+export function armAdminActivityForStartup(): void {
+  // 10 min window, minus 8 min already elapsed = 2 min remaining.
+  state.lastTouchMs = Date.now() - 8 * 60 * 1000;
+  state.totalTouches++;
+  state.lastSource = "startup";
+}
+
+/**
  * Is the admin session currently active?
  * Default: active if anything touched within the last 10 minutes.
  */
