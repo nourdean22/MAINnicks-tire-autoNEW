@@ -37,6 +37,11 @@ export default function ConradsAlternative() {
           question: "How long is the wait at Nick's vs Conrad's?",
           answer: "First-come-first-served means the wait is whatever the line is when you pull up. On a slow Tuesday morning you'll be rolling in 30 minutes. On a Saturday afternoon snow-warning weekend, every shop in Cleveland is slammed — including us. The difference: we tell you the honest wait when you arrive, set you up with Uber/Lyft if you want to drop the car, and call when it's done. Conrad's appointment system means the appointment-time and the actually-rolling-out time often don't match.",
         },
+        {
+          // wave-181.10 · new FAQ from May 2026 competitor scrape
+          question: "How does Conrad's review depth actually compare to Nick's?",
+          answer: "Conrad's runs 38 stores across Northeast Ohio. Total Trustpilot reviews across the ENTIRE chain: 137. Nick's Tire & Auto, one location on Euclid Ave: 1,683+ Google reviews and counting. A single Nick's shop has 12× more reviews than Conrad's has across its whole 38-store network. That's not a fluke; it's what 7 years of one-shop, one-crew, one-standard service generates. Independent on Euclid beats chain across Ohio by an order of magnitude on the trust metric drivers actually look at.",
+        },
       ]}
     />
   );

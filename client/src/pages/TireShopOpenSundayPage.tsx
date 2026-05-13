@@ -74,8 +74,12 @@ const CONFIG: ServicePageConfig = {
       a: "Yes — every Sunday since 2019. 9am to 4pm. The only exceptions are Easter Sunday (closed) and Christmas if it falls on a Sunday. Memorial Day Sunday, Labor Day Sunday, Fourth-of-July-Sunday — all open. Call (216) 862-0005 if you want us to confirm before driving over.",
     },
     {
-      q: "Why are Conrad's, Mavis, and NTB closed Sunday but Nick's is open?",
-      a: "Chain stores schedule around labor cost vs. weekday foot traffic. Sunday is lower-volume so they close to save payroll. Nick's is independent — the operator's family runs the shop and is here Sundays anyway. We'd rather be open and earn the loyalty of the customers nobody else serves than save 8 hours of labor. Sunday is our quietest day, which is also why the line moves faster and the technician has time to walk you through what's wrong.",
+      q: "Why are Conrad's and most NTB locations closed Sunday but Nick's is open?",
+      a: "Chain stores schedule around labor cost vs. weekday foot traffic. Sunday is lower-volume so most chains close to save payroll. Conrad's: ALL 10 Cleveland-metro locations confirmed closed Sunday (verbatim from econrads.com). Most NTB locations also closed (NTB Independence is the only Sun-open NTB in Cleveland metro — 9-5 by appointment). Nick's is independent — the operator's family runs the shop and is here Sundays anyway. Quieter day = faster line + more technician time per customer.",
+    },
+    {
+      q: "Firestone is open Sundays too — why pick Nick's?",
+      a: "Honest answer: Firestone Cleveland Downtown (3917 Prospect Ave) IS open Sundays 9-5. The differentiator isn't hours — it's rating depth. Firestone Downtown sits at 4.0 stars on 250 Google reviews. Nick's: 4.9 stars on 1,683 reviews. That's a 0.9-star gap AND 6.7× the review depth at one location vs Firestone's biggest Cleveland presence. Plus Firestone is appointment-led + chain pricing; Nick's is walk-in + transparent estimates + the free Uber drop-off.",
     },
     {
       q: "Can I walk in on Sunday or do I need an appointment?",
@@ -107,16 +111,20 @@ const CONFIG: ServicePageConfig = {
   ctaHeadline: "PULL UP THIS SUNDAY — 9 AM TO 4 PM",
   ctaSub: "17625 Euclid Ave, Cleveland OH · walk-in welcome · drop-off + Uber back home · (216) 862-0005",
 
+  // wave-181.10 · updated with real Cleveland-metro scrape data
+  // (econrads.com Lakewood page verified verbatim · firestone Downtown
+  // Google rating + review count · NTB Independence the only Sun-open
+  // NTB location verified).
   anchorTable: {
-    serviceName: "Cleveland-area tire shops — Sunday hours",
+    serviceName: "Cleveland-area tire shops — Sunday hours + ratings",
     rows: [
-      { label: "Conrad's Tire (Downtown)", price: "Closed" },
-      { label: "Mavis Discount Tire (Pearl Rd)", price: "9-5 (appt)" },
-      { label: "NTB Cleveland", price: "Closed" },
-      { label: "Firestone Cleveland (varies)", price: "Varies" },
-      { label: "Nick's Tire & Auto — Euclid Ave", price: "9-4 walk-in", ours: true },
+      { label: "Conrad's Tire — all 10 metro locations", price: "CLOSED" },
+      { label: "Mavis Discount Tire (Pearl Rd / Mayfield)", price: "Closed Sun" },
+      { label: "NTB Independence (only Sun-open NTB)", price: "9-5 appt" },
+      { label: "Firestone Downtown · 4.0★ · 250 reviews", price: "9-5 Sun" },
+      { label: "Nick's Tire & Auto — 4.9★ · 1,683 reviews", price: "9-4 walk-in", ours: true },
     ],
-    source: "Source: live competitor Google Maps + websites as of May 2026. Sunday hours change seasonally — call ahead if uncertain.",
+    source: "Source: live competitor scrape May 2026 (econrads.com · mavis.com · firestonecompleteautocare.com · Google Maps ratings). Conrad's chain-wide Sunday closure verified verbatim. Firestone IS open Sunday — Nick's differentiator is rating depth (0.9★ gap + 6.7× more reviews than Firestone Downtown).",
   },
 
   fearStats: {

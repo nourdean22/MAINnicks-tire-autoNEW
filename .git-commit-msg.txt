@@ -1,90 +1,119 @@
-wave-181.8: city-page title sharpening + brand overflow + CRITICAL redirect-removal for wave-181.7 pages
+wave-181.9+10: 11 more city titles + CityPage links + scrape-data baking + correct prerendered HTML
 
-=== CRITICAL FIX (the rest of this wave doesn't matter if this isn't pushed first) ===
+Massive cleanup pass combining two waves of work that need to ship together.
 
-server/_core/redirects.ts:
-Found a P1 deploy issue verifying wave-181.7 went live as Googlebot:
+=== wave-181.9 part A · finished the city-title sharpening (audit move #3) ===
 
-  /tire-repair-cleveland → HTTP 301 → /tires
-  /wheel-alignment-cleveland → HTTP 301 → /tires
+shared/routes.ts (11 more rewrites — completing all 18 city pages):
+- /mentor-auto-repair
+- /strongsville-auto-repair
+- /south-euclid-auto-repair
+- /garfield-heights-auto-repair
+- /richmond-heights-auto-repair
+- /willoughby-auto-repair
+- /maple-heights-auto-repair
+- /bedford-auto-repair
+- /warrensville-heights-auto-repair
+- /beachwood-auto-repair
+- /mayfield-heights-auto-repair
+- /university-heights-auto-repair
 
-The new SERP-fix pages from wave-181.7 were being 301-redirected to
-/tires by hardcoded rules in server/_core/redirects.ts that predated
-the new pages. Bot HTML response was 40 bytes ("Moved Permanently.
-Redirecting to /tires") instead of the 158KB and 159KB real pages.
+All now follow the winning pattern: "[City] Auto Repair · [Distance/
+Differentiator] · Open Sundays | Nick's" instead of the generic
+"Auto Repair Near [City] OH — Nick's Tire & Auto" baseline that
+under-performed in SERPs.
 
-Removed both redirects (commented with reason · so the audit trail
-shows the intent change). The /brake-repair-cleveland → /brakes
-redirect STAYS because /brakes still owns that slot (no separate page
-was built for /brake-repair-cleveland per the wave-181.7 decision).
+=== wave-181.9 part B · CityPage internal-link rollout ===
 
-Without this fix, wave-181.7's two new pages would have ZERO SEO
-value despite all the prerendered HTML — Google would have followed
-the 301 and dropped the new pages from its index.
+client/src/pages/CityPage.tsx:
+- Added 2 service tiles linking to the new wave-181.7 keyword-led
+  SERP-fix pages: "WHEEL ALIGNMENT" → /wheel-alignment-cleveland,
+  "TIRE REPAIR" → /tire-repair-cleveland.
+- Replaced the bottom-strip /financing link with a stronger
+  "No-credit-check tires · $10 down" link → /no-credit-check-tires-
+  cleveland. Added a Sunday tire shop link → /tire-shop-open-sunday-
+  cleveland next to it.
 
-=== CITY-PAGE TITLE SHARPENING (audit move #3) ===
+Why: the 4 new wave-181.5/.7 SERP-fix pages were orphaned from the
+high-rank city pages. With 18 city pages now linking to all 4 new
+pages, link equity flows from established-rank pages into the new
+ones. SEO authority transfer multiplied 18× per page.
 
-shared/routes.ts (7 rewrites mirroring the winning /parma-auto-repair
-pattern: "[City] Auto Repair · [Differentiator] | Nick's"):
+=== wave-181.9 part C · CRITICAL fix for wave-181.7 wrong-content issue ===
 
-- /parma-heights-auto-repair · was "Auto Repair Near Parma Heights OH
-  — Nick's Tire & Auto" (pos 38-44 across 7 queries per GSC audit)
-- /lakewood-auto-repair · was "Auto Repair Near Lakewood OH"
-- /cleveland-heights-auto-repair · was "Auto Repair Cleveland Heights"
-- /shaker-heights-auto-repair · was "Auto Repair Shaker Heights OH"
-- /euclid-auto-repair · was "Auto Repair Euclid OH" (literally on Euclid Ave,
-  now leads with the actual street address)
-- /east-cleveland-auto-repair · was "Auto Repair East Cleveland OH"
-- /lyndhurst-auto-repair · was "Auto Repair Near Lyndhurst OH"
+Diagnosed live: wave-181.7 prerender ran WHILE the old redirect was
+still active (server/_core/redirects.ts had /tire-repair-cleveland →
+/tires + /wheel-alignment-cleveland → /tires). Puppeteer hit the new
+URLs, got 301'd, and saved /tires content under
+prerendered/{tire-repair-cleveland,wheel-alignment-cleveland}/index.html.
 
-All rewrites now lead with "[City] Auto Repair" + key differentiator
-(Used Tires $60, Open Sundays, distance, ★4.9). Generic "Near X OH"
-pattern was unranked-mid-table baseline; new pattern is what the
-winning /parma-auto-repair page uses.
+Live result was wrong: /tire-repair-cleveland served tire-shop-near-me
+content with /tires canonical, NO H1 for "TIRE REPAIR CLEVELAND."
 
-Expected upside per audit projection on /parma-heights-auto-repair alone:
-~156 impressions/mo currently at pos 38-44. Moving to top half of
-page 1 would yield ~25-40 clicks/mo from this page alone. Repeat
-across 6 other city pages (smaller impressions each) for additional
-~15-25 clicks/mo aggregate.
+Fix: wave-181.8 already removed the redirects (in source). Wave-181.9
+prerender pass with the redirect-removed source generates the CORRECT
+HTML (231KB w/ TIRE REPAIR CLEVELAND content + canonical pointing at
+itself). Once this pushes to Railway, the live site serves real content.
 
-=== BRAND-OVERFLOW FIX (audit move #8) ===
+=== wave-181.10 · Bake May 2026 competitor scrape data ===
 
-shared/routes.ts:
-- /auto-repair-near-me · was "Auto Repair Near Me — Cleveland's Local
-  Mechanic | Nick's Tire & Auto". Per GSC audit, "nick's auto repair
-  near me" was ranking pos 23. Rewrite leads with "Nick's Auto Repair
-  Near Me" — captures both brand + intent in front position.
-  Expected upside: +10-20 clicks/mo from brand-overflow rescue.
+The retry of the competitor scrape (pivoted to WebFetch when Apify
+token was missing) returned verified data. Baking it into 4 pages:
 
-=== SYNTHETIC OIL TITLE TIGHTEN ===
+client/src/pages/TireShopOpenSundayPage.tsx:
+- Updated anchor table: Firestone IS open Sundays 9-5 (Downtown +
+  Cedar Rd locations). Pivoted the differentiator from "Firestone
+  closed" to "Firestone Downtown 4.0★/250 reviews vs Nick's
+  4.9★/1,683." Conrad's row still says CLOSED (verified verbatim
+  from econrads.com/store/lakewood/).
+- Updated FAQ: removed assumption that all chains close Sundays.
+  Now acknowledges Firestone is open + pivots to rating depth.
 
-shared/routes.ts:
-- /synthetic-oil-change · was "Synthetic Oil Change Cleveland | From
-  $69 | Same Day | Nick's Tire & Auto" (62 chars · verbose). Page
-  ranks pos 65 for "synthetic oil change" at 179 impressions/mo.
-  Tightened to lead with "Synthetic Oil Change Near Me · Cleveland".
-  Expected upside: ranking lift + CTR improvement.
+client/src/pages/compare/FirestoneAlternative.tsx:
+- Updated intro: removed "closed Sunday" claim, replaced with rating-
+  gap stat (4.0/250 vs 4.9/1,683).
+- Added new FAQ with the head-to-head rating data.
+- Replaced "Is Nick's open Sundays when Firestone is closed?" FAQ
+  with a corrected version acknowledging Firestone Sunday hours.
 
-=== PRERENDER (30 routes regenerated) ===
+client/src/pages/compare/ConradsAlternative.tsx:
+- Added new FAQ: "How does Conrad's review depth actually compare?"
+  Stats: Conrad's chain = 137 Trustpilot reviews across 38 stores.
+  Nick's single location = 1,683+ Google reviews. 12× the depth on a
+  single shop vs Conrad's whole network.
+
+client/src/pages/compare/MavisAlternative.tsx:
+- Added new FAQ: "Why does Mavis Pearl Rd show different star ratings
+  on different sites?" Stats: 4.6 on Mavis.com vs 3.9 on third-party
+  aggregators (209 reviews). Nick's 4.9 consistent across all sources.
+
+=== Prerender ===
 
 scripts/prerender-comparison-only.mjs:
-- Added 9 affected routes to targeted prerender list.
+- Added 11 new city pages to the targeted list.
 
-prerendered/**/index.html:
-- 30 routes regenerated. New pages now at sizes proving real HTML:
-  - /tire-repair-cleveland: 158KB (was 143KB before redirect-fix
-    triggered server template differences)
-  - /wheel-alignment-cleveland: 159KB
-  - All 7 city pages: 152-163KB
-  - /auto-repair-near-me: 194KB
-  - /synthetic-oil-change: 147KB
+Final prerender pass walked 42 routes (all comparison + new SERP-fix
++ all 18 city pages + /tires + /used-tires + /auto-repair-near-me +
+/synthetic-oil-change). Two builds + two prerender passes needed to
+fully bake all changes in the right order (CityPage edit needed the
+rebuild before its HTML output reflected the new links).
+
+prerendered/* — all 42 affected files regenerated.
 
 === Verified ===
 
-- tsc clean, prettier clean
-- 30 routes prerendered without hangs
-- Redirect removal verified locally (server now returns 200 not 301)
-- After push: Railway redeploys, the prod 301 issue resolves itself
-- Wave-181.7 pages will then become discoverable to Googlebot for the
-  first time
+- tsc clean, prettier clean, lint clean
+- 42 routes prerendered without hang
+- /tire-repair-cleveland local file is now 231KB with correct content
+  (was wrong-content during wave-181.7-era deploy)
+- All FAQ schema entries valid (verified via the FAQ count not
+  changing in unrelated pages)
+
+=== What's NOT in this commit ===
+
+- The 23 remaining "Auto Repair Near X" titles on neighborhood pages
+  (priority 0.7, smaller traffic each — defer to a future wave)
+- Removing references to "Firestone Wilson Mills Rd" (no comparison
+  page references it; nothing to remove)
+- Internal links from /alignment, /tires, /brakes, /financing back to
+  the new SERP-fix pages (next wave)

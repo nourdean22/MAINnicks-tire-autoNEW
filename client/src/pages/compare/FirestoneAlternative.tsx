@@ -13,7 +13,7 @@ export default function FirestoneAlternative() {
       slug="firestone-alternative-cleveland"
       seoTitle="Firestone Alternative Cleveland · No Chain Pricing | Nick's"
       seoDescription="Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address."
-      intro="Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, premium chain labor rates, dealership-style upsell pressure, closed Sunday. Nick's Tire & Auto on Euclid Ave is the opposite of all of that. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $60 installed if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop."
+      intro="Firestone is fine if you want corporate paperwork. Lifetime alignment program. Bridgestone tire selection. Brand recognition. Also: appointment-required, premium chain labor rates, dealership-style upsell pressure, and a 4.0-star Google rating on 250 reviews at the Downtown Cleveland location vs Nick's 4.9 stars on 1,683+ reviews at one shop on Euclid Ave. Nick's is the opposite of corporate. Mechanic-owned. First-come-first-served. The estimate hits your hand in writing before any wrench moves. Used tires from $60 installed if a used tire fits. Open 7 days including Sunday. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person at the shop."
       extraFaqs={[
         {
           question: "Is Firestone's lifetime alignment program worth it?",
@@ -32,8 +32,14 @@ export default function FirestoneAlternative() {
           answer: "Because the dealership-style sales process recommends services beyond the original ask, and customers don't always know they can decline. \"While we have it on the lift\" is the phrase. Nick's doesn't run that play. The estimate is the estimate. New things found mid-job get a second authorization before any additional work — never a surprise on the final bill.",
         },
         {
-          question: "Is Nick's open Sundays when Firestone is closed?",
-          answer: "Yes. 9am–4pm every Sunday. The chains close. We don't. Find Firestone closed on a Sunday afternoon? Pull up to Nick's at 17625 Euclid Ave instead.",
+          // wave-181.10 · new FAQ from May 2026 competitor scrape
+          question: "How does Firestone Cleveland's rating actually compare to Nick's?",
+          answer: "Firestone's biggest Cleveland location — Downtown at 3917 Prospect Ave — sits at 4.0 stars on 250 Google reviews. Nick's Tire & Auto on Euclid Ave: 4.9 stars on 1,683+ Google reviews. That's a 0.9-star gap AND 6.7× the review depth at a single Nick's location vs Firestone's largest Cleveland presence. Firestone is fine. Nick's is consistently better-rated by way more drivers who've actually used both.",
+        },
+        {
+          // wave-181.10 · corrected the Sunday claim (Firestone IS open Sun)
+          question: "Is Nick's open Sundays?",
+          answer: "Yes — 9am–4pm every Sunday. Firestone Downtown (Prospect Ave) and Cleveland Heights (Cedar Rd) are also open Sundays 9-5 — the differentiator isn't hours, it's the rating gap and the appointment vs walk-in model. Firestone is appointment-led; Nick's is first-come-first-served + free drop-off + Uber back home. Pull up to Nick's at 17625 Euclid Ave when you want walk-in service on a Sunday.",
         },
       ]}
     />
