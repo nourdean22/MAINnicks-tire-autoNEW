@@ -38,7 +38,7 @@ export default function MavisAlternative() {
         {
           // wave-181.10 · new FAQ from May 2026 competitor scrape
           question: "Why does Mavis Pearl Rd show different star ratings on different sites?",
-          answer: "Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but 3.9 stars on third-party aggregators (209 reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: 4.9 stars consistently across Google, Yelp, and BBB on 1,683+ reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.",
+          answer: "Mavis Pearl Rd (Middleburg Heights) shows 4.6 stars on Mavis.com but 3.9 stars on third-party aggregators (209 reviews). Same store, different math — the in-house number is curated, the third-party number isn't. The third-party number is harder to dispute because Mavis can't manage it. Nick's: 4.9 stars consistently across Google, Yelp, and BBB on 1,700+ reviews. When a shop's self-reported rating is 0.7 stars higher than the rating drivers leave on neutral aggregators, that's a signal worth thinking about.",
         },
       ]}
     />

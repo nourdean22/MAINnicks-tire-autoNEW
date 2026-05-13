@@ -43,10 +43,16 @@ interface VapiCallApi extends VapiCallLike {
 let lastAlertDate: string | null = null;
 
 export async function processVapiLatencySync(): Promise<{ recordsProcessed: number; details?: string }> {
+  // wave-181.15 · silent-failure audit Finding #3: was returning
+  // { recordsProcessed: 0, details: "..." } from all three failure
+  // paths (no api key / 4xx-5xx / fetch error). Same class as the
+  // wave-181.3 warrantyAlerts.ts fix — the cron runner treated the
+  // return as success and wrote cron_log row as status='completed'.
+  // Now: throw from every failure path so runJob marks 'failed'.
   const apiKey = (process.env.VAPI_API_KEY || "").trim();
   if (!apiKey) {
-    log.warn("vapi_api_key_missing");
-    return { recordsProcessed: 0, details: "VAPI_API_KEY unset" };
+    log.error("vapi_api_key_missing", { errorId: "VAPI_LATENCY_SYNC_NO_KEY" });
+    throw new Error("VAPI_API_KEY unset");
   }
 
   const since = new Date(Date.now() - 86_400_000); // 24h
@@ -60,15 +66,16 @@ export async function processVapiLatencySync(): Promise<{ recordsProcessed: numb
       },
     );
     if (!r.ok) {
-      log.warn("vapi_call_list_failed", { status: r.status });
-      return { recordsProcessed: 0, details: `vapi returned ${r.status}` };
+      log.error("vapi_call_list_failed", { status: r.status, errorId: "VAPI_LATENCY_SYNC_HTTP_ERROR" });
+      throw new Error(`VAPI /call returned ${r.status}`);
     }
     calls = (await r.json()) as VapiCallApi[];
   } catch (err) {
     log.error("vapi_call_fetch_error", {
+      errorId: "VAPI_LATENCY_SYNC_FETCH_THREW",
       error: err instanceof Error ? err.message : String(err),
     });
-    return { recordsProcessed: 0, details: "vapi_fetch_failed" };
+    throw err;
   }
 
   // Pull existing end_to_end rows for dedup

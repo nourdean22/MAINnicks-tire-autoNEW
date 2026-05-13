@@ -636,9 +636,20 @@ async function startServer() {
   // this endpoint after the VAPI migration. Auth via STATENOUR_SYNC_KEY
   // bearer matching the existing bridge pattern.
   app.get("/api/bridge/voice-latency", async (req, res) => {
+    // wave-181.15 · silent-failure audit Finding #1 (CRITICAL security):
+    // was using plain === for secret compare. Even though network noise
+    // makes the timing-attack slow, every other bridge endpoint in this
+    // repo (statenour-bridge-routes.ts, bridge-routes.ts, vapi.ts) uses
+    // timingSafeEqual with length guard — this one regressed. Aligned
+    // with the project pattern.
     const expected = (process.env.STATENOUR_SYNC_KEY || "").trim();
     const got = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
-    if (!expected || !got || expected !== got) {
+    if (
+      !expected ||
+      !got ||
+      expected.length !== got.length ||
+      !timingSafeEqual(Buffer.from(expected), Buffer.from(got))
+    ) {
       res.status(401).json({ error: "unauthorized" });
       return;
     }
