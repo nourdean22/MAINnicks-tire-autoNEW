@@ -5,7 +5,7 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState } from "./shared";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
 
@@ -247,11 +247,12 @@ function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
 
 // ─── Ready Queue ────────────────────────────────────
 function ReadyQueue() {
-  const { data: workOrders, isLoading } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000 });
+  const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000 });
   const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (isError) return <ErrorState message="Couldn't load ready-queue" onRetry={() => refetch()} />;
 
   const orders = workOrders || [];
 

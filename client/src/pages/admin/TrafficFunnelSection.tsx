@@ -17,7 +17,7 @@
 
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { PageHeader } from "./shared";
+import { PageHeader, ErrorState } from "./shared";
 import { toast } from "sonner";
 import {
   Loader2, TrendingUp, AlertTriangle, AlertCircle, Info,
@@ -75,9 +75,10 @@ export default function TrafficFunnelSection() {
 
   if (error || !data) {
     return (
-      <div className="bg-red-500/5 border border-red-500/20 p-5 text-red-400 text-sm">
-        Failed to load funnel data: {error?.message ?? "unknown"}
-      </div>
+      <ErrorState
+        message={`Couldn't load funnel data${error?.message ? ` · ${error.message}` : ""}`}
+        onRetry={() => refetch()}
+      />
     );
   }
 

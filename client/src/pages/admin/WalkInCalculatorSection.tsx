@@ -175,7 +175,7 @@ export default function WalkInCalculatorSection() {
             <button
               onClick={copyQuote}
               disabled={items.length === 0}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
             >
               <Copy className="w-3.5 h-3.5" />
               Copy
@@ -183,7 +183,7 @@ export default function WalkInCalculatorSection() {
             <button
               onClick={printQuote}
               disabled={items.length === 0}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
             >
               <Printer className="w-3.5 h-3.5" />
               Print
@@ -191,7 +191,7 @@ export default function WalkInCalculatorSection() {
             <button
               onClick={resetAll}
               disabled={items.length === 0}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-secondary hover:bg-secondary/80 transition-colors disabled:opacity-50"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Reset
@@ -206,13 +206,13 @@ export default function WalkInCalculatorSection() {
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
           placeholder="Customer name (optional)"
-          className="bg-card border border-border/30 rounded-lg px-3 py-2 text-sm"
+          className="bg-card border border-border/30 px-3 py-2 text-sm"
         />
         <input
           value={vehicle}
           onChange={(e) => setVehicle(e.target.value)}
           placeholder="Vehicle (year make model)"
-          className="bg-card border border-border/30 rounded-lg px-3 py-2 text-sm"
+          className="bg-card border border-border/30 px-3 py-2 text-sm"
         />
       </div>
 
@@ -226,7 +226,7 @@ export default function WalkInCalculatorSection() {
             <button
               key={i}
               onClick={() => addPreset(p)}
-              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-card border border-border/30 hover:border-primary/40 hover:text-foreground active:scale-95 transition-all"
+              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 bg-card border border-border/30 hover:border-primary/40 hover:text-foreground active:scale-95 transition-all"
             >
               <Plus className="w-3 h-3" />
               {p.description}
@@ -234,7 +234,7 @@ export default function WalkInCalculatorSection() {
           ))}
           <button
             onClick={addBlank}
-            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/40 text-primary hover:bg-primary/20 active:scale-95 transition-all"
+            className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1.5 bg-primary/10 border border-primary/40 text-primary hover:bg-primary/20 active:scale-95 transition-all"
           >
             <Plus className="w-3 h-3" />
             Custom row
@@ -244,7 +244,7 @@ export default function WalkInCalculatorSection() {
 
       {/* Labor rate + discount */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+        <div className="border border-border/30 bg-card/50 p-3">
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1 mb-2">
             <Wrench className="w-3 h-3" /> Labor rate ($/hr)
           </label>
@@ -255,10 +255,10 @@ export default function WalkInCalculatorSection() {
             onChange={(e) => setLaborRate(Number(e.target.value) || 0)}
             min={0}
             step={5}
-            className="w-full bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm font-mono"
+            className="w-full bg-background/50 border border-border/30 px-3 py-2 text-sm font-mono"
           />
         </div>
-        <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+        <div className="border border-border/30 bg-card/50 p-3">
           <label className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold flex items-center gap-1 mb-2">
             <Percent className="w-3 h-3" /> Discount % (applied to total)
           </label>
@@ -269,26 +269,26 @@ export default function WalkInCalculatorSection() {
             onChange={(e) => setDiscountPct(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
             min={0}
             max={100}
-            className="w-full bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm font-mono"
+            className="w-full bg-background/50 border border-border/30 px-3 py-2 text-sm font-mono"
           />
         </div>
       </div>
 
       {/* Line items */}
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border/30 bg-card/30 p-10 text-center text-sm text-muted-foreground">
+        <div className="border border-dashed border-border/30 bg-card/30 p-10 text-center text-sm text-muted-foreground">
           Pick a preset or add a custom row to start quoting.
         </div>
       ) : (
         <div className="space-y-2">
           {totals.lines.map((line) => (
-            <div key={line.id} className="rounded-xl border border-border/30 bg-card/50 p-3">
+            <div key={line.id} className="border border-border/30 bg-card/50 p-3">
               <div className="flex items-start gap-3">
                 <input
                   value={line.description}
                   onChange={(e) => updateItem(line.id, { description: e.target.value })}
                   placeholder="Service / part description"
-                  className="flex-1 bg-background/50 border border-border/30 rounded-lg px-3 py-2 text-sm min-w-0"
+                  className="flex-1 bg-background/50 border border-border/30 px-3 py-2 text-sm min-w-0"
                 />
                 <div className="text-right">
                   <div className="font-mono font-black text-lg text-foreground">
@@ -300,7 +300,7 @@ export default function WalkInCalculatorSection() {
                 </div>
                 <button
                   onClick={() => removeItem(line.id)}
-                  className="shrink-0 p-2 rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                  className="shrink-0 p-2 text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
                   aria-label="Remove"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -366,7 +366,7 @@ export default function WalkInCalculatorSection() {
 
       {/* Totals */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 rounded-xl border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
+        <div className="sticky bottom-0 border border-primary/30 bg-gradient-to-br from-[#0a0a0a] to-[#1a1a1a] p-4 shadow-xl">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
             <div>
               <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Subtotal</div>

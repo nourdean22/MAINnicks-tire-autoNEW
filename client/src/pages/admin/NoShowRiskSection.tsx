@@ -102,7 +102,7 @@ export default function NoShowRiskSection() {
           <>
             <button
               onClick={() => refetch()}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 bg-secondary hover:bg-secondary/80 transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" />
               Re-score
@@ -110,7 +110,7 @@ export default function NoShowRiskSection() {
             <select
               value={limit}
               onChange={(e) => setLimit(Number(e.target.value))}
-              className="text-xs px-3 py-1.5 rounded-lg bg-secondary border border-border/30"
+              className="text-xs px-3 py-1.5 bg-secondary border border-border/30"
             >
               <option value={25}>Top 25</option>
               <option value={50}>Top 50</option>
@@ -123,7 +123,7 @@ export default function NoShowRiskSection() {
       {/* ── Stats strip ───────────────────────────── */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+          <div className="border border-border/30 bg-card/50 p-3">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">30d cancel rate</div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-mono font-black text-2xl text-foreground">
@@ -133,7 +133,7 @@ export default function NoShowRiskSection() {
               {stats.trend === "worsening" && <TrendingUp className="w-4 h-4 text-red-400" />}
             </div>
           </div>
-          <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+          <div className="border border-border/30 bg-card/50 p-3">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Completion rate</div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-mono font-black text-2xl text-emerald-400">
@@ -141,7 +141,7 @@ export default function NoShowRiskSection() {
               </span>
             </div>
           </div>
-          <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+          <div className="border border-border/30 bg-card/50 p-3">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">At Risk Now</div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-mono font-black text-2xl text-red-400">
@@ -150,7 +150,7 @@ export default function NoShowRiskSection() {
               <span className="text-xs text-muted-foreground">critical + high</span>
             </div>
           </div>
-          <div className="rounded-xl border border-border/30 bg-card/50 p-3">
+          <div className="border border-border/30 bg-card/50 p-3">
             <div className="text-[10px] uppercase tracking-widest text-muted-foreground">30d bookings</div>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-mono font-black text-2xl text-foreground">{stats.totalBookings}</span>
@@ -165,7 +165,7 @@ export default function NoShowRiskSection() {
       ) : isError ? (
         <ErrorState message="Couldn't load no-show risk data" onRetry={() => refetch()} />
       ) : !data || data.bookings.length === 0 ? (
-        <div className="rounded-xl border border-border/30 bg-card/50 p-10 text-center">
+        <div className="border border-border/30 bg-card/50 p-10 text-center">
           <Check className="w-8 h-8 mx-auto mb-3 text-emerald-400/80" />
           <h3 className="text-sm font-bold">No upcoming bookings</h3>
           <p className="text-xs text-muted-foreground mt-1">
@@ -186,7 +186,7 @@ export default function NoShowRiskSection() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.25 }}
-                  className={`rounded-xl border ${cfg.bgColor} p-4 ${isSent ? "opacity-50" : ""} ${
+                  className={`border ${cfg.bgColor} p-4 ${isSent ? "opacity-50" : ""} ${
                     b.riskBand === "critical" ? `ring-2 ${cfg.ring}` : ""
                   }`}
                 >
@@ -237,7 +237,7 @@ export default function NoShowRiskSection() {
                   </div>
 
                   {/* Recommended action + signals */}
-                  <div className="mt-3 rounded-lg bg-black/20 border border-white/5 p-3">
+                  <div className="mt-3 bg-black/20 border border-white/5 p-3">
                     <div className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">
                       Recommended action
                     </div>
@@ -266,12 +266,12 @@ export default function NoShowRiskSection() {
                     <textarea
                       value={editedBody}
                       onChange={(e) => setEditedBody(e.target.value)}
-                      className="w-full mt-3 bg-secondary/50 border border-border/30 rounded-lg p-2 text-xs text-foreground resize-none"
+                      className="w-full mt-3 bg-secondary/50 border border-border/30 p-2 text-xs text-foreground resize-none"
                       rows={4}
                       maxLength={1600}
                     />
                   ) : (
-                    <p className="mt-3 text-xs text-foreground/80 leading-relaxed px-3 py-2 rounded-lg bg-black/20 border border-white/5">
+                    <p className="mt-3 text-xs text-foreground/80 leading-relaxed px-3 py-2 bg-black/20 border border-white/5">
                       {b.suggestedSms}
                     </p>
                   )}
@@ -286,13 +286,13 @@ export default function NoShowRiskSection() {
                             setEditingId(null);
                           }}
                           disabled={sendMutation.isPending}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                           <Send className="w-3.5 h-3.5" /> Send edited
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
-                          className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                          className="p-2 bg-secondary hover:bg-secondary/80 transition-colors"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -302,7 +302,7 @@ export default function NoShowRiskSection() {
                         <button
                           onClick={() => handleSend(b.bookingId, b.customerPhone, b.suggestedSms)}
                           disabled={pendingIds.has(b.bookingId) || isSent || b.alreadyConfirmed}
-                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2 px-3 bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                           <Send className="w-3.5 h-3.5" /> {pendingIds.has(b.bookingId) ? "Sending…" : "Send confirmation"}
                         </button>
@@ -311,7 +311,7 @@ export default function NoShowRiskSection() {
                             setEditingId(b.bookingId);
                             setEditedBody(b.suggestedSms);
                           }}
-                          className="p-2 rounded-lg bg-secondary hover:bg-secondary/80 transition-colors"
+                          className="p-2 bg-secondary hover:bg-secondary/80 transition-colors"
                           aria-label="Edit SMS"
                         >
                           <Edit2 className="w-3.5 h-3.5" />

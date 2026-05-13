@@ -104,7 +104,16 @@ async function runTier(tier: Tier): Promise<void> {
     if (job.businessHoursOnly && !isBusinessHours()) { skipped++; continue; }
 
     // Skip jobs that need a missing env var
-    if (job.requiresEnv && !process.env[job.requiresEnv]) { skipped++; continue; }
+    // wave-181.28 · log env-skips to cron_log so the daily watcher can
+    // detect prolonged silent failures and fire a Telegram alert. The
+    // skip is logged once per scheduler-tier-pass to avoid spamming the
+    // log table (a 5-minute heartbeat tier × 7 days × dozens of jobs
+    // would write ~12,096 skip rows otherwise).
+    if (job.requiresEnv && !process.env[job.requiresEnv]) {
+      skipped++;
+      logTierJob(job.name, "skipped", 0, 0, `requiresEnv:${job.requiresEnv} (env var not set)`).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
 
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
     const jobStart = Date.now();
@@ -897,6 +906,17 @@ export function startTieredScheduler(): void {
         handler: async () => {
           const { processReviewMonitor } = await import("./jobs/reviewMonitor");
           return processReviewMonitor();
+        },
+      },
+      {
+        // wave-181.28 · daily check that fires a Telegram alert when
+        // an env-gated cron job has been silently skipping for 7+ days
+        // (Railway env var deleted or never set). Without this, broken
+        // keys leave the dashboard quietly stale for weeks.
+        name: "cron-skip-watchdog",
+        handler: async () => {
+          const { processCronSkipWatchdog } = await import("./jobs/cronSkipWatchdog");
+          return processCronSkipWatchdog();
         },
       },
       {
