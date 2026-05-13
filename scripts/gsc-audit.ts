@@ -93,19 +93,21 @@ async function main() {
   const token = await getAccessToken();
   console.log("✓ Auth OK\n");
 
-  // Date range: trailing 28 days, ending 2 days ago (GSC has ~2-3 day lag)
+  // Date range: trailing N days (default 28), ending 2 days ago (GSC has ~2-3 day lag).
+  // Override with GSC_AUDIT_DAYS env var — e.g. GSC_AUDIT_DAYS=90 for the quarterly view.
+  const windowDays = Math.max(1, Math.min(490, parseInt(process.env.GSC_AUDIT_DAYS || "28", 10) || 28));
   const end = new Date();
   end.setDate(end.getDate() - 2);
   const start = new Date(end);
-  start.setDate(start.getDate() - 28);
+  start.setDate(start.getDate() - windowDays);
   const fmtD = (d: Date) => d.toISOString().slice(0, 10);
   const dateRange = { startDate: fmtD(start), endDate: fmtD(end) };
-  console.log(`Window: ${dateRange.startDate} → ${dateRange.endDate} (28d)\n`);
+  console.log(`Window: ${dateRange.startDate} → ${dateRange.endDate} (${windowDays}d)\n`);
 
   // ─── 1. TOTALS ──────────────────────────────────────────
   const totalsRows = await gscQuery(token, { ...dateRange, dimensions: [], rowLimit: 1 });
   const totals = totalsRows[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0, keys: [] };
-  console.log("─── TOTALS (28d) ──────────────────────");
+  console.log(`─── TOTALS (${windowDays}d) ──────────────────────`);
   console.log(`Clicks:      ${totals.clicks.toLocaleString()}`);
   console.log(`Impressions: ${totals.impressions.toLocaleString()}`);
   console.log(`CTR:         ${fmtPct(totals.ctr)}`);
