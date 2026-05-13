@@ -55,6 +55,14 @@ const ROUTES = [
   // wave-181.5 · new keyword-led SERP-fix pages
   "/no-credit-check-tires-cleveland",
   "/tire-shop-open-sunday-cleveland",
+  // wave-181.14 · 4 more title rewrites (specials, reviews, about, diagnose)
+  // + the homepage which uses SiteFooter and needs to ship the updated
+  // footer nav links to the new SERP-fix pages.
+  "/",
+  "/specials",
+  "/reviews",
+  "/about",
+  "/diagnose",
   // wave-181.7 · audit moves #5 + #6
   "/tire-repair-cleveland",
   "/wheel-alignment-cleveland",
