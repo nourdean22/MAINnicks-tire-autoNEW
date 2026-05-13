@@ -153,17 +153,24 @@ export default function SiteFooter() {
               <div className="space-y-3">
                 {[
                   { href: "/tires", label: "Tires" },
+                  { href: "/tire-repair-cleveland", label: "Tire Repair · $25" },
                   { href: "/brakes", label: "Brakes" },
                   { href: "/diagnostics", label: "Diagnostics" },
                   { href: "/emissions", label: "Emissions / E-Check" },
                   { href: "/oil-change", label: "Oil Change" },
+                  { href: "/wheel-alignment-cleveland", label: "Wheel Alignment · $89" },
                   { href: "/general-repair", label: "General Repair" },
                   { href: "/ac-repair", label: "AC & Heating" },
                   { href: "/transmission", label: "Transmission" },
                   { href: "/electrical", label: "Electrical" },
                   { href: "/exhaust", label: "Exhaust & Muffler" },
-                  { href: "/alignment", label: "Wheel Alignment" },
                   { href: "/battery", label: "Battery Service" },
+                  // wave-181.14 · footer link to new SERP-fix pages.
+                  // Sitewide discoverability + crawler-friendly direct
+                  // hrefs from every page that includes the footer (which
+                  // is every public page).
+                  { href: "/no-credit-check-tires-cleveland", label: "No-Credit-Check Tires" },
+                  { href: "/tire-shop-open-sunday-cleveland", label: "Sunday Tire Shop" },
                 ].map((l) => (
                   <Link key={l.href} href={l.href} className={LINK_CLASS}>{l.label}</Link>
                 ))}
