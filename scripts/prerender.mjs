@@ -434,9 +434,34 @@ async function main() {
           // wastes ~140KB of bandwidth on every mobile first paint. Admin
           // is lazy-loaded in App.tsx so the preload is purely waste.
           // Strip it on every route except /admin/*.
+          //
+          // wave-181.20 extension (Mobile + CWV audit) · also strip the
+          // blog and vendor-charts modulepreloads from public non-blog
+          // pages. Combined waste before this pass:
+          //   admin-*.js          ~22KB brotli on EVERY page
+          //   blog-*.js           ~195KB brotli on EVERY page
+          //   vendor-charts-*.js  ~118KB brotli on EVERY page
+          // = ~335KB brotli of pointless modulepreload on each first
+          // paint of /, /brakes, /tires, every city page, every compare
+          // page. None of those chunks are needed until the user clicks
+          // into /blog/* or /admin/*. Stripping them keeps the
+          // route-based code-split benefits Vite already provides without
+          // forcing a deeper refactor of App.tsx imports.
+          // Regex handles both `crossorigin` (bare) and `crossorigin=""`
+          // (with empty value) which Vite emits in different versions.
           if (!routePath.startsWith("/admin")) {
             html = html.replace(
-              /\s*<link\s+rel="modulepreload"\s+crossorigin\s+href="\/assets\/admin-[^"]+\.js"\s*\/?>\s*/g,
+              /\s*<link\s+rel="modulepreload"\s+crossorigin(?:="")?\s+href="\/assets\/admin-[^"]+\.js"\s*\/?>\s*/g,
+              ""
+            );
+            html = html.replace(
+              /\s*<link\s+rel="modulepreload"\s+crossorigin(?:="")?\s+href="\/assets\/vendor-charts-[^"]+\.js"\s*\/?>\s*/g,
+              ""
+            );
+          }
+          if (!routePath.startsWith("/blog")) {
+            html = html.replace(
+              /\s*<link\s+rel="modulepreload"\s+crossorigin(?:="")?\s+href="\/assets\/blog-[^"]+\.js"\s*\/?>\s*/g,
               ""
             );
           }

@@ -266,8 +266,87 @@ export default function SiteFooter() {
             </div>
           </div>
 
+          {/* ─── TRUST SIGNAL ROW (wave-181.21) ───
+              Last-impression trust strip. Surfaces the 5 strongest credibility
+              facts where every page-visit ends:
+                · Google rating + review depth (highest-impact in NW Ohio)
+                · Years in business (counters "is this a fly-by-night shop")
+                · Open 7 days (differentiator vs Conrad's / Mavis closed Sun)
+                · Walk-ins welcome (differentiator vs chain appointment model)
+                · Mechanic-owned (differentiator vs corporate franchise)
+              Mobile collapses to 2-col grid so labels stay readable. */}
+          <div className="mt-16 pt-10 border-t border-[#2A2A2A]">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-6 md:gap-4">
+              <a
+                href={GBP_REVIEW_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F] hover:border-[#FDB913]/30 hover:bg-[#FDB913]/[0.02] transition-all"
+                aria-label={`4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews`}
+              >
+                <div className="flex items-center gap-1 mb-1.5 text-[#FDB913]">
+                  <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
+                  <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
+                  <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
+                  <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
+                  <Star className="w-3.5 h-3.5 fill-[#FDB913]" />
+                </div>
+                <span className="text-white text-[15px] font-bold tracking-[-0.01em]">
+                  4.9★ · {BUSINESS.reviews.countDisplay}
+                </span>
+                <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
+                  Google reviews
+                </span>
+              </a>
+              <div className="flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F]">
+                <span className="text-[#FDB913] text-[22px] font-extrabold leading-none mb-2">
+                  {new Date().getFullYear() - 2018}+
+                </span>
+                <span className="text-white text-[13px] font-semibold tracking-[-0.005em]">
+                  Years on Euclid Ave
+                </span>
+                <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
+                  Same crew · same shop
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F]">
+                <span className="text-[#FDB913] text-[22px] font-extrabold leading-none mb-2">
+                  7 days
+                </span>
+                <span className="text-white text-[13px] font-semibold tracking-[-0.005em]">
+                  Open every day
+                </span>
+                <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
+                  Sun 9–4 · Mon–Sat 8–6
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F]">
+                <span className="text-[#FDB913] text-[22px] font-extrabold leading-none mb-2">
+                  No appt
+                </span>
+                <span className="text-white text-[13px] font-semibold tracking-[-0.005em]">
+                  Walk-ins welcome
+                </span>
+                <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
+                  First-come, first-served
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F]">
+                <span className="text-[#FDB913] text-[22px] font-extrabold leading-none mb-2">
+                  Local
+                </span>
+                <span className="text-white text-[13px] font-semibold tracking-[-0.005em]">
+                  Mechanic-owned
+                </span>
+                <span className="text-foreground/50 text-[10px] uppercase tracking-[0.12em] mt-1">
+                  Not a chain
+                </span>
+              </div>
+            </div>
+          </div>
+
           {/* ─── BOTTOM BAR ─── */}
-          <div className="mt-16 pt-8 border-t border-[#2A2A2A] flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mt-10 pt-6 border-t border-[#2A2A2A] flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-foreground/20 text-[12px]">
               &copy; {new Date().getFullYear()} Nick's Tire & Auto. All rights reserved.
             </p>
