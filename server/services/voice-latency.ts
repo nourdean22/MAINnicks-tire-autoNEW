@@ -217,7 +217,10 @@ export async function getP50P95ByStage(days = 7): Promise<StageStats[]> {
 }
 
 /** Nearest-rank quantile · sorted array, q in [0,1]. */
-function quantile(sortedAsc: number[], q: number): number {
+// wave-181.19 · exported for unit testing per test-analyzer Gap 3.
+// Nearest-rank quantile (Math.ceil(q*n)-1 index lookup). The p50/p95
+// breach-streak detection depends on this being correct.
+export function quantile(sortedAsc: number[], q: number): number {
   if (sortedAsc.length === 0) return 0;
   if (sortedAsc.length === 1) return sortedAsc[0];
   const rank = Math.ceil(q * sortedAsc.length) - 1;
