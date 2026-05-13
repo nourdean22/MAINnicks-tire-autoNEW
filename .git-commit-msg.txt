@@ -1,119 +1,91 @@
-wave-181.9+10: 11 more city titles + CityPage links + scrape-data baking + correct prerendered HTML
+wave-181.12: CRITICAL prerender circular-bug fix + 18 city metaTitles synced cities.ts → prerendered HTML
 
-Massive cleanup pass combining two waves of work that need to ship together.
+=== THE BUG (silent for entire prerender history of this codebase) ===
 
-=== wave-181.9 part A · finished the city-title sharpening (audit move #3) ===
+server/prerender-middleware.ts intercepts bot User-Agents and serves
+the prerendered HTML directly from disk. The prerender SCRIPT
+(scripts/prerender.mjs + prerender-comparison-only.mjs +
+regen-prerender.mjs) sets puppeteer's User-Agent to Googlebot so the
+server treats it as a bot.
 
-shared/routes.ts (11 more rewrites — completing all 18 city pages):
-- /mentor-auto-repair
-- /strongsville-auto-repair
-- /south-euclid-auto-repair
-- /garfield-heights-auto-repair
-- /richmond-heights-auto-repair
-- /willoughby-auto-repair
-- /maple-heights-auto-repair
-- /bedford-auto-repair
-- /warrensville-heights-auto-repair
-- /beachwood-auto-repair
-- /mayfield-heights-auto-repair
-- /university-heights-auto-repair
+PROBLEM: when puppeteer requests /tire-repair-cleveland during the
+prerender, the middleware sees Googlebot UA → serves
+prerendered/tire-repair-cleveland/index.html (the OLD file) → puppeteer
+captures it → "regenerated" file is identical to input.
 
-All now follow the winning pattern: "[City] Auto Repair · [Distance/
-Differentiator] · Open Sundays | Nick's" instead of the generic
-"Auto Repair Near [City] OH — Nick's Tire & Auto" baseline that
-under-performed in SERPs.
+EVERY prerender pass was just REPLAYING the prior output. No actual
+React render was being captured. Title/meta changes via SEOHead were
+silently ignored. The ONLY changes that propagated were direct
+regex injections in scripts/prerender.mjs:339 against routes.ts titles
+(which worked because the script post-processes the captured HTML).
 
-=== wave-181.9 part B · CityPage internal-link rollout ===
+For pages where the title is set via React (e.g. CityPage reading
+cities.ts.metaTitle and calling SEOHead with it), the SEOHead update
+NEVER reached the prerendered HTML — puppeteer was capturing the
+already-prerendered HTML from disk, where the title was whatever it
+was when the file was originally written.
 
-client/src/pages/CityPage.tsx:
-- Added 2 service tiles linking to the new wave-181.7 keyword-led
-  SERP-fix pages: "WHEEL ALIGNMENT" → /wheel-alignment-cleveland,
-  "TIRE REPAIR" → /tire-repair-cleveland.
-- Replaced the bottom-strip /financing link with a stronger
-  "No-credit-check tires · $10 down" link → /no-credit-check-tires-
-  cleveland. Added a Sunday tire shop link → /tire-shop-open-sunday-
-  cleveland next to it.
+Discovered when /parma-heights-auto-repair stayed at "Free Uber Both
+Ways" title even after cities.ts was updated to "Used Tires $60 ·
+Open Sundays" + a fresh prerender ran. Same content captured back.
 
-Why: the 4 new wave-181.5/.7 SERP-fix pages were orphaned from the
-high-rank city pages. With 18 city pages now linking to all 4 new
-pages, link equity flows from established-rank pages into the new
-ones. SEO authority transfer multiplied 18× per page.
+=== THE FIX ===
 
-=== wave-181.9 part C · CRITICAL fix for wave-181.7 wrong-content issue ===
+server/prerender-middleware.ts:
+- Added bypass: when PRERENDER_MODE=true env var is set, the
+  middleware falls through (does NOT serve prerendered HTML). The
+  prerender server spawn sets this env (wave-181.3), so during
+  prerender runs the middleware is bypassed and puppeteer hits the
+  live React render.
 
-Diagnosed live: wave-181.7 prerender ran WHILE the old redirect was
-still active (server/_core/redirects.ts had /tire-repair-cleveland →
-/tires + /wheel-alignment-cleveland → /tires). Puppeteer hit the new
-URLs, got 301'd, and saved /tires content under
-prerendered/{tire-repair-cleveland,wheel-alignment-cleveland}/index.html.
+Result verified: /parma-heights-auto-repair title NOW shows
+"Parma Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's"
+in the regenerated HTML. Previously stuck at "Free Uber Both Ways".
 
-Live result was wrong: /tire-repair-cleveland served tire-shop-near-me
-content with /tires canonical, NO H1 for "TIRE REPAIR CLEVELAND."
+=== ALSO IN THIS COMMIT ===
 
-Fix: wave-181.8 already removed the redirects (in source). Wave-181.9
-prerender pass with the redirect-removed source generates the CORRECT
-HTML (231KB w/ TIRE REPAIR CLEVELAND content + canonical pointing at
-itself). Once this pushes to Railway, the live site serves real content.
+shared/cities.ts:
+- 18 city metaTitle fields updated to match the wave-181.8+9
+  routes.ts versions. With wave-181.12 fixing the prerender circular
+  bug, these now actually ship to bots:
 
-=== wave-181.10 · Bake May 2026 competitor scrape data ===
+  Lakewood / Cleveland Heights / Shaker Heights / East Cleveland /
+  Euclid / Mentor / Strongsville / South Euclid / Garfield Heights /
+  Richmond Heights / Lyndhurst / Willoughby / Maple Heights / Bedford
+  / Warrensville Heights / Beachwood / Mayfield Heights / University
+  Heights / Parma Heights
 
-The retry of the competitor scrape (pivoted to WebFetch when Apify
-token was missing) returned verified data. Baking it into 4 pages:
+All now lead with "[City] Auto Repair · [Differentiator] · Open
+Sundays | Nick's" pattern. Some keep their unique differentiators
+(Mentor: $200 Saved, Beachwood: No Dealer Markup, Garfield: $99
+Saved, Bedford: I-480, Maple Heights: via Dunham).
 
-client/src/pages/TireShopOpenSundayPage.tsx:
-- Updated anchor table: Firestone IS open Sundays 9-5 (Downtown +
-  Cedar Rd locations). Pivoted the differentiator from "Firestone
-  closed" to "Firestone Downtown 4.0★/250 reviews vs Nick's
-  4.9★/1,683." Conrad's row still says CLOSED (verified verbatim
-  from econrads.com/store/lakewood/).
-- Updated FAQ: removed assumption that all chains close Sundays.
-  Now acknowledges Firestone is open + pivots to rating depth.
+prerendered/* — 42 routes regenerated with the now-correct React-
+hydrated content. The title/meta on every regenerated page is what
+SEOHead actually rendered, not what was there before.
 
-client/src/pages/compare/FirestoneAlternative.tsx:
-- Updated intro: removed "closed Sunday" claim, replaced with rating-
-  gap stat (4.0/250 vs 4.9/1,683).
-- Added new FAQ with the head-to-head rating data.
-- Replaced "Is Nick's open Sundays when Firestone is closed?" FAQ
-  with a corrected version acknowledging Firestone Sunday hours.
+=== Implications for prior waves ===
 
-client/src/pages/compare/ConradsAlternative.tsx:
-- Added new FAQ: "How does Conrad's review depth actually compare?"
-  Stats: Conrad's chain = 137 Trustpilot reviews across 38 stores.
-  Nick's single location = 1,683+ Google reviews. 12× the depth on a
-  single shop vs Conrad's whole network.
+Many of the wave-181.5+/.6/.7/.8/.9/.10 changes were potentially
+silent no-ops at the prerendered-HTML level because of this bug. The
+ROUTES.TS title changes worked (script regex injection). The CITIES.TS
++ SEOHead changes did NOT propagate.
 
-client/src/pages/compare/MavisAlternative.tsx:
-- Added new FAQ: "Why does Mavis Pearl Rd show different star ratings
-  on different sites?" Stats: 4.6 on Mavis.com vs 3.9 on third-party
-  aggregators (209 reviews). Nick's 4.9 consistent across all sources.
-
-=== Prerender ===
-
-scripts/prerender-comparison-only.mjs:
-- Added 11 new city pages to the targeted list.
-
-Final prerender pass walked 42 routes (all comparison + new SERP-fix
-+ all 18 city pages + /tires + /used-tires + /auto-repair-near-me +
-/synthetic-oil-change). Two builds + two prerender passes needed to
-fully bake all changes in the right order (CityPage edit needed the
-rebuild before its HTML output reflected the new links).
-
-prerendered/* — all 42 affected files regenerated.
+Wave-181.12's fresh prerender pass after the middleware bypass
+captures the correct rendered output for all 42 affected routes.
+After Railway redeploys, the live site serves the corrected HTML.
 
 === Verified ===
 
-- tsc clean, prettier clean, lint clean
+- tsc clean
 - 42 routes prerendered without hang
-- /tire-repair-cleveland local file is now 231KB with correct content
-  (was wrong-content during wave-181.7-era deploy)
-- All FAQ schema entries valid (verified via the FAQ count not
-  changing in unrelated pages)
+- Local /parma-heights title now matches expected
+- Production-side fix takes effect on next Railway redeploy
 
-=== What's NOT in this commit ===
+=== Action items going forward ===
 
-- The 23 remaining "Auto Repair Near X" titles on neighborhood pages
-  (priority 0.7, smaller traffic each — defer to a future wave)
-- Removing references to "Firestone Wilson Mills Rd" (no comparison
-  page references it; nothing to remove)
-- Internal links from /alignment, /tires, /brakes, /financing back to
-  the new SERP-fix pages (next wave)
+- Future prerender passes use the bypass automatically — no operator
+  change needed
+- The bypass only fires when PRERENDER_MODE=true; production deploys
+  do NOT set this, so the bot-serving behavior in production is
+  unchanged

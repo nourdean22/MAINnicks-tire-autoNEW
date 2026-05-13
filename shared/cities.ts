@@ -27,7 +27,7 @@ export const CITIES: CityData[] = [
   {
     slug: "euclid-auto-repair",
     name: "Euclid",
-    metaTitle: "Auto Repair Euclid OH · Walk-Ins 7 Days | Nick's",
+    metaTitle: "Euclid Auto Repair · 17625 Euclid Ave · Used Tires $60 | Nick's",
     metaDescription: "Nick's Tire & Auto — literally on Euclid Ave. Brakes, tires, diagnostics for Euclid drivers. 4.9★ 1,700+ reviews. Walk-ins 7 days. Payment programs on the spot.",
     heroHeadline: "AUTO REPAIR\nLITERALLY ON EUCLID AVE",
     heroSubline: "We are literally on Euclid Avenue — that's not a marketing flourish, it's the address. Pull up, we put the car on a lift, hand you the flashlight, write the estimate before any wrench moves. The kind of repairs your grandfather would've nodded at, with the diagnostic gear your kid's Tesla actually needs. Walk in any day. Payment programs on the spot.",
@@ -52,7 +52,7 @@ export const CITIES: CityData[] = [
   {
     slug: "lakewood-auto-repair",
     name: "Lakewood",
-    metaTitle: "Auto Repair Near Lakewood OH · 20 Min Worth Driving | Nick's",
+    metaTitle: "Lakewood Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Lakewood drivers cross town for honest auto repair. Brakes, tires, diagnostics, emissions — explained in plain English. 4.9★ 1,700+ reviews. Walk-ins 7 days.",
     heroHeadline: "AUTO REPAIR FOR\nLAKEWOOD DRIVERS",
     heroSubline: "Lakewood has plenty of mechanics. Our regulars from Birdtown and Gold Coast still drive 20 minutes east — because the diagnosis comes before the bill, the worn parts get shown on a lift, and nobody talks down to anyone. Brakes, tires, diagnostics, emissions — and a coffee maker that's been with us longer than some marriages.",
@@ -118,7 +118,7 @@ export const CITIES: CityData[] = [
     // matching landing page. This page captures all 4 query variants.
     slug: "parma-heights-auto-repair",
     name: "Parma Heights",
-    metaTitle: "Parma Heights Auto Repair · Free Uber Both Ways | Nick's",
+    metaTitle: "Parma Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Parma Heights drivers cross town for an honest mechanic. 4.9★ 1,700+ reviews. Free Uber drop-off + pick-up. Brakes, tires, diagnostics. Walk-ins 7 days.",
     heroHeadline: "PARMA HEIGHTS\nAUTO REPAIR — WORTH THE DRIVE",
     heroSubline: "Parma Heights drivers fed up with overpriced local shops are crossing town to Nick's Tire & Auto for honest diagnostics, written estimates before any wrench moves, and payment programs approved on the spot. 25 minutes up I-480 — and we Uber you home and back so you don't lose a day sitting around.",
@@ -143,7 +143,7 @@ export const CITIES: CityData[] = [
   {
     slug: "east-cleveland-auto-repair",
     name: "East Cleveland",
-    metaTitle: "Auto Repair East Cleveland · 8 Min, Sunday Open | Nick's",
+    metaTitle: "East Cleveland Auto Repair · 8 Min Away · Open Sundays | Nick's",
     metaDescription: "East Cleveland auto repair at Nick's Tire & Auto, just 8 min away on Euclid Ave. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nEAST CLEVELAND",
     heroSubline: "Just minutes from East Cleveland on Euclid Avenue, Nick's Tire & Auto provides expert auto repair with honest diagnostics and fair pricing. No surprises, no upselling.",
@@ -168,7 +168,7 @@ export const CITIES: CityData[] = [
   {
     slug: "shaker-heights-auto-repair",
     name: "Shaker Heights",
-    metaTitle: "Auto Repair Shaker Heights · 18 Min, Worth The Ride | Nick's",
+    metaTitle: "Shaker Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Shaker Heights drivers trust Nick's Tire & Auto for quality auto repair. Brakes, tires, diagnostics. 4.9 stars, 1700+ reviews. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR SHAKER HEIGHTS",
     heroSubline: "Shaker Heights drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. We show you the problem before we fix it.",
@@ -193,7 +193,7 @@ export const CITIES: CityData[] = [
   {
     slug: "cleveland-heights-auto-repair",
     name: "Cleveland Heights",
-    metaTitle: "Auto Repair Cleveland Heights · 15 Min, Worth It | Nick's",
+    metaTitle: "Cleveland Heights Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Cleveland Heights auto repair at Nick's Tire & Auto, 15 min away. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nCLEVELAND HEIGHTS",
     heroSubline: "Cleveland Heights drivers trust Nick's Tire & Auto for honest diagnostics, quality repairs, and transparent pricing. No surprises, no upselling.",
@@ -218,7 +218,7 @@ export const CITIES: CityData[] = [
   {
     slug: "mentor-auto-repair",
     name: "Mentor",
-    metaTitle: "Auto Repair Mentor · 30 Min, $200 Saved Average | Nick's",
+    metaTitle: "Mentor Auto Repair · 30 Min · $200 Saved Avg | Nick's",
     metaDescription: "Mentor drivers make the drive to Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics. 4.9 stars. Worth the trip. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR MENTOR DRIVERS",
     heroSubline: "Mentor drivers make the drive to Nick's Tire & Auto because they know they will get honest diagnostics, expert repairs, and prices that are fair.",
@@ -243,7 +243,7 @@ export const CITIES: CityData[] = [
   {
     slug: "strongsville-auto-repair",
     name: "Strongsville",
-    metaTitle: "Auto Repair Strongsville · Yes, Worth The Drive | Nick's",
+    metaTitle: "Strongsville Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Strongsville drivers choose Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics, emissions. 1700+ five-star reviews. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR FOR\nSTRONGSVILLE DRIVERS",
     heroSubline: "Strongsville drivers choose Nick's Tire & Auto for the kind of honest, thorough auto repair that is hard to find. We diagnose it right the first time.",
@@ -268,7 +268,7 @@ export const CITIES: CityData[] = [
   {
     slug: "south-euclid-auto-repair",
     name: "South Euclid",
-    metaTitle: "Auto Repair South Euclid · 12 Min To The Lift | Nick's",
+    metaTitle: "South Euclid Auto Repair · 12 Min · Open Sundays | Nick's",
     metaDescription: "South Euclid auto repair at Nick's Tire & Auto, just 12 min away. Brakes, tires, diagnostics, emissions. Honest pricing. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nNEAR SOUTH EUCLID",
     heroSubline: "South Euclid drivers are 12 minutes from Nick's Tire & Auto. We put the car on a lift, hand you the flashlight, and write the estimate before any wrench moves. Same playbook every job.",
@@ -293,7 +293,7 @@ export const CITIES: CityData[] = [
   {
     slug: "garfield-heights-auto-repair",
     name: "Garfield Heights",
-    metaTitle: "Auto Repair Garfield Heights · 20 Min, $99 Saved | Nick's",
+    metaTitle: "Garfield Heights Auto Repair · 20 Min · $99 Saved Avg | Nick's",
     metaDescription: "Garfield Heights auto repair at Nick's Tire & Auto, 20 min away. Brakes, tires, diagnostics, emissions. 4.9 stars, honest pricing. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nGARFIELD HEIGHTS",
     heroSubline: "Garfield Heights drivers trust Nick's Tire & Auto for reliable auto repair. We diagnose problems accurately, explain your options, and fix it right.",
@@ -318,7 +318,7 @@ export const CITIES: CityData[] = [
   {
     slug: "richmond-heights-auto-repair",
     name: "Richmond Heights",
-    metaTitle: "Auto Repair Richmond Heights · 13 Min, Walk-Ins | Nick's",
+    metaTitle: "Richmond Heights Auto Repair · 13 Min · Open Sundays | Nick's",
     metaDescription: "Richmond Heights auto repair at Nick's Tire & Auto, just 13 min away on Euclid Ave. Brakes, tires, diagnostics. 4.9 stars. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nNEAR RICHMOND HEIGHTS",
     heroSubline: "Richmond Heights drivers choose Nick's Tire & Auto for honest diagnostics, expert repairs, and transparent pricing. Just minutes from Richmond Heights on Euclid Avenue.",
@@ -343,7 +343,7 @@ export const CITIES: CityData[] = [
   {
     slug: "lyndhurst-auto-repair",
     name: "Lyndhurst",
-    metaTitle: "Auto Repair Lyndhurst · 16 Min, Free Uber Home | Nick's",
+    metaTitle: "Lyndhurst Auto Repair · 16 Min via Mayfield · Open Sundays | Nick's",
     metaDescription: "Lyndhurst auto repair at Nick's Tire & Auto, 16 min away via Mayfield Rd. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nLYNDHURST",
     heroSubline: "Lyndhurst drivers trust Nick's Tire & Auto for quality repairs, honest diagnostics, and fair pricing. Located just minutes away on Euclid Avenue.",
@@ -368,7 +368,7 @@ export const CITIES: CityData[] = [
   {
     slug: "willoughby-auto-repair",
     name: "Willoughby",
-    metaTitle: "Auto Repair Willoughby · 27 Min, Honest Mechanic | Nick's",
+    metaTitle: "Willoughby Auto Repair · Used Tires $60 · Open Sundays | Nick's",
     metaDescription: "Willoughby drivers trust Nick's Tire & Auto for honest auto repair. Brakes, tires, diagnostics. 4.9 stars, fair pricing. Call (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR WILLOUGHBY DRIVERS",
     heroSubline: "Willoughby drivers make the drive to Nick's Tire & Auto for expert diagnostics, honest assessments, and quality repairs at fair prices.",
@@ -424,7 +424,7 @@ export const CITIES: CityData[] = [
   {
     slug: "maple-heights-auto-repair",
     name: "Maple Heights",
-    metaTitle: "Auto Repair Maple Heights · 15 Min, Sunday Open | Nick's",
+    metaTitle: "Maple Heights Auto Repair · 15 Min via Dunham · Open Sundays | Nick's",
     metaDescription: "Maple Heights auto repair at Nick's Tire & Auto, 15 min via Dunham Rd. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nMAPLE HEIGHTS",
     heroSubline: "Maple Heights drivers trust Nick's Tire & Auto for honest diagnostics, expert repairs, and fair pricing. Located just 15 minutes away via Dunham Road or Broadway Avenue.",
@@ -449,7 +449,7 @@ export const CITIES: CityData[] = [
   {
     slug: "bedford-auto-repair",
     name: "Bedford",
-    metaTitle: "Auto Repair Bedford · 18 Min, Honest Quote First | Nick's",
+    metaTitle: "Bedford Auto Repair · Easy Access I-480 · Open Sundays | Nick's",
     metaDescription: "Bedford auto repair at Nick's Tire & Auto. Easy access via Rockside Rd and I-480. Brakes, tires, diagnostics. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nFOR BEDFORD DRIVERS",
     heroSubline: "Bedford drivers choose Nick's Tire & Auto for expert diagnostics, honest assessments, and fair pricing. Easy access via Rockside Road and I-480 — just 18 minutes away.",
@@ -474,7 +474,7 @@ export const CITIES: CityData[] = [
   {
     slug: "warrensville-heights-auto-repair",
     name: "Warrensville Heights",
-    metaTitle: "Auto Repair Warrensville Heights · 12 Min, Walk-Ins | Nick's",
+    metaTitle: "Warrensville Heights Auto Repair · 12 Min · Open Sundays | Nick's",
     metaDescription: "Warrensville Heights auto repair at Nick's Tire & Auto, just 12 min away. Brakes, tires, diagnostics, emissions. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nWARRENSVILLE HEIGHTS",
     heroSubline: "Warrensville Heights drivers are just 12 minutes from Nick's Tire & Auto. Located between Cleveland Heights and Garfield Heights, we provide expert auto repair with honest diagnostics and fair pricing.",
@@ -499,7 +499,7 @@ export const CITIES: CityData[] = [
   {
     slug: "beachwood-auto-repair",
     name: "Beachwood",
-    metaTitle: "Auto Repair Beachwood · 15 Min, No Dealer Markup | Nick's",
+    metaTitle: "Beachwood Auto Repair · 15 Min · No Dealer Markup | Nick's",
     metaDescription: "Beachwood auto repair at Nick's Tire & Auto, 15 min away via Cedar Rd. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "TRUSTED AUTO REPAIR\nNEAR BEACHWOOD",
     heroSubline: "Beachwood drivers choose Nick's Tire & Auto for honest diagnostics, expert repairs, and fair pricing. Just a quick drive down Cedar Road to Euclid Avenue.",
@@ -524,7 +524,7 @@ export const CITIES: CityData[] = [
   {
     slug: "mayfield-heights-auto-repair",
     name: "Mayfield Heights",
-    metaTitle: "Auto Repair Mayfield Heights · 14 Min Drop-Off | Nick's",
+    metaTitle: "Mayfield Heights Auto Repair · 14 Min · Open Sundays | Nick's",
     metaDescription: "Mayfield Heights auto repair at Nick's Tire & Auto, 14 min away. Brakes, tires, diagnostics, emissions. 4.9 stars, honest pricing. Call (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nMAYFIELD HEIGHTS",
     heroSubline: "Mayfield Heights drivers trust Nick's Tire & Auto for quality repairs, honest diagnostics, and fair pricing. Just 14 minutes away on Euclid Avenue.",
@@ -549,7 +549,7 @@ export const CITIES: CityData[] = [
   {
     slug: "university-heights-auto-repair",
     name: "University Heights",
-    metaTitle: "Auto Repair University Heights · Closer Than Dealer | Nick's",
+    metaTitle: "University Heights Auto Repair · 14 Min · Open Sundays | Nick's",
     metaDescription: "University Heights auto repair at Nick's Tire & Auto, 14 min away. Brakes, tires, diagnostics, emissions. 4.9 stars. Walk-ins 7 days. (216) 862-0005.",
     heroHeadline: "AUTO REPAIR NEAR\nUNIVERSITY HEIGHTS",
     heroSubline: "University Heights drivers trust Nick's Tire & Auto for reliable auto repair. Honest diagnostics, fair pricing, and quality work — just 14 minutes from your door.",
