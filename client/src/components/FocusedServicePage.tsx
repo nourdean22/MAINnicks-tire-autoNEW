@@ -507,12 +507,22 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           "hasOfferCatalog": {
             "@type": "OfferCatalog",
             "name": config.serviceType,
-            "itemListElement": config.tiers.map((t) => ({
-              "@type": "Offer",
-              "price": t.price.replace(/[^0-9.]/g, "").split(".")[0],
-              "priceCurrency": "USD",
-              "itemOffered": { "@type": "Service", "name": `${t.name} ${config.serviceType}`, "serviceType": config.serviceType },
-            })),
+            // wave-181.16 code-review F3 · same fix as the offers block
+            // below: skip $0 Offers (Free-* tier names) so Google's
+            // entity graph doesn't reconcile us to "free brake inspection"
+            // without the qualifier.
+            "itemListElement": config.tiers
+              .map((t) => {
+                const numericPrice = t.price.replace(/[^0-9.]/g, "").split(".")[0];
+                if (!numericPrice) return null;
+                return {
+                  "@type": "Offer",
+                  "price": numericPrice,
+                  "priceCurrency": "USD",
+                  "itemOffered": { "@type": "Service", "name": `${t.name} ${config.serviceType}`, "serviceType": config.serviceType },
+                };
+              })
+              .filter((o): o is NonNullable<typeof o> => o !== null),
           },
         }}
       />
@@ -559,22 +569,34 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
               { "@type": "City", name: "Cleveland Heights" },
               { "@type": "City", name: "Shaker Heights" },
             ],
-            offers: config.tiers.map((t) => ({
-              "@type": "Offer",
-              name: t.name,
-              price: t.price.replace(/[^0-9.]/g, "").split(".")[0] || "0",
-              priceCurrency: "USD",
-              availability: "https://schema.org/InStock",
-            })),
-            // AggregateRating drives the ★ rich-snippet in Google search.
-            // Same numbers used everywhere on the brand — single source
-            // of truth (BUSINESS.reviews.rating / count). Google requires
-            // ratingValue + reviewCount + bestRating + worstRating for
-            // the snippet to render.
+            // wave-181.16 code-review F3 · skip Offers where the price
+            // resolves to $0 (tiers labeled "Free · written estimate",
+            // "Free if we do the repair", "Estimate free"). Emitting a
+            // $0 Offer to Google's entity-graph misrepresents the
+            // service as actually free — risk of Local Pack surfacing
+            // "Free brake inspection · $0" without the qualifier.
+            offers: config.tiers
+              .map((t) => {
+                const numericPrice = t.price.replace(/[^0-9.]/g, "").split(".")[0];
+                if (!numericPrice) return null;
+                return {
+                  "@type": "Offer",
+                  name: t.name,
+                  price: numericPrice,
+                  priceCurrency: "USD",
+                  availability: "https://schema.org/InStock",
+                };
+              })
+              .filter((o): o is NonNullable<typeof o> => o !== null),
+            // wave-181.16 code-review F1 · was hardcoded 4.9 / 1700
+            // duplicating the silent-failure F5 bug class on 9 pages.
+            // Now pulls from the canonical BUSINESS constant so when
+            // the GBP review count grows, every service page schema
+            // follows.
             aggregateRating: {
               "@type": "AggregateRating",
-              ratingValue: 4.9,
-              reviewCount: 1700,
+              ratingValue: BUSINESS.reviews.rating,
+              reviewCount: BUSINESS.reviews.count,
               bestRating: 5,
               worstRating: 1,
             },

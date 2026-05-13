@@ -1,0 +1,84 @@
+wave-181.16: 7 fixes from 2 audit agents (code-review F1-F5 + silent-failure F2/F4)
+
+=== Code-reviewer findings (5 NEW fixes) ===
+
+F1 · CRITICAL · FocusedServicePage hardcoded review count drift
+  - Was: ratingValue: 4.9, reviewCount: 1700 (literals)
+  - Now: BUSINESS.reviews.rating, BUSINESS.reviews.count
+  - Impact: ALL 4 new wave-181 SERP pages (no-credit-check, sunday,
+    tire-repair, wheel-alignment) PLUS 5 existing service pages
+    (brakes, diagnostics, oil-change, alignment, synthetic-oil-change,
+    auto-repair-near-me, tire-shop-near-me) were shipping hardcoded
+    schema that drifts from canonical BUSINESS constant.
+  - Same bug class as silent-failure F5 - I caught + fixed it on
+    /tires (Product schema) but missed the Service schema on the
+    9 pages that use FocusedServicePage. Now eliminated everywhere.
+
+F2 · HIGH · /api/admin/vapi-calls fetch had no timeout
+  - Was: bare fetch() to api.vapi.ai
+  - Now: AbortSignal.timeout(15_000)
+  - Why: cron version had 30s timeout but admin endpoint had none.
+    Slow VAPI upstream would hang the request, exhaust Express pool.
+
+F3 · HIGH · Offer.price="0" for "Free" tier names misrepresents pricing
+  - Was: t.price.replace(/[^0-9.]/g, "").split(".")[0] || "0"
+    Output JSON-LD Offers with price:"0" for tiers labeled "Free *",
+    "Estimate free", etc. Google's entity-graph could reconcile us
+    to "Free brake inspection · $0" without the "if we do the
+    repair" qualifier.
+  - Now: skip Offer entirely when no numeric price extracts. Same
+    fix applied to BOTH the hasOfferCatalog block AND the Service
+    offers block.
+
+F4 · MEDIUM · /api/admin/vapi-calls response shape diverged on errors
+  - Was: 200 with full shape for upstream errors, 500 with bare
+    {error} for JS exceptions. Three failure paths, two shapes.
+    Statenour Ultron tile crashes on the bare-{error} path because
+    it expects byStatus/byEndedReason fields.
+  - Now: uniform full-shape response with error annotation on every
+    failure path. Same status code semantics as the sibling
+    /api/admin/voice-latency endpoint.
+
+F5 · MEDIUM · calls[0] assumed VAPI default sort = DESC
+  - Was: trusted upstream ordering for "mostRecent" surfacing
+  - Now: explicit .sort((a,b) => date desc) after filter for
+    createdAt presence. Applied to /api/admin/vapi-calls AND
+    server/cron/jobs/vapiLatencySync.ts.
+
+=== Silent-failure deferred items (2 NOW fixed) ===
+
+F2-deferred · _degraded UI banner
+  - New: client/src/components/admin/DegradedDataBanner.tsx
+  - Wired into 3 admin sections that consume trpc.adminDashboard.stats:
+    CallTrackingSection, SettingsSection, WorkOrdersSection.
+  - Renders red banner when stats._degraded === true. Telegram alert
+    already fires from the catch in server/admin-stats.ts:540 — now
+    the operator sitting at the dashboard ALSO sees that the data
+    is not trustworthy.
+
+F4-deferred · campaigns.ts pre-existing silent-failure
+  - Was: try/catch around processCampaignSends per-campaign just
+    logged and continued. The outer return reported success even
+    if campaign A failed but B succeeded. Cron runner wrote
+    'completed'.
+  - Now: track failedCampaigns[] and throw at the end if any failed.
+    Cron runner writes status='failed' with the campaign IDs in the
+    error message.
+
+=== Prerender ===
+
+Targeted prerender pass for 54 routes (added /brakes, /diagnostics,
+/oil-change, /alignment, /synthetic-oil-change, /auto-repair-near-me,
+/tire-shop-near-me to the list — all use FocusedServicePage).
+
+Verified: /brakes prerendered HTML now shows reviewCount:1700 (not
+hardcoded). Same for all 9 affected pages. All clean.
+
+=== Verified ===
+
+- tsc clean (after fixing WorkOrdersSection scope mistake — banner
+  was inside main component but stats was in sibling ShopPulseMood;
+  added separate stats query in main component)
+- 54 routes prerendered without hang
+- BUSINESS constant import-driven across all FocusedServicePage
+  consumers

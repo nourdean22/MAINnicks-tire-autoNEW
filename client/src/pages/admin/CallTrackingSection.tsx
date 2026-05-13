@@ -12,6 +12,7 @@ type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
   TrendingUp, BarChart3, Users, CheckCircle2, XCircle, MessageSquare,
@@ -133,6 +134,7 @@ export default function CallTrackingSection() {
         subtitle="Phone-click attribution, callback queue, missed-call recovery. Twilio webhook fires the moment a call status changes."
         icon={<PhoneCall className="w-5 h-5" />}
       />
+      <DegradedDataBanner stats={stats} />
       <SectionInsightStrip section="callTrackingView" />
       {/* ─── METRICS ─── wave-127b — Missed/Pending now scrolls to the
           queue below (the actionable one). The other 4 cards stay
