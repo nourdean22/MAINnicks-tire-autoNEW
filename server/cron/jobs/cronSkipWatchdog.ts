@@ -133,16 +133,24 @@ export async function processCronSkipWatchdog(): Promise<{
       };
     }
 
-    // Compose the alert
+    // Compose the alert.
+    // wave-181.33: sendTelegramMessage forces parse_mode=HTML, so the
+    // previous Markdown body (`*bold*`, backticks) was rendered literally
+    // AND any `<` inside a job_name or details column blew up the parser
+    // (offset-173 "Unsupported start tag" rejection seen post-181.32).
+    // Use proper HTML tags + escape every interpolated value.
+    const esc = (s: string): string =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
     const lines = [
-      "*Cron Skip Watchdog — env-gated jobs silent for 7+ days*",
+      "<b>Cron Skip Watchdog — env-gated jobs silent for 7+ days</b>",
       "",
       ...affected.map(
         (a) =>
-          `· \`${a.name}\` — missing env \`${a.envVar}\` (skipped ${a.skipCount}x in 7d, 0 successful runs)`,
+          `· <code>${esc(a.name)}</code> — missing env <code>${esc(a.envVar)}</code> (skipped ${a.skipCount}x in 7d, 0 successful runs)`,
       ),
       "",
-      "Action: check Railway env vars. If a key was deleted intentionally, mark these jobs as `enabled: false` in scheduler.ts to silence this alert.",
+      "Action: check Railway env vars. If a key was deleted intentionally, mark these jobs as <code>enabled: false</code> in scheduler.ts to silence this alert.",
     ];
 
     await sendTelegramMessage(lines.join("\n"), "system");
