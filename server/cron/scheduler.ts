@@ -1235,7 +1235,11 @@ export function startTieredScheduler(): void {
               parts.push(
                 `Walk-away estimates: ${wae.unmatchedCount} unmatched · ` +
                 `$${wae.unmatchedValueDollars} on the table · ` +
-                `${wae.recoveryWindow ? (wae.recoveryWindow as Record<string, number>).last7d : 0} fresh (<7d) · ` +
+                // wave-181.34: sendTelegram uses parse_mode='HTML' — the literal
+                // `(<7d)` was making Telegram's parser try to read `<7d)` as
+                // an opening tag and 400 the whole daily-digest. HTML-escape
+                // the `<` so it renders as the intended text.
+                `${wae.recoveryWindow ? (wae.recoveryWindow as Record<string, number>).last7d : 0} fresh (&lt;7d) · ` +
                 `${wae.conversionRate}% conversion rate · ` +
                 `~$${wae.recoverableEstimate} recoverable @ 20% close`,
               );
