@@ -33,7 +33,8 @@
 import { createLogger } from "../../lib/logger";
 import { sendTelegramMessage } from "../../services/telegram";
 import { db } from "../../lib/db-helper";
-import { sql } from "drizzle-orm";
+import { gte, desc, asc } from "drizzle-orm";
+import { cronLog } from "../../../drizzle/schema";
 
 const log = createLogger("cron:skip-watchdog");
 
@@ -62,26 +63,27 @@ export async function processCronSkipWatchdog(): Promise<{
     // skipped + completed runs and find the last completion timestamp.
     // Filter to jobs where skipped > 0 AND completed === 0 AND the skip
     // reason contains "requiresEnv:".
-    type LogRow = {
-      jobName: string | null;
-      status: string | null;
-      details: string | null;
-      runAt: Date | string | null;
-    };
+    //
+    // wave-181.32: original implementation used raw SQL against `run_at`
+    // column, which doesn't exist — the schema has `started_at`. Switched
+    // to the typed Drizzle query builder so column-name drift is caught
+    // at compile time, and the cutoff is JS-computed (same pattern as
+    // admin-stats.ts) to avoid any TiDB date-arithmetic quirks.
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-    const result = await d.execute(sql`
-      SELECT job_name as jobName, status, details, run_at as runAt
-      FROM cron_log
-      WHERE run_at >= NOW() - INTERVAL 7 DAY
-      ORDER BY job_name, run_at DESC
-    `);
-
-    // Drizzle's mysql driver returns [rows, fields] from execute() — unwrap.
-    // Cast through unknown to satisfy strictness on the dynamic-SQL return.
-    const rows = result as unknown as [LogRow[]] | LogRow[];
-    const logs: LogRow[] = Array.isArray(rows[0]) ? (rows[0] as LogRow[]) : (rows as LogRow[]);
+    const logs = await d
+      .select({
+        jobName: cronLog.jobName,
+        status: cronLog.status,
+        details: cronLog.details,
+        startedAt: cronLog.startedAt,
+      })
+      .from(cronLog)
+      .where(gte(cronLog.startedAt, sevenDaysAgo))
+      .orderBy(asc(cronLog.jobName), desc(cronLog.startedAt));
 
     // Group by job_name
+    type LogRow = (typeof logs)[number];
     const byJob = new Map<string, { skips: LogRow[]; completes: LogRow[] }>();
     for (const r of logs) {
       if (!r.jobName) continue;
