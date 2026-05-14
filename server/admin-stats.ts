@@ -188,12 +188,18 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     }).from(bookings).where(gte(bookings.createdAt, ninetyDaysAgo));
 
     // 2. Booking byService — GROUP BY aggregate
+    // wave-181.30: GROUP BY the raw column, not the COALESCE expression.
+    // TiDB's ONLY_FULL_GROUP_BY treats `COALESCE(service,…)` and
+    // `COALESCE(bookings.service,…)` as different expressions (Drizzle
+    // emits unqualified in SELECT, qualified in GROUP BY) and rejects
+    // the query. NULL is its own group; the COALESCE on SELECT just
+    // relabels that group. Same final result.
     const bookingByServiceRows = await d.select({
       service: sql<string>`COALESCE(${bookings.service}, 'Other')`,
       count: sql<number>`COUNT(*)`,
     }).from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
-      .groupBy(sql`COALESCE(${bookings.service}, 'Other')`)
+      .groupBy(bookings.service)
       .orderBy(sql`COUNT(*) DESC`);
 
     // 3. Recent 5 bookings for the activity feed (column-restricted)
@@ -210,12 +216,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .limit(5);
 
     // 4. Booking source attribution — GROUP BY with COALESCE fallback
+    // wave-181.30: see byService comment above. Group by raw columns
+    // (utmSource + referrer-null-ness) so TiDB's strict ONLY_FULL_GROUP_BY
+    // is satisfied. The SELECT-side COALESCE/CASE relabels groups; the
+    // reducer below sums on collision (multiple groups → same label).
     const bookingBySourceRows = await d.select({
       src: sql<string>`COALESCE(${bookings.utmSource}, CASE WHEN ${bookings.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`,
       count: sql<number>`COUNT(*)`,
     }).from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
-      .groupBy(sql`COALESCE(${bookings.utmSource}, CASE WHEN ${bookings.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`);
+      .groupBy(bookings.utmSource, sql`(${bookings.referrer} IS NULL)`);
 
     const bookingStats = {
       total: Number(bookingAgg?.total ?? 0),
@@ -228,7 +238,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
     const bookingsBySource: Record<string, number> = {};
     for (const row of bookingBySourceRows) {
-      bookingsBySource[row.src] = Number(row.count);
+      // wave-181.30 · sum on collision — the new GROUP BY can split utmSource='x'
+      // by referrer-null-ness into 2 groups that both COALESCE to label 'x'.
+      bookingsBySource[row.src] = (bookingsBySource[row.src] ?? 0) + Number(row.count);
     }
 
     // ─── LEADS ────────────────────────────────────────
@@ -245,12 +257,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       avgUrgencySum: sql<number>`COALESCE(SUM(COALESCE(${leads.urgencyScore}, 3)), 0)`,
     }).from(leads).where(gte(leads.createdAt, ninetyDaysAgo));
 
+    // wave-181.30: GROUP BY raw column (same TiDB strict-mode fix as bookings).
     const leadBySourceRows = await d.select({
       source: sql<string>`COALESCE(${leads.source}, 'unknown')`,
       count: sql<number>`COUNT(*)`,
     }).from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
-      .groupBy(sql`COALESCE(${leads.source}, 'unknown')`)
+      .groupBy(leads.source)
       .orderBy(sql`COUNT(*) DESC`);
 
     type LeadRecent = Pick<Lead, "name" | "problem" | "recommendedService" | "status" | "urgencyScore" | "createdAt">;
@@ -266,12 +279,13 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       .orderBy(desc(leads.createdAt))
       .limit(5);
 
+    // wave-181.30: GROUP BY raw columns (same fix as bookings).
     const leadByUtmSourceRows = await d.select({
       src: sql<string>`COALESCE(${leads.utmSource}, CASE WHEN ${leads.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`,
       count: sql<number>`COUNT(*)`,
     }).from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
-      .groupBy(sql`COALESCE(${leads.utmSource}, CASE WHEN ${leads.referrer} IS NOT NULL THEN 'referral' ELSE 'direct' END)`);
+      .groupBy(leads.utmSource, sql`(${leads.referrer} IS NULL)`);
 
     const leadTotal = Number(leadAgg?.total ?? 0);
     const leadStats = {
@@ -290,7 +304,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     };
     const leadsByUtmSource: Record<string, number> = {};
     for (const row of leadByUtmSourceRows) {
-      leadsByUtmSource[row.src] = Number(row.count);
+      // wave-181.30 · sum on collision (see bookings comment above).
+      leadsByUtmSource[row.src] = (leadsByUtmSource[row.src] ?? 0) + Number(row.count);
     }
 
     // ─── CONTENT ──────────────────────────────────────
