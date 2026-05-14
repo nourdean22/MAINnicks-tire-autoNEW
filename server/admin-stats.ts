@@ -225,7 +225,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       count: sql<number>`COUNT(*)`,
     }).from(bookings)
       .where(gte(bookings.createdAt, ninetyDaysAgo))
-      .groupBy(bookings.utmSource, sql`(${bookings.referrer} IS NULL)`);
+      .groupBy(bookings.utmSource, bookings.referrer);
 
     const bookingStats = {
       total: Number(bookingAgg?.total ?? 0),
@@ -285,7 +285,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
       count: sql<number>`COUNT(*)`,
     }).from(leads)
       .where(gte(leads.createdAt, ninetyDaysAgo))
-      .groupBy(leads.utmSource, sql`(${leads.referrer} IS NULL)`);
+      .groupBy(leads.utmSource, leads.referrer);
 
     const leadTotal = Number(leadAgg?.total ?? 0);
     const leadStats = {
