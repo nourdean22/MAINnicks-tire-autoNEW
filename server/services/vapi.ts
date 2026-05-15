@@ -1175,17 +1175,26 @@ interface VapiAssistantConfig {
     smartFormat: true;
     keywords: string[]; // boosts recognition probability for these terms
   };
-  voice: {
-    provider: "11labs";
-    voiceId: string;
-    model: "eleven_turbo_v2_5" | "eleven_multilingual_v2" | "eleven_flash_v2";
-    stability: number;
-    similarityBoost: number;
-    style: number;
-    useSpeakerBoost: boolean;
-    optimizeStreamingLatency: number;
-    enableSsmlParsing: boolean;
-  };
+  voice:
+    | {
+        provider: "11labs";
+        voiceId: string;
+        model: "eleven_turbo_v2_5" | "eleven_multilingual_v2" | "eleven_flash_v2";
+        stability: number;
+        similarityBoost: number;
+        style: number;
+        useSpeakerBoost: boolean;
+        optimizeStreamingLatency: number;
+        enableSsmlParsing: boolean;
+      }
+    | {
+        provider: "cartesia";
+        voiceId: string;
+        model: "sonic-english" | "sonic-2" | "sonic-multilingual";
+        language?: string;
+        speed?: "slow" | "normal" | "fast";
+        emotion?: string[];
+      };
   model: {
     provider: "openai";
     model: "gpt-4o";
@@ -1270,16 +1279,18 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     },
 
     // ─── Voice (Text-to-Speech) ─────────────────────────
+    // wave-181.36: switched 11Labs Adam → Cartesia Barbershop Man.
+    // Cartesia Sonic has the lowest TTS latency on the market (~75ms
+    // first-token vs 11Labs Turbo ~200ms) which materially cuts the
+    // dead-air feel on phone calls. Voice choice "Barbershop Man" is
+    // a warm friendly blue-collar US male — matches Nick's identity
+    // better than the more polished/neutral 11Labs Adam. Swappable in
+    // ~30s via VAPI dashboard if a different vibe is wanted.
     voice: {
-      provider: "11labs",
-      voiceId: "pNInz6obpgDQGcFmaJgB", // Adam — warm neutral US accent
-      model: "eleven_turbo_v2_5", // Lower-latency model
-      stability: 0.55, // 0-1; lower = more expressive variance
-      similarityBoost: 0.78, // Stick close to original Adam timbre
-      style: 0.20, // Add a touch of natural style/emotion
-      useSpeakerBoost: true,
-      optimizeStreamingLatency: 3, // 0-4; 3 is best for phone latency
-      enableSsmlParsing: true, // Allows <break/> + emphasis tags
+      provider: "cartesia",
+      voiceId: "a0e99841-438c-4a64-b679-ae501e7d6091", // Barbershop Man
+      model: "sonic-2",
+      language: "en",
     },
 
     // ─── LLM brain ──────────────────────────────────────
