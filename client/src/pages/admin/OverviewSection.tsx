@@ -1460,7 +1460,7 @@ export default function OverviewSection() {
             { href: sheetInfo?.url || '#', external: true, icon: <ExternalLink className="w-4 h-4 text-amber-400" />, label: "CRM Sheet" },
             { href: "/estimate", icon: <TrendingUp className="w-4 h-4 text-cyan-400" />, label: "Estimator" },
             { href: "/booking", icon: <CalendarClock className="w-4 h-4 text-blue-400" />, label: "Book Appt" },
-            { href: "/review", icon: <Star className="w-4 h-4 text-yellow-400" />, label: "Reviews" },
+            { href: "/reviews", icon: <Star className="w-4 h-4 text-yellow-400" />, label: "Reviews" },
             { href: "/specials", icon: <Bell className="w-4 h-4 text-pink-400" />, label: "Specials" },
             { href: "/blog", icon: <Globe className="w-4 h-4 text-purple-400" />, label: "Blog" },
           ].map((action, i) => {
