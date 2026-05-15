@@ -1039,15 +1039,21 @@ const UTILITY_PAGES: RouteEntry[] = [
     sitemap: false, // user-specific
     prerender: true,
   },
+  // wave-181.38 · /review is now a client-side redirect to /reviews
+  // (was a standalone QR-card page; the QR functionality merged into
+  // /reviews so customers see reviews AND the scan-to-review CTA on
+  // one URL). Kept in the registry only so the route-validator passes
+  // — sitemap=false (don't index a redirect) + prerender=false (no
+  // static HTML needed; the wouter <Redirect> fires client-side).
   {
     path: "/review",
-    priority: 0.5,
-    changefreq: "monthly",
+    priority: 0.1,
+    changefreq: "yearly",
     title: "Leave a Review — Nick's Tire & Auto Cleveland",
-    description: "Share your experience at Nick's Tire & Auto, Cleveland. Your feedback helps us serve you better.",
+    description: "Redirects to /reviews. Use /reviews instead.",
     group: "utility",
-    sitemap: false, // review generation page
-    prerender: true,
+    sitemap: false,
+    prerender: false,
   },
   {
     path: "/careers",

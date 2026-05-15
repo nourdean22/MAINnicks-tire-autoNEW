@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect } from "react";
 import EmergencyMode from "./components/EmergencyMode";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch, useLocation } from "wouter";
+import { Route, Switch, useLocation, Redirect } from "wouter";
 import { AnimatePresence, motion } from "framer-motion";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
@@ -58,7 +58,7 @@ const MyGaragePage = lazy(() => import("./pages/MyGaragePage"));
 const ReferralPage = lazy(() => import("./pages/ReferralPage"));
 const AskMechanicPage = lazy(() => import("./pages/AskMechanicPage"));
 const CarCareGuidePage = lazy(() => import("./pages/CarCareGuidePage"));
-const ReviewPage = lazy(() => import("./pages/ReviewPage"));
+// wave-181.38: ReviewPage merged into ReviewsPage. /review now redirects.
 const StatusTracker = lazy(() => import("./pages/StatusTracker"));
 const PriceEstimator = lazy(() => import("./pages/PriceEstimator"));
 const LaborEstimator = lazy(() => import("./pages/LaborEstimator"));
@@ -322,8 +322,8 @@ function Router() {
             <Route path={"/ask"} component={AskMechanicPage} />
             {/* Car Care Guide */}
             <Route path={"/car-care-guide"} component={CarCareGuidePage} />
-            {/* Review Generation */}
-            <Route path={"/review"} component={ReviewPage} />
+            {/* wave-181.38 · /review merged into /reviews — redirect for bookmarks/old links */}
+            <Route path={"/review"}>{() => <Redirect to="/reviews" />}</Route>
             {/* Status Tracker */}
             <Route path={"/status"} component={StatusTracker} />
             <Route path={"/track"} component={TrackJob} />

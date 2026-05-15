@@ -10,8 +10,9 @@ import PageLayout from "@/components/PageLayout";
 import { useState, useRef, useMemo } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
-import { Phone, Star, ExternalLink, MessageSquare, ChevronDown } from "lucide-react";
+import { Phone, Star, ExternalLink, MessageSquare, ChevronDown, Printer } from "lucide-react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { QRCodeSVG } from "qrcode.react";
 import { trpc } from "@/lib/trpc";
 import { GBP_REVIEW_URL } from "@shared/const";
 import { BUSINESS } from "@shared/business";
@@ -184,6 +185,19 @@ export default function ReviewsPage() {
   const [recencyFilter, setRecencyFilter] = useState<RecencyOption>("Most Recent");
   const [sortBy, setSortBy] = useState<SortOption>("Most Recent");
 
+  // wave-181.38 · Counter-card "PRINT QR CODE CARD" flow merged in from
+  // the old /review page. When the operator hits Print, we swap to a
+  // print-only render (white BG, single QR + branding), trigger window
+  // print, and swap back. Same pattern the standalone /review used.
+  const [showPrintView, setShowPrintView] = useState(false);
+  const handlePrintCounterCard = () => {
+    setShowPrintView(true);
+    setTimeout(() => {
+      window.print();
+      setShowPrintView(false);
+    }, 300);
+  };
+
   const totalCount = reviewData?.totalReviews ?? BUSINESS.reviews.count;
   const avgRating = reviewData?.rating ?? BUSINESS.reviews.rating;
 
@@ -275,6 +289,44 @@ export default function ReviewsPage() {
     })),
   };
 
+  // wave-181.38 · print-only render for the shop-counter QR card.
+  if (showPrintView) {
+    return (
+      <div className="print-review-card bg-white min-h-screen flex items-center justify-center p-8">
+        <div className="text-center max-w-md mx-auto">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">NICK'S TIRE &amp; AUTO</h1>
+            <p className="text-gray-600 text-lg">Cleveland, Ohio</p>
+          </div>
+          <div className="mb-6">
+            <div className="flex justify-center gap-1 mb-3">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className="w-8 h-8 fill-yellow-500 text-yellow-500" />
+              ))}
+            </div>
+            <p className="text-2xl font-bold text-gray-900 mb-1">{`${BUSINESS.reviews.rating} Stars — ${BUSINESS.reviews.countDisplay} Reviews`}</p>
+          </div>
+          <div className="border-2 border-gray-300 rounded-lg p-6 mb-6 inline-block">
+            <QRCodeSVG
+              value={GBP_REVIEW_URL}
+              size={200}
+              level="H"
+              includeMargin={true}
+              bgColor="#ffffff"
+              fgColor="#1a1a1a"
+            />
+          </div>
+          <div>
+            <p className="text-xl font-bold text-gray-900 mb-2">SCAN TO LEAVE A REVIEW</p>
+            <p className="text-gray-600">Your feedback helps us serve Cleveland drivers better.</p>
+            <p className="text-gray-500 text-sm mt-4">{BUSINESS.address.full}</p>
+            <p className="text-gray-500 text-sm">{BUSINESS.phone.display}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
@@ -310,6 +362,65 @@ export default function ReviewsPage() {
                 {totalCount.toLocaleString()}+ reviews | {avgRating} average | unfiltered Google data
               </p>
             </FadeIn>
+          </div>
+        </section>
+
+        {/* ─── SCAN-TO-REVIEW BLOCK (wave-181.38 · merged from /review) ─── */}
+        {/* Customers see QR + 1-tap Google review CTA. Operator can print
+            the counter-card directly from this page (the showPrintView path
+            handles the white-bg single-page render above). */}
+        <section className="bg-[oklch(0.055_0.004_260)] border-b border-border/15 py-12 lg:py-16">
+          <div className="container">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center max-w-5xl mx-auto">
+              <FadeIn>
+                <div className="text-center lg:text-left">
+                  <span className="font-mono text-[#FDB913] text-xs tracking-[0.2em] uppercase">Scan &amp; Review</span>
+                  <h2 className="font-heading text-3xl lg:text-4xl text-foreground mt-3 tracking-tight uppercase">
+                    Leave a Review<br />
+                    <span className="text-[#FDB913]">In 30 Seconds</span>
+                  </h2>
+                  <p className="text-foreground/60 leading-relaxed mt-4">
+                    Scan the QR with your phone camera and go straight to the Google review form — no app, no login screen, no typing the address.
+                  </p>
+                  <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center lg:justify-start">
+                    <a
+                      href={GBP_REVIEW_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-[#FDB913] text-black px-6 py-3 font-bold text-sm tracking-wide hover:bg-[#FDB913]/90 transition-colors"
+                    >
+                      <Star className="w-4 h-4 fill-current" />
+                      LEAVE A GOOGLE REVIEW
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                    <button
+                      onClick={handlePrintCounterCard}
+                      className="inline-flex items-center justify-center gap-2 border border-border/40 text-foreground/80 px-6 py-3 font-bold text-sm tracking-wide hover:bg-white/5 transition-colors"
+                    >
+                      <Printer className="w-4 h-4" />
+                      PRINT COUNTER CARD
+                    </button>
+                  </div>
+                </div>
+              </FadeIn>
+
+              <FadeIn delay={0.15}>
+                <div className="flex justify-center">
+                  <div className="bg-white p-6 lg:p-8 rounded-sm shadow-lg text-center">
+                    <QRCodeSVG
+                      value={GBP_REVIEW_URL}
+                      size={200}
+                      level="H"
+                      includeMargin={true}
+                      bgColor="#ffffff"
+                      fgColor="#1a1a1a"
+                    />
+                    <p className="text-gray-900 font-bold text-base mt-4">SCAN TO REVIEW</p>
+                    <p className="text-gray-500 text-xs mt-1">Nick's Tire &amp; Auto — Cleveland, OH</p>
+                  </div>
+                </div>
+              </FadeIn>
+            </div>
           </div>
         </section>
 

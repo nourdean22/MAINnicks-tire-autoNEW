@@ -79,7 +79,7 @@ const CUSTOMER_TOOLS: LinkItem[] = [
   { label: "My Garage", href: "/my-garage", note: "Your service history" },
   { label: "Payment Programs", href: "/financing", note: "$10 down via Snap/Acima/Koalafi" },
   { label: "Rewards & Loyalty", href: "/rewards" },
-  { label: "Leave a Review", href: "/review" },
+  { label: "Leave a Review", href: "/reviews" },
   { label: "Request Callback", href: "/contact" },
 ];
 
