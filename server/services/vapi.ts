@@ -1288,7 +1288,7 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     // ~30s via VAPI dashboard if a different vibe is wanted.
     voice: {
       provider: "cartesia",
-      voiceId: "a0e99841-438c-4a64-b679-ae501e7d6091", // Barbershop Man
+      voiceId: "79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e", // Friendly Sidekick — bouncy + upbeat (wave-181.37, operator: Barbershop Man too sleepy)
       model: "sonic-2",
       language: "en",
     },
