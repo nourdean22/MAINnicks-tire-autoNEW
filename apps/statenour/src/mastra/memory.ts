@@ -34,6 +34,73 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("mastra/memory");
 
 /**
+ * Storage backend selector · Phase 1.3 (2026-05-17).
+ *
+ * Reads `MASTRA_MEMORY_BACKEND` env var:
+ *   · unset / "memory" · in-process default · Phase 1.2 behavior ·
+ *     zero schema impact · resets on cold restart
+ *   · "pg" · @mastra/pg with `mastra_*` tablePrefix · auto-creates
+ *     its own tables in the existing Neon DB · persistent across
+ *     restarts + pods
+ *
+ * The PG path is gated so the operator can flip to durability when
+ * they're comfortable with the auto-created tables appearing in Neon
+ * (mastra_threads, mastra_messages, mastra_resources, etc.). No
+ * Prisma migration required · @mastra/pg owns its tables outside
+ * Prisma's view.
+ *
+ * To activate Phase 1.3:
+ *   railway variables set MASTRA_MEMORY_BACKEND=pg --service statenour-web
+ *
+ * Rollback: unset the env var · default in-process behavior returns.
+ */
+type StorageBackend = "memory" | "pg";
+
+function resolveBackend(): StorageBackend {
+  const raw = (process.env.MASTRA_MEMORY_BACKEND ?? "memory").trim().toLowerCase();
+  return raw === "pg" ? "pg" : "memory";
+}
+
+async function buildStorage(): Promise<unknown | undefined> {
+  const backend = resolveBackend();
+  if (backend === "memory") return undefined;
+
+  // Lazy import keeps @mastra/pg out of the cold-path bundle when not
+  // selected. Also gives us a meaningful error if DATABASE_URL is
+  // missing instead of a cryptic pg connection failure later.
+  const dbUrl = (process.env.DATABASE_URL ?? "").trim();
+  if (!dbUrl) {
+    log.warn("mastra_pg_unavailable_no_db_url", {
+      hint: "MASTRA_MEMORY_BACKEND=pg requires DATABASE_URL · falling back to in-process",
+    });
+    return undefined;
+  }
+
+  try {
+    const { PostgresStore } = await import("@mastra/pg");
+    // schemaName instead of tablePrefix · the @mastra/pg adapter
+    // owns a separate schema so the tables don't intermix with
+    // Prisma's `public` schema. Operator can `\d mastra.*` to see
+    // what shows up.
+    const store = new PostgresStore({
+      id: "statenour-nick-memory",
+      connectionString: dbUrl,
+      schemaName: "mastra",
+      // Auto-init creates the schema + tables on first use · the
+      // operator already approved by setting MASTRA_MEMORY_BACKEND=pg
+      disableInit: false,
+    });
+    log.info("mastra_pg_ready", { schema: "mastra" });
+    return store;
+  } catch (err) {
+    log.error("mastra_pg_construct_failed_falling_back", {
+      message: err instanceof Error ? err.message.slice(0, 300) : String(err),
+    });
+    return undefined; // graceful fall back to in-process
+  }
+}
+
+/**
  * Number of recent messages Mastra carries into the next prompt.
  * 20 is the documented Mastra default for chat agents · enough for
  * multi-turn refinement, small enough to keep prompts tight.
@@ -74,9 +141,11 @@ export function getNickMemory(): Promise<Memory> {
   if (_memoryPromise) return _memoryPromise;
   _memoryPromise = (async () => {
     try {
+      // Phase 1.3 · pick storage from env. Default in-process when
+      // MASTRA_MEMORY_BACKEND unset. @mastra/pg used when set to "pg".
+      const storage = await buildStorage();
       const memory = new Memory({
-        // No `storage` · Mastra in-process default for Phase 1.2.
-        // Phase 1.3 will add `storage: new PgStore({...})` here.
+        storage: storage as never,
         options: {
           lastMessages: LAST_MESSAGES,
           workingMemory: {
@@ -89,7 +158,7 @@ export function getNickMemory(): Promise<Memory> {
       log.info("nick_memory_ready", {
         lastMessages: LAST_MESSAGES,
         workingMemory: true,
-        storage: "in-process",
+        storage: storage ? "pg" : "in-process",
       });
       return memory;
     } catch (err) {
