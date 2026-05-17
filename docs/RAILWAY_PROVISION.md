@@ -238,6 +238,13 @@ APOLLO_API_KEY=<same>
 FIREFLIES_API_KEY=<same>
 BROWSERBASE_API_KEY=<same>
 BROWSERBASE_PROJECT_ID=<same>
+
+# CP6 wiring · MUST be set · worker forwards cron ticks to statenour-web
+# via this internal Railway hostname. Paste the EXACT internal hostname
+# Railway assigns to statenour-web (under that service's Settings →
+# Networking → Service Domain). If left empty, the worker logs the
+# tick + does nothing else (graceful degrade, but no work happens).
+STATENOUR_WEB_URL=https://<statenour-web-internal-hostname>
 ```
 
 9. **Deploy** · watch the build · ~2 min for first build
