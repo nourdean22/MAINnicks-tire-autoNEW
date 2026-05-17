@@ -34,8 +34,14 @@ COPY --from=deps /repo/apps/worker/node_modules ./apps/worker/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/worker ./apps/worker
 
+# pnpm install in deps copied the .pnpm/ store + symlinked to it.
+# Now compile TS → dist/, then use `pnpm deploy` to produce a self-
+# contained, symlink-free deploy artifact at /deploy. Without this,
+# the runtime stage gets pnpm symlinks pointing at /repo/node_modules/.pnpm/...
+# which doesn't exist in the runtime image → ERR_MODULE_NOT_FOUND on express.
 WORKDIR /repo/apps/worker
 RUN pnpm run build
+RUN pnpm deploy --filter @statenour/worker --prod --legacy /deploy
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
@@ -46,10 +52,9 @@ RUN addgroup --system --gid 1001 nodejs \
 
 WORKDIR /app
 
-# Worker is much smaller than statenour-web · we copy node_modules + dist
-COPY --from=build --chown=worker:nodejs /repo/apps/worker/dist ./dist
-COPY --from=build --chown=worker:nodejs /repo/apps/worker/package.json ./package.json
-COPY --from=build --chown=worker:nodejs /repo/apps/worker/node_modules ./node_modules
+# /deploy from build stage is self-contained: flat node_modules + dist + package.json.
+# No pnpm symlinks → no runtime ERR_MODULE_NOT_FOUND.
+COPY --from=build --chown=worker:nodejs /deploy ./
 
 USER worker
 
