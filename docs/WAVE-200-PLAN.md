@@ -91,8 +91,17 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
   LANDED 2026-05-17 · `src/mastra/memory.ts` · in-process storage for
   zero schema impact · resource-scoped working memory template ·
   per ADR-0009
-- [ ] OPERATOR: flip `AGENT_V2=true` in Railway env · monitor
-  /system/logs for 24h · rollback ready by flipping back to false
+- [x] Phase 1.2 follow-up · thread/resource ID wiring through the
+  Mastra cutover path · LANDED 2026-05-17 · without this Mastra
+  memory silently no-ops on flip. Both `/api/agent` and `/api/ai/chat`
+  AGENT_V2 branch now inject `memory: { thread: conversationId,
+  resource: user.id }` into params.
+- [x] AGENT_V2 smoke test · LANDED 2026-05-17 ·
+  `scripts/smoke-agent-v2.ts` · runs 2 turns in-process · validates
+  agent construct + stream + memory carry-over. `pnpm tsx
+  scripts/smoke-agent-v2.ts` before flipping the flag.
+- [ ] OPERATOR: run smoke test → flip `AGENT_V2=true` in Railway env ·
+  monitor /system/logs for 24h · rollback ready by flipping back
 - [ ] *(follow-up · Phase 1.3)* Swap memory storage to `@mastra/pg`
   pointed at Neon with `tablePrefix: "mastra_"` for cross-restart +
   cross-pod durability. ~3-line swap once operator OKs the auto-
@@ -201,7 +210,9 @@ unchanged · new Inngest function adds Web Push + pre-rendered audio.
 - [ ] *(operator follow-up · optional)* After 7 days of clean Inngest
   runs, remove the `sendTelegram(brief.text)` call from
   `/api/cron/morning-brief/route.ts` if push-only is preferred
-- [ ] *(follow-up)* "Play today's brief" button on `/voice` page
+- [x] "Play today's brief" button on `/voice` page · LANDED 2026-05-17 ·
+  HEAD probe surfaces "no audio today" vs error · auto-disables
+  while a voice session is live so playback doesn't compete
 - [ ] *(future · Phase 5+)* Outbound LiveKit voice call with the
   brief read live (waits for Cartesia voice clone training to finish)
 
