@@ -74,6 +74,19 @@ export const ENV_SPEC: Spec[] = [
   { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: venice|openai|anthropic|gemini" },
   { key: "LOCAL_DEV_BYPASS_AUTH", tier: "runtime", description: "Dev-only — set to '1' to skip auth in preview" },
 
+  // ── WAVE-200 substrate (2026-05-17) ────────────────────────────────
+  // All runtime · substrate degrades gracefully when missing. See
+  // docs/WAVE-200-PLAN.md + per-substrate ADRs for activation.
+  { key: "AGENT_V2",                tier: "runtime", description: "Wave-200 Phase 1.5 · 'true' routes /api/ai/chat through Mastra agent (run `pnpm smoke:agent-v2` first)" },
+  { key: "MASTRA_MEMORY_BACKEND",   tier: "runtime", description: "Wave-200 Phase 1.3 · 'pg' activates @mastra/pg persistent memory in the existing Neon DB (mastra schema auto-created)" },
+  { key: "BRAINTRUST_API_KEY",      tier: "runtime", description: "Wave-200 Phase 0 · enables Mastra agent traces in Braintrust dashboard" },
+  { key: "BRAINTRUST_PROJECT_NAME", tier: "runtime", description: "Wave-200 Phase 0 · Braintrust project name (default: statenour-nick)" },
+  { key: "INNGEST_EVENT_KEY",       tier: "runtime", description: "Wave-200 Phase 3 · Inngest event-send key (paste from app.inngest.com → app → keys)" },
+  { key: "INNGEST_SIGNING_KEY",     tier: "runtime", description: "Wave-200 Phase 3 · Inngest signing key (paste from app.inngest.com → app → keys)" },
+  { key: "LIVEKIT_URL",             tier: "runtime", description: "Wave-200 Phase 4 · LiveKit Cloud project URL (used by /api/voice/token + apps/voice worker)" },
+  { key: "LIVEKIT_API_KEY",         tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API key" },
+  { key: "LIVEKIT_API_SECRET",      tier: "runtime", description: "Wave-200 Phase 4 · LiveKit API secret" },
+
   // ── PLATFORM (auto-set) ────────────────────────────────────────────
   { key: "NODE_ENV",              tier: "platform", description: "development | production | test" },
   { key: "VERCEL",                tier: "platform", description: "Vercel runtime indicator" },
