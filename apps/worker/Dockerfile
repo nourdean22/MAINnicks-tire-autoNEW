@@ -15,6 +15,12 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/worker/package.json ./apps/worker/
 COPY apps/statenour/package.json ./apps/statenour/
 COPY apps/nickstire/package.json ./apps/nickstire/
+# Wave 49+CP7 fix · pnpm.patchedDependencies references files in these dirs.
+# Even with `--filter @statenour/worker`, pnpm still reads patch files for
+# lockfile integrity validation. Without these COPYs install fails with
+# ENOENT on the wouter patch path.
+COPY apps/nickstire/patches ./apps/nickstire/patches
+COPY apps/statenour/patches ./apps/statenour/patches
 
 RUN pnpm install --frozen-lockfile --filter @statenour/worker
 
