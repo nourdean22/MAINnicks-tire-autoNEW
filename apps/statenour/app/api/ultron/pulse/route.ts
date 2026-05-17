@@ -3,6 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 
+// CP7 · Railway build cannot reach Neon during static prerender. Force
+// runtime-only · same effective behavior as Vercel due to the cached()
+// wrapper. No production semantics change.
+export const dynamic = "force-dynamic";
+
 /**
  * GET /api/ultron/pulse
  *
