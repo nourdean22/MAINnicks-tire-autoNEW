@@ -123,3 +123,5 @@ tunnel-url.txt
 *.yml.bak
 
 .vercel
+.cron-secret.local
+.railway-token.local
