@@ -480,9 +480,19 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
 
     const lineOfCars = extractLineOfCars(ctx);
     const declinedDelta = extractDeclinedDelta(ctx);
-    const declinedTop = extractDeclinedTop(ctx);
+    const declinedTopWithIds = extractDeclinedTopWithIds(ctx);
+    const declinedTop = declinedTopWithIds.map((r) => r.name);
     const reviewDelta = extractReviewDelta(ctx);
     const revenueLine = extractRevenueLine(ctx);
+
+    // 2026-05-17 follow-up · Phase 6 surfacing · annotate the top-3
+    // declined customers with their inferred preferences (slow payer ·
+    // ltv tier · open recovery count). Pure read from BrainMemory ·
+    // never throws · empty annotations fall back to the bare names
+    // line below.
+    const declinedAnnotations = await annotateWithPreferences(
+      declinedTopWithIds,
+    );
 
     if (lineOfCars != null) {
       lines.push(`Line of cars: ${lineOfCars}`);
@@ -503,6 +513,17 @@ export async function buildShopSlice(): Promise<MorningBriefSlice> {
           .join(" · ")}`,
       );
       payload.declinedTop = declinedTop;
+      // Per-customer preference annotations · one line each when we
+      // have a preference cached. Skipped silently when none of the
+      // top-3 had inferred prefs (zero noise in the brief).
+      if (declinedAnnotations.length > 0) {
+        for (const ann of declinedAnnotations) {
+          lines.push(
+            `· ${escapeHtml(ann.name.slice(0, 40))} → ${escapeHtml(ann.summary.slice(0, 80))}`,
+          );
+        }
+        payload.declinedAnnotations = declinedAnnotations;
+      }
     }
     if (reviewDelta) {
       lines.push(reviewDelta.text);
@@ -777,24 +798,78 @@ function extractDeclinedDelta(
   };
 }
 
+/**
+ * Top 3 declined-work rows · used by the brief composer for follow-up
+ * targeting. Returns names by default (preserves existing call shape).
+ *
+ * 2026-05-17 follow-up · also exposes a sibling extractor that
+ * returns {id, name} pairs so the Phase 6 preference layer can
+ * annotate them ("Brennen · slow payer · 3 open recovery items").
+ */
 function extractDeclinedTop(ctx: Record<string, unknown>): string[] {
+  return extractDeclinedTopWithIds(ctx).map((row) => row.name);
+}
+
+interface DeclinedTopRow {
+  id?: string;
+  name: string;
+}
+
+function extractDeclinedTopWithIds(ctx: Record<string, unknown>): DeclinedTopRow[] {
   const dec = ctx.declinedWork as Record<string, unknown> | undefined;
   if (!dec) return [];
   const top = dec.topByScore ?? dec.top ?? dec.followUps;
   if (!Array.isArray(top)) return [];
   return top
     .slice(0, 3)
-    .map((row) => {
-      if (typeof row === "string") return row;
+    .map((row): DeclinedTopRow | null => {
+      if (typeof row === "string") return { name: row };
       if (row && typeof row === "object") {
         const r = row as Record<string, unknown>;
         const name =
           r.customerName ?? r.name ?? r.title ?? r.label ?? "Unnamed";
-        return typeof name === "string" ? name : "Unnamed";
+        const id = r.customerId ?? r.id;
+        return {
+          name: typeof name === "string" ? name : "Unnamed",
+          id: typeof id === "string" && id.length > 0 ? id : undefined,
+        };
       }
-      return "";
+      return null;
     })
-    .filter((s) => s.length > 0);
+    .filter((row): row is DeclinedTopRow => row != null && row.name.length > 0);
+}
+
+/**
+ * Phase 6 surfacing (2026-05-17) · look up cached preferences for
+ * each top declined customer and return short summary lines for the
+ * brief. Pure read · never throws · returns [] on any failure so the
+ * brief composer never breaks on this annotation.
+ */
+async function annotateWithPreferences(
+  rows: DeclinedTopRow[],
+): Promise<Array<{ name: string; summary: string }>> {
+  const withIds = rows.filter((r): r is DeclinedTopRow & { id: string } =>
+    typeof r.id === "string" && r.id.length > 0,
+  );
+  if (withIds.length === 0) return [];
+  try {
+    const { getCustomerPreferences } = await import(
+      "@/lib/brain/customer-preferences"
+    );
+    const prefs = await Promise.all(
+      withIds.map(async (row) => {
+        const p = await getCustomerPreferences(row.id);
+        if (!p?.summary) return null;
+        return { name: row.name, summary: p.summary };
+      }),
+    );
+    return prefs.filter((p): p is { name: string; summary: string } => p != null);
+  } catch (err) {
+    log.warn("annotate_preferences_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return [];
+  }
 }
 
 function extractReviewDelta(

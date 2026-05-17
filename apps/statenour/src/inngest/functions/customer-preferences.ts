@@ -29,6 +29,7 @@
  */
 
 import { getInngest } from "../client";
+import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 // Type-only import keeps the heavy module out of the cold path · the
 // runtime values are still dynamic-imported below.
@@ -144,6 +145,7 @@ export const customerPreferencesRecompute = inngest.createFunction(
     concurrency: { limit: 4 },
     retries: 2,
     triggers: [{ cron: "0 11 * * *" }],
+    onFailure: onInngestFailure,
   },
   async ({ step }) => {
     const { ids, source } = await step.run("fetch-active-customer-ids", () =>

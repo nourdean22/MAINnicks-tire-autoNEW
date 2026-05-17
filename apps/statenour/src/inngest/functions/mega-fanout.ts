@@ -40,6 +40,7 @@
  */
 
 import { getInngest } from "../client";
+import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/mega-fanout");
@@ -214,6 +215,9 @@ export const megaFanoutMorning = inngest.createFunction(
     // to the existing Vercel/Railway 9am UTC trigger. v4 SDK takes
     // triggers inside the config object (v2/v3 used a 3-arg form).
     triggers: [{ cron: "0 9 * * *" }],
+    // 2026-05-17 follow-up · Telegram alert on final failure after
+    // all retries exhaust. Shared handler in ../on-failure.
+    onFailure: onInngestFailure,
   },
   async ({ step }) => {
     const cronSecret = (process.env.CRON_SECRET ?? "").trim();
@@ -253,6 +257,7 @@ export const megaFanoutEvening = inngest.createFunction(
     concurrency: { limit: 6 },
     retries: 3,
     triggers: [{ cron: "0 3 * * *" }],
+    onFailure: onInngestFailure,
   },
   async ({ step }) => {
     const cronSecret = (process.env.CRON_SECRET ?? "").trim();

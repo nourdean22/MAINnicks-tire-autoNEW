@@ -87,8 +87,16 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
 - [x] Braintrust eval set: 20 golden questions · LLM-as-judge scoring
   on 4 axes (correctness · tool-use · drift · brevity) · LANDED in
   `evals/nick-baseline.eval.ts`
+- [x] Phase 1.2 · Mastra working memory + last-N message window ·
+  LANDED 2026-05-17 · `src/mastra/memory.ts` · in-process storage for
+  zero schema impact · resource-scoped working memory template ·
+  per ADR-0009
 - [ ] OPERATOR: flip `AGENT_V2=true` in Railway env · monitor
   /system/logs for 24h · rollback ready by flipping back to false
+- [ ] *(follow-up · Phase 1.3)* Swap memory storage to `@mastra/pg`
+  pointed at Neon with `tablePrefix: "mastra_"` for cross-restart +
+  cross-pod durability. ~3-line swap once operator OKs the auto-
+  created tables (per ADR-0009)
 
 ### **Phase 2 · Skill Registry runtime exposure** *(LANDED via inheritance — 2026-05-17 · see ADR-0004)*
 
@@ -131,8 +139,11 @@ remain blocking for prod cutover · code runs in dev mode until then.
 - [ ] *(follow-up)* `step.waitForEvent` for operator-in-loop workflows
   (used by Phase 4-6 functions · scaffold supports it but no
   consumer yet)
-- [ ] *(follow-up)* Telegram alert on Inngest function failure
-  (Inngest webhook → existing alert pipeline · trivial wire-up)
+- [x] Telegram alert on Inngest function failure · LANDED 2026-05-17 ·
+  shared `onInngestFailure` handler wired to all 4 functions
+  (mega-fanout-morning, -evening, operator-morning-brief,
+  customer-preferences-recompute) · reuses existing sendTelegram ·
+  fires only after retries exhaust
 - [ ] *(follow-up)* Collapse duplicated `MORNING_JOBS`/`EVENING_JOBS`
   arrays once cutover sticks 7d (shared config module)
 
@@ -224,8 +235,11 @@ evidence demands them · zero blocking action items today).
   nour-os-query.ts (~10 LOC SQL · returns
   `{ customerIds: string[] }`) — enables the daily Inngest recompute.
   Until then, per-visit live recompute still works fine
-- [ ] *(follow-up)* Wire morning-brief composer to surface preferences
-  for the top-3 callbacks
+- [x] Wire morning-brief composer to surface preferences for the
+  top-3 declined-work customers · LANDED 2026-05-17 ·
+  `lib/services/morning-brief.ts` `annotateWithPreferences()` · pure
+  read · gracefully empty when no customer IDs flow through bridge ·
+  zero noise when preference cache empty
 - [ ] *(follow-up)* Wire outreach campaign builder to segment by
   preference (prompt vs slow payer · high LTV · etc.)
 - [ ] *(future · Phase 6+)* Convex layer · evaluate when real-time
@@ -298,7 +312,9 @@ evidence demands them · zero blocking action items today).
 - `docs/adr/0006-livekit-voice-implementation.md` — LiveKit Python worker + HTTP bridge (Phase 4)
 - `docs/adr/0007-morning-brief-multichannel.md` — multi-channel brief delivery (Phase 5)
 - `docs/adr/0008-customer-360-predictive-brain.md` — Customer 360 + preferences layer (Phase 6)
+- `docs/adr/0009-mastra-memory.md` — Mastra in-process memory now · `@mastra/pg` Phase 1.3 (Phase 1.2)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
+- `apps/statenour/src/mastra/memory.ts` — Phase 1.2 Mastra memory factory
 - `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
 - `apps/voice/` — Phase 4 LiveKit Python worker
 - `apps/statenour/app/voice/page.tsx` — Phase 4 PWA push-to-talk launcher

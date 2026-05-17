@@ -41,6 +41,7 @@ import { Agent } from "@mastra/core/agent";
 import { getModel } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { wrapWithBraintrust } from "@/lib/ai/braintrust-wrap";
+import { getNickMemory } from "@/src/mastra/memory";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("mastra/agents/nick");
@@ -85,6 +86,11 @@ export function getNickAgent(): Promise<Agent> {
       // model call becomes a Braintrust span.
       const model = wrapWithBraintrust(getModel("reason"));
 
+      // 2026-05-17 · Phase 1.2 · wire Mastra working memory + last-N
+      // message window. In-process storage for Phase 1.2 (zero schema
+      // impact) · @mastra/pg adapter lands in Phase 1.3. See ADR-0009.
+      const memory = await getNickMemory();
+
       const agent = new Agent({
         id: "nick",
         name: "nick",
@@ -97,11 +103,7 @@ export function getNickAgent(): Promise<Agent> {
         // directly.
         model: model as never,
         tools: nourTools as never,
-        // Memory wiring lands in Phase 1.2 (when the storage adapter is
-        // pointed at BrainMemory Postgres). For Phase 1.1 we run without
-        // Mastra's built-in memory — the existing chat route already
-        // does its own brain recall and prompt assembly, so no gap.
-        // memory: nickMemory(),
+        memory: memory as never,
       });
 
       log.info("nick_agent_ready", {});

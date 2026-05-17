@@ -38,6 +38,7 @@
  */
 
 import { getInngest } from "../client";
+import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/morning-brief");
@@ -244,6 +245,7 @@ export const operatorMorningBrief = inngest.createFunction(
     name: "Operator morning brief · multi-channel",
     retries: 2,
     triggers: [{ cron: "0 10 * * *" }],
+    onFailure: onInngestFailure,
   },
   async ({ step }) => {
     const brief = await step.run("compose", composeBrief);
