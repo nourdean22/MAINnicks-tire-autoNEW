@@ -22,7 +22,7 @@
 
 import express from "express";
 import { timingSafeEqual } from "node:crypto";
-import { startScheduler } from "./scheduler.js";
+import { startScheduler, forwardCronToWeb } from "./scheduler.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 8080);
@@ -82,17 +82,20 @@ app.get("/health", (_req, res) => {
 // Either way, the contract is the same as today's Vercel cron: the
 // secret-gated endpoint just needs to fire on schedule and return 200.
 
+// CP6 wiring: both endpoints forward to statenour-web's existing
+// /api/cron/mega route handler with the slot query param. The handler
+// runs the full child-cron fan-out exactly as it did on Vercel · no
+// behavior change · just a different upstream caller.
 app.post("/cron/mega", requireCronSecret, async (_req, res) => {
   console.log("[worker] /cron/mega triggered at", new Date().toISOString());
-  // CP6 wiring: import + call the actual mega fan-out function
-  // OR forward to https://statenour-web.railway.internal/api/cron/mega
-  // For now: log + 200 OK (Railway cron stays green)
-  res.json({ ok: true, slot: "morning", deferred: "wire-in-CP6" });
+  const ok = await forwardCronToWeb("mega?slot=morning");
+  res.status(ok ? 200 : 502).json({ ok, slot: "morning" });
 });
 
 app.post("/cron/mega-evening", requireCronSecret, async (_req, res) => {
   console.log("[worker] /cron/mega-evening triggered at", new Date().toISOString());
-  res.json({ ok: true, slot: "evening", deferred: "wire-in-CP6" });
+  const ok = await forwardCronToWeb("mega?slot=evening");
+  res.status(ok ? 200 : 502).json({ ok, slot: "evening" });
 });
 
 // ── Bootstrap: scheduler + listen ──
