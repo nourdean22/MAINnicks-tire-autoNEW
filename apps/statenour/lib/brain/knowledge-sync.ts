@@ -1,0 +1,562 @@
+/**
+ * Knowledge Sync Engine — the automated version of the one-shot
+ * backfill scripts in scripts/*.ts.
+ *
+ * Exports three pure functions that can run from either:
+ *   • `/api/cron/knowledge-sync` — periodic cron
+ *   • the `syncKnowledge` AI tool — Nick can call it on demand
+ *   • a future event-bus handler — runs when data changes
+ *
+ * Each function is idempotent by design:
+ *   • backfillRawBrainDumps — only touches BrainDumps with null
+ *     extractedItems, and dedupes chat promotions by raw-text prefix
+ *   • rebalanceTaskPriorities — retired Apr 18 (OpenLoop dead, Task
+ *     contains "backfill" or "journal_", leaves user-entered alone,
+ *     skips rows that are already in the correct priority
+ *   • ingestNickWisdom — uses stable per-message memory keys so
+ *     re-runs reinforce existing memories instead of duplicating
+ *
+ * The Venice API is called directly via fetch() (not through
+ * lib/ai/provider.aiChat()) because the Vercel AI SDK chokes on
+ * Venice's reasoning_content field when running outside certain
+ * runtime contexts. Same workaround documented in lib/ai/provider.ts.
+ */
+
+import { prisma } from "@/lib/prisma";
+import { brainMemory } from "@/lib/brain/memory-manager";
+import { extractJsonObject } from "@/lib/ai/extract-structured";
+import { recordError } from "@/lib/errors/record-error";
+
+// ─── Venice direct (bypasses AI SDK reasoning_content issue) ──
+
+const VENICE_MODEL_DEFAULT = "olafangensan-glm-4.7-flash-heretic";
+
+async function callVeniceOnce(
+  system: string,
+  user: string,
+  timeoutMs: number
+): Promise<string | null> {
+  const apiKey = (process.env.VENICE_API_KEY || "").trim();
+  if (!apiKey) throw new Error("VENICE_API_KEY not set");
+  const model =
+    (process.env.VENICE_MODEL || "").trim() || VENICE_MODEL_DEFAULT;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://api.venice.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "X-Venice-Privacy": "strict",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        temperature: 0.3,
+        venice_parameters: {
+          include_venice_system_prompt: false,
+          strip_thinking_response: true,
+          disable_thinking: false,
+          enable_web_search: "off",
+        },
+      }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return null;
+    return content
+      .replace(/<think>[\s\S]*?<\/think>/gi, "")
+      .replace(/<\/?think>/gi, "")
+      .trim();
+  } catch (err) {
+    clearTimeout(t);
+    throw err;
+  }
+}
+
+async function callVenice(
+  system: string,
+  user: string,
+  timeoutMs = 60_000
+): Promise<string | null> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const result = await callVeniceOnce(system, user, timeoutMs);
+      if (result !== null) return result;
+    } catch {
+      if (attempt === 3) return null;
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+  }
+  return null;
+}
+
+// ─── Types ───
+
+type ThoughtType =
+  | "raw"
+  | "thinking"
+  | "reasoning"
+  | "insight"
+  | "decision"
+  | "reflection"
+  | "planning"
+  | "venting";
+
+const VALID_TYPES: ThoughtType[] = [
+  "raw",
+  "thinking",
+  "reasoning",
+  "insight",
+  "decision",
+  "reflection",
+  "planning",
+  "venting",
+];
+
+interface Extraction {
+  entryType: ThoughtType;
+  summary: string;
+  mood: string | null;
+  domains: string[];
+  linkedTopics: string[];
+  actionItems: Array<{ title: string; priority: string; domain: string }>;
+  insights: string[];
+  commitments: string[];
+  patterns: string | null;
+  concerns: string[];
+  wins: string[];
+}
+
+export interface KnowledgeSyncResult {
+  backfill: {
+    rawBrainDumps: number;
+    classified: number;
+    tasksCreated: number;
+    insightsStored: number;
+    commitmentsFound: number;
+    chatPromoted: number;
+    chatTasksCreated: number;
+  };
+  rebalance: {
+    tasksScanned: number;
+    tasksUpdated: number;
+    before: Record<string, number>;
+    after: Record<string, number>;
+  };
+  wisdom: {
+    messagesScanned: number;
+    memoriesStored: number;
+  };
+  durationMs: number;
+}
+
+// ─── AI extraction (shared between brain dumps and chat) ───
+
+async function extractFromText(
+  rawText: string,
+  source: string
+): Promise<Extraction | null> {
+  const systemPrompt = `You are Nick's journal processing engine. Extract actionable intelligence from Nour's journal entry.
+
+Return ONLY valid JSON with this structure (no markdown, no code fences, no prose):
+{
+  "entryType": "raw|thinking|reasoning|insight|decision|reflection|planning|venting",
+  "summary": "2-3 sentence summary",
+  "mood": "one word",
+  "domains": ["business|health|personal|finance|relationship|mastery"],
+  "actionItems": [{"title": "specific task", "priority": "critical|high|medium|low", "domain": "business|health|personal|system|finance"}],
+  "insights": ["patterns worth remembering"],
+  "commitments": ["promises or decisions made"],
+  "patterns": "recurring themes (or null)",
+  "concerns": ["worries mentioned"],
+  "wins": ["positive things mentioned"],
+  "linkedTopics": ["tags/names referenced, max 6"]
+}
+
+Priority rules — STRICT, DO NOT INFLATE:
+- "critical" — ONLY if explicit same-day deadline (today, tomorrow, asap, by EOD) or $ at imminent risk
+- "high" — customer-facing, revenue-blocking, or same-week time-sensitive
+- "medium" — DEFAULT PRIORITY. Most items land here
+- "low" — nice-to-have, no deadline
+
+RESPOND WITH THE JSON OBJECT ONLY. NO OTHER TEXT.`;
+
+  const userPrompt = `Journal entry (${source}):\n\n${rawText.slice(0, 4000)}`;
+
+  try {
+    const content = await callVenice(systemPrompt, userPrompt);
+    if (!content) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const extracted = extractJsonObject<any>(content);
+    if (!extracted.ok) return null;
+    const data = extracted.value;
+    return {
+      entryType: VALID_TYPES.includes(data.entryType) ? data.entryType : "raw",
+      summary: typeof data.summary === "string" ? data.summary : "",
+      mood: typeof data.mood === "string" ? data.mood : null,
+      domains: Array.isArray(data.domains) ? data.domains : [],
+      linkedTopics: Array.isArray(data.linkedTopics) ? data.linkedTopics : [],
+      actionItems: Array.isArray(data.actionItems) ? data.actionItems : [],
+      insights: Array.isArray(data.insights) ? data.insights : [],
+      commitments: Array.isArray(data.commitments) ? data.commitments : [],
+      patterns: typeof data.patterns === "string" ? data.patterns : null,
+      concerns: Array.isArray(data.concerns) ? data.concerns : [],
+      wins: Array.isArray(data.wins) ? data.wins : [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function applyExtraction(
+  brainDumpId: string,
+  extraction: Extraction,
+  source: string,
+  dateStr: string,
+  rawText: string
+) {
+  let tasksCreated = 0;
+  let insightsStored = 0;
+  let commitmentsFound = 0;
+
+  await prisma.brainDump.update({
+    where: { id: brainDumpId },
+    data: {
+      summary: extraction.summary || null,
+      moodBefore: extraction.mood,
+      patterns: extraction.patterns,
+      extractedItems: JSON.stringify({
+        entryType: extraction.entryType,
+        domains: extraction.domains,
+        linkedTopics: extraction.linkedTopics,
+        actionItems: extraction.actionItems,
+        insights: extraction.insights,
+        commitments: extraction.commitments,
+        concerns: extraction.concerns,
+        wins: extraction.wins,
+      }),
+    },
+  });
+
+  // Apr 18: OpenLoop retired → Task INBOX on m-inbox mission.
+  const priorityFor = (p?: string): number =>
+    p === "critical" ? 5 : p === "high" ? 15 : p === "low" ? 60 : 30;
+  const mInboxExists = await prisma.mission
+    .findUnique({ where: { id: "m-inbox" }, select: { id: true } })
+    .catch(() => null);
+  if (mInboxExists) {
+    for (const item of extraction.actionItems.slice(0, 8)) {
+      if (typeof item.title === "string" && item.title.length > 3) {
+        await prisma.task
+          .create({
+            data: {
+              title: item.title.slice(0, 150),
+              missionId: "m-inbox",
+              status: "INBOX",
+              nextPhysicalAction: item.title.slice(0, 150),
+              effort: "M15",
+              roiScore: 50,
+              frictionScore: 50,
+              energyRequired: "MEDIUM",
+              context: "ANYWHERE",
+              finishCondition: "done when complete",
+              autoPriority: priorityFor(item.priority),
+              autoPriorityExplanation: `from sync/${source} dump ${brainDumpId.slice(0, 8)} · ${dateStr} · ${rawText.slice(0, 90)}`,
+              lastTouchedAt: new Date(),
+            },
+          })
+          .catch((err) => {
+            recordError("brain:knowledge-sync", err, { phase: "task-create", brainDumpId, source });
+          });
+        tasksCreated++;
+      }
+    }
+  }
+
+  for (const insight of extraction.insights.slice(0, 5)) {
+    if (typeof insight === "string" && insight.length > 10) {
+      await brainMemory.remember(
+        "insight",
+        `sync_insight_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        insight,
+        "knowledge_sync_cron"
+      );
+      insightsStored++;
+    }
+  }
+
+  for (const c of extraction.commitments.slice(0, 3)) {
+    if (typeof c === "string" && c.length > 5) {
+      await prisma.commitment
+        .create({
+          data: {
+            dateMade: dateStr,
+            description: c.slice(0, 200),
+            toWhom: "self",
+            status: "active",
+          },
+        })
+        .catch((err) => {
+          recordError("brain:knowledge-sync", err, { phase: "commitment-create", dateStr });
+        });
+      commitmentsFound++;
+    }
+  }
+
+  for (const concern of extraction.concerns.slice(0, 3)) {
+    if (typeof concern === "string" && concern.length > 10) {
+      await brainMemory
+        .remember(
+          "concern",
+          `sync_concern_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          concern,
+          "knowledge_sync_cron"
+        )
+        .catch((err) => {
+          recordError("brain:knowledge-sync", err, { phase: "remember-concern" });
+        });
+    }
+  }
+
+  for (const win of extraction.wins.slice(0, 3)) {
+    if (typeof win === "string" && win.length > 5) {
+      await brainMemory
+        .remember(
+          "win",
+          `sync_win_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          win,
+          "knowledge_sync_cron"
+        )
+        .catch((err) => {
+          recordError("brain:knowledge-sync", err, { phase: "remember-win" });
+        });
+    }
+  }
+
+  if (tasksCreated > 0) {
+    await prisma.brainDump.update({
+      where: { id: brainDumpId },
+      data: { actionsTaken: tasksCreated },
+    });
+  }
+
+  return { tasksCreated, insightsStored, commitmentsFound };
+}
+
+// ─── Stage 1: Classify raw BrainDumps + promote new chat messages ───
+
+async function backfillRawBrainDumps(): Promise<KnowledgeSyncResult["backfill"]> {
+  const rawDumps = await prisma.brainDump.findMany({
+    where: { extractedItems: null, deletedAt: null },
+    orderBy: { createdAt: "desc" },
+  });
+
+  let classified = 0;
+  let tasksCreated = 0;
+  let insightsStored = 0;
+  let commitmentsFound = 0;
+
+  for (const dump of rawDumps) {
+    if ((dump.rawThoughts?.trim().length ?? 0) < 20) continue;
+    const ext = await extractFromText(dump.rawThoughts, "braindump-sync");
+    if (!ext) continue;
+    const counts = await applyExtraction(
+      dump.id,
+      ext,
+      "braindump-sync",
+      dump.date,
+      dump.rawThoughts
+    );
+    classified++;
+    tasksCreated += counts.tasksCreated;
+    insightsStored += counts.insightsStored;
+    commitmentsFound += counts.commitmentsFound;
+  }
+
+  // Promote new substantial user chat messages → BrainDumps
+  const userMsgs = await prisma.chatMessage.findMany({
+    where: { role: "user" },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, content: true, createdAt: true },
+    take: 500,
+  });
+
+  const substantial = userMsgs.filter((m) => {
+    const txt = (m.content || "").trim();
+    if (txt.length < 50) return false;
+    if (/^(hey|yo|hi|hello)\s/i.test(txt)) return false;
+    if (/^\/[a-z]/i.test(txt)) return false;
+    return true;
+  });
+
+  const existing = await prisma.brainDump.findMany({
+    where: { deletedAt: null }, // v10.0.68
+    select: { rawThoughts: true },
+  });
+  const existingPrefixes = new Set(
+    existing.map((e) => (e.rawThoughts || "").trim().slice(0, 80))
+  );
+
+  const toPromote = substantial.filter((m) => {
+    const prefix = (m.content || "").trim().slice(0, 80);
+    return !existingPrefixes.has(prefix);
+  });
+
+  let chatPromoted = 0;
+  let chatTasksCreated = 0;
+
+  // Cap cron-mode promotion to 25 per run to keep the cron under the
+  // 300s Vercel lambda timeout. The AI tool mode can raise this.
+  for (const msg of toPromote.slice(0, 25)) {
+    const dateStr = msg.createdAt.toISOString().slice(0, 10);
+    const bd = await prisma.brainDump.create({
+      data: {
+        date: dateStr,
+        rawThoughts: msg.content || "",
+        moodBefore: null,
+        actionsTaken: 0,
+      },
+    });
+    const ext = await extractFromText(msg.content || "", "chat-sync");
+    if (!ext) continue;
+    const counts = await applyExtraction(
+      bd.id,
+      ext,
+      "chat-sync",
+      dateStr,
+      msg.content || ""
+    );
+    chatPromoted++;
+    chatTasksCreated += counts.tasksCreated;
+    insightsStored += counts.insightsStored;
+    commitmentsFound += counts.commitmentsFound;
+  }
+
+  return {
+    rawBrainDumps: rawDumps.length,
+    classified,
+    tasksCreated,
+    insightsStored,
+    commitmentsFound,
+    chatPromoted,
+    chatTasksCreated,
+  };
+}
+
+// ─── Stage 2: Rebalance task priorities ───
+
+type Priority = "critical" | "high" | "medium" | "low";
+
+function scorePriority(title: string, description: string | null): Priority {
+  const text = `${title} ${description || ""}`.toLowerCase();
+  if (/\b(someday|eventually|maybe|nice to have|long[- ]term)\b/.test(text)) return "low";
+  if (/\b(today|tonight|now|asap|urgent|immediate|right now|blocking|deadline|by eod)\b/.test(text)) return "critical";
+  if (/\$\d/.test(text) && /\b(lose|losing|at risk|due|owed|unpaid|refund|chargeback)\b/.test(text)) return "critical";
+  if (/\btomorrow\b/.test(text)) return "critical";
+  if (/\b(call|text|message|email|reply to|follow[- ]up|respond|contact)\b/.test(text)) return "high";
+  if (/\b(this week|by (mon|tue|wed|thu|fri|sat|sun)|within \d+ days?)\b/.test(text)) return "high";
+  if (/\b(customer|client|quote|estimate|invoice|payment|appointment|lead)\b/.test(text)) return "high";
+  return "medium";
+}
+
+// Apr 18: rebalanceTaskPriorities retired. OpenLoop table no longer
+// receives writes, and Task.autoPriority is set at create-time by the
+// journal-ingest + sync-ingest paths (keyword → 5/15/30/60). The
+// rebalance function was rescoring a backlog that no longer accumulates.
+async function rebalanceTaskPriorities(): Promise<KnowledgeSyncResult["rebalance"]> {
+  const empty: Record<string, number> = { critical: 0, high: 0, medium: 0, low: 0 };
+  return { tasksScanned: 0, tasksUpdated: 0, before: { ...empty }, after: { ...empty } };
+}
+
+// ─── Stage 3: Ingest Nick wisdom (assistant chat messages) ───
+
+function isWisdomWorthy(content: string): boolean {
+  const txt = content.trim();
+  if (txt.length < 80) return false;
+  if (/^(nick unavailable|error|failed|sorry, i|i don't know|i cannot)/i.test(txt)) return false;
+  if (/^(morning|hey|hi|hello|good)\s/i.test(txt) && txt.length < 150) return false;
+  if (/^what\s.*\?$/i.test(txt) && txt.length < 100) return false;
+  return true;
+}
+
+async function ingestNickWisdom(): Promise<KnowledgeSyncResult["wisdom"]> {
+  const msgs = await prisma.chatMessage.findMany({
+    where: { role: "assistant" },
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      content: true,
+      createdAt: true,
+      conversationId: true,
+    },
+    take: 300,
+  });
+
+  const worthy = msgs.filter((m) => isWisdomWorthy(m.content || ""));
+  let stored = 0;
+
+  for (const msg of worthy) {
+    const txt = (msg.content || "").trim();
+    const dateStr = msg.createdAt.toISOString().slice(0, 10);
+    const key = `nick_advice_${msg.id}`;
+    const preview = txt.length > 1200 ? txt.slice(0, 1200) + "..." : txt;
+    const summary = `Nick advice (${dateStr}): ${preview}`;
+    try {
+      await brainMemory.remember("nick_advice", key, summary, "wisdom_sync_cron", {
+        messageId: msg.id,
+        conversationId: msg.conversationId,
+        date: dateStr,
+      });
+      stored++;
+    } catch {
+      // Stable key → duplicate, just skip
+    }
+  }
+
+  return { messagesScanned: msgs.length, memoriesStored: stored };
+}
+
+// ─── Main entry ───
+
+/**
+ * Run the full knowledge sync pipeline. Safe to call from a cron, an
+ * AI tool, or an event-bus handler. All three stages are idempotent
+ * and individually resilient — if Venice is down, backfill returns
+ * zero classified but rebalance + wisdom still run.
+ */
+export async function runKnowledgeSync(): Promise<KnowledgeSyncResult> {
+  const t0 = Date.now();
+
+  const backfill = await backfillRawBrainDumps();
+  const rebalance = await rebalanceTaskPriorities();
+  const wisdom = await ingestNickWisdom();
+
+  const durationMs = Date.now() - t0;
+
+  // Audit trail
+  await prisma.auditEvent
+    .create({
+      data: {
+        actor: "knowledge_sync",
+        eventType: "knowledge_sync_ran",
+        detail: `Sync: ${backfill.classified} BDs classified, ${backfill.chatPromoted} chat promoted, ${rebalance.tasksUpdated} tasks rebalanced, ${wisdom.memoriesStored} wisdom stored`,
+        payload: { backfill, rebalance, wisdom, durationMs },
+      },
+    })
+    .catch((err) => {
+      recordError("brain:knowledge-sync", err, { phase: "audit-write", eventType: "knowledge_sync_ran" });
+    });
+
+  return { backfill, rebalance, wisdom, durationMs };
+}

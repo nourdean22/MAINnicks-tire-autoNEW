@@ -1,0 +1,294 @@
+{
+  "pack": "naval-ravikant",
+  "source_credit": "Naval Ravikant · Twitter threads (esp. @naval 'How to Get Rich · without getting lucky' May 31, 2018), The Almanack of Naval Ravikant (Eric Jorgenson, 2020), Joe Rogan Experience #1309, Tim Ferriss Show #97 + #136 + #473. Quotes verbatim when widely attested · paraphrased ideas labeled in context.",
+  "version": "v10.0.524",
+  "entries": [
+    {
+      "text": "Seek wealth, not money or status. Wealth is having assets that earn while you sleep. Money is how we transfer time and wealth. Status is your place in the social hierarchy.",
+      "topic": "money",
+      "confidence": 0.98,
+      "context": "How to Get Rich tweetstorm, May 31 2018 · opening law",
+      "tags": ["wealth", "leverage", "first-principles"]
+    },
+    {
+      "text": "You're not going to get rich renting out your time. You must own equity — a piece of a business — to gain your financial freedom.",
+      "topic": "money",
+      "confidence": 0.98,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["wealth", "ownership", "equity"]
+    },
+    {
+      "text": "Earn with your mind, not your time.",
+      "topic": "money",
+      "confidence": 0.97,
+      "context": "Twitter, recurring through 2018 tweetstorm",
+      "tags": ["wealth", "leverage", "mindset"]
+    },
+    {
+      "text": "Give society what it doesn't yet know how to get — at scale. Society always wants new things; if you want to be wealthy, figure out which of those things you can provide.",
+      "topic": "strategy",
+      "confidence": 0.96,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["value-creation", "specific-knowledge", "scale"]
+    },
+    {
+      "text": "There are four kinds of leverage: labor, capital, code, and media. Labor and capital are permissioned — someone has to give them to you. Code and media are permissionless — they work while you sleep. The new leverage is the leverage of code and media. An army of robots is freely available — it's just packed in data centers for heat and space reasons.",
+      "topic": "power",
+      "confidence": 0.97,
+      "context": "How to Get Rich tweetstorm, May 31 2018 · the four-leverage taxonomy",
+      "tags": ["leverage", "code", "media", "capital"]
+    },
+    {
+      "text": "Code and media are permissionless leverage. They're the leverage behind the newly rich. You can create software and media that works for you while you sleep.",
+      "topic": "power",
+      "confidence": 0.97,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["leverage", "code", "media", "permissionless"]
+    },
+    {
+      "text": "Specific knowledge is knowledge you cannot be trained for. If society can train you, society can train someone else and replace you. Specific knowledge is found by pursuing your genuine curiosity and passion rather than whatever is hot right now.",
+      "topic": "self",
+      "confidence": 0.97,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["specific-knowledge", "curiosity", "moat"]
+    },
+    {
+      "text": "Specific knowledge is often technical or creative. It can't be outsourced or automated. It's the kind of skill that's hard to teach by definition — you have to live it to learn it.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "Almanack of Naval Ravikant · paraphrased and expanded from the tweetstorm",
+      "tags": ["specific-knowledge", "skill", "moat"]
+    },
+    {
+      "text": "Play long-term games with long-term people. All returns in life — whether in wealth, relationships, or knowledge — come from compound interest.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["long-term", "compounding", "relationships"]
+    },
+    {
+      "text": "If you can identify delayed gratification correctly, you don't have to bother with the willpower part — the long-term reward becomes the natural choice.",
+      "topic": "time",
+      "confidence": 0.9,
+      "context": "Paraphrased from Naval podcast appearances on patience and compounding",
+      "tags": ["patience", "compounding", "long-term"]
+    },
+    {
+      "text": "Pick business partners with high intelligence, high energy, and above all, integrity. Without integrity, the first two will destroy you.",
+      "topic": "people",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018 · echoing Warren Buffett",
+      "tags": ["partners", "integrity", "team"]
+    },
+    {
+      "text": "An integrity violation isn't worth it. Even if you win, you lose — because you become someone who would do that.",
+      "topic": "self",
+      "confidence": 0.9,
+      "context": "Paraphrased from Naval interviews on identity and integrity",
+      "tags": ["integrity", "identity", "character"]
+    },
+    {
+      "text": "Embrace accountability and take business risks under your own name. Society will reward you with responsibility, equity, and leverage.",
+      "topic": "power",
+      "confidence": 0.96,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["accountability", "reputation", "ownership"]
+    },
+    {
+      "text": "A reputation is built over a lifetime of being honest and ethical. With that comes the ability to take business risks under your own name.",
+      "topic": "brand",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["reputation", "trust", "ethics"]
+    },
+    {
+      "text": "Judgment — especially demonstrated judgment, with high accountability and skin in the game — is the highest-leverage skill you can develop.",
+      "topic": "strategy",
+      "confidence": 0.96,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["judgment", "decisions", "leverage"]
+    },
+    {
+      "text": "Almost every problem is the result of poor models of reality. Spend the time to build accurate ones.",
+      "topic": "strategy",
+      "confidence": 0.88,
+      "context": "Paraphrased from Naval's writing on mental models and clear thinking",
+      "tags": ["mental-models", "clarity", "thinking"]
+    },
+    {
+      "text": "Clear thinking and clear writing are the same thing. You cannot have one without the other. If you can't write clearly, you can't think clearly.",
+      "topic": "self",
+      "confidence": 0.9,
+      "context": "Recurring claim across Naval's interviews and tweets",
+      "tags": ["writing", "thinking", "clarity"]
+    },
+    {
+      "text": "Free yourself from the petty thoughts in your head. Your real worth comes from what you build and who you become, not who you defeat in argument.",
+      "topic": "self",
+      "confidence": 0.85,
+      "context": "Paraphrased from Naval's commentary on mental peace",
+      "tags": ["mindset", "ego", "peace"]
+    },
+    {
+      "text": "Happiness is a choice you make and a skill you develop. The mind is just as trainable as the body.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "Tim Ferriss Show #136 and recurring Naval interviews",
+      "tags": ["happiness", "mindset", "skill"]
+    },
+    {
+      "text": "Happiness is the absence of desire. Every desire is a chosen unhappiness. Pick the desires that are worth their cost.",
+      "topic": "self",
+      "confidence": 0.92,
+      "context": "Naval Twitter, recurring · echoing Buddhist tradition",
+      "tags": ["happiness", "desire", "philosophy"]
+    },
+    {
+      "text": "The three big decisions in life are where you live, who you're with, and what you do. Get these right and the rest is detail.",
+      "topic": "strategy",
+      "confidence": 0.93,
+      "context": "Almanack of Naval Ravikant",
+      "tags": ["decisions", "life-design", "priorities"]
+    },
+    {
+      "text": "Read what you love until you love to read. Don't grind through books you find boring — read the next book that calls to you. Compound reading habit beats forced consumption.",
+      "topic": "self",
+      "confidence": 0.93,
+      "context": "Recurring Naval principle on building a reading habit",
+      "tags": ["reading", "learning", "curiosity"]
+    },
+    {
+      "text": "Read what you love. The genuine love for reading itself, when cultivated, is a superpower. We live in the age of Aleph, where almost any book is in your pocket.",
+      "topic": "self",
+      "confidence": 0.92,
+      "context": "Almanack of Naval Ravikant · 'love' framing recurring",
+      "tags": ["reading", "learning", "habit"]
+    },
+    {
+      "text": "Reading is faster than listening. Doing is faster than watching. You should be focusing on what you can do, not what you can watch.",
+      "topic": "execution",
+      "confidence": 0.9,
+      "context": "Recurring Naval claim on input modes",
+      "tags": ["reading", "doing", "focus"]
+    },
+    {
+      "text": "What you do, who you do it with, and how you do it are far more important than what you're doing. Choose the people first.",
+      "topic": "people",
+      "confidence": 0.88,
+      "context": "Paraphrased from Naval on team and partner choice",
+      "tags": ["people", "team", "choice"]
+    },
+    {
+      "text": "If you can't see yourself working with someone for life, don't work with them for a day.",
+      "topic": "people",
+      "confidence": 0.96,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["partners", "long-term", "team"]
+    },
+    {
+      "text": "Escape competition through authenticity. Nobody can compete with you on being you. The internet allows you to build a niche that you alone occupy.",
+      "topic": "brand",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["authenticity", "niche", "competition"]
+    },
+    {
+      "text": "There is no skill called 'business.' Avoid business magazines and classes. Study microeconomics, game theory, psychology, persuasion, ethics, mathematics, and computers instead.",
+      "topic": "self",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["learning", "fundamentals", "skill"]
+    },
+    {
+      "text": "Learn to sell. Learn to build. If you can do both, you will be unstoppable.",
+      "topic": "execution",
+      "confidence": 0.97,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["build", "sell", "skill"]
+    },
+    {
+      "text": "Apply specific knowledge with leverage and eventually you will get what you deserve. Specific knowledge × accountability × leverage = wealth.",
+      "topic": "money",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018 · the core formula",
+      "tags": ["wealth", "leverage", "specific-knowledge"]
+    },
+    {
+      "text": "Productize yourself. Specific knowledge plus accountability plus leverage equals a product the market wants. The product is you.",
+      "topic": "brand",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["productize", "brand", "leverage"]
+    },
+    {
+      "text": "You're going to get paid long-term for being good at something — and for being authentic, because you can't fake authenticity.",
+      "topic": "brand",
+      "confidence": 0.88,
+      "context": "Paraphrased from Naval podcasts on long-term reputation",
+      "tags": ["authenticity", "long-term", "reputation"]
+    },
+    {
+      "text": "The way to win this game is to attach yourself to something you can build at scale. Code or media — and over time, your judgment compounds into a brand.",
+      "topic": "strategy",
+      "confidence": 0.9,
+      "context": "Paraphrased from Naval on scale + brand interplay",
+      "tags": ["scale", "brand", "leverage"]
+    },
+    {
+      "text": "Don't keep checking the score. The price is set by the market. If you have specific knowledge and you've put in the work, the score will take care of itself.",
+      "topic": "execution",
+      "confidence": 0.85,
+      "context": "Paraphrased from Naval on patience and process",
+      "tags": ["patience", "process", "focus"]
+    },
+    {
+      "text": "The number one thing that will affect your happiness is your relationships. Curate them like you curate your reading list.",
+      "topic": "people",
+      "confidence": 0.9,
+      "context": "Paraphrased from Naval's commentary on happiness research and personal experience",
+      "tags": ["relationships", "happiness", "curation"]
+    },
+    {
+      "text": "Set an aspirational hourly rate for yourself, then refuse to waste your time on tasks below it. Outsource or skip everything else. This forces calibration of what you actually do.",
+      "topic": "time",
+      "confidence": 0.94,
+      "context": "How to Get Rich tweetstorm, May 31 2018 · the hourly-rate filter",
+      "tags": ["time", "leverage", "filter"]
+    },
+    {
+      "text": "If you find yourself thinking 'I should be doing X but I'm doing Y' — stop doing Y. That gap is the only signal that matters.",
+      "topic": "execution",
+      "confidence": 0.85,
+      "context": "Paraphrased from Naval on attention and follow-through",
+      "tags": ["focus", "attention", "alignment"]
+    },
+    {
+      "text": "Don't run with the herd. Don't try to time markets, news cycles, or trends. Build a thing that compounds and ignore the noise.",
+      "topic": "strategy",
+      "confidence": 0.86,
+      "context": "Paraphrased from Naval on contrarian focus",
+      "tags": ["contrarian", "compounding", "focus"]
+    },
+    {
+      "text": "Most of what people argue about is status. Don't play status games — they steal compounding energy from real work.",
+      "topic": "power",
+      "confidence": 0.9,
+      "context": "Recurring Naval theme · 'status games' across tweets and Almanack",
+      "tags": ["status", "ego", "focus"]
+    },
+    {
+      "text": "Doctors won't make you healthy. Nutritionists won't make you slim. Teachers won't make you smart. Gurus won't make you calm. Mentors won't make you rich. Trainers won't make you fit. Ultimately, you have to take responsibility. Save yourself.",
+      "topic": "self",
+      "confidence": 0.97,
+      "context": "Naval Twitter, widely quoted",
+      "tags": ["responsibility", "agency", "self"]
+    },
+    {
+      "text": "There are no get-rich-quick schemes. That's just someone else getting rich off you.",
+      "topic": "money",
+      "confidence": 0.95,
+      "context": "How to Get Rich tweetstorm, May 31 2018",
+      "tags": ["wealth", "patience", "warning"]
+    }
+  ]
+}

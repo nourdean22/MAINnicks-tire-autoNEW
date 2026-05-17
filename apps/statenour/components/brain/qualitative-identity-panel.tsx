@@ -1,0 +1,241 @@
+"use client";
+
+/**
+ * QualitativeIdentityPanel — values / fears / style / rhythms / red
+ * lines. Each bucket is a stacked list with an add button + per-row
+ * remove. Manual entries show a gold dot to distinguish them from
+ * auto-extracted entries.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+import { GlassCard } from "@/components/ui/glass-card";
+import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { Loader2, Plus, X, RefreshCw, Compass } from "lucide-react";
+import { DismissButton } from "@/components/ui/dismiss-button";
+import { toast } from "sonner";
+import { authedFetch } from "@/hooks/use-authed-fetch";
+
+type Bucket = "values" | "fears" | "operating_style" | "rhythms" | "red_lines";
+
+interface Entry {
+  text: string;
+  manual: boolean;
+  evidence_ids: string[];
+  confidence: number;
+  updated_at: string;
+}
+
+interface Identity {
+  values: Entry[];
+  fears: Entry[];
+  operating_style: Entry[];
+  rhythms: Entry[];
+  red_lines: Entry[];
+  computed_at: string;
+}
+
+const BUCKET_LABELS: Record<Bucket, string> = {
+  values: "Values",
+  fears: "Fears",
+  operating_style: "Operating style",
+  rhythms: "Rhythms",
+  red_lines: "Red lines",
+};
+
+const BUCKET_COLOR: Record<Bucket, string> = {
+  values: "text-emerald-400",
+  fears: "text-red-400",
+  operating_style: "text-[var(--gold)]",
+  rhythms: "text-blue-400",
+  red_lines: "text-violet-400",
+};
+
+export function QualitativeIdentityPanel() {
+  const [identity, setIdentity] = useState<Identity | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [recomputing, setRecomputing] = useState(false);
+  const [adding, setAdding] = useState<Bucket | null>(null);
+  const [addText, setAddText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authedFetch("/api/identity/qualitative");
+      if (!res.ok) throw new Error("fetch failed");
+      const raw = (await res.json()) as { data?: { identity?: Identity } };
+      setIdentity(raw.data?.identity ?? null);
+      setLoadedAt(Date.now());
+    } catch (e) {
+      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const recompute = useCallback(async () => {
+    setRecomputing(true);
+    try {
+      const res = await authedFetch("/api/identity/qualitative", { method: "POST" });
+      if (!res.ok) throw new Error("recompute failed");
+      const raw = (await res.json()) as { data?: { identity?: Identity } };
+      setIdentity(raw.data?.identity ?? null);
+      toast.success("qualitative identity recomputed");
+    } catch (e) {
+      toast.error(`recompute failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setRecomputing(false);
+    }
+  }, []);
+
+  const addEntry = useCallback(
+    async (bucket: Bucket) => {
+      if (!addText.trim()) return;
+      setBusy(true);
+      try {
+        const res = await authedFetch("/api/identity/qualitative", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "add", bucket, text: addText }),
+        });
+        if (!res.ok) throw new Error("add failed");
+        const raw = (await res.json()) as { data?: { identity?: Identity } };
+        setIdentity(raw.data?.identity ?? null);
+        setAdding(null);
+        setAddText("");
+      } catch (e) {
+        toast.error(`add failed: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [addText],
+  );
+
+  const removeEntry = useCallback(async (bucket: Bucket, text: string) => {
+    setBusy(true);
+    try {
+      const res = await authedFetch("/api/identity/qualitative", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "remove", bucket, text }),
+      });
+      if (!res.ok) throw new Error("remove failed");
+      const raw = (await res.json()) as { data?: { identity?: Identity } };
+      setIdentity(raw.data?.identity ?? null);
+    } catch (e) {
+      toast.error(`remove failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <Compass size={12} className="text-[var(--gold)]" />
+          <p className="section-label">Qualitative identity</p>
+          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+            · values / fears / style / rhythms / red lines
+          </span>
+        </div>
+        <button
+          onClick={() => void recompute()}
+          disabled={recomputing}
+          className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10 inline-flex items-center gap-1"
+        >
+          {recomputing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+          recompute
+        </button>
+      </div>
+
+      {loading && !identity && (
+        <div className="flex items-center gap-2 py-6 justify-center text-[11px] text-[var(--text-tertiary)]">
+          <Loader2 size={12} className="animate-spin" />
+          loading…
+        </div>
+      )}
+
+      {identity && (
+        <div className="space-y-3">
+          {(Object.keys(BUCKET_LABELS) as Bucket[]).map((b) => (
+            <div key={b}>
+              <div className="flex items-center justify-between mb-1">
+                <p className={cn("text-[9px] font-mono uppercase tracking-wider", BUCKET_COLOR[b])}>
+                  {BUCKET_LABELS[b]} ({identity[b].length})
+                </p>
+                <button
+                  onClick={() => { setAdding(b); setAddText(""); }}
+                  className="h-5 w-5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30 inline-flex items-center justify-center"
+                  title="add manual entry"
+                >
+                  <Plus size={9} />
+                </button>
+              </div>
+              {adding === b && (
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <input
+                    autoFocus
+                    value={addText}
+                    onChange={(e) => setAddText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && void addEntry(b)}
+                    placeholder={`add to ${BUCKET_LABELS[b].toLowerCase()}…`}
+                    className="flex-1 px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+                  />
+                  <button
+                    onClick={() => void addEntry(b)}
+                    disabled={busy}
+                    className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 text-[9px] font-mono uppercase"
+                  >
+                    add
+                  </button>
+                  <button
+                    onClick={() => { setAdding(null); setAddText(""); }}
+                    className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] inline-flex items-center justify-center"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              )}
+              <div className="space-y-1">
+                {identity[b].map((e) => (
+                  <div
+                    key={e.text}
+                    className="group flex items-center gap-2 px-2 py-1.5 rounded border border-[var(--border-default)] bg-[var(--bg-base)]"
+                  >
+                    <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", e.manual ? "bg-[var(--gold)]" : "bg-[var(--text-tertiary)]/40")} />
+                    <span className="flex-1 text-[11px] text-[var(--text-primary)]">{e.text}</span>
+                    <DismissButton
+                      onClick={() => void removeEntry(b, e.text)}
+                      label="Remove identity entry"
+                      alwaysVisible
+                      size="sm"
+                      className="hover:text-red-400"
+                    />
+                  </div>
+                ))}
+                {identity[b].length === 0 && (
+                  <p className="text-[10px] text-[var(--text-tertiary)] italic">(empty — add one or let reflection auto-extract)</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+        Pulled from reflections + chat importance + beliefs over 60d. Manual entries
+        (gold dot) always survive re-computes. Chat route injects this as "## Nour's
+        qualitative identity" so Nick anchors in WHO you are, not a generic persona.
+      </p>
+    </GlassCard>
+  );
+}

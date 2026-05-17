@@ -1,0 +1,21 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "lookupCustomer",
+    "description": "Look up a caller by phone number to see if they're a returning customer. Use this EARLY in the call so you can acknowledge the caller naturally if they've been here before. The result is a short sentence Nick can weave into the conversation.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "phone": {
+          "type": "string",
+          "description": "Caller's phone number (any format · we normalize). Required."
+        }
+      },
+      "required": ["phone"]
+    }
+  },
+  "server": {
+    "url": "https://autonicks.com/api/vapi/lookup-customer"
+  }
+}

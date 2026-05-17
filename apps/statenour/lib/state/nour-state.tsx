@@ -1,0 +1,367 @@
+"use client";
+
+/**
+ * NourStateProvider — Single source of truth for the entire OS.
+ *
+ * Fetches all critical data ONCE and shares it across every widget.
+ * No more duplicate fetches. No more loading waterfalls.
+ *
+ * Refresh intervals:
+ * - Live data: every 60s (revenue, leads, loops, habits)
+ * - Intelligence: every 5min (brain health, aging, seasonal)
+ * - State detection: every 30s (drift/fire/scattered classification)
+ *
+ * Every widget reads from context. Zero prop drilling.
+ */
+
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
+import { authedFetch } from "@/hooks/use-authed-fetch";
+
+// ── Types ──
+
+interface DailyScore {
+  date: string;
+  overallScore: number | null;
+  energyLevel: number | null;
+  focusQuality: number | null;
+  disciplineScore: number | null;
+  mood: string | null;
+  workoutDone: boolean;
+  journalDone: boolean;
+}
+
+interface Habit {
+  key: string;
+  label: string;
+  icon: string;
+  category: string;
+  completed: boolean;
+}
+
+interface Streak {
+  habit_key: string;
+  label: string;
+  icon: string;
+  current_streak: number;
+  best_streak: number;
+  completion_rate: number;
+}
+
+interface UrgentItem {
+  type: string;
+  message: string;
+  action: string;
+  priority: "high" | "medium" | "low";
+}
+
+interface AgingItem {
+  label: string;
+  estimatedValue: number;
+  ageHours: number;
+  urgency: string;
+}
+
+export interface NourState {
+  // Current state classification
+  currentState: "drift" | "on_fire" | "scattered" | "low_energy" | "normal";
+  timeOfDay: "morning" | "afternoon" | "evening";
+  dayOfWeek: string;
+  isWeekend: boolean;
+
+  // Live data
+  todayRevenue: number;
+  weekRevenue: number;
+  pipelineValue: number;
+  pipelineDecay: number;
+  staleLeads: number;
+  pendingCallbacks: number;
+  activeCommitments: number;
+  overdueCommitments: number;
+  todayScore: DailyScore | null;
+  habits: Habit[];
+  habitsDone: number;
+  habitsTotal: number;
+  streaks: Streak[];
+  driftAlerts: number;
+
+  // Intelligence
+  mit: string | null;
+  urgentItems: UrgentItem[];
+  brainHealth: number;
+  memoryCount: number;
+  agingItems: AgingItem[];
+  agingCritical: number;
+
+  // System
+  systemStatus: string;
+  bridgeUp: boolean;
+  agentOnline: boolean;
+  lastRefresh: Date | null;
+  isLoading: boolean;
+  error: string | null;
+
+  // Actions
+  refresh: () => void;
+  toggleHabit: (key: string) => void;
+}
+
+const DEFAULT_STATE: NourState = {
+  currentState: "normal",
+  timeOfDay: "morning",
+  dayOfWeek: "",
+  isWeekend: false,
+  todayRevenue: 0,
+  weekRevenue: 0,
+  pipelineValue: 0,
+  pipelineDecay: 0,
+  staleLeads: 0,
+  pendingCallbacks: 0,
+  activeCommitments: 0,
+  overdueCommitments: 0,
+  todayScore: null,
+  habits: [],
+  habitsDone: 0,
+  habitsTotal: 0,
+  streaks: [],
+  driftAlerts: 0,
+  mit: null,
+  urgentItems: [],
+  brainHealth: 0,
+  memoryCount: 0,
+  agingItems: [],
+  agingCritical: 0,
+  systemStatus: "loading",
+  bridgeUp: true,
+  agentOnline: true,
+  lastRefresh: null,
+  isLoading: true,
+  error: null,
+  refresh: () => {},
+  toggleHabit: () => {},
+};
+
+const NourContext = createContext<NourState>(DEFAULT_STATE);
+
+export function useNourState(): NourState {
+  return useContext(NourContext);
+}
+
+// ── Time helpers ──
+
+function getTimeOfDay(): "morning" | "afternoon" | "evening" {
+  const hour = parseInt(
+    new Date().toLocaleString("en-US", { timeZone: "America/New_York", hour: "numeric", hour12: false }),
+    10
+  );
+  if (hour < 12) return "morning";
+  if (hour < 17) return "afternoon";
+  return "evening";
+}
+
+function getDayInfo() {
+  const now = new Date();
+  const dayName = now.toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long" });
+  const isWeekend = dayName === "Saturday" || dayName === "Sunday";
+  return { dayOfWeek: dayName, isWeekend };
+}
+
+function getTodayDate(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
+
+// ── State detector ──
+
+function detectState(data: Partial<NourState>): NourState["currentState"] {
+  const score = data.todayScore;
+  const energy = score?.energyLevel ?? 5;
+  const discipline = score?.disciplineScore ?? 5;
+  const alerts = data.driftAlerts ?? 0;
+  const commitments = data.activeCommitments ?? 0;
+  const habitRate = data.habitsTotal ? (data.habitsDone ?? 0) / data.habitsTotal : 0.5;
+
+  // Drift: no score logged + alerts
+  if (!score && alerts > 0) return "drift";
+
+  // On fire: high scores + working out + habits
+  if (energy >= 7 && discipline >= 7 && habitRate >= 0.6) return "on_fire";
+
+  // Low energy
+  if (energy <= 3) return "low_energy";
+
+  // Scattered: too many active commitments (openLoops retired Apr 18)
+  if (commitments > 10) return "scattered";
+
+  return "normal";
+}
+
+// ── Provider ──
+
+export function NourStateProvider({ children }: { children: ReactNode }) {
+  const [state, setState] = useState<Omit<NourState, "refresh" | "toggleHabit">>(DEFAULT_STATE);
+
+  const loadAll = useCallback(async () => {
+    const todayStr = getTodayDate();
+    const timeOfDay = getTimeOfDay();
+    const { dayOfWeek, isWeekend } = getDayInfo();
+
+    try {
+      // Parallel fetch ALL data sources (business revenue-aging
+      // removed Apr 17 — shop data lives in nickstire)
+      const [healthRaw, habitsRaw, streaksRaw, commandRaw] = await Promise.all([
+        authedFetch("/api/health").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        authedFetch(`/api/habits?date=${todayStr}`).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        authedFetch("/api/habits/streaks").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        authedFetch("/api/command/data").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+      ]);
+      const agingRaw = null;
+
+      // API responses are inconsistently wrapped — unwrap if present.
+      // The shapes are inherently dynamic (different endpoints return
+      // different structures) so we use `any` here deliberately rather
+      // than typing each endpoint's response.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const unwrap = (x: unknown): any => {
+        if (!x || typeof x !== "object") return null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const o = x as any;
+        return o.data ?? o;
+      };
+      const health = unwrap(healthRaw);
+      const habitsData = unwrap(habitsRaw);
+      const streaksData = unwrap(streaksRaw);
+      const cmd = unwrap(commandRaw);
+      const aging = unwrap(agingRaw);
+
+      const habits = habitsData?.habits ?? [];
+      const habitsDone = habits.filter((h: Habit) => h.completed).length;
+      const habitsTotal = habits.length;
+
+      const todayScore = health?.scores ? {
+        date: health.scores.last_date,
+        overallScore: health.scores.overall,
+        energyLevel: health.scores.energy ?? null,
+        focusQuality: health.scores.focus ?? null,
+        disciplineScore: health.scores.discipline ?? null,
+        mood: health.scores.mood ?? null,
+        workoutDone: false,
+        journalDone: false,
+      } as DailyScore : null;
+
+      const newState = {
+        timeOfDay,
+        dayOfWeek,
+        isWeekend,
+        todayRevenue: cmd?.shop?.todayRevenue ?? 0,
+        weekRevenue: cmd?.shop?.weekRevenue ?? 0,
+        pipelineValue: aging?.rawPipelineValue ?? 0,
+        pipelineDecay: aging?.decayRate ?? 0,
+        staleLeads: cmd?.brief?.staleLeads ?? 0,
+        pendingCallbacks: cmd?.brief?.pendingCallbacks ?? 0,
+        activeCommitments: health?.commitments?.active ?? 0,
+        overdueCommitments: cmd?.brief?.overdueCommitments ?? 0,
+        todayScore,
+        habits,
+        habitsDone,
+        habitsTotal,
+        streaks: streaksData?.streaks ?? [],
+        driftAlerts: health?.alerts?.unresolved ?? 0,
+        mit: cmd?.brief?.topTasks?.[0]?.title ?? null,
+        urgentItems: cmd?.urgentItems ?? [],
+        brainHealth: cmd?.brain?.healthScore ?? 0,
+        memoryCount: cmd?.brain?.memoryCount ?? 0,
+        agingItems: aging?.agingItems?.slice(0, 5) ?? [],
+        agingCritical: aging?.criticalCount ?? 0,
+        systemStatus: health?.status ?? "unknown",
+        bridgeUp: cmd?.system?.bridgeConnected !== false, // default healthy
+        agentOnline: cmd?.system?.agentOnline !== false || cmd?.system?.agentRecent === true,
+        lastRefresh: new Date(),
+        isLoading: false,
+        error: null as string | null,
+        currentState: "normal" as const,
+      };
+
+      const detectedState = detectState(newState);
+
+      setState({ ...newState, currentState: detectedState });
+    } catch (err) {
+      setState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: err instanceof Error ? err.message : "Failed to load",
+        lastRefresh: new Date(),
+      }));
+    }
+  }, []);
+
+  // Initial load
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // Cross-surface event bus — any chat tool, task action, or MIT
+  // commit anywhere in the app fires nour:data-changed and we reload.
+  // This is the instant-feedback path; the 60s interval below is the
+  // fallback safety net.
+  useEffect(() => {
+    return onDataChanged(["any"], () => {
+      loadAll();
+    });
+  }, [loadAll]);
+
+  // Legacy 'nour-refresh' event — dispatched by the 'g then r'
+  // keyboard shortcut in components/hud/keyboard-shortcuts.tsx. The
+  // original listener lives on the retired /command/page-legacy,
+  // so we adopt it here and re-broadcast as a global any-domain
+  // data-change so HQ, /tasks, and every other bus listener refresh.
+  useEffect(() => {
+    function onRefresh() {
+      loadAll();
+      notifyDataChanged("any", { source: "nour-refresh-shortcut" });
+    }
+    window.addEventListener("nour-refresh", onRefresh);
+    return () => window.removeEventListener("nour-refresh", onRefresh);
+  }, [loadAll]);
+
+  // Auto-refresh: live data every 60s
+  useEffect(() => {
+    const interval = setInterval(loadAll, 60000);
+    return () => clearInterval(interval);
+  }, [loadAll]);
+
+  // Habit toggle
+  const toggleHabit = useCallback(async (key: string) => {
+    const todayStr = getTodayDate();
+    const habit = state.habits.find(h => h.key === key);
+    if (!habit) return;
+
+    const newCompleted = !habit.completed;
+
+    // Optimistic update
+    setState(prev => ({
+      ...prev,
+      habits: prev.habits.map(h => h.key === key ? { ...h, completed: newCompleted } : h),
+      habitsDone: prev.habitsDone + (newCompleted ? 1 : -1),
+    }));
+
+    // Persist
+    await authedFetch("/api/habits", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date: todayStr, habitKey: key, completed: newCompleted }),
+    }).catch(() => {
+      // Revert on failure
+      setState(prev => ({
+        ...prev,
+        habits: prev.habits.map(h => h.key === key ? { ...h, completed: !newCompleted } : h),
+        habitsDone: prev.habitsDone + (newCompleted ? -1 : 1),
+      }));
+    });
+  }, [state.habits]);
+
+  const value = useMemo<NourState>(() => ({
+    ...state,
+    refresh: loadAll,
+    toggleHabit,
+  }), [state, loadAll, toggleHabit]);
+
+  return <NourContext.Provider value={value}>{children}</NourContext.Provider>;
+}

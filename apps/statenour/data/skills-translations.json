@@ -1,0 +1,96 @@
+{
+  "generatedAt": "2026-05-07T19:11:04.784Z",
+  "totalTranslated": 18,
+  "translations": {
+    "ai-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "AI-driven comprehensive health analysis system that integrates multidimensional health data, identifies abnormal patterns, predicts health risks, and provides personalized recommendations, supporting intelligent Q&A and AI health report generation.",
+      "original": "AI驱动的综合健康分析系统，整合多维度健康数据、识别异常模式、预测健康风险、提供个性化建议。支持智能问答和AI健康报告生成。"
+    },
+    "context-guardian": {
+      "lang": "pt",
+      "en": "Context-guardian preserves critical data before automatic compression, ensuring snapshots, integrity checks, and zero data loss.",
+      "original": "Guardiao de contexto que preserva dados criticos antes da compactacao automatica. Snapshots, verificacao de integridade e zero perda de informacao."
+    },
+    "emergency-card": {
+      "lang": "zh-jp-ko",
+      "en": "Generates a medical information summary card for quick access in emergencies, extracting key details like allergies, medications, and implants, and supporting JSON, text, or QR code formats.",
+      "original": "生成紧急情况下快速访问的医疗信息摘要卡片。当用户需要旅行、就诊准备、紧急情况或询问\"紧急信息\"、\"医疗卡片\"、\"急救信息\"时使用此技能。提取关键信息（过敏、用药、急症、植入物），支持多格式输出（JSON、文本、二维码），用于急救或快速就医。"
+    },
+    "family-health-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes family medical history, assesses genetic risks, identifies health patterns, and offers personalized prevention advice based on the input.",
+      "original": "分析家族病史、评估遗传风险、识别家庭健康模式、提供个性化预防建议"
+    },
+    "fitness-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes fitness data, identifies exercise patterns, evaluates progress, and offers personalized training advice, with support for chronic disease data correlation.",
+      "original": "分析运动数据、识别运动模式、评估健身进展，并提供个性化训练建议。支持与慢性病数据的关联分析。"
+    },
+    "goal-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes health goal data, identifies patterns, evaluates progress, and provides personalized management advice, linking with nutrition, exercise, and sleep data.",
+      "original": "分析健康目标数据、识别目标模式、评估目标进度,并提供个性化目标管理建议。支持与营养、运动、睡眠等健康数据的关联分析。"
+    },
+    "health-trend-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes health data trends over time, correlating medications, symptoms, vital signs, lab results, and other health metrics to identify concerning or improving patterns, providing data-driven insights for user queries on health trends.",
+      "original": "分析一段时间内健康数据的趋势和模式。关联药物、症状、生命体征、化验结果和其他健康指标的变化。识别令人担忧的趋势、改善情况，并提供数据驱动的洞察。当用户询问健康趋势、模式、随时间的变化或\"我的健康状况有什么变化？\"时使用。支持多维度分析（体重/BMI、症状、药物依从性、化验结果、情绪睡眠），相关性分析，变化检测，以及交互式HTML可视化报告（ECharts图表）。"
+    },
+    "humanize-chinese": {
+      "lang": "zh-jp-ko",
+      "en": "Detects and rewrites AI-generated Chinese text to sound more human, reducing academic AIGC and converting styles, useful for tasks like 去AI味 and 论文降重.",
+      "original": "Detect and rewrite AI-like Chinese text with a practical workflow for scoring, humanization, academic AIGC reduction, and style conversion. Use when the user asks to 去AI味, 降AIGC, 去除AI痕迹, 论文降重, 知网检测, 维普检测, humanize chinese, detect AI text, o"
+    },
+    "mental-health-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes mental health data, identifies patterns, and evaluates mental health status, providing personalized recommendations, and supports correlation analysis with sleep, exercise, and nutrition data.",
+      "original": "分析心理健康数据、识别心理模式、评估心理健康状况、提供个性化心理健康建议。支持与睡眠、运动、营养等其他健康数据的关联分析。"
+    },
+    "nutrition-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes nutritional data, identifies patterns, and evaluates nutritional status, providing personalized recommendations, with optional integration of exercise, sleep, and chronic disease data.",
+      "original": "分析营养数据、识别营养模式、评估营养状况，并提供个性化营养建议。支持与运动、睡眠、慢性病数据的关联分析。"
+    },
+    "occupational-health-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes occupational health data to identify work-related health risks, assess health status, and provide personalized recommendations, correlating with sleep, exercise, and mental health data.",
+      "original": "分析职业健康数据、识别工作相关健康风险、评估职业健康状况、提供个性化职业健康建议。支持与睡眠、运动、心理健康等其他健康数据的关联分析。"
+    },
+    "oral-health-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes oral health data, identifies patterns, evaluates health status, and provides personalized recommendations, linking with nutrition, chronic diseases, and medication data.",
+      "original": "分析口腔健康数据、识别口腔问题模式、评估口腔健康状况、提供个性化口腔健康建议。支持与营养、慢性病、用药等其他健康数据的关联分析。"
+    },
+    "rehabilitation-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes rehabilitation training data, identifies patterns, evaluates progress, and offers personalized recommendations for recovery.",
+      "original": "分析康复训练数据、识别康复模式、评估康复进展，并提供个性化康复建议"
+    },
+    "sleep-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes sleep data, identifies patterns, and evaluates sleep quality, providing personalized improvement suggestions and correlating with other health data.",
+      "original": "分析睡眠数据、识别睡眠模式、评估睡眠质量，并提供个性化睡眠改善建议。支持与其他健康数据的关联分析。"
+    },
+    "task-intelligence": {
+      "lang": "pt",
+      "en": "Activates all relevant agents in the ecosystem before executing a user-requested task, ensuring comprehensive preparation.",
+      "original": "Protocolo de Inteligência Pré-Tarefa — ativa TODOS os agentes relevantes do ecossistema ANTES de executar qualquer tarefa solicitada pelo usuário."
+    },
+    "tcm-constitution-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes traditional Chinese medicine constitution data, identifies constitution types, evaluates characteristics, and provides personalized health advice, correlating with nutrition, exercise, and sleep data.",
+      "original": "分析中医体质数据、识别体质类型、评估体质特征,并提供个性化养生建议。支持与营养、运动、睡眠等健康数据的关联分析。"
+    },
+    "travel-health-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes travel health data, assesses destination health risks, recommends vaccinations, and generates multilingual emergency medical cards, integrating WHO/CDC datasets for professional travel health risk evaluation.",
+      "original": "分析旅行健康数据、评估目的地健康风险、提供疫苗接种建议、生成多语言紧急医疗信息卡片。支持WHO/CDC数据集成的专业级旅行健康风险评估。"
+    },
+    "weightloss-analyzer": {
+      "lang": "zh-jp-ko",
+      "en": "Analyzes weight loss data, calculates metabolic rate, tracks calorie deficit, and manages weight loss stages for personalized health insights.",
+      "original": "分析减肥数据、计算代谢率、追踪能量缺口、管理减肥阶段"
+    }
+  }
+}

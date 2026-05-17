@@ -1,0 +1,215 @@
+/**
+ * Server-side page data builders for AI insight generation.
+ *
+ * Moved out of app/api/ai/insight/route.ts (which was deleted in the
+ * Apr 15 consolidation) so the streaming /api/ai/page-insight endpoint
+ * can use the same DB-fetching fallback when the client doesn't pass
+ * `data` in the body.
+ *
+ * Pattern: one case per mastery page. Each case runs a focused query
+ * and returns a compact string summarizing what's visible on that
+ * page right now. Short strings keep the token budget reasonable and
+ * keep Nick's analysis focused.
+ *
+ * Used by: app/api/ai/page-insight/route.ts (fallback path when
+ * body.data is absent).
+ */
+import { prisma } from "@/lib/prisma";
+import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { recentScoreSnapshots, recentDailyHabits } from "@/lib/brain/legacy-shims";
+
+export type PageContext =
+  | "dashboard"
+  | "mastery"
+  | "drift"
+  | "commitments"
+  | "loops"
+  | "body"
+  | "financial"
+  | "decisions"
+  | "brief"
+  | "knowledge";
+
+export async function buildPageData(page: string): Promise<string> {
+  const weekAgo = toDateString(daysAgo(7));
+
+  switch (page) {
+    case "dashboard": {
+      // v10.0.59 · scores + habits via legacy-shims (DailyScore +
+      // HabitLog retired). Insight prompt sees real engagement
+      // signal instead of "7-day scores: none" every call.
+      const [scores, alerts, habits] = await Promise.all([
+        recentScoreSnapshots(7),
+        prisma.driftAlert.count({ where: { resolved: false } }),
+        recentDailyHabits(7),
+      ]);
+      const completed = habits.filter((h) => h.completed).length;
+      const total = habits.length;
+      return `7-day scores: ${
+        scores.map((s) => `${s.date}=${s.overallScore}`).join(", ") || "none"
+      }. ${alerts} unresolved alerts. Habit rate: ${
+        total ? Math.round((completed / total) * 100) : 0
+      }%.`;
+    }
+
+    case "mastery": {
+      // v10.0.59 · recentScores via legacy-shim.
+      const [domains, recentScores, goals, revenue] = await Promise.all([
+        prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 12 }),
+        recentScoreSnapshots(7),
+        prisma.lifeGoal.findMany({ where: { deletedAt: null, status: "active" } }), // v9.1.15
+        prisma.auditEvent.findFirst({
+          where: { eventType: "business_metrics_sync" },
+          orderBy: { createdAt: "desc" },
+          select: { payload: true },
+        }),
+      ]);
+      const avgEnergy =
+        recentScores.length > 0
+          ? Math.round(
+              (recentScores.reduce((s, d) => s + (d.energyLevel ?? 0), 0) /
+                recentScores.length) *
+                10
+            ) / 10
+          : 0;
+      const avgDiscipline =
+        recentScores.length > 0
+          ? Math.round(
+              (recentScores.reduce((s, d) => s + (d.disciplineScore ?? 0), 0) /
+                recentScores.length) *
+                10
+            ) / 10
+          : 0;
+      const workoutDays = recentScores.filter((s) => s.workoutDone).length;
+      const rev = (revenue?.payload as Record<string, unknown>) ?? {};
+      return [
+        `Domain scores: ${
+          domains.map((d) => `${d.domain}=${d.score}`).join(", ") || "none"
+        }.`,
+        `7-day avg energy: ${avgEnergy}/10, discipline: ${avgDiscipline}/10, workouts: ${workoutDays}/7.`,
+        `Active goals: ${
+          goals.map((g) => `"${g.title}" ${g.progress}%`).join(", ") || "none"
+        }.`,
+        rev.todayEstimate
+          ? `Revenue today: $${rev.todayEstimate}, week: $${rev.weekRevenue || 0}.`
+          : "",
+        `Daily scores this week: ${
+          recentScores.map((s) => `${s.date}=${s.overallScore}`).join(", ") ||
+          "none logged"
+        }.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    case "drift": {
+      const alerts = await prisma.driftAlert.findMany({
+        where: { resolved: false },
+        orderBy: { date: "desc" },
+      });
+      return `${alerts.length} unresolved alerts: ${
+        alerts
+          .map((a) => `[${a.severity}] ${a.ruleName}: ${a.message}`)
+          .join("; ") || "none"
+      }.`;
+    }
+
+    case "commitments": {
+      const [active, broken] = await Promise.all([
+        prisma.commitment.findMany({
+          where: { status: { in: ["active", "in_progress"] }, deletedAt: null },
+        }),
+        prisma.commitment.count({
+          where: { status: "broken", updatedAt: { gte: new Date(weekAgo) } },
+        }),
+      ]);
+      return `${active.length} active commitments. ${broken} broken this week. Commitments: ${active
+        .map(
+          (c) =>
+            `"${c.description}"${c.deadline ? ` (due ${c.deadline})` : ""}`
+        )
+        .join(", ")}`;
+    }
+
+    case "tasks":
+    case "loops": {
+      // Apr 18: "loops" key kept as alias for legacy callers; returns
+      // the unified Task INBOX/READY/DOING surface.
+      const rows = await prisma.task.findMany({
+        where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
+        orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
+        take: 20,
+        select: { title: true, status: true, autoPriority: true },
+      });
+      return `${rows.length} active tasks: ${
+        rows
+          .map((t) => `[${t.status} p${t.autoPriority ?? "?"}] ${t.title}`)
+          .join(", ") || "none"
+      }.`;
+    }
+
+    case "body": {
+      const entries = await prisma.bodyTracking.findMany({
+        orderBy: { date: "desc" },
+        take: 7,
+      });
+      // v10.0.59 · workouts derived from DAILY-loop Tasks with
+      // workout/gym/exercise in the title that completed in last 7d
+      // (replaces retired HabitLog table). lastCompletedAt within
+      // the window counts as a workout day.
+      const sevenDaysAgo = daysAgo(7);
+      const workouts = await prisma.task
+        .findMany({
+          where: {
+            loopKind: "DAILY",
+            deletedAt: null,
+            lastCompletedAt: { gte: sevenDaysAgo },
+            OR: [
+              { title: { contains: "workout", mode: "insensitive" } },
+              { title: { contains: "gym", mode: "insensitive" } },
+              { title: { contains: "exercise", mode: "insensitive" } },
+            ],
+          },
+          select: { lastCompletedAt: true },
+        })
+        .catch((): Array<{ lastCompletedAt: Date | null }> => []);
+      return `Recent body entries: ${
+        entries.map((e) => `${e.date}: ${e.weight}lbs`).join(", ") || "none"
+      }. Workouts this week: ${workouts.length}.`;
+    }
+
+    case "financial": {
+      const latest = await prisma.financialSnapshot.findFirst({
+        orderBy: { date: "desc" },
+      });
+      return latest
+        ? `Net worth: $${latest.netWorthEstimate}, checking: $${latest.checkingBalance}, debt: $${latest.totalDebt}, savings rate: ${latest.savingsRatePct}%.`
+        : "No financial data.";
+    }
+
+    case "decisions": {
+      const decisions = await prisma.masteryDecision.findMany({
+        where: { deletedAt: null }, // v10.0.68
+        orderBy: { date: "desc" },
+        take: 5,
+      });
+      return `Recent decisions: ${
+        decisions
+          .map(
+            (d) =>
+              `"${d.title}" (${d.stakes} stakes, grade: ${d.grade || "pending"})`
+          )
+          .join(", ") || "none"
+      }.`;
+    }
+
+    // "brief" case retired Apr 17 — morning-brief cron removed; the
+    // TodoDesk + BottomPulseTicker surface today's context live.
+
+    case "knowledge":
+      return "Knowledge base search page. User is browsing their personal knowledge files.";
+
+    default:
+      return "";
+  }
+}

@@ -1,0 +1,62 @@
+# NOUR OS Orchestrator Configuration
+# Central settings for system behavior, paths, and automation
+
+system:
+  name: "statenour"
+  version: "0.1.0"
+  environment: "development"  # development, staging, production
+
+paths:
+  root: "./"
+  logs: "./logs"
+  workspace: "./workspace"
+  config: "./config"
+  scripts: "./scripts"
+  workspace_data: "./workspace/data"
+
+logging:
+  enabled: true
+  level: "info"  # debug, info, warning, error
+  audit_trail: true
+  max_log_size_mb: 100
+  rotation: "daily"
+
+orchestrator:
+  max_concurrent_tasks: 5
+  task_timeout_seconds: 3600
+  enable_dry_run: true
+  enable_rollback: true
+
+security:
+  require_confirmation_for: ["delete", "modify_workspace", "reset"]
+  log_sensitive_operations: true
+  mask_credentials_in_logs: true
+
+workspace:
+  auto_backup: true
+  backup_interval_hours: 6
+  snapshot_retention_days: 7
+
+# Phase 2: Browser integration
+browser:
+  enabled: false  # Will be enabled in Phase 2
+  chrome_profile_path: null
+  snapshot_interval_minutes: 30
+
+# Phase 3: Notion sync
+notion:
+  enabled: false  # Will be enabled in Phase 3
+  mirror_mode: true  # Read-only mirror
+  sync_interval_minutes: 15
+  fallback_to_local: true
+
+# Phase 4: Automation
+scheduler:
+  enabled: false  # Will be enabled in Phase 4
+  default_timezone: "UTC"
+
+# Phase 5: Monitoring
+monitoring:
+  enabled: false  # Will be enabled in Phase 5
+  read_only: true
+  check_interval_seconds: 60

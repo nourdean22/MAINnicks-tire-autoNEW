@@ -1,0 +1,5 @@
+# Operator's persona corpus · keep raw text OUT of git.
+# Only the README + this .gitignore should commit.
+*
+!README.md
+!.gitignore

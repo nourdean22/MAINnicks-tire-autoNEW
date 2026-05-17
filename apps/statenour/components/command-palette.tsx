@@ -1,0 +1,464 @@
+"use client";
+
+/**
+ * Command Palette — ⌘K universal launcher.
+ *
+ * Press ⌘K (Mac) / Ctrl+K (PC) from anywhere to open. Type to search
+ * across:
+ *   - Navigate (core pages + depth pages)
+ *   - System Ops (live decks: crons, errors, ai-cost, power, ...)
+ *   - Diagnostics (push/pull probes + fix-it surfaces)
+ *   - Quick Actions (talk to Nick, generate image, flow mode, ...)
+ *   - System probes (live counts from /api/brain/status, /api/health,
+ *     /api/system/diagnostics — results surfaced via toast, not alert)
+ *   - Power (purge stale, trigger health digest, reconnect Google,
+ *     open deployment — one-keystroke-away ops surface)
+ *
+ * Enrichments (Apr 24):
+ *   - Recency boost: last 8 commands run are remembered in
+ *     localStorage and surface under "Recently Used" at the top.
+ *   - Toast results replace alert() — non-modal, readable mid-flow.
+ *   - New entries: /system/diagnostics hub, /system/cron-diagnostics,
+ *     /system/stale, /brain, + trigger-health-digest / reconnect-oauth
+ *     actions that were previously buried in admin URLs.
+ *   - Async actions show inline "Running..." label (existing) AND
+ *     emit toast.success / toast.error on finish so the outcome is
+ *     visible even after the palette closes.
+ */
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { authedFetch } from "@/hooks/use-authed-fetch";
+import {
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandSeparator,
+  CommandShortcut,
+} from "@/components/ui/command";
+import {
+  ActivityIcon,
+  BrainIcon,
+  ClipboardListIcon,
+  ClockIcon,
+  CogIcon,
+  HeartPulseIcon,
+  MonitorIcon,
+  ZapIcon,
+  RefreshCwIcon,
+  AlertTriangleIcon,
+  BotIcon,
+  DollarSignIcon,
+  WrenchIcon,
+  MessageSquareIcon,
+  TrendingUpIcon,
+  TrendingDownIcon,
+  ImageIcon,
+  SearchIcon,
+  BookOpenIcon,
+  EyeIcon,
+  ShieldIcon,
+  Layers3Icon,
+  InboxIcon,
+  StethoscopeIcon,
+  DatabaseIcon,
+  PlayIcon,
+  KeyIcon,
+  RocketIcon,
+  HistoryIcon,
+} from "lucide-react";
+
+interface CommandAction {
+  id: string;
+  label: string;
+  group: string;
+  icon: React.ReactNode;
+  action: () => void | Promise<void>;
+  shortcut?: string;
+  keywords?: string[];
+}
+
+const RECENT_KEY = "command-palette:recents";
+const RECENT_CAP = 8;
+
+function loadRecents(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw) as unknown;
+    return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(id: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const prev = loadRecents().filter((x) => x !== id);
+    const next = [id, ...prev].slice(0, RECENT_CAP);
+    window.localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+  } catch {
+    /* localStorage full / disabled — silently skip */
+  }
+}
+
+export function CommandPalette() {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState<string | null>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+  const router = useRouter();
+
+  // Keyboard shortcuts:
+  //   ⌘K / Ctrl+K       → toggle palette
+  //   ⌘⇧K / Ctrl+⇧K    → re-run most-recently-used command (repeat-last)
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (e.shiftKey) {
+          // Repeat-last shortcut. Read recents from storage (fresh)
+          // and fire the most recent action's callback. Only fires
+          // when the palette is CLOSED — if it's already open, let
+          // the ⌘K handler close it (predictable).
+          if (!open) {
+            const ids = loadRecents();
+            const mostRecent = ids[0];
+            if (mostRecent) {
+              const match = actionsRef.current.find((a) => a.id === mostRecent);
+              if (match) {
+                // Fire immediately without opening the palette.
+                void match.action();
+                saveRecent(match.id);
+                return;
+              }
+            }
+            // No recent yet — fall through to just open the palette.
+            setOpen(true);
+          }
+          return;
+        }
+        setOpen((o) => !o);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [open]);
+
+  // Refresh recents every time the palette opens — cheap, and makes
+  // ranking reflect what he actually just used (multi-tab safe).
+  useEffect(() => {
+    if (open) setRecents(loadRecents());
+  }, [open]);
+
+  const navigate = useCallback(
+    (path: string) => {
+      setOpen(false);
+      router.push(path);
+    },
+    [router],
+  );
+
+  const openExternal = useCallback((url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
+    setOpen(false);
+  }, []);
+
+  const runAction = useCallback(async (id: string, fn: () => void | Promise<void>) => {
+    setLoading(id);
+    try {
+      await fn();
+      saveRecent(id);
+    } finally {
+      setLoading(null);
+      setOpen(false);
+    }
+  }, []);
+
+  // Wrap any async probe so failures surface cleanly as toast.error
+  // rather than silently hanging at "Running...".
+  const probe = useCallback(
+    (label: string, fn: () => Promise<string>) => async () => {
+      try {
+        const result = await fn();
+        toast.success(label, { description: result });
+      } catch (err) {
+        toast.error(`${label} failed`, {
+          description: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [],
+  );
+
+  const actions: CommandAction[] = useMemo(
+    () => [
+      // ═══ NAVIGATE — Core 5 + depth pages ═══
+      { id: "nav-hq", label: "HQ Dashboard", group: "Navigate", icon: <ShieldIcon className="size-4" />, action: () => navigate("/"), shortcut: "G H" },
+      { id: "nav-chat", label: "Nick (AI Chat)", group: "Navigate", icon: <MessageSquareIcon className="size-4" />, action: () => navigate("/chat"), shortcut: "G N" },
+      { id: "nav-brain", label: "Brain Dashboard", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain"), keywords: ["memory", "skill", "identity", "belief", "ghost", "nick"] },
+      { id: "nav-tasks", label: "Tasks / Actions", group: "Navigate", icon: <ClipboardListIcon className="size-4" />, action: () => navigate("/tasks"), shortcut: "G T" },
+      { id: "nav-journal", label: "Journal", group: "Navigate", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/journal"), shortcut: "G J", keywords: ["journal", "reflect", "dump"] },
+      { id: "nav-mastery", label: "Growth / Mastery", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/mastery") },
+      { id: "nav-financial", label: "Financial / Money", group: "Navigate", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/financial"), keywords: ["money", "income"] },
+      { id: "nav-settings", label: "Settings", group: "Navigate", icon: <CogIcon className="size-4" />, action: () => navigate("/settings") },
+
+      // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
+      { id: "diag-hub", label: "Diagnostics Hub (all probes)", group: "Diagnostics", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["diagnostics", "health", "push", "pull", "probe", "env", "oauth", "pulse", "stale", "cron"] },
+      { id: "diag-crons", label: "Cron Diagnostics (silent/slow)", group: "Diagnostics", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/cron-diagnostics"), keywords: ["cron", "silent", "slow", "schedule", "diagnose"] },
+      { id: "diag-stale", label: "Stale Data (purge surface)", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/stale"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
+      // v10.0.304 · "Live Event Stream" entry removed · /system/events
+      // page deleted. /system/logs covers the same data with broader
+      // source list, just slower poll. Manual refresh = live enough.
+
+      // ═══ SYSTEM OPS DECK ═══
+      { id: "sys-crons", label: "Crons · live deck", group: "System Ops", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "schedule", "job", "kill", "manual"] },
+      { id: "sys-errors", label: "Errors · fingerprints", group: "System Ops", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
+      { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System Ops", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
+      { id: "sys-actions", label: "Actions · Nick audit", group: "System Ops", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
+      { id: "sys-quality", label: "Nick Quality · trend", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/quality"), keywords: ["quality", "critic", "regen", "specificity", "cliche"] },
+      { id: "sys-anti", label: "Anti-patterns · library", group: "System Ops", icon: <TrendingDownIcon className="size-4" />, action: () => navigate("/system/anti-patterns"), keywords: ["lesson", "failure", "mistake", "antipattern", "revisit"] },
+      { id: "sys-devices", label: "Devices · fleet", group: "System Ops", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system/devices"), keywords: ["device", "ring", "eufy", "tuya", "camera", "agent", "bridge"] },
+      { id: "sys-power", label: "Power · master control", group: "System Ops", icon: <ZapIcon className="size-4" />, action: () => navigate("/system/power"), keywords: ["power", "kill", "provider", "budget", "quiet", "shadow", "emergency"] },
+
+      // ═══ PAGES — remaining live surfaces ═══
+      { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/body"), keywords: ["weight", "workout", "boxing"] },
+      { id: "nav-knowledge", label: "Knowledge Base", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/knowledge") },
+      { id: "nav-integrations", label: "Integrations", group: "Pages", icon: <Layers3Icon className="size-4" />, action: () => navigate("/settings") },
+      { id: "nav-devices", label: "Devices", group: "Pages", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system/devices"), keywords: ["ring", "eufy", "camera"] },
+      { id: "nav-system", label: "System (dashboard)", group: "Pages", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system") },
+      { id: "nav-shop-admin", label: "Shop Admin (nickstire)", group: "Pages", icon: <TrendingUpIcon className="size-4" />, action: () => openExternal("https://nickstire.org/admin"), keywords: ["admin", "nickstire", "business", "shop"] },
+
+      // ═══ QUICK ACTIONS ═══
+      { id: "action-chat-nick", label: "Talk to Nick", group: "Quick Actions", icon: <BrainIcon className="size-4" />, action: () => navigate("/chat"), keywords: ["nick", "ai", "ask", "help"] },
+      { id: "action-generate-image", label: "Generate Image", group: "Quick Actions", icon: <ImageIcon className="size-4" />, action: () => navigate("/chat?prompt=generate+an+image+of+"), keywords: ["image", "picture", "art", "generate", "imagine"] },
+      { id: "action-flow", label: "Start Flow Mode (Brain Dump)", group: "Quick Actions", icon: <ActivityIcon className="size-4" />, action: () => navigate("/chat?mode=flow"), keywords: ["flow", "dump", "journal", "debrief"] },
+      { id: "action-search-memory", label: "Search Brain Memories", group: "Quick Actions", icon: <SearchIcon className="size-4" />, action: () => navigate("/chat?prompt=search+my+memories+for+"), keywords: ["memory", "search", "recall", "remember"] },
+      { id: "action-blind-spots", label: "Check Blind Spots", group: "Quick Actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
+      {
+        id: "action-leads",
+        label: "Check Lead Pipeline",
+        group: "Quick Actions",
+        icon: <InboxIcon className="size-4" />,
+        action: probe("Lead Pipeline", async () => {
+          const res = await authedFetch("/api/analytics/dashboard");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const raw = await res.json();
+          const d = raw?.data ?? raw;
+          return `Active ${d.leads?.active ?? 0} · Urgent ${d.leads?.urgent ?? 0} · Converted ${d.leads?.convertedThisWeek ?? 0}`;
+        }),
+        keywords: ["leads", "pipeline"],
+      },
+
+      // ═══ POWER — one-keystroke ops surface (ENR5 new) ═══
+      {
+        id: "power-health-digest",
+        label: "Run Health Digest Now",
+        group: "Power",
+        icon: <RocketIcon className="size-4" />,
+        action: probe("Health digest", async () => {
+          // Manually trigger the nightly digest — useful right after
+          // fixing something to watch the overall bubble down to
+          // healthy without waiting until 4am.
+          const res = await authedFetch("/api/cron/health-digest");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const raw = await res.json();
+          const d = raw?.data ?? raw;
+          return `overall=${d.overall} · ${d.counts?.critical ?? 0}c / ${d.counts?.warning ?? 0}w · ${d.highlights ?? 0} highlights`;
+        }),
+        keywords: ["digest", "run", "trigger", "health", "now"],
+      },
+      {
+        id: "power-reconnect-google",
+        label: "Reconnect Google OAuth",
+        group: "Power",
+        icon: <KeyIcon className="size-4" />,
+        // Full-page navigation — this is an OAuth start URL that
+        // redirects to Google, not a Next.js route we can router.push.
+        action: () => {
+          setOpen(false);
+          window.location.href = "/api/oauth/google-data/start";
+        },
+        keywords: ["google", "oauth", "reconnect", "drive", "gmail", "calendar", "refresh", "token"],
+      },
+      {
+        id: "power-diag-all",
+        label: "Open Diagnostics Hub (auto-scans)",
+        group: "Power",
+        icon: <RefreshCwIcon className="size-4" />,
+        action: () => navigate("/system/health"),
+        keywords: ["probe", "rescan", "diagnose", "all"],
+      },
+      {
+        id: "power-recent-captures",
+        label: "View Recent Captures",
+        group: "Power",
+        icon: <HistoryIcon className="size-4" />,
+        action: () => navigate("/"),
+        keywords: ["capture", "recent", "omni", "inbox"],
+      },
+      {
+        id: "power-pulse-digest",
+        label: "Check Pulse Digest (bell)",
+        group: "Power",
+        icon: <PlayIcon className="size-4" />,
+        action: probe("Pulse digest", async () => {
+          const res = await authedFetch("/api/ultron/pulse-digest");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const raw = await res.json();
+          const d = raw?.data ?? raw;
+          return `priority ${d.priority?.length ?? 0} · emerging ${d.emerging?.length ?? 0} · wins ${d.wins?.length ?? 0} · maintenance ${d.maintenance?.count ?? 0}`;
+        }),
+        keywords: ["pulse", "digest", "bell", "notification", "priority"],
+      },
+
+      // ═══ SYSTEM PROBES — live data via toast (replaces old alert()) ═══
+      {
+        id: "sys-health",
+        label: "Run Health Check",
+        group: "System Probes",
+        icon: <HeartPulseIcon className="size-4" />,
+        action: probe("System Health", async () => {
+          const res = await authedFetch("/api/health");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          const d = data.data ?? data;
+          return `${d.status ?? "unknown"} · db ${d.db?.latency_ms ?? "?"}ms · devices ${d.devices?.online ?? "?"}/${d.devices?.total ?? "?"}`;
+        }),
+        keywords: ["health", "status", "ping"],
+      },
+      {
+        id: "sys-diagnostics",
+        label: "Full Diagnostics (KPIs)",
+        group: "System Probes",
+        icon: <WrenchIcon className="size-4" />,
+        action: probe("Diagnostics", async () => {
+          const res = await authedFetch("/api/system/diagnostics");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const d = (await res.json())?.data ?? {};
+          return `db ${d.db?.latency_ms}ms · req24h ${d.kpis?.requests_24h} · err ${d.kpis?.errors_24h} · AI $${((d.kpis?.ai_cost_7d_cents ?? 0) / 100).toFixed(2)}`;
+        }),
+        keywords: ["diagnostic", "check"],
+      },
+      {
+        id: "sys-brain",
+        label: "Brain Status",
+        group: "System Probes",
+        icon: <BrainIcon className="size-4" />,
+        action: probe("Brain", async () => {
+          const res = await authedFetch("/api/brain/status");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const d = (await res.json())?.data ?? {};
+          const m = d.memories;
+          return `${m?.total ?? 0} memories (${m?.permanent ?? 0} perm) · conf ${((m?.avgConfidence ?? 0) * 100).toFixed(0)}% · rules ${d.automationRules?.active ?? 0}`;
+        }),
+        keywords: ["brain", "memory", "intelligence"],
+      },
+      {
+        id: "sys-ai-spend",
+        label: "AI Spend Today",
+        group: "System Probes",
+        icon: <ZapIcon className="size-4" />,
+        action: probe("AI Spend", async () => {
+          const res = await authedFetch("/api/system/ai-analytics");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const b = ((await res.json())?.data ?? {}).budget ?? {};
+          return `$${((b.spent ?? 0) / 100).toFixed(2)} / $${((b.limit ?? 0) / 100).toFixed(2)} (${b.percentUsed ?? 0}%)`;
+        }),
+        keywords: ["cost", "budget", "spend"],
+      },
+      {
+        id: "sys-devices",
+        label: "Refresh Device Fleet",
+        group: "System Probes",
+        icon: <RefreshCwIcon className="size-4" />,
+        action: probe("Devices", async () => {
+          const res = await authedFetch("/api/devices");
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const devices = (await res.json())?.data?.devices ?? [];
+          const online = devices.filter((d: { status: string }) => d.status === "ONLINE").length;
+          return `${online}/${devices.length} devices online`;
+        }),
+        keywords: ["device", "sync"],
+      },
+    ],
+    [navigate, openExternal, probe],
+  );
+
+  // Keep a ref so the ⌘⇧K keyboard handler can reach the current
+  // action list without resubscribing the listener on every re-render.
+  const actionsRef = useRef<CommandAction[]>(actions);
+  actionsRef.current = actions;
+
+  // Recency boost: take last-used action IDs in order, surface them at
+  // top as a "Recently Used" pseudo-group. Avoids re-ranking the whole
+  // list — preserves muscle memory for unused groups.
+  const recentActions = useMemo(() => {
+    if (recents.length === 0) return [] as CommandAction[];
+    const byId = new Map(actions.map((a) => [a.id, a]));
+    return recents
+      .map((id) => byId.get(id))
+      .filter((a): a is CommandAction => a !== undefined)
+      .slice(0, 5);
+  }, [actions, recents]);
+
+  const groups = [...new Set(actions.map((a) => a.group))];
+
+  return (
+    <CommandDialog open={open} onOpenChange={setOpen}>
+      <CommandInput placeholder="Type a command or search... (⌘K)" />
+      <CommandList>
+        <CommandEmpty>No results found.</CommandEmpty>
+
+        {recentActions.length > 0 && (
+          <>
+            <CommandGroup heading="Recently Used">
+              {recentActions.map((action) => (
+                <CommandItem
+                  key={`recent-${action.id}`}
+                  value={`recent ${action.label} ${action.keywords?.join(" ") ?? ""}`}
+                  onSelect={() => runAction(action.id, action.action)}
+                  disabled={loading === action.id}
+                >
+                  {action.icon}
+                  <span>{loading === action.id ? "Running..." : action.label}</span>
+                  <span className="ml-auto text-[10px] text-[var(--text-muted)] uppercase tracking-wide">
+                    {action.group}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            <CommandSeparator />
+          </>
+        )}
+
+        {groups.map((group, i) => (
+          <div key={group}>
+            {i > 0 && <CommandSeparator />}
+            <CommandGroup heading={group}>
+              {actions
+                .filter((a) => a.group === group)
+                .map((action) => (
+                  <CommandItem
+                    key={action.id}
+                    value={`${action.label} ${action.keywords?.join(" ") ?? ""}`}
+                    onSelect={() => runAction(action.id, action.action)}
+                    disabled={loading === action.id}
+                  >
+                    {action.icon}
+                    <span>{loading === action.id ? "Running..." : action.label}</span>
+                    {action.shortcut && <CommandShortcut>{action.shortcut}</CommandShortcut>}
+                  </CommandItem>
+                ))}
+            </CommandGroup>
+          </div>
+        ))}
+      </CommandList>
+    </CommandDialog>
+  );
+}

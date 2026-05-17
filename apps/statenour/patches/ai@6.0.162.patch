@@ -1,0 +1,35 @@
+diff --git a/dist/index.mjs b/dist/index.mjs
+index bc4684f3827079595519f624278318b0485ca127..e6776a99dc0d86cc5ac7a5b15e712b46a3d143c3 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -13241,14 +13241,22 @@ var AbstractChat = class {
+       this.setStatus({ status: "error", error: err });
+     } finally {
+       try {
+-        (_b = this.onFinish) == null ? void 0 : _b.call(this, {
+-          message: this.activeResponse.state.message,
+-          messages: this.state.messages,
+-          isAbort,
+-          isDisconnect,
+-          isError,
+-          finishReason: (_a21 = this.activeResponse) == null ? void 0 : _a21.state.finishReason
+-        });
++        // PATCHED (NOUR OS): activeResponse can legitimately be null
++        // here if the request errored before the first stream chunk
++        // arrived. Upstream accesses `.state.message` without a null
++        // check which crashes the chat UI. Guard + skip onFinish if
++        // there's no message to hand off.
++        const activeMessage = (_a21 = this.activeResponse) == null ? void 0 : _a21.state.message;
++        if (activeMessage) {
++          (_b = this.onFinish) == null ? void 0 : _b.call(this, {
++            message: activeMessage,
++            messages: this.state.messages,
++            isAbort,
++            isDisconnect,
++            isError,
++            finishReason: this.activeResponse.state.finishReason
++          });
++        }
+       } catch (err) {
+         console.error(err);
+       }

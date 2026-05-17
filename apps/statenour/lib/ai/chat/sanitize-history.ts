@@ -1,0 +1,115 @@
+/**
+ * Sanitize image markdown from assistant message history before sending
+ * to the LLM.
+ *
+ * Apr 28 · The venice-uncensored model has no function calling, and when
+ * it sees prior assistant turns containing
+ *   ![Generated Image](/api/images/<id>)
+ * markdown, it pattern-matches and emits NEW image markdown with
+ * fabricated cuid-shaped IDs. The image-ref-validator catches these on
+ * the way out (replaces ghost markdown with an error block before
+ * persisting), but that doesn't help the user mid-stream — they see the
+ * broken image render before the cleaned history is reloaded.
+ *
+ * Root-cause fix: don't expose the `(/api/images/<id>)` pattern to the
+ * LLM in the first place. Replace image markdown in assistant history
+ * with a stable placeholder that:
+ *   1. Tells the model an image was rendered (preserves semantic meaning)
+ *   2. Doesn't include a URL pattern the model can copy
+ *   3. Keeps the surrounding text (caption, hashtags, sign-off) intact
+ *
+ * Mutates message parts in place to avoid extra allocations across the
+ * potentially-large message list. The original `text` field is replaced
+ * with the sanitized version.
+ *
+ * No-op for: user messages, non-text parts, messages with no image
+ * markdown, the most recent user/assistant turn (we only touch HISTORY).
+ */
+
+const IMAGE_MARKDOWN_LINE =
+  /!\[Generated Image\]\(\/api\/images\/[a-z0-9_-]{8,}\)/gi;
+
+const PROMPT_MODEL_FOOTER =
+  /\*\*Prompt:\*\*[^\n]*(?:\n+\*\*Model:\*\*[^\n]*)?/gi;
+
+const SYNTH_FOOTNOTE =
+  /_Synthesized from prior turn:[^_]*_/gi;
+
+/**
+ * Returns a copy of the text with image-render markers replaced by a
+ * neutral placeholder. Idempotent — runs the same way no matter how
+ * many times you call it.
+ */
+export function stripImageMarkdownFromText(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(IMAGE_MARKDOWN_LINE, "[image rendered]")
+    .replace(PROMPT_MODEL_FOOTER, "")
+    .replace(SYNTH_FOOTNOTE, "")
+    // Collapse multiple blank lines that the strips can leave behind
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * v10.0.163 · L3 anti-fabrication defense — context correction
+ * injection. When a prior assistant turn was flagged + rewritten by
+ * the v10.0.162 verifier (banner with VERIFIER_MARKER prefix), we
+ * REPLACE the historical text with an explicit "[NOTE: previous claim
+ * was fabricated and unverified — disregard]" so the model can't read
+ * the prior fabrication as truth and compound the lie next turn.
+ *
+ * Without this, the conversation history feeds the lie back into the
+ * context window: turn 1 says "I added 15 tasks", turn 2 sees the
+ * lie as fact and says "as I mentioned, 15 tasks…" The compounding
+ * is the worst part — the lie hardens into shared belief.
+ *
+ * The marker check is cheap (string startsWith). We import the helper
+ * lazily so this module stays tree-shake-friendly for non-chat
+ * surfaces that pull in sanitize-history but don't need fabrication
+ * detection.
+ */
+function neutralizeFabricatedHistory(text: string): string {
+  // Marker check — string prefix is the contract from the rewriter.
+  // Keeping the literal here instead of importing avoids a circular
+  // dep between sanitize-history (called from chat route) and
+  // fabrication-rewriter (called from persist-assistant-turn).
+  const MARKER = "[VERIFIER · v10.0.162]";
+  if (!text.startsWith(MARKER)) return text;
+  // Replace the entire turn with a single explicit note. Future
+  // model turns see only this note + the original user message they
+  // were responding to — they CAN'T compound the lie because the
+  // prior text isn't in the window anymore.
+  return "[VERIFIER NOTE: my previous response was flagged as fabricated (claimed actions without firing tools). Disregard it. Do not reference it. Treat the operator's last request as still open.]";
+}
+
+/**
+ * Walks the message array and sanitizes assistant text parts that
+ * contain image markdown. User messages and non-text parts are left
+ * untouched. The last (most recent) message is also untouched — that's
+ * the live user prompt we're answering, not history.
+ *
+ * v10.0.163 · also neutralizes fabricated turns (verifier-banner
+ * marker) so they can't compound across turns.
+ */
+export function sanitizeMessageHistory<
+  T extends { role?: string; parts?: Array<{ type?: string; text?: string }> },
+>(messages: T[]): T[] {
+  if (!messages || messages.length < 2) return messages;
+  // Walk all but the last (which is the user's current turn)
+  for (let i = 0; i < messages.length - 1; i++) {
+    const m = messages[i];
+    if (!m || m.role !== "assistant" || !Array.isArray(m.parts)) continue;
+    for (const part of m.parts) {
+      if (part?.type === "text" && typeof part.text === "string") {
+        // v10.0.163 · L3 fabrication neutralization runs FIRST so the
+        // image-stripper and other passes operate on the post-
+        // neutralized text (cheaper + simpler).
+        const neutralized = neutralizeFabricatedHistory(part.text);
+        const cleaned = stripImageMarkdownFromText(neutralized);
+        if (cleaned !== part.text) part.text = cleaned;
+      }
+    }
+  }
+  return messages;
+}
