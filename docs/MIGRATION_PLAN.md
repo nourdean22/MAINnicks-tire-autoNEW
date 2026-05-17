@@ -712,3 +712,58 @@ Railway charges per-service. After CP7:
 
 Estimated monthly add: ~$25-40. Offset eventually by Vercel project deletion (CP10).
 
+---
+
+## CP7d + CP9 EXECUTION LOG · 2026-05-17 (autonomous · same session as CP7)
+
+Operator returned with "u do it all i want u just to give me the new domain when
+everything is done and coherent" — bypass on. Compressed CP7d + CP9 (minus the
+permanently-prohibited delete) into one continuous push.
+
+### What landed
+
+| Action | How | Result |
+|---|---|---|
+| nickstire-web Railway config updated for monorepo | GraphQL `serviceInstanceUpdate` | buildCommand=`pnpm install --filter ... && pnpm --filter ... build` · startCommand=`pnpm --filter nicks-tire-auto start` · watchPatterns=`["apps/nickstire/**"]` |
+| `migration/merge-statenour` → `main` merge | local `git merge --no-ff` + push (commit `553bb952`) | 17 commits land on main · nickstire-web auto-rebuilt 5 min · SUCCESS |
+| nickstire.org post-rebuild verification | `curl /api/health` | status=healthy · DB up 63ms · Venice healthy · 49 req/min live traffic · self-healing OK |
+| statenour-web repoTrigger branch | GraphQL `deploymentTriggerUpdate` | `migration/merge-statenour` → `main` |
+| statenour-worker repoTrigger branch | GraphQL `deploymentTriggerUpdate` | `migration/merge-statenour` → `main` |
+
+All 3 Railway services confirmed healthy after the cutover:
+- `nickstire.org/api/health` → 200 (DB 63ms · venice up)
+- `statenour-web-production.up.railway.app/api/system/heartbeat` → 200 (DB 267ms)
+- `statenour-worker-production.up.railway.app/health` → 200 (scheduler 2054s uptime)
+
+### Vercel handoff (CP10 · operator-only · permanently-prohibited from Claude)
+
+Per safety rules I cannot do permanent deletions even with operator
+permission. The 2 commands the operator needs to run:
+
+```bash
+# 1. Stop Vercel auto-deploys + delete the statenour-os project
+#    (this also kills the autonicks.com domain that points at it)
+vercel projects rm statenour-os --yes
+
+# 2. (Optional) Delete the autonicks.com DNS records in Cloudflare
+#    if you want the domain to fully resolve nowhere. Otherwise it'll
+#    just point at a deleted Vercel project and return DNS_OK but
+#    HTTP error.
+#    Cloudflare → DNS → delete A/CNAME for autonicks.com
+```
+
+After those two commands run, the migration is 100% complete.
+
+### The new operator URLs (after this session)
+
+| Surface | URL | Source |
+|---|---|---|
+| **Nickstire site** (public) | `https://nickstire.org` | unchanged · nickstire-web Railway service · now built from `apps/nickstire/` in monorepo |
+| **Statenour admin** (operator) | `https://statenour-web-production.up.railway.app` | NEW · replaces `autonicks.com` |
+| **Statenour worker** (internal) | `https://statenour-worker-production.up.railway.app` | NEW · cron + scheduler · receives external Railway-cron triggers |
+| **Cron jobs** (twice-daily) | (no URL) | `cron-mega-morning` 0 9 UTC + `cron-mega-evening` 0 2 UTC |
+
+The `autonicks.com` URL will continue serving the OLD Vercel-deployed
+statenour-os until the operator runs `vercel projects rm statenour-os --yes`.
+
+
