@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Envs
+.env
+.env.local
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local logs
+*.log
+
+# Local model downloads (silero · keep out of git · downloaded on first run)
+*.onnx

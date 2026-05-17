@@ -131,13 +131,38 @@ remain blocking for prod cutover · code runs in dev mode until then.
 - [ ] *(follow-up)* Collapse duplicated `MORNING_JOBS`/`EVENING_JOBS`
   arrays once cutover sticks 7d (shared config module)
 
-### **Phase 4 · LiveKit operator voice** *(target: 1-2 weeks · 4-6 commits + new Railway service)*
-- [ ] OPERATOR: create LiveKit Cloud + Deepgram + Cartesia accounts (cost: ~$30-50/mo at expected 100-300 min/day operator usage)
-- [ ] New repo dir: `apps/voice/` (Python · LiveKit Agents framework · pnpm workspace skips it · separate pyproject)
-- [ ] Voice agent worker: streams audio in/out · same Mastra agent backend (HTTP bridge to statenour-web)
-- [ ] New Railway service `statenour-voice` (Python builder · Dockerfile · port 8080 · healthcheck `/health`)
-- [ ] Mobile launcher: a PWA-installable page at `/voice` on statenour-web · push-to-talk button · sub-400ms target
-- [ ] First demo: speak "what are my 3 highest-leverage moves today" from phone → Nick answers in voice
+### **Phase 4 · LiveKit operator voice** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0006)*
+
+Full scaffold shipped · operator accounts + Railway service +
+env-var paste are the blocking action items for prod cutover.
+
+- [x] `apps/voice/` Python LiveKit Agents worker (`agent.py` +
+  `requirements.txt` + `Dockerfile` + `.dockerignore` + `.python-version`
+  + `.gitignore` + `README.md`)
+- [x] HTTP bridge in `agent.py` · `llm_node` override POSTs each turn
+  to `/api/agent` (Phase 1 Mastra endpoint) · streams text deltas to
+  Cartesia
+- [x] Owner-only LiveKit JWT mint endpoint · `app/api/voice/token/route.ts`
+- [x] PWA push-to-talk launcher · `app/voice/page.tsx` · lazy-imports
+  livekit-client · one-tap connect/disconnect · graceful degrade
+- [x] `livekit-server-sdk` + `livekit-client` installed in `apps/statenour/`
+- [x] ADR-0006 documents Python vs JS · HTTP bridge vs in-process LLM ·
+  persistent vs ephemeral rooms · operator action items
+- [ ] OPERATOR: create LiveKit Cloud + Deepgram + Cartesia accounts
+- [ ] OPERATOR: add new Railway service `statenour-voice` (build path
+  `apps/voice`, Dockerfile, watch `apps/voice/**`)
+- [ ] OPERATOR: paste env vars (LIVEKIT_URL, LIVEKIT_API_KEY,
+  LIVEKIT_API_SECRET, DEEPGRAM_API_KEY, CARTESIA_API_KEY,
+  CARTESIA_VOICE_ID, STATENOUR_AGENT_URL, STATENOUR_OWNER_COOKIE)
+- [ ] OPERATOR: install PWA from `https://autonicks.com/voice` on phone
+  (Add to Home Screen)
+- [ ] First demo: tap voice button on phone · say "what are my 3
+  highest-leverage moves today" · Nick speaks the reply
+- [ ] *(follow-up)* Cartesia voice clone training (uses existing
+  `lib/ai/voice-clone-trainer.ts` weekly cron · operator pastes the
+  resulting voice ID into CARTESIA_VOICE_ID)
+- [ ] *(follow-up)* Dedicated voice-bridge bearer token (replaces
+  STATENOUR_OWNER_COOKIE · rotates independently)
 
 ### **Phase 5 · Morning brief + ambient mode** *(target: 1 week · 2-3 commits)*
 - [ ] Mastra workflow `morning-brief.workflow.ts` · fires daily at 5am ET via Inngest
@@ -213,6 +238,9 @@ remain blocking for prod cutover · code runs in dev mode until then.
 - `docs/adr/0003-livekit-operator-voice.md` — LiveKit + Deepgram + Cartesia decision
 - `docs/adr/0004-skill-registry-runtime.md` — why we kept the existing recall layer (Phase 2)
 - `docs/adr/0005-inngest-durable-workflows.md` — Inngest adoption + cutover (Phase 3)
+- `docs/adr/0006-livekit-voice-implementation.md` — LiveKit Python worker + HTTP bridge (Phase 4)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
+- `apps/voice/` — Phase 4 LiveKit Python worker
+- `apps/statenour/app/voice/page.tsx` — Phase 4 PWA push-to-talk launcher
 - `docs/MIGRATION_PLAN.md` — the Wave-100→200 Railway migration that landed today
