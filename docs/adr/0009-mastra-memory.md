@@ -141,11 +141,30 @@ BrainMemory rows. Rejected because:
 
 ## Operator action items
 
-None blocking. Future:
-- Phase 1.3 install: `pnpm --filter @statenour/web add @mastra/pg`
-- Phase 1.3 wire: pass `storage: new PgStore({...})` to `new Memory(...)`
-- Verify `mastra_*` tables appear in Neon · then ramp AGENT_V2 to
-  100% with confidence
+Phase 1.2 · none blocking (default in-process memory works).
+
+Phase 1.3 (LANDED 2026-05-17 as flag-gated scaffold) · operator
+flips when ready:
+
+```bash
+# Activate · pgvector-free · @mastra/pg uses its own `mastra` schema
+railway variables set MASTRA_MEMORY_BACKEND=pg --service statenour-web
+
+# Rollback · default in-process behavior returns
+railway variables unset MASTRA_MEMORY_BACKEND --service statenour-web
+```
+
+After flip, on first agent invocation:
+- `@mastra/pg` auto-creates `mastra` schema in the existing Neon DB
+- Tables: `mastra.mastra_threads`, `mastra.mastra_messages`,
+  `mastra.mastra_resources`, `mastra.mastra_working_memory`, etc.
+- No Prisma migration · @mastra/pg owns its tables outside Prisma's
+  view · `\d mastra.*` to inspect
+
+Graceful degrade · if `DATABASE_URL` is missing or PG construct
+throws, falls back to in-process behavior with a structured warn
+log · no crash · operator sees `mastra_pg_unavailable_no_db_url` or
+`mastra_pg_construct_failed_falling_back` in /system/logs.
 
 ## References
 

@@ -49,6 +49,7 @@
     "@mastra/ai-sdk": "1.4.2",
     "@mastra/core": "1.35.0",
     "@mastra/memory": "1.18.2",
+    "@mastra/pg": "1.11.0",
     "@next/env": "16.2.3",
     "@prisma/adapter-neon": "^7.6.0",
     "@prisma/client": "^7.5.0",

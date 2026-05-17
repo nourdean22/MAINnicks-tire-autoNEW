@@ -102,10 +102,13 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
   scripts/smoke-agent-v2.ts` before flipping the flag.
 - [ ] OPERATOR: run smoke test → flip `AGENT_V2=true` in Railway env ·
   monitor /system/logs for 24h · rollback ready by flipping back
-- [ ] *(follow-up · Phase 1.3)* Swap memory storage to `@mastra/pg`
-  pointed at Neon with `tablePrefix: "mastra_"` for cross-restart +
-  cross-pod durability. ~3-line swap once operator OKs the auto-
-  created tables (per ADR-0009)
+- [x] Phase 1.3 · `@mastra/pg` flag-gated scaffold · LANDED 2026-05-17
+  · `MASTRA_MEMORY_BACKEND=pg` env flag activates persistent storage
+  · default (unset) stays in-process · zero schema risk on the deploy
+  · graceful fallback if DATABASE_URL missing or PG construct throws
+  · @mastra/pg installed (`@mastra/pg@1.11.0`)
+- [ ] OPERATOR: flip `MASTRA_MEMORY_BACKEND=pg` when ready · verify
+  `mastra` schema appears in Neon · `\d mastra.*` to inspect
 
 ### **Phase 2 · Skill Registry runtime exposure** *(LANDED via inheritance — 2026-05-17 · see ADR-0004)*
 
