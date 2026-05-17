@@ -227,6 +227,20 @@ export const BRAIN_CATEGORIES = {
   STRATEGIC_PLAN: "strategic_plan",
   STRATEGY: "strategy",
 
+  // ── WAVE-200 (2026-05-17) ──
+  /** Wave-200 Phase 5 · daily operator brief composer output. Indexed
+   *  per ET-date in `key`. Content is brief HTML. ~2KB typical. */
+  MORNING_BRIEF: "morning_brief",
+  /** Wave-200 Phase 5 · Cartesia-TTS audio for the morning brief,
+   *  stored as base64. Indexed per ET-date in `key`. ~100-300KB.
+   *  EXCLUDED from contextual recall (see RECALL_EXCLUDE_CATEGORIES
+   *  below) because the binary payload would saturate the recall
+   *  query without semantic value. */
+  MORNING_BRIEF_AUDIO: "morning_brief_audio",
+  /** Wave-200 Phase 6 · per-customer inferred preferences. Indexed
+   *  per customerId in `key`. Metadata is the structured payload. */
+  CUSTOMER_PREFERENCE: "customer_preference",
+
   // ═══ DEPRECATED — kept so old data still reads; codemod migrates writes ═══
 
   /** @deprecated use RELATIONSHIPS (plural). Typo-split migration target. */
@@ -293,6 +307,25 @@ export const DEPRECATED_CATEGORY_MAP: Readonly<Record<string, string>> = {
 export function isKnownCategory(category: string): boolean {
   return KNOWN_BRAIN_CATEGORIES.has(category);
 }
+
+/**
+ * Categories whose ROWS must NEVER be pulled into contextual recall
+ * (Nick's per-turn system prompt). These hold payloads that are NOT
+ * semantic memory · including them would pollute recall and inflate
+ * payload size with no benefit.
+ *
+ * Use case · the Wave-200 Phase 5 morning brief audio stores 100-300KB
+ * base64 mp3 in `content`. The default recall query pulls 300 rows
+ * by confidence · adding the audio category there would push 30-90MB
+ * of base64 into the prompt builder for zero retrieval value.
+ *
+ * Consumers should add `category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] }`
+ * to their findMany where-clauses. The contextual-recall.ts hot path
+ * uses this exact filter.
+ */
+export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
+  BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO,
+];
 
 /**
  * Return the canonical category for a value — passes through for

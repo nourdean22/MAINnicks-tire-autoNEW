@@ -22,7 +22,8 @@
  */
 
 import { serve } from "inngest/next";
-import { getInngest } from "@/src/inngest/client";
+import { NextResponse, type NextRequest } from "next/server";
+import { getInngest, isInngestFullyConfigured } from "@/src/inngest/client";
 import * as functions from "@/src/inngest/functions";
 
 export const dynamic = "force-dynamic";
@@ -42,4 +43,30 @@ const handler = serve({
   functions: Object.values(functions),
 });
 
-export const { GET, POST, PUT } = handler;
+// 2026-05-17 follow-up · live smoke check via Chrome MCP showed the
+// raw inngest/next serve returning `{"code":"internal_server_error"}`
+// on GET to /api/inngest when INNGEST_SIGNING_KEY is unset. That's
+// what the SDK does internally — but it's a confusing 500 for the
+// operator who's not yet set up Inngest. Wrap GET with a graceful
+// degrade so the dashboard probe returns a clear "not configured"
+// 503 with the action item until the keys are pasted. POST + PUT
+// stay on the raw handler · they're hit by Inngest itself which
+// understands the SDK error shape.
+const rawGet = handler.GET;
+
+export async function GET(req: NextRequest): Promise<Response> {
+  if (!isInngestFullyConfigured()) {
+    return NextResponse.json(
+      {
+        ok: false,
+        configured: false,
+        hint: "Inngest serve endpoint is mounted but not configured. Operator action: create app on https://app.inngest.com and paste INNGEST_EVENT_KEY + INNGEST_SIGNING_KEY in Railway statenour-web env. See docs/adr/0005-inngest-durable-workflows.md.",
+        functions: Object.keys(functions),
+      },
+      { status: 503 },
+    );
+  }
+  return rawGet(req, undefined);
+}
+
+export const { POST, PUT } = handler;

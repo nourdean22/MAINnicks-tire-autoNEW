@@ -23,6 +23,11 @@ import { fuseRankings } from "@/lib/brain/rrf";
 import { cohereRerank, isCohereRerankAvailable } from "@/lib/brain/cohere-rerank";
 import { classifyQuery, coalaKindOf, coalaKindBoost } from "@/lib/brain/coala";
 import { classifyQueryTopics, tagWisdomTopics, topicBoost } from "@/lib/brain/wisdom-topic-tagger";
+// 2026-05-17 follow-up · exclude binary-payload categories from
+// every recall path · keeps the prompt builder from pulling 100KB+
+// base64 audio blobs that have no semantic value (Phase 5 morning
+// brief audio).
+import { RECALL_EXCLUDE_CATEGORIES } from "@/lib/brain/categories";
 
 interface RelevantMemory {
   category: string;
@@ -242,7 +247,12 @@ export async function getContextualMemories(
   // every chat turn. This was the highest-leverage CRITICAL because
   // it ran per-turn, not nightly.
   const allMemories = await prisma.brainMemory.findMany({
-    where: { confidence: { gte: 0.3 }, deletedAt: null },
+    where: {
+      confidence: { gte: 0.3 },
+      deletedAt: null,
+      // 2026-05-17 follow-up · exclude binary-payload categories
+      category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+    },
     orderBy: { confidence: "desc" },
     take: 300,
     // v10.0.354 · pull `source` so we can weight by ingestion pipeline
@@ -815,7 +825,12 @@ async function getFallbackMemories(max: number): Promise<string> {
   // empty/dark and was injecting deleted memories with no other
   // safety net.
   const memories = await prisma.brainMemory.findMany({
-    where: { confidence: { gte: 0.4 }, deletedAt: null },
+    where: {
+      confidence: { gte: 0.4 },
+      deletedAt: null,
+      // 2026-05-17 follow-up · exclude binary-payload categories
+      category: { notIn: [...RECALL_EXCLUDE_CATEGORIES] },
+    },
     orderBy: { confidence: "desc" },
     take: max,
     select: { category: true, content: true, confidence: true },

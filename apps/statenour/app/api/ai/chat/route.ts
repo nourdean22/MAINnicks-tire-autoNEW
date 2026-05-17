@@ -71,19 +71,45 @@ export async function POST(req: Request) {
   // See: docs/adr/0001-mastra-adoption.md · WAVE-200-PLAN Phase 1.5
   const { AGENT_V2_ENABLED } = await import("@/src/mastra/agents/nick");
   if (AGENT_V2_ENABLED) {
-    const { handleChatStream } = await import("@mastra/ai-sdk");
-    const { createUIMessageStreamResponse } = await import("ai");
-    const { getMastra } = await import("@/src/mastra");
-    // Clone the request so the body is readable here even though
-    // the request was already touched by requireSession + rate limit.
-    const params = await req.json();
-    const stream = await handleChatStream({
-      mastra: getMastra() as never,
-      agentId: "nick",
-      params,
-      version: "v6",
-    });
-    return createUIMessageStreamResponse({ stream: stream as never });
+    // 2026-05-17 follow-up · code-reviewer + silent-failure-hunter both
+    // flagged the original V2 branch as missing the error scaffolding
+    // the legacy path has. Wrapping with try/catch + recordError +
+    // sanitizeError so a Mastra construction failure (provider chain
+    // exhausted · Braintrust wrap throw · missing env) lands the same
+    // shape of error the client useChat() hook expects, and shows up
+    // in /system/errors instead of vanishing as an unhandled crash.
+    try {
+      const { handleChatStream } = await import("@mastra/ai-sdk");
+      const { createUIMessageStreamResponse } = await import("ai");
+      const { getMastra } = await import("@/src/mastra");
+      const params = await req.json();
+      // getMastra() returns a promise (race-safe singleton · 2026-05-17 follow-up)
+      const mastra = await getMastra();
+      const stream = await handleChatStream({
+        mastra: mastra as never,
+        agentId: "nick",
+        params,
+        version: "v6",
+      });
+      return createUIMessageStreamResponse({ stream: stream as never });
+    } catch (err) {
+      const message = sanitizeError(err);
+      log.error("agent_v2_failed", {
+        message,
+        stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
+      });
+      recordError("chat:stream", err, { surface: "agent_v2", agentV2: true });
+      // Return JSON 500 with a structured shape · the AI SDK v6 client
+      // surfaces this via the onError callback rather than hanging
+      // forever waiting for a stream that never arrives.
+      return new Response(
+        JSON.stringify({ error: "agent_v2_failed", message }),
+        {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        },
+      );
+    }
   }
   // v7.8 · Apr 29 · Universal audit. Anything written from this
   // route — AutonomousAction triggers, BrainMemory persists from

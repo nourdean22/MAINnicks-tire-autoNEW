@@ -181,6 +181,15 @@ async function generateBriefAudio(brief: ComposedBrief): Promise<{
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
+      // 2026-05-17 follow-up · transient 5xx (502/503/504/408/429) should
+      // THROW so Inngest's per-step retry kicks in instead of looking
+      // "successful with failed-status" to the platform · permanent
+      // (4xx auth · payload too large) returns failed cleanly.
+      if ([408, 429, 502, 503, 504].includes(res.status)) {
+        throw new Error(
+          `cartesia_transient_${res.status} · ${text.slice(0, 200)}`,
+        );
+      }
       return {
         status: "failed",
         reason: `cartesia_http_${res.status} · ${text.slice(0, 200)}`,
@@ -211,10 +220,17 @@ async function generateBriefAudio(brief: ComposedBrief): Promise<{
 
     return { status: "generated", bytes: audio.length };
   } catch (err) {
-    return {
-      status: "failed",
-      reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
-    };
+    // 2026-05-17 follow-up · timeouts + network errors throw to retry.
+    // Anything else returns failed for one-shot diagnostic visibility
+    // (e.g. payload-too-large is permanent · retrying is wasteful).
+    const message = err instanceof Error ? err.message : String(err);
+    if (
+      err instanceof Error &&
+      (err.name === "TimeoutError" || err.name === "TypeError" || /transient/i.test(message))
+    ) {
+      throw err;
+    }
+    return { status: "failed", reason: message.slice(0, 200) };
   }
 }
 

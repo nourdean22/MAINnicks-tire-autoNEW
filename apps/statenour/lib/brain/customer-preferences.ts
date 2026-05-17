@@ -243,39 +243,55 @@ export function inferCustomerPreferences(
 
 /**
  * Persist inferred preferences to BrainMemory. Upserts on category+key
- * so daily re-runs replace stale rows. Fire-and-forget logged on error
- * — never throws · this is a background enrichment.
+ * so daily re-runs replace stale rows.
+ *
+ * 2026-05-17 follow-up · pre-fix this swallowed all errors with
+ * `log.warn` only · the Inngest customer-preferences recompute
+ * function awaited it and reported `status: "ok"` even when the
+ * upsert silently failed for every customer. Now we re-throw so:
+ *   · Inngest caller's try/catch surfaces per-customer failure
+ *   · API-route caller still has `void` semantics (fire-and-forget)
+ *     via the `safe` wrapper — they don't observe the throw
+ * Choose the call shape that matches your caller's observability needs.
  */
 export async function persistCustomerPreferences(
   prefs: CustomerPreferences,
 ): Promise<void> {
-  // Cast through Prisma's JSON-input type · CustomerPreferences is
-  // pure-data (no Date/Map/circular refs) so JSON-round-trip is safe.
   const jsonMetadata = prefs as unknown as Prisma.InputJsonValue;
-  try {
-    await prisma.brainMemory.upsert({
-      where: {
-        category_key: { category: "customer_preference", key: prefs.customerId },
-      },
-      create: {
-        category: "customer_preference",
-        key: prefs.customerId,
-        content: prefs.summary,
-        confidence: 0.85, // hand-coded inference · high confidence in the math, not the prediction
-        source: "brain/customer-preferences",
-        metadata: jsonMetadata,
-      },
-      update: {
-        content: prefs.summary,
-        metadata: jsonMetadata,
-      },
-    });
-  } catch (err) {
+  await prisma.brainMemory.upsert({
+    where: {
+      category_key: { category: "customer_preference", key: prefs.customerId },
+    },
+    create: {
+      category: "customer_preference",
+      key: prefs.customerId,
+      content: prefs.summary,
+      confidence: 0.85,
+      source: "brain/customer-preferences",
+      metadata: jsonMetadata,
+    },
+    update: {
+      content: prefs.summary,
+      metadata: jsonMetadata,
+    },
+  });
+}
+
+/**
+ * Fire-and-forget convenience for API-route callers that don't want
+ * to block on persistence (e.g. the Customer 360 GET endpoint returns
+ * fresh prefs synchronously while persist runs in the background).
+ * Logs the failure for /api/ai/errors/recent visibility.
+ */
+export function safePersistCustomerPreferences(
+  prefs: CustomerPreferences,
+): void {
+  void persistCustomerPreferences(prefs).catch((err) => {
     log.warn("persist_failed", {
       customerId: prefs.customerId,
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-  }
+  });
 }
 
 /**

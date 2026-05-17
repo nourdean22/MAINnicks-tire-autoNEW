@@ -73,7 +73,8 @@ export default Eval("statenour-nick-baseline", {
     //
     // To run in-process (no HTTP), import getNickAgent directly here:
     //   const { getNickAgent } = await import("@/src/mastra/agents/nick");
-    //   const result = await getNickAgent().stream([{ role: "user", content: input }]);
+    //   const agent = await getNickAgent();   // race-safe promise singleton
+    //   const result = await agent.stream([{ role: "user", content: input }]);
     //
     // For Phase 1 we keep it HTTP-based so the eval validates the full
     // edge → handler → agent → tool round-trip · same shape as production.

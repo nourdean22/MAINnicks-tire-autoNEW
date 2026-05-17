@@ -46,7 +46,17 @@ interface RecentCustomersResponse {
   customerIds: string[];
 }
 
-async function getActiveCustomerIds(): Promise<string[]> {
+interface ActiveIdsResult {
+  ids: string[];
+  /** "ok" · query returned shape, may have 0 ids.
+   *  "missing_query" · bridge soft-degrade · nickstire-side handler
+   *    not shipped · this is the documented operator action item,
+   *    not an error.
+   *  "bridge_down" · bridge unreachable · should retry. */
+  source: "ok" | "missing_query" | "bridge_down";
+}
+
+async function getActiveCustomerIds(): Promise<ActiveIdsResult> {
   const { queryNick } = await import("@/lib/nickstire/query");
   const resp = await queryNick<RecentCustomersResponse>(
     "recent_customer_ids",
@@ -54,16 +64,31 @@ async function getActiveCustomerIds(): Promise<string[]> {
   );
   if (resp && "data" in resp) {
     const ids = resp.data?.customerIds;
-    if (Array.isArray(ids)) return ids.slice(0, HARD_CAP);
+    if (Array.isArray(ids)) return { ids: ids.slice(0, HARD_CAP), source: "ok" };
   }
-  // Soft-degrade · the bridge may not yet expose this query.
-  // Without it, the daily refresh is a no-op · operator-facing
-  // Customer 360 view still recomputes on visit so this just means
-  // "the cache stays as stale as the last visit".
-  log.warn("recent_customer_ids_unavailable", {
-    hint: "add `recent_customer_ids` query to nickstire side · returns { customerIds: string[] } given { sinceDays }",
+  const err = resp as { error?: string; statusCode?: number };
+  // 2026-05-17 follow-up · distinguish "bridge soft-degrade · missing
+  // query handler" (operator action item · documented · not noise)
+  // from "bridge unreachable" (real failure · should retry · surfaces
+  // differently in the Inngest dashboard).
+  if (
+    err.statusCode === 400 &&
+    typeof err.error === "string" &&
+    /unknown query/i.test(err.error)
+  ) {
+    log.info("recent_customer_ids_unavailable", {
+      hint: "operator action item · nickstire side adds `recent_customer_ids` query handler",
+    });
+    return { ids: [], source: "missing_query" };
+  }
+  log.warn("recent_customer_ids_bridge_error", {
+    statusCode: err.statusCode,
+    err: err.error?.slice(0, 200),
   });
-  return [];
+  // Throw so Inngest retries · 5xx and timeouts both land here.
+  throw new Error(
+    `bridge_unreachable · ${err.error?.slice(0, 200) ?? "unknown"}`,
+  );
 }
 
 async function recomputeOne(customerId: string): Promise<{
@@ -71,35 +96,45 @@ async function recomputeOne(customerId: string): Promise<{
   status: "ok" | "skipped" | "failed";
   reason?: string;
 }> {
-  try {
-    const { queryNick } = await import("@/lib/nickstire/query");
-    const { inferCustomerPreferences, persistCustomerPreferences } =
-      await import("@/lib/brain/customer-preferences");
+  // 2026-05-17 follow-up · transient bridge / DB errors THROW so the
+  // per-step Inngest retry kicks in · permanent errors (no_customer ·
+  // bad shape) return failed cleanly to surface in the dashboard
+  // summary without burning retries.
+  const { queryNick } = await import("@/lib/nickstire/query");
+  const { inferCustomerPreferences, persistCustomerPreferences } = await import(
+    "@/lib/brain/customer-preferences"
+  );
 
-    const resp = await queryNick<CustomerDetailInput>("customer_detail", {
-      customerId,
-    });
-    if (!resp || "error" in resp) {
-      return {
-        customerId,
-        status: "skipped",
-        reason: (resp as { error?: string })?.error ?? "no_data",
-      };
+  const resp = await queryNick<CustomerDetailInput>("customer_detail", {
+    customerId,
+  });
+  if (resp && "error" in resp) {
+    const err = resp as { error: string; statusCode?: number };
+    // 5xx or transport failures · retry by throwing.
+    if (!err.statusCode || err.statusCode >= 500) {
+      throw new Error(`bridge_transient · ${err.error?.slice(0, 200)}`);
     }
-    const detail = (resp as { data: CustomerDetailInput }).data;
-    if (!detail?.customer?.id) {
-      return { customerId, status: "skipped", reason: "no_customer" };
-    }
-    const prefs = inferCustomerPreferences(detail);
-    await persistCustomerPreferences(prefs);
-    return { customerId, status: "ok" };
-  } catch (err) {
+    // 4xx is permanent · return clean.
     return {
       customerId,
-      status: "failed",
-      reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      status: "skipped",
+      reason: err.error ?? "no_data",
     };
   }
+  const detail = (resp as { data: CustomerDetailInput })?.data;
+  if (!detail?.customer?.id) {
+    return { customerId, status: "skipped", reason: "no_customer" };
+  }
+  const prefs = inferCustomerPreferences(detail);
+  // persistCustomerPreferences now THROWS on DB error (Wave-200 follow-up).
+  // Allow it to propagate · Inngest retries the step.
+  await persistCustomerPreferences(prefs);
+  return { customerId, status: "ok" };
+}
+
+/** Sanitize a customer ID into a stable Inngest step ID. */
+function customerStepId(customerId: string): string {
+  return `recompute_${customerId.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 }
 
 export const customerPreferencesRecompute = inngest.createFunction(
@@ -111,18 +146,26 @@ export const customerPreferencesRecompute = inngest.createFunction(
     triggers: [{ cron: "0 11 * * *" }],
   },
   async ({ step }) => {
-    const ids = await step.run("fetch-active-customer-ids", () =>
+    const { ids, source } = await step.run("fetch-active-customer-ids", () =>
       getActiveCustomerIds(),
     );
     if (ids.length === 0) {
-      return { customersScanned: 0, reason: "no_active_customers" };
+      return {
+        customersScanned: 0,
+        reason:
+          source === "missing_query"
+            ? "bridge_query_unavailable"
+            : "no_active_customers",
+      };
     }
 
     // Per-customer steps so Inngest retries each individually and the
-    // dashboard surfaces per-customer failures clearly.
+    // dashboard surfaces per-customer failures clearly. Step IDs are
+    // sanitized so customer IDs containing `/`, `?`, `=`, or other
+    // special chars don't break Inngest's checkpoint key handling.
     const results = await Promise.all(
       ids.map((id) =>
-        step.run(`recompute:${id}`, () => recomputeOne(id)),
+        step.run(customerStepId(id), () => recomputeOne(id)),
       ),
     );
 
