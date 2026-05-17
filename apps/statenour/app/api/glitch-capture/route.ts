@@ -1,3 +1,8 @@
+// CP7 · force-dynamic · Railway build cannot reach Neon during static
+// prerender. Runtime semantics unchanged (cached() makes these effectively
+// dynamic on Vercel too).
+export const dynamic = "force-dynamic";
+
 /**
  * /api/glitch-capture · v10.0.338 · one-tap "this is broken" capture
  * from /chat. Cross-cutting prevention tool per docs/glitch-taxonomy.md.
