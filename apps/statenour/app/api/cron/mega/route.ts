@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
+// 2026-05-17 follow-up · shared single-source-of-truth job arrays.
+// Pre-fix the same MORNING/EVENING/WEEKLY arrays were also defined
+// in src/inngest/functions/mega-fanout.ts · drift bait. Now both
+// consumers import from src/inngest/jobs.ts.
+import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from '@/src/inngest/jobs';
 
 function safeEqual(a: string, b: string): boolean {
   if (!a || !b) return false;
@@ -22,230 +27,16 @@ function safeEqual(a: string, b: string): boolean {
 // 300s; 240 leaves 60s headroom for the post-fan-out DB write.
 export const maxDuration = 240; // Pro plan
 
-// Apr 17 separation pass: 12 business crons retired
-// (customer-profiles, estimate-escalation, follow-up-reminders,
-//  quote-expiry, review-fetch, revenue-aging-alert, scraper-watchdog,
-//  staffing, tire-sync, weather-campaigns, winback, projections).
-// Shop operations live in nickstire.org/admin.
+// 2026-05-17 follow-up · CRON_JOBS now reads from the shared arrays
+// imported above · pre-fix this was a 200-LOC inline duplicate of
+// what now lives in src/inngest/jobs.ts. The Inngest fan-out at
+// src/inngest/functions/mega-fanout.ts reads from the same source.
 const CRON_JOBS = {
-  morning: [
-    // v10.0.529.56 · device-sync + device-health removed · subsystem
-    // retired v529.6 · route files deleted v529.56.
-    '/api/cron/learn',
-    '/api/cron/stale-tasks',
-    '/api/cron/brain-cycle',
-    // Apr 27 — notification-sender removed. NotificationQueue model
-    // was retired from prisma/schema.prisma but the cron + schedule
-    // stayed wired. Every run threw "Cannot read properties of
-    // undefined (reading 'findMany')" — 26 failures in 24h, painted
-    // the orb red. Killed the schedule + the mega-fanout entry; the
-    // route handler stays as a no-op that returns 410 Gone for any
-    // stragglers.
-    '/api/cron/journal-checkin?slot=morning',
-    // morning-brief retired Apr 17 — TodoDesk + BottomPulseTicker replace it
-    '/api/cron/embed-backfill', // Auto-backfill memory embeddings (10/run, no-op when done)
-    // v8.7.1 hotfix — folded crons (Vercel Pro 40-cap):
-    '/api/cron/health-digest',         // 8am UTC = 4am ET — morning system snapshot
-    '/api/cron/cost-regression',       // 7d-vs-7d AI spend delta
-    '/api/cron/schema-drift-watch',    // sentinel daily roll-up
-    // v8.7.2 consolidation pass 2:
-    '/api/cron/knowledge-sync',        // Drive/Notion/etc. daily re-sync
-    '/api/cron/prediction-streaks',    // F4 daily streaks roll-up
-    // v10.0.346 · synthetic chat canary (Cat 8 prevention) · folded
-    // into mega-morning so it runs once daily before the operator
-    // opens chat. Fires the model+sanitizer+critic stack with a
-    // deterministic prompt · writes glitch_capture brain memory if
-    // the probe fails. ~$0.10/year cost. Per docs/glitch-taxonomy.md.
-    '/api/cron/canary-chat',
-    // v10.0.524.6 · morning-brief · folded · runs in the morning
-    // fanout · operator-visible 7am brief via Telegram (drift state
-    // + top task + open tasks + aging commitments + calendar). The
-    // route is idempotent per-day so the mega-morning timing of
-    // ~5am ET still gives the brief ahead of the operator's day.
-    '/api/cron/morning-brief',
-    // v10.0.526 · Arc C · F1 · revenue-decision · folded. Pulls
-    // nickstire signals (read-only) → matches wisdom corpus → drafts
-    // 1-3 concrete revenue moves via aiChat → Telegram approval push.
-    // Idempotent per ET-day via BrainMemory(category='revenue_move').
-    // Bridge-down behavior: logs and exits cleanly · no Telegram noise.
-    // NEVER writes to nickstire (statenour-side read-only boundary).
-    '/api/cron/revenue-decision',
-    // v10.0.528 · Arc B · F3 · decision-replay · folded into mega-morning.
-    // Picks 5 due MasteryDecisions (≥30d), gathers 30d outcome signals,
-    // matches ONE wisdom citation, upserts decision_replay_due BrainMemory
-    // rows for the morning-brief consumer (which reads + marks consumed in
-    // the same pass). Idempotent per decision via DecisionReplay row +
-    // BrainMemory upsert keyed by decisionId.
-    '/api/cron/decision-replay',
-    // v10.0.529.32 · Arc B · F4 · persona-drift · folded into mega-morning.
-    // Scans the last 28h of assistant chat replies (cap 60), compares each
-    // embedding to the operator's 8-axis identity_snapshot persona vector,
-    // logs drift events (similarity < 0.6) to BrainMemory(category=
-    // "persona_drift") for surfacing via the SituationCard meta-aggregator.
-    // Detection-only · regeneration deliberately Phase 2. Idempotent per
-    // message via sha1(messageId) upsert key.
-    '/api/cron/persona-drift',
-    // v10.0.529.80 · Wave 24 · #3 · orphan-task-nudge · catches DONE
-    // tasks that fired ZERO auto-learn engine and surfaces them to
-    // /brain so the operator can tag them.
-    '/api/cron/orphan-task-nudge',
-    // v10.0.529.82 · Wave 26 · B1 · task-resurface · flips WAITING →
-    // READY for tasks whose snoozedUntil ≤ now. Closes the snooze
-    // broken-promise bug · runs before the operator opens /tasks.
-    '/api/cron/task-resurface',
-    // 2026-05-17 · CP-coherency · 4 orphans folded into the morning
-    // fan-out · they had route handlers + registry entries with their
-    // own UTC schedules (refresh-identity 04:30, auto-linker 04:00,
-    // backlog-triage 07:00, ingest-drive Sun+Wed 02:30) but no caller —
-    // Vercel cron limit pushed every per-cron schedule onto the mega
-    // slots long ago and these 4 just never got folded. /system/crons
-    // reported them as silent (0 success14d, 0 fail14d). All daily-ish
-    // schedules collapse fine into mega-morning (9am UTC) · the
-    // Sunday-only ones (extract-skills, pin-hygiene) live in the
-    // weekly array further down + only fire on the Sun mega-evening.
-    '/api/cron/refresh-identity',
-    '/api/cron/auto-linker',
-    '/api/cron/backlog-triage',
-    '/api/cron/ingest-drive',
-    // 2026-05-17 · the registry has both of these marked mode="folded"
-    // with foldedInto="mega" (per config/crons.ts), but they were never
-    // actually wired into the morning array · annotation drifted from
-    // implementation. token-age-watch alerts Telegram for tokens about
-    // to expire — runs once daily, idempotent per-token-per-day via
-    // BrainMemory category=token_age_pushed.
-    '/api/cron/token-age-watch',
-  ],
-  evening: [
-    // v10.0.529.56 · device-sync removed (subsystem retired v529.6 ·
-    // route deleted v529.56).
-    '/api/cron/reflect',
-    '/api/cron/predict',
-    '/api/cron/think',
-    '/api/cron/consolidate',
-    '/api/cron/drift-check',
-    '/api/cron/daily-report',
-    '/api/cron/data-cleanup',
-    '/api/cron/journal-checkin?slot=evening',
-    '/api/cron/intelligence',
-    '/api/cron/brain-intelligence', // v7: outcome tracking, wisdom distillation, blind spots, learning journal
-    '/api/cron/embed-backfill', // Backfill memory embeddings (30/run, no-op when done)
-    // v8.7.1 hotfix — folded crons (Vercel Pro 40-cap):
-    '/api/cron/chat-message-backfill', // self-terminating finite migration
-    '/api/cron/image-rot-scan',        // recent generated-image audit
-    '/api/cron/semantic-dedup',        // ~50ms vector-similarity dedup pass
-    '/api/cron/pgvector-backfill',     // self-terminating native vector migration
-    // v8.7.2 consolidation pass 2:
-    '/api/cron/auto-calibrate',        // belief recalibration nightly
-    '/api/cron/correlation-alarm',     // F2 cross-domain correlation diff
-    // v10.0.529.79 · Wave 23 · auto-learn upgrades
-    '/api/cron/mastery-decay',         // -0.05/day on axes with no DONE today
-    '/api/cron/pattern-cluster',       // cluster last-7d insights by axis
-    // v8.8 storage-quota watcher:
-    '/api/cron/storage-quota-watch',   // daily pg_relation_size probe + alerts
-    // v8.9 audit retention TTL:
-    '/api/cron/audit-retention',       // 90d hot window, 30d for creates
-    // v8.10 mass-creation spike detector:
-    '/api/cron/creation-spike-detect', // catches chat-interceptor loops + runaway imports
-    // v8.11 mass-update spike detector:
-    '/api/cron/update-spike-detect',   // catches useEffect storms + migration re-touch bugs
-    // v8.11 brain-bus health probe:
-    '/api/cron/brain-bus-probe',       // round-trip NOTIFY heartbeat
-    // v8.11 stale-conversation auto-archive:
-    '/api/cron/stale-conversation-archive', // archive idle >60d convs
-    '/api/cron/conversation-mission-link', // link embedded chat archives to missions
-    '/api/cron/embed-cleanup', // v10.0.192 · drop orphan vector_embeddings (deleted/archived sources)
-    // v8.23 brain-bus consumer activator:
-    '/api/cron/brain-bus-consume',     // 50s LISTEN window, flushes counters
-    // v10.0.370 · agent-evaluation harness · runs gold prompts nightly,
-    // detects regressions vs yesterday, stores trend in eval_run brain
-    '/api/cron/agent-eval',
-    // v10.0.371 · extract factual domain knowledge from yesterday's
-    // assistant replies · adversarial verification · stores high-conf
-    // facts as category=domain_knowledge for the semantic-kind recall
-    '/api/cron/extract-knowledge',
-    // v10.0.411 · brain feedback loop · improve-agent (axis-failure
-    // hypotheses) + wisdom-evolution (stale/redundant/low-trust) · folds
-    // into evening so morning insight panel reflects fresh signal
-    '/api/cron/brain-feedback-loop',
-    // v10.0.524.6 · eval-regression · folded into mega-evening. Runs
-    // the 35 golden Q&A through the live chat pipeline, scores against
-    // expected criteria, writes BrainMemory(eval_result), Telegram-
-    // alerts if passRate<80%. Sibling of agent-eval (different shape ·
-    // golden-set regression vs continuous evaluation).
-    '/api/cron/eval-regression',
-    // v10.0.526 · Arc A · F2 · cost-slo-check · folded into mega-evening.
-    // Linear 24h burn-rate forecast over AiGeneration · Telegram alert
-    // when forecast > DAILY_AI_BUDGET_CENTS · 1.2. Idempotent per ET-day.
-    '/api/cron/cost-slo-check',
-    // v10.0.526 · Arc A · F3 · vapi-latency-sync · folded into mega-evening.
-    // Pulls last 24h of VAPI calls · derives end-to-end latency · writes
-    // VoiceLatencyEvent rows (deduped). Telegram alerts when p50 breach
-    // streak ≥ 3 consecutive call-days · idempotent per UTC date.
-    '/api/cron/vapi-latency-sync',
-    // v10.0.526 · Arc A · F5 · os-snapshot · folded into mega-evening.
-    // Snapshots codebase metrics (routes/crons/tools/LOC/tests/monster
-    // files/`any`/console) to SystemMetric. Compares to 7-day baseline;
-    // Telegram-alerts on warn/critical regressions. Idempotent per-day.
-    '/api/cron/os-snapshot',
-    // v10.0.526 · Arc B · F6 · anticipate · folded into mega-evening.
-    // Drafts the 3 questions the operator is most likely to ask
-    // tomorrow + precomputes answers via the in-process chat pipeline.
-    // Morning-brief surfaces the predictions; chat route injects the
-    // cached take when the operator's actual query matches >0.85
-    // cosine. BrainMemory(category=anticipated_question) · idempotent
-    // per-day (6h skip window). ~30-45s typical, hard 60s cap.
-    '/api/cron/anticipate',
-    // v10.0.526 · Arc C · F7 · monthly-location-rank · folded into
-    // mega-evening. Pure-function ranker over data/location-candidates.json.
-    // The handler gates on 1st-of-ET-month internally; on every other
-    // day it returns immediately (cheap). File-missing = structured
-    // no-op so the cron dashboard stays green while the operator has
-    // not pre-populated the candidate file.
-    '/api/cron/monthly-location-rank',
-    // 2026-05-17 · registry marked mode="folded" foldedInto="mega-evening"
-    // (per config/crons.ts) but never actually wired here · annotation
-    // drifted from implementation. semantic-link runs KNN cosine over
-    // recent high-confidence brain memories + persists top-3 neighbors
-    // as BrainMemory category=semantic_edge. Pairs with the rule-driven
-    // auto-linker (morning slot) for coverage.
-    '/api/cron/semantic-link',
-  ],
-  weekly: [
-    '/api/cron/weekly-digest',
-    '/api/cron/weekly-review',
-    // v8.7.1 hotfix — folded weekly cron:
-    '/api/cron/memory-bloat-watch', // weekly bloat check + dedup trigger
-    // v8.7.2 consolidation pass 2 — weekly fold:
-    '/api/cron/voice-clone-train',  // mines last week's Fireflies for voice fingerprint
-    // v10.0.155 — folded weekly hygiene:
-    '/api/cron/inbox-janitor',      // soft-archive empty Inbox catch-alls (30d cold)
-    // v10.0.526 · Arc B Feature 1 · weekly preference self-tune. Reads
-    // last 7d of chat_feedback audit events, scores replies on 8 style
-    // axes (density · creativity · skepticism · directness · humor ·
-    // jargon · structure · urgency), applies weighted decay (rate 0.1)
-    // to OperatorPreference.voiceToneBoundaries.preferenceVector.
-    // System prompt picks up the new vector on the next chat turn via
-    // buildSystemPromptAddendum (lib/brain/preference-inference.ts).
-    '/api/cron/preference-tune',
-    // v10.0.526 · Arc C Feature 3 · weekly pricing-strategy advisor.
-    // Reads 30d ALG win-rate per service category from nickstire
-    // bridge · flags outliers ≥20pp below fleet median · pulls
-    // competitor signal via multiSourceSearch (24h cache) · drafts
-    // 3 operator-approval-only experiments per outlier citing
-    // Munger/Buffett wisdoms by name. Telegram-alerts only when
-    // outliers found. ADVISORY ONLY — never mutates pricing.
-    '/api/cron/pricing-advisor',
-    // 2026-05-17 · CP-coherency · 2 weekly orphans folded · had route
-    // handlers + registry entries (extract-skills Sun 03:00 UTC,
-    // pin-hygiene Sun 06:00 UTC) but no caller. /system/crons reported
-    // them silent. Folded here so they fire once on Sunday-evening
-    // mega run (per `if (slot === 'evening' && isSunday)` branch
-    // below). Extract-skills: harvests skills from the week's DONE
-    // tasks · pin-hygiene: prunes stale pins.
-    '/api/cron/extract-skills',
-    '/api/cron/pin-hygiene',
-  ],
+  morning: MORNING_JOBS as readonly string[] as string[],
+  evening: EVENING_JOBS as readonly string[] as string[],
+  weekly: WEEKLY_JOBS as readonly string[] as string[],
 };
+
 
 export async function GET(req: NextRequest) {
   // v10.0.114 audit fix · the previous 'x-vercel-cron: 1' bypass was
