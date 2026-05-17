@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
+
+// CP7 · Railway build cannot reach Neon during static prerender. Force
+// runtime-only · same behavior as Vercel (where this also runs dynamic
+// in practice because of the cached() wrapper). Equivalent to setting
+// `cache: 'no-store'` everywhere · no Vercel behavior change.
+export const dynamic = "force-dynamic";
 import { findTeachingMoments } from "@/lib/brain/teaching-moments";
 import { findCounterIntuitive } from "@/lib/brain/counter-intuitive";
 import { findCorrelations } from "@/lib/brain/correlation-finder";
