@@ -1,0 +1,247 @@
+/**
+ * morning-brief · Wave-200 Phase 5 (2026-05-17)
+ *
+ * Operator-facing morning brief workflow · runs daily at 10:00 UTC
+ * (6am ET) so the brief lands when the operator's first cup of coffee
+ * does. Composes the brief, sends Web Push, optionally generates a
+ * Cartesia-spoken audio file the operator can tap-and-listen to.
+ *
+ * Relationship to existing path:
+ *   · `/api/cron/morning-brief` (legacy · fires inside mega-morning
+ *     at 9:00 UTC) sends the brief via Telegram + writes the durable
+ *     BrainMemory row. THAT PATH STAYS — it's the durable producer.
+ *   · This Inngest function reads what that path wrote and adds
+ *     two delivery channels the legacy cron doesn't have:
+ *       (a) Web Push — silent landing on the operator's phone
+ *       (b) Cartesia spoken audio — pre-rendered today.mp3 for the
+ *           upcoming voice-tap-to-play flow on the PWA at /voice
+ *
+ *   · Idempotency: composes from BrainMemory(category="morning_brief")
+ *     for today. If the legacy cron hasn't fired yet (race window),
+ *     we just call buildMorningBrief() directly to fall back.
+ *
+ *   · Failure semantics: each step retries independently. If Web Push
+ *     fails because VAPID isn't set up, that step errors but the
+ *     compose step's data still lives in BrainMemory.
+ *
+ * Why 10:00 UTC (6am ET):
+ *   · The legacy cron at 9:00 UTC (5am ET) finishes BrainMemory write
+ *     by ~9:05 UTC · this fires at 10:00 UTC with 55min of slack
+ *   · 6am ET lands the push notification right when the operator
+ *     wakes and reaches for the phone
+ *   · The Cartesia file is fresh — no chance of stale "yesterday" data
+ *
+ * See:
+ *   · docs/adr/0007-morning-brief-multichannel.md (forthcoming)
+ *   · apps/statenour/lib/services/morning-brief.ts (composer)
+ *   · apps/statenour/lib/notifications/push.ts (Web Push surface)
+ */
+
+import { getInngest } from "../client";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("inngest/morning-brief");
+const inngest = getInngest();
+
+interface ComposedBrief {
+  date: string;
+  text: string;
+  /** Number of payload sections present · diagnostic only. */
+  sectionCount: number;
+}
+
+/**
+ * Step 1 · compose the brief. Reads today's row from BrainMemory if
+ * the legacy cron already wrote it; otherwise calls buildMorningBrief
+ * directly so we still deliver something.
+ */
+async function composeBrief(): Promise<ComposedBrief> {
+  const { prisma } = await import("@/lib/prisma");
+  const today = new Date().toISOString().slice(0, 10);
+
+  const existing = await prisma.brainMemory.findFirst({
+    where: { category: "morning_brief", key: today },
+    select: { content: true, metadata: true },
+  });
+
+  if (existing?.content) {
+    const payload =
+      (existing.metadata as Record<string, unknown> | null) ?? {};
+    return {
+      date: today,
+      text: existing.content,
+      sectionCount: Object.keys(payload).length,
+    };
+  }
+
+  // Fallback · compose from scratch (legacy cron probably hasn't fired)
+  log.warn("brief_not_yet_persisted", {
+    date: today,
+    action: "compose-direct",
+  });
+  const { buildMorningBrief } = await import("@/lib/services/morning-brief");
+  const brief = await buildMorningBrief();
+  return {
+    date: brief.date,
+    text: brief.text,
+    sectionCount: Object.keys(brief.payload).length,
+  };
+}
+
+/**
+ * Step 2 · send Web Push to the operator's subscribed devices.
+ * No-ops if no subscriptions or VAPID_PRIVATE_KEY unset.
+ *
+ * `chatSeed` lets the operator tap the notification and land in chat
+ * with the brief pre-quoted · "walk me through this" works out of
+ * the box.
+ */
+async function sendBriefPush(brief: ComposedBrief): Promise<{
+  sent: number;
+  failed: number;
+}> {
+  const { sendPush } = await import("@/lib/notifications/push");
+  const result = await sendPush({
+    title: "Morning brief",
+    // Trim aggressively · push body has a hard limit ~120 chars on
+    // most platforms before the OS truncates with "…".
+    body: brief.text.slice(0, 200).replace(/\n+/g, " · "),
+    level: "high",
+    url: "/command",
+    tag: `morning-brief-${brief.date}`,
+    chatSeed: {
+      prompt: `morning brief for ${brief.date} just landed · walk me through the highest-leverage item and what to do about it today`,
+      suggKind: "morning-brief",
+      suggId: brief.date,
+    },
+  });
+  return result;
+}
+
+/**
+ * Step 3 · generate a Cartesia-TTS audio file for the brief and
+ * cache it at the operator-facing endpoint. Graceful: skipped if
+ * CARTESIA_API_KEY missing.
+ *
+ * The cache write itself targets the `MorningBriefAudio` table — we
+ * use BrainMemory(category="morning_brief_audio") with the date as
+ * key + the audio bytes stored as a base64-encoded content. The
+ * `/api/morning-brief/today.mp3` endpoint reads from this row.
+ *
+ * Limit: Cartesia rejects payloads > ~1500 chars per request. The
+ * brief is intentionally tight (~15 lines, < 1500 chars typically)
+ * so this is rarely a problem. If it ever is, we'd chunk + concat.
+ */
+async function generateBriefAudio(brief: ComposedBrief): Promise<{
+  status: "generated" | "skipped" | "failed";
+  reason?: string;
+  bytes?: number;
+}> {
+  const apiKey = (process.env.CARTESIA_API_KEY ?? "").trim();
+  const voiceId = (
+    process.env.CARTESIA_VOICE_ID ?? "78fef94e-30c8-4c8a-9b91-7c00aef60af7"
+  ).trim();
+
+  if (!apiKey) {
+    return { status: "skipped", reason: "CARTESIA_API_KEY unset" };
+  }
+
+  // Strip HTML the brief composer emits (`<b>Drift:</b> ...`) before
+  // sending to TTS. Cartesia would speak the tags otherwise.
+  const spokenText = brief.text
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 1500);
+
+  if (spokenText.length < 10) {
+    return { status: "skipped", reason: "brief too short to speak" };
+  }
+
+  try {
+    const res = await fetch("https://api.cartesia.ai/tts/bytes", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+        "Cartesia-Version": "2024-11-13",
+      },
+      body: JSON.stringify({
+        model_id: "sonic-2",
+        transcript: spokenText,
+        voice: { mode: "id", id: voiceId },
+        output_format: {
+          container: "mp3",
+          encoding: "mp3",
+          sample_rate: 44100,
+        },
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      return {
+        status: "failed",
+        reason: `cartesia_http_${res.status} · ${text.slice(0, 200)}`,
+      };
+    }
+
+    const audio = Buffer.from(await res.arrayBuffer());
+    const base64 = audio.toString("base64");
+
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.brainMemory.upsert({
+      where: {
+        category_key: { category: "morning_brief_audio", key: brief.date },
+      },
+      create: {
+        category: "morning_brief_audio",
+        key: brief.date,
+        content: base64,
+        confidence: 1.0,
+        source: "inngest/morning-brief",
+        metadata: { bytes: audio.length, mime: "audio/mpeg" },
+      },
+      update: {
+        content: base64,
+        metadata: { bytes: audio.length, mime: "audio/mpeg" },
+      },
+    });
+
+    return { status: "generated", bytes: audio.length };
+  } catch (err) {
+    return {
+      status: "failed",
+      reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    };
+  }
+}
+
+/**
+ * The Inngest orchestrator · three sequential checkpoints, each
+ * separately retried. Cron trigger at 10:00 UTC daily.
+ */
+export const operatorMorningBrief = inngest.createFunction(
+  {
+    id: "operator-morning-brief",
+    name: "Operator morning brief · multi-channel",
+    retries: 2,
+    triggers: [{ cron: "0 10 * * *" }],
+  },
+  async ({ step }) => {
+    const brief = await step.run("compose", composeBrief);
+    const push = await step.run("web-push", () => sendBriefPush(brief));
+    const audio = await step.run("voice-file", () => generateBriefAudio(brief));
+
+    return {
+      date: brief.date,
+      sectionCount: brief.sectionCount,
+      pushSent: push.sent,
+      pushFailed: push.failed,
+      audioStatus: audio.status,
+      audioBytes: audio.bytes ?? null,
+      audioReason: audio.reason ?? null,
+    };
+  },
+);
