@@ -161,8 +161,12 @@ export async function healthHandler(_req: Request, res: Response): Promise<void>
     }
   }
 
-  // Degrade if critical services not configured
-  if (checks.email.status === "not_configured" || checks.twilio.status === "not_configured") {
+  // Degrade if critical services not configured.
+  // Email was intentionally removed 2026-05-17 (operator dropped Resend
+  // for cost; F25e SMS gateway + Telegram handle ops + customer flows).
+  // Twilio still in the gate · SMS is load-bearing for the shop's
+  // primary customer-facing path. Email/Resend no longer is.
+  if (checks.twilio.status === "not_configured") {
     if (overallStatus === "healthy") overallStatus = "degraded";
   }
 
