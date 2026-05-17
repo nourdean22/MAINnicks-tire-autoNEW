@@ -96,8 +96,11 @@ export interface CronTriggerResult {
   error?: string;
 }
 
-/** Build the base URL for self-fetch — prod on Vercel, localhost in dev. */
+/** Build the base URL for self-fetch — Railway (APP_BASE_URL) takes
+ *  priority post-CP5 · Vercel env stays as fallback for dual-write
+ *  window · NEXT_PUBLIC_APP_URL still works in dev · localhost final. */
 function baseUrl(): string {
+  if (process.env.APP_BASE_URL) return process.env.APP_BASE_URL;
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
   }

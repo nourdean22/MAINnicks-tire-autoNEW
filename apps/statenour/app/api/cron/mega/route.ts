@@ -237,9 +237,14 @@ export async function GET(req: NextRequest) {
   }
 
   const slot = req.nextUrl.searchParams.get('slot') || 'morning';
-  const baseUrl = process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : 'https://autonicks.com';
+  // CP5 (Railway migration) · prefer APP_BASE_URL (Railway-style)
+  // · fall back to legacy Vercel env · final fallback to operator domain.
+  // Backward-compatible during dual-write window · works on both platforms.
+  const baseUrl =
+    process.env.APP_BASE_URL?.trim()
+    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'https://autonicks.com');
 
   const now = new Date();
   // v10.0.45 — fixed weekly-block scheduling. Pre-fix

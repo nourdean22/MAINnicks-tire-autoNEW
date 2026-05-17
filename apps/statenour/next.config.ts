@@ -25,6 +25,11 @@ const BUILD_TIME = new Date().toISOString();
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   distDir,
+  // CP5 · Railway Docker requires a self-contained server build.
+  // `standalone` produces .next/standalone/server.js with all required
+  // node_modules tracing · no `pnpm install` needed in the runtime image.
+  // Backward-compatible · Vercel ignores this flag.
+  output: "standalone",
   env: {
     BUILD_TIME,
   },
