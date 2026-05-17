@@ -164,12 +164,30 @@ env-var paste are the blocking action items for prod cutover.
 - [ ] *(follow-up)* Dedicated voice-bridge bearer token (replaces
   STATENOUR_OWNER_COOKIE · rotates independently)
 
-### **Phase 5 · Morning brief + ambient mode** *(target: 1 week · 2-3 commits)*
-- [ ] Mastra workflow `morning-brief.workflow.ts` · fires daily at 5am ET via Inngest
-- [ ] Aggregates: overnight errors · cron failures · commitments due today · new leads/calls · revenue delta · brain insights · ALG status
-- [ ] Output: 1 Web Push notification (already have VAPID) · TL;DR voice file (Cartesia) saved at `/api/morning-brief/today.mp3`
-- [ ] One-tap from push → opens the morning view (replaces the laptop ritual)
-- [ ] Bonus: tap the push → trigger an outbound LiveKit voice call to the operator's phone with the brief
+### **Phase 5 · Morning brief + ambient mode** *(LANDED 2026-05-17 · 1 commit · see ADR-0007)*
+
+Multi-channel morning brief shipped. The legacy Telegram path stays
+unchanged · new Inngest function adds Web Push + pre-rendered audio.
+
+- [x] `src/inngest/functions/morning-brief.ts` · 3-step orchestrator
+  (compose · web-push · voice-file) · cron 10:00 UTC daily
+- [x] `app/api/morning-brief/today.mp3` · owner-only audio playback
+  endpoint · reads from BrainMemory cache · 5min HTTP cache
+- [x] Cartesia TTS integration via `https://api.cartesia.ai/tts/bytes`
+  · gracefully skipped when CARTESIA_API_KEY unset
+- [x] Web Push via existing VAPID pipeline (`lib/notifications/push.ts`)
+  · `chatSeed` lets operator tap notification and land in chat
+  pre-quoted
+- [x] Legacy `/api/cron/morning-brief` Telegram path unchanged
+  (additive · backward compatible)
+- [x] ADR-0007 documents the layered architecture + rejected
+  alternatives + caching strategy
+- [ ] *(operator follow-up · optional)* After 7 days of clean Inngest
+  runs, remove the `sendTelegram(brief.text)` call from
+  `/api/cron/morning-brief/route.ts` if push-only is preferred
+- [ ] *(follow-up)* "Play today's brief" button on `/voice` page
+- [ ] *(future · Phase 5+)* Outbound LiveKit voice call with the
+  brief read live (waits for Cartesia voice clone training to finish)
 
 ### **Phase 6 · Customer unified loop + predictive brain** *(target: 2-3 weeks · 5-8 commits)*
 - [ ] Convex layer over existing nickstire Drizzle/MySQL (one-way read sync first · write-back optional later)
@@ -239,6 +257,7 @@ env-var paste are the blocking action items for prod cutover.
 - `docs/adr/0004-skill-registry-runtime.md` — why we kept the existing recall layer (Phase 2)
 - `docs/adr/0005-inngest-durable-workflows.md` — Inngest adoption + cutover (Phase 3)
 - `docs/adr/0006-livekit-voice-implementation.md` — LiveKit Python worker + HTTP bridge (Phase 4)
+- `docs/adr/0007-morning-brief-multichannel.md` — multi-channel brief delivery (Phase 5)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
 - `apps/voice/` — Phase 4 LiveKit Python worker

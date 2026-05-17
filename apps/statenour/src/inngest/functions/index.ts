@@ -9,3 +9,4 @@
  */
 
 export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
+export { operatorMorningBrief } from "./morning-brief";
