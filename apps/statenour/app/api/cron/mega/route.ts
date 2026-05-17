@@ -93,6 +93,20 @@ const CRON_JOBS = {
     // READY for tasks whose snoozedUntil ≤ now. Closes the snooze
     // broken-promise bug · runs before the operator opens /tasks.
     '/api/cron/task-resurface',
+    // 2026-05-17 · CP-coherency · 4 orphans folded into the morning
+    // fan-out · they had route handlers + registry entries with their
+    // own UTC schedules (refresh-identity 04:30, auto-linker 04:00,
+    // backlog-triage 07:00, ingest-drive Sun+Wed 02:30) but no caller —
+    // Vercel cron limit pushed every per-cron schedule onto the mega
+    // slots long ago and these 4 just never got folded. /system/crons
+    // reported them as silent (0 success14d, 0 fail14d). All daily-ish
+    // schedules collapse fine into mega-morning (9am UTC) · the
+    // Sunday-only ones (extract-skills, pin-hygiene) live in the
+    // weekly array further down + only fire on the Sun mega-evening.
+    '/api/cron/refresh-identity',
+    '/api/cron/auto-linker',
+    '/api/cron/backlog-triage',
+    '/api/cron/ingest-drive',
   ],
   evening: [
     // v10.0.529.56 · device-sync removed (subsystem retired v529.6 ·
@@ -207,6 +221,15 @@ const CRON_JOBS = {
     // Munger/Buffett wisdoms by name. Telegram-alerts only when
     // outliers found. ADVISORY ONLY — never mutates pricing.
     '/api/cron/pricing-advisor',
+    // 2026-05-17 · CP-coherency · 2 weekly orphans folded · had route
+    // handlers + registry entries (extract-skills Sun 03:00 UTC,
+    // pin-hygiene Sun 06:00 UTC) but no caller. /system/crons reported
+    // them silent. Folded here so they fire once on Sunday-evening
+    // mega run (per `if (slot === 'evening' && isSunday)` branch
+    // below). Extract-skills: harvests skills from the week's DONE
+    // tasks · pin-hygiene: prunes stale pins.
+    '/api/cron/extract-skills',
+    '/api/cron/pin-hygiene',
   ],
 };
 
