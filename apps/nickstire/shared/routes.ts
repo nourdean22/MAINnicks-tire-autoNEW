@@ -91,7 +91,7 @@ const CORE_PAGES: RouteEntry[] = [
     // same day · free Uber within 5 miles." Pulls in the smaller
     // segment of visitors who want more than just phone/address.
     title: "Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave",
-    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Most jobs same day · free Uber within 5 miles · written estimate before any wrench.",
+    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Same day · free Uber 5mi · written estimate first.",
     group: "core",
     sitemap: true,
     prerender: true,
@@ -219,7 +219,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.85,
     changefreq: "monthly",
     title: "Tire Repair Cleveland · $25 Plug or Patch · 15-Min Walk-In | Nick's",
-    description: "Cleveland tire repair on Euclid Ave. Nail in your tire? Slow leak? We plug or patch in 15 minutes for $25 typical · walk-in 7 days. Free inspection first. (216) 862-0005",
+    description: "Cleveland tire repair on Euclid Ave. Nail in your tire? Slow leak? We plug or patch in 15 min for $25 typical · walk-in 7 days. Free inspection. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -229,7 +229,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     priority: 0.85,
     changefreq: "monthly",
     title: "Wheel Alignment Cleveland · Same-Day · Free Pull-Check | Nick's",
-    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. 1,700★ from 1,700+ Cleveland drivers. (216) 862-0005",
+    description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -362,7 +362,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
     title: "Oil Change Service Station Cleveland · $39 · Walk-In Today | Nick's",
-    description: "Cleveland oil change service station on Euclid Ave · $39 conventional, $75 full synthetic, 30-minute walk-in service 7 days. Free 27-point inspection. (216) 862-0005.",
+    description: "Cleveland oil change service station on Euclid Ave · $39 conventional, $75 full synthetic, 30-minute walk-in service 7 days. Free 27-point inspection. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -386,7 +386,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // but 0% CTR — title lacked "near me" trigger + lacked a hard price
     // anchor. Rewrite leads with the literal search phrase.
     title: "Wheel Alignment Near Me · Cleveland · Same-Day Walk-In | Nick's",
-    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. 1,700★ reviews. Free pull-check + written estimate before any work. (216) 862-0005",
+    description: "Wheel alignment near you in Cleveland — same-day four-wheel laser alignment, walk-in 7 days. ★4.9 · 1,700+ reviews. Free pull-check first. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -399,7 +399,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // oil change" at 179 impr/mo (page 7). Title was verbose (62 chars)
     // and didn't lead with the literal query phrase + "near me" intent.
     title: "Synthetic Oil Change Near Me · Cleveland · $69 Same-Day | Nick's",
-    description: "Full synthetic oil change near you in Cleveland · $69 walk-in same-day, 30 minutes. Mobil 1, Pennzoil, Valvoline. 10,000-mile intervals. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    description: "Full synthetic oil change in Cleveland · $69 walk-in same-day, 30 min. Mobil 1, Pennzoil, Valvoline. 10K-mile intervals. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -474,7 +474,7 @@ const CITY_PAGES: RouteEntry[] = [
     // 24.4 with 79 impr/mo but 0% CTR. Improved title leads with the
     // literal search intent + walk-in + price-anchor signal.
     title: "Auto Repair Near Me · Cleveland · Walk-In Today · 1,700★ | Nick's",
-    description: "Auto repair near you in Cleveland · 17625 Euclid Ave · walk-in 7 days, free written estimate, the worn part comes out and onto the counter before you pay. 1,700+ five-star reviews. (216) 862-0005",
+    description: "Auto repair near you in Cleveland · 17625 Euclid Ave · walk-in 7 days, free written estimate, worn part shown before billing. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "city",
     sitemap: true,
     prerender: true,
@@ -1128,7 +1128,7 @@ const COMPARISON_PAGES: RouteEntry[] = [
   { path: "/discount-tire-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Discount Tire Alternative Cleveland · One-Stop Shop | Nick's", description: "Discount Tire is tires only — they can't do brakes, oil, or alignment. Nick's Tire & Auto: tires + brakes + repair under one roof, open 7 days, walk-in any time.", group: "comparison", sitemap: true, prerender: true },
   { path: "/firestone-alternative-cleveland", priority: 0.8, changefreq: "monthly", title: "Firestone Alternative Cleveland · No Chain Pricing | Nick's", description: "Firestone wants $200/hr labor, an appointment, and a Firestone credit card. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent pricing, real address.", group: "comparison", sitemap: true, prerender: true },
   { path: "/monro-mr-tire-alternative-cleveland", priority: 0.75, changefreq: "monthly", title: "Monro / Mr. Tire Alternative Cleveland · One Standard | Nick's", description: "Monro and Mr. Tire quality varies wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front.", group: "comparison", sitemap: true, prerender: true },
-  { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Tires Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the estimate in writing before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
+  { path: "/big-o-tires-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "Big O Alternative Cleveland · Closer, Honest, Open Sundays | Nick's", description: "Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the estimate in writing before any wrench moves.", group: "comparison", sitemap: true, prerender: true },
   { path: "/ntb-alternative-cleveland", priority: 0.7, changefreq: "monthly", title: "NTB Alternative Cleveland · After the Mavis Acquisition | Nick's", description: "NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $40, estimate up front.", group: "comparison", sitemap: true, prerender: true },
   // Format 3: You vs Competitor — direct head-to-head
   { path: "/nicks-tire-vs-conrads-cleveland", priority: 0.8, changefreq: "monthly", title: "Nick's Tire & Auto vs Conrad's Cleveland · Honest Compare", description: "Conrad's vs Nick's Tire & Auto in Cleveland. Hours, pricing, walk-in policy, used tires, written estimates — head-to-head, no spin.", group: "comparison", sitemap: true, prerender: true },
