@@ -1,3 +1,8 @@
+// CP7 · force-dynamic · Railway build cannot reach Neon during static
+// prerender. Runtime semantics unchanged (cached() makes these effectively
+// dynamic on Vercel too).
+export const dynamic = "force-dynamic";
+
 import { NextResponse } from "next/server";
 import { cached } from "@/lib/utils/cache";
 import { computeInputs, generateTimelines, type Timeline } from "@/lib/ultron/timelines";
