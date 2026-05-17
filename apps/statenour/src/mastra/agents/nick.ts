@@ -41,6 +41,9 @@ import { Agent } from "@mastra/core/agent";
 import { getModel } from "@/lib/ai/provider";
 import { nourTools } from "@/lib/ai/tools";
 import { wrapWithBraintrust } from "@/lib/ai/braintrust-wrap";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("mastra/agents/nick");
 
 // Minimal default instructions — the chat route passes a FULL assembled
 // system prompt (8-12K tokens, with brain context, citations, voice profile,
@@ -59,36 +62,61 @@ Refuse to fabricate. If a tool returns nothing or errors, say so plainly.`;
  * first use. Module-load-time instantiation would force every cold-start
  * (Next.js dev mode, Railway boot) to load the entire provider chain
  * even if AGENT_V2 is off.
+ *
+ * 2026-05-17 follow-up · pre-fix this used `let _nick: Agent | null`
+ * which on a cold container with two concurrent first-requests could
+ * race-construct two Agent instances · the Braintrust wrapper would
+ * register duplicate trace contexts. Replaced with a promise-based
+ * singleton: the FIRST caller starts construction and every concurrent
+ * caller awaits the same promise. If construction THROWS, we clear the
+ * promise so the next request can retry instead of caching a rejected
+ * promise that poisons every subsequent call. Errors get a one-line
+ * structured log so the operator can see "agent failed to construct"
+ * without grep'ing for stack traces.
  */
-let _nick: Agent | null = null;
+let _nickPromise: Promise<Agent> | null = null;
 
-export function getNickAgent(): Agent {
-  if (_nick) return _nick;
+export function getNickAgent(): Promise<Agent> {
+  if (_nickPromise) return _nickPromise;
+  _nickPromise = (async () => {
+    try {
+      // wrapWithBraintrust no-ops if BRAINTRUST_API_KEY is unset, so this
+      // is safe to call unconditionally. When the key is set, every
+      // model call becomes a Braintrust span.
+      const model = wrapWithBraintrust(getModel("reason"));
 
-  // wrapWithBraintrust no-ops if BRAINTRUST_API_KEY is unset, so this is
-  // safe to call unconditionally. When the key is set, every model call
-  // becomes a Braintrust span.
-  const model = wrapWithBraintrust(getModel("reason"));
+      const agent = new Agent({
+        id: "nick",
+        name: "nick",
+        instructions: DEFAULT_INSTRUCTIONS,
+        // Type cast: Mastra 1.35's MastraLanguageModelV2 is structurally
+        // identical to ai@6's LanguageModelV2 at runtime but defined in
+        // a sibling package path, so TS sees them as nominally distinct.
+        // Documented in the file header above. Replace with the native
+        // type when @mastra/core upgrades to consume ai@6's provider
+        // directly.
+        model: model as never,
+        tools: nourTools as never,
+        // Memory wiring lands in Phase 1.2 (when the storage adapter is
+        // pointed at BrainMemory Postgres). For Phase 1.1 we run without
+        // Mastra's built-in memory — the existing chat route already
+        // does its own brain recall and prompt assembly, so no gap.
+        // memory: nickMemory(),
+      });
 
-  _nick = new Agent({
-    id: "nick",
-    name: "nick",
-    instructions: DEFAULT_INSTRUCTIONS,
-    // Type cast: Mastra 1.35's MastraLanguageModelV2 is structurally
-    // identical to ai@6's LanguageModelV2 at runtime but defined in a
-    // sibling package path, so TS sees them as nominally distinct.
-    // Documented in the file header above. Replace with the native type
-    // when @mastra/core upgrades to consume ai@6's provider directly.
-    model: model as never,
-    tools: nourTools as never,
-    // Memory wiring lands in Phase 1.2 (when the storage adapter is
-    // pointed at BrainMemory Postgres). For Phase 1.1 we run without
-    // Mastra's built-in memory — the existing chat route already does
-    // its own brain recall and prompt assembly, so no functional gap.
-    // memory: nickMemory(),
-  });
-
-  return _nick;
+      log.info("nick_agent_ready", {});
+      return agent;
+    } catch (err) {
+      // Clear the failed promise so the next request retries instead of
+      // forever-returning the rejected promise.
+      _nickPromise = null;
+      log.error("nick_agent_construct_failed", {
+        message: err instanceof Error ? err.message.slice(0, 300) : String(err),
+      });
+      throw err;
+    }
+  })();
+  return _nickPromise;
 }
 
 /**

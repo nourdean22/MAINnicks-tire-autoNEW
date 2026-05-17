@@ -42,8 +42,10 @@ export async function POST(req: Request) {
   // Cast to never around the version-of-versions type drift documented in
   // src/mastra/agents/nick.ts (Mastra@1.35's bundled AI SDK provider !==
   // ai@6.0.162's bundled provider · structurally identical · cast for compile).
+  // getMastra() is now async (race-safe promise singleton · 2026-05-17 follow-up)
+  const mastra = await getMastra();
   const stream = await handleChatStream({
-    mastra: getMastra() as never,
+    mastra: mastra as never,
     agentId: "nick",
     params,
     version: "v6",

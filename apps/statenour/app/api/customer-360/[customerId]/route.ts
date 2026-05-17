@@ -32,10 +32,11 @@ import { queryNick } from "@/lib/nickstire/query";
 import {
   getCustomerPreferences,
   inferCustomerPreferences,
-  persistCustomerPreferences,
+  safePersistCustomerPreferences,
   type CustomerDetailInput,
   type CustomerPreferences,
 } from "@/lib/brain/customer-preferences";
+import { recordError } from "@/lib/errors/record-error";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -89,6 +90,19 @@ export async function GET(req: Request, context: RouteContext) {
     } else {
       const err = bridgeResp as BridgeErr;
       bridgeStatus = err.statusCode && err.statusCode < 500 ? "degraded" : "down";
+      // 2026-05-17 follow-up · bridge-down records into the central
+      // error log so it shows up in /api/ai/errors/recent + the
+      // NotificationCenter HUD · operator sees "bridge unreachable"
+      // without grep'ing logs · degraded (4xx) is expected during
+      // contract drift and stays quiet.
+      if (bridgeStatus === "down") {
+        recordError("api:unknown", new Error("customer_360_bridge_down"), {
+          surface: "customer-360",
+          customerId,
+          err: err.error,
+          statusCode: err.statusCode,
+        });
+      }
     }
 
     // ── 2 · read cached preferences ───────────────────────────────
@@ -98,8 +112,9 @@ export async function GET(req: Request, context: RouteContext) {
     let prefs: CustomerPreferences | null = cachedPrefs;
     if (detail) {
       const fresh = inferCustomerPreferences(detail);
-      // Fire-and-forget persist · we return the fresh prefs regardless
-      void persistCustomerPreferences(fresh);
+      // Fire-and-forget persist · we return the fresh prefs regardless.
+      // safe wrapper logs but doesn't throw · API path stays cheap.
+      safePersistCustomerPreferences(fresh);
       prefs = fresh;
     }
 

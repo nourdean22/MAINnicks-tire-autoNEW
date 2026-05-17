@@ -133,6 +133,20 @@ const WEEKLY_JOBS = [
   "/api/cron/pin-hygiene",
 ];
 
+/**
+ * Sanitize a child cron path into a stable Inngest step ID.
+ *
+ * 2026-05-17 follow-up · Inngest's per-step checkpoint keys break
+ * when IDs contain `?`, `=`, or `/`. Raw URLs like
+ * `/api/cron/journal-checkin?slot=morning` corrupt dashboard replay
+ * and (more dangerously) two paths whose hash collides after URL
+ * encoding can silently share a checkpoint. Strip to alphanumeric +
+ * dash/underscore which is the Inngest-recommended shape.
+ */
+function stepIdFor(path: string): string {
+  return `child:${path.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+}
+
 function getBaseUrl(): string {
   return (
     process.env.APP_BASE_URL?.trim() ||
@@ -214,7 +228,7 @@ export const megaFanoutMorning = inngest.createFunction(
     // schedules them with the concurrency limit set above (6).
     const results = await Promise.all(
       MORNING_JOBS.map((path) =>
-        step.run(`child:${path}`, () => dispatchChild(path, cronSecret)),
+        step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
 
@@ -253,7 +267,7 @@ export const megaFanoutEvening = inngest.createFunction(
 
     const results = await Promise.all(
       jobs.map((path) =>
-        step.run(`child:${path}`, () => dispatchChild(path, cronSecret)),
+        step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
 

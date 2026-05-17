@@ -45,6 +45,7 @@ See:
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, AsyncIterator
@@ -146,23 +147,28 @@ async def stream_from_mastra(user_text: str) -> AsyncIterator[str]:
                     return
 
                 # AI SDK v6 stream chunks are line-delimited. Each line
-                # is "0:\"text\"" for text deltas · or other types we
-                # ignore. We strip and yield text only.
+                # is `0:"text"` for text deltas · other types ignored.
+                #
+                # 2026-05-17 follow-up · the hand-rolled string-strip
+                # parser broke on JSON escape sequences (Unicode
+                # `’` curly apostrophes, embedded `\n`/`\t`,
+                # escaped backslashes). Use `json.loads` so every
+                # AI-SDK-conformant string round-trips correctly. Bad
+                # chunks log + skip rather than poisoning the spoken
+                # output with garbage.
                 async for line in response.aiter_lines():
                     if not line or not line.startswith("0:"):
                         continue
-                    # Format: 0:"hello world"
-                    # Strip prefix and trailing quote · unescape.
-                    payload = line[2:].strip()
-                    if payload.startswith('"') and payload.endswith('"'):
-                        payload = payload[1:-1]
-                    # Cheap JSON-escape unwrap (sufficient for ASCII content)
-                    payload = (
-                        payload.replace("\\n", " ")
-                        .replace("\\t", " ")
-                        .replace('\\"', '"')
-                    )
-                    if payload:
+                    try:
+                        payload = json.loads(line[2:])
+                    except (json.JSONDecodeError, ValueError) as exc:
+                        logger.warning(
+                            "stream_parse_failed · skip · err=%s · raw=%s",
+                            exc,
+                            line[:80],
+                        )
+                        continue
+                    if isinstance(payload, str) and payload:
                         yield payload
         except httpx.TimeoutException:
             logger.warning("agent_timeout · text=%s", user_text[:80])

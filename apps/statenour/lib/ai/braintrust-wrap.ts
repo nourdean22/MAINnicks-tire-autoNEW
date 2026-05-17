@@ -27,6 +27,19 @@ const BRAINTRUST_PROJECT_NAME = (process.env.BRAINTRUST_PROJECT_NAME ?? "stateno
 let warnedMissing = false;
 
 /**
+ * Tracks whether the most recent wrap actually succeeded.
+ *
+ * 2026-05-17 follow-up · pre-fix, `isBraintrustActive()` returned
+ * `true` purely based on the env var presence · any dashboard that
+ * checked "tracing active" would say YES even when wrap silently
+ * fell back to the unwrapped model (missing SDK · bad version ·
+ * thrown error). Now we track the real outcome so downstream
+ * consumers (health endpoint · /system surfaces) can show the truth.
+ */
+type WrapStatus = "active" | "failed" | "inactive";
+let _wrapStatus: WrapStatus = "inactive";
+
+/**
  * Wrap a model so it logs to Braintrust. No-op when key missing.
  *
  * The actual braintrust SDK import is dynamic so this module doesn't
@@ -36,6 +49,7 @@ let warnedMissing = false;
  */
 export function wrapWithBraintrust(model: LanguageModel): LanguageModel {
   if (!BRAINTRUST_API_KEY) {
+    _wrapStatus = "inactive";
     if (!warnedMissing) {
       log.info("braintrust_skipped", {
         reason: "BRAINTRUST_API_KEY unset",
@@ -45,9 +59,6 @@ export function wrapWithBraintrust(model: LanguageModel): LanguageModel {
     }
     return model;
   }
-  // Dynamic require keeps the cold path off the boot-time import chain.
-  // braintrust.wrapAISDKModel takes any AI SDK v6 model and returns a
-  // logged proxy with the same interface.
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const braintrust = require("braintrust") as {
@@ -59,13 +70,16 @@ export function wrapWithBraintrust(model: LanguageModel): LanguageModel {
       apiKey: BRAINTRUST_API_KEY,
     });
     if (typeof braintrust.wrapAISDKModel === "function") {
+      _wrapStatus = "active";
       return braintrust.wrapAISDKModel(model);
     }
+    _wrapStatus = "failed";
     log.warn("braintrust_wrap_unavailable", {
       reason: "wrapAISDKModel export not found · check braintrust SDK version",
     });
     return model;
   } catch (err) {
+    _wrapStatus = "failed";
     log.warn("braintrust_wrap_failed", {
       error: err instanceof Error ? err.message : String(err),
     });
@@ -73,7 +87,17 @@ export function wrapWithBraintrust(model: LanguageModel): LanguageModel {
   }
 }
 
-/** Whether Braintrust tracing is currently active. */
+/**
+ * Whether Braintrust tracing is actually flowing. Reflects the most
+ * recent wrap outcome · NOT just env-var presence. Use this from
+ * health endpoints + /system surfaces to show the operator-visible
+ * truth instead of an optimistic green light.
+ */
 export function isBraintrustActive(): boolean {
-  return BRAINTRUST_API_KEY.length > 0;
+  return _wrapStatus === "active";
+}
+
+/** Detailed wrap status for diagnostics. */
+export function braintrustWrapStatus(): WrapStatus {
+  return _wrapStatus;
 }
