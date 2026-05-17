@@ -67,6 +67,7 @@
     "exceljs": "4.4.0",
     "geist": "^1.7.0",
     "googleapis": "^171.4.0",
+    "inngest": "4.4.0",
     "ioredis": "^5.10.1",
     "lucide-react": "^1.7.0",
     "mammoth": "1.12.0",
