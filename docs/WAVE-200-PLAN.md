@@ -104,12 +104,32 @@ Phase 2's runtime skill access.
 - [ ] *(optional follow-up)* Chat UI badge: "skills Nick used this turn"
   (telemetry already written to `SystemMetric` rows · just needs a view)
 
-### **Phase 3 · Inngest durability** *(target: 3-5 days · 2 commits)*
-- [ ] OPERATOR: create Inngest account · paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` into Railway statenour-web env
-- [ ] Rewire the existing `/api/cron/mega` fan-out as Inngest functions with `step.run` (each child cron = one step · auto-retry · cached on partial fail)
-- [ ] Long-running agent tasks (Nick handles a multi-step plan) go on Inngest with `step.waitForEvent` for the operator's confirmation
-- [ ] Existing Railway-cron triggers → emit Inngest events instead of HTTP calls (worker becomes simpler · or retires entirely if we ship LiveKit too)
-- [ ] Telegram alert on any Inngest function failure (replaces ad-hoc cron-failure detection)
+### **Phase 3 · Inngest durability** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0005)*
+
+Scaffold + first function shipped. Operator action items below
+remain blocking for prod cutover · code runs in dev mode until then.
+
+- [x] `inngest@4.4.0` installed in `apps/statenour/`
+- [x] `src/inngest/client.ts` · lazy singleton + `isInngestFullyConfigured()`
+- [x] `src/inngest/functions/mega-fanout.ts` · morning + evening fan-out
+  with `step.run` per child cron · concurrency 6 · retries 3
+- [x] `app/api/inngest/route.ts` · serve endpoint (GET/POST/PUT)
+- [x] ADR-0005 documents adoption + cutover + rollback
+- [ ] OPERATOR: create Inngest account at https://app.inngest.com
+- [ ] OPERATOR: create app `statenour-web` · paste `INNGEST_EVENT_KEY`
+  + `INNGEST_SIGNING_KEY` into Railway statenour-web env
+- [ ] OPERATOR: connect `https://autonicks.com/api/inngest` in
+  Inngest dashboard "Apps" page
+- [ ] OPERATOR: verify two functions appear with cron schedules
+- [ ] OPERATOR: after 7 consecutive successful runs · disable Railway
+  cron entry for `/api/cron/mega` (the Inngest cron takes over)
+- [ ] *(follow-up)* `step.waitForEvent` for operator-in-loop workflows
+  (used by Phase 4-6 functions · scaffold supports it but no
+  consumer yet)
+- [ ] *(follow-up)* Telegram alert on Inngest function failure
+  (Inngest webhook → existing alert pipeline · trivial wire-up)
+- [ ] *(follow-up)* Collapse duplicated `MORNING_JOBS`/`EVENING_JOBS`
+  arrays once cutover sticks 7d (shared config module)
 
 ### **Phase 4 · LiveKit operator voice** *(target: 1-2 weeks · 4-6 commits + new Railway service)*
 - [ ] OPERATOR: create LiveKit Cloud + Deepgram + Cartesia accounts (cost: ~$30-50/mo at expected 100-300 min/day operator usage)
@@ -192,5 +212,7 @@ Phase 2's runtime skill access.
 - `docs/adr/0002-braintrust-observability.md` — Braintrust decision
 - `docs/adr/0003-livekit-operator-voice.md` — LiveKit + Deepgram + Cartesia decision
 - `docs/adr/0004-skill-registry-runtime.md` — why we kept the existing recall layer (Phase 2)
+- `docs/adr/0005-inngest-durable-workflows.md` — Inngest adoption + cutover (Phase 3)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
+- `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
 - `docs/MIGRATION_PLAN.md` — the Wave-100→200 Railway migration that landed today
