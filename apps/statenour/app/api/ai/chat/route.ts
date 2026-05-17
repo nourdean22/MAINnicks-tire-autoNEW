@@ -38,7 +38,7 @@ const log = rootLogger.withSurface("api/ai/chat");
 export const maxDuration = 120; // Pro plan: up to 300s
 
 export async function POST(req: Request) {
-  await requireSession(req);
+  const user = await requireSession(req);
   // v9.1.19 · AI rate-limit gate. The chat route is session-gated so
   // only Nour can hit it, but a runaway client (e.g. a polling loop
   // gone wild, or auto-fire chains) could still bomb the AI provider
@@ -83,12 +83,35 @@ export async function POST(req: Request) {
       const { createUIMessageStreamResponse } = await import("ai");
       const { getMastra } = await import("@/src/mastra");
       const params = await req.json();
+      // 2026-05-17 follow-up · Phase 1.2 memory wiring fix · without
+      // explicit thread + resource IDs, Mastra creates a new memory
+      // context per request and the Phase 1.2 working-memory + last-N
+      // message window silently no-op. Per AgentMemoryOption shape:
+      //   thread → conversationId · resource → operator user.id
+      // The legacy pipeline reads body.conversationId · we mirror
+      // that lookup so legacy → V2 cutover preserves conversation
+      // continuity for the operator.
+      const conversationId =
+        typeof params?.conversationId === "string" && params.conversationId.length > 0
+          ? params.conversationId
+          : typeof params?.id === "string" && params.id.length > 0
+            ? params.id
+            : typeof params?.chatId === "string" && params.chatId.length > 0
+              ? params.chatId
+              : `default-${user.id}`;
+      const paramsWithMemory = {
+        ...params,
+        memory: {
+          thread: conversationId,
+          resource: user.id,
+        },
+      };
       // getMastra() returns a promise (race-safe singleton · 2026-05-17 follow-up)
       const mastra = await getMastra();
       const stream = await handleChatStream({
         mastra: mastra as never,
         agentId: "nick",
-        params,
+        params: paramsWithMemory,
         version: "v6",
       });
       return createUIMessageStreamResponse({ stream: stream as never });

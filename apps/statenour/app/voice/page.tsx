@@ -201,8 +201,109 @@ export default function VoicePage() {
         ) : null}
       </div>
 
+      {/* 2026-05-17 follow-up · Play-today's-brief shortcut.
+          Pre-rendered audio at /api/morning-brief/today.mp3 (Phase 5).
+          Single-tap autoplay. Disabled while a voice session is live
+          so playback doesn't compete with the LiveKit downlink. */}
+      <PlayTodaysBriefButton disabled={isLive} />
+
       {/* hidden audio sink the SDK attaches subscriber tracks to */}
       <audio id="voice-output" autoPlay playsInline className="hidden" />
     </main>
+  );
+}
+
+// ── Play today's brief ──────────────────────────────────────────────
+
+type BriefPlayState = "idle" | "loading" | "playing" | "missing" | "error";
+
+function PlayTodaysBriefButton({ disabled }: { disabled: boolean }) {
+  const [state, setState] = useState<BriefPlayState>("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const play = useCallback(async () => {
+    if (disabled) return;
+    setErrorMsg(null);
+    setState("loading");
+    try {
+      // HEAD probe first · cheap way to surface "no audio today" vs
+      // "audio downloading". The endpoint already does the BrainMemory
+      // read so HEAD is the same cost path.
+      const head = await fetch("/api/morning-brief/today.mp3", { method: "HEAD" });
+      if (head.status === 404) {
+        setState("missing");
+        return;
+      }
+      if (!head.ok) {
+        setState("error");
+        setErrorMsg(`audio fetch failed · ${head.status}`);
+        return;
+      }
+      const audio = audioRef.current;
+      if (!audio) {
+        setState("error");
+        setErrorMsg("audio element missing");
+        return;
+      }
+      audio.src = "/api/morning-brief/today.mp3";
+      audio.onended = () => setState("idle");
+      audio.onerror = () => {
+        setState("error");
+        setErrorMsg("playback failed");
+      };
+      await audio.play();
+      setState("playing");
+    } catch (err) {
+      setState("error");
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    }
+  }, [disabled]);
+
+  const stop = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setState("idle");
+  }, []);
+
+  const isPlaying = state === "playing";
+  const label =
+    state === "loading"
+      ? "Loading…"
+      : state === "playing"
+        ? "Stop brief"
+        : state === "missing"
+          ? "No brief today"
+          : state === "error"
+            ? "Retry brief"
+            : "Play today's brief";
+
+  return (
+    <div className="mt-6 flex flex-col items-center gap-2">
+      <button
+        type="button"
+        onClick={isPlaying ? stop : () => void play()}
+        disabled={disabled || state === "loading"}
+        className={[
+          "px-4 py-2 rounded-full text-sm",
+          "border border-white/15",
+          "transition-colors",
+          disabled
+            ? "opacity-40 cursor-not-allowed"
+            : "hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FDB913]/60",
+          state === "missing" ? "text-white/40" : "text-white/80",
+        ].join(" ")}
+        aria-label={label}
+      >
+        {label}
+      </button>
+      {errorMsg ? (
+        <p className="text-xs text-red-300 max-w-xs text-center">{errorMsg}</p>
+      ) : null}
+      <audio ref={audioRef} preload="none" />
+    </div>
   );
 }

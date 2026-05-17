@@ -27,7 +27,7 @@ export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function POST(req: Request) {
-  await requireSession(req);
+  const user = await requireSession(req);
 
   // Dynamic imports keep Mastra off the cold-path for the rest of the app
   // — /api/agent is the only consumer right now (Phase 1 test endpoint).
@@ -36,6 +36,35 @@ export async function POST(req: Request) {
   const { getMastra } = await import("@/src/mastra");
 
   const params = await req.json();
+
+  // 2026-05-17 follow-up · Phase 1.2 memory wiring fix · without
+  // explicit thread + resource IDs, Mastra creates a new memory
+  // context per request and the working-memory + last-N message
+  // window we just shipped silently no-op. Per Mastra's
+  // AgentMemoryOption { thread: string|object, resource?: string },
+  // we route:
+  //   · thread → conversationId from client (or fallback per-operator)
+  //   · resource → operator user.id (resource-scoped working memory
+  //     follows the operator across conversations)
+  // The client's existing chat composer sends `id` or `chatId` on
+  // useChat · accept either; fall back to a stable default per operator
+  // so even ad-hoc curl requests get coherent memory.
+  const conversationId =
+    typeof params?.id === "string" && params.id.length > 0
+      ? params.id
+      : typeof params?.chatId === "string" && params.chatId.length > 0
+        ? params.chatId
+        : typeof params?.conversationId === "string" && params.conversationId.length > 0
+          ? params.conversationId
+          : `default-${user.id}`;
+
+  const paramsWithMemory = {
+    ...params,
+    memory: {
+      thread: conversationId,
+      resource: user.id,
+    },
+  };
 
   // handleChatStream produces a V6UIMessageStream that createUIMessageStreamResponse
   // converts to a streaming HTTP response. Same shape useChat() reads on the client.
@@ -47,7 +76,7 @@ export async function POST(req: Request) {
   const stream = await handleChatStream({
     mastra: mastra as never,
     agentId: "nick",
-    params,
+    params: paramsWithMemory,
     version: "v6",
   });
 
