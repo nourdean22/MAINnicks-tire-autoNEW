@@ -23,12 +23,21 @@
   "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
   "pnpm": {
     "patchedDependencies": {
-      "wouter@3.7.1": "apps/nickstire/patches/wouter@3.7.1.patch"
+      "wouter@3.7.1": "apps/nickstire/patches/wouter@3.7.1.patch",
+      "ai@6.0.162": "apps/statenour/patches/ai@6.0.162.patch"
     },
     "overrides": {
       "tailwindcss>nanoid": "3.3.7",
       "qs": ">=6.14.2",
-      "fast-xml-parser": ">=5.5.6"
+      "fast-xml-parser": ">=5.5.6",
+      "axios": ">=1.15.2",
+      "fast-uri": ">=3.1.2",
+      "hono": ">=4.12.18",
+      "@hono/node-server": ">=1.19.13",
+      "mermaid": ">=11.15.0",
+      "postcss": ">=8.5.10",
+      "uuid": ">=11.1.1",
+      "ip-address": ">=10.1.1"
     }
   }
 }

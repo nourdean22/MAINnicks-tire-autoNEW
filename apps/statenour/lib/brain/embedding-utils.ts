@@ -1,0 +1,631 @@
+/**
+ * Embedding utilities for semantic memory recall.
+ *
+ * Core capabilities:
+ * - Cosine similarity between vectors
+ * - Euclidean distance for clustering
+ * - Semantic search with hybrid scoring (embedding + recency + confidence)
+ * - Semantic deduplication (find near-duplicate memories)
+ * - Memory clustering (group related memories by topic)
+ * - Batch embedding with rate limiting
+ * - Embedding health metrics (coverage, dimension consistency)
+ */
+
+import { prisma } from "@/lib/prisma";
+import { getEmbedding } from "@/lib/ai/provider";
+import { isPgvectorAvailable, vectorLiteral } from "@/lib/db/pgvector";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("brain/embedding");
+
+/**
+ * v8.5 BATCH 31 — write the native vector column when pgvector is
+ * available AND the migration has shipped. Fire-and-forget; failures
+ * fall back to "JSON column only" behavior. Never throws.
+ *
+ * Tracks pgvector availability via the shared cache in lib/db/pgvector
+ * so the probe runs at most once per 5min across the whole process.
+ */
+async function writePgvectorColumn(
+  rowId: string,
+  vec: number[],
+): Promise<void> {
+  try {
+    if (!(await isPgvectorAvailable())) return;
+    if (vec.length === 0) return;
+    const lit = vectorLiteral(vec);
+    // Cast literal → vector inline; safe because vectorLiteral
+    // already sanitizes (only finite numbers + brackets/commas).
+    await prisma.$executeRawUnsafe(
+      `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
+      rowId,
+    );
+  } catch (err) {
+    // Most likely: column doesn't exist yet (migration not applied)
+    // or wrong dim. Either way the JSON column has the truth, so we
+    // just log and move on.
+    log.warn("pgvector_dual_write_failed", {
+      hint: "column missing or wrong dim — JSON column has truth, will retry next save",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Vector math
+// ---------------------------------------------------------------------------
+
+/** Cosine similarity between two vectors. Returns 0-1 (1 = identical). */
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+
+  let dot = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+
+  const denom = Math.sqrt(magA) * Math.sqrt(magB);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+/** Euclidean distance between two vectors. Lower = more similar. */
+export function euclideanDistance(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return Infinity;
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) {
+    const diff = a[i] - b[i];
+    sum += diff * diff;
+  }
+  return Math.sqrt(sum);
+}
+
+/** Average of multiple vectors (centroid computation for clustering). */
+export function vectorCentroid(vectors: number[][]): number[] {
+  if (vectors.length === 0) return [];
+  const dim = vectors[0].length;
+  const centroid = new Array(dim).fill(0);
+  for (const vec of vectors) {
+    for (let i = 0; i < dim; i++) centroid[i] += vec[i];
+  }
+  for (let i = 0; i < dim; i++) centroid[i] /= vectors.length;
+  return centroid;
+}
+
+// ---------------------------------------------------------------------------
+// Embedding storage (uses existing VectorEmbedding table)
+// ---------------------------------------------------------------------------
+
+/**
+ * Supported embedding source types. Keeping this as a union so
+ * downstream code has compile-time safety on the namespace —
+ * adding a new one = one edit here + one spot in backfill.
+ */
+export type EmbeddingSourceType =
+  | "brain_memory"
+  | "brain_dump"
+  | "reflection"
+  | "strategic_law"
+  | "chat_message"
+  // v10.0.515 · #4 semantic tool-result cache · reuses vector_embeddings
+  // with a dedicated sourceType namespace. Avoids a schema migration.
+  // sourceId = sha1(toolName + ":" + normalizedQuestion); content
+  // stores { result, expiresAt } JSON.
+  | "tool_cache"
+  // v10.0.515 · #10 Document Q&A · sourceType for ingested documents.
+  // Each chunk is one row · sourceId = `${documentId}:chunk:${i}`.
+  // Recall via knnSearch then surface in chat as context.
+  | "document";
+
+/**
+ * Store or update an embedding for any source type.
+ * Non-blocking — failures are logged but don't break the caller.
+ *
+ * Designed so any engine can cheaply index content into the shared
+ * vector table. Contextual recall can then search across types
+ * (e.g. "when Nick wrote X in a brain dump on April 2nd").
+ */
+export async function storeGenericEmbedding(
+  sourceType: EmbeddingSourceType,
+  sourceId: string,
+  content: string
+): Promise<void> {
+  try {
+    const vec = await getEmbedding(content);
+    if (vec.length === 0) return; // Embedding provider unavailable
+
+    const existing = await prisma.vectorEmbedding.findFirst({
+      where: { sourceType, sourceId },
+      select: { id: true },
+    });
+
+    if (existing) {
+      await prisma.vectorEmbedding.update({
+        where: { id: existing.id },
+        data: { content, embedding: JSON.stringify(vec) },
+      });
+      // v8.5 BATCH 31 — dual-write the native vector column when
+      // the v8.5 migration has shipped. No-ops gracefully when the
+      // column doesn't exist (writePgvectorColumn catches + warns).
+      void writePgvectorColumn(existing.id, vec);
+    } else {
+      const created = await prisma.vectorEmbedding.create({
+        data: {
+          sourceType,
+          sourceId,
+          content,
+          embedding: JSON.stringify(vec),
+        },
+      });
+      void writePgvectorColumn(created.id, vec);
+    }
+  } catch (err) {
+    log.warn("store_failed", {
+      sourceType,
+      sourceId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Legacy wrapper — kept because lots of call sites already use it.
+ * Delegates to storeGenericEmbedding with sourceType = brain_memory.
+ */
+export async function storeMemoryEmbedding(
+  memoryId: string,
+  content: string
+): Promise<void> {
+  return storeGenericEmbedding("brain_memory", memoryId, content);
+}
+
+/**
+ * Batch store embeddings for multiple memories.
+ * Processes sequentially with 100ms delay to avoid rate limits.
+ */
+export async function batchStoreEmbeddings(
+  items: { memoryId: string; content: string }[],
+  delayMs: number = 100
+): Promise<{ stored: number; failed: number }> {
+  let stored = 0;
+  let failed = 0;
+
+  for (const item of items) {
+    try {
+      await storeMemoryEmbedding(item.memoryId, item.content);
+      stored++;
+    } catch {
+      failed++;
+    }
+    if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
+  }
+
+  return { stored, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Semantic search (enhanced with hybrid scoring)
+// ---------------------------------------------------------------------------
+
+interface SemanticMatch {
+  sourceType: string;
+  sourceId: string;
+  content: string;
+  similarity: number;
+  hybridScore: number; // Combined score: embedding similarity + recency + confidence
+  category?: string;
+}
+
+/**
+ * v8.7 BATCH 40 — pgvector-backed fast path. Uses the native HNSW
+ * cosine index instead of fetching + scoring every row. Returns the
+ * same `SemanticMatch[]` shape so it's a drop-in replacement.
+ *
+ * Returns null (not []) when pgvector isn't available — caller falls
+ * through to the in-memory cosine path.
+ *
+ * Performance: ~5ms for top-30 across 100K rows vs ~800ms+ for the
+ * full-scan cosine. Lights up automatically once the v8.5 migration
+ * + v8.7 backfill have run.
+ */
+async function pgvectorSemanticSearch(
+  queryVec: number[],
+  limit: number,
+  sourceTypes: EmbeddingSourceType[],
+): Promise<SemanticMatch[] | null> {
+  // Late-imported to avoid a circular dep with lib/db/pgvector
+  const { isPgvectorAvailable, knnSearch } = await import("@/lib/db/pgvector");
+  if (!(await isPgvectorAvailable())) return null;
+
+  // KNN over each source type. The helper handles the WHERE filter
+  // + cosine `<=>` operator. We cap each call at limit*2 to give the
+  // hybrid re-rank some headroom (recency/confidence can re-shuffle).
+  const fanLimit = Math.min(limit * 2, 200);
+  const hitsByType = await Promise.all(
+    sourceTypes.map((st) =>
+      knnSearch(queryVec, { sourceType: st, limit: fanLimit, metric: "cosine" }),
+    ),
+  );
+  const allHits = hitsByType.flatMap((h) => h ?? []);
+  if (allHits.length === 0) return [];
+
+  // Pull metadata for memories so hybrid scoring matches the
+  // cosine-path's contract.
+  const memoryIds = allHits
+    .filter((h) => h.sourceType === "brain_memory")
+    .map((h) => h.sourceId);
+  const memories = memoryIds.length
+    ? await prisma.brainMemory
+        .findMany({
+          where: { id: { in: memoryIds } },
+          select: { id: true, confidence: true, createdAt: true, category: true, seenCount: true },
+        })
+        .catch((): never[] => [])
+    : [];
+  const metaMap = new Map<string, (typeof memories)[number]>();
+  for (const m of memories) metaMap.set(m.id, m);
+
+  const now = Date.now();
+  const maxAgeDays = 90;
+  const scored: SemanticMatch[] = [];
+  for (const hit of allHits) {
+    // pgvector cosine: distance = 1 - similarity → similarity = 1 - distance
+    const sim = Math.max(0, Math.min(1, 1 - hit.distance));
+    if (sim < 0.15) continue;
+
+    const meta = metaMap.get(hit.sourceId);
+    const isMem = hit.sourceType === "brain_memory";
+    const confidenceScore = isMem ? meta?.confidence ?? 0.5 : 0.6;
+    const ageDays =
+      isMem && meta ? (now - meta.createdAt.getTime()) / 86400000 : maxAgeDays / 2;
+    const recencyScore = Math.max(0, 1 - ageDays / maxAgeDays);
+    const hybridScore = 0.7 * sim + 0.15 * recencyScore + 0.15 * confidenceScore;
+
+    scored.push({
+      sourceType: hit.sourceType,
+      sourceId: hit.sourceId,
+      content: hit.content,
+      similarity: sim,
+      hybridScore,
+      category: meta?.category,
+    });
+  }
+
+  scored.sort((a, b) => b.hybridScore - a.hybridScore);
+  return scored.slice(0, limit);
+}
+
+/**
+ * Find the most semantically similar rows to a query across one or
+ * more source types. Defaults to brain_memory for backward compat
+ * with existing call sites.
+ *
+ * Hybrid scoring: 70% embedding similarity + 15% recency + 15% confidence.
+ * Non-brain_memory rows get a synthetic confidence of 0.6 so they're
+ * not penalized relative to real memories.
+ */
+export async function semanticSearch(
+  query: string,
+  limit: number = 30,
+  sourceTypes: EmbeddingSourceType[] = ["brain_memory"]
+): Promise<SemanticMatch[]> {
+  const queryVec = await getEmbedding(query);
+  if (queryVec.length === 0) return []; // Embedding unavailable
+
+  // v8.7 BATCH 40 — fast path via pgvector when available. Returns
+  // null when extension is off or column missing → falls through to
+  // the legacy in-memory cosine scan.
+  const pgvectorHits = await pgvectorSemanticSearch(queryVec, limit, sourceTypes);
+  if (pgvectorHits !== null) return pgvectorHits;
+
+  // Load embeddings from the requested source types
+  const rows = await prisma.vectorEmbedding
+    .findMany({
+      where: { sourceType: { in: sourceTypes } },
+      select: { sourceId: true, sourceType: true, content: true, embedding: true },
+    })
+    .catch((): never[] => []);
+
+  if (rows.length === 0) return [];
+
+  // For brain_memory rows, pull metadata so hybrid scoring has recency,
+  // confidence, seenCount. Other source types use sensible defaults.
+  // v10.0.38 — restrict the metadata query to the brain_memory rows
+  // we actually have embeddings for. Pre-fix this was an unbounded
+  // full-table scan; on a mature brain (10k+ rows) that was a
+  // multi-second query + memory spike on every cold semantic search.
+  const memoryIds = rows
+    .filter((r) => r.sourceType === "brain_memory")
+    .map((r) => r.sourceId);
+  const memories = sourceTypes.includes("brain_memory") && memoryIds.length > 0
+    ? await prisma.brainMemory
+        .findMany({
+          where: { id: { in: memoryIds } },
+          select: {
+            id: true,
+            confidence: true,
+            createdAt: true,
+            category: true,
+            seenCount: true,
+          },
+        })
+        .catch((): never[] => [])
+    : [];
+  const metaMap = new Map<string, (typeof memories)[number]>();
+  for (const m of memories) metaMap.set(m.id, m);
+
+  const now = Date.now();
+  const maxAgeDays = 90;
+
+  const scored: SemanticMatch[] = [];
+  for (const row of rows) {
+    try {
+      const vec = JSON.parse(row.embedding) as number[];
+      if (vec.length !== queryVec.length) continue;
+
+      const sim = cosineSimilarity(queryVec, vec);
+      if (sim < 0.15) continue; // Skip noise
+
+      const meta = metaMap.get(row.sourceId);
+      const isMem = row.sourceType === "brain_memory";
+
+      // Non-memory rows default to a synthetic confidence so they're
+      // not crushed by missing metadata. brain_dump / reflection /
+      // strategic_law are inherently high-signal sources.
+      const confidenceScore = isMem ? meta?.confidence ?? 0.5 : 0.6;
+
+      // Recency only tracked for memories; others get a neutral 0.5.
+      const ageDays =
+        isMem && meta ? (now - meta.createdAt.getTime()) / 86400000 : maxAgeDays / 2;
+      const recencyScore = Math.max(0, 1 - ageDays / maxAgeDays);
+
+      const reinforcementBonus =
+        isMem && meta?.seenCount
+          ? Math.min(0.1, (meta.seenCount - 1) * 0.02)
+          : 0;
+
+      const hybridScore =
+        sim * 0.7 + recencyScore * 0.15 + confidenceScore * 0.15 + reinforcementBonus;
+
+      scored.push({
+        sourceType: row.sourceType,
+        sourceId: row.sourceId,
+        content: row.content,
+        similarity: sim,
+        hybridScore,
+        category: meta?.category,
+      });
+    } catch {
+      // Corrupted embedding row — skip
+    }
+  }
+
+  scored.sort((a, b) => b.hybridScore - a.hybridScore);
+  return scored.slice(0, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Semantic deduplication
+// ---------------------------------------------------------------------------
+
+interface DuplicatePair {
+  id1: string;
+  id2: string;
+  content1: string;
+  content2: string;
+  similarity: number;
+}
+
+/**
+ * Find near-duplicate memories based on embedding similarity.
+ * Duplicates are memories with similarity > threshold (default 0.92).
+ * Used by data-cleanup cron to merge or remove redundant memories.
+ */
+export async function findSemanticDuplicates(
+  threshold: number = 0.92,
+  limit: number = 20
+): Promise<DuplicatePair[]> {
+  // v10.0.38 — bounded scan. Pre-fix: no take cap on the embedding
+  // fetch + O(n²) JS-cosine loop with 10k+ rows = ~5s blocking
+  // operation that timed out the cleanup cron. 1000-row cap covers
+  // realistic dedup needs (older memories have already been deduped
+  // by prior runs); take ordered by createdAt desc so the freshest
+  // candidates always win.
+  const rows = await prisma.vectorEmbedding.findMany({
+    where: { sourceType: "brain_memory" },
+    select: { sourceId: true, content: true, embedding: true },
+    orderBy: { createdAt: "desc" },
+    take: 1000,
+  }).catch((): never[] => []);
+
+  if (rows.length < 2) return [];
+
+  // Parse all vectors
+  const parsed: { sourceId: string; content: string; vec: number[] }[] = [];
+  for (const row of rows) {
+    try {
+      const vec = JSON.parse(row.embedding) as number[];
+      if (vec.length > 0) parsed.push({ sourceId: row.sourceId, content: row.content, vec });
+    } catch {}
+  }
+
+  // Compare all pairs (O(n²) but capped at ~1000 memories = ~500K comparisons = ~50ms)
+  const duplicates: DuplicatePair[] = [];
+  for (let i = 0; i < parsed.length && duplicates.length < limit; i++) {
+    for (let j = i + 1; j < parsed.length && duplicates.length < limit; j++) {
+      if (parsed[i].vec.length !== parsed[j].vec.length) continue;
+      const sim = cosineSimilarity(parsed[i].vec, parsed[j].vec);
+      if (sim >= threshold) {
+        duplicates.push({
+          id1: parsed[i].sourceId,
+          id2: parsed[j].sourceId,
+          content1: parsed[i].content.slice(0, 100),
+          content2: parsed[j].content.slice(0, 100),
+          similarity: Math.round(sim * 1000) / 1000,
+        });
+      }
+    }
+  }
+
+  return duplicates.sort((a, b) => b.similarity - a.similarity);
+}
+
+// ---------------------------------------------------------------------------
+// Memory clustering
+// ---------------------------------------------------------------------------
+
+interface MemoryCluster {
+  centroidCategory: string;
+  members: { sourceId: string; content: string; similarity: number }[];
+  size: number;
+  avgSimilarity: number;
+}
+
+/**
+ * Cluster memories by semantic similarity using simple greedy clustering.
+ * Each cluster forms around a seed memory; subsequent memories join the
+ * closest cluster if similarity > joinThreshold.
+ */
+export async function clusterMemories(
+  joinThreshold: number = 0.65,
+  maxClusters: number = 15
+): Promise<MemoryCluster[]> {
+  const rows = await prisma.vectorEmbedding.findMany({
+    where: { sourceType: "brain_memory" },
+    select: { sourceId: true, content: true, embedding: true },
+  }).catch((): never[] => []);
+
+  if (rows.length < 3) return [];
+
+  // Parse vectors
+  const parsed: { sourceId: string; content: string; vec: number[] }[] = [];
+  for (const row of rows) {
+    try {
+      const vec = JSON.parse(row.embedding) as number[];
+      if (vec.length > 0) parsed.push({ sourceId: row.sourceId, content: row.content, vec });
+    } catch {}
+  }
+
+  // Greedy clustering
+  const clusters: { centroidVec: number[]; members: typeof parsed; category: string }[] = [];
+  const assigned = new Set<number>();
+
+  for (let i = 0; i < parsed.length && clusters.length < maxClusters; i++) {
+    if (assigned.has(i)) continue;
+
+    // Start a new cluster with this memory as seed
+    const cluster = { centroidVec: [...parsed[i].vec], members: [parsed[i]], category: "" };
+    assigned.add(i);
+
+    // Find all unassigned memories similar to this seed
+    for (let j = i + 1; j < parsed.length; j++) {
+      if (assigned.has(j)) continue;
+      if (parsed[j].vec.length !== cluster.centroidVec.length) continue;
+
+      const sim = cosineSimilarity(cluster.centroidVec, parsed[j].vec);
+      if (sim >= joinThreshold) {
+        cluster.members.push(parsed[j]);
+        assigned.add(j);
+        // Update centroid
+        cluster.centroidVec = vectorCentroid(cluster.members.map(m => m.vec));
+      }
+    }
+
+    if (cluster.members.length >= 2) {
+      // Derive category from most common words in cluster
+      const words = cluster.members.flatMap(m => m.content.toLowerCase().split(/\s+/).filter(w => w.length > 4));
+      const wordCount: Record<string, number> = {};
+      for (const w of words) wordCount[w] = (wordCount[w] ?? 0) + 1;
+      const topWord = Object.entries(wordCount).sort(([, a], [, b]) => b - a)[0];
+      cluster.category = topWord?.[0] ?? "mixed";
+
+      clusters.push(cluster);
+    }
+  }
+
+  // Format output
+  return clusters.map(c => {
+    const sims = c.members.map(m => cosineSimilarity(c.centroidVec, m.vec));
+    return {
+      centroidCategory: c.category,
+      members: c.members.map((m, i) => ({
+        sourceId: m.sourceId,
+        content: m.content.slice(0, 120),
+        similarity: Math.round(sims[i] * 100) / 100,
+      })),
+      size: c.members.length,
+      avgSimilarity: sims.length > 0 ? Math.round((sims.reduce((s, v) => s + v, 0) / sims.length) * 100) / 100 : 0,
+    };
+  }).sort((a, b) => b.size - a.size);
+}
+
+// ---------------------------------------------------------------------------
+// Embedding health metrics
+// ---------------------------------------------------------------------------
+
+export interface EmbeddingHealth {
+  totalMemories: number;
+  embeddedMemories: number;
+  coveragePercent: number;
+  dimensionDistribution: Record<number, number>; // dim size → count
+  avgVectorMagnitude: number;
+  duplicateCount: number;
+  healthScore: number; // 0-100
+}
+
+/**
+ * Compute health metrics for the embedding system.
+ * Used by brain maturity and system health checks.
+ */
+export async function getEmbeddingHealth(): Promise<EmbeddingHealth> {
+  const [totalMemories, embeddedCount, sampleRows] = await Promise.all([
+    prisma.brainMemory.count().catch(() => 0),
+    prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }).catch(() => 0),
+    prisma.vectorEmbedding.findMany({
+      where: { sourceType: "brain_memory" },
+      select: { embedding: true },
+      take: 100,
+    }).catch((): never[] => []),
+  ]);
+
+  const coveragePercent = totalMemories > 0 ? Math.round((embeddedCount / totalMemories) * 100) : 0;
+
+  // Analyze dimensions and magnitude from sample
+  const dimDist: Record<number, number> = {};
+  let totalMag = 0;
+  let magCount = 0;
+
+  for (const row of sampleRows) {
+    try {
+      const vec = JSON.parse(row.embedding) as number[];
+      dimDist[vec.length] = (dimDist[vec.length] ?? 0) + 1;
+      const mag = Math.sqrt(vec.reduce((s, v) => s + v * v, 0));
+      totalMag += mag;
+      magCount++;
+    } catch {}
+  }
+
+  const avgMagnitude = magCount > 0 ? Math.round(totalMag / magCount * 100) / 100 : 0;
+
+  // Quick duplicate check (sample only)
+  const dupes = await findSemanticDuplicates(0.95, 5).catch((): never[] => []);
+
+  // Health score: coverage (40%) + dimension consistency (30%) + low duplicates (30%)
+  const dimConsistency = Object.keys(dimDist).length <= 1 ? 100 : Object.keys(dimDist).length <= 2 ? 70 : 30;
+  const dupeScore = dupes.length === 0 ? 100 : dupes.length <= 3 ? 70 : 30;
+  const healthScore = Math.round(coveragePercent * 0.4 + dimConsistency * 0.3 + dupeScore * 0.3);
+
+  return {
+    totalMemories,
+    embeddedMemories: embeddedCount,
+    coveragePercent,
+    dimensionDistribution: dimDist,
+    avgVectorMagnitude: avgMagnitude,
+    duplicateCount: dupes.length,
+    healthScore,
+  };
+}

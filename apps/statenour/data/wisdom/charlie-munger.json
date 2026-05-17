@@ -1,0 +1,294 @@
+{
+  "pack": "charlie-munger",
+  "source_credit": "Charlie Munger · Poor Charlie's Almanack (Peter Kaufman, ed.), USC Law Commencement 2007, Harvard School Commencement 1986 ('Prescriptions for Guaranteed Misery'), 'The Psychology of Human Misjudgment' Harvard speech 1995, Berkshire Hathaway annual meetings 1994-2023, Daily Journal annual meetings 2015-2023. Verbatim where widely attested · paraphrased ideas labeled in context.",
+  "version": "v10.0.524",
+  "entries": [
+    {
+      "text": "Invert, always invert. Turn a problem upside down. Tell me where I'm going to die, so I don't go there.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "Munger's most-cited heuristic · adapted from Carl Gustav Jacob Jacobi · repeated across Berkshire annual meetings and Poor Charlie's Almanack",
+      "tags": ["inversion", "mental-models", "decision-making"]
+    },
+    {
+      "text": "It is remarkable how much long-term advantage people like us have gotten by trying to be consistently not stupid, instead of trying to be very intelligent.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "Berkshire Hathaway annual meeting, 2003",
+      "tags": ["inversion", "avoid-mistakes", "long-term"]
+    },
+    {
+      "text": "To the man with only a hammer, every problem looks like a nail. You need a latticework of mental models in your head, drawn from the major disciplines, and you need to use them in combination.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "USC Business School address, 1994 · 'A Lesson on Elementary, Worldly Wisdom'",
+      "tags": ["mental-models", "latticework", "cross-disciplinary"]
+    },
+    {
+      "text": "The big money is not in the buying or the selling, but in the waiting.",
+      "topic": "time",
+      "confidence": 0.97,
+      "context": "Poor Charlie's Almanack · widely cited",
+      "tags": ["patience", "investing", "long-term"]
+    },
+    {
+      "text": "Take a simple idea and take it seriously.",
+      "topic": "execution",
+      "confidence": 0.95,
+      "context": "Recurring Munger framing on focus and conviction",
+      "tags": ["simplicity", "focus", "execution"]
+    },
+    {
+      "text": "Spend each day trying to be a little wiser than you were when you woke up. Day by day, and at the end of the day — if you live long enough — most people get what they deserve.",
+      "topic": "self",
+      "confidence": 0.96,
+      "context": "USC Law Commencement address, 2007",
+      "tags": ["growth", "discipline", "long-term"]
+    },
+    {
+      "text": "You'll never know exactly what these tendencies are, but if you don't think about them you'll be blindsided. The psychology of human misjudgment is the most important thing I've learned. Twenty-five cognitive biases, all interacting. Lollapalooza effects happen when several biases push in the same direction at once.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "Paraphrased from 'The Psychology of Human Misjudgment' · Harvard speech 1995 · expanded in Poor Charlie's Almanack",
+      "tags": ["cognitive-bias", "psychology", "lollapalooza"]
+    },
+    {
+      "text": "Show me the incentive and I will show you the outcome. Never, ever underestimate the power of incentives. I'd say I'm in the top 5% of my age cohort at appreciating the power of incentives, and yet all my life I've underweighted it.",
+      "topic": "power",
+      "confidence": 0.98,
+      "context": "Poor Charlie's Almanack · recurring across Berkshire meetings",
+      "tags": ["incentives", "psychology", "behavior"]
+    },
+    {
+      "text": "Avoiding stupidity is easier than seeking brilliance. The way to win is to play games other people don't understand, or to avoid games other people play badly.",
+      "topic": "strategy",
+      "confidence": 0.9,
+      "context": "Paraphrased from recurring Munger framings on competitive advantage",
+      "tags": ["competition", "edge", "selection"]
+    },
+    {
+      "text": "It's not greed that drives the world, but envy. Envy is the worst of the seven deadly sins — and a stupid one, because it's the only one that doesn't give you any fun.",
+      "topic": "people",
+      "confidence": 0.97,
+      "context": "Berkshire annual meeting, 2003 and 2008",
+      "tags": ["envy", "psychology", "bias"]
+    },
+    {
+      "text": "We have three baskets: in, out, and too tough. We have to have a special insight, or we'll put it in the 'too tough' basket. All you have to do is avoid the things you don't understand.",
+      "topic": "strategy",
+      "confidence": 0.94,
+      "context": "Berkshire annual meeting · 'too tough' basket recurring",
+      "tags": ["circle-of-competence", "selection", "discipline"]
+    },
+    {
+      "text": "Knowing what you don't know is more useful than being brilliant.",
+      "topic": "self",
+      "confidence": 0.96,
+      "context": "Poor Charlie's Almanack · recurring",
+      "tags": ["humility", "circle-of-competence", "epistemic"]
+    },
+    {
+      "text": "Three rules for a career: Don't sell anything you wouldn't buy yourself. Don't work for anyone you don't respect and admire. Work only with people you enjoy.",
+      "topic": "people",
+      "confidence": 0.96,
+      "context": "USC Law Commencement address, 2007",
+      "tags": ["career", "integrity", "people"]
+    },
+    {
+      "text": "The best thing a human being can do is help another human being know more. The acquisition of wisdom is a moral duty.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "USC Law Commencement address, 2007",
+      "tags": ["learning", "duty", "wisdom"]
+    },
+    {
+      "text": "Mimicked social proof — humans behave like other humans they see, especially under uncertainty. Sales, panic, fashion all run on this. To defend against it, identify the moment you're copying and ask: would I do this if no one else were?",
+      "topic": "people",
+      "confidence": 0.93,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · social-proof tendency",
+      "tags": ["social-proof", "psychology", "bias"]
+    },
+    {
+      "text": "Commitment and consistency tendency: once a person publicly commits to a position, the brain works hard to make the rest of their thinking match. Beware of locking in early decisions in front of others — you'll defend them longer than they deserve.",
+      "topic": "self",
+      "confidence": 0.92,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · commitment-consistency tendency",
+      "tags": ["consistency", "commitment", "bias"]
+    },
+    {
+      "text": "Reciprocation tendency runs deep — humans return favors and slights with extreme reliability. Hare Krishnas raised millions by handing out flowers. Use this for trust-building, watch for it in negotiations.",
+      "topic": "power",
+      "confidence": 0.92,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · reciprocation tendency",
+      "tags": ["reciprocation", "psychology", "negotiation"]
+    },
+    {
+      "text": "Liking/loving tendency makes you ignore faults in those you like and accept their wishes uncritically. Distrust your own conclusions about people you love. The strongest emotional bonds make the weakest analyses.",
+      "topic": "self",
+      "confidence": 0.92,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · liking-loving tendency",
+      "tags": ["bias", "psychology", "objectivity"]
+    },
+    {
+      "text": "Scarcity bias: people overvalue what's restricted in supply, even artificially. Limited editions, exclusive access, 'only 2 left' messages — all exploit this. Notice when you feel urgency from supply rather than from value.",
+      "topic": "self",
+      "confidence": 0.92,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · deprival super-reaction tendency",
+      "tags": ["scarcity", "psychology", "bias"]
+    },
+    {
+      "text": "Pavlovian association tendency: humans associate things merely by repeated co-occurrence. Brands work because of this. Negative associations equally strong — never deliver bad news in a place you'll need to use again.",
+      "topic": "brand",
+      "confidence": 0.9,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · associative tendency",
+      "tags": ["association", "psychology", "brand"]
+    },
+    {
+      "text": "Authority-misinfluence tendency: humans defer too automatically to perceived authority. The pilot crashing the plane because the captain — who was wrong — said to. Identify the moment you're following because of who's saying it, not what.",
+      "topic": "power",
+      "confidence": 0.93,
+      "context": "Paraphrased from 'Psychology of Human Misjudgment' · authority-misinfluence tendency · Tenerife crash example",
+      "tags": ["authority", "psychology", "bias"]
+    },
+    {
+      "text": "Lollapalooza effect: when three or four cognitive biases all push toward the same conclusion, the force becomes overwhelming. Tupperware parties combine reciprocation, social proof, liking, and commitment. Detect the stack, not the single bias.",
+      "topic": "strategy",
+      "confidence": 0.95,
+      "context": "Harvard speech 1995 · the lollapalooza concept",
+      "tags": ["lollapalooza", "bias-stack", "psychology"]
+    },
+    {
+      "text": "If something is a stupid idea, the price doesn't matter — it's still a stupid idea. Be willing to walk away from any deal where the quality of the underlying business is bad, no matter the discount.",
+      "topic": "money",
+      "confidence": 0.9,
+      "context": "Paraphrased from recurring Berkshire commentary on quality over price",
+      "tags": ["quality", "selection", "investing"]
+    },
+    {
+      "text": "We're great believers in solving hard problems by using a checklist. You need to get the simple ideas right. A checklist forces you to consider each one explicitly instead of trusting memory.",
+      "topic": "ops",
+      "confidence": 0.95,
+      "context": "Berkshire annual meeting · Munger frequently recommended Atul Gawande's 'Checklist Manifesto'",
+      "tags": ["checklist", "process", "discipline"]
+    },
+    {
+      "text": "A great business at a fair price is superior to a fair business at a great price.",
+      "topic": "money",
+      "confidence": 0.97,
+      "context": "Berkshire annual meetings · Munger's reframing of Graham value investing for Buffett",
+      "tags": ["quality", "investing", "moat"]
+    },
+    {
+      "text": "We've found that being content with not being king is a great key to happiness. Spending less than you earn, investing it shrewdly, and avoiding toxic people and toxic activities, and trying to keep learning all your life — and doing a lot of deferred gratification.",
+      "topic": "self",
+      "confidence": 0.95,
+      "context": "Daily Journal annual meeting · recurring framing on the recipe for a good life",
+      "tags": ["happiness", "discipline", "long-term"]
+    },
+    {
+      "text": "Avoid intense ideologies. They make you stupid. Whenever you find yourself defending a position because it's part of your identity rather than because it's right, you've stopped thinking.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "Paraphrased from Munger's commentary on ideological capture across Berkshire meetings",
+      "tags": ["ideology", "thinking", "bias"]
+    },
+    {
+      "text": "You're rewarded for taking a contrary view that turns out to be right, and punished for taking a contrary view that turns out to be wrong. The trick is to do the work that makes you right more often than the consensus.",
+      "topic": "strategy",
+      "confidence": 0.9,
+      "context": "Paraphrased from Munger on contrarian investing",
+      "tags": ["contrarian", "independent-thinking", "edge"]
+    },
+    {
+      "text": "If you can't accept losses occasionally, you're not going to do very well at investing. Losses are the price of admission. The trick is to keep them small and the wins large.",
+      "topic": "money",
+      "confidence": 0.92,
+      "context": "Paraphrased from Berkshire commentary on loss tolerance",
+      "tags": ["risk", "discipline", "investing"]
+    },
+    {
+      "text": "Second-order thinking: don't just ask 'what happens if I do this?' Ask 'and then what?' Most people stop at first-order effects and get blindsided by what comes after.",
+      "topic": "strategy",
+      "confidence": 0.94,
+      "context": "Paraphrased from Munger's recurring framing on consequences · Howard Marks elaborated extensively",
+      "tags": ["second-order", "consequences", "thinking"]
+    },
+    {
+      "text": "Mistakes are inevitable. The mistake is to keep making the same one. Have a system for surfacing them, naming them, and not repeating them.",
+      "topic": "ops",
+      "confidence": 0.9,
+      "context": "Paraphrased from Munger on learning loops",
+      "tags": ["mistakes", "learning", "feedback"]
+    },
+    {
+      "text": "The single most important thing is to compound your knowledge. Spend an hour a day reading, and over a few decades you'll be unrecognizable.",
+      "topic": "self",
+      "confidence": 0.94,
+      "context": "Recurring Munger framing on the reading habit",
+      "tags": ["learning", "compounding", "reading"]
+    },
+    {
+      "text": "Acquire wisdom across all the major disciplines — physics, biology, psychology, economics, history, mathematics — and synthesize. The world is integrated; your models should be too.",
+      "topic": "self",
+      "confidence": 0.95,
+      "context": "Poor Charlie's Almanack · the multidisciplinary thesis",
+      "tags": ["mental-models", "multidisciplinary", "synthesis"]
+    },
+    {
+      "text": "Capital allocation is the most important job of management. Most CEOs don't think of it that way — they think of it as 'running the business.' The few who internalize that capital allocation is the job outperform spectacularly.",
+      "topic": "money",
+      "confidence": 0.9,
+      "context": "Paraphrased from recurring Munger framing on CEO discipline",
+      "tags": ["capital-allocation", "management", "discipline"]
+    },
+    {
+      "text": "I think you have to know accounting. It's the language of practical business life. It was a very useful thing to deliver to civilization. I've heard it well-described as the language of practical business life.",
+      "topic": "money",
+      "confidence": 0.93,
+      "context": "Poor Charlie's Almanack · USC speech 1994",
+      "tags": ["accounting", "fundamentals", "literacy"]
+    },
+    {
+      "text": "There's no way that you can live an adequate life without many mistakes. You'd have to be stoic to ignore them — but you have to keep going and play the long game.",
+      "topic": "self",
+      "confidence": 0.88,
+      "context": "Paraphrased from recurring Munger commentary on resilience",
+      "tags": ["mistakes", "resilience", "long-term"]
+    },
+    {
+      "text": "Reliable wealth is built by ordinary people making good decisions slowly. The lottery winners and the day traders are statistical noise; the engineer who saves 30% for 40 years is the signal.",
+      "topic": "money",
+      "confidence": 0.85,
+      "context": "Paraphrased from Munger's broader commentary on the boring path to wealth",
+      "tags": ["compounding", "patience", "wealth"]
+    },
+    {
+      "text": "Live within your income and save so you can invest. Learn what you need to learn. So simple, so unfashionable, so right.",
+      "topic": "money",
+      "confidence": 0.9,
+      "context": "Paraphrased from Munger's framing of basic personal finance discipline",
+      "tags": ["discipline", "savings", "wealth"]
+    },
+    {
+      "text": "All I want to know is where I'm going to die, so I'll never go there. Reverse the goal: don't ask how to succeed, ask what will guarantee failure, then avoid those things.",
+      "topic": "strategy",
+      "confidence": 0.97,
+      "context": "Harvard School Commencement address, 1986 · 'Prescriptions for Guaranteed Misery in Life'",
+      "tags": ["inversion", "avoid-mistakes", "decision-making"]
+    },
+    {
+      "text": "How to guarantee misery: be unreliable. Do not faithfully do what you have promised. If you will only master this one habit, the others won't even matter — the unreliability will tank everything.",
+      "topic": "self",
+      "confidence": 0.96,
+      "context": "Harvard School Commencement, 1986 · 'Prescriptions for Guaranteed Misery'",
+      "tags": ["reliability", "discipline", "character"]
+    },
+    {
+      "text": "Take everything you don't like in life — every disappointment, every slight, every loss — and use it. Resentment is the only emotion that produces zero useful output. Convert it into work, or drop it.",
+      "topic": "self",
+      "confidence": 0.88,
+      "context": "Paraphrased from Munger's recurring commentary on emotional discipline",
+      "tags": ["resilience", "emotion", "discipline"]
+    }
+  ]
+}

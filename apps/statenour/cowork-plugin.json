@@ -1,0 +1,80 @@
+{
+  "name": "statenour-os",
+  "version": "1.0.0",
+  "description": "Nick's Operating System — device control, brain intelligence, drift detection, CRM, and content pipeline",
+  "author": "Nourdean Rabah",
+  "skills": [
+    {
+      "name": "system-status",
+      "description": "Get full system status: devices, brain, KPIs, automation rules",
+      "endpoint": "/api/system/diagnostics",
+      "method": "GET",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" }
+    },
+    {
+      "name": "device-control",
+      "description": "Send commands to smart devices (Tuya, Ring, Eufy, V380)",
+      "endpoint": "/api/devices/{deviceId}/command",
+      "method": "POST",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" },
+      "params": {
+        "deviceId": "Device ID from /api/devices",
+        "body": { "command": "on|off|lock|unlock|snapshot|siren", "params": {} }
+      }
+    },
+    {
+      "name": "brain-query",
+      "description": "Query Nick Brain memories by category or search",
+      "endpoint": "/api/brain/memories",
+      "method": "GET",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" }
+    },
+    {
+      "name": "drift-check",
+      "description": "Run drift detection scan and get composite score",
+      "endpoint": "/api/drift/score",
+      "method": "GET",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" }
+    },
+    {
+      "name": "morning-brief",
+      "description": "Generate the morning brief with all data sources",
+      "endpoint": "/api/cron/morning-brief",
+      "method": "GET",
+      "headers": { "x-cron-key": "${CRON_SECRET}" }
+    },
+    {
+      "name": "sync-data",
+      "description": "Push data into statenour-os (energy, scores, devices, Gmail)",
+      "endpoint": "/api/sync/nour-os",
+      "method": "POST",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" },
+      "params": {
+        "body": { "module": "energy|daily_score|devices|email-triage", "data": {} }
+      }
+    },
+    {
+      "name": "content-ideas",
+      "description": "Generate data-backed content ideas for social media",
+      "endpoint": "/api/content/ideas",
+      "method": "GET",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" }
+    },
+    {
+      "name": "lead-create",
+      "description": "Create a new lead in the CRM",
+      "endpoint": "/api/leads",
+      "method": "POST",
+      "headers": { "x-sync-key": "nsk_f7b2e9d4a1c8034e56" },
+      "params": {
+        "body": { "fullName": "string", "source": "PHONE|WALK_IN|WEBSITE|REFERRAL", "inquiryText": "string", "urgency": "HIGH|MEDIUM|LOW" }
+      }
+    }
+  ],
+  "context": {
+    "baseUrl": "https://autonicks.com",
+    "syncKey": "nsk_f7b2e9d4a1c8034e56",
+    "owner": "Nourdean Rabah (Nour)",
+    "business": "Nick's Tire & Auto — 17625 Euclid Ave, Cleveland OH"
+  }
+}

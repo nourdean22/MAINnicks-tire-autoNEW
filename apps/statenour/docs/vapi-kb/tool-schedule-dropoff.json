@@ -1,0 +1,53 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "scheduleDropoff",
+    "description": "Log a drop-off request when a caller wants to bring their vehicle in. Call this AFTER you've collected at least the caller's name + phone, plus whatever vehicle and concern info they shared. The shop will follow up to confirm timing — you do NOT promise a confirmed appointment time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Caller's first name. Required."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Best phone number to reach the caller. Required if available."
+        },
+        "vehicleYear": {
+          "type": "string",
+          "description": "Year of the vehicle (e.g. '2018'). Optional but valuable."
+        },
+        "vehicleMake": {
+          "type": "string",
+          "description": "Vehicle make (e.g. 'Toyota'). Optional."
+        },
+        "vehicleModel": {
+          "type": "string",
+          "description": "Vehicle model (e.g. 'Camry'). Optional."
+        },
+        "concern": {
+          "type": "string",
+          "description": "Short summary of why they want to come in (e.g. 'grinding when braking', 'oil change', 'check engine light'). Optional."
+        },
+        "preferredTime": {
+          "type": "string",
+          "description": "Day/time they prefer to drop off. Free-form text (e.g. 'Tuesday morning', 'tomorrow afternoon')."
+        },
+        "driveable": {
+          "type": "boolean",
+          "description": "Whether the vehicle is currently driveable. Optional."
+        },
+        "returningCustomer": {
+          "type": "boolean",
+          "description": "Whether the caller has been to the shop before. Optional."
+        }
+      },
+      "required": ["name"]
+    }
+  },
+  "server": {
+    "url": "https://autonicks.com/api/vapi/schedule-dropoff"
+  }
+}

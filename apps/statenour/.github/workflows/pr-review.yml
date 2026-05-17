@@ -1,0 +1,118 @@
+# .github/workflows/pr-review.yml
+#
+# v10.0.524 · PR-review auto-fire gate.
+#
+# Why: the operator has 5 local Claude Code review agents
+# (pr-review-toolkit:code-reviewer, code-simplifier,
+# comment-analyzer, pr-test-analyzer, silent-failure-hunter,
+# type-design-analyzer). Those agents run interactively in
+# Claude Code locally. This workflow runs the SAME automated
+# checks those agents trigger — typecheck, lint, test — on
+# every push to codex/ollama-local and on every PR, so the
+# review gate fires whether or not the operator opens Claude
+# locally.
+#
+# Cheap-to-expensive order: typecheck (~1 min, catches the
+# largest class of regressions) → lint (~1 min) → test
+# (~3-5 min). Each step is its own GHA step so the first
+# failure surfaces cleanly in the PR check list. The job
+# is set up so a typecheck red ends the run before the test
+# stage burns minutes.
+#
+# Companion to ci.yml — that workflow handles the full
+# build+drift+auth gauntlet. THIS one is a fast PR-review
+# pulse focused on the three signals the local pr-review-
+# toolkit agents care about most.
+#
+# Future: when Anthropic ships a hosted code-review action
+# (rumored for the Claude 4.7 launch window), drop in a step
+# like:
+#   - uses: anthropics/code-review-action@v1
+#     with:
+#       agents: code-reviewer,silent-failure-hunter
+#       anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+# right after the test step. The check-status this workflow
+# already produces will then carry the agent verdict too.
+
+name: PR Review
+
+on:
+  push:
+    branches: [codex/ollama-local]
+  pull_request:
+    branches: ["**"]
+
+concurrency:
+  # Coalesce stacked pushes; new push cancels in-flight.
+  group: pr-review-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PRISMA_HIDE_UPDATE_MESSAGE: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+  # See ci.yml — keeps GHA actions on Node 24 ahead of the
+  # Sept 2026 hard-removal of the Node 20 runtime.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  review:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        # Version pinned via package.json packageManager
+        # field (pnpm@9.15.0). Single source of truth.
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          # Spec asked for Node 22; package.json engines is
+          # ">=20.0.0" so 22 satisfies. ci.yml uses 20 — this
+          # workflow pins 22 to start exercising the newer LTS
+          # before we cut over.
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install (frozen lockfile)
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate (typecheck needs the client)
+        run: pnpm exec prisma generate
+
+      # ── FAST FAIL · cheap → expensive ────────────────────
+      # Typecheck is the cheapest signal and catches the
+      # largest blast radius of regressions, so it runs first.
+      # If it fails, the workflow short-circuits before the
+      # heavier test step.
+      - name: Typecheck (tsc --noEmit)
+        env:
+          # 4GB heap — tsc OOMs at default 2GB on this codebase.
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm typecheck
+
+      - name: Lint (eslint .)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        # Match the local script. ci.yml passes --quiet; this
+        # workflow surfaces warnings too so the PR review chip
+        # reflects everything the local pr-review-toolkit
+        # agents would see.
+        run: pnpm lint
+
+      - name: Test (vitest run)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm test
+
+      # The above three steps each become a separate check on
+      # the commit. GitHub auto-aggregates them into the PR's
+      # "Checks" panel — same UX as a PR-review chip.
+      #
+      # If any step fails, the workflow fails, which blocks
+      # merge when branch protection is enabled on the target
+      # branch. No extra plumbing needed.

@@ -1,0 +1,202 @@
+name: CI
+
+on:
+  push:
+    branches: [codex/ollama-local, statenour-master]
+  pull_request:
+    branches: [codex/ollama-local, statenour-master]
+
+concurrency:
+  # One run per ref; new pushes cancel in-flight runs.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Skip Prisma's "no DB" noise in CI; we run generate without connecting.
+  PRISMA_HIDE_UPDATE_MESSAGE: "true"
+  # Prisma schema validates without hitting the DB as long as we skip seed scripts.
+  NEXT_TELEMETRY_DISABLED: "1"
+  # v10.0.61 · Force GHA javascript actions onto Node 24. Default is
+  # still Node 20 which GHA is deprecating (warnings appear on every
+  # run; hard-removal scheduled Sept 2026). Setting this env var opts
+  # in early — actions/checkout@v4, setup-node@v4, pnpm/action-setup@v4
+  # all run cleanly on Node 24. When v5 of those actions ships and
+  # bundles its own Node 24 support, this env var becomes a no-op.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  verify:
+    name: typecheck · lint · test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # pnpm version pinned via package.json `packageManager` field.
+        # GHA's pnpm/action-setup@v4 now errors on "Multiple versions of
+        # pnpm specified" if both are present. Single source of truth.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate (typecheck needs the client)
+        run: pnpm exec prisma generate
+
+      - name: Typecheck
+        # Bumped heap to 4GB — the v11 codebase + recent
+        # additions push tsc past the default 2GB limit on ubuntu
+        # runners (we hit OOM at 2042 MB on f7c6331).
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec tsc --noEmit
+
+      - name: Lint (errors only; warnings allowed during strict migration)
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec eslint . --quiet
+
+      - name: Test
+        env:
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec vitest run
+
+      - name: Cron manifest drift guard
+        run: pnpm check:crons
+
+      - name: Tool catalog contract
+        run: pnpm exec vitest run tests/ai/
+
+      # v9.0-final · port the local pre-push gates 7/8 + 8/8 to CI so
+      # we catch them before merge-to-master, not just on operator push.
+      - name: Env-secret bypass guard
+        run: |
+          set -e
+          SECRET_VARS="TELEGRAM_WEBHOOK_SECRET|CRON_SECRET|SYNC_SECRET|ADMIN_PASSWORD|WEBHOOK_SECRET"
+          if grep -rEn "process\\.env\\.($SECRET_VARS)\\s*\\?\\?\\s*\"\"|process\\.env\\.($SECRET_VARS)\\s*\\|\\|\\s*\"\"" \
+            --include="*.ts" --include="*.tsx" \
+            app/ lib/ scripts/ 2>/dev/null; then
+            echo "::error::Found env-secret silent-bypass pattern. See pre-push guard 7/8."
+            exit 1
+          fi
+
+      - name: API route auth coverage
+        run: |
+          set -e
+          AUTH_PATTERNS="apiHandler|cronHandler|syncHandler|requireSession|requireCronAuth|requireSyncAuth|assertRunnerRequest|EXPECTED_SECRET|SYNC_KEY|// public:"
+          UNAUTHED_COUNT=0
+          for f in $(find app/api -name "route.ts" -type f 2>/dev/null); do
+            if ! grep -qE "^export (async )?(function|const) (POST|PATCH|PUT|DELETE)" "$f"; then continue; fi
+            if grep -qE "$AUTH_PATTERNS" "$f"; then continue; fi
+            echo "::error file=$f::Mutating route lacks recognized auth pattern."
+            UNAUTHED_COUNT=$((UNAUTHED_COUNT + 1))
+          done
+          if [ "$UNAUTHED_COUNT" -gt 0 ]; then
+            echo "::error::$UNAUTHED_COUNT routes missing auth. See pre-push guard 8/8."
+            exit 1
+          fi
+
+  build:
+    name: production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: verify
+    # v9.0-final · run on EVERY push, not just master + PR. The v8.21
+    # footgun (module-load throw on env-missing) would have been caught
+    # the moment it pushed if the build job ran on codex/ollama-local.
+    # The build is dummy-env-only so it stays cheap (~2 min) — never
+    # touches production secrets.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # pnpm version pinned via package.json `packageManager` field.
+        # GHA's pnpm/action-setup@v4 now errors on "Multiple versions of
+        # pnpm specified" if both are present. Single source of truth.
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: pnpm exec prisma generate
+
+      - name: Next.js build (no deploy, dummy env)
+        env:
+          # Dummy values just to satisfy build-time validators. No real
+          # secrets leave this runner; production secrets live in Vercel.
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+          DIRECT_URL: "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+          NEXT_DIST_DIR: ".next-ci"
+          # v9.0-final: pin TELEGRAM_WEBHOOK_SECRET to a dummy so the
+          # webhook route's env check (post-v8.33) doesn't yell during
+          # build. Real secret stays in Vercel.
+          TELEGRAM_WEBHOOK_SECRET: "ci-dummy-secret"
+          CRON_SECRET: "ci-dummy-cron-secret"
+          # Next 16 + Turbopack push the v11 codebase past the default
+          # 2GB Node heap on ubuntu runners — same headroom as typecheck.
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec next build
+
+      # v9.0-final · build-context simulator. Re-run the build with NO
+      # env vars to catch module-load throws on env-missing patterns
+      # (the v8.21 / v8.33 footgun class). The build is allowed to fail
+      # but only on the modes WE expect — anything else is a regression.
+      # NOTE: we deliberately keep DATABASE_URL set because Prisma client
+      # initialization legitimately requires it; the test is "what fires
+      # at module-load time WITHOUT app secrets."
+      - name: Build-context simulator (env-missing)
+        env:
+          DATABASE_URL: "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+          DIRECT_URL: "postgresql://dummy:dummy@localhost:5432/dummy?schema=public"
+          NEXT_DIST_DIR: ".next-ci-bare"
+          NODE_OPTIONS: "--max-old-space-size=4096"
+        run: pnpm exec next build
+
+  schema-drift:
+    name: schema drift guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        # pnpm version pinned via package.json `packageManager` field.
+        # GHA's pnpm/action-setup@v4 now errors on "Multiple versions of
+        # pnpm specified" if both are present. Single source of truth.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Validate schema is parseable
+        run: pnpm exec prisma validate
+      - name: Format check (drift detection — fails if schema.prisma formatted differently)
+        # v10.0.61 · Pre-fix used `git diff --exit-code` which can
+        # return 128 (fatal git error) instead of 1 (diff found) when
+        # the runner's git config interacts with `actions/checkout@v4`
+        # in unexpected ways (e.g. core.autocrlf differences,
+        # post-checkout config sections). Switched to a content-hash
+        # compare which is git-free and deterministic. Same pre-push
+        # contract: format → if hash differs, fail.
+        run: |
+          set -euo pipefail
+          BEFORE_HASH=$(sha256sum prisma/schema.prisma | awk '{print $1}')
+          pnpm exec prisma format --schema prisma/schema.prisma
+          AFTER_HASH=$(sha256sum prisma/schema.prisma | awk '{print $1}')
+          if [ "$BEFORE_HASH" != "$AFTER_HASH" ]; then
+            echo "::error::schema.prisma is not properly formatted."
+            echo "    Before: $BEFORE_HASH"
+            echo "    After:  $AFTER_HASH"
+            echo ""
+            echo "    Run 'pnpm exec prisma format' locally and commit the changes."
+            exit 1
+          fi
+          echo "  ✅ schema.prisma format clean"

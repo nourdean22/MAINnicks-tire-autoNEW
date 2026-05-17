@@ -1,0 +1,54 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "checkUsedTireStock",
+    "description": "Use this when a caller asks if we have a specific used tire in stock. They are usually broken-down on the side of the road, calling shops to find a used tire that fits, and they CANNOT be put on hold long. This tool captures the size + caller info, fires an immediate Telegram alert to the shop manager so they see it on their phone, and primes the shop for the warm transfer. After this tool returns success, IMMEDIATELY call the transferCall tool to put them on with the shop manager. Tell the caller something like 'hang on a sec, I'm getting the shop on the line' BEFORE you transfer · do not drop them, do not say goodbye.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "tireSize": {
+          "type": "string",
+          "description": "The tire size · the numbers on the sidewall (e.g. '225/65R17', '215/55R16'). Required. If the caller doesn't know, ask them to read it off the existing tire."
+        },
+        "quantity": {
+          "type": "number",
+          "description": "How many tires they need · 1 / 2 / 4. Default 1."
+        },
+        "callerName": {
+          "type": "string",
+          "description": "First name. Helpful for the manager to greet them."
+        },
+        "callerPhone": {
+          "type": "string",
+          "description": "Best phone if the call drops or goes to voicemail."
+        },
+        "vehicleYear": {
+          "type": "string",
+          "description": "Year of the vehicle (e.g. '2018'). Optional but useful."
+        },
+        "vehicleMake": {
+          "type": "string",
+          "description": "Vehicle make (e.g. 'Toyota')."
+        },
+        "vehicleModel": {
+          "type": "string",
+          "description": "Vehicle model (e.g. 'Camry')."
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["normal", "urgent"],
+          "description": "'urgent' if caller is broken-down, on the side of the road, can't drive. Otherwise 'normal'."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Anything else the manager should know · 'tire flat in driveway', 'just needs spare', 'stranded near 55 freeway', etc."
+        }
+      },
+      "required": ["tireSize"]
+    }
+  },
+  "server": {
+    "url": "https://autonicks.com/api/vapi/check-used-tire-stock"
+  }
+}

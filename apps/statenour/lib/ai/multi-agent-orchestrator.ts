@@ -1,0 +1,241 @@
+/**
+ * Multi-Agent Task Orchestrator · v10.0.374
+ *
+ * Per /multi-agent-task-orchestrator skill · spawn N sub-agents to work
+ * on parallel sub-tasks, then synthesize their outputs into a single
+ * coherent answer. Distinct from preTaskFanout (which has fixed lenses)
+ * and deepResearch (which is web-research only):
+ *
+ *   · preTaskFanout (v10.0.372) · 3 fixed lenses (research/risk/plan)
+ *   · deepResearch (v10.0.373)  · web search rounds + synthesis
+ *   · multiAgent (this)         · N user-defined sub-tasks in parallel
+ *
+ * USE CASES
+ *   · "Compare 3 competitors on pricing, hours, and reviews"
+ *     → 3 sub-agents, each focusing on one competitor
+ *   · "Draft 3 different post angles for Instagram"
+ *     → 3 sub-agents, each with a different creative direction
+ *   · "Audit the brand voice across {posts, emails, scripts}"
+ *     → 3 sub-agents, each on one channel
+ *
+ * Sub-agents run in parallel via Promise.all · synthesizer composes a
+ * unified answer from their outputs. Each sub-agent uses gpt-4o-mini
+ * (fast + cheap) so 5 sub-agents = ~5x cheaper than one slow GPT-4 pass.
+ *
+ * RAILS
+ *   · Max 8 sub-agents per call (operator-grade limit · prevents
+ *     accidental cost blowups)
+ *   · Each sub-task max 800 chars · keeps context focused
+ *   · Sub-agent max 600 tokens output · synthesizer max 1500
+ *   · Total budget · ~$0.001-0.002 per call · cheap
+ */
+
+import { withGuardian } from "@/lib/tools/guardian";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("ai/multi-agent");
+
+const MAX_SUB_AGENTS = 8;
+const SUB_TASK_LIMIT = 800;
+
+export interface SubAgentTask {
+  /** Stable name · used in synthesis to reference this sub-agent's output */
+  name: string;
+  /** What this sub-agent should do · 1-2 sentences */
+  task: string;
+  /** Optional · constrain output to a specific shape */
+  outputHint?: string;
+}
+
+export interface SubAgentResult {
+  name: string;
+  output: string;
+  durationMs: number;
+  failed?: boolean;
+  error?: string;
+}
+
+export interface MultiAgentReport {
+  goal: string;
+  subAgents: SubAgentTask[];
+  results: SubAgentResult[];
+  synthesis: string;
+  totalDurationMs: number;
+  costEstimateUsd: number;
+}
+
+const SUB_AGENT_SYSTEM = `You are a focused sub-agent working on ONE specific sub-task as part of a larger investigation. Be terse, factual, action-oriented. No preamble. No closing platitudes.
+
+CONSTRAINTS
+- Output max 200 words
+- Concrete and specific
+- Cite sources only if you have them
+- If you can't accomplish the task, say so in one line · don't waffle
+
+Just do the task and return the answer.`;
+
+const SYNTHESIZER_SYSTEM = `You synthesize the outputs of multiple sub-agents into ONE coherent answer for the operator.
+
+REQUIREMENTS
+- Lead with the headline answer · 1-2 sentences
+- Then the integration of sub-agent findings · reference each by name
+- Surface contradictions or gaps explicitly
+- 250-450 words total
+- Operator-grade tone · direct, dry, no fluff
+- End with a 1-line "what to do next" if applicable
+
+Plain text. No markdown headers. No bullets unless absolutely necessary.`;
+
+// v10.0.529.106 · Wave 59 · routes through aiChat() provider chain
+// instead of raw fetch to OpenAI. Same Wave 59 fix applied across
+// pretask-fanout.ts and deep-research.ts.
+async function callSubAgent(
+  task: SubAgentTask,
+  goalContext: string,
+): Promise<string> {
+  const prompt = `OVERALL GOAL: ${goalContext}\n\nYOUR SPECIFIC TASK: ${task.task.slice(0, SUB_TASK_LIMIT)}${
+    task.outputHint ? `\n\nOUTPUT FORMAT: ${task.outputHint}` : ""
+  }`;
+
+  const { aiChat } = await import("@/lib/ai/provider");
+  const reply = await aiChat(
+    [
+      { role: "system", content: SUB_AGENT_SYSTEM },
+      { role: "user", content: prompt },
+    ],
+    "reason",
+  );
+  return (reply?.content ?? "").trim();
+}
+
+const guardedSubAgent = withGuardian("multi-agent-sub", callSubAgent, {
+  timeoutMs: 12_000,
+  maxRetries: 1,
+});
+
+async function callSynthesizer(args: {
+  goal: string;
+  results: SubAgentResult[];
+}): Promise<string> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return "";
+
+  const dossier = args.results
+    .map((r) => {
+      if (r.failed) return `# ${r.name} (FAILED): ${r.error ?? "unknown error"}`;
+      return `# ${r.name}\n${r.output.slice(0, 1500)}`;
+    })
+    .join("\n\n---\n\n");
+
+  const userPrompt = `OPERATOR GOAL: ${args.goal}\n\nSUB-AGENT OUTPUTS (${args.results.length} agents):\n\n${dossier}\n\nSynthesize into ONE coherent answer.`;
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: SYNTHESIZER_SYSTEM },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 1500,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const err: Error & { status?: number } = new Error(
+      `synthesizer ${res.status}: ${body.slice(0, 200)}`,
+    );
+    err.status = res.status;
+    throw err;
+  }
+
+  const data = await res.json();
+  return (data.choices?.[0]?.message?.content ?? "").trim();
+}
+
+const guardedSynthesizer = withGuardian("multi-agent-synth", callSynthesizer, {
+  timeoutMs: 15_000,
+  maxRetries: 1,
+});
+
+/**
+ * Run N sub-agents in parallel + synthesize their outputs.
+ *
+ * @param args.goal · the overall operator goal · each sub-agent sees this as context
+ * @param args.subAgents · array of tasks · max 8 · each sees its specific assignment
+ */
+export async function runMultiAgent(args: {
+  goal: string;
+  subAgents: SubAgentTask[];
+}): Promise<MultiAgentReport> {
+  const startedAt = Date.now();
+
+  if (args.subAgents.length === 0) {
+    return {
+      goal: args.goal,
+      subAgents: [],
+      results: [],
+      synthesis: "",
+      totalDurationMs: 0,
+      costEstimateUsd: 0,
+    };
+  }
+  if (args.subAgents.length > MAX_SUB_AGENTS) {
+    log.warn("multi_agent_capped", { requested: args.subAgents.length, max: MAX_SUB_AGENTS });
+    args.subAgents = args.subAgents.slice(0, MAX_SUB_AGENTS);
+  }
+
+  // Fire all sub-agents in parallel
+  const results = await Promise.all(
+    args.subAgents.map(async (task) => {
+      const subStart = Date.now();
+      try {
+        const output = await guardedSubAgent(task, args.goal);
+        return {
+          name: task.name,
+          output,
+          durationMs: Date.now() - subStart,
+        };
+      } catch (err) {
+        return {
+          name: task.name,
+          output: "",
+          durationMs: Date.now() - subStart,
+          failed: true,
+          error: (err as Error).message?.slice(0, 200),
+        };
+      }
+    }),
+  );
+
+  // Synthesize
+  const successful = results.filter((r) => !r.failed && r.output);
+  let synthesis = "";
+  if (successful.length > 0) {
+    synthesis = await guardedSynthesizer({ goal: args.goal, results }).catch(() => "");
+  } else {
+    synthesis = "All sub-agents failed · no synthesis available. Check the individual results for errors.";
+  }
+
+  // Cost estimate · gpt-4o-mini ~$0.0001/1K input + $0.0004/1K output ·
+  // Each sub-agent ~600 output tokens · synthesizer ~1500 output tokens ·
+  // very rough estimate
+  const subAgentCost = args.subAgents.length * 0.0003;
+  const synthCost = 0.0008;
+  const costEstimateUsd = subAgentCost + synthCost;
+
+  return {
+    goal: args.goal,
+    subAgents: args.subAgents,
+    results,
+    synthesis,
+    totalDurationMs: Date.now() - startedAt,
+    costEstimateUsd: Math.round(costEstimateUsd * 10000) / 10000,
+  };
+}

@@ -1,0 +1,163 @@
+/**
+ * Environment validator — single source of truth for what statenour-os
+ * needs from the environment.
+ *
+ * Usage:
+ *   import { env } from "@/lib/env";        // validated, typed access
+ *   import { describeEnvHealth } from "@/lib/env"; // human-readable status
+ *
+ * Philosophy — three tiers:
+ *   REQUIRED  — boot fails loudly if missing
+ *   RUNTIME   — feature degrades gracefully; warned once at startup
+ *   PLATFORM  — auto-provided by Vercel / Node; never hand-set
+ *
+ * This file intentionally avoids runtime-heavy parsing. No Zod, no
+ * network. It runs exactly once per lambda cold-start and writes to
+ * console if anything looks off — then exports a typed `env` object.
+ */
+
+type Tier = "required" | "runtime" | "platform";
+
+interface Spec {
+  key: string;
+  tier: Tier;
+  description: string;
+  /** If present, the variable is only required when `when()` returns true. */
+  when?: () => boolean;
+  /** Fallback env keys (legacy names). First non-empty wins. */
+  aliases?: string[];
+}
+
+const PROD = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production";
+
+export const ENV_SPEC: Spec[] = [
+  // ── REQUIRED ────────────────────────────────────────────────────────
+  { key: "DATABASE_URL", tier: "required", description: "Neon pooled Postgres connection" },
+  { key: "DIRECT_URL",   tier: "required", description: "Neon direct (non-pooled) connection for migrations" },
+
+  // Auth — only required in production or when AUTH_SECRET is set
+  { key: "AUTH_SECRET",              tier: "required", when: () => PROD, description: "NextAuth JWT signing secret" },
+  { key: "AUTH_GOOGLE_CLIENT_ID",    tier: "required", when: () => PROD, description: "Google OAuth client id",     aliases: ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_CLIENT_ID"] },
+  { key: "AUTH_GOOGLE_CLIENT_SECRET",tier: "required", when: () => PROD, description: "Google OAuth client secret", aliases: ["GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"] },
+  { key: "AUTH_ALLOWED_EMAIL",       tier: "required", when: () => PROD, description: "Single allowed operator email" },
+
+  { key: "CRON_SECRET",         tier: "required", when: () => PROD, description: "Vercel cron auth header" },
+  { key: "STATENOUR_SYNC_KEY",  tier: "required", when: () => PROD, description: "Shared secret for /api/sync" },
+
+  // AI — at least one provider must be set. Validated as a group below.
+  { key: "VENICE_API_KEY",    tier: "runtime", description: "Primary AI provider (Venice GLM)" },
+  { key: "OPENAI_API_KEY",    tier: "runtime", description: "Fallback AI provider" },
+  { key: "ANTHROPIC_API_KEY", tier: "runtime", description: "Fallback AI provider" },
+  { key: "GEMINI_API_KEY",    tier: "runtime", description: "Fallback AI provider", aliases: ["GOOGLE_GENERATIVE_AI_API_KEY"] },
+  { key: "XAI_API_KEY",       tier: "runtime", description: "Optional xAI provider" },
+
+  // ── RUNTIME (feature-degrades if missing) ──────────────────────────
+  { key: "RESEND_API_KEY",      tier: "runtime", description: "Email delivery" },
+  { key: "TELEGRAM_BOT_TOKEN",  tier: "runtime", description: "Telegram bot — enables push + command surface" },
+  { key: "TELEGRAM_CHAT_ID",    tier: "runtime", description: "Nour's Telegram chat id" },
+  { key: "TWILIO_ACCOUNT_SID",  tier: "runtime", description: "SMS sender" },
+  { key: "TWILIO_AUTH_TOKEN",   tier: "runtime", description: "SMS sender" },
+  { key: "BRIDGE_API_KEY",      tier: "runtime", description: "nickstire admin bridge" },
+  { key: "REDIS_URL",           tier: "runtime", description: "L2 cache — app degrades to in-memory L1 without it" },
+  { key: "VAPID_PUBLIC_KEY",    tier: "runtime", description: "Web push — PWA" },
+  { key: "VAPID_PRIVATE_KEY",   tier: "runtime", description: "Web push — PWA" },
+  { key: "GOOGLE_PLACES_API_KEY", tier: "runtime", description: "GBP reviews feed" },
+  { key: "OPENWEATHER_API_KEY", tier: "runtime", description: "Weather brain engine" },
+  { key: "APOLLO_API_KEY",      tier: "runtime", description: "Contact enrichment" },
+  { key: "STRIPE_SECRET_KEY",   tier: "runtime", description: "Payments" },
+  { key: "STRIPE_WEBHOOK_SECRET", tier: "runtime", description: "Payments webhook" },
+
+  // Public URL — critical for OAuth callback + email links
+  { key: "NEXT_PUBLIC_APP_URL", tier: "runtime", description: "Public origin for absolute links" },
+
+  // Optional override
+  { key: "AI_PROVIDER", tier: "runtime", description: "Pin AI provider: venice|openai|anthropic|gemini" },
+  { key: "LOCAL_DEV_BYPASS_AUTH", tier: "runtime", description: "Dev-only — set to '1' to skip auth in preview" },
+
+  // ── PLATFORM (auto-set) ────────────────────────────────────────────
+  { key: "NODE_ENV",              tier: "platform", description: "development | production | test" },
+  { key: "VERCEL",                tier: "platform", description: "Vercel runtime indicator" },
+  { key: "VERCEL_ENV",            tier: "platform", description: "production | preview | development" },
+  { key: "VERCEL_URL",            tier: "platform", description: "Current deployment URL" },
+  { key: "VERCEL_GIT_COMMIT_SHA", tier: "platform", description: "Deployed commit SHA" },
+];
+
+/** Read a spec's value considering aliases. First non-empty wins. */
+function readValue(s: Spec): string | undefined {
+  if (process.env[s.key]) return process.env[s.key];
+  for (const alias of s.aliases ?? []) {
+    if (process.env[alias]) return process.env[alias];
+  }
+  return undefined;
+}
+
+interface EnvHealth {
+  missing: { key: string; description: string; aliases?: string[] }[];
+  degraded: { key: string; description: string }[];
+  atLeastOneAiProvider: boolean;
+}
+
+export function checkEnvHealth(): EnvHealth {
+  const missing: EnvHealth["missing"] = [];
+  const degraded: EnvHealth["degraded"] = [];
+
+  for (const spec of ENV_SPEC) {
+    if (spec.tier === "platform") continue;
+    const required = spec.tier === "required" && (spec.when ? spec.when() : true);
+    const value = readValue(spec);
+    if (!value) {
+      if (required) missing.push({ key: spec.key, description: spec.description, aliases: spec.aliases });
+      else degraded.push({ key: spec.key, description: spec.description });
+    }
+  }
+
+  const aiKeys = ["VENICE_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY"];
+  const atLeastOneAiProvider = aiKeys.some((k) => process.env[k] || process.env.GOOGLE_GENERATIVE_AI_API_KEY);
+
+  return { missing, degraded, atLeastOneAiProvider };
+}
+
+export function describeEnvHealth(): string {
+  const h = checkEnvHealth();
+  const lines: string[] = [];
+  lines.push(`env · ${PROD ? "production" : "development"}`);
+  if (h.missing.length) {
+    lines.push(`  ❌ ${h.missing.length} REQUIRED missing:`);
+    for (const m of h.missing) lines.push(`     · ${m.key} — ${m.description}`);
+  } else {
+    lines.push(`  ✅ all required present`);
+  }
+  if (!h.atLeastOneAiProvider) {
+    lines.push(`  ❌ no AI provider key set — Nick is dead`);
+  }
+  if (h.degraded.length) {
+    lines.push(`  ⚠️  ${h.degraded.length} optional (feature degrades):`);
+    for (const d of h.degraded.slice(0, 5)) lines.push(`     · ${d.key} — ${d.description}`);
+    if (h.degraded.length > 5) lines.push(`     · (+${h.degraded.length - 5} more)`);
+  }
+  return lines.join("\n");
+}
+
+/** Throws at boot if any required env var is missing. */
+export function assertEnvOrDie(): void {
+  const h = checkEnvHealth();
+  const fatal = h.missing.length > 0 || !h.atLeastOneAiProvider;
+  if (fatal) {
+    const lines: string[] = ["FATAL: environment check failed"];
+    for (const m of h.missing) lines.push(`  missing ${m.key} (${m.description})`);
+    if (!h.atLeastOneAiProvider) lines.push(`  no AI provider key set`);
+    throw new Error(lines.join("\n"));
+  }
+}
+
+/** Typed accessor for the keys the app actually reads. */
+export const env = {
+  get DATABASE_URL() { return process.env.DATABASE_URL ?? ""; },
+  get DIRECT_URL()   { return process.env.DIRECT_URL ?? ""; },
+  get NEXT_PUBLIC_APP_URL() {
+    return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://autonicks.com";
+  },
+  get NICKS_ADMIN_URL() { return process.env.NICKS_ADMIN_URL || "https://nickstire.org/admin"; },
+  get IS_PROD() { return PROD; },
+  get IS_VERCEL() { return process.env.VERCEL === "1"; },
+};

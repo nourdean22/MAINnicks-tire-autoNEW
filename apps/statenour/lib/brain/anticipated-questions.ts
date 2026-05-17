@@ -1,0 +1,639 @@
+/**
+ * Anticipated-Question Feed · v10.0.526 · Arc B Feature 6
+ *
+ * Daily prediction of the 3 questions the operator is most likely to
+ * ask tomorrow, with answers precomputed in the background. When the
+ * operator asks one, the chat route surfaces the cached take as a
+ * system-prompt addendum so Nick can answer instantly with the
+ * already-warm context.
+ *
+ * Pipeline (folded into mega-evening · runs nightly):
+ *   1. gatherSignals(7) · pulls last-7d chat user-turns + decisions +
+ *      commitments + open loops · the "what's-on-his-mind" surface
+ *   2. draftAnticipatedQuestions(signals) · single aiChat call (factual
+ *      task · cheap) returns 3 short questions
+ *   3. precomputeAnswers(questions) · runs each question through the
+ *      in-process chat pipeline (same lift as eval-regression-runner)
+ *      with a 10s timeout per question · captures the reply
+ *   4. storeAnticipated(...) · upsert BrainMemory(category=
+ *      "anticipated_question", key="anticipated_YYYY-MM-DD") · NO new
+ *      table, the no-duplicate-data rule
+ *
+ * Match-at-ask-time:
+ *   · findAnticipated(query) · cosine-similarity against today's set ·
+ *     similarity > 0.85 returns the cached answer + freshness flag.
+ *   · The chat route injects the cached take as context · DOES NOT
+ *     short-circuit · the operator's exact phrasing always drives the
+ *     final response (per the spec).
+ *
+ * Cost · 1 draft call (factual, ~$0.001) + 3 chat-pipeline runs
+ * (~$0.02 each) ≈ $0.07/day · pays for itself the first time the
+ * operator gets an instant answer instead of waiting for the model.
+ *
+ * Skill stances applied: production-code-audit (no shadow tables,
+ * surgical fold into existing cron), kaizen (smallest change that
+ * solves the goal), karpathy-guidelines (verifiable goal · "operator
+ * asks X tomorrow, answer is already in context"), prompt-engineering
+ * (factual task profile + tight question-shape constraints),
+ * database-architect (extend BrainMemory · idempotent per-day key).
+ */
+
+import { prisma } from "@/lib/prisma";
+import { getEmbedding } from "@/lib/ai/provider";
+import { cosineSimilarity } from "@/lib/brain/embedding-utils";
+import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+import { extractJsonArray } from "@/lib/ai/extract-structured";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("brain/anticipated-questions");
+
+const aiChat = makeTracedAiChat("anticipate-questions", "cron");
+
+// ── Tunables ─────────────────────────────────────────────────────
+
+/** Cosine similarity floor for "this is a match" at ask-time. */
+export const ANTICIPATED_MATCH_FLOOR = 0.85;
+
+/** Hard per-question precompute budget · keeps mega-evening under 60s. */
+const PRECOMPUTE_TIMEOUT_MS = 10_000;
+
+/** Default lookback window for signal gathering. */
+const DEFAULT_SIGNAL_DAYS = 7;
+
+/** Number of questions to draft per day. */
+const QUESTION_COUNT = 3;
+
+/** Cap on signal-input size to keep the draft call cheap. */
+const MAX_CHAT_SIGNALS = 50;
+const MAX_DECISION_SIGNALS = 20;
+const MAX_COMMITMENT_SIGNALS = 15;
+const MAX_OPEN_LOOP_SIGNALS = 15;
+
+/** Match-time cache TTL · today's anticipated set rarely changes mid-day. */
+const TODAY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+// ── Types ────────────────────────────────────────────────────────
+
+export interface Signal {
+  kind: "chat" | "decision" | "commitment" | "open_loop";
+  text: string;
+  /** ISO date · used by the draft prompt for "recent vs older" framing. */
+  createdAt: string;
+}
+
+export interface GatheredSignals {
+  chats: Signal[];
+  decisions: Signal[];
+  commitments: Signal[];
+  openLoops: Signal[];
+  /** Total signal count · 0 means cold-start, skip the draft call. */
+  total: number;
+}
+
+export interface AnticipatedQuestion {
+  question: string;
+  /** Best-effort topic line · helps the chat route show a context hint. */
+  topic: string | null;
+  /**
+   * v10.0.529.40 · model self-confidence in this prediction · [0, 1].
+   * Defaults to 1.0 when absent (legacy rows · pre-confidence drafts).
+   * Filters at draft time drop anything < MIN_CONFIDENCE so weak
+   * picks don't pollute the operator's tile.
+   */
+  confidence?: number;
+}
+
+/** Confidence floor · questions scoring below this get dropped at draft time. */
+export const MIN_CONFIDENCE = 0.3;
+
+export interface AnticipatedSet {
+  /** YYYY-MM-DD · the date this set covers (today). */
+  date: string;
+  /** ISO timestamp the set was built · used for freshness checks. */
+  builtAt: string;
+  questions: AnticipatedQuestion[];
+  /** Per-question precomputed answer · null when precompute failed. */
+  answers: Array<string | null>;
+}
+
+export interface AnticipatedMatch {
+  question: string;
+  answer: string;
+  similarity: number;
+  /** Hours since the set was built. >24h is stale. */
+  ageHours: number;
+  /** True when builtAt is within 24h. */
+  fresh: boolean;
+}
+
+// ── 1. Signal gathering ──────────────────────────────────────────
+
+/**
+ * Pull the last `days` of operator signals. Each lane is a separate
+ * query · they're cheap (each capped) and parallelizable. The shape
+ * is `Signal[]` so downstream prompts treat lanes uniformly.
+ */
+export async function gatherSignals(
+  days: number = DEFAULT_SIGNAL_DAYS,
+): Promise<GatheredSignals> {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const [chats, decisions, commitments, tasks] = await Promise.all([
+    // User chat turns · most recent first, capped at 50.
+    prisma.chatMessage
+      .findMany({
+        where: { role: "user", createdAt: { gte: since } },
+        orderBy: { createdAt: "desc" },
+        take: MAX_CHAT_SIGNALS,
+        select: { content: true, createdAt: true },
+      })
+      .catch((err): never[] => {
+        log.warn("gather_chat_failed", { err: errMsg(err) });
+        return [];
+      }),
+    // Decisions · use most recent first by date string.
+    prisma.masteryDecision
+      .findMany({
+        where: { date: { gte: since.toISOString().slice(0, 10) } },
+        orderBy: { date: "desc" },
+        take: MAX_DECISION_SIGNALS,
+        select: { title: true, chosen: true, context: true, date: true },
+      })
+      .catch((err): never[] => {
+        log.warn("gather_decisions_failed", { err: errMsg(err) });
+        return [];
+      }),
+    // Active commitments · prioritize aging ones (oldest first).
+    prisma.commitment
+      .findMany({
+        where: { status: { in: ["active", "in_progress", "broken"] } },
+        orderBy: { dateMade: "desc" },
+        take: MAX_COMMITMENT_SIGNALS,
+        select: { description: true, deadline: true, status: true, dateMade: true },
+      })
+      .catch((err): never[] => {
+        log.warn("gather_commitments_failed", { err: errMsg(err) });
+        return [];
+      }),
+    // Open loops · overdue/stale tasks in INBOX/READY/DOING.
+    prisma.task
+      .findMany({
+        where: {
+          status: { in: ["INBOX", "READY", "DOING"] },
+          deletedAt: null,
+        },
+        orderBy: [{ autoPriority: "desc" }, { createdAt: "asc" }],
+        take: MAX_OPEN_LOOP_SIGNALS,
+        select: { title: true, nextPhysicalAction: true, createdAt: true },
+      })
+      .catch((err): never[] => {
+        log.warn("gather_tasks_failed", { err: errMsg(err) });
+        return [];
+      }),
+  ]);
+
+  const chatSignals: Signal[] = chats
+    .map((c) => ({
+      kind: "chat" as const,
+      text: (c.content ?? "").trim().slice(0, 400),
+      createdAt: c.createdAt.toISOString(),
+    }))
+    .filter((s) => s.text.length > 0);
+
+  const decisionSignals: Signal[] = decisions.map((d) => ({
+    kind: "decision" as const,
+    text: [d.title, d.chosen, d.context]
+      .filter(Boolean)
+      .map((s) => (s as string).trim())
+      .join(" · ")
+      .slice(0, 400),
+    createdAt: d.date,
+  }));
+
+  const commitmentSignals: Signal[] = commitments.map((c) => ({
+    kind: "commitment" as const,
+    text: `[${c.status}] ${c.description.slice(0, 200)}${c.deadline ? ` (due ${c.deadline})` : ""}`,
+    createdAt: c.dateMade,
+  }));
+
+  const openLoopSignals: Signal[] = tasks.map((t) => ({
+    kind: "open_loop" as const,
+    text: t.nextPhysicalAction
+      ? `${t.title} → ${t.nextPhysicalAction}`.slice(0, 300)
+      : t.title.slice(0, 300),
+    createdAt: t.createdAt.toISOString(),
+  }));
+
+  const total =
+    chatSignals.length +
+    decisionSignals.length +
+    commitmentSignals.length +
+    openLoopSignals.length;
+
+  return {
+    chats: chatSignals,
+    decisions: decisionSignals,
+    commitments: commitmentSignals,
+    openLoops: openLoopSignals,
+    total,
+  };
+}
+
+// ── 2. Question drafting ─────────────────────────────────────────
+
+/**
+ * Single LLM call that turns gathered signals into 3 short questions.
+ * Returns [] when the model fails / response is unparseable · caller
+ * decides whether to bail or fall back.
+ *
+ * The prompt enforces:
+ *   · 3 questions max
+ *   · under 12 words each
+ *   · forward-looking ("tomorrow") · NOT a recap of today
+ *   · distinct topics · no near-duplicates
+ */
+export async function draftAnticipatedQuestions(
+  signals: GatheredSignals,
+): Promise<AnticipatedQuestion[]> {
+  if (signals.total === 0) return [];
+
+  const lines: string[] = [];
+  if (signals.chats.length > 0) {
+    lines.push("RECENT CHAT TURNS (most-recent first):");
+    for (const c of signals.chats.slice(0, 20)) {
+      lines.push(`- ${c.text}`);
+    }
+  }
+  if (signals.decisions.length > 0) {
+    lines.push("\nRECENT DECISIONS:");
+    for (const d of signals.decisions.slice(0, 10)) {
+      lines.push(`- ${d.text}`);
+    }
+  }
+  if (signals.commitments.length > 0) {
+    lines.push("\nACTIVE COMMITMENTS:");
+    for (const c of signals.commitments.slice(0, 10)) {
+      lines.push(`- ${c.text}`);
+    }
+  }
+  if (signals.openLoops.length > 0) {
+    lines.push("\nOPEN LOOPS:");
+    for (const t of signals.openLoops.slice(0, 10)) {
+      lines.push(`- ${t.text}`);
+    }
+  }
+
+  const corpus = lines.join("\n").slice(0, 6000);
+
+  const system = `You are the operator's pattern-recognizer. Given the last 7 days of his chat turns, decisions, commitments, and open loops, predict the 3 questions he is MOST LIKELY to ask TOMORROW.
+
+Rules · non-negotiable:
+1. Return ONLY a JSON array of exactly ${QUESTION_COUNT} objects. No prose, no markdown fences, no commentary.
+2. Each object shape: { "question": string, "topic": string, "confidence": number }
+3. "question" must be SHORT — under 12 words — and phrased as the operator would phrase it (terse, direct, no fluff).
+4. "topic" is a 1-3 word tag that names the topic (e.g. "ALG declined work", "VAPI tuning", "cohort summary").
+5. "confidence" is YOUR self-assessed probability (0.0 to 1.0) that the operator actually asks this question tomorrow. Be HONEST · low scores (0.2-0.4) for weak signals, high (0.7+) only for strong corpus alignment. Calibration matters · don't inflate.
+6. Questions must be FORWARD-LOOKING. Avoid recapping today — predict what fresh thing he'll want to check or push on next.
+7. Topics must be DISTINCT. No two questions covering the same subject.
+8. Anchor on concrete signals from the corpus. No generic "how can I improve?" filler.`;
+
+  const user = `CORPUS (operator signals last 7d):\n\n${corpus}\n\nReturn exactly ${QUESTION_COUNT} predicted questions as JSON array.`;
+
+  try {
+    // task profile: "extract" · we're structurally extracting predicted
+    // questions from a signal corpus · routes to the structured-output
+    // model tier per ai-policy.md (cheap + JSON-stable).
+    const result = await aiChat(
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      "extract",
+    );
+    if (!result.content || result.content.trim().length === 0) {
+      log.warn("draft_empty_content");
+      return [];
+    }
+    const parsed = extractJsonArray<unknown>(result.content);
+    if (!parsed.ok) {
+      log.warn("draft_parse_failed", { contentLen: result.content.length });
+      return [];
+    }
+    const out: AnticipatedQuestion[] = [];
+    const seenTopics = new Set<string>();
+    let droppedLowConfidence = 0;
+    for (const raw of parsed.value) {
+      if (!raw || typeof raw !== "object") continue;
+      const obj = raw as Record<string, unknown>;
+      const q = typeof obj.question === "string" ? obj.question.trim() : "";
+      const t = typeof obj.topic === "string" ? obj.topic.trim() : null;
+      if (q.length < 5 || q.length > 200) continue;
+      // v529.40 · confidence parse + filter. The model is asked to
+      // self-rate calibration (0..1) · low scores (< 0.3) get dropped
+      // before reaching the operator's tile. Defaults to 1.0 when
+      // missing (old prompts didn't ask · we treat absence as
+      // implicit-high so we don't crash on a legacy response shape).
+      const cRaw = obj.confidence;
+      const c = typeof cRaw === "number" && Number.isFinite(cRaw)
+        ? Math.max(0, Math.min(1, cRaw))
+        : 1;
+      if (c < MIN_CONFIDENCE) {
+        droppedLowConfidence++;
+        continue;
+      }
+      // Topic-level dedup · prevents two "ALG" questions sneaking in.
+      const topicKey = (t ?? q).toLowerCase();
+      if (seenTopics.has(topicKey)) continue;
+      seenTopics.add(topicKey);
+      out.push({ question: q, topic: t, confidence: c });
+      if (out.length >= QUESTION_COUNT) break;
+    }
+    // v529.40 · sort by confidence desc · the strongest picks lead
+    // so the operator sees high-signal items first if we ever cap
+    // display to fewer than QUESTION_COUNT.
+    out.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
+    if (droppedLowConfidence > 0) {
+      log.info("draft_low_confidence_filtered", {
+        kept: out.length,
+        dropped: droppedLowConfidence,
+      });
+    }
+    return out;
+  } catch (err) {
+    log.warn("draft_threw", { err: errMsg(err) });
+    return [];
+  }
+}
+
+// ── 3. Precompute answers via in-process chat pipeline ───────────
+
+/**
+ * Run each question through the chat pipeline · same in-process lift
+ * as eval-regression-runner. Returns string | null per question · null
+ * means precompute failed (timeout, provider outage, route error). The
+ * cron stores nulls too so the operator at least sees the predicted
+ * questions in the morning brief.
+ *
+ * 10s timeout per question · 3 × 10s = 30s worst case · fits cleanly
+ * inside the 60s mega-evening child budget.
+ */
+export async function precomputeAnswers(
+  questions: AnticipatedQuestion[],
+  opts: {
+    perQuestionTimeoutMs?: number;
+    /** Override the pipeline runner · test seam. */
+    runnerOverride?: (q: AnticipatedQuestion) => Promise<string>;
+  } = {},
+): Promise<Array<string | null>> {
+  const timeoutMs = opts.perQuestionTimeoutMs ?? PRECOMPUTE_TIMEOUT_MS;
+  const runner = opts.runnerOverride ?? defaultPipelineRunner;
+
+  const answers: Array<string | null> = [];
+  for (const q of questions) {
+    const answer = await Promise.race<string | null>([
+      runner(q).catch((err) => {
+        log.warn("precompute_runner_threw", { q: q.question.slice(0, 80), err: errMsg(err) });
+        return null;
+      }),
+      new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), timeoutMs),
+      ),
+    ]);
+    answers.push(answer && answer.trim().length > 0 ? answer : null);
+  }
+  return answers;
+}
+
+/**
+ * In-process chat-pipeline runner · imports the chat route POST and
+ * synthesizes a Request, the same pattern eval-regression-runner uses.
+ * Streams are consumed via consumeUIStream which is exported from the
+ * regression runner module · we lift it instead of re-implementing.
+ */
+async function defaultPipelineRunner(q: AnticipatedQuestion): Promise<string> {
+  const [chatRoute, { consumeUIStream }] = await Promise.all([
+    import("@/app/api/ai/chat/route"),
+    import("@/lib/eval/regression-runner"),
+  ]);
+  const POST = chatRoute.POST as (req: Request) => Promise<Response>;
+  if (typeof POST !== "function") {
+    throw new Error("chat route POST not exported");
+  }
+
+  const body = {
+    messages: [
+      {
+        id: `anticipate-${Date.now()}`,
+        role: "user",
+        parts: [{ type: "text", text: q.question }],
+      },
+    ],
+    // Mark this turn so persistence + analytics can filter precompute traffic.
+    __anticipateRun: true,
+    __anticipateTopic: q.topic ?? null,
+  };
+
+  const req = new Request("http://localhost/api/ai/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-anticipate-precompute": "1",
+    },
+    body: JSON.stringify(body),
+  });
+
+  const res = await POST(req);
+  if (!res.ok || !res.body) {
+    throw new Error(`pipeline HTTP ${res.status}`);
+  }
+  const { reply } = await consumeUIStream(res.body);
+  return reply.trim();
+}
+
+// ── 4. Storage (BrainMemory upsert · no new table) ──────────────
+
+/**
+ * Today's date in America/New_York · matches the morning-brief key
+ * convention so freshness reasoning lines up across the two pipelines.
+ */
+export function todayKey(): string {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/New_York",
+  });
+}
+
+/**
+ * Upsert today's anticipated-question set. The key is per-day so a
+ * second cron run on the same day overwrites · idempotent by design.
+ */
+export async function storeAnticipated(
+  questions: AnticipatedQuestion[],
+  answers: Array<string | null>,
+  opts: { date?: string } = {},
+): Promise<AnticipatedSet> {
+  const date = opts.date ?? todayKey();
+  const set: AnticipatedSet = {
+    date,
+    builtAt: new Date().toISOString(),
+    questions,
+    answers,
+  };
+
+  // Content is a human-readable summary so the morning brief can pull
+  // it directly without re-parsing the metadata. Metadata holds the
+  // structured payload for findAnticipated.
+  const content = questions
+    .map((q, i) => `${i + 1}. ${q.question}${q.topic ? ` [${q.topic}]` : ""}`)
+    .join("\n");
+
+  const key = `anticipated_${date}`;
+  await prisma.brainMemory.upsert({
+    where: { category_key: { category: "anticipated_question", key } },
+    update: {
+      content,
+      confidence: questions.length > 0 ? 0.8 : 0.3,
+      source: "cron:anticipate",
+      metadata: set as unknown as Parameters<typeof prisma.brainMemory.upsert>[0]["create"]["metadata"],
+      // updatedAt auto-bumps; lastSeen we touch manually so freshness
+      // checks via lastSeen also see the latest write.
+      lastSeen: new Date(),
+    },
+    create: {
+      category: "anticipated_question",
+      key,
+      content,
+      confidence: questions.length > 0 ? 0.8 : 0.3,
+      source: "cron:anticipate",
+      metadata: set as unknown as Parameters<typeof prisma.brainMemory.upsert>[0]["create"]["metadata"],
+    },
+  });
+
+  return set;
+}
+
+// ── 5. Match-at-ask-time (cosine over today's set) ───────────────
+
+let todayCache: { date: string; set: AnticipatedSet | null; at: number } | null =
+  null;
+
+/**
+ * Load today's anticipated set (or yesterday's if today's not built
+ * yet) · cached 5min · returns null when nothing's stored.
+ */
+async function loadTodaysSet(): Promise<AnticipatedSet | null> {
+  const date = todayKey();
+  if (
+    todayCache &&
+    todayCache.date === date &&
+    Date.now() - todayCache.at < TODAY_CACHE_TTL_MS
+  ) {
+    return todayCache.set;
+  }
+
+  const row = await prisma.brainMemory
+    .findUnique({
+      where: {
+        category_key: {
+          category: "anticipated_question",
+          key: `anticipated_${date}`,
+        },
+      },
+      select: { metadata: true, updatedAt: true },
+    })
+    .catch((err) => {
+      log.warn("loadToday_failed", { err: errMsg(err) });
+      return null as { metadata: unknown; updatedAt: Date } | null;
+    });
+
+  let set: AnticipatedSet | null = null;
+  if (row && row.metadata) {
+    const meta = row.metadata as unknown as AnticipatedSet;
+    if (Array.isArray(meta.questions) && Array.isArray(meta.answers)) {
+      set = meta;
+    }
+  }
+  todayCache = { date, set, at: Date.now() };
+  return set;
+}
+
+/**
+ * Find a precomputed answer matching the operator's current query.
+ * Returns null when:
+ *   · no set is stored
+ *   · no question scores above the match floor (0.85)
+ *   · the precompute slot is null
+ *   · the set is older than 24h (freshness gate)
+ *
+ * Fresh-only by default · stale anticipated takes are worse than no
+ * take at all because the operator's situation may have moved on. The
+ * caller can pass `{ allowStale: true }` to opt in.
+ */
+export async function findAnticipated(
+  userQuery: string,
+  opts: { allowStale?: boolean } = {},
+): Promise<AnticipatedMatch | null> {
+  if (!userQuery || userQuery.trim().length < 4) return null;
+
+  const set = await loadTodaysSet();
+  if (!set || set.questions.length === 0) return null;
+
+  const ageHours =
+    (Date.now() - new Date(set.builtAt).getTime()) / (60 * 60 * 1000);
+  const fresh = ageHours < 24;
+  if (!fresh && !opts.allowStale) return null;
+
+  // Embed the user query once.
+  const queryVec = await getEmbedding(userQuery.slice(0, 1500)).catch(() => []);
+  if (!Array.isArray(queryVec) || queryVec.length === 0) return null;
+
+  // Embed each anticipated question (parallel · 3 items max so cheap).
+  // We embed at match-time rather than at store-time to keep the
+  // BrainMemory row free of vector data · stays consistent with the
+  // existing vector_embeddings table pattern.
+  const questionVecs = await Promise.all(
+    set.questions.map((q) =>
+      getEmbedding(q.question).catch(() => [] as number[]),
+    ),
+  );
+
+  let best: AnticipatedMatch | null = null;
+  for (let i = 0; i < set.questions.length; i++) {
+    const vec = questionVecs[i];
+    if (!Array.isArray(vec) || vec.length !== queryVec.length) continue;
+    const sim = cosineSimilarity(queryVec, vec);
+    if (sim < ANTICIPATED_MATCH_FLOOR) continue;
+    const answer = set.answers[i];
+    if (!answer) continue; // skip slots where precompute failed
+    if (!best || sim > best.similarity) {
+      best = {
+        question: set.questions[i].question,
+        answer,
+        similarity: sim,
+        ageHours,
+        fresh,
+      };
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Read-only accessor for today's set · used by the system endpoint
+ * + morning brief without forcing them through findAnticipated's
+ * cosine flow.
+ */
+export async function getTodaysAnticipated(): Promise<AnticipatedSet | null> {
+  return loadTodaysSet();
+}
+
+/** Test seam · clear the 5min cache between unit tests. */
+export function _resetTodayCacheForTests(): void {
+  todayCache = null;
+}
+
+// ── helpers ──────────────────────────────────────────────────────
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200);
+}
