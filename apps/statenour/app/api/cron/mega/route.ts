@@ -107,6 +107,13 @@ const CRON_JOBS = {
     '/api/cron/auto-linker',
     '/api/cron/backlog-triage',
     '/api/cron/ingest-drive',
+    // 2026-05-17 · the registry has both of these marked mode="folded"
+    // with foldedInto="mega" (per config/crons.ts), but they were never
+    // actually wired into the morning array · annotation drifted from
+    // implementation. token-age-watch alerts Telegram for tokens about
+    // to expire — runs once daily, idempotent per-token-per-day via
+    // BrainMemory category=token_age_pushed.
+    '/api/cron/token-age-watch',
   ],
   evening: [
     // v10.0.529.56 · device-sync removed (subsystem retired v529.6 ·
@@ -195,6 +202,13 @@ const CRON_JOBS = {
     // no-op so the cron dashboard stays green while the operator has
     // not pre-populated the candidate file.
     '/api/cron/monthly-location-rank',
+    // 2026-05-17 · registry marked mode="folded" foldedInto="mega-evening"
+    // (per config/crons.ts) but never actually wired here · annotation
+    // drifted from implementation. semantic-link runs KNN cosine over
+    // recent high-confidence brain memories + persists top-3 neighbors
+    // as BrainMemory category=semantic_edge. Pairs with the rule-driven
+    // auto-linker (morning slot) for coverage.
+    '/api/cron/semantic-link',
   ],
   weekly: [
     '/api/cron/weekly-digest',
