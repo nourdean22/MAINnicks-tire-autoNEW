@@ -69,6 +69,8 @@
     "googleapis": "^171.4.0",
     "inngest": "4.4.0",
     "ioredis": "^5.10.1",
+    "livekit-client": "2.19.0",
+    "livekit-server-sdk": "2.15.3",
     "lucide-react": "^1.7.0",
     "mammoth": "1.12.0",
     "nanoid": "^5.1.7",
