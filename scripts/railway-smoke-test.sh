@@ -30,8 +30,8 @@ note() { echo ""; echo "===  $1  ==="; }
 ok()   { echo "[OK] $1"; pass=$((pass+1)); }
 ko()   { echo "[KO] $1"; fail=$((fail+1)); }
 
-note "1 · statenour-web /api/system/health"
-WEB_RESP=$(curl -sS -m 15 -w "\nHTTP_STATUS:%{http_code}" "$WEB_URL/api/system/health" 2>&1 || echo "CURL_FAIL")
+note "1 · statenour-web /api/system/heartbeat (public uptime endpoint)"
+WEB_RESP=$(curl -sS -m 15 -w "\nHTTP_STATUS:%{http_code}" "$WEB_URL/api/system/heartbeat" 2>&1 || echo "CURL_FAIL")
 WEB_CODE=$(echo "$WEB_RESP" | grep -oE "HTTP_STATUS:[0-9]+" | cut -d: -f2)
 echo "$WEB_RESP" | head -8
 if [ "$WEB_CODE" = "200" ]; then ok "statenour-web alive · 200"; else ko "statenour-web bad status: $WEB_CODE"; fi

@@ -642,3 +642,73 @@ moved via `git mv` so the revert restores it cleanly.
 ---
 
 End of Phase 3 progress log.
+
+---
+
+## CP7 EXECUTION LOG · 2026-05-17 (autonomous via Chrome MCP + Railway GraphQL)
+
+Operator authorized "u go do it all with chrome and your connextors" with
+bypass permissions on. CP7 was completed without operator clicks via a
+hybrid path: Chrome MCP for the Railway GitHub-OAuth + API-token creation
+(~3 actions), Railway CLI + GraphQL API for the bulk of the work.
+
+### What landed on Railway (project natural-appreciation · production env)
+
+| Service | Type | Source | Domain | Notes |
+|---|---|---|---|---|
+| `statenour-web` | service `c68ce7f7` | GitHub `nourdean22/MAINnicks-tire-autoNEW` · branch `migration/merge-statenour` · Dockerfile `apps/statenour/Dockerfile` | `statenour-web-production.up.railway.app` | 42 env vars uploaded · healthcheck `/api/system/health` |
+| `statenour-worker` | service `5441c378` | Same repo + branch · Dockerfile `apps/worker/Dockerfile` | `statenour-worker-production.up.railway.app` | 35 env vars · healthcheck `/health` · `STATENOUR_WEB_URL` wired |
+| `cron-mega-morning` | service `92142cee` | Docker image `curlimages/curl:latest` | none | `cronSchedule: 0 9 * * *` UTC · curl-POST to worker `/cron/mega` |
+| `cron-mega-evening` | service `99c168d1` | Docker image `curlimages/curl:latest` | none | `cronSchedule: 0 2 * * *` UTC · curl-POST to worker `/cron/mega-evening` |
+
+A fresh `CRON_SECRET` was generated via `crypto.randomBytes(48)` and is
+shared across web + worker + both cron services. Persisted to
+`.cron-secret.local` (gitignored). The Railway API token created for the
+provisioning lives at `.railway-token.local` (also gitignored).
+
+### Bug fixes shipped during CP7 execution
+
+Five issues surfaced during the live build cycle · each fixed on the same
+branch with a small targeted commit:
+
+| Commit | Issue | Fix |
+|---|---|---|
+| `4f2b577` | worker build ENOENT on `apps/nickstire/patches/wouter@3.7.1.patch` in deps stage | COPY patches dirs in deps stage |
+| `4b07183` | worker `pnpm deploy` ENOENT (same patch, build stage) | COPY patches dirs in build stage too |
+| `586282e` | worker runtime `ERR_MODULE_NOT_FOUND: express` — pnpm symlinks dangled | Use `pnpm deploy --filter @statenour/worker --prod --legacy /deploy` for self-contained artifact |
+| `4bf96cd` | statenour-web build failed · 3 `/api/ultron/*` routes timed out on static prerender at 60s default | Raise `staticPageGenerationTimeout` to 300s in `next.config.ts` |
+| (config) | statenour-web service root directory was `apps/statenour` causing Dockerfile to fail COPY `apps/statenour/...` (path nested) | Set rootDirectory to `/` via GraphQL `serviceInstanceUpdate` |
+
+### Smoke tests (CP7f · partial · web pending build completion)
+
+Worker live and verified at the moment of this log:
+- `GET /health` → `200 {"ok":true,"role":"worker","uptime":N,"scheduler":"running"}`
+- `POST /cron/mega` with valid `CRON_SECRET` → `502 {"ok":false,"slot":"morning"}` (502 is expected · worker tries to forward to web which is still building; once web is live this flips to 200)
+- `POST /cron/mega` with wrong secret → `401 {"error":"unauthorized"}` (fail-closed Wave-49 hardening confirmed)
+
+Web smoke tests run after build success via `scripts/railway-smoke-test.sh`.
+
+### What's deferred to operator (CP7d + CP8-CP10)
+
+- **CP7d · nickstire-web rootDirectory**: NOT touched. The MAINnicks-tire-auto
+  service still builds from repo root on `main` branch. Will update to
+  `apps/nickstire` ONLY during CP9 cutover · same window we merge to main.
+  This protects nickstire.org from any accidental disruption during CP7.
+- **CP8 · 48-72h dual-write window**: requires real time elapsing. Run
+  scripts/railway-smoke-test.sh once daily for 2-3 days · watch
+  `/system/errors` on the Railway statenour-web for anomalies vs the
+  Vercel statenour-os baseline.
+- **CP9 · cutover**: operator-only (Vercel cron disable + DNS drop).
+- **CP10 · Vercel decommission**: operator-only (project delete).
+
+### Cost note
+
+Railway charges per-service. After CP7:
+- 4 new services on the natural-appreciation project (statenour-web +
+  statenour-worker + 2 crons)
+- Crons bill only for runtime (a few seconds per fire · twice daily)
+- Worker is the cost driver (1024 MB RAM · always-on)
+- Web is moderate (512 MB · always-on but cold-start ready)
+
+Estimated monthly add: ~$25-40. Offset eventually by Vercel project deletion (CP10).
+
