@@ -251,7 +251,12 @@ async function startServer() {
   app.get("/api/health", healthHandler);
   app.get("/api/ping", pingHandler);
   app.get("/api/ready", readyHandler);
-  app.post("/api/health/recover", recoverHandler);
+  // SEC-3 (migration-audit 2026-05-17) · /api/health/recover is a
+  // mutating self-healing trigger. Pre-fix it was publicly reachable
+  // alongside the read-only probes above. requireAdminApiKey is a
+  // hoisted function declaration (defined ~240 lines below) · forward
+  // reference is safe (same pattern as the SSE registration at L487).
+  app.post("/api/health/recover", requireAdminApiKey, recoverHandler);
 
   // ─── Abandoned Form Tracking ──────────────────────────
   // Receives navigator.sendBeacon from BookingWizard on page unload
