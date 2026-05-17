@@ -149,12 +149,26 @@ remain blocking for prod cutover · code runs in dev mode until then.
   (used by Phase 4-6 functions · scaffold supports it but no
   consumer yet)
 - [x] Telegram alert on Inngest function failure · LANDED 2026-05-17 ·
-  shared `onInngestFailure` handler wired to all 4 functions
-  (mega-fanout-morning, -evening, operator-morning-brief,
-  customer-preferences-recompute) · reuses existing sendTelegram ·
-  fires only after retries exhaust
-- [ ] *(follow-up)* Collapse duplicated `MORNING_JOBS`/`EVENING_JOBS`
-  arrays once cutover sticks 7d (shared config module)
+  shared `onInngestFailure` handler wired to all 4 functions · types
+  tightened to Inngest's `FailureEventArgs` · reuses existing
+  sendTelegram · fires only after retries exhaust
+- [x] Collapse duplicated `MORNING_JOBS`/`EVENING_JOBS` arrays into
+  shared `src/inngest/jobs.ts` · LANDED 2026-05-17 · both legacy
+  `/api/cron/mega` route and Inngest fan-out import from one source
+  · drift bait eliminated · `app/api/cron/mega/route.ts` dropped
+  222 LOC of dead reference
+- [x] step.waitForEvent example · LANDED 2026-05-17 ·
+  `src/inngest/functions/bulk-sms-approval.ts` · operator approves
+  via Telegram inline command · 30min timeout · TEMPLATE only (no
+  actual SMS dispatch wired · zero risk of accidental mass-SMS)
+- [x] Inngest local dev runner · LANDED 2026-05-17 · `inngest-cli`
+  devDep + `pnpm --filter @statenour/web inngest:dev` script
+- [x] Operator runbook · LANDED 2026-05-17 ·
+  `docs/operator/inngest-setup.md` · 5-step paste-and-go +
+  rollback + troubleshooting
+- [x] Health endpoint surfaces Inngest config + function count +
+  mega-job counts + Braintrust wrap status + AGENT_V2 flag · LANDED
+  2026-05-17 · single probe shows the full Wave-200 substrate state
 
 ### **Phase 4 · LiveKit operator voice** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0006)*
 
@@ -326,6 +340,10 @@ evidence demands them · zero blocking action items today).
 - `docs/adr/0009-mastra-memory.md` — Mastra in-process memory now · `@mastra/pg` Phase 1.3 (Phase 1.2)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/mastra/memory.ts` — Phase 1.2 Mastra memory factory
+- `apps/statenour/src/inngest/jobs.ts` — single source of truth for mega-cron job arrays
+- `apps/statenour/src/inngest/on-failure.ts` — Telegram alert handler typed against FailureEventArgs
+- `apps/statenour/src/inngest/functions/bulk-sms-approval.ts` — step.waitForEvent example
+- `docs/operator/inngest-setup.md` — paste-and-go operator runbook
 - `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
 - `apps/voice/` — Phase 4 LiveKit Python worker
 - `apps/statenour/app/voice/page.tsx` — Phase 4 PWA push-to-talk launcher

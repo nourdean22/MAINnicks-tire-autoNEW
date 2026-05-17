@@ -24,22 +24,18 @@
  * See: docs/adr/0005-inngest-durable-workflows.md follow-up section
  */
 
+import type { FailureEventArgs } from "inngest";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/on-failure");
 
-interface InngestFailureContext {
-  error?: Error | { message?: string };
-  event?: {
-    name?: string;
-    data?: Record<string, unknown>;
-  };
-  runId?: string;
-  function?: {
-    id?: string;
-    name?: string;
-  };
-}
+/**
+ * Inngest's FailureEventArgs shape · `event.data` carries the
+ * function_id + run_id + the original triggering event. We narrow
+ * what we use rather than the full payload because formatting only
+ * needs the function id and the final error message.
+ */
+type FailurePayload = FailureEventArgs;
 
 /**
  * Format + send a Telegram alert when an Inngest function exhausts
@@ -47,26 +43,23 @@ interface InngestFailureContext {
  * mutation · we never want to throw from this path because that would
  * make Inngest re-trigger the failure handler in a loop.
  */
-async function notifyTelegram(ctx: InngestFailureContext): Promise<void> {
+async function notifyTelegram(args: FailurePayload): Promise<void> {
   try {
     const { sendTelegram } = await import("@/lib/services/telegram");
-    const fnLabel = ctx.function?.name ?? ctx.function?.id ?? "(unknown)";
-    const errMsg =
-      ctx.error instanceof Error
-        ? ctx.error.message
-        : (ctx.error as { message?: string } | undefined)?.message;
-    const errLine = (errMsg ?? "no error message").slice(0, 240);
-    const runLine = ctx.runId
-      ? `\nrun: <code>${ctx.runId}</code>`
-      : "";
+    const functionId = args.event?.data?.function_id ?? "(unknown)";
+    const runId = args.event?.data?.run_id;
+    const errMsg = args.error?.message ?? "no error message";
+    const errLine = errMsg.slice(0, 240);
+    const runLine = runId ? `\nrun: <code>${escapeHtml(runId)}</code>` : "";
 
     const message =
-      `⚠️ <b>Inngest failure</b> · ${fnLabel}\n` +
+      `⚠️ <b>Inngest failure</b> · ${escapeHtml(functionId)}\n` +
       `<code>${escapeHtml(errLine)}</code>${runLine}`;
 
     await sendTelegram(message, undefined, "HTML");
     log.warn("inngest_failure_notified", {
-      fn: fnLabel,
+      fn: functionId,
+      runId,
       err: errLine.slice(0, 80),
     });
   } catch (err) {
@@ -82,9 +75,10 @@ function escapeHtml(s: string): string {
 
 /**
  * The handler to pass as `onFailure` in every Inngest function's
- * config. Mastra's Inngest types around onFailure are wide; we keep
- * this as a function with a loose parameter shape and narrow inside.
+ * config. Inngest invokes this AFTER all retries on the parent
+ * function exhaust. The `args` shape is Inngest's `FailureEventArgs` ·
+ * narrowed inside notifyTelegram.
  */
-export const onInngestFailure = async (ctx: unknown): Promise<void> => {
-  await notifyTelegram((ctx ?? {}) as InngestFailureContext);
+export const onInngestFailure = async (args: FailurePayload): Promise<void> => {
+  await notifyTelegram(args);
 };

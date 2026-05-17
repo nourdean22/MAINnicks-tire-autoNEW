@@ -1,6 +1,15 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma, checkDbConnection } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
+// 2026-05-17 follow-up · WAVE-200 Inngest visibility on the health
+// surface. Pre-fix the operator had to open /api/inngest to see
+// Inngest config state · now it's part of the single health probe.
+import { isInngestFullyConfigured } from "@/src/inngest/client";
+import { MEGA_JOB_COUNTS } from "@/src/inngest/jobs";
+// Braintrust wrap status from Wave-200 Phase 7 follow-up · surfaces
+// the actual wrap outcome (active/failed/inactive), not just env
+// presence.
+import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
 
 // v10.0.514 · 30s outer cache. The 2026-05-12 slow-paths Lighthouse
 // addendum showed this route at 5.5s on the homepage with 5 parallel
@@ -50,6 +59,18 @@ export const GET = apiHandler(async () => {
       alerts: { unresolved: alertCount },
       commitments: { active: commitmentCount },
       devices,
+      // 2026-05-17 follow-up · WAVE-200 substrate visibility
+      inngest: {
+        configured: isInngestFullyConfigured(),
+        // morning + evening fanouts · operator-morning-brief ·
+        // customer-preferences-recompute · bulk-sms-approval (template)
+        functions: 5,
+        megaJobs: MEGA_JOB_COUNTS,
+      },
+      braintrust: { status: braintrustWrapStatus() },
+      agentV2: {
+        enabled: (process.env.AGENT_V2 ?? "").trim().toLowerCase() === "true",
+      },
     };
   });
 });

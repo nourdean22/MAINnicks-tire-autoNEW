@@ -41,98 +41,13 @@
 
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
+// 2026-05-17 follow-up · shared job arrays (single source of truth)
+// replace the formerly-duplicated MORNING_JOBS / EVENING_JOBS /
+// WEEKLY_JOBS that lived here AND in app/api/cron/mega/route.ts.
+import { MORNING_JOBS, EVENING_JOBS, WEEKLY_JOBS } from "../jobs";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("inngest/mega-fanout");
-
-/**
- * Job lists — mirror `/api/cron/mega` arrays. Single source of truth
- * during the cutover window: import from there so a new cron added
- * in either place propagates. Phase 3 just defines the Inngest
- * wrapper — the existing CRON_JOBS array stays as-is in mega/route.ts.
- *
- * For now we duplicate (small list · easier to audit during cutover ·
- * single-file change to flip back). Once the cutover sticks past 7d
- * we collapse to one source of truth.
- */
-
-const MORNING_JOBS = [
-  "/api/cron/learn",
-  "/api/cron/stale-tasks",
-  "/api/cron/brain-cycle",
-  "/api/cron/journal-checkin?slot=morning",
-  "/api/cron/embed-backfill",
-  "/api/cron/health-digest",
-  "/api/cron/cost-regression",
-  "/api/cron/schema-drift-watch",
-  "/api/cron/knowledge-sync",
-  "/api/cron/prediction-streaks",
-  "/api/cron/canary-chat",
-  "/api/cron/morning-brief",
-  "/api/cron/revenue-decision",
-  "/api/cron/decision-replay",
-  "/api/cron/persona-drift",
-  "/api/cron/orphan-task-nudge",
-  "/api/cron/task-resurface",
-  "/api/cron/refresh-identity",
-  "/api/cron/auto-linker",
-  "/api/cron/backlog-triage",
-  "/api/cron/ingest-drive",
-  "/api/cron/token-age-watch",
-];
-
-const EVENING_JOBS = [
-  "/api/cron/reflect",
-  "/api/cron/predict",
-  "/api/cron/think",
-  "/api/cron/consolidate",
-  "/api/cron/drift-check",
-  "/api/cron/daily-report",
-  "/api/cron/data-cleanup",
-  "/api/cron/journal-checkin?slot=evening",
-  "/api/cron/intelligence",
-  "/api/cron/brain-intelligence",
-  "/api/cron/embed-backfill",
-  "/api/cron/chat-message-backfill",
-  "/api/cron/image-rot-scan",
-  "/api/cron/semantic-dedup",
-  "/api/cron/pgvector-backfill",
-  "/api/cron/auto-calibrate",
-  "/api/cron/correlation-alarm",
-  "/api/cron/mastery-decay",
-  "/api/cron/pattern-cluster",
-  "/api/cron/storage-quota-watch",
-  "/api/cron/audit-retention",
-  "/api/cron/creation-spike-detect",
-  "/api/cron/update-spike-detect",
-  "/api/cron/brain-bus-probe",
-  "/api/cron/stale-conversation-archive",
-  "/api/cron/conversation-mission-link",
-  "/api/cron/embed-cleanup",
-  "/api/cron/brain-bus-consume",
-  "/api/cron/agent-eval",
-  "/api/cron/extract-knowledge",
-  "/api/cron/brain-feedback-loop",
-  "/api/cron/eval-regression",
-  "/api/cron/cost-slo-check",
-  "/api/cron/vapi-latency-sync",
-  "/api/cron/os-snapshot",
-  "/api/cron/anticipate",
-  "/api/cron/monthly-location-rank",
-  "/api/cron/semantic-link",
-];
-
-const WEEKLY_JOBS = [
-  "/api/cron/weekly-digest",
-  "/api/cron/weekly-review",
-  "/api/cron/memory-bloat-watch",
-  "/api/cron/voice-clone-train",
-  "/api/cron/inbox-janitor",
-  "/api/cron/preference-tune",
-  "/api/cron/pricing-advisor",
-  "/api/cron/extract-skills",
-  "/api/cron/pin-hygiene",
-];
 
 /**
  * Sanitize a child cron path into a stable Inngest step ID.
