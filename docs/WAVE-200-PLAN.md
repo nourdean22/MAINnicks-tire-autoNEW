@@ -200,9 +200,14 @@ env-var paste are the blocking action items for prod cutover.
   (Add to Home Screen)
 - [ ] First demo: tap voice button on phone · say "what are my 3
   highest-leverage moves today" · Nick speaks the reply
-- [ ] *(follow-up)* Cartesia voice clone training (uses existing
-  `lib/ai/voice-clone-trainer.ts` weekly cron · operator pastes the
-  resulting voice ID into CARTESIA_VOICE_ID)
+- [ ] *(follow-up · OPERATOR)* Cartesia AUDIO voice clone training.
+  IMPORTANT clarification (2026-05-17): `lib/ai/voice-clone-trainer.ts`
+  is the TEXT voice profile (Fireflies → BrainMemory · style + cadence
+  for the prompt builder) · NOT Cartesia. The audio clone is a manual
+  Cartesia dashboard step: record 3-5 min of clean audio → upload to
+  Cartesia → copy the resulting voice ID → set `CARTESIA_VOICE_ID` in
+  Railway env (apps/voice + statenour-web). Until then default
+  Cartesia voice (Aspen) is used.
 - [ ] *(follow-up)* Dedicated voice-bridge bearer token (replaces
   STATENOUR_OWNER_COOKIE · rotates independently)
 
@@ -268,8 +273,15 @@ evidence demands them · zero blocking action items today).
   `lib/services/morning-brief.ts` `annotateWithPreferences()` · pure
   read · gracefully empty when no customer IDs flow through bridge ·
   zero noise when preference cache empty
-- [ ] *(follow-up)* Wire outreach campaign builder to segment by
-  preference (prompt vs slow payer · high LTV · etc.)
+- [x] Outreach campaign builder · LANDED 2026-05-17 ·
+  `app/(mastery)/outreach/page.tsx` segments by LTV tier · payment
+  behavior · min declined value · operator-composes message · POSTs
+  to `/api/outreach/propose` which emits `bulk-sms/proposed` Inngest
+  event · operator approves/rejects via Telegram `/approve <id>` /
+  `/reject <id>` (handled in `app/api/telegram/webhook/route.ts`) ·
+  dispatch step in `bulk-sms-approval` Inngest function is TEMPLATE
+  until nickstire-side bulk-SMS endpoint is wired (zero risk of
+  accidental mass-SMS today)
 - [ ] *(future · Phase 6+)* Convex layer · evaluate when real-time
   receptionist co-pilot lands
 - [ ] *(future)* Mem0 SaaS · evaluate if rule-based inference feels

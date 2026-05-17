@@ -231,6 +231,13 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdSearch(args.join(" "), chatId);
       case "/stats":
         return await cmdStats(chatId);
+      // 2026-05-17 · Wave-200 follow-up · bulk-SMS approval gate
+      // (see src/inngest/functions/bulk-sms-approval.ts). Operator
+      // approves/rejects pending campaigns straight from Telegram.
+      case "/approve":
+        return await cmdApprove(args.join(" "), chatId);
+      case "/reject":
+        return await cmdReject(args.join(" "), chatId);
       case "/help":
         return await sendTelegram(
           `🤖 <b>Nick Commands — Personal OS</b>\n\n` +
@@ -251,6 +258,9 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/mit [text] — Set today's MIT\n` +
             `/commit [text] — Create commitment\n` +
             `/ask [question] — Ask Nick anything\n\n` +
+            `\n<b>OUTREACH (Wave-200)</b>\n` +
+            `/approve [campaignId] — Approve pending bulk-SMS\n` +
+            `/reject [campaignId] — Reject pending bulk-SMS\n\n` +
             `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
           chatId
         ).then(() => {});
@@ -1104,6 +1114,65 @@ async function cmdImagine(prompt: string, chatId: string): Promise<void> {
   } catch (err) {
     await sendTelegram(`Image generation failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
   }
+}
+
+// ── Bulk-SMS approval (Wave-200 follow-up · 2026-05-17) ─────
+//
+// Emits `bulk-sms/approval-response` events that the
+// `bulk-sms-approval` Inngest function is waiting for via
+// step.waitForEvent. The Inngest function dispatches (or rejects)
+// based on the decision. Operator usage:
+//
+//   /approve <campaignId>      → approve & dispatch
+//   /reject  <campaignId>      → reject & audit
+//
+// Both commands return immediately · the actual SMS send happens
+// inside the Inngest function step (currently TEMPLATE only · no
+// actual SMS dispatch wired). Per
+// apps/statenour/src/inngest/functions/bulk-sms-approval.ts.
+
+async function emitApprovalResponse(
+  campaignId: string,
+  decision: "approve" | "reject",
+  chatId: string,
+): Promise<void> {
+  if (!campaignId) {
+    await sendTelegram(
+      `Usage: <code>/${decision} &lt;campaignId&gt;</code>`,
+      chatId,
+    );
+    return;
+  }
+  try {
+    const { getInngest } = await import("@/src/inngest/client");
+    const inngest = getInngest();
+    await inngest.send({
+      name: "bulk-sms/approval-response",
+      data: { campaignId, decision },
+    });
+    await sendTelegram(
+      `✅ ${decision === "approve" ? "Approved" : "Rejected"} · ` +
+        `<code>${campaignId}</code> · Inngest will ${
+          decision === "approve" ? "dispatch" : "audit + exit"
+        } within seconds.`,
+      chatId,
+    );
+  } catch (err) {
+    await sendTelegram(
+      `⚠️ Failed to emit ${decision} for <code>${campaignId}</code>: ${
+        err instanceof Error ? err.message.slice(0, 200) : "unknown error"
+      }`,
+      chatId,
+    );
+  }
+}
+
+async function cmdApprove(args: string, chatId: string): Promise<void> {
+  await emitApprovalResponse(args.trim(), "approve", chatId);
+}
+
+async function cmdReject(args: string, chatId: string): Promise<void> {
+  await emitApprovalResponse(args.trim(), "reject", chatId);
 }
 
 // ── Helpers ───────────────────────────────────────────────
