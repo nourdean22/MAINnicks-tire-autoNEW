@@ -81,9 +81,14 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
   - Provider: same Venice/Ollama/Anthropic chain via existing `@/lib/ai/provider`
   - Memory: Mastra `@mastra/memory` (working-memory + semantic-recall) wired into existing `BrainMemory` table
   - Tools: the 5 above + dynamic discovery via Anthropic Tool Search Tool over skill registry
-- [ ] Swap `/api/ai/chat/route.ts` to call the Mastra agent (behind a feature flag · `AGENT_V2=true`)
-- [ ] Braintrust eval set: 20 golden questions · LLM-as-judge scoring on 4 axes (correctness · tool-use · drift · brevity)
-- [ ] Cutover: flip `AGENT_V2=true` in Railway env · monitor /system/logs for 24h · rollback ready by flipping back
+- [x] Swap `/api/ai/chat/route.ts` to call the Mastra agent (behind
+  feature flag `AGENT_V2=true`) · LANDED 2026-05-17 as early-exit
+  gate after rate-limit · zero impact when flag off
+- [x] Braintrust eval set: 20 golden questions · LLM-as-judge scoring
+  on 4 axes (correctness · tool-use · drift · brevity) · LANDED in
+  `evals/nick-baseline.eval.ts`
+- [ ] OPERATOR: flip `AGENT_V2=true` in Railway env · monitor
+  /system/logs for 24h · rollback ready by flipping back to false
 
 ### **Phase 2 · Skill Registry runtime exposure** *(LANDED via inheritance — 2026-05-17 · see ADR-0004)*
 

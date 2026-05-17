@@ -47,6 +47,44 @@ export async function POST(req: Request) {
   // streaming pipeline.
   const limited = checkAiRateLimit(req);
   if (limited) return limited;
+
+  // ── WAVE-200 Phase 1.5 · AGENT_V2 cutover gate ──────────────────
+  // When the operator flips AGENT_V2=true in Railway env, this
+  // route delegates to the Mastra `nick` agent via handleChatStream
+  // instead of running the 1800-LOC legacy pipeline below.
+  //
+  // Cutover semantics:
+  //   · OFF (default) · legacy streamText pipeline · unchanged
+  //   · ON · Mastra agent + nourTools + auto-injected skill recall
+  //     (Phase 2 verified · already inherited by the Mastra agent)
+  //
+  // Rollback · flip the env back to false · zero code change · the
+  // legacy pipeline stays warm.
+  //
+  // Why early-exit instead of branching mid-pipeline · the legacy
+  // pipeline does its own prompt assembly + memory recall + tool
+  // dispatch · Mastra does ALL of that internally. Branching mid-way
+  // would duplicate state with no benefit. Early-exit means "this
+  // request runs on Mastra · everything that follows is the legacy
+  // path".
+  //
+  // See: docs/adr/0001-mastra-adoption.md · WAVE-200-PLAN Phase 1.5
+  const { AGENT_V2_ENABLED } = await import("@/src/mastra/agents/nick");
+  if (AGENT_V2_ENABLED) {
+    const { handleChatStream } = await import("@mastra/ai-sdk");
+    const { createUIMessageStreamResponse } = await import("ai");
+    const { getMastra } = await import("@/src/mastra");
+    // Clone the request so the body is readable here even though
+    // the request was already touched by requireSession + rate limit.
+    const params = await req.json();
+    const stream = await handleChatStream({
+      mastra: getMastra() as never,
+      agentId: "nick",
+      params,
+      version: "v6",
+    });
+    return createUIMessageStreamResponse({ stream: stream as never });
+  }
   // v7.8 · Apr 29 · Universal audit. Anything written from this
   // route — AutonomousAction triggers, BrainMemory persists from
   // importance-scorer, Mission/Task creates from chat tool calls —
