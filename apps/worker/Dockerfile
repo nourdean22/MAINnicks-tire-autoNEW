@@ -33,6 +33,12 @@ COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/worker/node_modules ./apps/worker/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/worker ./apps/worker
+# pnpm deploy in the next stage reads patch files for lockfile integrity ·
+# missing these → ENOENT on wouter patch in the deploy step.
+COPY apps/nickstire/package.json ./apps/nickstire/
+COPY apps/statenour/package.json ./apps/statenour/
+COPY apps/nickstire/patches ./apps/nickstire/patches
+COPY apps/statenour/patches ./apps/statenour/patches
 
 # pnpm install in deps copied the .pnpm/ store + symlinked to it.
 # Now compile TS → dist/, then use `pnpm deploy` to produce a self-
