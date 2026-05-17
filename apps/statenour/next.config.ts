@@ -30,6 +30,13 @@ const nextConfig: NextConfig = {
   // node_modules tracing · no `pnpm install` needed in the runtime image.
   // Backward-compatible · Vercel ignores this flag.
   output: "standalone",
+  // CP7 · Railway build containers can't reach Neon as fast as Vercel's
+  // can. Three /api/ultron/* routes (signal · pulse · pulse-digest) run
+  // 10+ Prisma queries during prerender and hit the 60s default. Bumping
+  // to 300s gives the brain engines time to finish without us having to
+  // mark every API route dynamic. If routes still time out at 300s the
+  // right next move is `export const dynamic = "force-dynamic"` on them.
+  staticPageGenerationTimeout: 300,
   env: {
     BUILD_TIME,
   },
