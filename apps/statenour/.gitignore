@@ -1,0 +1,64 @@
+# Next.js
+.next
+.next-*
+.next-prod
+
+# Node
+node_modules
+
+# Build + test output
+dist
+coverage
+# v10.0.310 · explicit allowlist · /system/coverage page is a real
+# operator route (the merged "what's missing" surface from v10.0.309)
+# whose name accidentally matches the test-coverage gitignore pattern.
+!app/(mastery)/system/coverage/
+!app/(mastery)/system/coverage/**
+*.tsbuildinfo
+/eslint-report.json
+
+# Env (never commit; keep .example + .template templates)
+.env
+.env.*
+!.env.example
+!.env.template
+.env*.local
+
+# Logs (local-agent writes to agent.log.N — never ship)
+*.log
+*.log.[0-9]
+*.log.bak
+*.log.bak[0-9]
+
+# Secrets (local-agent sidecar)
+local-agent/.ring_token
+local-agent/.env
+local-agent/.env.*
+local-agent/agent.log*
+
+# Vercel + editor
+.vercel
+.tmp/
+.DS_Store
+.idea
+.vscode
+*.swp
+
+# ESLint cache
+.eslintcache
+
+# v10.0.196 · OpenClaw scaffolding leak guard. The OpenClaw runtime
+# drops these in whatever workspace dir is open — they must NEVER
+# land in the statenour repo. IDENTITY.md / SOUL.md / USER.md would
+# expose private operator data; .openclaw/ has runtime auth tokens.
+.openclaw/
+**/.openclaw/
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+
+docs/vapi-kb/restore-payload.json
+docs/vapi-kb/restore-full.json
+docs/vapi-kb/_tool-payload.json

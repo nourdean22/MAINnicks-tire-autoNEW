@@ -1,0 +1,317 @@
+"use client";
+
+/**
+ * ContradictionResolutionPanel — close the loop on stated-position
+ * conflicts. Each row shows new vs old excerpt side-by-side with
+ * 4 resolution buttons:
+ *   current wins → mark old as deprecated
+ *   old wins     → mark new as deprecated
+ *   both valid   → context-dependent, dismiss from ticker
+ *   dismiss      → false positive
+ *
+ * Accepts optional `focusKey` prop — when set, that row auto-expands
+ * and scrolls into view (used by the ticker href).
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { GlassCard } from "@/components/ui/glass-card";
+import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { EmptyState } from "@/components/ui/empty-state";
+import { AlertTriangle, Check, X, Split, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { authedFetch } from "@/hooks/use-authed-fetch";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+
+interface StoredContradiction {
+  key: string;
+  new_memory_id: string;
+  old_memory_id: string;
+  similarity: number;
+  signal: "negation" | "reversal" | "antonym" | "compound";
+  new_excerpt: string;
+  old_excerpt: string;
+  days_apart: number;
+  surfaced_at: string;
+  status?: "unresolved" | "current_wins" | "old_wins" | "both_valid" | "dismissed";
+  resolution_note?: string | null;
+  resolved_at?: string | null;
+  createdAt: string;
+}
+
+type Tab = "unresolved" | "history";
+
+export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string | null }) {
+  const [rows, setRows] = useState<StoredContradiction[] | null>(null);
+  const [tab, setTab] = useState<Tab>("unresolved");
+  const [loading, setLoading] = useState(true);
+  const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notingKey, setNotingKey] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [pendingResolve, setPendingResolve] = useState<StoredContradiction["status"] | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await authedFetch(`/api/contradictions${tab === "history" ? "?all=1" : ""}`);
+      if (!res.ok) throw new Error("fetch failed");
+      const raw = (await res.json()) as { data?: { contradictions?: StoredContradiction[] } };
+      setRows(raw.data?.contradictions ?? []);
+      setLoadedAt(Date.now());
+    } catch (e) {
+      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [tab]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const resolve = useCallback(
+    async (key: string, status: StoredContradiction["status"], note?: string) => {
+      setBusy(key);
+      try {
+        const res = await authedFetch("/api/contradictions", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key, status, note }),
+        });
+        if (!res.ok) throw new Error("resolve failed");
+        toast.success(
+          status === "current_wins"
+            ? "current position locked in · old deprecated"
+            : status === "old_wins"
+              ? "old position held · new deprecated"
+              : status === "both_valid"
+                ? "marked as context-dependent"
+                : "dismissed as false positive",
+        );
+        setNotingKey(null);
+        setNoteText("");
+        setPendingResolve(null);
+        await load();
+      } catch (e) {
+        toast.error(`resolve failed: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [load],
+  );
+
+  const beginResolve = useCallback((key: string, status: StoredContradiction["status"]) => {
+    setNotingKey(key);
+    setNoteText("");
+    setPendingResolve(status);
+  }, []);
+
+  const visible = useMemo(() => {
+    if (!rows) return [] as StoredContradiction[];
+    if (tab === "unresolved") {
+      return rows.filter((r) => !r.status || r.status === "unresolved");
+    }
+    return rows.filter((r) => r.status && r.status !== "unresolved");
+  }, [rows, tab]);
+
+  // Scroll focus row into view when panel opens via ticker href
+  useEffect(() => {
+    if (!focusKey || !rows) return;
+    const el = document.getElementById(`contradiction-row-${focusKey}`);
+    el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusKey, rows]);
+
+  return (
+    <GlassCard>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <AlertTriangle size={12} className="text-red-400" />
+          <p className="section-label">Contradictions</p>
+          {rows && (
+            <span className="rounded-full border border-red-500/30 bg-red-500/10 px-1.5 py-px text-[9px] font-mono text-red-300">
+              <AnimatedCounter value={visible.length} />
+            </span>
+          )}
+          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void load()} />
+          <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
+            · drift against stated positions
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          {(["unresolved", "history"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                "text-[9px] font-mono uppercase tracking-wider px-2 py-1 rounded border transition-colors",
+                tab === t
+                  ? "bg-red-500/10 text-red-400 border-red-500/30"
+                  : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+              )}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && !rows && (
+        <div className="flex items-center gap-2 py-6 justify-center text-[11px] text-[var(--text-tertiary)]">
+          <Loader2 size={12} className="animate-spin" />
+          loading…
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {visible.map((c) => {
+          const rowBusy = busy === c.key;
+          const focused = focusKey === c.key;
+          return (
+            <div
+              id={`contradiction-row-${c.key}`}
+              key={c.key}
+              className={cn(
+                "p-2 rounded border transition-colors",
+                c.status && c.status !== "unresolved"
+                  ? "bg-[var(--bg-base)] border-[var(--border-default)] opacity-70"
+                  : "bg-red-500/5 border-red-500/20",
+                focused && "ring-1 ring-[var(--gold)]/40",
+                rowBusy && "opacity-60",
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1.5 text-[9px] font-mono uppercase tracking-wider">
+                <span className="text-red-400">{c.signal}</span>
+                <span className="text-[var(--text-tertiary)]">
+                  {c.days_apart}d apart · sim {Math.round(c.similarity * 100)}%
+                </span>
+                {c.status && c.status !== "unresolved" && (
+                  <span className="text-emerald-400">· {c.status.replace(/_/g, " ")}</span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-start">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]">now</p>
+                  <p className="text-[11px] text-[var(--text-primary)] break-words">
+                    "{c.new_excerpt}"
+                  </p>
+                </div>
+                <Split size={12} className="text-[var(--text-tertiary)] mt-3" />
+                <div className="min-w-0">
+                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                    {c.days_apart}d ago
+                  </p>
+                  <p className="text-[11px] text-[var(--text-secondary)] break-words">
+                    "{c.old_excerpt}"
+                  </p>
+                </div>
+              </div>
+
+              {(!c.status || c.status === "unresolved") && notingKey !== c.key && (
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <button
+                    onClick={() => beginResolve(c.key, "current_wins")}
+                    disabled={rowBusy}
+                    className="h-6 px-2 rounded border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    title="lock in current position, deprecate old"
+                  >
+                    <Check size={9} />
+                    current wins
+                  </button>
+                  <button
+                    onClick={() => beginResolve(c.key, "old_wins")}
+                    disabled={rowBusy}
+                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--gold)]/30 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    title="hold old position, deprecate new"
+                  >
+                    old wins
+                  </button>
+                  <button
+                    onClick={() => beginResolve(c.key, "both_valid")}
+                    disabled={rowBusy}
+                    className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:text-emerald-400 hover:border-emerald-500/30 text-[9px] font-mono uppercase tracking-wider"
+                    title="context-dependent, both still true"
+                  >
+                    both valid
+                  </button>
+                  <button
+                    onClick={() => resolve(c.key, "dismissed")}
+                    disabled={rowBusy}
+                    className="h-6 w-6 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 hover:border-red-400/30 inline-flex items-center justify-center"
+                    title="false positive"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              )}
+
+              {notingKey === c.key && pendingResolve && (
+                <div className="mt-2 space-y-1.5">
+                  <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--gold)]">
+                    note (optional — why?) · applying: {pendingResolve.replace(/_/g, " ")}
+                  </p>
+                  <textarea
+                    value={noteText}
+                    onChange={(e) => setNoteText(e.target.value)}
+                    placeholder="optional: explain the reversal"
+                    rows={2}
+                    className="w-full px-2 py-1 bg-[var(--bg-overlay)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:border-[var(--gold)]/30"
+                  />
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => resolve(c.key, pendingResolve, noteText.trim() || undefined)}
+                      disabled={rowBusy}
+                      className="h-6 px-2 rounded border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    >
+                      <Check size={9} /> confirm
+                    </button>
+                    <button
+                      onClick={() => { setNotingKey(null); setNoteText(""); setPendingResolve(null); }}
+                      className="h-6 px-2 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-red-400 text-[9px] font-mono uppercase tracking-wider inline-flex items-center gap-1"
+                    >
+                      <X size={9} /> cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {c.resolution_note && (
+                <p className="text-[9px] text-[var(--text-tertiary)] mt-1">
+                  note: {c.resolution_note}
+                </p>
+              )}
+            </div>
+          );
+        })}
+
+        {!loading && visible.length === 0 && (
+          tab === "unresolved" ? (
+            <EmptyState
+              icon={Check}
+              title="Clean ledger"
+              why="No new memory contradicts any old one right now. Nick's stated positions are internally consistent."
+              unlock="Contradictions surface automatically when a new memory semantically flips an older one (negation, reversal, antonym). This state means either you've been coherent or the detector hasn't seen friction yet."
+              tone="positive"
+            />
+          ) : (
+            <EmptyState
+              icon={Split}
+              title="No resolved contradictions yet"
+              why="Every resolution gets logged here — current wins, old wins, both valid, or dismissed."
+              unlock="Switch to Unresolved, work through the list, then come back."
+              tone="neutral"
+            />
+          )
+        )}
+      </div>
+
+      <p className="text-[9px] text-[var(--text-tertiary)] mt-3 leading-relaxed">
+        "current wins" drops confidence on the old memory to 0.1 (deprecated). "old wins"
+        does the same to the new one. "both valid" or "dismissed" just closes the loop without
+        touching the memory rows. Threshold: sim ≥ 0.78 · age ≥ 7d · negation / reversal / antonym.
+      </p>
+    </GlassCard>
+  );
+}

@@ -1,0 +1,224 @@
+{
+  "pack": "bezos-letters",
+  "source_credit": "Jeff Bezos · Amazon annual shareholder letters 1997-2020 (the 1997 letter is re-attached to every subsequent one and is the canonical 'Day 1' source). Additional sources: Lex Fridman Podcast #405 (December 2023), 2020 House Judiciary Committee testimony, internal Amazon principles widely reported in 'The Everything Store' (Brad Stone) and 'Invent and Wander' (Walter Isaacson, ed.). Verbatim where well-attested · paraphrased ideas labeled in context.",
+  "version": "v10.0.524",
+  "entries": [
+    {
+      "text": "It's always Day 1. Day 2 is stasis, followed by irrelevance, followed by excruciating painful decline, followed by death. And that is why it is always Day 1.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "Amazon shareholder letter, 2016",
+      "tags": ["day-1", "culture", "decline-prevention"]
+    },
+    {
+      "text": "To remain in Day 1, you have to patiently experiment, accept failures, plant seeds, protect saplings, and double down when you see customer delight.",
+      "topic": "execution",
+      "confidence": 0.96,
+      "context": "Amazon shareholder letter, 2016 · the Day 1 maintenance recipe",
+      "tags": ["experimentation", "customer", "patience"]
+    },
+    {
+      "text": "Most decisions should probably be made with somewhere around 70% of the information you wish you had. If you wait for 90%, in most cases, you're probably being slow.",
+      "topic": "time",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2016 · the 70% rule",
+      "tags": ["decision-velocity", "70-percent", "speed"]
+    },
+    {
+      "text": "Some decisions are consequential and irreversible or nearly irreversible — one-way doors — and these decisions must be made methodically, carefully, slowly, with great deliberation and consultation.",
+      "topic": "strategy",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2015 · Type 1 vs Type 2 decisions",
+      "tags": ["type-1", "irreversible", "decision-making"]
+    },
+    {
+      "text": "But most decisions aren't like that — they are changeable, reversible — they're two-way doors. If you've made a suboptimal Type 2 decision, you don't have to live with the consequences for that long. You can reopen the door and go back through.",
+      "topic": "execution",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2015 · Type 1 vs Type 2 decisions",
+      "tags": ["type-2", "reversible", "speed"]
+    },
+    {
+      "text": "Type 2 decisions can and should be made quickly by high-judgment individuals or small groups. As organizations get larger, there seems to be a tendency to use the heavy-weight Type 1 decision-making process on most decisions — including many Type 2 decisions. The end result is slowness, unthoughtful risk aversion, failure to experiment sufficiently, and consequently diminished invention.",
+      "topic": "ops",
+      "confidence": 0.96,
+      "context": "Amazon shareholder letter, 2015",
+      "tags": ["decision-velocity", "scale", "type-2"]
+    },
+    {
+      "text": "If you can't articulate the question and the answer in plain English, you're not thinking clearly enough. Replace PowerPoint with six-page narratives. Start the meeting by reading them silently together. The act of writing forces the rigor.",
+      "topic": "ops",
+      "confidence": 0.95,
+      "context": "Paraphrased from Bezos on the six-pager culture · widely covered in Invent and Wander",
+      "tags": ["writing", "meetings", "clarity"]
+    },
+    {
+      "text": "We've had three big ideas at Amazon that we've stuck with for 18 years, and they're the reason we're successful: Put the customer first. Invent. And be patient.",
+      "topic": "strategy",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2008 · Bezos at the National Press Club 2008",
+      "tags": ["customer-obsession", "invention", "patience"]
+    },
+    {
+      "text": "There are many ways to center a business. You can be competitor focused, you can be product focused, you can be technology focused, you can be business model focused, and there are more. But in my view, obsessive customer focus is by far the most protective of Day 1 vitality.",
+      "topic": "strategy",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2016",
+      "tags": ["customer-obsession", "focus", "moat"]
+    },
+    {
+      "text": "Customers are always beautifully, wonderfully dissatisfied, even when they report being happy and business is great. Even when they don't yet know it, customers want something better, and your desire to delight customers will drive you to invent on their behalf.",
+      "topic": "people",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2017",
+      "tags": ["customer-obsession", "dissatisfaction", "invention"]
+    },
+    {
+      "text": "Invention requires a long-willingness to be misunderstood. You do something that you genuinely believe in, that you have conviction about, but for a long period of time, well-meaning people may criticize that effort.",
+      "topic": "self",
+      "confidence": 0.97,
+      "context": "Business Insider Ignition conference 2014 · echoed in 2011 shareholder letter and later interviews",
+      "tags": ["invention", "conviction", "long-term"]
+    },
+    {
+      "text": "We are willing to be misunderstood for long periods of time. We are stubborn on vision. We are flexible on details.",
+      "topic": "strategy",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2011 · the stubborn-on-vision principle",
+      "tags": ["vision", "flexibility", "conviction"]
+    },
+    {
+      "text": "Failure and invention are inseparable twins. To invent you have to experiment, and if you know in advance that it's going to work, it's not an experiment. Most large organizations embrace the idea of invention but are not willing to suffer the string of failed experiments necessary to get there.",
+      "topic": "execution",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2015",
+      "tags": ["failure", "experimentation", "invention"]
+    },
+    {
+      "text": "Outsized returns often come from betting against conventional wisdom, and conventional wisdom is usually right. Given a 10 percent chance of a 100 times payoff, you should take that bet every time. But you're still going to be wrong nine times out of ten.",
+      "topic": "money",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2015",
+      "tags": ["asymmetric-bets", "expected-value", "risk"]
+    },
+    {
+      "text": "We all know that if you swing for the fences, you're going to strike out a lot, but you're also going to hit some home runs. The difference between baseball and business, however, is that baseball has a truncated outcome distribution. When you swing, no matter how well you connect with the ball, the most runs you can get is four. In business, every once in a while, when you step up to the plate, you can score 1,000 runs.",
+      "topic": "money",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2015",
+      "tags": ["asymmetric-bets", "long-tail", "swing"]
+    },
+    {
+      "text": "I knew that when I was 80, I was not going to regret having tried this. I was not going to regret trying to participate in this thing called the Internet that I thought was going to be a really big deal. I knew that if I failed, I wouldn't regret that. But I knew the one thing I might regret is not ever having tried.",
+      "topic": "self",
+      "confidence": 0.97,
+      "context": "Bezos describing the regret-minimization framework for leaving Wall Street to start Amazon · multiple interviews and Invent and Wander",
+      "tags": ["regret-minimization", "framework", "decisions"]
+    },
+    {
+      "text": "I wanted to project myself forward to age 80 and minimize the number of regrets I would have. Most of our regrets are acts of omission — the chances we didn't take, the relationships we were afraid to begin, the actions we never quite worked up the nerve to take. Once you frame the decision that way, the path becomes obvious.",
+      "topic": "self",
+      "confidence": 0.95,
+      "context": "Paraphrased from Bezos on the regret-minimization framework · widely covered in interviews",
+      "tags": ["regret-minimization", "framework", "long-term"]
+    },
+    {
+      "text": "Disagree and commit. If you have conviction on a particular direction even though there's no consensus, it's helpful to say, 'Look, I know we disagree on this but will you gamble with me on it?' Then once a decision is made, everyone — including those who disagreed — fully commits.",
+      "topic": "people",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2016 · the disagree-and-commit principle",
+      "tags": ["disagree-and-commit", "leadership", "decisions"]
+    },
+    {
+      "text": "Use this phrase in both directions. You don't want your team to push back on every Type 2 decision either — sometimes a leader needs to disagree-and-commit to their team's call when consensus isn't there.",
+      "topic": "people",
+      "confidence": 0.9,
+      "context": "Amazon shareholder letter, 2016 · second-order of disagree-and-commit",
+      "tags": ["disagree-and-commit", "delegation", "trust"]
+    },
+    {
+      "text": "Recognize true misalignment issues early and escalate them immediately. Sometimes teams have different objectives and fundamentally different views. Without escalation, the default dispute resolution mechanism is exhaustion. Whoever has more stamina carries the decision.",
+      "topic": "ops",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 2016",
+      "tags": ["escalation", "alignment", "process"]
+    },
+    {
+      "text": "Maintain high standards. People are attracted to high standards — they help with recruiting and retention. Standards are infectious in both directions — bring a new person onto a high-standards team and they'll get adjusted quickly. The opposite is also true.",
+      "topic": "people",
+      "confidence": 0.96,
+      "context": "Amazon shareholder letter, 2017 · high-standards thesis",
+      "tags": ["standards", "culture", "team"]
+    },
+    {
+      "text": "High standards are: teachable, domain-specific, must be recognized, and must be explicitly described in terms of expectations and effort. The handstand example: most people think they can learn a handstand in two weeks. The truth is six months of daily practice. If you don't have realistic beliefs about scope, you'll quit before the result.",
+      "topic": "self",
+      "confidence": 0.95,
+      "context": "Amazon shareholder letter, 2017 · the perfect handstand example",
+      "tags": ["standards", "expectations", "discipline"]
+    },
+    {
+      "text": "When the data and the anecdotes disagree, the anecdotes are usually right. There's something wrong with the way you're measuring. Go find the bug in your metrics rather than dismissing the anecdotal evidence.",
+      "topic": "ops",
+      "confidence": 0.9,
+      "context": "Paraphrased from Bezos on operating reviews · widely covered internally",
+      "tags": ["data", "anecdote", "measurement"]
+    },
+    {
+      "text": "Good intentions don't work. Mechanisms do. Saying 'we'll do better next time' is good intentions. Building a process that prevents the failure mode is a mechanism.",
+      "topic": "ops",
+      "confidence": 0.92,
+      "context": "Paraphrased from Bezos's internal commentary widely covered in Invent and Wander",
+      "tags": ["mechanisms", "process", "discipline"]
+    },
+    {
+      "text": "Two-pizza teams: every internal team should be small enough to be fed with two pizzas. If you can't feed a team with two pizzas, it's too large. Small teams move faster, have clearer ownership, and have higher signal in their decisions.",
+      "topic": "ops",
+      "confidence": 0.96,
+      "context": "Amazon internal principle · widely documented in The Everything Store",
+      "tags": ["two-pizza", "team-size", "speed"]
+    },
+    {
+      "text": "We start with the customer and work backwards. We don't start with skills and look for problems they fit. We start with customer needs and acquire the skills we need to serve them.",
+      "topic": "strategy",
+      "confidence": 0.96,
+      "context": "Amazon shareholder letter, 2008 · the working-backwards principle",
+      "tags": ["working-backwards", "customer", "method"]
+    },
+    {
+      "text": "The press release method: before building anything, write the press release announcing the finished product. If you can't write a compelling press release, you shouldn't build the thing. Iterate on the press release until it's exciting — then build.",
+      "topic": "ops",
+      "confidence": 0.94,
+      "context": "Amazon internal 'working backwards' method · widely documented",
+      "tags": ["working-backwards", "press-release", "method"]
+    },
+    {
+      "text": "If you double the number of experiments you do per year, you're going to double your inventiveness. The math is clear: most experiments fail, so volume matters more than success rate.",
+      "topic": "execution",
+      "confidence": 0.93,
+      "context": "Amazon shareholder letter, 2015 · paraphrased from the experimentation thesis",
+      "tags": ["experimentation", "velocity", "invention"]
+    },
+    {
+      "text": "Cash flow per share, not earnings per share, is what you should optimize for. Reported earnings are an accounting construction; cash flow is what actually accrues to owners. Long-term thinkers privilege cash flow.",
+      "topic": "money",
+      "confidence": 0.93,
+      "context": "Recurring Bezos framing across shareholder letters · paraphrased from 2001 letter on cash flow vs earnings",
+      "tags": ["cash-flow", "accounting", "long-term"]
+    },
+    {
+      "text": "We believe that a fundamental measure of our success will be the shareholder value we create over the long term. This value will be a direct result of our ability to extend and solidify our current market leadership position.",
+      "topic": "strategy",
+      "confidence": 0.98,
+      "context": "Amazon's 1997 shareholder letter — 'It's all about the long term'",
+      "tags": ["long-term", "shareholder-value", "1997"]
+    },
+    {
+      "text": "When forced to choose between optimizing the appearance of our GAAP accounting and maximizing the present value of future cash flows, we'll take the cash flows.",
+      "topic": "money",
+      "confidence": 0.97,
+      "context": "Amazon shareholder letter, 1997",
+      "tags": ["cash-flow", "long-term", "discipline"]
+    }
+  ]
+}

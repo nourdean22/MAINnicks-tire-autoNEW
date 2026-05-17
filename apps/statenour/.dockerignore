@@ -1,0 +1,24 @@
+# Exclude from Docker build context · keeps the build small + fast
+node_modules
+.next
+.next-prod
+.next-ci
+dist
+.git
+.github
+.vscode
+.idea
+.vercel
+.tmp
+.openclaw
+.claude
+.remember
+logs
+coverage
+*.log
+.env
+.env.local
+.env.development
+.env.test
+# Keep .env.example so the Docker layer cache busts when env shape changes
+!.env.example

@@ -1,0 +1,566 @@
+"use client";
+
+/**
+ * /system/health — OS health dashboard.
+ *
+ * Renders the /api/system/health-report data as a real UI. Groups
+ * signals into 5 tiles:
+ *   1. Cron Health — per-job success/fail ratio + duration
+ *   2. Error Patterns — grouped + counted, top-5 repeats
+ *   3. Backlog Pressure — captures · commitments · inbox tasks · drift
+ *   4. Freshness — last score · dump · reflection · capture
+ *   5. Vector Coverage — embedding rows per source type
+ *
+ * Range selector (24h / 7d / 30d) reshapes the cron + error slices.
+ * Auto-refreshes every 2 minutes.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import {
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle,
+  Clock,
+  Database,
+  Activity,
+  Flame,
+  ChevronLeft,
+  Archive,
+} from "lucide-react";
+import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { TrendCounter } from "@/components/ui/trend-counter";
+import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { SchemaDriftCard } from "@/components/system/schema-drift-card";
+
+import { authedFetch } from "@/hooks/use-authed-fetch";
+interface HealthReport {
+  range: string;
+  generatedAt: string;
+  cron: {
+    totalLogs: number;
+    failureCount: number;
+    jobs: Array<{
+      jobName: string;
+      success: number;
+      failed: number;
+      avgMs: number;
+      healthy: boolean;
+    }>;
+  };
+  errors: {
+    total: number;
+    topPatterns: Array<{ msg: string; count: number }>;
+  };
+  backlog: {
+    activeCaptures: number;
+    activeCommitments: number;
+    inboxTasks: number;
+    unackedDriftAlerts: number;
+  };
+  freshness: {
+    /** @deprecated Apr 19 — DailyScore retired. Field kept nullable so
+     *  older health-report payloads don't error; always rendered as a
+     *  dash now. */
+    lastDailyScoreHoursAgo?: number | null;
+    lastDailyScoreDate?: string | null;
+    lastBrainDumpHoursAgo: number | null;
+    lastReflectionHoursAgo: number | null;
+    lastCaptureHoursAgo: number | null;
+    lastSkillExtractionHoursAgo?: number | null;
+    lastIdentityRefreshHoursAgo?: number | null;
+  };
+  lawFeedback: {
+    situationLogsWithLawId: number;
+    triggerContextLogs: number;
+  };
+  vectorIndex: Array<{ sourceType: string; count: number }>;
+  /** v10.0.275 · strategic-frameworks lens-firing summary */
+  lens?: {
+    totalFires: number;
+    fallbackRate: number;
+    top: Array<{ framework: string; count: number }>;
+  };
+  /** v10.0.275 · VAPI voice-call summary · null if VAPI_API_KEY not set */
+  voice?: {
+    totalCalls: number;
+    avgDurationSec: number;
+    totalCostUsd: number;
+  } | null;
+  /** v10.0.222 · prior-window baselines for TrendCounter deltas.
+   *  Optional — older payloads pre-deploy may not include it. */
+  previous?: {
+    cronTotal: number;
+    cronFailures: number;
+    errorTotal: number;
+  };
+}
+
+export default function SystemHealthPage() {
+  const [data, setData] = useState<HealthReport | null>(null);
+  const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await authedFetch(`/api/system/health-report?range=${range}`);
+      if (!res.ok) return;
+      const raw = (await res.json()) as { data?: HealthReport };
+      if (raw?.data) setData(raw.data);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, [range]);
+
+  useEffect(() => {
+    load();
+    const iv = setInterval(load, 120_000); // 2 min
+    return () => clearInterval(iv);
+  }, [load]);
+
+  if (loading && !data) {
+    return (
+      <main className="max-w-4xl mx-auto px-3 py-4">
+        <ShimmerSkeleton className="h-10 rounded" />
+      </main>
+    );
+  }
+  if (!data) {
+    return (
+      <main className="max-w-4xl mx-auto px-3 py-4">
+        <p className="text-[var(--text-tertiary)]">health-report unavailable</p>
+      </main>
+    );
+  }
+
+  const totalVectors = data.vectorIndex.reduce((s, v) => s + v.count, 0);
+  const cronFailureRate = data.cron.totalLogs
+    ? Math.round((data.cron.failureCount / data.cron.totalLogs) * 100)
+    : 0;
+
+  return (
+    <main className="max-w-4xl mx-auto px-3 py-4 space-y-4">
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link
+            href="/system"
+            className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
+            aria-label="back to system"
+          >
+            <ChevronLeft size={16} />
+          </Link>
+          <h1 className="text-lg font-[var(--font-display)] font-bold lowercase tracking-[0.14em] text-[var(--text-primary)]">
+            os health
+          </h1>
+          <FreshnessChip
+            lastFetchedAt={data.generatedAt}
+            source="health-report"
+            onReload={load}
+          />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="inline-flex rounded-md border border-[var(--border-default)] overflow-hidden">
+            {(["24h", "7d", "30d"] as const).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                className={cn(
+                  "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                  range === r
+                    ? "bg-[var(--gold)]/15 text-[var(--gold)]"
+                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+                )}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={load}
+            className="p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)]"
+            aria-label="refresh"
+            title="refresh"
+          >
+            <RefreshCw size={14} />
+          </button>
+        </div>
+      </header>
+
+      {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
+          something's off; silent (✓ all expectations met) otherwise. */}
+      <SchemaDriftCard />
+
+      {/* v10.0.222 · TrendCounter row · cron + errors carry their own
+          prior-window baseline (`data.previous`), so the operator reads
+          'errors 12 (↓ -33% vs prior 7d)' instead of bare '12'. Backlog
+          + vectors don't have natural baselines yet (they're a state
+          snapshot, not a time-series), so they read as plain values
+          with neutral tone. */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <TrendCounter
+          value={data.cron.totalLogs}
+          baseline={data.previous?.cronTotal ?? null}
+          baselineLabel={`vs prior ${data.range}`}
+          label={
+            data.cron.failureCount > 0
+              ? `cron ops · ${cronFailureRate}% fail`
+              : "cron ops · all green"
+          }
+          goodWhen="neutral"
+          tone={data.cron.failureCount > 0 ? "amber" : "emerald"}
+        />
+        <TrendCounter
+          value={data.errors.total}
+          baseline={data.previous?.errorTotal ?? null}
+          baselineLabel={`vs prior ${data.range}`}
+          label={
+            data.errors.topPatterns.length > 0
+              ? `errors · ${data.errors.topPatterns.length} patterns`
+              : "errors · quiet"
+          }
+          goodWhen="low"
+          tone={
+            data.errors.total > 10 ? "rose"
+            : data.errors.total > 0 ? "amber"
+            : "emerald"
+          }
+        />
+        <TrendCounter
+          value={
+            data.backlog.inboxTasks +
+            data.backlog.activeCommitments +
+            data.backlog.activeCaptures +
+            data.backlog.unackedDriftAlerts
+          }
+          label={`backlog · ${data.backlog.inboxTasks}t · ${data.backlog.activeCommitments}c`}
+          goodWhen="low"
+          tone="tertiary"
+        />
+        <TrendCounter
+          value={totalVectors}
+          label={`vectors · ${data.vectorIndex.length} sources`}
+          goodWhen="high"
+          tone="tertiary"
+        />
+      </div>
+
+      {/* Cron health table */}
+      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
+        <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
+          <Activity size={12} className="text-[var(--gold)]" />
+          <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+            cron health · {data.range}
+          </h2>
+          <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+            {data.cron.jobs.length} jobs reported
+          </span>
+        </header>
+        {data.cron.jobs.length === 0 ? (
+          <p className="px-3 py-3 text-[11px] text-[var(--text-tertiary)] italic">
+            No cron logs in {data.range}. Either crons aren't running or CronJobLog isn't wired — the shared cronHandler was patched Apr 17 to auto-log, so this table should populate on next fire.
+          </p>
+        ) : (
+          <table className="w-full">
+            <thead>
+              <tr className="text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                <th className="text-left px-3 py-1 font-normal">job</th>
+                <th className="text-right px-3 py-1 font-normal">success</th>
+                <th className="text-right px-3 py-1 font-normal">failed</th>
+                <th className="text-right px-3 py-1 font-normal">avg ms</th>
+                <th className="text-right px-3 py-1 font-normal">status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[var(--border-default)]/40">
+              {[...data.cron.jobs]
+                .sort((a, b) => b.failed - a.failed || b.success - a.success)
+                .map((j) => (
+                  <tr key={j.jobName} className="hover:bg-[var(--bg-void)]/40">
+                    <td className="px-3 py-1.5 text-[11px] font-mono text-[var(--text-primary)]">{j.jobName}</td>
+                    <td className="px-3 py-1.5 text-[11px] font-mono tabular-nums text-emerald-400 text-right"><AnimatedCounter value={j.success} /></td>
+                    <td className={cn("px-3 py-1.5 text-[11px] font-mono tabular-nums text-right", j.failed > 0 ? "text-red-400" : "text-[var(--text-tertiary)]")}>
+                      <AnimatedCounter value={j.failed} />
+                    </td>
+                    <td className="px-3 py-1.5 text-[11px] font-mono tabular-nums text-[var(--text-tertiary)] text-right"><AnimatedCounter value={j.avgMs} /></td>
+                    <td className="px-3 py-1.5 text-right">
+                      {j.healthy ? (
+                        <CheckCircle2 size={11} className="inline text-emerald-400" />
+                      ) : (
+                        <AlertTriangle size={11} className="inline text-red-400" />
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      {/* Error patterns */}
+      {data.errors.topPatterns.length > 0 && (
+        <section className="rounded-lg border border-red-500/30 bg-red-500/5">
+          <header className="flex items-center gap-2 px-3 py-2 border-b border-red-500/20">
+            <AlertTriangle size={12} className="text-red-400" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-red-400">
+              top error patterns · {data.range}
+            </h2>
+          </header>
+          <ul className="divide-y divide-red-500/10">
+            {data.errors.topPatterns.map((p, i) => (
+              <li key={i} className="px-3 py-1.5 flex items-center gap-3">
+                <span className="shrink-0 text-[9px] font-mono font-bold tabular-nums text-red-400 w-6 text-right">
+                  ×<AnimatedCounter value={p.count} />
+                </span>
+                <span className="text-[11px] font-mono text-[var(--text-primary)] min-w-0 truncate">{p.msg}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Freshness grid */}
+      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
+        <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
+          <Clock size={12} className="text-blue-400" />
+          <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-blue-400">
+            signal freshness
+          </h2>
+        </header>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[var(--border-default)]/40">
+          {/* Apr 19 · DailyScore tile retired (scorer killed).
+              Replaced with Identity Refresh + Skill Extraction so this
+              row tracks the brain-learning crons instead. */}
+          <FreshnessTile label="brain dump" hoursAgo={data.freshness.lastBrainDumpHoursAgo} />
+          <FreshnessTile label="reflection" hoursAgo={data.freshness.lastReflectionHoursAgo} />
+          <FreshnessTile label="capture" hoursAgo={data.freshness.lastCaptureHoursAgo} />
+          <FreshnessTile
+            label="identity refresh"
+            hoursAgo={data.freshness.lastIdentityRefreshHoursAgo ?? null}
+          />
+        </div>
+      </section>
+
+      {/* Backlog + Vector tiles side by side */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
+          <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
+            <Archive size={12} className="text-amber-400" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-amber-400">
+              backlog pressure
+            </h2>
+          </header>
+          <dl className="p-3 space-y-1.5 text-[11px] font-mono">
+            {/* Apr 18: /commitments /drift /capture pages retired — all
+                flow into the unified /tasks surface now. */}
+            <KVRow k="inbox tasks" v={data.backlog.inboxTasks} href="/tasks" />
+            <KVRow k="active commitments" v={data.backlog.activeCommitments} href="/tasks" />
+            <KVRow k="active captures" v={data.backlog.activeCaptures} href="/tasks" />
+            <KVRow k="unacked drift" v={data.backlog.unackedDriftAlerts} href="/" tone={data.backlog.unackedDriftAlerts > 3 ? "warn" : undefined} />
+          </dl>
+        </section>
+
+        <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)]">
+          <header className="flex items-center gap-2 px-3 py-2 border-b border-[var(--border-default)]">
+            <Database size={12} className="text-violet-400" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-violet-400">
+              vector coverage
+            </h2>
+            <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto"><AnimatedCounter value={totalVectors} /> rows</span>
+          </header>
+          <dl className="p-3 space-y-1.5 text-[11px] font-mono">
+            {data.vectorIndex.length === 0 ? (
+              <p className="italic text-[var(--text-tertiary)]">no vector rows</p>
+            ) : (
+              data.vectorIndex
+                .sort((a, b) => b.count - a.count)
+                .map((v) => <KVRow key={v.sourceType} k={v.sourceType} v={v.count} />)
+            )}
+          </dl>
+        </section>
+      </div>
+
+      {/* Law feedback */}
+      {(data.lawFeedback.situationLogsWithLawId > 0 || data.lawFeedback.triggerContextLogs > 0) && (
+        <section className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/5">
+          <header className="flex items-center gap-2 px-3 py-2">
+            <Flame size={12} className="text-[var(--gold)]" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-[var(--gold)]">
+              strategic law feedback · {data.range}
+            </h2>
+            <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+              {data.lawFeedback.situationLogsWithLawId} logged · {data.lawFeedback.triggerContextLogs} via trigger
+            </span>
+          </header>
+        </section>
+      )}
+
+      {/* v10.0.275 · Strategic-frameworks lens-firing summary
+          Surfaces the top-fired lenses + fallback rate alongside the
+          rest of system health. Click-through to /system/lens-stats
+          for window selector + full per-surface breakdown. */}
+      {data.lens && data.lens.totalFires > 0 && (
+        <section className="rounded-lg border border-emerald-500/30 bg-emerald-500/5">
+          <header className="flex items-center gap-2 px-3 py-2">
+            <Activity size={12} className="text-emerald-400" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-emerald-300">
+              strategic lens · {data.range}
+            </h2>
+            <Link
+              href="/system/lens-stats"
+              className="ml-auto text-[9px] font-mono text-emerald-400/80 hover:text-emerald-300"
+            >
+              full →
+            </Link>
+          </header>
+          <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
+            <KVRow
+              k="total fires"
+              v={data.lens.totalFires}
+            />
+            <KVRow
+              k="fallback rate"
+              v={`${data.lens.fallbackRate}%`}
+              tone={data.lens.fallbackRate > 30 ? "warn" : "ok"}
+            />
+            {data.lens.top.slice(0, 3).map((t) => (
+              <KVRow key={t.framework} k={t.framework} v={t.count} />
+            ))}
+          </dl>
+        </section>
+      )}
+
+      {/* v10.0.275 · VAPI voice-call summary
+          Shows how many calls Nick handled in the window + spend +
+          avg duration. Click-through to /system/vapi-calls for
+          per-call detail. */}
+      {data.voice && data.voice.totalCalls > 0 && (
+        <section className="rounded-lg border border-amber-500/30 bg-amber-500/5">
+          <header className="flex items-center gap-2 px-3 py-2">
+            <Activity size={12} className="text-amber-400" />
+            <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-amber-300">
+              voice calls (VAPI) · {data.range}
+            </h2>
+            <Link
+              href="/system/vapi-calls"
+              className="ml-auto text-[9px] font-mono text-amber-400/80 hover:text-amber-300"
+            >
+              full →
+            </Link>
+          </header>
+          <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
+            <KVRow k="calls" v={data.voice.totalCalls} />
+            <KVRow k="avg duration" v={`${data.voice.avgDurationSec}s`} />
+            <KVRow k="spend" v={`$${data.voice.totalCostUsd.toFixed(2)}`} />
+          </dl>
+        </section>
+      )}
+    </main>
+  );
+}
+
+function MetricTile({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number | string;
+  sub?: string;
+  tone: "win" | "info" | "warn";
+}) {
+  const color =
+    tone === "win" ? "text-emerald-400"
+    : tone === "warn" ? "text-amber-400"
+    : "text-[var(--text-secondary)]";
+  return (
+    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] px-3 py-2">
+      <div className="flex items-center gap-1.5 mb-0.5">
+        <Icon size={10} className={color} />
+        <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+          {label}
+        </span>
+      </div>
+      <div className={cn("text-lg font-[var(--font-display)] font-bold tabular-nums", color)}>
+        {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
+      </div>
+      {sub && <div className="text-[9px] font-mono text-[var(--text-tertiary)]">{sub}</div>}
+    </div>
+  );
+}
+
+function FreshnessTile({
+  label,
+  hoursAgo,
+  extra,
+}: {
+  label: string;
+  hoursAgo: number | null;
+  extra?: string;
+}) {
+  let text = "never";
+  let color = "text-[var(--text-tertiary)]";
+  if (hoursAgo !== null) {
+    if (hoursAgo < 24) {
+      text = `${hoursAgo}h ago`;
+      color = "text-emerald-400";
+    } else {
+      const days = Math.round(hoursAgo / 24);
+      text = `${days}d ago`;
+      color = days <= 3 ? "text-[var(--text-secondary)]" : days <= 7 ? "text-amber-400" : "text-red-400";
+    }
+  }
+  return (
+    <div className="bg-[var(--bg-raised)] px-3 py-2">
+      <div className="text-[8px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+        {label}
+      </div>
+      <div className={cn("text-sm font-[var(--font-display)] font-bold tabular-nums", color)}>
+        {text}
+      </div>
+      {extra && <div className="text-[8px] font-mono text-[var(--text-tertiary)]/80">{extra}</div>}
+    </div>
+  );
+}
+
+function KVRow({
+  k,
+  v,
+  href,
+  tone,
+}: {
+  k: string;
+  v: number | string;
+  href?: string;
+  /** v10.0.275 · 'ok' for healthy emerald tint · 'warn' for amber */
+  tone?: "warn" | "ok";
+}) {
+  const color =
+    tone === "warn"
+      ? "text-amber-400"
+      : tone === "ok"
+        ? "text-emerald-300"
+        : "text-[var(--text-primary)]";
+  const body = (
+    <div className="flex items-center justify-between">
+      <span className="text-[var(--text-secondary)]">{k}</span>
+      <span className={cn("tabular-nums font-bold", color)}>
+        {typeof v === "number" ? <AnimatedCounter value={v} /> : v}
+      </span>
+    </div>
+  );
+  if (href) {
+    return (
+      <Link href={href} className="block hover:bg-[var(--bg-void)]/30 -mx-1 px-1 py-0.5 rounded">
+        {body}
+      </Link>
+    );
+  }
+  return body;
+}

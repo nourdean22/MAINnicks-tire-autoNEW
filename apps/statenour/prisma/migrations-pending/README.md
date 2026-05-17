@@ -1,0 +1,70 @@
+# Pending migrations · awaiting production DB access
+
+Migrations parked here are NOT in the live `prisma/migrations/`
+directory · `prisma migrate deploy` will not apply them. Move
+them back when ready.
+
+## How to apply a parked migration
+
+1. Confirm DATABASE_URL points at production (Neon)
+   ```bash
+   echo $DATABASE_URL  # should NOT be localhost:5432
+   # If it is, pull prod env first:
+   vercel env pull .env.production.local
+   # OR run from a Vercel deployment shell that has prod env vars
+   ```
+
+2. Move the migration back into the live folder
+   ```bash
+   mv prisma/migrations-pending/<NAME> prisma/migrations/<NAME>
+   ```
+
+3. Apply the migration
+   ```bash
+   pnpm release:db   # = prisma migrate deploy
+   ```
+
+4. Restore the schema fields that the migration adds (the rollback
+   commit removed them so the live code matches the un-migrated
+   prod DB · with the migration applied, the fields can come back
+   in)
+
+5. Verify
+   ```bash
+   pnpm prisma migrate status   # shows migration as applied
+   ```
+
+6. Commit + push the schema-restore + the migration move
+
+## Parked migrations
+
+### `20260508001336_add_updated_at_to_8_mutable_models`
+
+Originally shipped at v10.0.462. The deploy sequence assumed
+`pnpm release:db` had been run against production before the code
+was pushed · in fact the local DATABASE_URL pointed at a
+non-running localhost:5432, so the migration never reached
+production Neon. Production tables (`brain_dumps`, `mission_links`,
+`WorkResult`, `mastery_scores`, `body_tracking`, `financial_snapshots`,
+`contradictions`, `vector_embeddings`) didn't get the `updated_at`
+column, but the deployed Prisma client expected it · every CRUD on
+those tables failed at runtime with "column does not exist" until
+v10.0.473 rolled the schema back.
+
+When restoring this migration · the schema additions are:
+
+```prisma
+// MissionLink, MasteryScore, BodyTracking, FinancialSnapshot,
+// BrainDump, Contradiction · @map("updated_at") column name
+updatedAt DateTime @updatedAt @map("updated_at")
+
+// WorkResult, VectorEmbedding · default PascalCase column "updatedAt"
+updatedAt DateTime @updatedAt
+```
+
+The audit trail for which models needed this is in the v10.0.462
+commit body (HEAD~10 from this README · `git log --grep "v10.0.462"`).
+
+The 8 confirmed-mutable models came out of a code-explorer agent
+audit at v10.0.462 (1 already-tracked-via-editedAt: ChatMessage ·
+2 immutable-zero-update-sites: CommandResolution · ToolVerbRatio).

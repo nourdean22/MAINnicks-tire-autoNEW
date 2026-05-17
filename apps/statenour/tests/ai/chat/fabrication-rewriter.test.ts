@@ -1,0 +1,116 @@
+/**
+ * Fabrication rewriter tests · v10.0.162
+ *
+ * Pure helpers, easy to pin. Verifies:
+ *   · no-rewrite when claims empty
+ *   · banner prepended when claims present
+ *   · banner is detectable via isVerifierRewritten
+ *   · stripVerifierBanner round-trips back to original
+ *   · banner mentions the verb(s) detected (operator-readable)
+ */
+
+import { describe, it, expect } from "vitest";
+import {
+  rewriteForFabrication,
+  isVerifierRewritten,
+  stripVerifierBanner,
+  VERIFIER_MARKER,
+} from "@/lib/ai/chat/fabrication-rewriter";
+import type { ActionClaim } from "@/lib/ai/chat/action-claim-detector";
+
+const sampleClaim = (over: Partial<ActionClaim> = {}): ActionClaim => ({
+  verb: "added/created task",
+  snippet: "added the suggested tasks",
+  expectedTool: "createTask",
+  ...over,
+});
+
+describe("rewriteForFabrication", () => {
+  it("no-ops when no claims detected", () => {
+    const r = rewriteForFabrication("Some response.", []);
+    expect(r.rewrote).toBe(false);
+    expect(r.text).toBe("Some response.");
+    expect(r.bannerLength).toBe(0);
+  });
+
+  it("prepends a verifier banner when claims present", () => {
+    const original = "Yes, added the suggested tasks to Bay 5 Revive.";
+    const r = rewriteForFabrication(original, [sampleClaim()]);
+    expect(r.rewrote).toBe(true);
+    expect(r.text).toContain(VERIFIER_MARKER);
+    expect(r.text).toContain(original); // original preserved verbatim
+    expect(r.text.length).toBeGreaterThan(original.length);
+  });
+
+  it("banner mentions the detected verb so operator sees the diagnostic", () => {
+    const r = rewriteForFabrication("Sent the email.", [
+      sampleClaim({ verb: "sent/emailed/messaged", expectedTool: "sendEmail" }),
+    ]);
+    expect(r.text).toContain("sent/emailed/messaged");
+  });
+
+  it("dedupes verb list when multiple claims share the same verb", () => {
+    const r = rewriteForFabrication("Added 3 tasks. Added another. Added one more.", [
+      sampleClaim(),
+      sampleClaim(),
+      sampleClaim(),
+    ]);
+    // The verb list inside the banner should appear once, not three times
+    const matches = r.text.match(/added\/created task/g) ?? [];
+    expect(matches.length).toBe(1);
+  });
+
+  it("caps verb list at 3 even when many distinct claims fire", () => {
+    const claims: ActionClaim[] = [
+      sampleClaim({ verb: "verb1" }),
+      sampleClaim({ verb: "verb2" }),
+      sampleClaim({ verb: "verb3" }),
+      sampleClaim({ verb: "verb4" }),
+      sampleClaim({ verb: "verb5" }),
+    ];
+    const r = rewriteForFabrication("Did all five things.", claims);
+    expect(r.text).toContain("verb1");
+    expect(r.text).toContain("verb3");
+    expect(r.text).not.toContain("verb4");
+    expect(r.text).not.toContain("verb5");
+  });
+});
+
+describe("isVerifierRewritten", () => {
+  it("detects a previously rewritten message", () => {
+    const r = rewriteForFabrication("Sent it.", [
+      sampleClaim({ verb: "sent" }),
+    ]);
+    expect(isVerifierRewritten(r.text)).toBe(true);
+  });
+
+  it("returns false on an untouched message", () => {
+    expect(isVerifierRewritten("Some normal response.")).toBe(false);
+  });
+
+  it("only matches when marker is at the start (not embedded)", () => {
+    expect(
+      isVerifierRewritten(`Sup. ${VERIFIER_MARKER} embedded in the middle.`),
+    ).toBe(false);
+  });
+});
+
+describe("stripVerifierBanner", () => {
+  it("returns text unchanged when no banner present", () => {
+    expect(stripVerifierBanner("Plain text.")).toBe("Plain text.");
+  });
+
+  it("strips the banner and returns the original message body", () => {
+    const original = "Yes, added the suggested tasks.";
+    const rewritten = rewriteForFabrication(original, [sampleClaim()]).text;
+    const stripped = stripVerifierBanner(rewritten);
+    expect(stripped).toBe(original);
+  });
+
+  it("handles multi-line bodies cleanly", () => {
+    const original = "Line 1.\nLine 2.\nLine 3.";
+    const rewritten = rewriteForFabrication(original, [sampleClaim()]).text;
+    const stripped = stripVerifierBanner(rewritten);
+    expect(stripped).toBe(original);
+  });
+});

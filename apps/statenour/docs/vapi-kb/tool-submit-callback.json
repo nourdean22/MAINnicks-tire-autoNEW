@@ -1,0 +1,42 @@
+{
+  "type": "function",
+  "async": false,
+  "function": {
+    "name": "submitCallback",
+    "description": "Log a callback request when you can't fully help the caller live (price questions you won't quote, Spanish callers needing a Spanish-speaking team member, angry callers needing a manager, after-hours requests, anything escalatory). Collect name + phone + reason at minimum, then call this. Tell the caller the shop will follow up — do NOT promise a specific time.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Caller's first name. Required."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Best phone number to reach the caller back. Required."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Short reason for the callback (e.g. 'wants pricing for full brake job', 'Spanish speaker', 'wants to dispute a previous repair'). Optional but recommended."
+        },
+        "urgency": {
+          "type": "string",
+          "enum": ["normal", "urgent"],
+          "description": "'urgent' for safety / dispute / angry-caller scenarios; otherwise 'normal'."
+        },
+        "preferredTime": {
+          "type": "string",
+          "description": "When they'd prefer to be called back. Free-form text. Optional."
+        },
+        "language": {
+          "type": "string",
+          "description": "Language they speak (e.g. 'english', 'spanish', 'arabic'). Optional · defaults to english."
+        }
+      },
+      "required": ["name", "phone"]
+    }
+  },
+  "server": {
+    "url": "https://autonicks.com/api/vapi/submit-callback"
+  }
+}

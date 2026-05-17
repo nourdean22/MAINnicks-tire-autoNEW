@@ -1,0 +1,358 @@
+import { Resend } from "resend";
+import { prisma } from "@/lib/prisma";
+import { cronHandler } from "@/lib/utils/http";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("cron/weekly-digest");
+
+import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+export const maxDuration = 60;
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
+
+function getWeekStart(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - d.getDay());
+  return toDateString(d);
+}
+
+function formatDate(dateStr: string): string {
+  // v10.0.34 — was `new Date(dateStr + "T00:00:00Z")`. UTC midnight
+  // converts to ET 8pm the previous day, so every Score Trend point
+  // displayed one day early on Monday morning runs. Anchoring at
+  // local noon (no TZ suffix) keeps the date stable across all
+  // North American timezones; toLocaleDateString then shows the
+  // correct day in the recipient's locale.
+  const d = new Date(dateStr + "T12:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+async function fetchFromAPI(path: string): Promise<any> {
+  const baseUrl = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      headers: {
+        Authorization: `Bearer ${process.env.CRON_SECRET}`,
+      },
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch (e) {
+    log.error("internal_fetch_failed", { path, err: e instanceof Error ? e.message : String(e) });
+    return null;
+  }
+}
+
+export const GET = cronHandler(async () => {
+  const weekStart = getWeekStart();
+  const sevenDaysAgo = toDateString(daysAgo(7));
+  const now = today();
+
+  // Apr 19 · DailyScore + MasteryHabit retired. Brain-maturity
+  // history + DAILY-task streak counts replace them.
+  const [identityHistory, dailyTasks, driftAlerts, healthCheck, weeklyReviewRes] = await Promise.all([
+    prisma.brainMemory
+      .findMany({
+        where: {
+          category: "identity_snapshot",
+          key: { startsWith: "history:" },
+          updatedAt: { gte: new Date(sevenDaysAgo) },
+        },
+        select: { key: true, content: true },
+        orderBy: { key: "asc" },
+      })
+      .catch(() => [] as Array<{ key: string; content: string }>),
+    prisma.task
+      .findMany({
+        where: {
+          loopKind: "DAILY",
+          lastCompletedAt: { gte: new Date(sevenDaysAgo) },
+        },
+        select: { title: true, streakCount: true, lastCompletedAt: true },
+      })
+      .catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
+    prisma.driftAlert.findMany({
+      where: { createdAt: { gte: new Date(sevenDaysAgo) }, resolved: false },
+      select: { ruleName: true, severity: true, message: true },
+    }),
+    fetchFromAPI("/api/health"),
+    fetchFromAPI("/api/ai/weekly-review"),
+  ]);
+
+  const weeklyReviewSummary = weeklyReviewRes?.text || "Weekly review unavailable.";
+
+  // Parse brain-maturity series (replaces scoresList)
+  interface BrainPoint { date: string; score: number }
+  const brainPoints: BrainPoint[] = [];
+  for (const row of identityHistory) {
+    const date = row.key.replace("history:", "");
+    try {
+      const snap = JSON.parse(row.content) as { axes: Record<string, { value: number; manual: number | null }> };
+      const axes = Object.values(snap.axes ?? {});
+      if (axes.length === 0) continue;
+      brainPoints.push({
+        date,
+        score: Math.round(axes.reduce((s, a) => s + (a.manual ?? a.value), 0) / axes.length),
+      });
+    } catch {
+      // skip
+    }
+  }
+  const scoresList = brainPoints.map((b) => ({ date: formatDate(b.date), score: b.score }));
+  const avgScore = brainPoints.length > 0
+    ? Math.round(brainPoints.reduce((sum, b) => sum + b.score, 0) / brainPoints.length)
+    : 0;
+
+  // Habits from DAILY task streaks
+  const habitsByTitle = new Map<string, { days: Set<string>; streak: number }>();
+  for (const t of dailyTasks) {
+    if (!t.lastCompletedAt) continue;
+    const ds = new Date(t.lastCompletedAt).toISOString().slice(0, 10);
+    const entry = habitsByTitle.get(t.title) ?? { days: new Set(), streak: t.streakCount };
+    entry.days.add(ds);
+    entry.streak = Math.max(entry.streak, t.streakCount);
+    habitsByTitle.set(t.title, entry);
+  }
+  const habitSummary = Array.from(habitsByTitle.entries())
+    .map(([title, { days, streak }]) => ({
+      name: title,
+      pct: Math.round((days.size / 7) * 100),
+      streak,
+    }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const activeDriftCount = driftAlerts.length;
+
+  const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #050505;
+      color: #c8c8c8;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 32px;
+    }
+    h1 {
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      color: #fff;
+      font-weight: 600;
+    }
+    .subtitle {
+      color: #888;
+      font-size: 14px;
+      margin-bottom: 24px;
+    }
+    .section {
+      margin-bottom: 28px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #10b981;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+    }
+    .metric-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a;
+      font-size: 14px;
+    }
+    .metric-row:last-child {
+      border-bottom: none;
+    }
+    .metric-label {
+      color: #999;
+    }
+    .metric-value {
+      color: #fff;
+      font-weight: 500;
+    }
+    .score-badge {
+      display: inline-block;
+      background: #10b981;
+      color: #050505;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .alert-critical {
+      color: #ef4444;
+    }
+    .alert-high {
+      color: #f97316;
+    }
+    .habit-bar {
+      display: flex;
+      align-items: center;
+      padding: 8px 0;
+      font-size: 13px;
+    }
+    .habit-name {
+      flex: 1;
+      color: #999;
+    }
+    .habit-pct {
+      width: 60px;
+      text-align: right;
+      color: #fff;
+      font-weight: 500;
+    }
+    .review-box {
+      background: #1a1a1a;
+      border-left: 3px solid #10b981;
+      padding: 12px 16px;
+      border-radius: 4px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #c8c8c8;
+    }
+    .footer {
+      margin-top: 32px;
+      padding-top: 20px;
+      border-top: 1px solid #1a1a1a;
+      font-size: 12px;
+      color: #666;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>NOUR OS Weekly Digest</h1>
+    <div class="subtitle">Week of ${formatDate(weekStart)}</div>
+
+    <div class="section">
+      <div class="section-title">Score Trend</div>
+      ${scoresList
+        .map(
+          (s) =>
+            `<div class="metric-row">
+        <span class="metric-label">${s.date}</span>
+        <span class="metric-value">${s.score}/10</span>
+      </div>`
+        )
+        .join("")}
+      <div class="metric-row" style="border-top: 2px solid #333; padding-top: 12px; margin-top: 12px;">
+        <span class="metric-label" style="font-weight: 600;">Weekly Average</span>
+        <span class="metric-value"><span class="score-badge">${avgScore}/10</span></span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Habit Completion</div>
+      ${habitSummary
+        .map(
+          (h) =>
+            `<div class="habit-bar">
+        <span class="habit-name">${h.name}</span>
+        <span class="habit-pct">${h.pct}%</span>
+      </div>`
+        )
+        .join("")}
+      ${habitSummary.length === 0 ? '<div style="color: #666; font-size: 13px;">No habit data logged.</div>' : ""}
+    </div>
+
+    <div class="section">
+      <div class="section-title">Drift Alerts</div>
+      <div style="font-size: 14px;">
+        <strong>${activeDriftCount} active</strong> unresolved alert${activeDriftCount !== 1 ? "s" : ""}
+      </div>
+      ${driftAlerts
+        .slice(0, 5)
+        .map(
+          (a) =>
+            `<div style="font-size: 13px; margin-top: 8px; color: #c8c8c8;">
+        <span class="alert-${a.severity.toLowerCase()}">[${a.severity.toUpperCase()}]</span> ${a.message}
+      </div>`
+        )
+        .join("")}
+    </div>
+
+    <div class="section">
+      <div class="section-title">System Health</div>
+      <div class="metric-row">
+        <span class="metric-label">Status</span>
+        <span class="metric-value">${healthCheck?.status || "unknown"}</span>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">AI Weekly Review</div>
+      <div class="review-box">
+        ${weeklyReviewSummary}
+      </div>
+    </div>
+
+    <div class="footer">
+      This digest was generated automatically. Review trends and act on high-priority drift alerts.
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+  const emailSubject = `NOUR OS Weekly Digest — Week of ${formatDate(weekStart)}`;
+
+  // Use the verified sending domain (autonicks.com). The previous
+  // `nour@statenour-os.vercel.app` was unverified in Resend → every
+  // Sunday 02:00 cron returned 500 → Vercel cron-failure email.
+  // Source of recurring "deployment failed" emails Nour was getting
+  // (despite the build itself being fine).
+  const emailRes = await getResend().emails.send({
+    from: "NOUR OS <noreply@autonicks.com>",
+    to: "nourdean22@gmail.com",
+    subject: emailSubject,
+    html: htmlContent,
+  });
+
+  // Log + return a non-error result on Resend failure instead of
+  // throwing. Vercel surfaces 5xx cron returns as "deployment failed"
+  // emails which are misleading — the build is fine, the digest just
+  // couldn't email. cronHandler still records the outcome to
+  // CronJobLog so we see it on /system/cron-diagnostics.
+  if (emailRes.error) {
+    const err = emailRes.error as { message?: string } | string;
+    const errMsg =
+      typeof err === "string"
+        ? err
+        : err.message ?? JSON.stringify(emailRes.error);
+    log.error("resend_rejected", { errMsg });
+    return {
+      emailSent: false,
+      emailError: errMsg,
+      weekStart,
+      avgScore,
+      driftAlerts: activeDriftCount,
+    };
+  }
+
+  return {
+    emailSent: true,
+    emailId: emailRes.data?.id,
+    weekStart,
+    avgScore,
+    driftAlerts: activeDriftCount,
+  };
+});

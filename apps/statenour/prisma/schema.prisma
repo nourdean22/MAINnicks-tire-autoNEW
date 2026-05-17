@@ -1,0 +1,2527 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MissionDomain {
+  BUSINESS
+  PERSONAL
+  HEALTH
+  CONTENT
+  FINANCE
+}
+
+enum MissionStatus {
+  ACTIVE
+  PAUSED
+  COMPLETE
+  KILLED
+}
+
+enum TaskStatus {
+  INBOX
+  READY
+  DOING
+  WAITING
+  DONE
+  ARCHIVED
+}
+
+/// Unified loop kind — replaces the old 3-table split of
+/// MasteryHabit + Commitment + OpenLoop. A Task row IS everything
+/// Nour tracks:
+///   ONCE    — one-off task (default)
+///   DAILY   — recurring daily habit (streaks live in auditEvent)
+///   PROMISE — commitment to someone (promiseTo + dueDate)
+enum LoopKind {
+  ONCE
+  DAILY
+  PROMISE
+}
+
+enum EffortBand {
+  M5
+  M15
+  M30
+  H1
+  H2PLUS
+}
+
+enum EnergyLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskContext {
+  DESK
+  PHONE
+  SHOP
+  CAR
+  HOME
+  ANYWHERE
+}
+
+enum CustomerRiskStatus {
+  HEALTHY
+  AT_RISK
+  DORMANT
+  LOST
+}
+
+enum LtvBand {
+  LOW
+  MID
+  HIGH
+  VIP
+}
+
+enum CustomerFollowUpStage {
+  NONE
+  QUEUED
+  SENT
+  RESPONDED
+  BOOKED
+}
+
+enum CustomerSegment {
+  TIRE
+  REPAIR
+  FLEET
+  PRICE_SHOPPER
+  VIP
+  OTHER
+}
+
+enum LeadSource {
+  WEBSITE
+  INSTAGRAM
+  PHONE
+  WALK_IN
+  REFERRAL
+  ADS
+  OTHER
+}
+
+enum LeadType {
+  TIRES
+  BRAKES
+  DIAGNOSTIC
+  OIL
+  REPAIR
+  OTHER
+}
+
+enum LeadUrgency {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  BOOKED
+  LOST
+  DEAD
+}
+
+enum ServiceCategory {
+  TIRES
+  BRAKES
+  DIAGNOSTIC
+  OIL
+  ALIGNMENT
+  SUSPENSION
+  GENERAL_REPAIR
+  OTHER
+}
+
+enum ServiceState {
+  STARTING
+  READY
+  DEGRADED
+  FAILED
+  AUTH_PENDING
+}
+
+enum WorkItemType {
+  AI_NEXT_MOVE
+  AI_DRIFT_ANALYSIS
+  AI_CLARIFY_MISSION
+  ALE_REFRESH
+}
+
+enum WorkItemStatus {
+  PENDING
+  CLAIMED
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CommunicationMode {
+  NEUTRAL
+  DIRECT
+  SHADOW
+}
+
+enum DevicePriority {
+  PHONE_FIRST
+  DESKTOP_FIRST
+  BALANCED
+}
+
+enum DesignMode {
+  SHADOW_TACTICAL
+  AUTOMOTIVE_EXECUTIVE
+  BOARDROOM_MINIMAL
+}
+
+enum EmpireLane {
+  MONEY
+  HEALTH
+  PERSONAL
+}
+
+enum DayState {
+  OPEN
+  CLOSED
+}
+
+enum CommandResolutionType {
+  DONE
+  DEFER
+  BLOCKED
+  REPLACE
+}
+
+enum CaptureTriageStatus {
+  NEW
+  TRIAGED
+  CONVERTED
+  ARCHIVED
+}
+
+enum CaptureConversionTarget {
+  TASK
+  MISSION
+  LEAD
+  REFERENCE
+  PERSONAL
+  ARCHIVE
+}
+
+model Mission {
+  id                 String             @id @default(cuid())
+  title              String
+  domain             MissionDomain
+  status             MissionStatus      @default(ACTIVE)
+  priority           Int
+  roiScore           Int
+  neglectCost        Int
+  successMetric      String?
+  deadline           DateTime?
+  weeklyReviewNote   String?            @db.Text
+  manualRankOverride Int?
+  /// v7.8 · Apr 29 · Universal audit. Who created vs who last
+  /// updated. Values: "user" (explicit Nour click) · "nick" (AI
+  /// agent action) · "cron:<jobName>" · "bridge:<system>" · "system".
+  createdBy          String?            @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy          String?            @default("system") @map("updated_by") @db.VarChar(64)
+  /// v7.9 · Apr 29 · Universal soft-delete. NULL = active. Set on
+  /// "delete" so the row is recoverable. Default queries should
+  /// filter `deletedAt: null` (use the lib/db/soft-delete helpers).
+  deletedAt          DateTime?          @map("deleted_at")
+  /// Full AI-generated plan data: phases, risks, pro tips, tools,
+  /// decision points, done checklist, learning path, coach history.
+  /// Populated by /api/ai/plan-project mode=plan, extended by mode=
+  /// learn and mode=guide. Shape documented in lib/ai/project-plan.ts.
+  planData           Json?
+  tasks              Task[]
+  chatConversations  ChatConversation[]
+  /// v10.0.421 · operator can link missions together (depends-on,
+  /// blocks, related). MissionLink is an explicit join with optional
+  /// relation type · self-referential many-to-many.
+  linkedFrom         MissionLink[]      @relation("MissionLinkSource")
+  linkedTo           MissionLink[]      @relation("MissionLinkTarget")
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([status, priority, deadline])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+/// v10.0.421 · mission-to-mission relationship join table.
+/// Self-referential many-to-many · optional `relation` field
+/// distinguishes "depends-on" / "blocks" / "related" without
+/// requiring future schema migrations.
+model MissionLink {
+  id        String   @id @default(cuid())
+  sourceId  String   @map("source_id")
+  source    Mission  @relation("MissionLinkSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  targetId  String   @map("target_id")
+  target    Mission  @relation("MissionLinkTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  /// "depends-on" | "blocks" | "related" | null = related (default)
+  relation  String?  @db.VarChar(32)
+  /// Optional context about why these are linked.
+  note      String?  @db.Text
+  createdBy String?  @default("user") @map("created_by") @db.VarChar(64)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceId, targetId], map: "mission_links_source_target_key")
+  @@index([sourceId], map: "mission_links_source_idx")
+  @@index([targetId], map: "mission_links_target_idx")
+  @@index([createdAt(sort: Desc)], map: "mission_links_created_at_idx")
+  @@map("mission_links")
+}
+
+model Task {
+  id                      String      @id @default(cuid())
+  title                   String
+  missionId               String
+  // v9.1.15 · changed Cascade → Restrict. Cascade was a Postgres-
+  // level hard-delete that bypassed v7.9 universal soft-delete:
+  // hard-deleting a Mission would silently nuke every child Task
+  // even though the soft-delete pattern is the entire DB convention.
+  // Restrict surfaces accidental hard-deletes as an error, forcing
+  // the caller to use softDelete() (which respects the pattern).
+  mission                 Mission     @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  status                  TaskStatus  @default(INBOX)
+  nextPhysicalAction      String
+  effort                  EffortBand
+  roiScore                Int
+  frictionScore           Int
+  energyRequired          EnergyLevel
+  context                 TaskContext
+  delegatable             Boolean     @default(false)
+  waitingOn               String?
+  dueDate                 DateTime?
+  lastTouchedAt           DateTime?
+  driftRisk               Int         @default(0)
+  autoPriority            Int?
+  manualPriorityOverride  Int?
+  autoPriorityExplanation String?     @db.Text
+  finishCondition         String
+  /// v7.8 · Apr 29 · Universal audit. Same shape as Mission.
+  createdBy               String?     @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy               String?     @default("system") @map("updated_by") @db.VarChar(64)
+  /// Unified loop kind — see LoopKind enum. Apr 15 rebuild:
+  /// MasteryHabit + Commitment + OpenLoop collapsed into this column
+  /// on the Task model. Old tables still exist but hold no data.
+  loopKind                LoopKind    @default(ONCE)
+  /// For PROMISE loops: who Nour promised (name, "myself",
+  /// "Dania", "customer X", etc). Null for ONCE + DAILY.
+  promiseTo               String?
+  /// For DAILY loops: last time this item was checked off.
+  lastCompletedAt         DateTime?
+  /// For DAILY loops: consecutive days completed streak. Incremented
+  /// on complete; resets to 1 if the gap since lastCompletedAt is
+  /// > 1 day. Displayed as a flame in the loop list.
+  streakCount             Int         @default(0)
+  /// Optional link to a LifeGoal — lets loops trace up to the WHY
+  /// so the UI can render lineage breadcrumbs. Nullable so legacy
+  /// tasks and inbox items don't break. v11.0 W5.3 — upgraded from
+  /// bare String? to a real @relation so Prisma can type-check
+  /// goal fetches + cascading nulls on goal deletion.
+  goalId                  String?
+  goal                    LifeGoal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  /// For project-linked tasks: the phase name from the project plan.
+  /// Populated when a task is created from ProjectPlanData.phases.
+  phaseName               String?
+  /// Wall-clock time actually spent on this task. Bumped when the
+  /// task transitions from DOING → DONE via diff of startedAt to
+  /// now. Used by the calibration loop that trains Nour's personal
+  /// effort band estimates against reality.
+  actualMinutes           Int         @default(0)
+  /// Set when status → DOING. Cleared when the task leaves DOING.
+  /// Used to compute actualMinutes delta on completion.
+  startedAt               DateTime?
+  /// v10.0.529.82 · Wave 26 · B1 · snooze persistence.
+  /// When set, the task auto-resurfaces (status WAITING → READY) at
+  /// or after this timestamp via the task-resurface cron (folded
+  /// into mega-morning). Pre-Wave-26 the snooze UI parked tasks in
+  /// WAITING with no wake-up timestamp — they never came back. The
+  /// "snoozed N days" promise is now actually kept.
+  snoozedUntil            DateTime?   @map("snoozed_until")
+  /// v7.9 · Apr 29 · Universal soft-delete.
+  deletedAt               DateTime?   @map("deleted_at")
+  /// v9.0-rc · Apr 30 · Proof attachment.
+  /// Shape: { urls?: string[]; screenshots?: string[]; metrics?: Record<string,number>; notes?: string; observedAt?: string }
+  /// Marking DONE without proof is allowed (soft enforcement) but the
+  /// command-center-state's `noProofDay` risk fires when a busy day
+  /// has zero proof attachments. See docs/project/V9-PLAN.md §1 v9.0-rc.
+  proof                   Json?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  events                  TaskEvent[]
+
+  @@index([missionId, status, dueDate])
+  @@index([autoPriority, lastTouchedAt])
+  @@index([loopKind, status])
+  @@index([goalId, status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+  // v10.0.529.82 · Wave 26 · B1 · task-resurface cron query is
+  //   WHERE status='WAITING' AND snoozedUntil <= NOW() · this
+  // composite makes it index-only.
+  @@index([status, snoozedUntil])
+}
+
+/// Apr 26 · TaskEvent — append-only log of meaningful state changes
+/// per task. Lets the brain layer learn completion patterns,
+/// abandonment clusters, time-of-day signals without a polling
+/// scan over the Task table. Keys are intentionally narrow + the
+/// table is write-mostly so a 30-day window query stays fast.
+///
+/// kinds: created | started | completed | abandoned | reframed |
+///        priority_changed | linked | unlinked | nudged | snoozed |
+///        stale_flagged | revived | killed
+model TaskEvent {
+  id             String   @id @default(cuid())
+  taskId         String
+  // v9.1.15 · Restrict not Cascade — Task uses v7.9 soft-delete.
+  // Hard-delete of a Task should NEVER happen via this FK; if it
+  // does it's a bug worth surfacing as an error, not silently
+  // nuking the event audit trail.
+  task           Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  kind           String
+  /// Optional structured payload (e.g. priority_changed → { from, to }).
+  payload        Json?
+  /// Source surface (chat, page, cron, voice, etc) — for analytics.
+  source         String?
+  /// v7.7 · Apr 29 · Universal idempotency. Append-only event log —
+  /// retries shouldn't multiply records. Auto-mintable from
+  /// {taskId + kind + payload-hash + 5min-bucket}.
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([taskId, createdAt])
+  @@index([kind, createdAt])
+  @@index([createdAt])
+  @@map("task_events")
+}
+
+/// v8.0 · Apr 29 · Phase 2A — Universal entity-audit trail.
+///
+/// Generic provenance log: every meaningful mutation across the
+/// system writes one row here. Lets the brain layer + admin UI
+/// answer questions like:
+///
+///   · "Show me everything Nick has done to my goals this week"
+///   · "What changed in this mission between Mon and Wed?"
+///   · "Who soft-deleted this brain memory and why?"
+///
+/// Distinct from per-entity event logs (task_events, goal_events):
+///   - TaskEvent/GoalEvent are domain-semantic ("started", "snoozed",
+///     "priority_changed") — they exist for the brain pattern miner.
+///   - EntityAudit is field-level provenance ("title: 'A' → 'B'") —
+///     it exists for "what did you do, when, and why" queries.
+///
+/// Both can coexist; they answer different questions.
+///
+/// `entityType` uses the Prisma model key ("task", "lifeGoal",
+/// "mission", "brainMemory", etc) to keep callers consistent.
+///
+/// `before` / `after` capture only the changed fields (diff), not
+/// the whole row, so a 50-field row that changed `title` writes
+/// `{title: oldVal}` / `{title: newVal}`. Saves bytes + makes the
+/// log readable.
+model EntityAudit {
+  id             String   @id @default(cuid())
+  entityType     String   @map("entity_type") @db.VarChar(64)
+  entityId       String   @map("entity_id")
+  /// One of: created | updated | soft_deleted | restored | purged
+  action         String   @db.VarChar(32)
+  /// Actor format from lib/db/actor.ts: user / nick / system /
+  /// cron:<jobName> / bridge:<system>.
+  actor          String   @db.VarChar(64)
+  /// Diff: only fields that actually changed. Null for `created`
+  /// (use `after` for the full create payload) and for soft-delete
+  /// actions (the action itself is the change).
+  before         Json?
+  /// Diff: post-mutation values for the changed fields. Null for
+  /// `soft_deleted` / `restored` / `purged`.
+  after          Json?
+  /// Optional human-readable reason ("user clicked archive",
+  /// "auto-snoozed by cron:weekly-review", "Nick decided X because Y").
+  reason         String?  @db.Text
+  /// Source surface: api:goals.PATCH | service:tasks.update |
+  /// chat:tool-call | cron:brain-cycle | bridge:nickstire-sync.
+  source         String?
+  /// v7.7 idempotency: collisions are silently dropped so retries
+  /// don't multiply audit rows. Auto-mintable from
+  /// {entityType + entityId + action + 5s-bucket}.
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId, createdAt])
+  @@index([actor, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("entity_audits")
+}
+
+model PersonalDailyLog {
+  id                 String   @id @default(cuid())
+  logDate            DateTime @unique @db.Date
+  sleepHours         Decimal? @db.Decimal(4, 1)
+  energyScore        Int?
+  moodScore          Int?
+  workoutCompleted   Boolean  @default(false)
+  supplements        String?  @db.Text
+  deepWorkBlocks     Int      @default(0)
+  revenueMoves       Int      @default(0)
+  driftIncidents     Int      @default(0)
+  distractionFlag    Boolean  @default(false)
+  socialFamilyAction Boolean  @default(false)
+  dailyScore         Int?
+  notes              String?  @db.Text
+  tomorrowConstraint String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([logDate])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model OperatorCheckIn {
+  id            String            @id @default(cuid())
+  checkInDate   DateTime          @unique @db.Date
+  energyScore   Int
+  focusScore    Int
+  driftPressure Int
+  operatingMode CommunicationMode @default(DIRECT)
+  empireLane    EmpireLane
+  notes         String?           @db.Text
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  @@index([checkInDate, empireLane])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model DailyExecutionState {
+  id                  String              @id @default(cuid())
+  stateDate           DateTime            @unique @db.Date
+  dayState            DayState            @default(OPEN)
+  currentCommand      String?
+  currentTaskId       String?
+  activeMissionId     String?
+  activeEmpireLane    EmpireLane          @default(MONEY)
+  blockedReason       String?             @db.Text
+  deferReason         String?             @db.Text
+  lastResolvedCommand String?
+  tomorrowFirstMove   String?
+  recoveryQuota       Int                 @default(5)
+  recoveryTouches     Int                 @default(0)
+  missionMoved        Boolean             @default(false)
+  shadowMode          Boolean             @default(false)
+  openedAt            DateTime            @default(now())
+  closedAt            DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  commandResolutions  CommandResolution[]
+
+  @@index([stateDate, dayState])
+  @@index([activeEmpireLane, dayState])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model CommandResolution {
+  id                    String                @id @default(cuid())
+  dailyExecutionStateId String?
+  dailyExecutionState   DailyExecutionState?  @relation(fields: [dailyExecutionStateId], references: [id], onDelete: SetNull)
+  resolutionType        CommandResolutionType
+  commandText           String
+  commandSource         String?
+  taskId                String?
+  missionId             String?
+  empireLane            EmpireLane?
+  note                  String?               @db.Text
+  replacementCommand    String?
+  createdAt             DateTime              @default(now())
+
+  @@index([dailyExecutionStateId, createdAt])
+  @@index([resolutionType, createdAt])
+  @@index([createdAt])
+}
+
+model DailyEmpireSnapshot {
+  id             String   @id @default(cuid())
+  snapshotDate   DateTime @unique @db.Date
+  moneyScore     Int
+  healthScore    Int
+  personalScore  Int
+  moneyDetail    Json?
+  healthDetail   Json?
+  personalDetail Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([snapshotDate])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model StateLog {
+  id                 String   @id @default(cuid())
+  energyLevel        Int
+  focusQuality       Int
+  driftLevel         Int
+  executionReadiness Int
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model RunnerNode {
+  id              String          @id @default(cuid())
+  nodeKey         String          @unique
+  label           String
+  status          ServiceState    @default(STARTING)
+  version         String?
+  lastHeartbeatAt DateTime?
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  workItems       WorkItem[]
+  serviceHealth   ServiceHealth[]
+
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+}
+
+model ServiceHealth {
+  id             String       @id @default(cuid())
+  serviceKey     String       @unique
+  service        String
+  status         ServiceState
+  detail         String
+  recoveryAction String?
+  checkedAt      DateTime     @default(now())
+  lastSuccessAt  DateTime?
+  lastFailureAt  DateTime?
+  lastDurationMs Int?
+  metadata       Json?
+  runnerNodeId   String?
+  runnerNode     RunnerNode?  @relation(fields: [runnerNodeId], references: [id], onDelete: SetNull)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([status, checkedAt])
+  @@index([runnerNodeId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model SystemSnapshot {
+  id                     String       @id @default(cuid())
+  scope                  String       @unique @default("global")
+  headline               String
+  focus                  String
+  startupStatus          ServiceState
+  startupSummary         String
+  startupNextAction      String?
+  startupBlockingService String?
+  primaryMove            String
+  nextActions            Json?
+  queuePending           Int          @default(0)
+  queueApproved          Int          @default(0)
+  queueDiscarded         Int          @default(0)
+  mirrorRecordCount      Int          @default(0)
+  recoveryOpenCount      Int          @default(0)
+  downloadsIncomingCount Int          @default(0)
+  watchRecentEvents24h   Int          @default(0)
+  backupCount            Int          @default(0)
+  briefUpdatedAt         DateTime?
+  generatedAt            DateTime     @default(now())
+  metadata               Json?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model WorkItem {
+  id             String         @id @default(cuid())
+  type           WorkItemType
+  status         WorkItemStatus @default(PENDING)
+  idempotencyKey String?        @unique
+  requestPayload Json
+  errorCode      String?
+  errorMessage   String?
+  availableAt    DateTime       @default(now())
+  claimedAt      DateTime?
+  completedAt    DateTime?
+  attempts       Int            @default(0)
+  runnerNodeId   String?
+  runnerNode     RunnerNode?    @relation(fields: [runnerNodeId], references: [id], onDelete: SetNull)
+  workResult     WorkResult?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([status, availableAt, createdAt])
+  @@index([type, status, createdAt])
+  @@index([runnerNodeId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model WorkResult {
+  id           String         @id @default(cuid())
+  workItemId   String         @unique
+  workItem     WorkItem       @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  status       WorkItemStatus
+  payload      Json?
+  errorCode    String?
+  errorMessage String?
+  completedAt  DateTime       @default(now())
+  createdAt    DateTime       @default(now())
+
+  @@index([workItemId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model StagedRecoveryItem {
+  id             String              @id @default(cuid())
+  entityKey      String              @unique
+  source         String
+  title          String
+  summary        String
+  priorityScore  Float
+  status         String              @default("open")
+  payload        Json
+  lastTouchedAt  DateTime?
+  nextFollowUpAt DateTime?
+  callbackNote   String?             @db.Text
+  expectedValue  Int?
+  touchCount     Int                 @default(0)
+  updatedAt      DateTime
+  generatedAt    DateTime            @default(now())
+  actionLogs     RecoveryActionLog[]
+
+  @@index([source, status, priorityScore])
+  @@index([updatedAt])
+  @@index([status])
+}
+
+model CaptureInboxItem {
+  id                 String                   @id @default(cuid())
+  itemKey            String                   @unique
+  source             String
+  kind               String
+  title              String
+  summary            String
+  excerpt            String?
+  contentPath        String?
+  status             String                   @default("active")
+  triageStatus       CaptureTriageStatus      @default(NEW)
+  primaryTag         String?
+  actionabilityScore Int                      @default(50)
+  conversionTarget   CaptureConversionTarget?
+  convertedTaskId    String?
+  convertedMissionId String?
+  convertedLeadId    String?
+  triagedAt          DateTime?
+  metadata           Json?
+  capturedAt         DateTime
+  syncedAt           DateTime                 @default(now())
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([source, kind, capturedAt])
+  @@index([status, capturedAt])
+  @@index([triageStatus, actionabilityScore])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model AuditEvent {
+  id        String   @id @default(cuid())
+  actor     String
+  eventType String
+  detail    String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt])
+  @@index([actor, createdAt])
+  @@index([createdAt])
+}
+
+model OperatorProfile {
+  id                     String              @id @default(cuid())
+  operatorEmail          String              @unique
+  preferredName          String
+  communicationMode      CommunicationMode   @default(DIRECT)
+  primaryAmbitions       Json?
+  antiPatterns           Json?
+  preferredPressureStyle String?
+  dailyActiveHours       Json?
+  devicePriority         DevicePriority      @default(PHONE_FIRST)
+  designMode             DesignMode          @default(SHADOW_TACTICAL)
+  systemObjective        String?
+  createdAt              DateTime            @default(now())
+  updatedAt              DateTime            @updatedAt
+  preferences            OperatorPreference?
+
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model OperatorPreference {
+  id                  String          @id @default(cuid())
+  operatorProfileId   String          @unique
+  operatorProfile     OperatorProfile @relation(fields: [operatorProfileId], references: [id], onDelete: Cascade)
+  uiDensity           String          @default("low")
+  motionLevel         String          @default("low")
+  alertAggressiveness String          @default("high")
+  voiceToneBoundaries Json?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  @@index([operatorProfileId])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+model RecoveryActionLog {
+  id                   String             @id @default(cuid())
+  stagedRecoveryItemId String
+  stagedRecoveryItem   StagedRecoveryItem @relation(fields: [stagedRecoveryItemId], references: [id], onDelete: Cascade)
+  action               String
+  outcome              String?
+  note                 String?            @db.Text
+  nextFollowUpAt       DateTime?
+  expectedValue        Int?
+  createdAt            DateTime           @default(now())
+
+  @@index([stagedRecoveryItemId, createdAt])
+  @@index([createdAt])
+}
+
+model ExecutionInsight {
+  id          String   @id @default(cuid())
+  insightType String
+  title       String
+  detail      String   @db.Text
+  score       Int      @default(0)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([insightType, createdAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+}
+
+// ── Mastery Models (consolidated from SQLite) ──
+
+// DailyScore retired Apr 18 — Nour: "i think its stupid".
+// Model removed from Prisma client. The underlying table remains
+// in Neon until the next migration drops it; the 20 legacy rows are
+// abandoned (no reader, no writer). Reflection.metadata is the
+// successor surface for any score-shaped signal going forward.
+
+model MasteryScore {
+  id        Int      @id @default(autoincrement())
+  date      String
+  domain    String
+  score     Float
+  evidence  String?  @db.Text
+  delta     Float    @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([date, domain])
+  @@index([createdAt])
+  @@map("mastery_scores")
+}
+
+model DriftAlert {
+  id           Int      @id @default(autoincrement())
+  date         String
+  ruleId       String   @map("rule_id")
+  ruleName     String   @map("rule_name")
+  severity     String
+  message      String   @db.Text
+  acknowledged Boolean  @default(false)
+  resolved     Boolean  @default(false)
+  resolvedDate String?  @map("resolved_date")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([resolved, date])
+  @@index([date, ruleId])
+  @@index([createdAt])
+  @@map("drift_alerts")
+}
+
+model MasteryDecision {
+  id                Int       @id @default(autoincrement())
+  date              String
+  title             String
+  domain            String?
+  stakes            String?
+  context           String?   @db.Text
+  optionsConsidered String?   @map("options_considered") @db.Text
+  chosen            String?
+  reasoning         String?   @db.Text
+  predictedOutcome  String?   @map("predicted_outcome") @db.Text
+  emotionalState    String?   @map("emotional_state")
+  reviewDate        String?   @map("review_date")
+  actualOutcome     String?   @map("actual_outcome") @db.Text
+  grade             String?
+  /// v7.8 · Apr 29 · Universal audit. Decisions can be user-recorded
+  /// (manual) or chat-extracted (Nick parsed Nour saying "I decided
+  /// X"). createdBy disambiguates.
+  createdBy         String?   @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy         String?   @default("system") @map("updated_by") @db.VarChar(64)
+  /// v7.9 · Apr 29 · Universal soft-delete.
+  deletedAt         DateTime? @map("deleted_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([date])
+  @@index([domain, date])
+  @@index([reviewDate])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("mastery_decisions")
+}
+
+model Commitment {
+  id           Int       @id @default(autoincrement())
+  dateMade     String    @map("date_made")
+  toWhom       String    @default("self") @map("to_whom")
+  description  String    @db.Text
+  deadline     String?
+  domain       String?
+  status       String    @default("active")
+  followUpDate String?   @map("follow_up_date")
+  notes        String?   @db.Text
+  /// v7.8 · Apr 29 · Universal audit. Same shape.
+  createdBy    String?   @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy    String?   @default("system") @map("updated_by") @db.VarChar(64)
+  /// v7.9 · Apr 29 · Universal soft-delete.
+  deletedAt    DateTime? @map("deleted_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([status, deadline])
+  @@index([domain, status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("commitments")
+}
+
+model PatternDetection {
+  id                  Int      @id @default(autoincrement())
+  date                String
+  patternId           String   @map("pattern_id")
+  patternName         String   @map("pattern_name")
+  triggerDesc         String?  @map("trigger_desc") @db.Text
+  evidence            String?  @db.Text
+  interventionApplied String?  @map("intervention_applied")
+  outcome             String?  @db.Text
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([patternId, date])
+  @@index([createdAt])
+  @@map("pattern_detections")
+}
+
+model BodyTracking {
+  id          Int      @id @default(autoincrement())
+  date        String   @unique
+  weight      Float?
+  bodyFatPct  Float?   @map("body_fat_pct")
+  waistInches Float?   @map("waist_inches")
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  /// v10.0.529.106 · Wave 63 · health-as-decision-variable.
+  /// Pre-Wave-63 the body-tracking surface captured weight + body fat
+  /// only. Sleep + workout + energy were architecturally important
+  /// (the MODE classifier should trigger RECOVERY when sleep < 6h,
+  /// the morning brief should adapt to body state) but the schema
+  /// had no slots for them. The PersonalDailyLog model has overlapping
+  /// fields but was never wired into /body. Adding directly here so
+  /// the daily check-in stays single-table for the operator.
+  sleepHours  Float?   @map("sleep_hours")
+  workoutDone Boolean? @map("workout_done")
+  energy      Int?     @db.SmallInt
+  stress      Int?     @db.SmallInt
+
+  @@index([createdAt])
+  @@map("body_tracking")
+}
+
+model FinancialSnapshot {
+  id               Int      @id @default(autoincrement())
+  date             String   @unique
+  netWorthEstimate Float?   @map("net_worth_estimate")
+  checkingBalance  Float?   @map("checking_balance")
+  savingsBalance   Float?   @map("savings_balance")
+  investmentValue  Float?   @map("investment_value")
+  businessRevenue  Float?   @map("business_revenue")
+  ownerTakeHome    Float?   @map("owner_take_home")
+  totalDebt        Float?   @map("total_debt")
+  savingsRatePct   Float?   @map("savings_rate_pct")
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("financial_snapshots")
+}
+
+// ── Chat Models ──
+
+model ChatConversation {
+  id        String   @id @default(cuid())
+  title     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // ── ChatMessage Batch A · v7.6 · Apr 29 · Conversation enrichment ──
+  /// Compressed running summary of older turns. Survives the chat
+  /// shrinker so the model always has cross-session continuity even
+  /// after the live messages window scrolls past.
+  pinnedSummary String?   @map("pinned_summary") @db.Text
+  /// Auto-extracted topic tags ["#brake-job", "#marketing-strategy"].
+  /// Filterable from sidebar without scanning every message. JSON array
+  /// (not native string[]) for forward-compat with weighted tags.
+  topicTags     Json?     @map("topic_tags")
+  /// Soft-archive — hides from default sidebar but searchable.
+  archivedAt    DateTime? @map("archived_at")
+  /// User-starred for quick pin in sidebar.
+  starredAt     DateTime? @map("starred_at")
+  /// Mute = no notifications surface from this conv (future-proof).
+  mutedAt       DateTime? @map("muted_at")
+  /// Last activity (message OR engagement event). Faster than MAX(message.createdAt) for sidebar order.
+  lastActiveAt  DateTime? @map("last_active_at")
+  /// Denormalized message count for sidebar perf. Updated on every
+  /// chatMessage create. Eliminates the COUNT(*) per row.
+  messageCount  Int       @default(0) @map("message_count")
+  missionId     String?   @map("mission_id")
+
+  messages ChatMessage[]
+  mission  Mission?      @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
+  @@index([archivedAt, lastActiveAt])
+  @@index([starredAt])
+  @@index([missionId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([lastActiveAt])
+  @@map("chat_conversations")
+}
+
+/// v10.0.171 note · Most raw-SQL columns are now declared Unsupported
+/// in their respective models so Prisma sees them and won't drop them.
+/// EXCEPTION: `chat_messages.searchable_tsv` is a `GENERATED ALWAYS
+/// AS (...) STORED` tsvector. Prisma 7 cannot model the generation
+/// expression, so declaring it Unsupported triggers Prisma to ALTER
+/// the column. Solution: leave it out of this schema. Defense layers:
+///   1. v10.0.154 destructive-push pre-push gate blocks
+///      `--accept-data-loss` in package.json + GHA workflows.
+///   2. Schema sentinel (lib/db/schema-sentinel.ts) tracks existence.
+///   3. Recovery: scripts/recover-pgvector-from-text.ts re-adds the
+///      column + GIN index from raw SQL.
+/// FTS queries hit the column via raw SQL in app/api/chat/search.
+model ChatMessage {
+  id             String                   @id @default(cuid())
+  conversationId String                   @map("conversation_id")
+  role           String
+  content        String                   @db.Text
+  model          String?
+  tokenUsage     Json?                    @map("token_usage")
+  // v10.0.171 · GENERATED ALWAYS AS tsvector. Prisma can't model the
+  // generator expression, but `@default(dbgenerated(""))` with empty
+  // string tells Prisma "do not manage the default" — sufficient to
+  // stop drop-on-push. Querying via raw SQL only.
+  searchable_tsv Unsupported("tsvector")? @default(dbgenerated())
+
+  /// v7.3 · Apr 29 · Image / file attachments sent with the message.
+  /// Shape: Array<{ type: "file", mediaType, url, filename? }>.
+  attachments Json?
+
+  // ════════════════════════════════════════════════════════════════
+  // ChatMessage Batch A · v7.6 · Apr 29 · The 16-column upgrade
+  // ════════════════════════════════════════════════════════════════
+
+  // ── Idempotency ──
+  /// Client-minted UUID per send. Server upserts on this — eliminates
+  /// duplicate-fire bugs from silent-retry / network blips regardless
+  /// of timing window. Indexed unique (per conv) so re-sends are O(1)
+  /// matched and skipped. Nullable for legacy rows.
+  clientMessageId String? @map("client_message_id")
+
+  // ── Rich content tree ──
+  /// Full UIMessage parts as the AI SDK v6 understands it. Captures:
+  ///   - text:        { type:"text", text:"..." }
+  ///   - file:        { type:"file", mediaType, url, filename? }
+  ///   - reasoning:   { type:"reasoning", text:"..." } — Claude thinking
+  ///   - tool-call:   { type:"tool-call", toolName, args, toolCallId }
+  ///   - tool-result: { type:"tool-result", toolCallId, result }
+  ///   - source:      { type:"source", url, title } — citations
+  /// On reload we hydrate from this instead of the flat `content`
+  /// string. `content` stays as the searchable plaintext digest.
+  parts Json?
+
+  // ── Streaming lifecycle ──
+  /// "complete" | "partial" | "errored" | "aborted"
+  /// partial = client closed the tab mid-stream OR network dropped.
+  /// errored = stream finished with an error frame.
+  /// aborted = user explicitly stopped via Stop button.
+  /// Allows resumption + accurate UI badging (no more "stuck spinner").
+  streamingState String @default("complete") @map("streaming_state") @db.VarChar(16)
+
+  // ── Branching / forking ──
+  /// FK self-ref. When user regenerates a response, the new message
+  /// has parentMessageId = the prior assistant turn. Tree-walker UI
+  /// shows alternates as siblings; arrow keys cycle.
+  parentMessageId String? @map("parent_message_id")
+  /// UUID grouping sibling branches. All regenerations of one prompt
+  /// share a branchId so the UI can show "version 2 of 3".
+  branchId        String? @map("branch_id") @db.VarChar(36)
+
+  // ── Edits ──
+  /// Last edit timestamp. Null = never edited.
+  editedAt    DateTime? @map("edited_at")
+  /// Edit history: [{ at, prevContent, prevPartsHash }, ...]
+  /// Bounded to last 10 versions (older trimmed by app).
+  editHistory Json?     @map("edit_history")
+
+  // ── Error structure ──
+  /// When streamingState=errored, structured error: { code, message,
+  /// provider, retryable, occurredAt }. Powers the "retry" chip UI.
+  errorDetails Json? @map("error_details")
+
+  // ── Provider observability ──
+  /// "venice" | "ollama" | "openai" | "anthropic" | "fallback"
+  provider            String? @db.VarChar(32)
+  /// Why router picked this provider: "default" | "preferLargeContext"
+  /// | "nourVoiceLane" | "fallback-after-rate-limit" | etc.
+  routerReason        String? @map("router_reason") @db.VarChar(64)
+  /// Total wall-time for the call (request → final token).
+  latencyMs           Int?    @map("latency_ms")
+  /// Time-to-first-token. The perceived-quality metric in 2026.
+  firstTokenLatencyMs Int?    @map("first_token_latency_ms")
+
+  // ── Cost tracking (denormalized from AiGeneration) ──
+  /// Cost in cents (int). Pulled from the matching AiGeneration row
+  /// when joinable. Allows native COUNT/SUM by-conversation queries
+  /// without a tokenUsage JSON extract.
+  costCents        Int? @map("cost_cents")
+  /// Split out from tokenUsage Json so they're queryable directly.
+  promptTokens     Int? @map("prompt_tokens")
+  completionTokens Int? @map("completion_tokens")
+
+  // ── Feedback ──
+  /// User reaction: -1 thumbs-down · null neutral · +1 thumbs-up.
+  /// (Future: 0-10 scale + per-axis ratings.) Powers router learning.
+  feedbackScore Int? @map("feedback_score") @db.SmallInt
+
+  // ── Search ──
+  /// Pre-extracted plaintext from parts (text + reasoning + tool-result
+  /// summaries). Fed into a tsvector GIN index by trigger / migration.
+  /// Lets `/api/chat/search` use full-text search instead of LIKE.
+  searchableContent String? @map("searchable_content") @db.Text
+
+  // ── Attachments dedup ──
+  /// SHA256 of sorted attachment URLs (or null when no attachments).
+  /// Lets us recognize "same image uploaded twice" + dedup storage.
+  attachmentsHash String? @map("attachments_hash") @db.VarChar(64)
+
+  createdAt    DateTime         @default(now()) @map("created_at")
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  // Self-ref relation for branching tree
+  parent   ChatMessage?  @relation("MessageBranch", fields: [parentMessageId], references: [id], onDelete: SetNull)
+  children ChatMessage[] @relation("MessageBranch")
+
+  @@unique([conversationId, clientMessageId], map: "chat_messages_conv_client_msg_id_uniq")
+  @@index([conversationId, createdAt])
+  @@index([conversationId, branchId])
+  @@index([parentMessageId])
+  @@index([streamingState, createdAt])
+  @@index([provider, createdAt])
+  @@index([feedbackScore])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+// ── Brain Dumps ──
+
+model BrainDump {
+  id             String    @id @default(cuid())
+  date           String
+  rawThoughts    String    @map("raw_thoughts") @db.Text
+  extractedItems String?   @map("extracted_items") @db.Text
+  patterns       String?   @db.Text
+  moodBefore     String?   @map("mood_before")
+  moodAfter      String?   @map("mood_after")
+  summary        String?   @db.Text
+  actionsTaken   Int       @default(0) @map("actions_taken")
+  /// v7.9 · Apr 29 · Universal soft-delete.
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([date])
+  @@index([date, actionsTaken])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("brain_dumps")
+}
+
+// ── AI Generation Tracking ──
+
+model AiGeneration {
+  id             String   @id @default(cuid())
+  feature        String
+  model          String
+  promptTokens   Int?     @map("prompt_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  costCents      Int?     @map("cost_cents")
+  durationMs     Int?     @map("duration_ms")
+  status         String   @default("complete")
+  createdAt      DateTime @default(now()) @map("created_at")
+  /// v10.0.529.106 · Wave 59 · per-conversation cost attribution. Pre-
+  /// Wave-59 cost-slo.ts had to fall back to grouping by feature name
+  /// (which lost the per-conversation breakdown). Now nullable to keep
+  /// non-chat features (cron · brain · social) writing without it.
+  /// Indexed for the topConversationsByCost() query.
+  conversationId String?  @map("conversation_id")
+
+  @@index([feature, createdAt])
+  @@index([model, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@index([conversationId, createdAt])
+  @@map("ai_generations")
+}
+
+model VisionEvent {
+  id        String   @id @default(cuid())
+  timestamp DateTime
+  event     String // vision.motion_detected, vision.presence_started, vision.v380_analysis_complete, etc.
+  camera    String? // SHOPINSIDE, SHOPSIGN, v380-main
+  data      Json? // flexible payload (score, duration_minutes, response, etc.)
+  source    String   @default("local") // local (PowerShell), v380, direct
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([event, timestamp])
+  @@index([camera, timestamp])
+  @@index([createdAt])
+  @@map("vision_events")
+}
+
+model LocalSyncLog {
+  id        String   @id @default(cuid())
+  module    String // vision, automation, journal, energy, etc.
+  action    String // sync_events, push_score, etc.
+  count     Int      @default(0)
+  details   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([module, createdAt])
+  @@index([createdAt])
+  @@map("local_sync_log")
+}
+
+// ── Smart Home / IoT ──
+
+model SmartDevice {
+  id               String          @id @default(cuid())
+  name             String
+  platform         String // TUYA, RING, EUFY, GOOGLE_HOME, V380, MANUAL
+  platformDeviceId String          @unique @map("platform_device_id")
+  deviceType       String // CAMERA, LOCK, SPEAKER, HEATER, IR_REMOTE, SENSOR, LIGHT, THERMOSTAT, APPLIANCE, OTHER
+  location         String? // shop, home-basement, home-front, home-bedroom, etc.
+  status           String          @default("UNKNOWN") // ONLINE, OFFLINE, ERROR, UNKNOWN
+  lastSeenAt       DateTime?       @map("last_seen_at")
+  capabilities     Json? // what this device can do
+  currentState     Json?           @map("current_state") // last known state (on/off, temp, etc.)
+  metadata         Json? // platform-specific data (product name, firmware, etc.)
+  events           DeviceEvent[]
+  commands         DeviceCommand[]
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  @@index([platform, status])
+  @@index([location, deviceType])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+  @@map("smart_devices")
+}
+
+model DeviceEvent {
+  id        String      @id @default(cuid())
+  deviceId  String      @map("device_id")
+  device    SmartDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  event     String // motion_detected, door_locked, temp_changed, turned_on, etc.
+  data      Json?
+  source    String      @default("local") // local, cloud, manual
+  timestamp DateTime
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@index([deviceId, timestamp])
+  @@index([event, timestamp])
+  @@index([createdAt])
+  @@map("device_events")
+}
+
+model DeviceCommand {
+  id        String      @id @default(cuid())
+  deviceId  String      @map("device_id")
+  device    SmartDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  command   String // turn_on, turn_off, set_temp, lock, unlock, etc.
+  params    Json?
+  status    String      @default("pending") // pending, sent, acked, failed
+  sentAt    DateTime?   @map("sent_at")
+  ackedAt   DateTime?   @map("acked_at")
+  error     String?
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  @@index([deviceId, status])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("device_commands")
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// INFRASTRUCTURE MODELS (Phase 4)
+// ══════════════════════════════════════════════════════════════════════
+
+model SessionReport {
+  id           String   @id @default(cuid())
+  sessionDate  String   @map("session_date")
+  summary      String   @db.Text
+  filesChanged Json?    @map("files_changed")
+  commits      Json?
+  decisions    Json?
+  blockers     Json?
+  nextSteps    Json?    @map("next_steps")
+  tokenCost    Int?     @map("token_cost")
+  durationMin  Int?     @map("duration_min")
+  agentModel   String?  @map("agent_model")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([sessionDate])
+  @@index([createdAt])
+  @@map("session_reports")
+}
+
+model SystemMetric {
+  id        String   @id @default(cuid())
+  metric    String // api.latency, db.query_time, cron.duration, ai.cost, etc.
+  value     Float
+  unit      String   @default("ms")
+  tags      Json? // { route: "/api/tasks", method: "GET" }
+  source    String   @default("api")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([metric, createdAt])
+  @@index([source, createdAt])
+  // v7 cleanup · Apr 28 · dashboards filter on (createdAt, value) for
+  // sparkline rollups. Without this composite the 50K-row table does
+  // a sort on createdAt for every fetch.
+  @@index([createdAt])
+  @@map("system_metrics")
+}
+
+model Integration {
+  id                  String    @id @default(cuid())
+  name                String    @unique
+  type                String    @default("api") // api, webhook, cron, manual
+  enabled             Boolean   @default(true)
+  status              String    @default("healthy") // healthy, degraded, failed, disabled
+  lastSyncAt          DateTime? @map("last_sync_at")
+  nextSyncAt          DateTime? @map("next_sync_at")
+  config              Json?
+  healthCheckUrl      String?   @map("health_check_url")
+  errorCount          Int       @default(0) @map("error_count")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  metadata            Json?
+  // syncLogs retired Apr 18 — IntegrationSyncLog table dropped
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  @@index([enabled, status])
+  @@index([type, status])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+  @@map("integrations")
+}
+
+model ApiRequestLog {
+  id         String   @id @default(cuid())
+  method     String
+  path       String
+  statusCode Int      @map("status_code")
+  durationMs Int      @map("duration_ms")
+  requestId  String   @map("request_id")
+  userAgent  String?  @map("user_agent")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([path, createdAt])
+  @@index([statusCode, createdAt])
+  @@index([createdAt])
+  @@map("api_request_logs")
+}
+
+model ScheduledAction {
+  id             String    @id @default(cuid())
+  actionType     String    @map("action_type") // remind, check-in, follow-up, review
+  entityType     String    @map("entity_type") // task, customer, lead, mission, device
+  entityId       String    @map("entity_id")
+  description    String?
+  scheduledFor   DateTime  @map("scheduled_for")
+  completedAt    DateTime? @map("completed_at")
+  status         String    @default("pending") // pending, done, skipped, overdue
+  recurrence     String    @default("once") // once, daily, weekly, monthly
+  metadata       Json?
+  /// v7.7 · Apr 29 · Universal idempotency. Caller mints (or server
+  /// hashes from {actionType + entityType + entityId + scheduledFor})
+  /// so retries don't enqueue duplicate scheduled actions.
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, scheduledFor])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("scheduled_actions")
+}
+
+model UserPreference {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String   @db.Text
+  type      String   @default("string") // string, number, boolean, json
+  category  String   @default("system") // ui, notifications, ai, system
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("user_preferences")
+}
+
+// ── Brain Models (Phase 14) ──
+
+/// v10.0.198 · Autonomous engine event log · extracted from BrainMemory.
+///
+/// Pre-extraction · BrainMemory(category="autonomous_event") with
+/// one row per autonomous-engine rule fire (~62 rows seen in probe).
+/// Append-only event stream — pure log data. Categorization made
+/// every BrainMemory query pay for it.
+///
+/// Phase 1 schema + dual-write. Phase 2 cuts reads in /system/
+/// autonomous-actions. Phase 3 drops legacy.
+model AutonomousEvent {
+  id           String   @id @default(cuid())
+  /// Autonomous engine event id (idempotency key when supplied,
+  /// falls back to internal cuid otherwise).
+  eventId      String   @unique @map("event_id") @db.VarChar(80)
+  ruleName     String   @map("rule_name") @db.VarChar(120)
+  actionType   String?  @map("action_type") @db.VarChar(80)
+  targetType   String?  @map("target_type") @db.VarChar(80)
+  targetId     String?  @map("target_id")
+  /// Outcome: success | dry-run | gated | failed | (free-form)
+  result       String   @db.VarChar(40)
+  errorMessage String?  @map("error_message") @db.Text
+  /// Worker id of whichever brain-bus consumer fired the rule.
+  worker       String?  @db.VarChar(80)
+  firedAt      DateTime @default(now()) @map("fired_at")
+
+  @@index([ruleName, firedAt(sort: Desc)])
+  @@index([result, firedAt(sort: Desc)])
+  @@index([firedAt(sort: Desc)])
+  @@map("autonomous_events")
+}
+
+/// v10.0.198 · Semantic edge graph · extracted from BrainMemory.
+///
+/// Pre-extraction · BrainMemory(category="semantic_edge") with one
+/// row per cosine-derived edge between brain memories. ~57 rows
+/// today. Forced graph data through a KV store; queries that join
+/// edges with their endpoint memories paid two BrainMemory scans.
+///
+/// Phase 1 schema + dual-write. Phase 2 cuts /brain/galaxy reads.
+/// Phase 3 drops legacy.
+model SemanticEdge {
+  id           String   @id @default(cuid())
+  fromMemoryId String   @map("from_memory_id")
+  toMemoryId   String   @map("to_memory_id")
+  fromCategory String   @map("from_category") @db.VarChar(64)
+  toCategory   String?  @map("to_category") @db.VarChar(64)
+  /// Cosine distance (0 = identical, 1 = orthogonal).
+  distance     Float
+  /// Convenience derived score: 1 - distance, clamped 0-1.
+  score        Float
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  /// Edge identity is the unordered pair (from, to). One row per
+  /// directed pair to keep indexing simple; the graph layer can
+  /// query both directions with two index lookups.
+  @@unique([fromMemoryId, toMemoryId])
+  /// Index for "what's connected to memory X" — the dominant query.
+  @@index([fromMemoryId, score(sort: Desc)])
+  @@index([toMemoryId, score(sort: Desc)])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("semantic_edges")
+}
+
+/// v10.0.197 · Tool-verb ratio telemetry · extracted from BrainMemory.
+///
+/// Pre-extraction · BrainMemory(category="telemetry_tool_verb") with
+/// one row per chat turn capturing the tool-to-claim ratio (the
+/// fabrication-defense signal: how many actions did the model claim
+/// vs how many tools actually fired). Append-only, ~1 row per turn.
+///
+/// Phase 1 schema + dual-write. Phase 2 cuts reads (no readers yet
+/// — the data was just being collected). Phase 3 drops legacy.
+model ToolVerbRatio {
+  id             String   @id @default(cuid())
+  conversationId String?  @map("conversation_id")
+  traceId        String?  @map("trace_id") @db.VarChar(40)
+  ratio          Float
+  toolsCount     Int      @map("tools_count")
+  claimsCount    Int      @map("claims_count")
+  hedged         Boolean  @default(false)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("tool_verb_ratios")
+}
+
+/// v10.0.196 · Provider ping log · extracted from BrainMemory.
+///
+/// Pre-extraction · provider_ping was BrainMemory(category="provider_
+/// ping") with one row per ping (every 15min × 3 providers = ~288/day).
+/// Append-only with 24h expiresAt. Storing point-in-time uptime
+/// samples as semantic memories was schema abuse + slowed every
+/// BrainMemory category query.
+///
+/// Phase 1 (this commit) · schema + dual-write. Phase 2 cuts reads
+/// (provider trend queries in /system/costs). Phase 3 drops
+/// BrainMemory writes + soft-deletes legacy rows.
+model ProviderPing {
+  id         String   @id @default(cuid())
+  /// venice | ollama | openai | anthropic | (future)
+  provider   String   @db.VarChar(40)
+  available  Boolean
+  latencyMs  Int      @map("latency_ms")
+  /// HTTP status code or short error string when !available.
+  errorClass String?  @map("error_class") @db.VarChar(80)
+  pingedAt   DateTime @default(now()) @map("pinged_at")
+
+  /// Trend queries: provider × recent window — single composite
+  /// index serves the /system/costs uptime view.
+  @@index([provider, pingedAt(sort: Desc)])
+  @@map("provider_pings")
+}
+
+/// v10.0.194 · Tool telemetry aggregate · extracted from BrainMemory.
+///
+/// Pre-extraction lived in BrainMemory(category="tool_telemetry") with
+/// metadata JSON holding totalCalls/successCount/failCount/etc and a
+/// raw-SQL UPSERT to merge concurrent invocations. The category-abuse
+/// pattern made indexing per-domain impossible (the 138-category
+/// BrainMemory table grew an index by category but couldn't index
+/// e.g. "tools by failure rate" without scanning).
+///
+/// Phase 1 (this commit) ships the model + dual-write so reads stay
+/// on BrainMemory while we verify the new table populates correctly.
+/// Phase 2 (v10.0.195) cuts over reads. Phase 3 (v10.0.196) soft-
+/// deletes the legacy BrainMemory rows.
+model ToolTelemetry {
+  id              String    @id @default(cuid())
+  /// Tool name (catalog key from lib/ai/tools/catalog.ts), unique.
+  toolName        String    @unique @map("tool_name") @db.VarChar(120)
+  /// Aggregate counters. Updated atomically per invocation via
+  /// UPSERT in lib/ai/tool-telemetry.ts.
+  totalCalls      Int       @default(0) @map("total_calls")
+  successCount    Int       @default(0) @map("success_count")
+  failCount       Int       @default(0) @map("fail_count")
+  /// BigInt because at 1M+ calls × 10s avg this overflows Int32.
+  totalDurationMs BigInt    @default(0) @map("total_duration_ms")
+  /// Last 5 error messages (capped). Old entries fall off as new
+  /// failures land. Size bounded so JSON column never bloats.
+  lastErrors      Json      @default("[]") @map("last_errors")
+  /// Ms-precision wall clock of the most recent invocation.
+  lastCallAt      DateTime? @map("last_call_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  /// Pre-computed for "problem tools" queries — failCount * 100
+  /// / totalCalls when totalCalls >= 10. Update via trigger or in
+  /// the upsert path. Phase 2 wires the trigger.
+  failureRatePct Float? @map("failure_rate_pct")
+
+  /// Index for /system/tools dashboard sort by call volume.
+  @@index([totalCalls(sort: Desc)])
+  /// Index for problem-tools heuristic — flags tools with
+  /// failureRatePct > 50 + totalCalls >= 10.
+  @@index([failureRatePct(sort: Desc)])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("tool_telemetry")
+}
+
+model BrainMemory {
+  id         String    @id @default(cuid())
+  category   String // pattern, insight, preference, routine, anomaly, device_behavior
+  key        String // unique identifier for dedup
+  content    String    @db.Text
+  confidence Float     @default(0.5)
+  lastSeen   DateTime  @default(now()) @map("last_seen")
+  seenCount  Int       @default(1) @map("seen_count")
+  source     String // device_analysis, behavior_tracking, vision, manual
+  expiresAt  DateTime? @map("expires_at")
+  metadata   Json?
+  /// v7.8 · Apr 29 · Universal audit. `source` was overloaded as a
+  /// who-wrote-this proxy; createdBy formalizes it. Old rows keep
+  /// "system" default; new writes specify "nick" / "user" / "cron:X".
+  createdBy  String?   @default("system") @map("created_by") @db.VarChar(64)
+  /// v7.9 · Apr 29 · Universal soft-delete. Distinct from `expiresAt`
+  /// (which is for memory-decay TTL): `deletedAt` is for explicit
+  /// human/AI delete, recoverable from the lib/db/soft-delete helpers.
+  deletedAt  DateTime? @map("deleted_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([category, key])
+  @@index([category, confidence])
+  @@index([expiresAt])
+  // Apr 18: decay queries filter by lastSeen < 30d + confidence > 0.1.
+  // Without this the hourly brain-cycle decay scans the full table;
+  // it's 2K rows today but will bite at 20K+.
+  @@index([lastSeen])
+  // Apr 20: /api/brain/pinned + PinnedContextPanel both filter
+  // category=pinned_user and order by updatedAt desc. Without this
+  // compound index Postgres falls back to a seq scan on the whole
+  // BrainMemory table (2K+ rows today, growing). Cheap to add.
+  @@index([category, updatedAt])
+  // v7 cleanup · Apr 28 · category-by-recency reads dominate brain
+  // recall (live brain feeds, dashboard queries). Postgres planner
+  // picked (category, confidence) for these and missed the createdAt
+  // sort, forcing a sort-after-scan. Composite (category, createdAt)
+  // gives an index-only scan for the recency reads.
+  @@index([category, createdAt])
+  // v9.1.15 · BrainMemory was the ONLY soft-delete model missing a
+  // standalone deletedAt index. Every brain-recall query filters by
+  // (category, deletedAt: null) — without this, Postgres scans the
+  // category bucket and post-filters by deletedAt. Compound here
+  // because category is always co-filtered.
+  @@index([category, deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([deletedAt])
+  @@map("brain_memories")
+}
+
+/// v10 Track E.5 · Agent call trace.
+///
+/// Closes the assessment row "Observability · needs agent trace
+/// standardization." Every AI/agent call across the system gets one
+/// row here with a shared traceId for chaining (chat → tool → brain
+/// → audit) and a parentId for nesting.
+///
+/// AiGeneration tracks usage/billing per individual generation;
+/// AgentTrace tracks the CALL CHAIN — the same operator request may
+/// produce multiple AiGeneration rows (chat reply + auto-rename +
+/// importance scorer all on the same chat turn) but ONE traceId.
+///
+/// Surface: /system/agent-trace (deferred) + powers cost
+/// attribution, "why did NICK do X?" debugging, and cross-call
+/// dependency analysis.
+model AgentTrace {
+  id           String    @id @default(cuid())
+  /// Shared across all calls in one logical operator request.
+  /// Mint with mintTraceId() at the top of the chain (chat route,
+  /// cron handler, autonomous engine).
+  traceId      String    @map("trace_id")
+  /// Parent trace id when this call is nested. Top-level call has
+  /// parentId === null.
+  parentId     String?   @map("parent_id")
+  /// chat | cron | autonomous | tool | journal | brain | other
+  source       String
+  /// Provider name (venice / ollama / openai / anthropic) when an
+  /// AI call; null for pure-logic helpers.
+  provider     String?
+  /// Model id (e.g. claude-3-5-sonnet, qwen3-235b) when AI; null
+  /// otherwise.
+  model        String?
+  /// Free-form label for the chain step ("auto-rename",
+  /// "task-completion-detector", etc.)
+  label        String
+  startedAt    DateTime  @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  durationMs   Int?      @map("duration_ms")
+  inputChars   Int?      @map("input_chars")
+  outputChars  Int?      @map("output_chars")
+  costCents    Int?      @map("cost_cents")
+  toolCalls    Int       @default(0) @map("tool_calls")
+  /// Error class when the call failed. Null on success.
+  errorClass   String?   @map("error_class")
+  errorMessage String?   @map("error_message") @db.Text
+  /// Optional structured metadata (firstTokenAt, targetId, etc.).
+  metadata     Json?
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([traceId, startedAt])
+  @@index([source, createdAt])
+  @@index([provider, createdAt])
+  @@index([errorClass, createdAt])
+  @@index([createdAt])
+  @@map("agent_traces")
+}
+
+/// v10 Track B.4 · Schema change ledger.
+///
+/// Closes the migration-history gap. The project uses `prisma db
+/// push` (no migration files) so there's no SQL audit trail by
+/// default. The schema-drift sentinel (v8.6) detects DRIFT but
+/// can't tell you WHO changed WHAT WHEN.
+///
+/// Every schema change going forward gets a row here:
+///   - destructive flag for ops review
+///   - method (db_push / migrate / raw_sql)
+///   - environment (local / preview / production)
+///   - approval + applied audit
+///   - rollbackPlan in case the change needs to be unwound
+///
+/// Surface: /system/schema-history dashboard reads this table.
+model SchemaChangeLedger {
+  id           String    @id @default(cuid())
+  /// Human-mintable unique key, e.g. "v10.0.1-add-brain-bus-events".
+  changeKey    String    @unique @map("change_key")
+  title        String
+  reason       String    @db.Text
+  /// add_column | drop_column | alter_index | fk_change | enum_add | rename | other
+  changeType   String    @map("change_type")
+  /// db_push | migrate | raw_sql
+  method       String
+  /// local | preview | production
+  environment  String
+  sqlSummary   String?   @map("sql_summary") @db.Text
+  prismaDiff   String?   @map("prisma_diff") @db.Text
+  destructive  Boolean   @default(false)
+  approvedBy   String?   @map("approved_by")
+  appliedBy    String?   @map("applied_by")
+  appliedAt    DateTime? @map("applied_at")
+  rollbackPlan String?   @map("rollback_plan") @db.Text
+  /// planned | applied | rolled_back | failed
+  status       String    @default("planned")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([environment, appliedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("schema_change_ledger")
+}
+
+/// v10 Track B.2 · Durable brain-bus event log.
+///
+/// Closes the at-most-once delivery gap in v8.4 brain-bus.ts. The
+/// LISTEN/NOTIFY layer is now ONLY a wake-up bell; the durable
+/// truth lives in this table. Producer writes a row + fires NOTIFY.
+/// Consumer reads pending rows on NOTIFY OR via polling backfill.
+/// If the consumer is offline when NOTIFY fires, the row is still
+/// here for the next polling cycle to pick up.
+model BrainBusEvent {
+  id          String    @id @default(cuid())
+  topic       String
+  eventType   String    @map("event_type")
+  payload     Json
+  /// Optional dedupe key — producers can mint via mintIdempotencyKey
+  /// to suppress duplicate NOTIFYs of the same logical event.
+  dedupeKey   String?   @unique @map("dedupe_key")
+  /// v10.0.529.106 · Wave 61 · cross-lambda trace propagation.
+  /// Pre-Wave-61 the AgentTrace chain broke whenever a chat request
+  /// triggered an autonomous cron action in a different lambda
+  /// invocation (the second lambda had no way to receive the
+  /// originating traceId). Now: producers attach traceId when they
+  /// emit; consumers read it back when they process. Indexed for
+  /// /system/agent-traces drill-down across lambda boundaries.
+  traceId     String?   @map("trace_id")
+  /// Lifecycle: pending → processing → done (or failed → dead).
+  status      String    @default("pending")
+  attempts    Int       @default(0)
+  /// When this event becomes eligible for processing (allows
+  /// backoff scheduling for retries).
+  availableAt DateTime  @default(now()) @map("available_at")
+  lockedAt    DateTime? @map("locked_at")
+  lockedBy    String?   @map("locked_by")
+  processedAt DateTime? @map("processed_at")
+  lastError   String?   @map("last_error") @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  /// Polling backfill query: WHERE status='pending' AND availableAt<=NOW()
+  @@index([status, availableAt])
+  /// Per-topic recency reads (operator dashboard, debugging).
+  @@index([topic, createdAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  /// v10.0.529.106 · Wave 61 · trace-chain lookups.
+  @@index([traceId])
+  @@map("brain_bus_events")
+}
+
+// Layer 4: Reflective Memory — meta-cognition across all other layers
+// Watches patterns in BrainMemory, ExecutionInsight, DailyScore, BrainDump
+// and generates higher-order insights about behavior over time.
+model Reflection {
+  id             String    @id @default(cuid())
+  date           String // YYYY-MM-DD
+  scope          String // daily, weekly, monthly, triggered
+  category       String // behavior, business, health, mastery, drift, prediction
+  insight        String    @db.Text // The reflection itself
+  evidence       String    @db.Text // What data led to this insight
+  confidence     Float     @default(0.7)
+  actionable     Boolean   @default(false) // Does this need Nour's attention?
+  acknowledged   Boolean   @default(false) // Has Nour seen/acted on this?
+  connections    Json? // Links to related memories/patterns: { memoryIds: [], patternIds: [] }
+  metadata       Json? // Source data, scores, timestamps
+  /// v7.7 · Apr 29 · Universal idempotency. Reflection cron firing
+  /// twice on the same day shouldn't produce two daily reflections —
+  /// caller hashes from {date + scope + category}.
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
+  /// v7.9 · Apr 29 · Universal soft-delete.
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([date, scope])
+  @@index([category, confidence])
+  @@index([actionable, acknowledged])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("reflections")
+}
+
+// Layer 5: Predictive Memory — forecasts future behavior based on patterns
+// Uses historical data to predict what will happen next and surface warnings.
+model Prediction {
+  id         String   @id @default(cuid())
+  date       String // YYYY-MM-DD — when the prediction was made
+  targetDate String   @map("target_date") // When the predicted event will occur
+  category   String // behavior, business, health, drift, operational
+  prediction String   @db.Text // What will happen
+  basis      String   @db.Text // What data/patterns led to this prediction
+  confidence Float    @default(0.6) // 0-1, increases when reinforced
+  status     String   @default("pending") // pending, confirmed, disproven, expired
+  outcome    String?  @db.Text // What actually happened (filled in later)
+  /// v10.0.150 · May 03 · Forecast taxonomy. Distinguishes the four
+  /// problem types the audit recommended:
+  ///   · binary             — will X happen by date Y? (default)
+  ///   · continuous         — what will the value be?
+  ///   · interval           — what's the likely range?
+  ///   · next_best_action   — which option to pick?
+  /// Backfilled to "binary" because every existing Prediction was
+  /// shaped that way (status=confirmed/disproven). New predictions
+  /// must declare kind explicitly.
+  kind       String   @default("binary")
+  /// v10.0.150 · Brier score = (confidence - outcome)² for binary
+  /// predictions. Computed at resolution time by outcome-tracker.
+  /// Lower is better; 0 = perfect, 0.25 = naive 50/50 guess, >0.25
+  /// is worse than coin-flip. Null until resolved.
+  brierScore Float?   @map("brier_score")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([status, targetDate])
+  @@index([category, confidence])
+  @@index([kind, status])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("predictions")
+}
+
+// Layer 6: Relational Graph — maps connections between entities
+// Connects memories, people, decisions, commitments, and outcomes.
+model MemoryEdge {
+  id           String   @id @default(cuid())
+  sourceType   String   @map("source_type") // memory, reflection, prediction, commitment, decision, person, loop
+  sourceId     String   @map("source_id")
+  targetType   String   @map("target_type")
+  targetId     String   @map("target_id")
+  relationship String // causes, blocks, supports, contradicts, relates_to, leads_to, depends_on
+  strength     Float    @default(0.5) // 0-1, reinforced over time
+  evidence     String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([sourceType, sourceId, targetType, targetId, relationship])
+  @@index([sourceType, sourceId])
+  @@index([targetType, targetId])
+  @@index([relationship])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("memory_edges")
+}
+
+// ═══════════════════════════════════════════════════════════
+// TREE BRANCHES — Layers 7-12: The Thinking Memory
+// ═══════════════════════════════════════════════════════════
+
+// Branch A: Self-Awareness (extends L4 Reflective)
+// L7: Contradiction Detector — catches conflicts between stated vs actual behavior
+model Contradiction {
+  id          String   @id @default(cuid())
+  date        String
+  claimSource String   @map("claim_source") // what Nour said/believed (brain_dump, chat, commitment)
+  claimId     String?  @map("claim_id")
+  claim       String   @db.Text // "I'm disciplined" or "I follow up on every lead"
+  reality     String   @db.Text // "Discipline score avg 3.2/10 last 7 days"
+  gap         String   @db.Text // "Gap: stated 8/10, measured 3.2/10"
+  severity    String   @default("moderate") // mild, moderate, severe, critical
+  category    String // identity, business, health, commitment, habit
+  resolved    Boolean  @default(false)
+  resolvedHow String?  @map("resolved_how") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([date, category])
+  @@index([resolved])
+  @@index([createdAt])
+  @@map("contradictions")
+}
+
+// L8: Identity Evolution — tracks WHO Nour is becoming over time
+// v7.9 · Apr 29 — `date` dropped from @unique. The soft-delete pattern
+// needs to support "redo today's snapshot": a soft-deleted row holding
+// the unique slot would block the cron from re-emitting. Daily-uniqueness
+// is now enforced in app code via `findFirst({date, deletedAt:null})`.
+model IdentitySnapshot {
+  id            String    @id @default(cuid())
+  date          String // YYYY-MM-DD — was @unique pre-v7.9; now @@index only
+  coreValues    Json // { discipline: 0.4, creativity: 0.8, ... } — measured, not stated
+  strengths     Json // Top 5 strengths with evidence
+  blindSpots    Json // Top 3 blind spots with evidence
+  trajectory    String    @db.Text // "Moving toward X, away from Y"
+  deltaFromLast String?   @map("delta_from_last") @db.Text // What changed since last snapshot
+  masterySelf   Float     @default(0) @map("mastery_self") // Overall self-mastery score 0-10
+  /// v7.9 · Apr 29 · Universal soft-delete. Hide the prior snapshot to
+  /// let the cron re-emit today's row cleanly without losing the audit
+  /// trail of the original computation.
+  deletedAt     DateTime? @map("deleted_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@index([date])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@map("identity_snapshots")
+}
+
+// Branch B: Foresight (extends L5 Predictive)
+// L9: Simulation Engine — "if X, then cascade Y→Z→W"
+
+// L10: Causal Engine — WHY patterns repeat, root cause chains
+model CausalChain {
+  id           String   @id @default(cuid())
+  date         String
+  effect       String   @db.Text // The observable pattern/problem
+  rootCause    String   @db.Text // The deepest "why"
+  chain        Json // Array of { cause, effect, evidence } — the full chain
+  frequency    Int      @default(1) // How many times this chain has been observed
+  lastSeen     DateTime @default(now()) @map("last_seen")
+  intervention String?  @db.Text // What could break this chain
+  broken       Boolean  @default(false) // Has the chain been successfully broken?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([frequency])
+  @@index([broken])
+  @@index([createdAt])
+  @@index([lastSeen])
+  @@map("causal_chains")
+}
+
+// Branch C: Social Intelligence (extends L6 Relational)
+// L11: People Intelligence — deep profiles on key people
+model PersonProfile {
+  id               String    @id @default(cuid())
+  name             String    @unique
+  role             String // employee, customer, vendor, family, competitor, advisor
+  relationship     String    @db.Text // How they relate to Nour
+  patterns         Json? // Behavioral patterns observed
+  trustScore       Float     @default(0.5) @map("trust_score") // 0-1
+  leverageNotes    String?   @map("leverage_notes") @db.Text // Strategic positioning
+  lastInteraction  DateTime? @map("last_interaction")
+  interactionCount Int       @default(0) @map("interaction_count")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([role])
+  @@index([trustScore])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("person_profiles")
+}
+
+// L12: Environmental Awareness — external forces beyond Nour's control
+model EnvironmentalSignal {
+  id         String    @id @default(cuid())
+  date       String
+  category   String // market, weather, competition, economy, regulation, seasonal
+  signal     String    @db.Text // What was detected
+  impact     String    @db.Text // How it affects Nour's world
+  urgency    String    @default("low") // low, medium, high, critical
+  actionable Boolean   @default(false)
+  expiresAt  DateTime? @map("expires_at") // When this signal becomes irrelevant
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([date, category])
+  @@index([urgency])
+  @@index([createdAt])
+  @@map("environmental_signals")
+}
+
+model AutomationRule {
+  id         String    @id @default(cuid())
+  name       String
+  trigger    Json // { type: "device_state"|"time"|"pattern"|"brain_decision", conditions: {...} }
+  actions    Json // [{ deviceId, command, params }]
+  enabled    Boolean   @default(true)
+  priority   Int       @default(5) // 1=highest
+  createdBy  String    @map("created_by") // nour, brain, system
+  lastFired  DateTime? @map("last_fired")
+  fireCount  Int       @default(0) @map("fire_count")
+  cooldownMs Int       @default(60000) @map("cooldown_ms")
+  metadata   Json?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@index([enabled, priority])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("automation_rules")
+}
+
+model ErrorLog {
+  id        String   @id @default(cuid())
+  level     String // error, warn, fatal
+  message   String
+  stack     String?  @db.Text
+  context   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([level, createdAt])
+  @@index([createdAt])
+  @@map("error_logs")
+}
+
+// ============================================
+// SUPPLIER INTEGRATION MODELS
+// ============================================
+
+// ── Quote Templates & Bundles ─────────────────────────────────────────
+
+// ═══════════════════════════════════════════════════════════════════════
+// HIRING & APPOINTMENTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// PROJECTION ENGINE
+// ═══════════════════════════════════════════════════════════════════════
+
+model LifeGoal {
+  id             String    @id @default(cuid())
+  domain         String // business, fitness, finance, personal, career
+  title          String // "Hit $15K revenue this month"
+  metric         String // revenue, weight, savings_balance
+  targetValue    Float // 15000
+  currentValue   Float     @default(0)
+  unit           String    @default("") // $, lbs, sessions, %
+  deadline       DateTime?
+  status         String    @default("active") // active, achieved, missed, paused
+  progress       Float     @default(0) // 0-100%
+  achievedAt     DateTime?
+  /// v7.8 · Apr 29 · Universal audit.
+  createdBy      String?   @default("system") @map("created_by") @db.VarChar(64)
+  updatedBy      String?   @default("system") @map("updated_by") @db.VarChar(64)
+  /// Time horizon for this goal. Lets the Plan mode group goals by
+  /// the timeframe Nour is actually thinking in (today, this week,
+  /// this month, this quarter, this year, lifetime). Nullable for
+  /// backward compat with records that predate the Apr 15 rebuild.
+  horizon        String? // DAY | WEEK | MONTH | QUARTER | YEAR | LIFE
+  /// Why this goal matters — the "so that" clause. Written once,
+  /// surfaced when Nour is about to drop/skip the goal so he sees
+  /// the original motivation before cutting.
+  why            String?   @db.Text
+  /// AI-generated tactical plan attached to this goal. Populated by
+  /// /api/ai/suggest-goals and /api/ai/plan-goal. JSON shape:
+  ///   { steps: string[], risks: string[], metric_updates: {...} }
+  planData       Json?
+  /// Time budget for the horizon. Used by Plan mode to surface
+  /// overcommitment ("15 week goals at 3h each = 45h > 40h week").
+  estimatedHours Int?
+  /// Coaching history — array of { at, read, nextAction, blocker, risks }
+  /// entries appended by POST /api/ai/coach-goal. Latest shows at
+  /// the top of the goal row in Plan mode.
+  coachLog       Json?
+  /// v7.9 · Apr 29 · Universal soft-delete. Goals get archived all the
+  /// time (priorities shift); soft-delete preserves the history so the
+  /// brain layer can still mine "goals Nour stopped pursuing" patterns.
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  /// v11.0 W5.3 — back-reference for Task.goal. Enables
+  /// `prisma.lifeGoal.findMany({ include: { tasks: true } })`.
+  tasks  Task[]
+  events GoalEvent[]
+
+  @@index([domain, status])
+  @@index([horizon, status])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status])
+  @@map("life_goals")
+}
+
+/// Apr 26 · GoalEvent — append-only log of progress + lifecycle events
+/// per goal. Mirror of TaskEvent. Lets the brain layer answer:
+///   · "how often does Nour move this goal in a typical week?"
+///   · "what's the running rate of progress increments?"
+///   · "did the cron/coaching nudge land?"
+/// without polling the LifeGoal table or scanning Task history.
+///
+/// kinds: created | updated | progress_logged | milestone_set |
+///        milestone_hit | coached | paused | resumed | achieved |
+///        missed | linked_project | unlinked_project
+model GoalEvent {
+  id             String   @id @default(cuid())
+  goalId         String
+  // v9.1.15 · Restrict not Cascade — LifeGoal uses v7.9 soft-delete.
+  goal           LifeGoal @relation(fields: [goalId], references: [id], onDelete: Restrict)
+  kind           String
+  /// Optional structured payload (e.g. progress_logged → { delta, after }).
+  payload        Json?
+  /// Source surface (page, chat, cron, task-completion-hook, etc).
+  source         String?
+  /// v7.7 · Apr 29 · Universal idempotency. Same pattern as TaskEvent.
+  idempotencyKey String?  @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([goalId, createdAt])
+  @@index([kind, createdAt])
+  @@index([createdAt])
+  @@map("goal_events")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// REVIEW LOG — persistent morning/evening/weekly briefs
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Each brief Nick generates gets stored here so Nour can look back
+/// at last week's morning briefs or see patterns across reviews.
+/// Populated by POST /api/ai/review; read by GET /api/reviews for
+/// the Review mode history drawer.
+model ReviewLog {
+  id          String   @id @default(cuid())
+  type        String // "morning" | "evening" | "weekly"
+  generatedAt DateTime @default(now())
+  headline    String?  @db.Text
+  read        String?  @db.Text
+  mit         String?  @db.Text
+  wins        Json?
+  risks       Json?
+  action      String?  @db.Text
+  questions   Json?
+  rawPayload  Json? // full AI response for debugging + future re-parsing
+  createdAt   DateTime @default(now())
+
+  @@index([type, generatedAt])
+  @@index([createdAt])
+  @@map("review_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BROKEN PROMISE LOG — failure pattern capture
+// ═══════════════════════════════════════════════════════════════════════
+
+/// When Nour marks a PROMISE loop as broken, he gets prompted for
+/// the reason. The reason lives here so Nick can reference failure
+/// patterns next time a similar promise is being set up.
+
+// ═══════════════════════════════════════════════════════════════════════
+// CAMERA INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// AUTONOMOUS INTELLIGENCE
+// ═══════════════════════════════════════════════════════════════════════
+
+model AutonomousAction {
+  id             String    @id @default(cuid())
+  ruleName       String // "auto_followup_expired_quote", "auto_score_applicant"
+  trigger        String // what triggered this action
+  actionType     String // send_email, send_telegram, update_record, create_record, adjust_pricing
+  targetType     String? // quote, applicant, customer, device
+  targetId       String? // the ID of the affected record
+  payload        Json? // what was done
+  approval       String    @default("auto") // auto, pending, approved, rejected
+  approvedBy     String? // "nour" or "system"
+  executedAt     DateTime?
+  result         String? // success, failed, skipped
+  error          String?
+  /// v7.7 · Apr 29 · Universal idempotency. Caller-minted key (or
+  /// hash of {ruleName + targetType + targetId + 5min-bucket}) so
+  /// a cron firing twice — or a webhook retrying — produces ONE
+  /// action row, not duplicates. NULL on legacy rows; new writes
+  /// always populate. Unique partial index excludes the NULLs so
+  /// back-compat is free.
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime  @default(now())
+
+  @@index([ruleName, createdAt])
+  @@index([approval, createdAt])
+  // v7 cleanup · Apr 28 · health-digest counts actions by result over
+  // the last 24h. Without (result, createdAt) it scans the whole
+  // table for the WHERE result='success' AND createdAt >= cutoff
+  // pattern. ~20K rows; bites at >100K.
+  @@index([result, createdAt])
+  @@index([createdAt])
+  // v7.7 · Apr 29 · Idempotency unique. Migration uses a partial
+  // index `WHERE idempotency_key IS NOT NULL` so legacy NULLs
+  // don't block. Prisma can't express partial uniques in @@unique
+  // — declared via raw SQL in the migration.
+  @@map("autonomous_actions")
+}
+
+model DecisionReplay {
+  id             String    @id @default(cuid())
+  decisionId     Int? // link to MasteryDecision
+  title          String
+  context        String?   @db.Text
+  choiceMade     String
+  reasoning      String?   @db.Text
+  reviewAt       DateTime // 30/60/90 day review date
+  reviewed       Boolean   @default(false)
+  outcome        String?   @db.Text // what happened since
+  outcomeScore   Float? // -10 to 10: net positive or negative
+  lesson         String?   @db.Text // what was learned
+  reviewedAt     DateTime?
+  /// v7.7 · Apr 29 · Universal idempotency. Auto-mintable from
+  /// {decisionId + reviewAt} so re-scheduling a review doesn't
+  /// accidentally double-create the replay row.
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
+  createdAt      DateTime  @default(now())
+
+  @@index([reviewAt, reviewed])
+  @@index([createdAt])
+  @@map("decision_replays")
+}
+
+// ---------------------------------------------------------------------------
+// Content Creation
+// ---------------------------------------------------------------------------
+
+model CronJobLog {
+  id        String   @id @default(cuid())
+  jobName   String
+  status    String // success, failed
+  duration  Int?
+  error     String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([jobName])
+  @@index([status])
+  // Apr 18: watcher cron queries (jobName, status, createdAt >= cutoff)
+  // to find stale jobs. Composite makes the lookup a range scan on
+  // the single index instead of a full-jobName scan.
+  @@index([jobName, status, createdAt])
+  @@index([createdAt])
+  @@map("cron_job_logs")
+}
+
+/// ⚠️  RAW-SQL EXTRA COLUMNS · PRISMA WILL DROP THESE IF YOU --accept-data-loss
+///
+/// The live `vector_embeddings` table has THREE additional columns that
+/// v10.0.171 · The drop trap closes itself.
+///
+/// Pre-fix (v10.0.148 → .169): Prisma could not model `vector(N)` types,
+/// so the columns existed in the DB but not in this schema. Every
+/// `prisma db push` saw "extra columns" and offered to drop 7,000+
+/// vector rows. Three near-misses in 10 days. The recovery scripts
+/// became part of the runbook, which means the runbook was already
+/// the bug.
+///
+/// Now: declare the raw-SQL columns as `Unsupported(...)` so Prisma
+/// SEES them. Prisma cannot generate client types for these (we still
+/// query via raw SQL — `lib/db/pgvector.ts`, `lib/brain/semantic-link.ts`,
+/// `app/api/cron/pgvector-backfill/route.ts`), but it ALSO will not
+/// try to drop them. The data-loss warning disappears because there
+/// is no data loss to detect.
+///
+/// Schema-sentinel still watches for existence (lib/db/schema-sentinel.ts)
+/// as a defense-in-depth check.
+///
+/// Source-of-truth scripts (kept for emergencies, not routine):
+///   · scripts/add-hnsw-index.ts          — original install (v10.0.90)
+///   · scripts/recover-pgvector-from-text.ts — full recovery (v10.0.154)
+///   · scripts/recover-pgvector-embedding-vec.ts — sister recovery (v10.0.155)
+model VectorEmbedding {
+  id                 String                       @id @default(cuid())
+  sourceType         String // brain_memory, chat, customer, knowledge
+  sourceId           String
+  content            String                       @db.Text
+  embedding          String                       @db.Text // JSON array of floats — survives if pgvector columns ever drop
+  createdAt          DateTime                     @default(now())
+  // v10.0.171 · raw-SQL columns Prisma now SEES but does not manage.
+  // Querying these requires raw SQL; the declarations exist so
+  // `prisma db push` leaves them alone instead of warning + dropping.
+  embedding_vec      Unsupported("vector")?
+  embedding_vec_1536 Unsupported("vector(1536)")?
+  embedding_dim      Int?
+  model              String?                      @db.VarChar(64)
+
+  @@index([sourceType, sourceId]) // composite — fixes slow lookup queries
+  @@index([sourceType])
+  @@index([sourceId])
+  @@index([createdAt])
+  @@map("vector_embeddings")
+}
+
+// ─── Robert Greene Strategic Intelligence Engine ────────────────────────
+
+enum GreeneBook {
+  FORTY_EIGHT_LAWS
+  THIRTY_THREE_STRATEGIES
+  HUMAN_NATURE
+  MASTERY
+  ART_OF_SEDUCTION
+  FIFTIETH_LAW
+}
+
+model StrategicLaw {
+  id              String          @id @default(cuid())
+  book            GreeneBook
+  number          Int
+  title           String
+  shortTitle      String
+  essence         String          @db.Text
+  shopApplication String          @db.Text
+  nourApplication String          @db.Text
+  triggerPatterns Json // string[] of snake_case patterns
+  situationLogs   SituationLog[]
+  dailyStrategies DailyStrategy[] @relation("DailyStrategiesLaws")
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  @@unique([book, number])
+  @@index([book])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("strategic_laws")
+}
+
+model SituationLog {
+  id            String        @id @default(cuid())
+  context       String // e.g. "competition", "pricing", "employee", "personal"
+  situation     String        @db.Text
+  emotion       String? // what Nour felt
+  response      String?       @db.Text // what he did
+  lawId         String?
+  law           StrategicLaw? @relation(fields: [lawId], references: [id], onDelete: SetNull)
+  outcome       String?       @db.Text
+  lessonLearned String?       @db.Text
+  aiAnalysis    String?       @db.Text // AI-generated strategic analysis
+  urgency       String        @default("info") // info, warning, critical
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([context, createdAt])
+  @@index([lawId])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("situation_logs")
+}
+
+model DailyStrategy {
+  id             String         @id @default(cuid())
+  strategyDate   DateTime       @unique @db.Date
+  briefing       String         @db.Text // AI-generated strategic briefing
+  focusLaw       String? // Primary law to apply today
+  laws           StrategicLaw[] @relation("DailyStrategiesLaws")
+  triggers       Json? // Active trigger alerts for the day
+  shopAdvice     String?        @db.Text
+  personalAdvice String?        @db.Text
+  provider       String? // AI provider used
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([strategyDate])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("daily_strategies")
+}
+
+// ── Arsenal Activity Log ──────────────────────────
+// Tracks every tool/chain execution for history, stats, and persistent results.
+model ArsenalLog {
+  id            String   @id @default(cuid())
+  toolId        String // registry tool id: "grok", "perplexity", "apollo", etc.
+  action        String // what was done: "research", "chain:dailyBrief", "sales:fleet_contacts", etc.
+  status        String // "success" | "error" | "partial"
+  durationMs    Int // execution time in milliseconds
+  inputPreview  String?  @db.Text // truncated input for context
+  resultPreview String?  @db.Text // truncated result for display
+  errorMessage  String? // error message if status != success
+  metadata      Json? // any extra structured data (chain steps, model used, etc.)
+  createdAt     DateTime @default(now())
+
+  @@index([toolId])
+  @@index([createdAt])
+  @@index([toolId, createdAt])
+  @@index([status])
+  @@map("arsenal_logs")
+}
+
+// v10.0.148 · May 03 · Policy registry — the governance spine on top
+// of every automation surface (cron / tool / slash / autonomous-action /
+// webhook). Pre-fix the rules that decided which actions auto-fire vs
+// queue for approval lived scattered across cron files, tool defs, and
+// chat interceptors. There was no surface an operator could read to
+// answer "what is allowed to fire automatically right now?"
+//
+// `id` is the canonical reference: `<surface>.<name>` (e.g. "cron.embed-
+// backfill", "tool.send-email-via-resend", "slash.save"). For crons,
+// `config/crons.ts` continues to hold the schedule/memory/category data
+// — this table augments with governance fields. For non-cron surfaces
+// (tools, slash commands, webhooks) this row IS the source of truth.
+//
+// Approval classes:
+//   · auto      — runs without operator review (read-only, low risk)
+//   · pending   — queues an AutonomousAction row needing approval first
+//   · forbidden — coded but disabled (e.g. retired, never-allowed)
+//
+// `rollback` describes the undo path (e.g. "DELETE /api/x/:id" or
+// "manual-only · contact stripe support") — null only for genuinely
+// non-reversible actions.
+model AutomationPolicy {
+  id            String  @id // <surface>.<name>, e.g. "cron.embed-backfill"
+  surface       String // "cron" | "tool" | "slash" | "autonomous-action" | "webhook"
+  name          String // bare name without surface prefix
+  objective     String  @db.Text // why this exists, longer than a description
+  trigger       String // when it fires: cron expression, event name, manual, hook
+  inputs        Json? // structured list of inputs/dependencies (env vars, tables, services)
+  approvalClass String  @default("auto") // "auto" | "pending" | "forbidden"
+  rollback      String? @db.Text // path/method to undo, or null if non-reversible
+  successMetric String  @db.Text // how we know it worked (concrete + measurable)
+  owner         String  @default("nour")
+  enabled       Boolean @default(true)
+
+  // Operational fields — populated by the surfaces themselves over
+  // time. Lets the registry double as a quick health-at-a-glance.
+  lastFiredAt DateTime?
+  lastResult  String? // "success" | "failure" | "pending_approval" | "rolled_back"
+  fireCount   Int       @default(0)
+
+  // Fire history — chronological log of each fire (see AutomationPolicyFire)
+  fires AutomationPolicyFire[]
+
+  notes    String?  @db.Text
+  metadata Json? // extension point for future fields
+  tags     String[] @default([]) // e.g. ["high-risk", "external-write", "cost-bearing"]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([surface, enabled])
+  @@index([approvalClass, enabled])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([updatedAt])
+  @@map("automation_policies")
+}
+
+/// v10.0.169 · per-policy fire history. Append-only chronological log
+/// of every AutomationPolicy fire (success or failure). Drives the
+/// /system/policies/[id]/fires drill-down. Prisma can't reference the
+/// pg `gen_random_uuid()` directly via @default — use cuid() (matches
+/// the rest of the codebase's id convention) and let Prisma generate
+/// client-side. Opposite-side relation field added on AutomationPolicy.
+model AutomationPolicyFire {
+  id            String           @id @default(cuid())
+  policyId      String           @map("policy_id")
+  policy        AutomationPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  firedAt       DateTime         @default(now()) @map("fired_at")
+  result        String // "success" | "failure" | "pending_approval" | "rolled_back"
+  resultMessage String?          @map("result_message") @db.Text
+  durationMs    Int?             @map("duration_ms")
+  metadata      Json? // any surface-specific payload
+
+  @@index([policyId, firedAt])
+  @@index([firedAt])
+  @@map("automation_policy_fires")
+}
+
+/// v10.0.526 · Arc A Feature 3 · Voice Latency capture.
+///
+/// Per-stage latency events for every VAPI call. The sub-800ms voice-
+/// agent target (per the voice-agents skill) breaks down into:
+///   stt_start       · STT begins consuming caller audio
+///   stt_end         · STT final transcript ready
+///   llm_start       · LLM request dispatched (input ready)
+///   llm_first_token · LLM emits first token (perceived "thinking" end)
+///   tts_start       · TTS request dispatched
+///   tts_first_byte  · TTS emits first audio byte (caller hears voice)
+///   end_to_end      · derived fallback from createdAt → endedAt when
+///                     per-layer data isn't available in the webhook
+///
+/// AgentTrace already covers LLM-side latency on calls that flow
+/// through the chat pipeline · don't double-count there. This model
+/// captures STT/TTS/network legs that AgentTrace can't see.
+///
+/// Surfaces · /api/system/voice-latency (Ultron tile) +
+/// /api/cron/vapi-latency-sync (nightly ingestion).
+model VoiceLatencyEvent {
+  id          String   @id @default(cuid())
+  callId      String   @map("call_id")
+  assistantId String   @map("assistant_id")
+  /// stt_start | stt_end | llm_start | llm_first_token | tts_start
+  /// | tts_first_byte | end_to_end
+  stage       String
+  latencyMs   Int      @map("latency_ms")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([callId, stage])
+  @@index([createdAt])
+  @@map("voice_latency_events")
+}
