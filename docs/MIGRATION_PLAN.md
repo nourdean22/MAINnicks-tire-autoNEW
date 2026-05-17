@@ -515,3 +515,130 @@ Until then I will not start Phase 3.
 ---
 
 End of Phase 2 plan. Standing by for review and approval.
+
+---
+
+# Phase 3 · progress log (updated as we ship)
+
+| CP | Status | Commit | Notes |
+|---|---|---|---|
+| CP1 · pre-flight | ✅ DONE | `43d76171` | SEC-1 cleared (no leaked secrets in git history) · SEC-3 shipped (auth gate on `/api/health/recover`) · SEC-2/4/5 confirmed by operator · rollback tag `pre-migration-audit-2026-05-17` pushed to remote |
+| CP2 · monorepo skeleton | ✅ DONE | `03f8e36b` | nickstire moved to `apps/nickstire/` · root `pnpm-workspace.yaml` · root `package.json` is workspace manifest |
+| CP3 · import statenour | ✅ DONE | `7a8a2eb4` | Imported as `@statenour/web` · pnpm pin merged to root (10.4.1) · `ai@6.0.162` patch reapplied at workspace root · both apps typecheck clean inside monorepo |
+| CP4 · worker service | ✅ DONE | `e022ddb9` | `@statenour/worker` Express + node-cron · Wave 49 hardened auth (fail-closed on empty CRON_SECRET · timingSafeEqual) · scheduler scaffolded with 6 high-freq jobs · `/health` + `/cron/mega{,-evening}` endpoints |
+| CP5 · Dockerfiles + env refactor | ✅ DONE | `1754e84c` | Both Dockerfiles (multi-stage Alpine) · `output: "standalone"` in next.config · `APP_BASE_URL` priority over `VERCEL_PROJECT_PRODUCTION_URL` · dropped dead `better-sqlite3` + `lib/mastery/db.ts` (Elon delete-first) |
+| CP6 doc | ✅ DONE | `6ea7a9f3` | `docs/RAILWAY_PROVISION.md` · operator step-by-step for Railway dashboard |
+| CP6 wiring | ✅ DONE | `88e905eb` | Worker scheduler + mega endpoints forward to statenour-web's existing `/api/cron/*` handlers via `STATENOUR_WEB_URL` · zero statenour code changes · preserves Vercel-era contract exactly |
+| CP7 · Railway cron jobs | ⏸️ OPERATOR | — | See `docs/RAILWAY_PROVISION.md` STEP 4 |
+| CP8 · dual-write 48-72h | ⏸️ OPERATOR | — | See § Phase 3 · CP8 below |
+| CP9 · cutover + DNS | ⏸️ OPERATOR | — | See § Phase 3 · CP9 below |
+| CP10 · Vercel decommission | ⏸️ OPERATOR | — | See § Phase 3 · CP10 below |
+
+## Phase 3 · CP8 · dual-write verification window
+
+Once CP6 + CP7 (Railway dashboard provisioning) are green, run BOTH the
+Vercel statenour-os deployment AND the new Railway services side-by-side
+for 48-72 hours. Goal: prove Railway behavior matches Vercel before
+cutting over.
+
+**During the dual-write window:**
+- Vercel statenour-os cron continues firing every scheduled tick
+- Railway worker cron also fires the same ticks (BOTH systems do the work)
+- Expected duplicate work: telegram alerts arrive twice · brain memory rows
+  may upsert twice (idempotent via Wave-58 marker patterns) · cost ~2x for
+  the window
+
+**What to compare daily:**
+1. Open `/system/cockpit` on Vercel AND on Railway (both URLs) · numbers
+   should match within ±5% (some drift is fine · cron timing offsets)
+2. Telegram alerts arrive from both sources · same content
+3. Brain memory row counts grow at the expected rate on both
+4. No errors specific to Railway in `/system/errors` · only the usual baseline
+
+**Mute one Telegram bot if duplicate alerts are noisy:** set
+`TELEGRAM_BOT_TOKEN` to a different bot's token on Railway worker
+temporarily · or just accept 2x notification spam for 2-3 days.
+
+**Pass criteria for moving to CP9:**
+- 48+ continuous hours with both running
+- Zero Railway-specific errors in `/system/errors`
+- Cockpit numbers agree
+- Operator confirms "I trust Railway is doing what Vercel was doing"
+
+**If Railway misbehaves:** disable the worker · disable Railway crons ·
+roll back to Vercel-only · diagnose · re-attempt.
+
+## Phase 3 · CP9 · cutover + DNS
+
+Only after CP8 is green for 48+ hours.
+
+**Step 1 · disable Vercel statenour-os crons:**
+- In Vercel project settings for `statenour-os`: edit `vercel.json`
+  · set `crons` field to `[]` · deploy
+- Confirms in Vercel deploy logs: cron invocations drop to 0
+- Railway worker now solo-handles all statenour cron load
+
+**Step 2 · point DNS (or drop the domain):**
+- **Decision** (per the original audit): `autonicks.com` is being dropped.
+  Operator chose Railway free `*.up.railway.app` subdomain for admin.
+- **If keeping `autonicks.com` as a temporary redirect:**
+  In Vercel project settings · add a redirect rule for all paths to the
+  Railway subdomain · keep Vercel project alive 24h for grace
+- **If dropping `autonicks.com` entirely:**
+  Cloudflare dashboard → DNS → delete the A/CNAME records pointing at
+  Vercel · waits the DNS TTL (usually 1h) before traffic stops · update
+  any bookmarks or operator memory to use the Railway URL
+- **Note (per operator non-negotiables #2): I do not touch DNS without
+  explicit per-op approval.** Operator action only.
+
+**Step 3 · verify Railway is the sole live statenour:**
+- Vercel project shows no traffic for 2+ hours
+- Railway services receive all expected traffic
+- Operator opens `/system/cockpit` from a phone (not a cached browser
+  tab) · sees expected numbers · auth still works
+
+## Phase 3 · CP10 · Vercel decommission
+
+Only after CP9 is green for 7+ days (full week of Railway as sole host).
+
+**Operator-side (per non-negotiable #2 · I do NOT delete Vercel
+projects):**
+1. Open Vercel dashboard → `statenour-os` project → Settings → delete
+2. Confirm there are no other projects referencing this one
+3. Remove Vercel-side env vars (they're already obsolete · just hygiene)
+4. Update `.remember/core-memories.md` · operator memory:
+   - prod URL changed (was statenour-os.vercel.app or autonicks.com →
+     now Railway subdomain)
+   - cron mechanism changed (Vercel cron → Railway cron + worker)
+5. Decide: archive the standalone `statenour-os` GitHub repo? Operator
+   choice (keep as historical reference OR archive · either works)
+
+**Migration complete when:** Vercel project deleted · operator memory
+updated · README on this monorepo reflects the post-migration architecture.
+
+---
+
+## Phase 3 · branch + merge plan
+
+The migration work lives on `migration/merge-statenour`. **Do not merge
+to `main` until CP6 + CP7 are green and CP8 has been running clean for
+24+ hours.** Premature merge = nickstire.org production starts trying
+to read from the monorepo before the new structure is verified.
+
+**Merge sequence (after CP8 green for 24h):**
+1. Operator: open PR `migration/merge-statenour → main` on GitHub
+2. Operator: review PR · approve · merge
+3. Railway: nickstire-web auto-redeploys from new `main` (built from
+   `apps/nickstire/` now · same code · should be a no-op deploy)
+4. Operator: smoke-test nickstire.org · everything works
+5. Railway: statenour-web + statenour-worker also rebuild from `main`
+   (no-op since they were already deployed from the branch)
+6. Operator: archive the `migration/merge-statenour` branch
+
+**Rollback:** revert the merge commit on `main` · Railway nickstire-web
+redeploys with everything restored. Note the `apps/nickstire/` content
+moved via `git mv` so the revert restores it cleanly.
+
+---
+
+End of Phase 3 progress log.
