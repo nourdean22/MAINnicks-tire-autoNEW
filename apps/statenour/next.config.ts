@@ -126,8 +126,15 @@ const nextConfig: NextConfig = {
     // were decorating routes that no longer exist.
   ],
   // ── Redirects (alias routes) ──────────────────────────────────────────
+  // /dashboard → /tasks (CP-coherency 2026-05-17 · was pointing at /habits
+  // which doesn't exist as a UI page — brain rebuild reduced /brain from
+  // 10 pages to 7 and the /habits page was rolled into /tasks DAILY-loop
+  // concept · /dashboard redirect was never updated. /tasks is the
+  // operator's actual work dashboard.)
   redirects: async () => [
-    { source: "/dashboard", destination: "/habits", permanent: true },
+    { source: "/dashboard", destination: "/tasks", permanent: false },
+    { source: "/habits", destination: "/tasks", permanent: false },
+    { source: "/goals", destination: "/tasks", permanent: false },
     { source: "/nick", destination: "/chat", permanent: true },
   ],
 };

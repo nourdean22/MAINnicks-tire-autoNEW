@@ -18,7 +18,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 import { cn } from "@/lib/utils/cn";
@@ -281,15 +280,7 @@ export function BrainCategoriesView() {
             </div>
             <div>
               <span className="font-semibold text-rose-300">Unregistered</span>
-              : drift. Either add to the registry or migrate the writer. See{" "}
-              <Link
-                href="/docs/reports/organization-audit-2026-04-24.md"
-                className="underline hover:text-[var(--text-primary)]"
-                target="_blank"
-              >
-                organization audit
-              </Link>{" "}
-              for context.
+              : drift. Either add to the registry or migrate the writer.
             </div>
           </div>
         </div>
