@@ -85,14 +85,24 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
 - [ ] Braintrust eval set: 20 golden questions · LLM-as-judge scoring on 4 axes (correctness · tool-use · drift · brevity)
 - [ ] Cutover: flip `AGENT_V2=true` in Railway env · monitor /system/logs for 24h · rollback ready by flipping back
 
-### **Phase 2 · Skill Registry runtime exposure** *(target: 1 week · 2-3 commits)*
-- [ ] Convert the 50 highest-leverage skills in `data/skills-registry.json` → Anthropic Agent Skills format
-  - Each becomes a directory under `apps/statenour/skills/<skill-id>/SKILL.md`
-  - SKILL.md = YAML frontmatter (name · description) + progressive disclosure body + bundled scripts/refs/assets
-- [ ] Mount the skills directory into Mastra agent's tool surface
-- [ ] Wire **Anthropic Tool Search Tool** so Nick discovers skills on demand (85% context reduction)
-- [ ] First-class skill suggestions surface in chat UI (current chat has hot-questions; add "skills Nick is using now")
-- [ ] Validate against the Phase-1 Braintrust eval set · should not regress
+### **Phase 2 · Skill Registry runtime exposure** *(LANDED via inheritance — 2026-05-17 · see ADR-0004)*
+
+Audit during Phase 2 kickoff revealed the substrate was already shipped
+at v10.0.431-434 (the recall layer + `searchSkills` tool + auto-inject
+context block). Mastra agent inherits `nourTools` which inherits
+`brainTools.searchSkills` — so Phase 1's flag flip simultaneously enables
+Phase 2's runtime skill access.
+
+- [x] `data/skills-registry.json` · 1,423 skills indexed with embeddings
+- [x] `lib/skills/skill-recall.ts` · semantic search · cosine over `VectorEmbedding`
+- [x] `lib/skills/skill-context.ts` · auto-injects top-3 relevant skills per turn
+- [x] `searchSkills` tool (in `brain.ts`) · explicit lookup surface
+- [x] Mastra agent inherits via `nourTools` spread (Phase 1 commit `b27b58fb`)
+- [x] ADR-0004 documents the architecture + why we rejected Anthropic Tool Search Tool
+- [ ] *(optional follow-up)* Wire Anthropic Tool Search Tool as a wrapper IF
+  Anthropic becomes the dominant provider — not needed today
+- [ ] *(optional follow-up)* Chat UI badge: "skills Nick used this turn"
+  (telemetry already written to `SystemMetric` rows · just needs a view)
 
 ### **Phase 3 · Inngest durability** *(target: 3-5 days · 2 commits)*
 - [ ] OPERATOR: create Inngest account · paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` into Railway statenour-web env
@@ -181,5 +191,6 @@ See: `docs/adr/0003-livekit-operator-voice.md`.
 - `docs/adr/0001-mastra-adoption.md` — Mastra decision + rejected alternatives
 - `docs/adr/0002-braintrust-observability.md` — Braintrust decision
 - `docs/adr/0003-livekit-operator-voice.md` — LiveKit + Deepgram + Cartesia decision
+- `docs/adr/0004-skill-registry-runtime.md` — why we kept the existing recall layer (Phase 2)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `docs/MIGRATION_PLAN.md` — the Wave-100→200 Railway migration that landed today
