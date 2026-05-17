@@ -139,6 +139,24 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   shopdriver: "settings",
   alg: "settings",
 
+  // Hyphenated/spelled-out variants — match the sidebar label words so a
+  // human reading "Leads & Estimates" in the sidebar and typing it into
+  // the URL still lands on the right page (instead of the blank-panel
+  // bug from the bare cast on line 186).
+  "leads-and-estimates": "leads",
+  "leadsandestimates": "leads",
+  "leads-estimates": "leads",
+  "call-tracking": "callTrackingView",
+  "voice-receptionist": "voiceReceptionist",
+  "outreach-hub": "campaigns",
+  "outreach": "campaigns",
+  "revenue-and-shop": "revenue",
+  "declined-work": "declinedEstimates",
+  "snap-finance": "snapDashboard",
+  "traffic-revenue": "trafficFunnel",
+  "content-and-ai": "content",
+  "nour-os-bridge": "settings",
+
   // Deleted sections (2026-04-24 admin audit) — redirect old bookmarks
   // to the closest live section so no one hits a broken deep-link.
   bookings: "overview",
@@ -176,14 +194,30 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   seoengine: "content",
 };
 
+// Canonical set of valid AdminSection slugs — used to reject unknown
+// `?tab=` values rather than rendering a blank main panel (the bug
+// pre-2026-05-17 was that any unknown slug got cast to AdminSection
+// via `as`, then every `section === "..."` check returned false,
+// leaving the whole right pane empty).
+const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
+  "commandCenter", "overview", "leads", "content", "customers",
+  "campaigns", "settings", "revenue", "callTrackingView", "intelligence",
+  "declinedEstimates", "noShowRisk", "walkInCalc",
+  "snapDashboard", "trafficFunnel", "conversionPreview", "voiceReceptionist",
+]);
+
 function resolveInitialSection(): AdminSection {
   if (typeof window === "undefined") return "overview";
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
   if (!raw) return "overview";
   if (raw in TAB_ALIASES) return TAB_ALIASES[raw];
-  // Accept exact AdminSection names too (e.g. ?section=workOrders)
-  return raw as AdminSection;
+  // Accept exact AdminSection names (case-insensitive so ?tab=Overview works).
+  for (const valid of VALID_SECTIONS) {
+    if (valid.toLowerCase() === raw) return valid;
+  }
+  // Unknown · fall back to overview rather than blank panel.
+  return "overview";
 }
 
 export default function Admin() {
