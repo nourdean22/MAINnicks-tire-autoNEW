@@ -1,0 +1,1117 @@
+/**
+ * POST /api/telegram/webhook
+ *
+ * Handles Telegram Bot updates:
+ *   1. callback_query — inline button presses (approve morning, etc.)
+ *   2. message — text commands from Nour (/status, /schedule, etc.)
+ *
+ * Register once:
+ *   curl "https://api.telegram.org/bot$TOKEN/setWebhook?url=https://autonicks.com/api/telegram/webhook"
+ *
+ * Commands:
+ *   /status    — Quick system snapshot (revenue, leads, loops, alerts)
+ *   /schedule  — Today's time-blocked schedule
+ *   /staffing  — Tomorrow's staffing prediction
+ *   /memory <query> — Semantic search of brain memories
+ *   /brain     — Brain health stats
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
+import {
+  answerCallbackQuery,
+  editTelegramMessage,
+  sendTelegram,
+} from "@/lib/services/telegram";
+
+/**
+ * v9.1.14 · Constant-time secret compare. The previous `provided !==
+ * EXPECTED_SECRET` was vulnerable to timing-attack inference of the
+ * 256-char Telegram secret. This helper matches the safeEqual pattern
+ * already in lib/auth-guard.ts (kept inline here so the webhook stays
+ * dependency-light at module-load).
+ */
+function safeSecretEqual(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
+export const maxDuration = 30;
+
+/**
+ * Telegram is configured with a `secret_token` at setWebhook time.
+ * Every POST to this endpoint carries header
+ *   X-Telegram-Bot-Api-Secret-Token: <value>
+ * which we validate before doing anything. Without this, anyone who
+ * learns the webhook URL can forge updates. The chat-id check below
+ * is a second layer — it rejects messages from unknown chats — but
+ * doesn't help if an attacker spoofs Nour's chat id.
+ *
+ * v8.21 · Apr 29 · HARDENED · v8.33 · Apr 30 · UN-FOOTGUNNED.
+ * v8.21 introduced a module-load throw if TELEGRAM_WEBHOOK_SECRET was
+ * unset. That made Vercel's build step fail entirely (every Apr 29
+ * deploy bounced) because Next compiles every route's module at build
+ * time and the throw fired during compilation, before the env actually
+ * needs to exist.
+ *
+ * v8.33 fixes that: the check moves into the request handler. Build
+ * succeeds even when the env var isn't yet set; any inbound request
+ * with the env unset returns 503 (Service Unavailable, plus a clear
+ * message in logs). Forged or unsigned requests still get 401.
+ *
+ * Net: same fail-closed semantic for traffic, no build break.
+ */
+const EXPECTED_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
+if (!EXPECTED_SECRET) {
+  // Surface the misconfig prominently in startup logs so dev/prod
+  // operators see it. NOT a throw — see comment above.
+  console.warn(
+    "[telegram:webhook] TELEGRAM_WEBHOOK_SECRET is not set. The endpoint will refuse all traffic with 503 until the env var is configured.",
+  );
+}
+
+export async function POST(req: NextRequest) {
+  // Fail-closed if the env var is missing in this runtime instance.
+  // 503 (not 401) so the operator immediately knows it's a config gap
+  // versus a forged-secret rejection.
+  if (!EXPECTED_SECRET) {
+    return NextResponse.json(
+      { ok: false, error: "TELEGRAM_WEBHOOK_SECRET not configured", code: "ENV_MISSING" },
+      { status: 503 },
+    );
+  }
+  const provided = req.headers.get("x-telegram-bot-api-secret-token") ?? "";
+  if (!safeSecretEqual(provided, EXPECTED_SECRET)) {
+    return NextResponse.json({ ok: false, error: "bad secret" }, { status: 401 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ ok: false }, { status: 400 });
+  }
+
+  // ── Handle callback_query (inline button press) ──
+  const callback = body.callback_query as {
+    id: string;
+    data?: string;
+    message?: { message_id: number; chat: { id: number } };
+  } | undefined;
+
+  if (callback?.data) {
+    await handleCallback(callback);
+    return NextResponse.json({ ok: true });
+  }
+
+  // ── Handle message (text, photos, voice, etc.) ──
+  const message = body.message as {
+    text?: string;
+    photo?: { file_id: string; width: number; height: number }[];
+    voice?: { file_id: string; duration: number };
+    caption?: string;
+    entities?: { type: string; url?: string; offset: number; length: number }[];
+    chat: { id: number };
+  } | undefined;
+
+  if (!message) return NextResponse.json({ ok: true });
+
+  const chatId = String(message.chat.id);
+  const expectedChat = process.env.TELEGRAM_CHAT_ID;
+  if (expectedChat && chatId !== expectedChat) {
+    return NextResponse.json({ ok: true });
+  }
+
+  // Photo input — analyze image
+  if (message.photo && message.photo.length > 0) {
+    await handlePhoto(message.photo, message.caption, chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Voice note input — transcribe and act
+  if (message.voice) {
+    await handleVoice(message.voice, chatId);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Text with URLs — analyze links
+  if (message.text && message.entities?.some((e) => e.type === "url")) {
+    const urls = message.entities
+      .filter((e) => e.type === "url")
+      .map((e) => message.text!.substring(e.offset, e.offset + e.length));
+    if (urls.length > 0) {
+      await handleUrl(urls[0], message.text, chatId);
+      return NextResponse.json({ ok: true });
+    }
+  }
+
+  // Text commands
+  if (message.text) {
+    await handleCommand(message.text, chatId);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+// ── Callback handler (inline buttons) ─────────────────────
+
+async function handleCallback(callback: {
+  id: string;
+  data?: string;
+  message?: { message_id: number; chat: { id: number } };
+}): Promise<void> {
+  const [action, param] = (callback.data ?? "").split(":");
+  const messageId = callback.message?.message_id;
+  const chatId = String(callback.message?.chat?.id ?? "");
+
+  try {
+    // Apr 17 separation pass — autopilot-morning approval flow retired
+    // along with the cron that produced it. Shop-side approvals now
+    // live in nickstire.org/admin.
+    await answerCallbackQuery(callback.id, "Unknown action.");
+    void action;
+    void param;
+    void messageId;
+  } catch (err) {
+    console.error("[telegram:webhook] Callback error:", err);
+    await answerCallbackQuery(callback.id, "Error processing action.");
+  }
+}
+
+// ── Command handler (text messages) ───────────────────────
+
+async function handleCommand(text: string, chatId: string): Promise<void> {
+  const trimmed = text.trim();
+  const [cmd, ...args] = trimmed.split(/\s+/);
+  const command = cmd.toLowerCase();
+
+  try {
+    switch (command) {
+      case "/status":
+        return await cmdStatus(chatId);
+      case "/schedule":
+        return await cmdSchedule(chatId);
+      case "/memory":
+        return await cmdMemory(args.join(" "), chatId);
+      case "/brain":
+        return await cmdBrain(chatId);
+      // v8.7 BATCH 42 — recent active alerts
+      case "/alerts":
+        return await cmdAlerts(chatId);
+      case "/imagine":
+        return await cmdImagine(args.join(" "), chatId);
+      // ── Remote-write commands (#26 Telegram as full remote) ──
+      // /score retired Apr 18 alongside DailyScore UI retirement.
+      case "/dump":
+      case "/braindump":
+        return await cmdDump(args.join(" "), chatId);
+      case "/task":
+      case "/todo":
+        return await cmdTask(args.join(" "), chatId);
+      case "/mit":
+        return await cmdMit(args.join(" "), chatId);
+      case "/commit":
+        return await cmdCommit(args.join(" "), chatId);
+      case "/ask":
+      case "/nick":
+        return await cmdAsk(args.join(" "), chatId);
+      // v8.23 — phone-first remote read extensions
+      case "/goals":
+        return await cmdGoals(chatId);
+      case "/predict":
+      case "/predictions":
+        return await cmdPredict(chatId);
+      case "/search":
+        return await cmdSearch(args.join(" "), chatId);
+      case "/stats":
+        return await cmdStats(chatId);
+      case "/help":
+        return await sendTelegram(
+          `🤖 <b>Nick Commands — Personal OS</b>\n\n` +
+            `<b>READ</b>\n` +
+            `/status — System snapshot\n` +
+            `/schedule — Today's schedule\n` +
+            `/memory [q] — Search memories\n` +
+            `/search [q] — Semantic search journal + chat\n` +
+            `/brain — Brain health\n` +
+            `/goals — Active goals + pace\n` +
+            `/predict — Top open predictions\n` +
+            `/stats — Quick numeric snapshot\n` +
+            `/alerts — Recent active alerts\n` +
+            `/imagine [prompt] — Generate image\n` +
+            `\n<b>WRITE (remote control)</b>\n` +
+            `/dump [text] — Brain dump to journal\n` +
+            `/task [text] — Create task\n` +
+            `/mit [text] — Set today's MIT\n` +
+            `/commit [text] — Create commitment\n` +
+            `/ask [question] — Ask Nick anything\n\n` +
+            `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
+          chatId
+        ).then(() => {});
+      default:
+        // Not a command — ignore (don't spam back)
+        return;
+    }
+  } catch (err) {
+    console.error("[telegram:cmd]", command, err);
+    await sendTelegram(`⚠️ Command failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
+  }
+}
+
+// ── Remote-write commands (#26) ───────────────────────────
+// Turns Telegram into a full remote control for NOUR OS. Every
+// command hits the same service layer the web UI uses, so nothing
+// drifts between the two surfaces.
+
+async function cmdDump(args: string, chatId: string): Promise<void> {
+  if (!args.trim()) {
+    await sendTelegram(
+      `Usage: /dump [text]\n\nDumps the text through the full brain-dump ingest pipeline (extracts tasks, insights, commitments, mood, type).`,
+      chatId
+    );
+    return;
+  }
+  try {
+    const { ingestJournal } = await import("@/lib/brain/journal-ingest");
+    const result = await ingestJournal(args);
+    const r = result as unknown as {
+      tasksCreated?: number;
+      insightsStored?: number;
+      commitmentsFound?: number;
+      entryType?: string;
+      summary?: string;
+    };
+    await sendTelegram(
+      `🧠 <b>Dumped</b>\n\nType: <b>${r.entryType || "raw"}</b>\nTasks: ${r.tasksCreated ?? 0}\nInsights: ${r.insightsStored ?? 0}\nCommitments: ${r.commitmentsFound ?? 0}${r.summary ? `\n\n<i>${r.summary.slice(0, 400)}</i>` : ""}`,
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Dump failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+async function cmdTask(args: string, chatId: string): Promise<void> {
+  if (!args.trim()) {
+    await sendTelegram(`Usage: /task [text]`, chatId);
+    return;
+  }
+  try {
+    // v10.0.529.99 · Wave 43 · route through canonical service +
+    // dynamic inbox resolver. Was hardcoded "m-inbox" + raw
+    // prisma.task.create · would silently fail if the inbox row was
+    // ever deleted AND skipped audit/priority-sync/cache-invalidation.
+    const { createTask } = await import("@/lib/services/tasks");
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    const title = args.trim().slice(0, 200);
+    const inboxMissionId = await resolveInboxMissionId();
+    const task = await createTask({
+      title,
+      missionId: inboxMissionId,
+      status: "INBOX",
+      nextPhysicalAction: title,
+      effort: "M15",
+      roiScore: 50,
+      frictionScore: 50,
+      energyRequired: "MEDIUM",
+      context: "PHONE",
+      finishCondition: "Item resolved · outcome logged",
+      autoPriorityExplanation: "captured via Telegram /task",
+    });
+    if (!task) {
+      await sendTelegram(`⚠️ Task save returned no view-model · check /system/errors`, chatId);
+      return;
+    }
+    await sendTelegram(
+      `✅ <b>Task created</b>\n\n${task.title}\n<i>id: ${task.id.slice(0, 8)} · inbox</i>`,
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Task failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+async function cmdMit(args: string, chatId: string): Promise<void> {
+  if (!args.trim()) {
+    await sendTelegram(
+      `Usage: /mit [text]\n\nSets today's MIT (Most Important Task) in the brain_memory table — synced to the /command HQ.`,
+      chatId
+    );
+    return;
+  }
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const date = new Date().toISOString().slice(0, 10);
+    await prisma.brainMemory.upsert({
+      where: { category_key: { category: "mit", key: date } },
+      update: { content: args.trim(), confidence: 1.0 },
+      create: {
+        category: "mit",
+        key: date,
+        content: args.trim(),
+        source: "telegram",
+        confidence: 1.0,
+      },
+    });
+    await sendTelegram(`⚔️ <b>MIT locked</b>\n\n${args.trim()}`, chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ MIT failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+async function cmdCommit(args: string, chatId: string): Promise<void> {
+  if (!args.trim()) {
+    await sendTelegram(`Usage: /commit [text]`, chatId);
+    return;
+  }
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const today = new Date().toISOString().slice(0, 10);
+    const commitment = await prisma.commitment.create({
+      data: {
+        dateMade: today,
+        toWhom: "self",
+        description: args.trim().slice(0, 500),
+        status: "active",
+      },
+    });
+    await sendTelegram(
+      `🤝 <b>Commitment locked</b>\n\n${commitment.description}`,
+      chatId
+    );
+  } catch (err) {
+    await sendTelegram(`⚠️ Commit failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+async function cmdAsk(args: string, chatId: string): Promise<void> {
+  if (!args.trim()) {
+    await sendTelegram(`Usage: /ask [question] — get a one-shot answer from Nick`, chatId);
+    return;
+  }
+  try {
+    const { tracedAiChat } = await import("@/lib/ai/traced-aichat");
+    const result = await tracedAiChat(
+      { label: "telegram-ask", source: "tool", metadata: { chatId } },
+      [
+        {
+          role: "system",
+          content:
+            "You are Nick — Nour's Chief of Staff. Telegram mobile context, keep the answer under 200 words, no fluff, data-first. End with ONE specific action.",
+        },
+        { role: "user", content: args.trim() },
+      ],
+      "reason"
+    );
+    if (result.provider === "none") {
+      await sendTelegram(`⚠️ No AI provider available right now.`, chatId);
+      return;
+    }
+    await sendTelegram(`🧠 <b>Nick</b>\n\n${result.content.slice(0, 3500)}`, chatId);
+  } catch (err) {
+    await sendTelegram(`⚠️ Ask failed: ${(err as Error).message}`, chatId);
+  }
+}
+
+// ── Individual commands ───────────────────────────────────
+
+async function cmdStatus(chatId: string): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  const { today } = await import("@/lib/utils/datetime");
+
+  // Apr 17 sweep: OpenLoop + DailyScore retired. Status now reports
+  // the live Task queue + reflections.
+  const [inbox, ready, doing, alerts, leads, commitments, reflectedToday] =
+    await Promise.all([
+      prisma.task.count({ where: { status: "INBOX" } }).catch(() => 0),
+      prisma.task.count({ where: { status: "READY" } }).catch(() => 0),
+      prisma.task.count({ where: { status: "DOING" } }).catch(() => 0),
+      prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+      Promise.resolve(0).catch(() => 0),
+      prisma.commitment
+        .count({ where: { status: { in: ["active", "in_progress"] } } })
+        .catch(() => 0),
+      prisma.reflection.count({ where: { date: today() } }).catch(() => 0),
+    ]);
+
+  await sendTelegram(
+    `📊 <b>NOUR OS Status</b> — ${now()}\n\n` +
+      `📥 Inbox: ${inbox} · ▶︎ Ready: ${ready} · 🔥 Doing: ${doing}\n` +
+      `⚠️ Drift alerts: ${alerts}\n` +
+      `📱 New leads: ${leads}\n` +
+      `✅ Commitments: ${commitments}\n` +
+      `📝 Reflections today: ${reflectedToday}`,
+    chatId
+  );
+}
+
+async function cmdSchedule(chatId: string): Promise<void> {
+  const { generateDailySchedule } = await import("@/lib/brain/daily-scheduler");
+  const schedule = await generateDailySchedule();
+
+  const blockLines = schedule.blocks.map((b) => {
+    const emoji = b.type === "deep_work" ? "🧠" : b.type === "body" ? "💪" : b.type === "communication" ? "📞" : b.type === "review" ? "📝" : "⚙️";
+    return `${emoji} <b>${b.time}</b> ${b.task.slice(0, 50)}`;
+  });
+
+  await sendTelegram(
+    `📋 <b>Today's Schedule</b>\n\n${blockLines.join("\n")}\n\n${schedule.summary}`,
+    chatId
+  );
+}
+
+async function cmdMemory(query: string, chatId: string): Promise<void> {
+  if (!query.trim()) {
+    await sendTelegram("Usage: /memory <search query>\nExample: /memory customer alignment issue", chatId);
+    return;
+  }
+
+  const { semanticSearch } = await import("@/lib/brain/embedding-utils");
+  const results = await semanticSearch(query, 5);
+
+  if (results.length === 0) {
+    // Fall back to keyword search
+    const { prisma } = await import("@/lib/prisma");
+    const memories = await prisma.brainMemory.findMany({
+      where: { content: { contains: query, mode: "insensitive" } },
+      orderBy: { confidence: "desc" },
+      take: 5,
+      select: { category: true, content: true, confidence: true },
+    });
+
+    if (memories.length === 0) {
+      await sendTelegram(`🔍 No memories found for "${query}"`, chatId);
+      return;
+    }
+
+    const lines = memories.map(
+      (m) => `[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, 120)}`
+    );
+    await sendTelegram(
+      `🔍 <b>Memory Search</b> (keyword)\nQuery: "${query}"\n\n${lines.join("\n\n")}`,
+      chatId
+    );
+    return;
+  }
+
+  const lines = results.map(
+    (r) => `(${(r.similarity * 100).toFixed(0)}% match) ${r.content.slice(0, 120)}`
+  );
+  await sendTelegram(
+    `🔍 <b>Memory Search</b> (semantic)\nQuery: "${query}"\n\n${lines.join("\n\n")}`,
+    chatId
+  );
+}
+
+async function cmdBrain(chatId: string): Promise<void> {
+  const { brainMemory } = await import("@/lib/brain/memory-manager");
+  const { prisma } = await import("@/lib/prisma");
+
+  const [status, embeddingCount] = await Promise.all([
+    brainMemory.getStatus(),
+    prisma.vectorEmbedding.count({ where: { sourceType: "brain_memory" } }).catch(() => 0),
+  ]);
+
+  const s = status as {
+    total: number;
+    permanent: number;
+    temporary: number;
+    avgConfidence: number;
+    byCategory: { category: string; count: number }[];
+  };
+
+  const topCats = s.byCategory.slice(0, 5).map((c) => `  ${c.category}: ${c.count}`).join("\n");
+
+  await sendTelegram(
+    `🧠 <b>Brain Health</b>\n\n` +
+      `Total memories: ${s.total}\n` +
+      `Permanent: ${s.permanent} | Temporary: ${s.temporary}\n` +
+      `Avg confidence: ${s.avgConfidence}\n` +
+      `Embeddings: ${embeddingCount}/${s.total}\n\n` +
+      `<b>Top categories:</b>\n${topCats}`,
+    chatId
+  );
+}
+
+/**
+ * v8.23 — /goals: active LifeGoals with progress + pace.
+ */
+async function cmdGoals(chatId: string): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  const goals = await prisma.lifeGoal.findMany({
+    where: { status: "active", deletedAt: null },
+    orderBy: [{ horizon: "asc" }, { progress: "desc" }],
+    take: 10,
+    select: {
+      title: true,
+      domain: true,
+      horizon: true,
+      progress: true,
+      currentValue: true,
+      targetValue: true,
+      unit: true,
+      deadline: true,
+    },
+  });
+
+  if (goals.length === 0) {
+    await sendTelegram("🎯 No active goals. Set one with /ask 'add a goal: …'", chatId);
+    return;
+  }
+
+  const lines = goals.map((g) => {
+    const pct = Math.round(g.progress);
+    const bar = "▰".repeat(Math.floor(pct / 10)) + "▱".repeat(10 - Math.floor(pct / 10));
+    const dl = g.deadline
+      ? ` · ${Math.max(0, Math.round((g.deadline.getTime() - Date.now()) / 86_400_000))}d left`
+      : "";
+    const value = `${Math.round(g.currentValue * 10) / 10}/${g.targetValue}${g.unit}`;
+    const horizon = g.horizon ? `[${g.horizon}] ` : "";
+    return `${horizon}<b>${escapeHtml(g.title)}</b>\n  ${bar} ${pct}% · ${value}${dl}`;
+  });
+
+  await sendTelegram(`🎯 <b>Active Goals (${goals.length})</b>\n\n${lines.join("\n\n")}`, chatId);
+}
+
+/**
+ * v8.23 — /predict: top open predictions Nick has made.
+ */
+async function cmdPredict(chatId: string): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  const predictions = await prisma.prediction.findMany({
+    where: { status: "pending" },
+    orderBy: [{ confidence: "desc" }, { targetDate: "asc" }],
+    take: 8,
+    select: {
+      prediction: true,
+      category: true,
+      confidence: true,
+      targetDate: true,
+      basis: true,
+    },
+  });
+
+  if (predictions.length === 0) {
+    await sendTelegram("🔮 No open predictions yet.", chatId);
+    return;
+  }
+
+  const lines = predictions.map((p) => {
+    const conf = Math.round(p.confidence * 100);
+    return (
+      `<b>[${p.category}]</b> ${escapeHtml(p.prediction.slice(0, 200))}\n` +
+      `  ${conf}% confidence · target ${p.targetDate}`
+    );
+  });
+
+  await sendTelegram(
+    `🔮 <b>Open Predictions (${predictions.length})</b>\n\n${lines.join("\n\n")}`,
+    chatId,
+  );
+}
+
+/**
+ * v8.23 — /search: semantic search over BrainMemory + brain dumps.
+ * Composes on the embedding pipeline that v8.22 wired into journal
+ * ingest. Falls back to keyword search when embeddings are empty.
+ */
+async function cmdSearch(query: string, chatId: string): Promise<void> {
+  if (!query.trim()) {
+    await sendTelegram("Usage: /search <query>\nExample: /search burnout patterns", chatId);
+    return;
+  }
+  const { semanticSearch } = await import("@/lib/brain/embedding-utils");
+  const { prisma } = await import("@/lib/prisma");
+  const hits = await semanticSearch(query, 6);
+
+  if (hits.length === 0) {
+    // Fall back to LIKE search across journal + memory
+    const dumps = await prisma.brainDump.findMany({
+      where: { rawThoughts: { contains: query, mode: "insensitive" } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { rawThoughts: true, createdAt: true, summary: true },
+    });
+    if (dumps.length === 0) {
+      await sendTelegram(`🔍 No matches for "${query}".`, chatId);
+      return;
+    }
+    const lines = dumps.map(
+      (d) =>
+        `${d.createdAt.toISOString().slice(0, 10)}\n${escapeHtml(
+          (d.summary ?? d.rawThoughts).slice(0, 220),
+        )}`,
+    );
+    await sendTelegram(
+      `🔍 <b>Keyword search</b> "${escapeHtml(query)}"\n\n${lines.join("\n\n")}`,
+      chatId,
+    );
+    return;
+  }
+
+  const lines = hits.map(
+    (h) =>
+      `(${(h.similarity * 100).toFixed(0)}%) ${escapeHtml(h.content.slice(0, 220))}`,
+  );
+  await sendTelegram(
+    `🔍 <b>Semantic search</b> "${escapeHtml(query)}"\n\n${lines.join("\n\n")}`,
+    chatId,
+  );
+}
+
+/**
+ * v8.23 — /stats: numeric snapshot — counts across the OS for a
+ * quick at-a-glance pulse from the phone.
+ */
+async function cmdStats(chatId: string): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000);
+
+  const [
+    activeGoals,
+    pendingPredictions,
+    activeTasks,
+    activeCommitments,
+    recentJournal,
+    recentAlerts,
+    embeddingTotal,
+  ] = await Promise.all([
+    prisma.lifeGoal.count({ where: { status: "active" } }).catch(() => 0),
+    prisma.prediction.count({ where: { status: "pending" } }).catch(() => 0),
+    prisma.task
+      .count({ where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null } })
+      .catch(() => 0),
+    prisma.commitment
+      .count({ where: { status: { in: ["active", "in_progress"] } } })
+      .catch(() => 0),
+    prisma.brainDump.count({ where: { createdAt: { gte: sevenDaysAgo } } }).catch(() => 0),
+    prisma.brainMemory
+      .count({
+        where: {
+          category: {
+            in: [
+              "correlation_alert",
+              "decision_quality_drift",
+              "schema_drift_alert",
+              "storage_quota_alert",
+              "creation_spike_alert",
+              "update_spike_alert",
+              "brain_bus_alert",
+            ],
+          },
+          createdAt: { gte: sevenDaysAgo },
+          deletedAt: null,
+        },
+      })
+      .catch(() => 0),
+    prisma.vectorEmbedding.count().catch(() => 0),
+  ]);
+
+  await sendTelegram(
+    `📊 <b>Quick Stats</b> — ${now()}\n\n` +
+      `🎯 ${activeGoals} active goals\n` +
+      `🔮 ${pendingPredictions} open predictions\n` +
+      `▶︎ ${activeTasks} live tasks\n` +
+      `🤝 ${activeCommitments} commitments\n\n` +
+      `<b>Last 7 days</b>\n` +
+      `📝 ${recentJournal} journal entries\n` +
+      `🚨 ${recentAlerts} brain alerts fired\n\n` +
+      `<b>Brain</b>\n` +
+      `🧬 ${embeddingTotal.toLocaleString()} vectors indexed`,
+    chatId,
+  );
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * v8.7 BATCH 42 — /alerts command. Pulls the last 5 active alert
+ * BrainMemory rows across all alert categories. Composes with the
+ * v8.5 alert-Telegram-bridge (which auto-pushes new alerts) so Nour
+ * can also pull on demand.
+ */
+async function cmdAlerts(chatId: string): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+
+  const ALERT_CATS = [
+    "correlation_alert",
+    "decision_quality_drift",
+    "schema_drift_alert",
+    "storage_quota_alert",
+    "creation_spike_alert",
+    "update_spike_alert",
+    "brain_bus_alert",
+  ];
+
+  const alerts = await prisma.brainMemory.findMany({
+    where: {
+      category: { in: ALERT_CATS },
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: { category: true, content: true, createdAt: true },
+  });
+
+  if (alerts.length === 0) {
+    await sendTelegram("✅ No active alerts in the last 30 days.", chatId);
+    return;
+  }
+
+  const labels: Record<string, string> = {
+    correlation_alert: "🔗",
+    decision_quality_drift: "📉",
+    schema_drift_alert: "⚠️",
+    storage_quota_alert: "💾",
+    creation_spike_alert: "🌊",
+    update_spike_alert: "🔁",
+    brain_bus_alert: "🛰️",
+  };
+
+  const formatAge = (iso: Date): string => {
+    const ms = Date.now() - iso.getTime();
+    if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
+    return `${Math.round(ms / 86_400_000)}d ago`;
+  };
+
+  const escapeHtml = (s: string): string =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const lines = alerts.map(
+    (a) =>
+      `${labels[a.category] ?? "•"} <b>${escapeHtml(a.category)}</b> · ${formatAge(a.createdAt)}\n${escapeHtml(a.content.slice(0, 240))}`,
+  );
+
+  await sendTelegram(
+    `<b>Recent active alerts (${alerts.length})</b>\n\n${lines.join("\n\n")}`,
+    chatId,
+  );
+}
+
+// ── Multi-modal input handlers ────────────────────────────
+
+async function handlePhoto(
+  photos: { file_id: string; width: number; height: number }[],
+  caption: string | undefined,
+  chatId: string
+): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return;
+
+  // Get the largest photo (last in array)
+  const photo = photos[photos.length - 1];
+
+  try {
+    // Get file path from Telegram
+    const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${photo.file_id}`);
+    const fileData = await fileRes.json();
+    const filePath = fileData.result?.file_path;
+
+    if (!filePath) {
+      await sendTelegram("Couldn't process the photo. Try again.", chatId);
+      return;
+    }
+
+    // Download the image
+    const imageUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+    const imageRes = await fetch(imageUrl);
+    const imageBuffer = await imageRes.arrayBuffer();
+    const base64 = Buffer.from(imageBuffer).toString("base64");
+    const mimeType = filePath.endsWith(".png") ? "image/png" : "image/jpeg";
+
+    // Analyze with multimodal AI (send actual image data)
+    const veniceKey = process.env.VENICE_API_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+
+    let analysisText = "";
+
+    // Try Venice vision model first (qwen3-vl supports images via OpenAI compat)
+    if (veniceKey) {
+      try {
+        const vRes = await fetch("https://api.venice.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${veniceKey}` },
+          body: JSON.stringify({
+            model: "qwen3-vl-235b-a22b",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image_url",
+                    image_url: { url: `data:${mimeType};base64,${base64}` },
+                  },
+                  {
+                    type: "text",
+                    text: `You are Nick, Nour's Chief of Staff (tire shop CEO). Analyze this image.\n${caption ? `Caption: "${caption}"` : ""}\nProvide: 1) What this is 2) Actionable insight (car issue→service+price, competitor→intelligence, receipt→expense) 3) One recommendation`,
+                  },
+                ],
+              },
+            ],
+            max_tokens: 500,
+            // v10.0.180 · added per the disable_thinking gate. Vision
+            // models on Venice can emit <think> tokens too; without
+            // this set the 500-token budget could be burned on
+            // internal reasoning, returning empty content. See
+            // scripts/check-venice-disable-thinking.ts header for
+            // the bug-class history.
+            venice_parameters: {
+              disable_thinking: true,
+              strip_thinking_response: true,
+            },
+          }),
+        });
+        if (vRes.ok) {
+          const vData = await vRes.json();
+          analysisText = vData.choices?.[0]?.message?.content ?? "";
+        }
+      } catch { /* fall through to Anthropic */ }
+    }
+
+    // Fallback: Anthropic Claude (native vision support)
+    if (!analysisText && anthropicKey) {
+      try {
+        const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": anthropicKey,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 500,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mimeType, data: base64 } },
+                { type: "text", text: `You are Nick, analyzing an image for Nour (tire shop CEO). ${caption ? `Caption: "${caption}". ` : ""}What is this? Any actionable insight? One recommendation.` },
+              ],
+            }],
+          }),
+        });
+        if (aRes.ok) {
+          const aData = await aRes.json();
+          analysisText = aData.content?.[0]?.text ?? "";
+        }
+      } catch { /* fall through */ }
+    }
+
+    // Last resort: text-only analysis based on caption
+    if (!analysisText) {
+      const { tracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const result = await tracedAiChat(
+        { label: "telegram-photo-fallback", source: "tool", metadata: { chatId } },
+        [
+          { role: "system", content: "You received a photo you cannot see. Respond based on the caption only. Be honest that you can't see the image." },
+          { role: "user", content: `Photo (${photo.width}x${photo.height}). ${caption ? `Caption: "${caption}"` : "No caption."}` },
+        ],
+        "fast"
+      );
+      analysisText = result.content;
+    }
+
+    await sendTelegram(`📸 <b>Photo Analysis</b>\n\n${analysisText.slice(0, 3500)}`, chatId);
+
+    // Store as brain memory
+    const { brainMemory } = await import("@/lib/brain/memory-manager");
+    await brainMemory.remember(
+      "visual_input",
+      `photo_${Date.now()}`,
+      `Photo analyzed: ${analysisText.slice(0, 300)}${caption ? ` (caption: ${caption})` : ""}`,
+      "telegram-photo"
+    );
+  } catch (err) {
+    await sendTelegram(`Photo analysis failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
+  }
+}
+
+async function handleVoice(
+  voice: { file_id: string; duration: number },
+  chatId: string
+): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) return;
+
+  try {
+    await sendTelegram(`🎙️ Transcribing ${voice.duration}s voice note...`, chatId);
+
+    // Get file from Telegram
+    const fileRes = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${voice.file_id}`);
+    const fileData = await fileRes.json();
+    const filePath = fileData.result?.file_path;
+
+    if (!filePath) {
+      await sendTelegram("Couldn't process the voice note.", chatId);
+      return;
+    }
+
+    // Download audio
+    const audioUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
+    const audioRes = await fetch(audioUrl);
+    const audioBuffer = await audioRes.arrayBuffer();
+
+    // Transcribe via HuggingFace Whisper
+    const hfKey = process.env.HUGGINGFACE_API_KEY;
+    let transcript = "";
+
+    if (hfKey) {
+      const whisperRes = await fetch(
+        "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo",
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${hfKey}` },
+          body: Buffer.from(audioBuffer),
+        }
+      );
+
+      if (whisperRes.ok) {
+        const data = await whisperRes.json();
+        transcript = data.text || "";
+      }
+    }
+
+    if (!transcript) {
+      await sendTelegram("Transcription failed. Try again or type your message.", chatId);
+      return;
+    }
+
+    // Process the transcription as a command or message
+    await sendTelegram(`📝 <b>Transcribed:</b> "${transcript}"`, chatId);
+
+    // If it starts with a slash command, route it
+    if (transcript.trim().startsWith("/")) {
+      await handleCommand(transcript.trim(), chatId);
+    } else {
+      // Treat as a brain dump / note
+      const { brainMemory } = await import("@/lib/brain/memory-manager");
+      await brainMemory.remember(
+        "voice_note",
+        `voice_${Date.now()}`,
+        transcript,
+        "telegram-voice"
+      );
+      await sendTelegram("✅ Stored as brain memory.", chatId);
+    }
+  } catch (err) {
+    await sendTelegram(`Voice processing failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
+  }
+}
+
+async function handleUrl(
+  url: string,
+  fullText: string,
+  chatId: string
+): Promise<void> {
+  try {
+    await sendTelegram(`🔗 Analyzing: ${url.slice(0, 60)}...`, chatId);
+
+    // Fetch the page content
+    const res = await fetch(url, {
+      headers: { "User-Agent": "NOUR-OS/1.0" },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!res.ok) {
+      await sendTelegram(`Couldn't fetch URL (${res.status}). It may be behind auth.`, chatId);
+      return;
+    }
+
+    const html = await res.text();
+
+    // Extract text content (basic HTML stripping)
+    const textContent = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 3000);
+
+    // AI analysis
+    const { tracedAiChat } = await import("@/lib/ai/traced-aichat");
+    const result = await tracedAiChat(
+      { label: "telegram-url-summary", source: "tool", metadata: { chatId, urlHost: (() => { try { return new URL(url).host; } catch { return null; } })() } },
+      [
+        {
+          role: "system",
+          content: `You are Nick, analyzing a URL shared by Nour (tire shop CEO). Summarize the content in 3-5 sentences.
+Focus on: what's relevant to Nour's business or personal goals.
+If it's a competitor, note what they're doing.
+If it's a tool/product, assess if it's useful for Nick's Tire.
+If it's news/article, extract the key insight.`,
+        },
+        {
+          role: "user",
+          content: `URL: ${url}\nNour's message: "${fullText}"\n\nPage content (first 3000 chars):\n${textContent}`,
+        },
+      ],
+      "fast"
+    );
+
+    await sendTelegram(`🔗 <b>Link Analysis</b>\n\n${result.content.slice(0, 3500)}`, chatId);
+
+    // Store as brain memory
+    const { brainMemory } = await import("@/lib/brain/memory-manager");
+    await brainMemory.remember(
+      "link_analysis",
+      `url_${Date.now()}`,
+      `Analyzed URL: ${url} — ${result.content.slice(0, 200)}`,
+      "telegram-url"
+    );
+  } catch (err) {
+    await sendTelegram(`URL analysis failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
+  }
+}
+
+async function cmdImagine(prompt: string, chatId: string): Promise<void> {
+  if (!prompt.trim()) {
+    await sendTelegram("Usage: /imagine <description>\nExample: /imagine a tire shop logo with flames and gold", chatId);
+    return;
+  }
+
+  await sendTelegram(`🎨 Generating: "${prompt.slice(0, 60)}..."`, chatId);
+
+  try {
+    const { generateVeniceImage } = await import("@/lib/ai/venice-image");
+    const result = await generateVeniceImage(prompt);
+
+    // Send as photo via Telegram Bot API
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) return;
+
+    const imageBuffer = Buffer.from(result.base64, "base64");
+    const formData = new FormData();
+    formData.append("chat_id", chatId);
+    formData.append("photo", new Blob([imageBuffer], { type: "image/png" }), "generated.png");
+    formData.append("caption", `🎨 "${prompt.slice(0, 100)}"\nModel: ${result.model} | Size: ${result.size}`);
+
+    await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+      method: "POST",
+      body: formData,
+    });
+  } catch (err) {
+    await sendTelegram(`Image generation failed: ${err instanceof Error ? err.message : "unknown error"}`, chatId);
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────
+
+function now(): string {
+  return new Date().toLocaleTimeString("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}

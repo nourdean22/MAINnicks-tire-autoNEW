@@ -1,0 +1,166 @@
+/**
+ * Auto-inherit goalId on task creation · May 02
+ *
+ * The Goal↔Project bridge lives at the task level (Mission has no
+ * goalId column). When a project is linked to a goal via "+ project"
+ * / "+ goal", only the EXISTING tasks at link-time get the goalId
+ * PATCH'd in. New tasks added later didn't auto-inherit, so the goal
+ * would show "100% (1/1 done)" while the project still had open
+ * tasks — a real UX confusion.
+ *
+ * The fix: when creating a task with no explicit goalId, look at
+ * sibling tasks under the same missionId. If they all share exactly
+ * one goalId, inherit it. If they span multiple goals, abstain.
+ *
+ * Three branches to verify:
+ *   1. Single distinct goal across siblings → inherit
+ *   2. Two or more distinct goals → abstain (don't override the user's
+ *      intentional split)
+ *   3. No siblings have goalId set → no inheritance, leave null
+ *   4. Caller passed an explicit goalId → respect it, never override
+ */
+
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const mocks = vi.hoisted(() => ({
+  task: {
+    findMany: vi.fn(),
+    create: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  mission: {
+    findUnique: vi.fn(),
+    findMany: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    task: mocks.task,
+    mission: mocks.mission,
+    $transaction: vi.fn(async (fn) =>
+      fn({
+        task: mocks.task,
+        mission: mocks.mission,
+      }),
+    ),
+  },
+}));
+
+vi.mock("@/lib/db/entity-audit", () => ({
+  logCreate: vi.fn(),
+  logUpdate: vi.fn(),
+  stripNoise: vi.fn((x) => x),
+}));
+
+vi.mock("@/lib/cache/dashboard-cache", () => ({
+  invalidateMutationCaches: vi.fn(),
+}));
+
+vi.mock("@/lib/brain/task-events", () => ({
+  emitTaskEventAsync: vi.fn(),
+}));
+
+// Force the real-prisma branch — without this the demo store kicks in
+// (NODE_ENV/test triggers isDemoMode) and ignores our prisma mock.
+vi.mock("@/lib/runtime", () => ({
+  isDemoMode: false,
+}));
+
+// Top-level import so vi.mock's hoisted prisma mock applies.
+import { createTask } from "@/lib/services/tasks";
+
+const baseInput = {
+  title: "new task",
+  missionId: "mission-1",
+  status: "INBOX" as const,
+  nextPhysicalAction: "do the thing",
+  effort: "M15" as const,
+  roiScore: 50,
+  frictionScore: 30,
+  energyRequired: "MEDIUM" as const,
+  context: "ANYWHERE" as const,
+  finishCondition: "Done",
+  loopKind: "ONCE" as const,
+  delegatable: false,
+  driftRisk: 0,
+};
+
+describe("createTask · auto-inherit goalId", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mission must exist for ensureMissionExists() to pass.
+    mocks.mission.findUnique.mockResolvedValue({ id: "mission-1", deletedAt: null });
+    mocks.mission.findMany.mockResolvedValue([]);
+    // Default task.create returns a stub task; tests assert the
+    // `data` payload includes the inherited goalId (or doesn't).
+    mocks.task.create.mockImplementation(async (args: { data: { goalId?: string | null } }) => ({
+      id: "new-task-id",
+      ...args.data,
+    }));
+    mocks.task.findUnique.mockResolvedValue({
+      id: "new-task-id",
+      missionId: "mission-1",
+      title: "new task",
+      status: "INBOX",
+      mission: { id: "mission-1", title: "Mission 1" },
+    });
+    // syncTaskPriorities iterates tasks and calls update — return an
+    // empty list so it's a no-op.
+    mocks.task.update.mockResolvedValue({});
+  });
+
+  it("inherits goalId when all sibling tasks share exactly one goal", async () => {
+    // Two findMany calls in createTask: (1) sibling-goalId scan, (2)
+    // the syncTaskPriorities sweep. First returns sibling rows, second
+    // returns empty so the priority sync no-ops.
+    mocks.task.findMany
+      .mockResolvedValueOnce([{ goalId: "goal-a" }, { goalId: "goal-a" }])
+      .mockResolvedValue([]);
+
+    await createTask(baseInput);
+
+    expect(mocks.task.create).toHaveBeenCalled();
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBe("goal-a");
+  });
+
+  it("abstains when sibling tasks span multiple goals", async () => {
+    mocks.task.findMany
+      .mockResolvedValueOnce([
+        { goalId: "goal-a" },
+        { goalId: "goal-b" },
+        { goalId: "goal-a" },
+      ])
+      .mockResolvedValue([]);
+
+    await createTask(baseInput);
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    // No inherited goalId — payload had no goalId, so the field stays
+    // unset on the create.data (Prisma will treat as null).
+    expect(createArgs.data.goalId).toBeUndefined();
+  });
+
+  it("respects an explicit goalId passed by the caller", async () => {
+    // Even if siblings would suggest goal-a, an explicit goal-z wins.
+    // Note: when payload.goalId is set, the auto-inherit query is
+    // SKIPPED — so only the syncTaskPriorities findMany call fires.
+    mocks.task.findMany.mockResolvedValue([]);
+
+    await createTask({ ...baseInput, goalId: "goal-z" });
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBe("goal-z");
+  });
+
+  it("leaves goalId null when no siblings have a goal set", async () => {
+    mocks.task.findMany.mockResolvedValue([]); // no siblings linked
+
+    await createTask(baseInput);
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBeUndefined();
+  });
+});

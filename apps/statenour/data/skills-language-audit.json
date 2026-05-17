@@ -1,0 +1,5754 @@
+{
+  "generatedAt": "2026-05-07T19:06:54.818Z",
+  "totalSkills": 1423,
+  "nonEnglishCount": 18,
+  "ambiguousCount": 34,
+  "verdicts": [
+    {
+      "name": "00-andruia-consultant",
+      "verdict": "en"
+    },
+    {
+      "name": "007",
+      "verdict": "en"
+    },
+    {
+      "name": "10-andruia-skill-smith",
+      "verdict": "en"
+    },
+    {
+      "name": "20-andruia-niche-intelligence",
+      "verdict": "en"
+    },
+    {
+      "name": "3d-web-experience",
+      "verdict": "en"
+    },
+    {
+      "name": "ab-test-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "acceptance-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "accessibility-compliance-accessibility-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "active-directory-attacks",
+      "verdict": "en"
+    },
+    {
+      "name": "activecampaign-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "ad-creative",
+      "verdict": "en"
+    },
+    {
+      "name": "address-github-comments",
+      "verdict": "en"
+    },
+    {
+      "name": "adhx",
+      "verdict": "en"
+    },
+    {
+      "name": "advanced-evaluation",
+      "verdict": "en"
+    },
+    {
+      "name": "advogado-criminal",
+      "verdict": "en"
+    },
+    {
+      "name": "advogado-especialista",
+      "verdict": "en"
+    },
+    {
+      "name": "aegisops-ai",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-evaluation",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-framework-azure-ai-py",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-manager-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-memory-mcp",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-memory-systems",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-orchestration-improve-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-orchestration-multi-agent-optimize",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "agent-tool-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "agentflow",
+      "verdict": "en"
+    },
+    {
+      "name": "agentfolio",
+      "verdict": "en"
+    },
+    {
+      "name": "agentic-actions-auditor",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "agentmail",
+      "verdict": "en"
+    },
+    {
+      "name": "agentphone",
+      "verdict": "en"
+    },
+    {
+      "name": "agents-md",
+      "verdict": "en"
+    },
+    {
+      "name": "agents-v2-py",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-agent-development",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-agents-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "驱动的综合健康分析系统",
+      "sample": "ai-analyzer AI驱动的综合健康分析系统，整合多维度健康数据、识别异常模式、预测健康风险、提供个性化建议。支持智能问答和AI健康报告生成。"
+    },
+    {
+      "name": "ai-dev-jobs-mcp",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-engineering-toolkit",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-md",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-ml",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-native-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-product",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-seo",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-studio-image",
+      "verdict": "en"
+    },
+    {
+      "name": "ai-wrapper-product",
+      "verdict": "en"
+    },
+    {
+      "name": "airflow-dag-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "airtable-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "akf-trust-metadata",
+      "verdict": "en"
+    },
+    {
+      "name": "algolia-search",
+      "verdict": "en"
+    },
+    {
+      "name": "algorithmic-art",
+      "verdict": "en"
+    },
+    {
+      "name": "alpha-vantage",
+      "verdict": "en"
+    },
+    {
+      "name": "amazon-alexa",
+      "verdict": "en"
+    },
+    {
+      "name": "amplitude-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "analytics-product",
+      "verdict": "en"
+    },
+    {
+      "name": "analytics-tracking",
+      "verdict": "en"
+    },
+    {
+      "name": "analyze-project",
+      "verdict": "en"
+    },
+    {
+      "name": "andrej-karpathy",
+      "verdict": "en"
+    },
+    {
+      "name": "android_ui_verification",
+      "verdict": "en"
+    },
+    {
+      "name": "android-jetpack-compose-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "angular",
+      "verdict": "en"
+    },
+    {
+      "name": "angular-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "angular-migration",
+      "verdict": "en"
+    },
+    {
+      "name": "angular-state-management",
+      "verdict": "en"
+    },
+    {
+      "name": "angular-ui-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "animejs-animation",
+      "verdict": "en"
+    },
+    {
+      "name": "anti-reversing-techniques",
+      "verdict": "en"
+    },
+    {
+      "name": "antigravity-design-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "antigravity-skill-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "antigravity-workflows",
+      "verdict": "en"
+    },
+    {
+      "name": "api-design-principles",
+      "verdict": "en"
+    },
+    {
+      "name": "api-documentation",
+      "verdict": "en"
+    },
+    {
+      "name": "api-documentation-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "api-documenter",
+      "verdict": "en"
+    },
+    {
+      "name": "api-endpoint-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "api-fuzzing-bug-bounty",
+      "verdict": "en"
+    },
+    {
+      "name": "api-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "api-security-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "api-security-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "api-testing-observability-api-mock",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-actor-development",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-actorization",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-audience-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-brand-reputation-monitoring",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-competitor-intelligence",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-content-analytics",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-ecommerce",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-influencer-discovery",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-lead-generation",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-market-research",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-trend-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "apify-ultimate-scraper",
+      "verdict": "en"
+    },
+    {
+      "name": "app-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "app-store-changelog",
+      "verdict": "en"
+    },
+    {
+      "name": "app-store-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "appdeploy",
+      "verdict": "en"
+    },
+    {
+      "name": "application-performance-performance-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "architect-review",
+      "verdict": "en"
+    },
+    {
+      "name": "architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "architecture-decision-records",
+      "verdict": "en"
+    },
+    {
+      "name": "architecture-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "arm-cortex-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "asana-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "ask-questions-if-underspecified",
+      "verdict": "en"
+    },
+    {
+      "name": "astro",
+      "verdict": "en"
+    },
+    {
+      "name": "astropy",
+      "verdict": "en"
+    },
+    {
+      "name": "async-python-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "attack-tree-construction",
+      "verdict": "en"
+    },
+    {
+      "name": "audio-transcriber",
+      "verdict": "en"
+    },
+    {
+      "name": "audit-context-building",
+      "verdict": "en"
+    },
+    {
+      "name": "audit-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "auri-core",
+      "verdict": "en"
+    },
+    {
+      "name": "auth-implementation-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "autonomous-agent-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "autonomous-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "avalonia-layout-zafiro",
+      "verdict": "en"
+    },
+    {
+      "name": "avalonia-viewmodels-zafiro",
+      "verdict": "en"
+    },
+    {
+      "name": "avalonia-zafiro-development",
+      "verdict": "en"
+    },
+    {
+      "name": "avoid-ai-writing",
+      "verdict": "en"
+    },
+    {
+      "name": "awareness-stage-mapper",
+      "verdict": "en"
+    },
+    {
+      "name": "aws-cost-cleanup",
+      "verdict": "en"
+    },
+    {
+      "name": "aws-cost-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "aws-penetration-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "aws-serverless",
+      "verdict": "en"
+    },
+    {
+      "name": "aws-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "awt-e2e-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "axiom",
+      "verdict": "en"
+    },
+    {
+      "name": "azd-deployment",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-agents-persistent-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-agents-persistent-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-anomalydetector-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-contentsafety-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-contentsafety-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-contentsafety-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-contentunderstanding-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-document-intelligence-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-document-intelligence-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-formrecognizer-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-ml-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-openai-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-projects-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-projects-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-projects-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-projects-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-textanalytics-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-transcription-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-translation-document-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-translation-text-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-translation-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-vision-imageanalysis-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-vision-imageanalysis-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-voicelive-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-voicelive-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-voicelive-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-ai-voicelive-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-appconfiguration-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-appconfiguration-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-appconfiguration-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-communication-callautomation-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-communication-callingserver-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-communication-chat-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-communication-common-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-communication-sms-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-compute-batch-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-containerregistry-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-cosmos-db-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-cosmos-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-cosmos-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-cosmos-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-cosmos-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-data-tables-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-data-tables-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventgrid-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventgrid-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventgrid-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventhub-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventhub-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventhub-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventhub-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-eventhub-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-functions",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-identity-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-identity-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-identity-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-identity-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-identity-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-certificates-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-keys-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-keys-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-secrets-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-keyvault-secrets-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-maps-search-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-messaging-webpubsub-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-messaging-webpubsubservice-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-apicenter-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-apicenter-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-apimanagement-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-apimanagement-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-applicationinsights-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-arizeaiobservabilityeval-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-botservice-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-botservice-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-fabric-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-fabric-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-mongodbatlas-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-mgmt-weightsandbiases-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-microsoft-playwright-testing-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-ingestion-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-ingestion-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-opentelemetry-exporter-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-opentelemetry-exporter-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-opentelemetry-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-opentelemetry-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-query-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-monitor-query-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-postgres-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-cosmosdb-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-durabletask-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-mysql-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-playwright-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-postgresql-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-redis-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-resource-manager-sql-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-search-documents-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-search-documents-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-search-documents-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-security-keyvault-keys-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-security-keyvault-keys-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-security-keyvault-secrets-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-servicebus-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-servicebus-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-servicebus-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-speech-to-text-rest-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-blob-java",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-blob-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-blob-rust",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-blob-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-file-datalake-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-file-share-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-file-share-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-queue-py",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-storage-queue-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "azure-web-pubsub-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "backend-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "backend-dev-guidelines",
+      "verdict": "en"
+    },
+    {
+      "name": "backend-development-feature-development",
+      "verdict": "en"
+    },
+    {
+      "name": "backend-security-coder",
+      "verdict": "en"
+    },
+    {
+      "name": "backtesting-frameworks",
+      "verdict": "en"
+    },
+    {
+      "name": "bamboohr-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "basecamp-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "baseline-ui",
+      "verdict": "en"
+    },
+    {
+      "name": "bash-defensive-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "bash-linux",
+      "verdict": "en"
+    },
+    {
+      "name": "bash-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "bash-scripting",
+      "verdict": "en"
+    },
+    {
+      "name": "bats-testing-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "bazel-build-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "bdi-mental-states",
+      "verdict": "en"
+    },
+    {
+      "name": "bdistill-behavioral-xray",
+      "verdict": "en"
+    },
+    {
+      "name": "bdistill-knowledge-extraction",
+      "verdict": "en"
+    },
+    {
+      "name": "beautiful-prose",
+      "verdict": "en"
+    },
+    {
+      "name": "behavioral-modes",
+      "verdict": "en"
+    },
+    {
+      "name": "bevy-ecs-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "bill-gates",
+      "verdict": "en"
+    },
+    {
+      "name": "billing-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "binary-analysis-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "biopython",
+      "verdict": "en"
+    },
+    {
+      "name": "bitbucket-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "blockchain-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "blockrun",
+      "verdict": "en"
+    },
+    {
+      "name": "blog-writing-guide",
+      "verdict": "en"
+    },
+    {
+      "name": "blueprint",
+      "verdict": "en"
+    },
+    {
+      "name": "box-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "brainstorming",
+      "verdict": "en"
+    },
+    {
+      "name": "brand-guidelines",
+      "verdict": "en"
+    },
+    {
+      "name": "brand-guidelines-anthropic",
+      "verdict": "en"
+    },
+    {
+      "name": "brand-guidelines-community",
+      "verdict": "en"
+    },
+    {
+      "name": "brand-perception-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "brevo-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "broken-authentication",
+      "verdict": "en"
+    },
+    {
+      "name": "brooks-lint",
+      "verdict": "en"
+    },
+    {
+      "name": "browser-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "browser-extension-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "bug-hunter",
+      "verdict": "en"
+    },
+    {
+      "name": "build",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "building-native-ui",
+      "verdict": "en"
+    },
+    {
+      "name": "bulletmind",
+      "verdict": "en"
+    },
+    {
+      "name": "bullmq-specialist",
+      "verdict": "en"
+    },
+    {
+      "name": "bun-development",
+      "verdict": "en"
+    },
+    {
+      "name": "burp-suite-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "burpsuite-project-parser",
+      "verdict": "en"
+    },
+    {
+      "name": "business-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "busybox-on-windows",
+      "verdict": "en"
+    },
+    {
+      "name": "buywhere-product-catalog",
+      "verdict": "en"
+    },
+    {
+      "name": "c-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "c4-architecture-c4-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "c4-code",
+      "verdict": "en"
+    },
+    {
+      "name": "c4-component",
+      "verdict": "en"
+    },
+    {
+      "name": "c4-container",
+      "verdict": "en"
+    },
+    {
+      "name": "c4-context",
+      "verdict": "en"
+    },
+    {
+      "name": "cal-com-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "calendly-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "canva-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "canvas-design",
+      "verdict": "en"
+    },
+    {
+      "name": "carrier-relationship-management",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-backend-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-clickhouse-io",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-coding-standards",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-continuous-learning",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-frontend-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-project-guidelines-example",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-security-review",
+      "verdict": "en"
+    },
+    {
+      "name": "cc-skill-strategic-compact",
+      "verdict": "en"
+    },
+    {
+      "name": "cdk-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "changelog-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "chat-widget",
+      "verdict": "en"
+    },
+    {
+      "name": "chrome-extension-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "churn-prevention",
+      "verdict": "en"
+    },
+    {
+      "name": "cicd-automation-workflow-automate",
+      "verdict": "en"
+    },
+    {
+      "name": "circleci-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "cirq",
+      "verdict": "en"
+    },
+    {
+      "name": "citation-management",
+      "verdict": "en"
+    },
+    {
+      "name": "claimable-postgres",
+      "verdict": "en"
+    },
+    {
+      "name": "clarity-gate",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "clarvia-aeo-check",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-ally-health",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-api",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-code-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-code-guide",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-d3js-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-in-chrome-troubleshooting",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-monitor",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-scientific-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-settings-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-speed-reader",
+      "verdict": "en"
+    },
+    {
+      "name": "claude-win11-speckit-update-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "clean-code",
+      "verdict": "en"
+    },
+    {
+      "name": "clerk-auth",
+      "verdict": "en"
+    },
+    {
+      "name": "clickup-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "close-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "closed-loop-delivery",
+      "verdict": "en"
+    },
+    {
+      "name": "cloud-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "cloud-devops",
+      "verdict": "en"
+    },
+    {
+      "name": "cloud-penetration-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "cloudflare-workers-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "cloudformation-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "coda-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "code-documentation-code-explain",
+      "verdict": "en"
+    },
+    {
+      "name": "code-documentation-doc-generate",
+      "verdict": "en"
+    },
+    {
+      "name": "code-refactoring-context-restore",
+      "verdict": "en"
+    },
+    {
+      "name": "code-refactoring-refactor-clean",
+      "verdict": "en"
+    },
+    {
+      "name": "code-refactoring-tech-debt",
+      "verdict": "en"
+    },
+    {
+      "name": "code-review-ai-ai-review",
+      "verdict": "en"
+    },
+    {
+      "name": "code-review-checklist",
+      "verdict": "en"
+    },
+    {
+      "name": "code-review-excellence",
+      "verdict": "en"
+    },
+    {
+      "name": "code-reviewer",
+      "verdict": "en"
+    },
+    {
+      "name": "code-simplifier",
+      "verdict": "en"
+    },
+    {
+      "name": "codebase-audit-pre-push",
+      "verdict": "en"
+    },
+    {
+      "name": "codebase-cleanup-deps-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "codebase-cleanup-refactor-clean",
+      "verdict": "en"
+    },
+    {
+      "name": "codebase-cleanup-tech-debt",
+      "verdict": "en"
+    },
+    {
+      "name": "codebase-to-wordpress-converter",
+      "verdict": "en"
+    },
+    {
+      "name": "codex-review",
+      "verdict": "en"
+    },
+    {
+      "name": "cold-email",
+      "verdict": "en"
+    },
+    {
+      "name": "comfyui-gateway",
+      "verdict": "en"
+    },
+    {
+      "name": "commit",
+      "verdict": "en"
+    },
+    {
+      "name": "competitive-landscape",
+      "verdict": "en"
+    },
+    {
+      "name": "competitor-alternatives",
+      "verdict": "en"
+    },
+    {
+      "name": "comprehensive-review-full-review",
+      "verdict": "en"
+    },
+    {
+      "name": "comprehensive-review-pr-enhance",
+      "verdict": "en"
+    },
+    {
+      "name": "computer-use-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "computer-vision-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "concise-planning",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-implement",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-manage",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-new-track",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-revert",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-status",
+      "verdict": "en"
+    },
+    {
+      "name": "conductor-validator",
+      "verdict": "en"
+    },
+    {
+      "name": "confluence-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "constant-time-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "content-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "content-marketer",
+      "verdict": "en"
+    },
+    {
+      "name": "content-strategy",
+      "verdict": "en"
+    },
+    {
+      "name": "context-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "context-compression",
+      "verdict": "en"
+    },
+    {
+      "name": "context-degradation",
+      "verdict": "en"
+    },
+    {
+      "name": "context-driven-development",
+      "verdict": "en"
+    },
+    {
+      "name": "context-fundamentals",
+      "verdict": "en"
+    },
+    {
+      "name": "context-guardian",
+      "verdict": "non-en",
+      "lang": "pt",
+      "marker": "antes",
+      "sample": "context-guardian Guardiao de contexto que preserva dados criticos antes da compactacao automatica. Snapshots, verificacao de integridade e zero perda de informacao. context data-integrity snapshots ve"
+    },
+    {
+      "name": "context-management-context-restore",
+      "verdict": "en"
+    },
+    {
+      "name": "context-management-context-save",
+      "verdict": "en"
+    },
+    {
+      "name": "context-manager",
+      "verdict": "en"
+    },
+    {
+      "name": "context-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "context-window-management",
+      "verdict": "en"
+    },
+    {
+      "name": "context7-auto-research",
+      "verdict": "en"
+    },
+    {
+      "name": "conversation-memory",
+      "verdict": "en"
+    },
+    {
+      "name": "convertkit-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "convex",
+      "verdict": "en"
+    },
+    {
+      "name": "copilot-sdk",
+      "verdict": "en"
+    },
+    {
+      "name": "copy-editing",
+      "verdict": "en"
+    },
+    {
+      "name": "copywriting",
+      "verdict": "en"
+    },
+    {
+      "name": "copywriting-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "core-components",
+      "verdict": "en"
+    },
+    {
+      "name": "cost-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "cpp-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "cqrs-implementation",
+      "verdict": "en"
+    },
+    {
+      "name": "create-branch",
+      "verdict": "en"
+    },
+    {
+      "name": "create-issue-gate",
+      "verdict": "en"
+    },
+    {
+      "name": "create-pr",
+      "verdict": "en"
+    },
+    {
+      "name": "cred-omega",
+      "verdict": "en"
+    },
+    {
+      "name": "crewai",
+      "verdict": "en"
+    },
+    {
+      "name": "crypto-bd-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "csharp-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "customer-psychographic-profiler",
+      "verdict": "en"
+    },
+    {
+      "name": "customer-support",
+      "verdict": "en"
+    },
+    {
+      "name": "customs-trade-compliance",
+      "verdict": "en"
+    },
+    {
+      "name": "daily",
+      "verdict": "en"
+    },
+    {
+      "name": "daily-gift",
+      "verdict": "en"
+    },
+    {
+      "name": "daily-news-report",
+      "verdict": "en"
+    },
+    {
+      "name": "data-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "data-engineering-data-driven-feature",
+      "verdict": "en"
+    },
+    {
+      "name": "data-engineering-data-pipeline",
+      "verdict": "en"
+    },
+    {
+      "name": "data-quality-frameworks",
+      "verdict": "en"
+    },
+    {
+      "name": "data-scientist",
+      "verdict": "en"
+    },
+    {
+      "name": "data-storytelling",
+      "verdict": "en"
+    },
+    {
+      "name": "data-structure-protocol",
+      "verdict": "en"
+    },
+    {
+      "name": "database",
+      "verdict": "en"
+    },
+    {
+      "name": "database-admin",
+      "verdict": "en"
+    },
+    {
+      "name": "database-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "database-cloud-optimization-cost-optimize",
+      "verdict": "en"
+    },
+    {
+      "name": "database-design",
+      "verdict": "en"
+    },
+    {
+      "name": "database-migration",
+      "verdict": "en"
+    },
+    {
+      "name": "database-migrations-migration-observability",
+      "verdict": "en"
+    },
+    {
+      "name": "database-migrations-sql-migrations",
+      "verdict": "en"
+    },
+    {
+      "name": "database-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "datadog-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "dbos-golang",
+      "verdict": "en"
+    },
+    {
+      "name": "dbos-python",
+      "verdict": "en"
+    },
+    {
+      "name": "dbos-typescript",
+      "verdict": "en"
+    },
+    {
+      "name": "dbt-transformation-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "ddd-context-mapping",
+      "verdict": "en"
+    },
+    {
+      "name": "ddd-strategic-design",
+      "verdict": "en"
+    },
+    {
+      "name": "ddd-tactical-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "debug-buttercup",
+      "verdict": "en"
+    },
+    {
+      "name": "debugger",
+      "verdict": "en"
+    },
+    {
+      "name": "debugging-strategies",
+      "verdict": "en"
+    },
+    {
+      "name": "debugging-toolkit-smart-debug",
+      "verdict": "en"
+    },
+    {
+      "name": "deep-research",
+      "verdict": "en"
+    },
+    {
+      "name": "defi-protocol-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "defuddle",
+      "verdict": "en"
+    },
+    {
+      "name": "dependency-management-deps-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "dependency-upgrade",
+      "verdict": "en"
+    },
+    {
+      "name": "deployment-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "deployment-pipeline-design",
+      "verdict": "en"
+    },
+    {
+      "name": "deployment-procedures",
+      "verdict": "en"
+    },
+    {
+      "name": "deployment-validation-config-validate",
+      "verdict": "en"
+    },
+    {
+      "name": "design-md",
+      "verdict": "en"
+    },
+    {
+      "name": "design-orchestration",
+      "verdict": "en"
+    },
+    {
+      "name": "design-spells",
+      "verdict": "en"
+    },
+    {
+      "name": "design-taste-frontend",
+      "verdict": "en"
+    },
+    {
+      "name": "devcontainer-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "development",
+      "verdict": "en"
+    },
+    {
+      "name": "devops-deploy",
+      "verdict": "en"
+    },
+    {
+      "name": "devops-troubleshooter",
+      "verdict": "en"
+    },
+    {
+      "name": "diary",
+      "verdict": "en"
+    },
+    {
+      "name": "differential-review",
+      "verdict": "en"
+    },
+    {
+      "name": "discord-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "discord-bot-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "dispatching-parallel-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "distributed-debugging-debug-trace",
+      "verdict": "en"
+    },
+    {
+      "name": "distributed-tracing",
+      "verdict": "en"
+    },
+    {
+      "name": "django-access-review",
+      "verdict": "en"
+    },
+    {
+      "name": "django-perf-review",
+      "verdict": "en"
+    },
+    {
+      "name": "django-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "doc-coauthoring",
+      "verdict": "en"
+    },
+    {
+      "name": "docker-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "docs-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "documentation",
+      "verdict": "en"
+    },
+    {
+      "name": "documentation-generation-doc-generate",
+      "verdict": "en"
+    },
+    {
+      "name": "documentation-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "docusign-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "docx-official",
+      "verdict": "en"
+    },
+    {
+      "name": "domain-driven-design",
+      "verdict": "en"
+    },
+    {
+      "name": "dotnet-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "dotnet-backend",
+      "verdict": "en"
+    },
+    {
+      "name": "dotnet-backend-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "drizzle-orm-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "dropbox-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "dwarf-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "dx-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "e2e-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "e2e-testing-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "earllm-build",
+      "verdict": "en"
+    },
+    {
+      "name": "electron-development",
+      "verdict": "en"
+    },
+    {
+      "name": "elixir-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "elon-musk",
+      "verdict": "en"
+    },
+    {
+      "name": "email-sequence",
+      "verdict": "en"
+    },
+    {
+      "name": "email-systems",
+      "verdict": "en"
+    },
+    {
+      "name": "embedding-strategies",
+      "verdict": "en"
+    },
+    {
+      "name": "emblemai-crypto-wallet",
+      "verdict": "en"
+    },
+    {
+      "name": "emergency-card",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "生成紧急情况下快速访问的医疗信息摘要卡片",
+      "sample": "emergency-card 生成紧急情况下快速访问的医疗信息摘要卡片。当用户需要旅行、就诊准备、紧急情况或询问\"紧急信息\"、\"医疗卡片\"、\"急救信息\"时使用此技能。提取关键信息（过敏、用药、急症、植入物），支持多格式输出（JSON、文本、二维码），用于急救或快速就医。"
+    },
+    {
+      "name": "emotional-arc-designer",
+      "verdict": "en"
+    },
+    {
+      "name": "employment-contract-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "energy-procurement",
+      "verdict": "en"
+    },
+    {
+      "name": "enhance-prompt",
+      "verdict": "en"
+    },
+    {
+      "name": "environment-setup-guide",
+      "verdict": "en"
+    },
+    {
+      "name": "error-debugging-error-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "error-debugging-error-trace",
+      "verdict": "en"
+    },
+    {
+      "name": "error-debugging-multi-agent-review",
+      "verdict": "en"
+    },
+    {
+      "name": "error-detective",
+      "verdict": "en"
+    },
+    {
+      "name": "error-diagnostics-error-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "error-diagnostics-error-trace",
+      "verdict": "en"
+    },
+    {
+      "name": "error-diagnostics-smart-debug",
+      "verdict": "en"
+    },
+    {
+      "name": "error-handling-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "ethical-hacking-methodology",
+      "verdict": "en"
+    },
+    {
+      "name": "evaluation",
+      "verdict": "en"
+    },
+    {
+      "name": "event-sourcing-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "event-store-design",
+      "verdict": "en"
+    },
+    {
+      "name": "evolution",
+      "verdict": "en"
+    },
+    {
+      "name": "exa-search",
+      "verdict": "en"
+    },
+    {
+      "name": "executing-plans",
+      "verdict": "en"
+    },
+    {
+      "name": "explain-like-socrates",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "expo-api-routes",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-cicd-workflows",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-deployment",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-dev-client",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-tailwind-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-ui-jetpack-compose",
+      "verdict": "en"
+    },
+    {
+      "name": "expo-ui-swift-ui",
+      "verdict": "en"
+    },
+    {
+      "name": "faf-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "faf-wizard",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-audio",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-generate",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-image-edit",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-platform",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-upscale",
+      "verdict": "en"
+    },
+    {
+      "name": "fal-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "family-health-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析家族病史",
+      "sample": "family-health-analyzer 分析家族病史、评估遗传风险、识别家庭健康模式、提供个性化预防建议"
+    },
+    {
+      "name": "fastapi-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "fastapi-router-py",
+      "verdict": "en"
+    },
+    {
+      "name": "fastapi-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "favicon",
+      "verdict": "en"
+    },
+    {
+      "name": "fda-food-safety-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "fda-medtech-compliance-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "ffuf-claude-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "ffuf-web-fuzzing",
+      "verdict": "en"
+    },
+    {
+      "name": "figma-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "file-organizer",
+      "verdict": "en"
+    },
+    {
+      "name": "file-path-traversal",
+      "verdict": "en"
+    },
+    {
+      "name": "file-uploads",
+      "verdict": "en"
+    },
+    {
+      "name": "filesystem-context",
+      "verdict": "en"
+    },
+    {
+      "name": "find-bugs",
+      "verdict": "en"
+    },
+    {
+      "name": "finishing-a-development-branch",
+      "verdict": "en"
+    },
+    {
+      "name": "firebase",
+      "verdict": "en"
+    },
+    {
+      "name": "firecrawl-scraper",
+      "verdict": "en"
+    },
+    {
+      "name": "firmware-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "fitness-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析运动数据",
+      "sample": "fitness-analyzer 分析运动数据、识别运动模式、评估健身进展，并提供个性化训练建议。支持与慢性病数据的关联分析。"
+    },
+    {
+      "name": "fix-review",
+      "verdict": "en"
+    },
+    {
+      "name": "fixing-accessibility",
+      "verdict": "en"
+    },
+    {
+      "name": "fixing-metadata",
+      "verdict": "en"
+    },
+    {
+      "name": "fixing-motion-performance",
+      "verdict": "en"
+    },
+    {
+      "name": "flutter-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "food-database-query",
+      "verdict": "en"
+    },
+    {
+      "name": "form-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-async",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-backend",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-data-transforms",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-either-ref",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-errors",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-option-ref",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-pipe-ref",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-pragmatic",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-react",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-refactor",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-taskeither-ref",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-ts-errors",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-ts-pragmatic",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-ts-react",
+      "verdict": "en"
+    },
+    {
+      "name": "fp-types-ref",
+      "verdict": "en"
+    },
+    {
+      "name": "framework-migration-code-migrate",
+      "verdict": "en"
+    },
+    {
+      "name": "framework-migration-deps-upgrade",
+      "verdict": "en"
+    },
+    {
+      "name": "framework-migration-legacy-modernize",
+      "verdict": "en"
+    },
+    {
+      "name": "free-tool-strategy",
+      "verdict": "en"
+    },
+    {
+      "name": "freshdesk-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "freshservice-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-api-integration-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-design",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-dev-guidelines",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-mobile-development-component-scaffold",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-mobile-security-xss-scan",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-security-coder",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-slides",
+      "verdict": "en"
+    },
+    {
+      "name": "frontend-ui-dark-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "full-output-enforcement",
+      "verdict": "en"
+    },
+    {
+      "name": "full-stack-orchestration-full-stack-feature",
+      "verdict": "en"
+    },
+    {
+      "name": "game-development",
+      "verdict": "en"
+    },
+    {
+      "name": "gcp-cloud-run",
+      "verdict": "en"
+    },
+    {
+      "name": "gdb-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "gdpr-data-handling",
+      "verdict": "en"
+    },
+    {
+      "name": "gemini-api-dev",
+      "verdict": "en"
+    },
+    {
+      "name": "gemini-api-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "geo-fundamentals",
+      "verdict": "en"
+    },
+    {
+      "name": "geoffrey-hinton",
+      "verdict": "en"
+    },
+    {
+      "name": "gh-review-requests",
+      "verdict": "en"
+    },
+    {
+      "name": "gha-security-review",
+      "verdict": "en"
+    },
+    {
+      "name": "git-advanced-workflows",
+      "verdict": "en"
+    },
+    {
+      "name": "git-hooks-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "git-pr-workflows-git-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "git-pr-workflows-onboard",
+      "verdict": "en"
+    },
+    {
+      "name": "git-pr-workflows-pr-enhance",
+      "verdict": "en"
+    },
+    {
+      "name": "git-pushing",
+      "verdict": "en"
+    },
+    {
+      "name": "github",
+      "verdict": "en"
+    },
+    {
+      "name": "github-actions-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "github-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "github-issue-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "github-workflow-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "gitlab-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "gitlab-ci-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "gitops-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "global-chat-agent-discovery",
+      "verdict": "en"
+    },
+    {
+      "name": "gmail-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "go-concurrency-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "go-playwright",
+      "verdict": "en"
+    },
+    {
+      "name": "go-rod-master",
+      "verdict": "en"
+    },
+    {
+      "name": "goal-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析健康目标数据",
+      "sample": "goal-analyzer 分析健康目标数据、识别目标模式、评估目标进度,并提供个性化目标管理建议。支持与营养、运动、睡眠等健康数据的关联分析。"
+    },
+    {
+      "name": "godot-4-migration",
+      "verdict": "en"
+    },
+    {
+      "name": "godot-gdscript-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "golang-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "google-analytics-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "google-calendar-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "google-docs-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "google-drive-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "google-sheets-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "google-slides-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "googlesheets-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "gpt-taste",
+      "verdict": "en"
+    },
+    {
+      "name": "grafana-dashboards",
+      "verdict": "en"
+    },
+    {
+      "name": "graphql",
+      "verdict": "en"
+    },
+    {
+      "name": "graphql-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "growth-engine",
+      "verdict": "en"
+    },
+    {
+      "name": "grpc-golang",
+      "verdict": "en"
+    },
+    {
+      "name": "haskell-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "headline-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "health-trend-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析一段时间内健康数据的趋势和模式",
+      "sample": "health-trend-analyzer 分析一段时间内健康数据的趋势和模式。关联药物、症状、生命体征、化验结果和其他健康指标的变化。识别令人担忧的趋势、改善情况，并提供数据驱动的洞察。当用户询问健康趋势、模式、随时间的变化或\"我的健康状况有什么变化？\"时使用。支持多维度分析（体重/BMI、症状、药物依从性、化验结果、情绪睡眠），相关性分析，变化检测，以及交互式HTML可视化报告（ECharts"
+    },
+    {
+      "name": "helium-mcp",
+      "verdict": "en"
+    },
+    {
+      "name": "helm-chart-scaffolding",
+      "verdict": "en"
+    },
+    {
+      "name": "helpdesk-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "hierarchical-agent-memory",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-content",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-controls",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-dialogs",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-layout",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-menus",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-search",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-status",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-components-system",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-foundations",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-inputs",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-platforms",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-project-context",
+      "verdict": "en"
+    },
+    {
+      "name": "hig-technologies",
+      "verdict": "en"
+    },
+    {
+      "name": "high-end-visual-design",
+      "verdict": "en"
+    },
+    {
+      "name": "hono",
+      "verdict": "en"
+    },
+    {
+      "name": "hosted-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "hosted-agents-v2-py",
+      "verdict": "en"
+    },
+    {
+      "name": "hr-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "html-injection-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "hubspot-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "hubspot-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-community-evals",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-dataset-viewer",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-datasets",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-evaluation",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-gradio",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-jobs",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-model-trainer",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-paper-publisher",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-papers",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-tool-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-trackio",
+      "verdict": "en"
+    },
+    {
+      "name": "hugging-face-vision-trainer",
+      "verdict": "en"
+    },
+    {
+      "name": "humanize-chinese",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "去除",
+      "sample": "humanize-chinese Detect and rewrite AI-like Chinese text with a practical workflow for scoring, humanization, academic AIGC reduction, and style conversion. Use when the user asks to 去AI味, 降AIGC, 去除AI"
+    },
+    {
+      "name": "hybrid-cloud-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "hybrid-cloud-networking",
+      "verdict": "en"
+    },
+    {
+      "name": "hybrid-search-implementation",
+      "verdict": "en"
+    },
+    {
+      "name": "i18n-localization",
+      "verdict": "en"
+    },
+    {
+      "name": "iconsax-library",
+      "verdict": "en"
+    },
+    {
+      "name": "idea-darwin",
+      "verdict": "en"
+    },
+    {
+      "name": "idea-os",
+      "verdict": "en"
+    },
+    {
+      "name": "identity-mirror",
+      "verdict": "en"
+    },
+    {
+      "name": "idor-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "ilya-sutskever",
+      "verdict": "en"
+    },
+    {
+      "name": "image-studio",
+      "verdict": "en"
+    },
+    {
+      "name": "imagen",
+      "verdict": "en"
+    },
+    {
+      "name": "incident-responder",
+      "verdict": "en"
+    },
+    {
+      "name": "incident-response-incident-response",
+      "verdict": "en"
+    },
+    {
+      "name": "incident-response-smart-fix",
+      "verdict": "en"
+    },
+    {
+      "name": "incident-runbook-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "indexing-issue-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "industrial-brutalist-ui",
+      "verdict": "en"
+    },
+    {
+      "name": "infinite-gratitude",
+      "verdict": "en"
+    },
+    {
+      "name": "inngest",
+      "verdict": "en"
+    },
+    {
+      "name": "instagram",
+      "verdict": "en"
+    },
+    {
+      "name": "instagram-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "interactive-portfolio",
+      "verdict": "en"
+    },
+    {
+      "name": "intercom-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "internal-comms",
+      "verdict": "en"
+    },
+    {
+      "name": "internal-comms-anthropic",
+      "verdict": "en"
+    },
+    {
+      "name": "internal-comms-community",
+      "verdict": "en"
+    },
+    {
+      "name": "interview-coach",
+      "verdict": "en"
+    },
+    {
+      "name": "inventory-demand-planning",
+      "verdict": "en"
+    },
+    {
+      "name": "ios-debugger-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "ios-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "issues",
+      "verdict": "en"
+    },
+    {
+      "name": "istio-traffic-management",
+      "verdict": "en"
+    },
+    {
+      "name": "it-manager-hospital",
+      "verdict": "en"
+    },
+    {
+      "name": "it-manager-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "iterate-pr",
+      "verdict": "en"
+    },
+    {
+      "name": "itil-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "java-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "javascript-mastery",
+      "verdict": "en"
+    },
+    {
+      "name": "javascript-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "javascript-testing-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "javascript-typescript-typescript-scaffold",
+      "verdict": "en"
+    },
+    {
+      "name": "jira-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "jobgpt",
+      "verdict": "en"
+    },
+    {
+      "name": "jobs-to-be-done-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "jq",
+      "verdict": "en"
+    },
+    {
+      "name": "json-canvas",
+      "verdict": "en"
+    },
+    {
+      "name": "julia-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "junta-leiloeiros",
+      "verdict": "en"
+    },
+    {
+      "name": "k6-load-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "k8s-manifest-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "k8s-security-policies",
+      "verdict": "en"
+    },
+    {
+      "name": "kaizen",
+      "verdict": "en"
+    },
+    {
+      "name": "karpathy-guidelines",
+      "verdict": "en"
+    },
+    {
+      "name": "keyword-extractor",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "klaviyo-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "kotler-macro-analyzer",
+      "verdict": "en"
+    },
+    {
+      "name": "kotlin-coroutines-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "kpi-dashboard-design",
+      "verdict": "en"
+    },
+    {
+      "name": "kubernetes-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "kubernetes-deployment",
+      "verdict": "en"
+    },
+    {
+      "name": "kubestellar-console",
+      "verdict": "en"
+    },
+    {
+      "name": "lambda-lang",
+      "verdict": "en"
+    },
+    {
+      "name": "lambdatest-agent-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "landing-page-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "langchain-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "langfuse",
+      "verdict": "en"
+    },
+    {
+      "name": "langgraph",
+      "verdict": "en"
+    },
+    {
+      "name": "laravel-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "laravel-security-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "last30days",
+      "verdict": "en"
+    },
+    {
+      "name": "latex-paper-conversion",
+      "verdict": "en"
+    },
+    {
+      "name": "launch-strategy",
+      "verdict": "en"
+    },
+    {
+      "name": "lead-magnets",
+      "verdict": "en"
+    },
+    {
+      "name": "legacy-modernizer",
+      "verdict": "en"
+    },
+    {
+      "name": "legal-advisor",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-avaliacao",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-edital",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-ia",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-juridico",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-mercado",
+      "verdict": "en"
+    },
+    {
+      "name": "leiloeiro-risco",
+      "verdict": "en"
+    },
+    {
+      "name": "lex",
+      "verdict": "en"
+    },
+    {
+      "name": "lightning-architecture-review",
+      "verdict": "en"
+    },
+    {
+      "name": "lightning-channel-factories",
+      "verdict": "en"
+    },
+    {
+      "name": "lightning-factory-explainer",
+      "verdict": "en"
+    },
+    {
+      "name": "linear-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "linear-claude-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "linkedin-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "linkedin-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "linkedin-profile-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "linkerd-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "lint-and-validate",
+      "verdict": "en"
+    },
+    {
+      "name": "linux-privilege-escalation",
+      "verdict": "en"
+    },
+    {
+      "name": "linux-shell-scripting",
+      "verdict": "en"
+    },
+    {
+      "name": "linux-troubleshooting",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-app-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-application-dev-ai-assistant",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-application-dev-langchain-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-application-dev-prompt-optimize",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-evaluation",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-ops",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-prompt-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "llm-structured-output",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "local-legal-seo-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "local-llm-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "logic-lens",
+      "verdict": "en"
+    },
+    {
+      "name": "logistics-exception-management",
+      "verdict": "en"
+    },
+    {
+      "name": "loki-mode",
+      "verdict": "en"
+    },
+    {
+      "name": "loss-aversion-designer",
+      "verdict": "en"
+    },
+    {
+      "name": "m365-agents-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "m365-agents-py",
+      "verdict": "en"
+    },
+    {
+      "name": "m365-agents-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "machine-learning-ops-ml-pipeline",
+      "verdict": "en"
+    },
+    {
+      "name": "macos-menubar-tuist-app",
+      "verdict": "en"
+    },
+    {
+      "name": "macos-spm-app-packaging",
+      "verdict": "en"
+    },
+    {
+      "name": "magic-animator",
+      "verdict": "en"
+    },
+    {
+      "name": "magic-ui-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "mailchimp-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "make-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "makepad-animation",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-basics",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-deployment",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-dsl",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-event-action",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-font",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-layout",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-platform",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-reference",
+      "verdict": "en"
+    },
+    {
+      "name": "makepad-shaders",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "makepad-splash",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "makepad-widgets",
+      "verdict": "en"
+    },
+    {
+      "name": "malware-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "manage-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "manifest",
+      "verdict": "en"
+    },
+    {
+      "name": "market-sizing-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "marketing-ideas",
+      "verdict": "en"
+    },
+    {
+      "name": "marketing-psychology",
+      "verdict": "en"
+    },
+    {
+      "name": "matematico-tao",
+      "verdict": "en"
+    },
+    {
+      "name": "matplotlib",
+      "verdict": "en"
+    },
+    {
+      "name": "maxia",
+      "verdict": "en"
+    },
+    {
+      "name": "mcp-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "mcp-builder-ms",
+      "verdict": "en"
+    },
+    {
+      "name": "memory-forensics",
+      "verdict": "en"
+    },
+    {
+      "name": "memory-safety-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "memory-systems",
+      "verdict": "en"
+    },
+    {
+      "name": "mental-health-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析心理健康数据",
+      "sample": "mental-health-analyzer 分析心理健康数据、识别心理模式、评估心理健康状况、提供个性化心理健康建议。支持与睡眠、运动、营养等其他健康数据的关联分析。"
+    },
+    {
+      "name": "mermaid-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "metasploit-framework",
+      "verdict": "en"
+    },
+    {
+      "name": "micro-saas-launcher",
+      "verdict": "en"
+    },
+    {
+      "name": "microservices-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "microsoft-azure-webjobs-extensions-authentication-events-dotnet",
+      "verdict": "en"
+    },
+    {
+      "name": "microsoft-teams-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "minecraft-bukkit-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "minimalist-ui",
+      "verdict": "en"
+    },
+    {
+      "name": "miro-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "mise-configurator",
+      "verdict": "en"
+    },
+    {
+      "name": "mixpanel-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "ml-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "ml-pipeline-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "mlops-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "mmx-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "mobile-design",
+      "verdict": "en"
+    },
+    {
+      "name": "mobile-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "mobile-security-coder",
+      "verdict": "en"
+    },
+    {
+      "name": "modern-javascript-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "molykit",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "monday-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "monetization",
+      "verdict": "en"
+    },
+    {
+      "name": "monorepo-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "monorepo-management",
+      "verdict": "en"
+    },
+    {
+      "name": "monte-carlo-monitor-creation",
+      "verdict": "en"
+    },
+    {
+      "name": "monte-carlo-prevent",
+      "verdict": "en"
+    },
+    {
+      "name": "monte-carlo-push-ingestion",
+      "verdict": "en"
+    },
+    {
+      "name": "monte-carlo-validation-notebook",
+      "verdict": "en"
+    },
+    {
+      "name": "moodle-external-api-development",
+      "verdict": "en"
+    },
+    {
+      "name": "moyu",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "mtls-configuration",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-advisor",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-agent-brainstorming",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-agent-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-agent-task-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-cloud-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "multi-platform-apps-multi-platform",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-code-javascript",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-code-python",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-expression-syntax",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-mcp-tools-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-node-configuration",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-validation-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "n8n-workflow-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "nanobanana-ppt-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "native-data-fetching",
+      "verdict": "en"
+    },
+    {
+      "name": "neon-postgres",
+      "verdict": "en"
+    },
+    {
+      "name": "nerdzao-elite",
+      "verdict": "en"
+    },
+    {
+      "name": "nerdzao-elite-gemini-high",
+      "verdict": "en"
+    },
+    {
+      "name": "nestjs-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "network-101",
+      "verdict": "en"
+    },
+    {
+      "name": "network-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "networkx",
+      "verdict": "en"
+    },
+    {
+      "name": "new-rails-project",
+      "verdict": "en"
+    },
+    {
+      "name": "nextjs-app-router-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "nextjs-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "nextjs-supabase-auth",
+      "verdict": "en"
+    },
+    {
+      "name": "nft-standards",
+      "verdict": "en"
+    },
+    {
+      "name": "nodejs-backend-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "nodejs-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "nosql-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "not-human-search-mcp",
+      "verdict": "en"
+    },
+    {
+      "name": "notebooklm",
+      "verdict": "en"
+    },
+    {
+      "name": "notion-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "notion-template-business",
+      "verdict": "en"
+    },
+    {
+      "name": "nutrition-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析营养数据",
+      "sample": "nutrition-analyzer 分析营养数据、识别营养模式、评估营养状况，并提供个性化营养建议。支持与运动、睡眠、慢性病数据的关联分析。"
+    },
+    {
+      "name": "nx-workspace-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "objection-preemptor",
+      "verdict": "en"
+    },
+    {
+      "name": "observability-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "observability-monitoring-monitor-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "observability-monitoring-slo-implement",
+      "verdict": "en"
+    },
+    {
+      "name": "obsidian-bases",
+      "verdict": "en"
+    },
+    {
+      "name": "obsidian-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "obsidian-clipper-template-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "obsidian-markdown",
+      "verdict": "en"
+    },
+    {
+      "name": "occupational-health-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析职业健康数据",
+      "sample": "occupational-health-analyzer 分析职业健康数据、识别工作相关健康风险、评估职业健康状况、提供个性化职业健康建议。支持与睡眠、运动、心理健康等其他健康数据的关联分析。"
+    },
+    {
+      "name": "odoo-accounting-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-automated-tests",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-backup-strategy",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-docker-deployment",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-ecommerce-configurator",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-edi-connector",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-hr-payroll-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-inventory-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-l10n-compliance",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-manufacturing-advisor",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-migration-helper",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-module-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-orm-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-performance-tuner",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-project-timesheet",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-purchase-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-qweb-templates",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-rpc-api",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-sales-crm-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-security-rules",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-shopify-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-upgrade-advisor",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-woocommerce-bridge",
+      "verdict": "en"
+    },
+    {
+      "name": "odoo-xml-views-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "office-productivity",
+      "verdict": "en"
+    },
+    {
+      "name": "on-call-handoff-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "onboarding-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "onboarding-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "one-drive-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "openapi-spec-generation",
+      "verdict": "en"
+    },
+    {
+      "name": "openclaw-github-repo-commander",
+      "verdict": "en"
+    },
+    {
+      "name": "oral-health-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析口腔健康数据",
+      "sample": "oral-health-analyzer 分析口腔健康数据、识别口腔问题模式、评估口腔健康状况、提供个性化口腔健康建议。支持与营养、慢性病、用药等其他健康数据的关联分析。"
+    },
+    {
+      "name": "orchestrate-batch-refactor",
+      "verdict": "en"
+    },
+    {
+      "name": "os-scripting",
+      "verdict": "en"
+    },
+    {
+      "name": "oss-hunter",
+      "verdict": "en"
+    },
+    {
+      "name": "osterwalder-canvas-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "outlook-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "outlook-calendar-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "page-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "pagerduty-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "paid-ads",
+      "verdict": "en"
+    },
+    {
+      "name": "pakistan-payments-stack",
+      "verdict": "en"
+    },
+    {
+      "name": "parallel-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "payment-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "paypal-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "paywall-upgrade-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "pci-compliance",
+      "verdict": "en"
+    },
+    {
+      "name": "pdf-official",
+      "verdict": "en"
+    },
+    {
+      "name": "pentest-checklist",
+      "verdict": "en"
+    },
+    {
+      "name": "pentest-commands",
+      "verdict": "en"
+    },
+    {
+      "name": "performance-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "performance-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "performance-profiling",
+      "verdict": "en"
+    },
+    {
+      "name": "performance-testing-review-ai-review",
+      "verdict": "en"
+    },
+    {
+      "name": "performance-testing-review-multi-agent-review",
+      "verdict": "en"
+    },
+    {
+      "name": "personal-tool-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "phase-gated-debugging",
+      "verdict": "en"
+    },
+    {
+      "name": "php-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "pipecat-friday-agent",
+      "verdict": "en"
+    },
+    {
+      "name": "pipedrive-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "pitch-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "plaid-fintech",
+      "verdict": "en"
+    },
+    {
+      "name": "plan-writing",
+      "verdict": "en"
+    },
+    {
+      "name": "planning-with-files",
+      "verdict": "en"
+    },
+    {
+      "name": "playwright-java",
+      "verdict": "en"
+    },
+    {
+      "name": "playwright-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "plotly",
+      "verdict": "en"
+    },
+    {
+      "name": "podcast-generation",
+      "verdict": "en"
+    },
+    {
+      "name": "polars",
+      "verdict": "en"
+    },
+    {
+      "name": "popup-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "posix-shell-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "postgres-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "postgresql",
+      "verdict": "en"
+    },
+    {
+      "name": "postgresql-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "posthog-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "postmark-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "postmortem-writing",
+      "verdict": "en"
+    },
+    {
+      "name": "powershell-windows",
+      "verdict": "en"
+    },
+    {
+      "name": "pptx-official",
+      "verdict": "en"
+    },
+    {
+      "name": "pr-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "price-psychology-strategist",
+      "verdict": "en"
+    },
+    {
+      "name": "pricing-strategy",
+      "verdict": "en"
+    },
+    {
+      "name": "prisma-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "privacy-by-design",
+      "verdict": "en"
+    },
+    {
+      "name": "privilege-escalation-methods",
+      "verdict": "en"
+    },
+    {
+      "name": "product-design",
+      "verdict": "en"
+    },
+    {
+      "name": "product-inventor",
+      "verdict": "en"
+    },
+    {
+      "name": "product-manager",
+      "verdict": "en"
+    },
+    {
+      "name": "product-manager-toolkit",
+      "verdict": "en"
+    },
+    {
+      "name": "product-marketing-context",
+      "verdict": "en"
+    },
+    {
+      "name": "production-code-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "production-scheduling",
+      "verdict": "en"
+    },
+    {
+      "name": "professional-proofreader",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "programmatic-seo",
+      "verdict": "en"
+    },
+    {
+      "name": "progressive-estimation",
+      "verdict": "en"
+    },
+    {
+      "name": "progressive-web-app",
+      "verdict": "en"
+    },
+    {
+      "name": "project-development",
+      "verdict": "en"
+    },
+    {
+      "name": "project-skill-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "projection-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "prometheus-configuration",
+      "verdict": "en"
+    },
+    {
+      "name": "prompt-caching",
+      "verdict": "en"
+    },
+    {
+      "name": "prompt-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "prompt-engineering",
+      "verdict": "en"
+    },
+    {
+      "name": "prompt-engineering-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "prompt-library",
+      "verdict": "en"
+    },
+    {
+      "name": "protect-mcp-governance",
+      "verdict": "en"
+    },
+    {
+      "name": "protocol-reverse-engineering",
+      "verdict": "en"
+    },
+    {
+      "name": "pubmed-database",
+      "verdict": "en"
+    },
+    {
+      "name": "puzzle-activity-planner",
+      "verdict": "en"
+    },
+    {
+      "name": "pydantic-ai",
+      "verdict": "en"
+    },
+    {
+      "name": "pydantic-models-py",
+      "verdict": "en"
+    },
+    {
+      "name": "pypict-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "python-development-python-scaffold",
+      "verdict": "en"
+    },
+    {
+      "name": "python-fastapi-development",
+      "verdict": "en"
+    },
+    {
+      "name": "python-packaging",
+      "verdict": "en"
+    },
+    {
+      "name": "python-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "python-performance-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "python-pptx-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "python-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "python-testing-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "qiskit",
+      "verdict": "en"
+    },
+    {
+      "name": "quality-nonconformance",
+      "verdict": "en"
+    },
+    {
+      "name": "quant-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "radix-ui-design-system",
+      "verdict": "en"
+    },
+    {
+      "name": "rag-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "rag-implementation",
+      "verdict": "en"
+    },
+    {
+      "name": "rayden-code",
+      "verdict": "en"
+    },
+    {
+      "name": "rayden-use",
+      "verdict": "en"
+    },
+    {
+      "name": "react-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "react-component-performance",
+      "verdict": "en"
+    },
+    {
+      "name": "react-flow-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "react-flow-node-ts",
+      "verdict": "en"
+    },
+    {
+      "name": "react-modernization",
+      "verdict": "en"
+    },
+    {
+      "name": "react-native-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "react-nextjs-development",
+      "verdict": "en"
+    },
+    {
+      "name": "react-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "react-state-management",
+      "verdict": "en"
+    },
+    {
+      "name": "react-ui-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "readme",
+      "verdict": "en"
+    },
+    {
+      "name": "recallmax",
+      "verdict": "en"
+    },
+    {
+      "name": "receiving-code-review",
+      "verdict": "en"
+    },
+    {
+      "name": "red-team-tactics",
+      "verdict": "en"
+    },
+    {
+      "name": "red-team-tools",
+      "verdict": "en"
+    },
+    {
+      "name": "reddit-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "redesign-existing-projects",
+      "verdict": "en"
+    },
+    {
+      "name": "reference-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "referral-program",
+      "verdict": "en"
+    },
+    {
+      "name": "rehabilitation-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析康复训练数据",
+      "sample": "rehabilitation-analyzer 分析康复训练数据、识别康复模式、评估康复进展，并提供个性化康复建议"
+    },
+    {
+      "name": "remotion",
+      "verdict": "en"
+    },
+    {
+      "name": "remotion-best-practices",
+      "verdict": "en"
+    },
+    {
+      "name": "render-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "requesting-code-review",
+      "verdict": "en"
+    },
+    {
+      "name": "returns-reverse-logistics",
+      "verdict": "en"
+    },
+    {
+      "name": "reverse-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "revops",
+      "verdict": "en"
+    },
+    {
+      "name": "risk-manager",
+      "verdict": "en"
+    },
+    {
+      "name": "risk-metrics-calculation",
+      "verdict": "en"
+    },
+    {
+      "name": "robius-app-architecture",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "robius-event-action",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "robius-matrix-integration",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "robius-state-management",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "robius-widget-patterns",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "ruby-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "rust-async-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "rust-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "saas-multi-tenant",
+      "verdict": "en"
+    },
+    {
+      "name": "saas-mvp-launcher",
+      "verdict": "en"
+    },
+    {
+      "name": "saga-orchestration",
+      "verdict": "en"
+    },
+    {
+      "name": "sales-automator",
+      "verdict": "en"
+    },
+    {
+      "name": "sales-enablement",
+      "verdict": "en"
+    },
+    {
+      "name": "salesforce-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "salesforce-development",
+      "verdict": "en"
+    },
+    {
+      "name": "sam-altman",
+      "verdict": "en"
+    },
+    {
+      "name": "sankhya-dashboard-html-jsp-custom-best-pratices",
+      "verdict": "en"
+    },
+    {
+      "name": "sast-configuration",
+      "verdict": "en"
+    },
+    {
+      "name": "satori",
+      "verdict": "en"
+    },
+    {
+      "name": "scala-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "scanning-tools",
+      "verdict": "en"
+    },
+    {
+      "name": "scanpy",
+      "verdict": "en"
+    },
+    {
+      "name": "scarcity-urgency-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "schema-markup",
+      "verdict": "en"
+    },
+    {
+      "name": "scientific-writing",
+      "verdict": "en"
+    },
+    {
+      "name": "scikit-learn",
+      "verdict": "en"
+    },
+    {
+      "name": "screen-reader-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "screenshots",
+      "verdict": "en"
+    },
+    {
+      "name": "scroll-experience",
+      "verdict": "en"
+    },
+    {
+      "name": "seaborn",
+      "verdict": "en"
+    },
+    {
+      "name": "search-specialist",
+      "verdict": "en"
+    },
+    {
+      "name": "secrets-management",
+      "verdict": "en"
+    },
+    {
+      "name": "security-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "security-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "security-bluebook-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "security-compliance-compliance-check",
+      "verdict": "en"
+    },
+    {
+      "name": "security-requirement-extraction",
+      "verdict": "en"
+    },
+    {
+      "name": "security-scanning-security-dependencies",
+      "verdict": "en"
+    },
+    {
+      "name": "security-scanning-security-hardening",
+      "verdict": "en"
+    },
+    {
+      "name": "security-scanning-security-sast",
+      "verdict": "en"
+    },
+    {
+      "name": "seek-and-analyze-video",
+      "verdict": "en"
+    },
+    {
+      "name": "segment-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "segment-cdp",
+      "verdict": "en"
+    },
+    {
+      "name": "semgrep-rule-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "semgrep-rule-variant-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "sendgrid-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "senior-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "senior-frontend",
+      "verdict": "en"
+    },
+    {
+      "name": "senior-fullstack",
+      "verdict": "en"
+    },
+    {
+      "name": "sentry-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "seo",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-blog-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-content-cluster",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-content-quality-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-internal-linking",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-keyword-research",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-landing-page-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-meta-description-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-aeo-schema-generator",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-authority-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-cannibalization-detector",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-competitor-pages",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-content",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-content-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-content-planner",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-content-refresher",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-content-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-dataforseo",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-forensic-incident-response",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-fundamentals",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-geo",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-hreflang",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-image-gen",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-images",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-keyword-strategist",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-meta-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-page",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-plan",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-programmatic",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-schema",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-sitemap",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "seo-snippet-hunter",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-structure-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "seo-technical",
+      "verdict": "en"
+    },
+    {
+      "name": "sequence-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "server-management",
+      "verdict": "en"
+    },
+    {
+      "name": "service-mesh-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "service-mesh-observability",
+      "verdict": "en"
+    },
+    {
+      "name": "sexual-health-analyzer",
+      "verdict": "en"
+    },
+    {
+      "name": "shadcn",
+      "verdict": "en"
+    },
+    {
+      "name": "shader-programming-glsl",
+      "verdict": "en"
+    },
+    {
+      "name": "sharp-edges",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "shellcheck-configuration",
+      "verdict": "en"
+    },
+    {
+      "name": "shodan-reconnaissance",
+      "verdict": "en"
+    },
+    {
+      "name": "shopify-apps",
+      "verdict": "en"
+    },
+    {
+      "name": "shopify-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "shopify-development",
+      "verdict": "en"
+    },
+    {
+      "name": "signup-flow-cro",
+      "verdict": "en"
+    },
+    {
+      "name": "similarity-search-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "simplify-code",
+      "verdict": "en"
+    },
+    {
+      "name": "site-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-check",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-creator-ms",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-improver",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-installer",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-rails-upgrade",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-router",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-scanner",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-seekers",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-sentinel",
+      "verdict": "en"
+    },
+    {
+      "name": "skill-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "skin-health-analyzer",
+      "verdict": "en"
+    },
+    {
+      "name": "skyvern-browser-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "slack-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "slack-bot-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "slack-gif-creator",
+      "verdict": "en"
+    },
+    {
+      "name": "sleep-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析睡眠数据",
+      "sample": "sleep-analyzer 分析睡眠数据、识别睡眠模式、评估睡眠质量，并提供个性化睡眠改善建议。支持与其他健康数据的关联分析。"
+    },
+    {
+      "name": "slo-implementation",
+      "verdict": "en"
+    },
+    {
+      "name": "smtp-penetration-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "snowflake-development",
+      "verdict": "en"
+    },
+    {
+      "name": "social-content",
+      "verdict": "en"
+    },
+    {
+      "name": "social-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "social-post-writer-seo",
+      "verdict": "en"
+    },
+    {
+      "name": "social-proof-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "software-architecture",
+      "verdict": "en"
+    },
+    {
+      "name": "solidity-security",
+      "verdict": "en"
+    },
+    {
+      "name": "spark-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "spec-to-code-compliance",
+      "verdict": "en"
+    },
+    {
+      "name": "speckit-updater",
+      "verdict": "en"
+    },
+    {
+      "name": "speed",
+      "verdict": "en"
+    },
+    {
+      "name": "spline-3d-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "sql-injection-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "sql-optimization-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "sql-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "sqlmap-database-pentesting",
+      "verdict": "en"
+    },
+    {
+      "name": "square-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "squirrel",
+      "verdict": "en"
+    },
+    {
+      "name": "sred-project-organizer",
+      "verdict": "en"
+    },
+    {
+      "name": "sred-work-summary",
+      "verdict": "en"
+    },
+    {
+      "name": "ssh-penetration-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "stability-ai",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-analyst",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-business-analyst-business-case",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-business-analyst-financial-projections",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-business-analyst-market-opportunity",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-financial-modeling",
+      "verdict": "en"
+    },
+    {
+      "name": "startup-metrics-framework",
+      "verdict": "en"
+    },
+    {
+      "name": "statsmodels",
+      "verdict": "en"
+    },
+    {
+      "name": "steve-jobs",
+      "verdict": "en"
+    },
+    {
+      "name": "stitch-design-taste",
+      "verdict": "en"
+    },
+    {
+      "name": "stitch-loop",
+      "verdict": "en"
+    },
+    {
+      "name": "stitch-ui-design",
+      "verdict": "en"
+    },
+    {
+      "name": "stride-analysis-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "stripe-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "stripe-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "subagent-driven-development",
+      "verdict": "en"
+    },
+    {
+      "name": "subject-line-psychologist",
+      "verdict": "en"
+    },
+    {
+      "name": "supabase-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "superpowers-lab",
+      "verdict": "en"
+    },
+    {
+      "name": "supply-chain-risk-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "sveltekit",
+      "verdict": "en"
+    },
+    {
+      "name": "swift-concurrency-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "swiftui-expert-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "swiftui-liquid-glass",
+      "verdict": "en"
+    },
+    {
+      "name": "swiftui-performance-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "swiftui-ui-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "swiftui-view-refactor",
+      "verdict": "en"
+    },
+    {
+      "name": "sympy",
+      "verdict": "en"
+    },
+    {
+      "name": "systematic-debugging",
+      "verdict": "en"
+    },
+    {
+      "name": "systems-programming-rust-project",
+      "verdict": "en"
+    },
+    {
+      "name": "tailwind-design-system",
+      "verdict": "en"
+    },
+    {
+      "name": "tailwind-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "tanstack-query-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "task-intelligence",
+      "verdict": "non-en",
+      "lang": "pt",
+      "marker": "Protocolo",
+      "sample": "task-intelligence Protocolo de Inteligência Pré-Tarefa — ativa TODOS os agentes relevantes do ecossistema ANTES de executar qualquer tarefa solicitada pelo usuário. planning pre-task risk-analysis orc"
+    },
+    {
+      "name": "tavily-web",
+      "verdict": "en"
+    },
+    {
+      "name": "tcm-constitution-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析中医体质数据",
+      "sample": "tcm-constitution-analyzer 分析中医体质数据、识别体质类型、评估体质特征,并提供个性化养生建议。支持与营养、运动、睡眠等健康数据的关联分析。"
+    },
+    {
+      "name": "tdd-orchestrator",
+      "verdict": "en"
+    },
+    {
+      "name": "tdd-workflow",
+      "verdict": "en"
+    },
+    {
+      "name": "tdd-workflows-tdd-cycle",
+      "verdict": "en"
+    },
+    {
+      "name": "tdd-workflows-tdd-green",
+      "verdict": "en"
+    },
+    {
+      "name": "tdd-workflows-tdd-red",
+      "verdict": "en"
+    },
+    {
+      "name": "tdd-workflows-tdd-refactor",
+      "verdict": "en"
+    },
+    {
+      "name": "team-collaboration-issue",
+      "verdict": "en"
+    },
+    {
+      "name": "team-collaboration-standup-notes",
+      "verdict": "en"
+    },
+    {
+      "name": "team-composition-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "technical-change-tracker",
+      "verdict": "en"
+    },
+    {
+      "name": "telegram",
+      "verdict": "en"
+    },
+    {
+      "name": "telegram-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "telegram-bot-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "telegram-mini-app",
+      "verdict": "en"
+    },
+    {
+      "name": "temporal-golang-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "temporal-python-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "temporal-python-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "terraform-aws-modules",
+      "verdict": "en"
+    },
+    {
+      "name": "terraform-infrastructure",
+      "verdict": "en"
+    },
+    {
+      "name": "terraform-module-library",
+      "verdict": "en"
+    },
+    {
+      "name": "terraform-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "terraform-specialist",
+      "verdict": "en"
+    },
+    {
+      "name": "test-automator",
+      "verdict": "en"
+    },
+    {
+      "name": "test-driven-development",
+      "verdict": "en"
+    },
+    {
+      "name": "test-fixing",
+      "verdict": "en"
+    },
+    {
+      "name": "testing-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "testing-qa",
+      "verdict": "en"
+    },
+    {
+      "name": "theme-factory",
+      "verdict": "en"
+    },
+    {
+      "name": "threat-mitigation-mapping",
+      "verdict": "en"
+    },
+    {
+      "name": "threat-modeling-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-animation",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-fundamentals",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-geometry",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-interaction",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-lighting",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-loaders",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-materials",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-postprocessing",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-shaders",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "threejs-textures",
+      "verdict": "en"
+    },
+    {
+      "name": "tiktok-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "tmux",
+      "verdict": "en"
+    },
+    {
+      "name": "todoist-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "tool-design",
+      "verdict": "en"
+    },
+    {
+      "name": "tool-use-guardian",
+      "verdict": "en"
+    },
+    {
+      "name": "top-web-vulnerabilities",
+      "verdict": "en"
+    },
+    {
+      "name": "track-management",
+      "verdict": "en"
+    },
+    {
+      "name": "transformers-js",
+      "verdict": "en"
+    },
+    {
+      "name": "travel-health-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析旅行健康数据",
+      "sample": "travel-health-analyzer 分析旅行健康数据、评估目的地健康风险、提供疫苗接种建议、生成多语言紧急医疗信息卡片。支持WHO/CDC数据集成的专业级旅行健康风险评估。"
+    },
+    {
+      "name": "trello-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "trigger-dev",
+      "verdict": "en"
+    },
+    {
+      "name": "trpc-fullstack",
+      "verdict": "en"
+    },
+    {
+      "name": "trust-calibrator",
+      "verdict": "en"
+    },
+    {
+      "name": "turborepo",
+      "verdict": "ambiguous"
+    },
+    {
+      "name": "turborepo-caching",
+      "verdict": "en"
+    },
+    {
+      "name": "tutorial-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "twilio-communications",
+      "verdict": "en"
+    },
+    {
+      "name": "twitter-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "typescript-advanced-types",
+      "verdict": "en"
+    },
+    {
+      "name": "typescript-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "typescript-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-a11y",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-component",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-page",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-pattern",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-review",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-setup",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-tokens",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-ux-designer",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "verdict": "en"
+    },
+    {
+      "name": "ui-visual-validator",
+      "verdict": "en"
+    },
+    {
+      "name": "uncle-bob-craft",
+      "verdict": "en"
+    },
+    {
+      "name": "uniprot-database",
+      "verdict": "en"
+    },
+    {
+      "name": "unit-testing-test-generate",
+      "verdict": "en"
+    },
+    {
+      "name": "unity-developer",
+      "verdict": "en"
+    },
+    {
+      "name": "unity-ecs-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "unreal-engine-cpp-pro",
+      "verdict": "en"
+    },
+    {
+      "name": "unslop",
+      "verdict": "en"
+    },
+    {
+      "name": "unsplash-integration",
+      "verdict": "en"
+    },
+    {
+      "name": "upgrading-expo",
+      "verdict": "en"
+    },
+    {
+      "name": "upstash-qstash",
+      "verdict": "en"
+    },
+    {
+      "name": "using-git-worktrees",
+      "verdict": "en"
+    },
+    {
+      "name": "using-neon",
+      "verdict": "en"
+    },
+    {
+      "name": "using-superpowers",
+      "verdict": "en"
+    },
+    {
+      "name": "uv-package-manager",
+      "verdict": "en"
+    },
+    {
+      "name": "ux-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "ux-copy",
+      "verdict": "en"
+    },
+    {
+      "name": "ux-feedback",
+      "verdict": "en"
+    },
+    {
+      "name": "ux-flow",
+      "verdict": "en"
+    },
+    {
+      "name": "ux-persuasion-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "uxui-principles",
+      "verdict": "en"
+    },
+    {
+      "name": "variant-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "varlock",
+      "verdict": "en"
+    },
+    {
+      "name": "varlock-claude-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "vector-database-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "vector-index-tuning",
+      "verdict": "en"
+    },
+    {
+      "name": "vercel-ai-sdk-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "vercel-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "vercel-deployment",
+      "verdict": "en"
+    },
+    {
+      "name": "verification-before-completion",
+      "verdict": "en"
+    },
+    {
+      "name": "vexor",
+      "verdict": "en"
+    },
+    {
+      "name": "vexor-cli",
+      "verdict": "en"
+    },
+    {
+      "name": "vibe-code-auditor",
+      "verdict": "en"
+    },
+    {
+      "name": "vibers-code-review",
+      "verdict": "en"
+    },
+    {
+      "name": "viboscope",
+      "verdict": "en"
+    },
+    {
+      "name": "videodb",
+      "verdict": "en"
+    },
+    {
+      "name": "videodb-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "viral-generator-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "visual-emotion-engineer",
+      "verdict": "en"
+    },
+    {
+      "name": "vizcom",
+      "verdict": "en"
+    },
+    {
+      "name": "voice-agents",
+      "verdict": "en"
+    },
+    {
+      "name": "voice-ai-development",
+      "verdict": "en"
+    },
+    {
+      "name": "voice-ai-engine-development",
+      "verdict": "en"
+    },
+    {
+      "name": "vscode-extension-guide-en",
+      "verdict": "en"
+    },
+    {
+      "name": "vulnerability-scanner",
+      "verdict": "en"
+    },
+    {
+      "name": "warren-buffett",
+      "verdict": "en"
+    },
+    {
+      "name": "wcag-audit-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "web-artifacts-builder",
+      "verdict": "en"
+    },
+    {
+      "name": "web-design-guidelines",
+      "verdict": "en"
+    },
+    {
+      "name": "web-performance-optimization",
+      "verdict": "en"
+    },
+    {
+      "name": "web-scraper",
+      "verdict": "en"
+    },
+    {
+      "name": "web-security-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "web3-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "webapp-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "webflow-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "weightloss-analyzer",
+      "verdict": "non-en",
+      "lang": "zh-jp-ko",
+      "marker": "分析减肥数据",
+      "sample": "weightloss-analyzer 分析减肥数据、计算代谢率、追踪能量缺口、管理减肥阶段"
+    },
+    {
+      "name": "wellally-tech",
+      "verdict": "en"
+    },
+    {
+      "name": "whatsapp-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "whatsapp-cloud-api",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-architect",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-changelog",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-onboarding",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-page-writer",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-qa",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-researcher",
+      "verdict": "en"
+    },
+    {
+      "name": "wiki-vitepress",
+      "verdict": "en"
+    },
+    {
+      "name": "windows-privilege-escalation",
+      "verdict": "en"
+    },
+    {
+      "name": "windows-shell-reliability",
+      "verdict": "en"
+    },
+    {
+      "name": "wireshark-analysis",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress-centric-high-seo-optimized-blogwriting-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress-penetration-testing",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress-plugin-development",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress-theme-development",
+      "verdict": "en"
+    },
+    {
+      "name": "wordpress-woocommerce-development",
+      "verdict": "en"
+    },
+    {
+      "name": "workflow-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "workflow-orchestration-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "workflow-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "wrike-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "writing-plans",
+      "verdict": "en"
+    },
+    {
+      "name": "writing-skills",
+      "verdict": "en"
+    },
+    {
+      "name": "x-article-publisher-skill",
+      "verdict": "en"
+    },
+    {
+      "name": "x-twitter-scraper",
+      "verdict": "en"
+    },
+    {
+      "name": "x402-express-wrapper",
+      "verdict": "en"
+    },
+    {
+      "name": "xlsx-official",
+      "verdict": "en"
+    },
+    {
+      "name": "xss-html-injection",
+      "verdict": "en"
+    },
+    {
+      "name": "xvary-stock-research",
+      "verdict": "en"
+    },
+    {
+      "name": "yann-lecun",
+      "verdict": "en"
+    },
+    {
+      "name": "yann-lecun-debate",
+      "verdict": "en"
+    },
+    {
+      "name": "yann-lecun-filosofia",
+      "verdict": "en"
+    },
+    {
+      "name": "yann-lecun-tecnico",
+      "verdict": "en"
+    },
+    {
+      "name": "yes-md",
+      "verdict": "en"
+    },
+    {
+      "name": "youtube-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "youtube-summarizer",
+      "verdict": "en"
+    },
+    {
+      "name": "zapier-make-patterns",
+      "verdict": "en"
+    },
+    {
+      "name": "zendesk-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "zeroize-audit",
+      "verdict": "en"
+    },
+    {
+      "name": "zipai-optimizer",
+      "verdict": "en"
+    },
+    {
+      "name": "zod-validation-expert",
+      "verdict": "en"
+    },
+    {
+      "name": "zoho-crm-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "zoom-automation",
+      "verdict": "en"
+    },
+    {
+      "name": "zustand-store-ts",
+      "verdict": "en"
+    }
+  ]
+}

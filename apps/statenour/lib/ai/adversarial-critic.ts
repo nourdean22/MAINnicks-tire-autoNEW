@@ -1,0 +1,235 @@
+/**
+ * Adversarial critic · v10.0.369
+ *
+ * Per /yann-lecun-debate skill · when Nick is about to recommend
+ * something high-stakes, run a counter-argument pass that surfaces
+ * the STRONGEST objection. Truth needs friction · this stops Nick
+ * from becoming a yes-man.
+ *
+ * COMPLEMENTS the v10.0.366 LLM-as-judge:
+ *   · Judge scores on rubric (accuracy / actionability / brevity / tone / evidence)
+ *   · Critic finds the case AGAINST the recommendation
+ *   · Both run async post-stream · neither blocks user perceived latency
+ *
+ * TRIGGERS on recommendation-shape replies:
+ *   · "you should ..." · "do X" · "buy Y" · "stop Z"
+ *   · "the move is ..." · "switch to ..." · "go with ..."
+ *   · Future-tense imperatives at top of reply
+ *
+ * Skips obvious cases:
+ *   · Replies under 80 chars (too short to be a meaningful recommendation)
+ *   · Replies that already include "however / but / on the other hand"
+ *     (already balanced)
+ *   · Pure factual answers ("X is Y") that aren't recommendations
+ *
+ * OUTPUT
+ *   { hasObjection, objection, severity, foundFlaw }
+ *
+ * The objection is stored as brainMemory category=adversarial_objection
+ * keyed by message ID. UI can surface it as an expandable "counter view"
+ * on long-press.
+ */
+
+import { withGuardian } from "@/lib/tools/guardian";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("ai/adversarial-critic");
+
+export interface AdversarialReport {
+  hasObjection: boolean;
+  objection: string;
+  /**
+   * 1=mild edge case · 2=meaningful tradeoff · 3=fundamental flaw.
+   * Operator can use to decide "should I revise" vs "noted, proceed".
+   */
+  severity: 1 | 2 | 3;
+  /**
+   * Did the critic find a real flaw, or is the recommendation solid?
+   * Distinct from hasObjection · the critic ALWAYS articulates an
+   * objection (its job), but flags whether the objection is hollow.
+   */
+  foundFlaw: boolean;
+  durationMs: number;
+}
+
+const MIN_REPLY_LEN = 80;
+
+const RECOMMENDATION_SHAPES: RegExp[] = [
+  /\b(you|nour) should\b/i,
+  /\b(do|don['']t|stop|start|cancel|switch to|go with|pick) /i,
+  /\bthe (move|play|answer|choice) (is|here is)\b/i,
+  /\b(my recommendation|i('?d| would) recommend|i think you should)\b/i,
+  /\bbest (option|move|approach|path) (is|would be)\b/i,
+];
+
+const ALREADY_BALANCED: RegExp[] = [
+  /\bhowever\b/i,
+  /\bon the other hand\b/i,
+  /\bcounter(view|argument|case)\b/i,
+  /\bthe risk (is|here is|with this is)\b/i,
+  /\btrade[- ]?off\b/i,
+];
+
+function isRecommendationShape(content: string): boolean {
+  if (content.length < MIN_REPLY_LEN) return false;
+  if (ALREADY_BALANCED.some((re) => re.test(content))) return false;
+  return RECOMMENDATION_SHAPES.some((re) => re.test(content));
+}
+
+const ADVERSARIAL_SYSTEM = `You are an adversarial critic in the style of Yann LeCun · technical, contrarian, evidence-driven, refuses easy consensus. The user shows you a recommendation. Your job is to find the STRONGEST objection · the case against · the failure mode that the recommender hasn't considered.
+
+DO NOT agree.
+DO NOT hedge.
+DO NOT add disclaimers.
+
+Output JSON only:
+{
+  "objection": "1-2 sentence sharp counter-argument · max 280 chars",
+  "severity": 1 | 2 | 3,
+    // 1 = minor edge case worth noting
+    // 2 = meaningful tradeoff that should change the call's framing
+    // 3 = fundamental flaw · the recommender is probably wrong
+  "foundFlaw": true | false
+    // true if you can articulate a SPECIFIC failure mode with evidence
+    // false if the recommendation is actually solid · objection is mild
+}
+
+Be terse. No markdown. No prose outside JSON.`;
+
+interface CriticArgs {
+  userQuery: string;
+  recommendation: string;
+}
+
+async function _criticize(args: CriticArgs): Promise<AdversarialReport | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    // v10.0.448 · silent-failure-hunter audit · was returning null
+    // without any signal, so a missing/rotated key would silently
+    // disable the entire adversarial layer with no operator visibility.
+    // Logged as warn (rate-limited at logger level) so the daily eval
+    // harness + observability dashboard can surface "critic is no-op'ing."
+    log.warn("adversarial_critic_no_op", {
+      reason: "OPENAI_API_KEY missing",
+      messageHint: args.userQuery.slice(0, 60),
+    });
+    return null;
+  }
+  const startedAt = Date.now();
+
+  const userPrompt = `OPERATOR ASKED: ${args.userQuery.slice(0, 800)}
+
+RECOMMENDATION TO ATTACK: ${args.recommendation.slice(0, 1500)}
+
+Find the strongest objection.`;
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: ADVERSARIAL_SYSTEM },
+        { role: "user", content: userPrompt },
+      ],
+      // Slight temperature lift · adversarial outputs benefit from
+      // some divergence · purely deterministic returns canned objections
+      temperature: 0.4,
+      max_tokens: 250,
+      response_format: { type: "json_object" },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    const err: Error & { status?: number } = new Error(
+      `adversarial ${res.status}: ${body.slice(0, 200)}`,
+    );
+    err.status = res.status;
+    throw err;
+  }
+
+  const data = await res.json();
+  const text = data.choices?.[0]?.message?.content?.trim();
+  if (!text) return null;
+
+  let parsed: { objection?: unknown; severity?: unknown; foundFlaw?: unknown };
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  const objection =
+    typeof parsed.objection === "string" ? parsed.objection.slice(0, 320).trim() : "";
+  if (!objection) return null;
+
+  const sevRaw = typeof parsed.severity === "number" ? parsed.severity : 1;
+  const severity: 1 | 2 | 3 = sevRaw >= 3 ? 3 : sevRaw >= 2 ? 2 : 1;
+  const foundFlaw = parsed.foundFlaw === true;
+
+  return {
+    hasObjection: true,
+    objection,
+    severity,
+    foundFlaw,
+    durationMs: Date.now() - startedAt,
+  };
+}
+
+export const criticizeRecommendation = withGuardian("adversarial-critic", _criticize, {
+  timeoutMs: 8_000,
+  maxRetries: 1,
+});
+
+/**
+ * Fire-and-forget · runs the adversarial pass async + persists the
+ * objection to a brain memory keyed by message ID for review/UI surfacing.
+ */
+export async function criticizeAsync(args: CriticArgs & { messageId: string }) {
+  if (!isRecommendationShape(args.recommendation)) return; // skip non-recs
+  try {
+    const report = await criticizeRecommendation(args);
+    if (!report?.hasObjection) return;
+
+    const { brainMemory } = await import("@/lib/brain/memory-manager");
+    await brainMemory.remember(
+      "adversarial_objection",
+      `objection_${args.messageId}`,
+      `[Sev ${report.severity}${report.foundFlaw ? " · flaw" : ""}] ${report.objection}`,
+      "adversarial-critic",
+      {
+        messageId: args.messageId,
+        severity: report.severity,
+        foundFlaw: report.foundFlaw,
+      },
+    );
+
+    if (report.severity >= 2 && report.foundFlaw) {
+      log.info("adversarial_strong_objection", {
+        messageId: args.messageId,
+        severity: report.severity,
+        objection: report.objection.slice(0, 100),
+      });
+    }
+  } catch (err) {
+    // v10.0.448 · silent-failure-hunter · was swallowing without any
+    // signal. The critic is best-effort (per the comment) but we still
+    // want a breadcrumb when it fails so the daily eval can spot
+    // patterns (timeout cluster · 401 cluster · OpenAI 5xx storm).
+    log.warn("adversarial_critic_failed", {
+      messageId: args.messageId,
+      error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+      errClass: err instanceof Error ? err.constructor.name : typeof err,
+    });
+  }
+}
+
+/**
+ * Predicate · used by callers that want to gate the call themselves
+ * (e.g. only run on long replies, etc).
+ */
+export const looksLikeRecommendation = isRecommendationShape;

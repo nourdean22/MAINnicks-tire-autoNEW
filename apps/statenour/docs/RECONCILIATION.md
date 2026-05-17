@@ -1,0 +1,680 @@
+# Reconciliation · statenour-os
+
+**Last verified:** 2026-05-12 EOD (v10.0.528 → v10.0.529.6 wave) · **HEAD:** `codex/ollama-local` (latest push 4e2b67d + v10.0.529.6 in flight) · **Active wave:** post-audit hardening + DB migration apply + CVE cleanup + E-3 prompt-injection fences · **Versioning:** semver-only · **Tests:** 1675 tests across 129 files · **Pre-push gates:** 15/15 green · **AGENTS.md:** at repo root
+
+> ## v10.0.528 → v10.0.529.6 · audit-driven hardening wave · 2026-05-12 · 8 ships · 1 cohort
+>
+> Single-day aggressive push closing every High-severity audit finding
+> from the 2026-05-12 sweep (silent-failure · STRIDE/OWASP · API
+> readiness · DB cost) PLUS the deferred decision-replay UI consumer
+> from Arc B Feature 3. Quantitative result:
+>
+> - **CVEs · 43 → 13 vulns** (–30) · **highs · 15 → 0** (–15)
+> - **Cron budget · 38/40 → 36/40** (4 slot headroom · was 2 · device subsystem retired)
+> - **Routes sanitized · 0 → 26** via new `sanitizeError` helper
+> - **High-risk migration applied** (8 missing indexes + 14 dead drops on prod Neon)
+> - **4 tool surfaces fenced** for prompt-injection defense (`searchDocuments`, `searchWebVerified`, `findRelatedConversations`, `ingestDocumentFromUrl`)
+> - **2 cost-heavy tools quota-gated** (`runPython` 100/day · `ingestDocumentFromUrl` 50/day)
+> - **xlsx → exceljs** · last 2 high CVEs (zip-bomb · ReDoS) closed
+> - **1675 tests green** through every ship
+>
+> **Ship-by-ship roll-up:**
+>
+> **v10.0.528 · Wave 6 · 4 parallel agents · tracer obs + a11y bump + eval 35→75 + decision-replay coach** — `app/api/system/agent-traces/[id]/timeline` + waterfall component + focus-trap drawer; mobile composer 40→44px, textarea 40/32→44/36, tickers 20→32px mobile, `role="region"` + `aria-live="off"`; 40 new eval questions in 4 categories (`brain_recall_precision`, `tool_use_correctness`, `voice_intent_classification`, `anti_pattern_detection`); daily `decision-replay` cron folded into mega-morning picks `MasteryDecision` ≥30d, matches Munger/Naval/Buffett/Greene wisdom (no new schema · reuses `DecisionReplay` model). Pre-existing TS fix on decision-replays/route.ts (`never[]` collapse → hoisted type aliases).
+>
+> **v10.0.529 · deferred silent-failure + security fixes + Ultron tile** — H3 conversation-recall embedding-decode skip counters · H4 morning-brief idempotency fails closed · H5 morning-brief durable-write reports `persisted: bool` · S-2 OAuth CSRF state cookie (CSPRNG, HttpOnly Secure SameSite=Lax, timing-safe verify) · S-4 `getClientIp` prefers `x-vercel-forwarded-for` + last-non-private-hop walk · `server-only` declared in package.json · new `DecisionReplayCard` mounted between ObservabilityRow and SinceLastVisitCard (silent when queue + history both empty).
+>
+> **v10.0.529.1 · v526 index migration APPLIED to prod Neon** — 8 new indexes via `CREATE INDEX CONCURRENTLY` (chat_messages_conv_role_created, brain_memories_source_created, agent_traces_label_started, entity_audits_type_action_created, chat_messages_parent_created, brain_bus_events_topic_status_available, audit_events_event_actor_created, plus M8 fixup for PascalCase `AuditEvent` table) · 14 dead drops via `DROP INDEX CONCURRENTLY` (vector_embeddings standalones + 12 tiny-table createdAt/updatedAt) · new reusable `scripts/apply-pending-migration.ts` (autocommit pg driver, bypasses Prisma's implicit transaction wrap) · `prisma migrate resolve --applied` recorded · `migrate status` clean (23 migrations).
+>
+> **v10.0.529.2 · security mediums + silent-failure M6** — T-2 SQL injection defense-in-depth (runtime allowlist on `/api/brain/search-hybrid` `source` enum) · T-3 proper HTML escape in OAuth `errorPage` (covers `&<>"'/` not just `<`) · S-3 OAuth `/start` session-gated · D-3 xlsx CVE deferred with documented rationale · M6 morning-brief 5-query `personal_slice_<label>_failed` logs.
+>
+> **v10.0.529.3 · rate limits + silent-failure mediums + CVE cleanup** — D-1 `checkAiRateLimit` on autocomplete + suggestions + transcribe + chat/documents · `checkRateLimit("general")` on lane-check/feedback · M1 regression-runner stream parse skip-ratio warn (>50% → SDK drift, not regression) · M5 multi-search per-source timeout vs other failure discrimination · M7 tavily/exa/perplexity body-decode-failure distinction · **Next 16.2.3 → 16.2.6** (closes 7 high CVEs · SSRF · DoS×2 · middleware bypass×3 · App Router bypass) · pnpm.overrides `axios>=1.15.2` (4 high CVEs) · `fast-uri>=3.1.2` (2 high CVEs).
+>
+> **v10.0.529.4 · sanitizeError helper + tool-quota guard** — new `lib/utils/sanitize-error.ts` scrubs postgres URLs, Bearer tokens, `sk-*` keys, absolute paths, IPv4 (caps 200 chars) · applied via `replace_all` to 12 high-traffic AI routes (chat, suggestions, documents, assist, tasks, plan-day, teach, voice-to-content, coach-goal, nick-noticed, suggest-goals, review) · new `lib/ai/tool-quota.ts` daily-quota check via `BrainMemory(category="tool_quota_daily")` (no new tables) · wired into `runPython` (100/day · matches E2B free tier) and `ingestDocumentFromUrl` (50/day · 10× operator headroom).
+>
+> **v10.0.529.5 · I-1 sweep + xlsx→exceljs + E-3 prompt-injection fences** — sanitizeError swept to 14 more routes via parallel agent (ultron×4 · system×3 · cron×3 · brain · social · tasks · operator-brief · total 26 routes) · `xlsx@0.18.5` → `exceljs@4.4.0` via parallel agent (6.8M weekly downloads · zero CVEs · TS types bundled · ParsedDocument contract preserved · CSV path + xlsx path both rewritten) — closes the last 2 high CVEs · new `lib/ai/tool-result-fencing.ts` wraps `searchDocuments` / `searchWebVerified` / `findRelatedConversations` outputs in `<tool_data tool="..." source="external_web|external_doc|cross_session">` fences · system prompt gains `TOOL_DATA_FENCING_RULE` (~170 tokens) teaching the model to treat fenced regions as data not instructions.
+>
+> **v10.0.529.6 · cron retirement + docs reconciliation** — device subsystem retired (3 crons: `device-command-reap` · `device-sync` · `device-health` · all mode `retired` · schedule `null`) freeing 2 slots (38→36 active · 4 slot headroom · was 2) · saves ~430 wasted invocations/day · routes preserved for future re-activation · this RECONCILIATION entry written.
+>
+> **Operator-pending (carries to v530):**
+>
+> - `prisma/migrations-pending/20260512_v526_voice_latency/` · belongs on nickstire after VAPI migration · parallel session decides drop vs land
+> - `app/api/cron/status/route.ts` · past retire-by date · pre-push gate warns · explicit nod needed to delete the file
+> - E-3 Phase 2 · classifier over tool outputs + dangerous-combo block-list (e.g. `searchDocuments → ingestDocumentFromUrl` in one turn needs HITL) · longer-form work, not blocking
+> - 12 moderate transitive CVEs (no broadly-exploitable paths · sweep after next major dep upgrade wave)
+> - Spline 3D plan at `~/.claude/plans/silly-tickling-journal.md` · operator must build scenes in editor before integration
+
+> ## v10.0.442 → v10.0.484 · sprint reconciliation · 2026-05-07/08 · 43 versions · 2 cohorts
+>
+> Two-day push spanning forward work + bug-fix recovery. Full sprint
+> summary lives at `docs/cohort-2026-05-08-eod-summary.md`.
+>
+> **Cohort A · forward work (v10.0.442-472, 31 versions, 2026-05-07):**
+> Closed v1↔v2 prompt-builder drift (v10.0.444-447 · 5 audit findings) ·
+> shipped v2 cutover plan with 5 criteria + 4 phases + 3 rollback levels
+> (`docs/v2-prompt-cutover-plan.md`) · backfilled 10 ADRs covering provider
+> chain · CoALA · prompt builder split · withGuardian · Anthropic cache ·
+> pgvector · skill recall · glitch taxonomy · multi-agent fan-out · editorial
+> aesthetic (`docs/adr/0001-…0010-…`) · ran schema-timestamp audit (8 mutable
+> models flagged) · fixed text-secondary contrast (3.28:1 → AA) · added
+> universal `prefers-reduced-motion` rule · converted 17 box-shadow keyframes
+> to opacity-on-pseudo for compositor-only animation · gated brand-anchor
+> cascade to `[data-anchor]` opt-in.
+>
+> **Cohort B · bug-fix wave (v10.0.473-484, 12 versions, 2026-05-07/08):**
+> Schema migration for 8 `updatedAt` columns reverted (v10.0.473) when
+> `pnpm prisma migrate status` revealed migration never applied to prod
+> Neon · migration parked at `prisma/migrations-pending/`. Image-gen
+> routed back to Venice flux-2-pro (v10.0.477-480) — defense-in-depth
+> via internal delegation in `lib/ai/openai-image.ts` after module-cache
+> stale imports kept resurrecting OpenAI billing-cap path. Mobile chat
+> composer recovered (v10.0.478) by hiding 3 toolbar buttons under `sm:`
+> breakpoint — textarea was 0px on iPhone. Layout regression fixed
+> (v10.0.474) by reverting state-aura `position: relative` (was creating
+> containing block for `position: fixed` descendants → 2545px layout).
+> Ideation regex tuned (v10.0.475, 483) to block "come up with",
+> "brainstorm", "help me cook up" from firing image-gen classifier.
+> Creativity dial bumped (v10.0.481-482) on 6 intents + new
+> `BROADEN_AND_SUGGEST` operator-rule (rule #9). ProactiveInsightCard
+> banner removed (v10.0.484) per operator request.
+>
+> **Cohort C · docs reconciliation (v10.0.484-485, 2026-05-08 EOD):**
+> 36 living docs stamped with reconciliation footer · cohort summary
+> written · CHANGELOG.md updated · this RECONCILIATION.md entry added ·
+> ARCHITECTURE/DATA-MODEL/REPO-MAP "last verified" markers bumped from
+> 2026-04-30 → 2026-05-08 · glitch-taxonomy.md gains 5 new incidents ·
+> user-level MEMORY.md updated with sprint summary + READ FIRST pointer
+> at the cohort summary.
+>
+> **Lessons captured:**
+> 1. `prisma migrate status` is the source of truth, not "I ran release:db".
+> 2. `position: relative` containing-block trap — adding it to a parent breaks
+>    `position: fixed` descendants throughout the subtree.
+> 3. Next.js dev-server module cache makes top-level imports sticky · use
+>    defense-in-depth (internal delegation) when the import target swaps.
+> 4. Ideation regex must catch "come up with" + friends, not just direct
+>    image-gen keywords.
+> 5. Mobile composer chrome budget · every always-visible button competes
+>    with the textarea on 375px screens.
+
+> ## v10.0.148 → v10.0.166 · post-audit consolidation wave · 2026-05-03 same session · 19 commits
+>
+> Triggered by an external audit report flagging ~70% hallucinated
+> content. The report's accurate parts (MAPE-K framing, hierarchical
+> memory, forecast registry, governed automation) drove a four-slice
+> consolidation plan that turned implicit governance into explicit
+> data, plus a follow-on chat-quality wave triggered by a real
+> hallucination diagnosed via the new envelope work.
+>
+> ### Slice 1-4 · governance spine
+>
+> | Ver | Commit | Slice | Result |
+> |---|---|---|---|
+> | v10.0.148 | `a278533` | #1 · AutomationPolicy registry | 75 policies seeded · `/system/policies` operator surface · pre-push gate `[10/10]` policy coverage |
+> | v10.0.149 | `b88820e` | #2 · Explainability envelope | Helper module (no new table; metadata extension) + `/system/agent-traces/[traceId]` drill-down |
+> | v10.0.150 | `9d1ac85` | #3+4 · Forecast taxonomy + Brier scoring | `Prediction.kind` + `brierScore` columns · calibration helper · diagnostic SignalZone candidate |
+> | v10.0.151 | `ac6621a` | A · Wire envelope into chat + autonomous-engine | Envelopes now POPULATED end-to-end |
+> | v10.0.152 | `bca6771` | C · Cron wrapper logs policy fires | `Policy.fireCount` becomes live data |
+> | v10.0.153 | `0c2c375` | B · Approval queue UI | `/system/approvals` (W11 backlog ship) |
+> | v10.0.157 | `1edaedc` | A · Side-effect gating in autonomous-engine | Rules with `approval="ask"` defer; `executeApprovedAction(id)` replays on approve |
+>
+> ### Slice 5 · production hotfix wave (Bay 5 / pgvector / format)
+>
+> | Ver | Commit | Result |
+> |---|---|---|
+> | v10.0.154 | `ad8c002` | pgvector recovery (7653 vectors restored from JSON text) + project-cap fix (`isInboxMission()` helper unifies 3 surfaces) + destructive-push pre-push guard |
+> | v10.0.155 | `fe6f176` | Schema sentinel verify (14/14 green) + `embedding_vec` recovery + inbox-janitor cron folded into mega-evening |
+> | v10.0.158 | `d8a6a01` | Prisma format CI fix (column alignment) |
+> | v10.0.159 | `edab10c` | `prisma format` pre-push gate `[2/11]` · gates renumbered to /11 |
+>
+> ### Slice 6 · chat-quality wave (anti-fabrication)
+>
+> Triggered by user report: "Nick said yes to adding tasks but Bay 5
+> still has 0 tasks." Diagnosis took 4 minutes via the new envelope —
+> first time the v10.0.149 work paid off in production.
+>
+> | Ver | Commit | Layer | Result |
+> |---|---|---|---|
+> | v10.0.156 | `25e1338` | Tool-call envelope wiring | Chat envelopes now show what tools fired during streamText |
+> | v10.0.160 | `f62ff3f` | Detect + warn (action-claim verifier) | 19 verb patterns · 7 hedge patterns · `chat_claim_warn` BrainMemory + red chip on bubble |
+> | v10.0.160 | `f62ff3f` | Smart-reply entity grounding | Replaces "Top 3 for right now" canned trio with "Show Bay 5 Revive tasks" |
+> | v10.0.161 | `f29b8b8` | UI consolidation | Citation + Quality bands collapsed to one row |
+> | v10.0.162 | `9a8e226` | L1 + L2 | System-prompt TRUTH RULE + pre-persist hedge banner rewriter |
+> | v10.0.163 | `ca3888c` | L3 + L4 | History neutralization + entity truth-grounding (DB facts injected pre-turn) |
+> | v10.0.164 | `c21d8b2` | Core | AGENTS.md + RECONCILIATION.md refresh |
+> | v10.0.165 | `24a4484` | AI | Prompt library scaffold + /system/prompts surface |
+> | v10.0.166 | (pending) | AI | `addTasksToProject` bulk task tool (resolving fabrication hallucination) |
+>
+> Five-layer fabrication defense now live end-to-end:
+>   L1 prompt rule → L2 banner rewrite → L3 history neutralization →
+>   L4 truth grounding → L5 operator chip
+>
+> ### Test coverage progression
+>
+> - Pre-wave (post-v10.0.80): 673 tests · 66 files
+> - Post-wave: 760+ tests · 71+ files
+> - New suites: automation/policy + automation/envelope +
+>   automation/approval-queue + brain/calibration + brain/autonomous-
+>   engine-gating + cron/inbox-janitor + ai/chat/action-claim-detector
+>   + ai/chat/fabrication-rewriter + ai/chat/sanitize-history-fabrication
+>   + ai/suggestion-cache (entity grounding) + lib/services/mission-helpers
+>
+> ### Pre-push gates progression
+>
+> - Pre-wave: 9/9
+> - Post-v10.0.148: 10/10 (added policy coverage)
+> - Post-v10.0.159: 11/11 (added prisma format)
+> - Plus the destructive-push guard (no `--accept-data-loss` in shipping
+>   config) wired inside the existing flow
+>
+> ### What's next
+>
+> v10.0.165 prompt library scaffold (`lib/prompts/library.ts` +
+> `/system/prompts` listing surface). See AGENTS.md section 5
+> "Active backlog" at the repo root for the full priority order.
+
+> ## v10.0.77 → v10.0.80 medium-priority backlog · 2026-05-01 same session · 4 commits
+>
+> The 8-task prioritized list from the visible-but-misleading audit
+> follow-up shipped in 4 commits. Each commit closes 1-3 tasks; all
+> independent, all 9/9 green, all CI green.
+>
+> | Ver | Commit | Tasks | Result |
+> |---|---|---|---|
+> | v10.0.77 | `5c6f2c5` | 5 + 7 | chat console.log → log.info (24 sites) + activeKeys wired |
+> | v10.0.78 | `0b6724d` | 8 | brain-bus producer expansion · 3 new event families (goal.transition, reflection.created, brain_dump.finalized) |
+> | v10.0.79 | `40253ea` | 1 + 2 | revenue + snapshot tool cluster collapses (-2 tools: getLiveRevenue, getShopBriefing) |
+> | v10.0.80 | `85137c7` | 6 + 3 + 4 | /system/* sister-page standardization (3 clusters: cost / log / cron) — cross-link chips + canonical-vs-sister docstrings |
+>
+> **Tool catalog progression across the full v10 reconciliation:**
+> - Pre v10.0.73: 118 tools
+> - v10.0.73 (Cat 2): 115 (closeLoop, createLoop, sendToTelegram retired)
+> - v10.0.74 (Cat 6 part 1): 114 (searchBrainDumps retired)
+> - v10.0.79 (Tasks 1+2): **112** (getLiveRevenue, getShopBriefing retired)
+>
+> Net 6 tool retirements. Each removes a duplicate that was splitting
+> Nick's tool selection telemetry.
+>
+> **Brain-bus producers progression:**
+> - Pre v10.0.63: 1 producer (cron.failure)
+> - v10.0.63: +5 (drift / commitment / task / score / autonomous)
+> - v10.0.78: **+3** (goal.transition / reflection.created / brain_dump.finalized)
+>
+> Total **9 event families** with handlers + dedupe + idempotent persistence.
+>
+> **Logger migration cumulative:**
+> - v10.0.69-71: 65 console.* migrated (10 brain modules + 16 cron routes + 8 AI routes)
+> - v10.0.77: +24 (chat route info-level)
+> - **Total: 89 sites migrated to structured `logger.withSurface()`**
+>
+> Chat route is now 100% structured logger (warn/error from v10.0.71 +
+> info-level from v10.0.77). Every observability call attributable to
+> a surface name with named events for `/system/errors` filtering.
+>
+> **/system/* sister-page standardization (Tasks 6 + 3 + 4):**
+>
+> Three duplicate-page clusters got "canonical vs sister" positioning
+> instead of hard merge — keeps each page's distinct UX while documenting
+> which to open when. Cross-link chips in PageHeader actions on every
+> page point to the sister surfaces.
+>
+> | Cluster | Canonical | Sister(s) |
+> |---------|-----------|-----------|
+> | Cost dashboard | `/system/costs` (live ops) | `/system/ai-cost` (historical breakdowns) |
+> | Log feed | `/system/logs` (broad retrospective) | `/system/events` (real-time HUD) |
+> | Cron management | `/system/crons` (control deck) | `/system/cron-runs` (history index) + `/system/cron-diagnostics` (why-silent) |
+>
+> Lower-risk, faster move than a full merge — preserves all functionality
+> while addressing "which page do I open?" UX cost. Each docstring also
+> updated with explicit "when to use which" guide.
+>
+> **Hardcoded-zero lies fully cleared (Cat 1):**
+> - v10.0.73: driftBudgetUsed wired (mode classifier RECOVERY branch)
+> - v10.0.77: activeKeys wired (rate-limit ribbon)
+>
+> Both were `: 0, // TODO` patterns that the previous report flagged as
+> the highest-danger Cat 1. Both closed.
+
+> ## v10.0.73 → v10.0.74 visible-but-misleading audit · 2026-05-01 same session · 2 commits
+>
+> Different bug class from the v10.0.63-72 contract-violation campaign. That
+> previous campaign fixed **silent contract violations** (deletions leaking,
+> calls untraced, console.log spam). This shorter campaign tackles **visible
+> features that look done but aren't wired right** — the post-rename rot.
+>
+> | Ver | Commit | Categories | Fixes |
+> |---|---|---|---|
+> | v10.0.73 | `6ce37a8` | Cat 1 + Cat 4 + Cat 2 | hardcoded-zero wire-up + dead-code removal + 3 dup tools retired |
+> | v10.0.74 | `e4f41a3` | Cat 6 part 1 | search-cluster collapse: searchBrainDumps → searchReflections |
+>
+> **Concrete fixes:**
+>
+> 1. **Hardcoded-zero silent lie (Cat 1):** `components/ultron/ultron.tsx`
+>    was passing `driftBudgetUsed: 0` to the mode classifier. Mode classifier
+>    has a "≥70% → RECOVERY mode" branch that could never fire because the
+>    input was a constant. Pulse endpoint already exposed the correct shape
+>    via `/api/ultron/pulse`. Wired up via `useUltronFetch` (dedupes with
+>    PulseStack on the same cache key + 60s TTL).
+>
+> 2. **Dead code path (Cat 4):** `lib/ai/system-prompt.ts` had `recentPlates`
+>    as a `Promise.resolve([])` stub for an ALPR integration never built,
+>    plus a downstream render block (`if (recentPlates.length > 0) ...`)
+>    that read like Nick handled license plates. He doesn't. Stub + render
+>    block both deleted. When ALPR ships, re-add as a 4th Promise.all entry.
+>
+> 3. **Duplicate tools from old renames (Cat 2):** Apr 18 OpenLoop→Task
+>    rename and an earlier Telegram naming change left three pairs of
+>    duplicate tools exposed to Nick. tool-families.ts literally labeled
+>    `sendToTelegram` as "Alias for sendTelegram (legacy)". Retired:
+>    `closeLoop` → `completeTask`, `createLoop` → `createTask`,
+>    `sendToTelegram` → `sendTelegram`. Removed from `tools.ts` definitions,
+>    `catalog.ts` listings, `tool-families.ts` family metadata, two header
+>    comments + listTools self-describer strings. Zero call sites elsewhere.
+>
+> 4. **Search-cluster collapse (Cat 6 part 1):** `searchReflections` already
+>    searched both Reflection rows AND BrainDump entries; `searchBrainDumps`
+>    was a strict subset (BrainDump only). Extended `searchReflections` with
+>    `startDate`/`endDate` date-range params + the `patterns` field for
+>    parity, then retired `searchBrainDumps`.
+>
+> **Tool catalog:** 118 → 114 (4 retirements: closeLoop, createLoop,
+> sendToTelegram, searchBrainDumps).
+>
+> **Deferred clusters** (need product/architecture decision before collapse):
+>
+> - **Daily-snapshot cluster (4 tools):** `getDashboardSummary` (legacy
+>   business-intel path, also wired to `/api/analytics/dashboard`),
+>   `getShopSnapshot` (bridge-only narrow view), `getShopBriefing`
+>   (bridge-batch wider view), `dailyPulse` (full daily incl. personal layer).
+>   Real overlap but each has a distinct angle + non-tool callers.
+> - **Revenue cluster (3 tools):** `getRevenueStats`, `getLiveRevenue`,
+>   `compareLiveRevenue`. Different time-window angles.
+> - **System pages cluster (37 pages):** `/system/events` vs `/system/logs`
+>   are the clearest pair (both "live unified feed"); cron pages
+>   (`crons` / `cron-runs` / `cron-diagnostics`) are 3 → could be 1 with tabs.
+>
+> **Pattern that finds these post-rename rot bugs:**
+> ```
+> grep -rn ": 0, // TODO\|: null, // TODO" lib/ app/ components/   # hardcoded zeros
+> grep -rn "Promise.resolve(\[\])" lib/                            # dead async stubs
+> grep -in "alias\|legacy\|deprecated" lib/ai/tool*                # legacy tool entries
+> ```
+
+> ## v10.0.63 → v10.0.71 reconciliation campaign · 2026-05-01 single session · 9 commits
+>
+> **The headline:** ~140 audit findings closed end-to-end across 5 contracts in
+> a single autonomous session. Soft-delete contract is now end-to-end across
+> all 9 soft-delete-aware tables (BrainMemory, Task, Mission, Commitment,
+> BrainDump, Reflection, MasteryDecision, LifeGoal, IdentitySnapshot). Logger
+> migration covers brain modules + 16 cron routes + 8 AI routes. AgentTrace
+> coverage is universal. Brain-bus producers cover 5 event families.
+>
+> | Ver | Commit | Move | Fix count |
+> |---|---|---|---|
+> | v10.0.63 | `18130a4` | A · brain-bus producer audit | 5 typed wrappers + 9 emit sites + 11 tests |
+> | v10.0.64 | `ea098b1` | C · AgentTrace coverage wave 2 | 21 modules via `makeTracedAiChat` factory |
+> | v10.0.65 | `5610f63` | B · brain wave 4 audit | 11 fixes (8 CRITICAL system-prompt feeders) |
+> | v10.0.66 | `3ae77af` | D · brain wave 5 audit | 18 fixes (8 CRITICAL system-prompt feeders) |
+> | v10.0.67 | `8d1abfd` | E · Task/Mission/Commitment soft-delete | ~50 fixes |
+> | v10.0.68 | `68ee684` | F · BrainDump/Reflection/MasteryDecision/LifeGoal | 30 fixes |
+> | v10.0.69 | `33ecf4f` | Phase 3+4 · AgentTrace cleanup + brain logger | 1 + 11 sites |
+> | v10.0.70 | `ecc7eca` | Phase 2 Tier 1 + 4 · page redirects + cron logger | 2 + 28 sites |
+> | v10.0.71 | `7a08d98` | Phase 2 Tier 2 · /api/ai/* logger | 26 warn/error sites |
+>
+> **Soft-delete totals:** 16 CRITICAL system-prompt feeder bypasses closed +
+> ~111 HIGH read-then-write loop fixes = **127 soft-delete bypass closures**.
+>
+> **Logger migration totals:** 65 console.* sites migrated to
+> `logger.withSurface(...)` across 26 modules + routes (10 brain + 16 crons + 8 AI).
+>
+> **Audited surface:** 63 pages · 327 API routes · 75 brain modules · 36
+> active crons (4 budget headroom under 40-cap).
+>
+> **Page audit (v10.0.70):** 5 stalest pages verified clean (auth/sign-in,
+> system/diagnostics, system/events, system/tools, brain/categories) — old
+> last-modified dates reflect stable surfaces, not drift. 2 real bugs found
+> and fixed: `/capture` and `/ops` redirect targets pointed at non-existent
+> `/command` route (404 trap from pre-Ultron consolidation).
+
+> **READ THIS FIRST if you're a fresh agent session.** Below is the
+> single source of truth for everything that has shipped in the v10
+> wave. The headline since v10.0.27: **two pre-existing CRITICAL
+> bugs were sitting in production for weeks before audit caught them.**
+> One was a SQL syntax error in the durable brain-bus claim query
+> that had been silently failing every 2 minutes since v10.0.1
+> (fixed in v10.0.27). The other was an unauthed-GET privacy hole
+> across 14 routes (journal, devices/command, goals, tasks,
+> commitments, body, habits, mastery/mood-trend, etc.) that the
+> sensitive-GET pre-push gate had been silently missing since v9.1.17
+> ratchet (fixed in v10.0.37; gate widened from 5 → 16 prefixes).
+>
+> **Active gate task:** Track A · NICK_PRIME_PROMPT=shadow soaking.
+> Watch `/system/prompt-comparison`. Flip to `=1` once parity holds
+> (zero `prompt.shadow.build_failures` + delta within ±5%). Track C
+> + v9.2 prompt-builder deletion both unblock on the flip.
+
+## v9.1 wave progress (after v9.0 Command Spine)
+
+### Phase 1 · prompt-v2 coverage (v9.1.0 → v9.1.10)
+
+| Version | Commit | What shipped |
+|---|---|---|
+| v9.1.0 | `877bedf` | `/system/command-center` operator dashboard |
+| v9.1.1 | `6079eff` | `/system/prompt-comparison` + semver migration |
+| v9.1.2 | `87ebdad` | CommandSpinePulse on Ultron home |
+| v9.1.3 | `b00b4ec` | 3-mode `NICK_PRIME_PROMPT` flag (off / shadow / on) |
+| v9.1.4 | `8d32ce8` | prompt-v2 WHY block — Active Missions + Active Goals |
+| v9.1.5 | `38cee0d` | prompt-v2 Recent Thinking — brain dumps + reflections |
+| v9.1.6 | `25db66c` | shadow comparison persistence + 7-day trend strip |
+| v9.1.7 | `3b4f9b8` | prompt-v2 commitments + scheduled actions |
+| v9.1.8 | `54b1a05` | prompt-v2 anchors — pinned context + hot rules |
+| v9.1.9 | `105278b` | prompt-v2 live domain snapshot — business + mastery |
+| v9.1.10 | `a5e0538` | prompt-v2 temporal context — time-aware guidance + targets |
+
+### Phase 2 · code-review hardening (v9.1.11 → v9.1.27)
+
+17 commits across two parallel deep-audit waves. Every commit is single-surface-area and ships with green tests + typecheck + 9 pre-push gates. **65+ real bugs fixed** ranging from prompt injection to fail-open webhooks to silent ghost-row leaks to autonomous engine double-spam.
+
+#### Round 1 audit (4 agents in parallel) → v9.1.13-v9.1.16
+
+| Version | Commit | Surface | Findings |
+|---|---|---|---|
+| v9.1.11 | `4a26deb` | docs | reconciliation update for v9.1.4-v9.1.10 |
+| v9.1.12 | `be6fba1` | self-audit on v9.1.4-v9.1.10 | 3 HIGH (past-due action mislabel, stale weekly target, unauthed shadow-trend) |
+| v9.1.13 | `7dbb268` | AI/prompt subsystem | 2 HIGH (prompt injection sanitizer, v1 weekly-key local/UTC bug) + 4 MED |
+| v9.1.14 | `f3cb277` | auth + security | 3 HIGH (open nickstire webhook, broken Make webhook, 12 leaky GETs) + 4 MED + new sensitive-GET pre-push gate |
+| v9.1.15 | `9a16750` | DB + Prisma | 2 CRITICAL (Cascade→Restrict on soft-delete chains, pgvector $queryRawUnsafe guard) + 4 IMPORTANT |
+| v9.1.16 | `9a14e23` | cron + brain-bus | 4 HIGH (double-CronJobLog write, lying probe, 60s envelope leak risk, blind 55min/hour spike detector) + 2 MED |
+
+#### Phase 2.5 (housekeeping batch) → v9.1.17-v9.1.21
+
+| Version | Commit | Surface | Findings |
+|---|---|---|---|
+| v9.1.17 | `d639ab4` | GET-route lockdown | 26 routes locked + sensitive-GET gate ratcheted to HARD mode |
+| v9.1.18 | `f91d4c6` | soft-delete sweep + entity-audit | 5 brain-layer reads + 4 task.update() audit gaps closed |
+| v9.1.19 | `eb9d8d3` | AI rate limits | chat route + 13 other AI-calling routes get 10 req/min/IP cap |
+| v9.1.20 | `cf2fb45` | docs | reconciliation update for v9.1.13-v9.1.19 |
+| v9.1.21 | `80fec0d` | regression tests | 12 new tests for v9.1.13 + v9.1.19 helpers |
+
+#### Round 2 audit (3 agents in parallel) → v9.1.22-v9.1.27
+
+| Version | Commit | Surface | Findings |
+|---|---|---|---|
+| v9.1.22 | `5f7321b` | streaming + chat pipeline | 1 HIGH (onError handler) + 4 IMPORTANT (rate-limit bypass, telemetry race, auto-rename race, etc.) |
+| v9.1.23 | `8d843f8` | services + brain CRITICALs | 5 CRITICAL (health route public leak, autonomous engine idempotency, soft-delete leaks, cache invalidation gap) |
+| v9.1.24 | `98fba67` | services + brain IMPORTANTs | 4 IMPORTANT (reflection idempotency, deleteConvo silent-fail, journal sanitization, maybeSpawnNextPhase non-transactional) |
+| v9.1.25 | `fc7186f` | brain pipeline deferred | 3 IMPORTANT (commitment dual-spam, importance-scorer garbage accumulation, wisdom dedup) |
+| v9.1.26 | `13bb0c3` | services + dashboard deferred | 2 IMPORTANT (claimWorkItems TOCTOU spin, system/crons re-render perf) |
+| v9.1.27 | `fe66bc9` | streamText fallback | provider auto-rotation on stream-error (cross-request, 60s sticky window) |
+
+### Pre-push gate evolution
+
+Started: 8 gates (v8.21).  
+v9.1.14: added [9/9] sensitive GET-route auth coverage.  
+v9.1.17: ratcheted [9/9] from soft (warn) to HARD (fail-close) once sweep finished.  
+Current: every push runs typecheck + lint + tests + raw-sql + cron-budget + AI-catalog + env-secret + auth-coverage (mutating) + auth-coverage (sensitive GET).
+
+### v10 wave (active) — Tracks B + D + E complete
+
+| Version | Commit | Track | What shipped |
+|---|---|---|---|
+| v10.0-alpha plan | `e1b26d9` | Phase 0 | V10-PLAN.md (corrected from external doc · parallel tracks A-E) |
+| v10.0-alpha B.3 | `ffcc3d7` | B.3 | 21 regression tests (cache, journal-sanitize, reflection-idempotency) |
+| v10.0-alpha B.1 | `e4176d3` | B.1 | Frontend audit (52 pages) + 2 RED + 2 YELLOW fixes |
+| v10.0.1 | `61cdeae` | B.2 | Durable brain-bus replay (BrainBusEvent table + polling cron + 14 tests) |
+| v10.0.2 | `8130cab` | B.4 | SchemaChangeLedger + DB-MIGRATION-POLICY.md + /api/system/schema-history + 12 tests |
+| v10.0.3 | `5fe8900` | B.5 | Pre-first-token same-turn fallback (streamWithFallback + 8 tests) |
+| v10.0.4 | `b821917` | B.1 | YELLOW sweep — 6 deferred frontend findings closed |
+| v10.0.5 | `59b8c89` | docs | RECONCILIATION update — Track B + B.1 frontend complete |
+| v10.0.6 | `ac4be73` | E.1 + E.2 | /system/repos + /system/schema-history dashboards |
+| v10.0.7 | `af36967` | E.4 | /system/deployment-truth (build SHA + schema drift + env + cron 24h) |
+| v10.0.8 | `6054466` | E.5 | AgentTrace contract (mintTraceId / wrapTrace / recordTrace + 11 tests) |
+| v10.0.9 | `f3ac1a9` | D | Doc stamping + stale-banner sweep (6 docs) + mintTraceId monotonic fix |
+| v10.0.10 | `2209056` | E.5 | /system/agent-traces dashboard + chat-route AgentTrace wiring |
+| v10.0.11 | `2754880` | E.3 | GitHub ecosystem briefings — Nick-readable digest module + /api/system/repo-briefing + /system/repos panel |
+| v10.0.12 | `0f305b8` | tests | repo-briefing tests + RECONCILIATION sync |
+| v10.0.13 | `96058e6` | nav | 4 v10 dashboard cards added to SystemHubGrid |
+| v10.0.14 | `47ad555` | E.5 | AgentTrace adoption in 3 cron jobs |
+| v10.0.15 | `8d1d68d` | audit | Round 3 fixes (drift chain, GH timeout, commit cap, wrapTrace attribution) |
+| v10.0.16 | `5ca6fb2` | E.5 | AgentTrace sweep — 17 aiChat + 3 generateText/streamText routes; new tracedAiChat helper |
+| v10.0.17 | `ead2378` | B.2.1 + H5 | brain-bus dispatch registry + bundle-analyzer (`pnpm analyze`) |
+| v10.0.18 | `fc1063d` | H5 | structured logger expansion + Prisma slow-query telemetry + /system/slow-queries |
+| v10.0.19 | `d700cd8` | B.5b + B.2 | mid-stream graceful degradation (partial-text persist) + /system/brain-bus live tail |
+| v10.0.20 | `61e5154` | B.2 | brain-bus producer wiring — cron failures publish durable events with real BrainMemory handler |
+| v10.0.21 | `c0d2dce` | logger | structured-logger sweep wave 1 (24 console.* sites · lib/services + lib/brain core) |
+| v10.0.22 | `5f3b223` | client-hardening | authedFetch sweep — 13 bare fetch sites in lib/state, lib/hooks, lib/chat |
+| v10.0.23 | `f01d930` | UI | /system/agent-traces polish — search box + errors-only + 12-bucket sparkline |
+| v10.0.24 | `18a5181` | H5 | schema-coverage audit — pg_stat_user_tables × pg_indexes × slow-queries cross-ref + dashboard |
+| v10.0.25 | `83dffa4` | docs | RECONCILIATION sync stamping v10.0.12→24 |
+| v10.0.26 | `2c8a7e6` | audit | Round 4 self-audit — 5 fixes (tracedAiChat provider=none silent success, brain-bus updatedAt bump, slow-query dynamic import, schema-coverage permission-denied, chat onChunk shape) |
+| v10.0.27 | `2aa9c82` | audit | Round 5 — CRITICAL durable-bus claim SQL bug fixed (broken since v10.0.1) + 4 follow-ups |
+| v10.0.28 | `4aabde2` | v11 surface | /chat audit — 8 fixes incl onDelete server-client desync, queueMicrotask for edit race, traceId deep-link |
+| v10.0.29 | `17f1df1` | v11 surface | /tasks audit — 9 fixes incl setLoading-frozen-skeleton, inboxRef useRef, load() concurrency guard, listTasks 1500-row cap |
+| v10.0.30 | `2310ed1` | v11 surface | /journal audit — 6 fixes incl error banner, AbortController, stagger gate, deep-link cleanup |
+| v10.0.31 | `f40fa34` | v11 surface | 5-page sweep — knowledge/brain/body/financial/plan |
+| v10.0.32 | `a0abd67` | v11 surface | 6-page sweep — pins/intel/devices-detail/brain-{categories,galaxy,continuity} |
+| v10.0.33 | `bc9fc49` | v11 surface | Final 7-page sweep — /, content-history, photo-improver, social, mastery, integrations, settings |
+| v10.0.34 | `46c7826` | cron audit | 8 cron-job fixes — memory-consolidation N+1, data-cleanup audit trail, weekly-digest+daily-report TZ bugs, auto-linker bounds, brain-intelligence silent writes |
+| v10.0.35 | `a944477` | brain audit | 7 brain-layer fixes — journal-ingest PII leak, conversation-memory PII leak, mergeMemories soft-delete, scoreMemories wisdom overwrite, commitment cross-rule race, importance-scorer determinism, session-distiller logger |
+| v10.0.36 | `b2c5561` | docs | RECONCILIATION sync v10.0.25→35 |
+| v10.0.37 | `cec8ba4` | API audit · CRITICAL | 14 unauth GETs fixed (privacy hole since v9.1.17) + Zod input validation on /api/financial + /api/body + sensitive-GET pre-push gate widened from 5 to 16 prefixes |
+| v10.0.38 | `ab9473d` | brain wave 2 | 7 brain-layer fixes — pipeline-controller orphan-edge race, embedding-utils unbounded scans, customer PII in brain memory, contradiction-surfacer N+1, decision-quality-drift TZ, identity-snapshot synthetic-overwrite, deletedAt filters |
+| v10.0.39 | `f969a0a` | cron wave 2 | 9 cron fixes — embed-backfill unbounded + silent catches, learn cron UTC TZ, journal-checkin slot detection, backlog-triage destructive archive, weekly-review missing persist, correlation-scan + blindspot-surface N+1 + race, provider-ping silent catch, cost-regression dedup spam |
+| v10.0.40 | `7249fd8` | docs | RECONCILIATION sync v10.0.36→39 |
+| v10.0.41 | `d3ffac1` | docs · session-resume | AGENT-CONTRACT.md startup checklist rewritten to point at RECONCILIATION first; RECONCILIATION header upgraded with critical-find headline + active-state pointer; Turborepo skill installed at ~/.claude/skills/turborepo for future AI sessions |
+| v10.0.42 | `596951f` | cron audit wave 3 · CRITICAL | 7 cron fixes incl 3 CRITICAL: operating-rhythm dead `Promise.resolve(null as any)` placeholders → 5 daily Telegrams reported $0 / 0 stale leads / 0 callbacks regardless of actual shop state (live since v9.x); alert-telegram-bridge spam-loop (claim AFTER send → Telegram failure re-fired infinitely); auto-calibrate destructive `.catch(() => {})` on 3 belief-recalibration update sites. Plus prediction-streaks/decision-drift/pin-hygiene/stale-tasks bounded scans. |
+| v10.0.43 | `89d570b` | docs · doc-truth | Reality column re-counted from disk: models 66 → 69 (the v10.0.1/2/8 additions BrainBusEvent + SchemaChangeLedger + AgentTrace were never reflected); API routes 313 → 325; (mastery) pages 50 → 59; tests 59 → 60. HEAD bumped to v10.0.42. 4 zombie "63 models" phrases corrected (DATA-MODEL.md, AGENT-CONTRACT.md, UPGRADE-PLAN.md ×2). config/repos.ts MAINnicks-tire-autoNEW host bug fixed (`vercel` → `railway`). Pre-push script labels normalized to uniform [1/9]…[9/9]. RECONCILIATION pre-push gate count corrected from 8/8 to 9/9 with proper breakdown. |
+| v10.0.44 | `cf47d80` | API audit · CRITICAL × 6 | 22 unauth-route privacy holes closed. 6 CRITICAL GETs that survived the v10.0.37 sweep because they were under unscoped prefixes: /api/settings (full system config), /api/command/data (shop revenue + CEO context + drift), /api/sse/events (real-time SSE stream of device events + error log + new brain memories), /api/chat/export/[conversationId] (full conversation by ID), /api/chat/hot-questions (chat content patterns), /api/actions-brain (tasks + identity + commitments + decisions). Plus 9 HIGH (personal-logs, analytics/revenue, drift, ai/errors-recent, ai/venice-status, integrations, settings/autopilot GET, settings/ai-config GET, sync/backup + sync/social verified-already-gated false-positives), 1 MEDIUM (nour-os/query timing-safe compare), and 6 more siblings caught by the widened gate (settings/crons, chat/search, personal-logs/[id], integrations/meetings, ai/chat/suggestions/stats, ai/nick-noticed). Sensitive-GET gate prefix list expanded from 16 → 26 to fail-close any future bare-GET landing under these trees. |
+| v10.0.45 | `e2f6e43` | cron audit wave 4 · CRITICAL × 4 + weekly-never-fires | 7 cron fixes. CRITICAL: device-health offline-alert was a dead `Promise.resolve(null as any)` (Pattern-1 — Nour was never notified about >24h-dark devices); device-health + device-sync N+1 (40+ serial round-trips per run, batched via updateMany + $transaction); pgvector-backfill missing assertSafeVectorLiteral guard on $executeRawUnsafe interpolation. HIGH: mega/route.ts UTC-Sunday check fired at 03:00 UTC Monday (10pm ET) → getUTCDay = 1 → weekly block (weekly-digest, voice-clone-train, memory-bloat-watch) has been silently skipped every week since the slot was introduced. MEDIUM: brain-cycle workout-skip detector missing `deletedAt: null`, ingest-gmail audit-event silent .catch(() => {}). Closes the cron-layer audit at 38 / 38 active+folded handlers across 4 waves; total cron findings 31 (8 CRITICAL, 13 HIGH, 10 MEDIUM). |
+| v10.0.46 | `8f4a657` | brain audit wave 3 · CRITICAL × 4 | 18 brain-layer fixes. CRITICAL: operating-rhythm MIT picker inverted (`orderBy: autoPriority desc` returned LEAST urgent task as Nour's daily MIT — every single 8am peak-block Telegram has surfaced the wrong focus task); contextual-recall soft-delete bypass on the per-chat-turn memory-context query (deleted memories injected into Nick's system prompt EVERY reply); task-completion-detector server-side relative `fetch` (auto-DONE feature has been silently dead — the catch always swallowed Next.js URL-resolution errors); thinking-engine runSimulation TypeError crash on `record.id` access (Promise.resolve placeholder returned null forever). HIGH × 8: wisdom-distiller bounds + dedup, chat-recall N+1 → batched OR query, decay/skill-extractor/drift-detector/qualitative-identity/reflection-engine soft-delete bypass × 5, predictive-engine non-transactional creates, ghost-nick dismissal-marker bypass. MEDIUM × 5: deep-scan Date.now()-in-key (~7300 new rows/yr no dedupe), correlation-finder Math.random non-determinism (replaced with seeded mulberry32 PRNG keyed off data-fingerprint FNV-1a), operating-rhythm habits placeholder. Cumulative brain-layer total: 32 fixes across 3 waves; 53/73 files audited. |
+| v10.0.47 | `3053c5b` | docs · sync | RECONCILIATION sync stamping v10.0.43→46. |
+| v10.0.48 | `cddcd2f` | component audit · CRITICAL × 1 | 5 component-layer fixes. CRITICAL: pwa-install-prompt.tsx bare `sessionStorage` access crashed Safari Private Browsing on every page load (component is mounted globally in mastery layout). HIGH: session-expiry-banner interval re-mount race producing two concurrent polls; memory-graph-explorer `key={i}` on re-orderable EdgeRow lists bled hover/focus state across pivots; nick-message `key={i}` on quick-action buttons stale-closed mid-stream. MEDIUM: notification-center clearAll sequential await loop blocking modal for 5+ seconds. Cumulative audit coverage: 6 layers (cron, brain, API, v11 surface, doc-truth, component). |
+| v10.0.49 | `c58116e` | open-webui-plugins ports | renderInlineChart Nick tool + components/chat/inline-chart.tsx (pure-React SVG · 4 chart types) + composeEmail Nick tool + components/chat/email-draft-card.tsx + /api/email/send route (owner-gated) + 16 parser tests in tests/chat/inline-renderers.test.ts. Both tools emit fenced markdown blocks intercepted by the nick-message <pre> override. composeEmail NEVER auto-sends — user clicks Send card. tool-catalog: 133 → 135. |
+| v10.0.50 | `de178d0` | Wave A · autonomous-engine | 11 ghost rules wired to queryNick + retired 2 dead rules. CRITICAL behavioral fixes: daily_score_reminder no longer fires every evening regardless of state, drift_escalation no longer fires every 24h forever, friday_revenue_check no longer reports gap = full target, stale_leads_alert + auto_remind_pending_appointment + auto_followup_expired_quote actually surface real shop signals. Helper `fetchBridge<T>` wraps queryNick with null-on-failure semantics. |
+| v10.0.51 | `0847003` | Wave A · business-intel | 4 ghost functions wired (getRevenueStats, getTopServices, getCustomerStats, getDashboardSummary). bridgeAvailable + bridgeHealth fields surface to consumers so dashboard cards can render "shop offline" banner instead of pretending zeros are real. /api/analytics/revenue + /api/analytics/dashboard now return real shop revenue. |
+| v10.0.52 | `38a6981` | feature · build-your-own-x | New `/learn` mastery page + `searchBuildYourOwnX` Nick tool. Bundled README from codecrafters-io/build-your-own-x at `lib/data/build-your-own-x.md` (504 lines). Parser at lib/learn/build-your-own-x.ts with 10 contract tests (≥20 categories, ≥200 tutorials, language tag on >80%, etc.). tool-catalog: 135 → 136. |
+| v10.0.53 | `4333bb5` | Wave A · service-layer cleanup | 4 dead files deleted (lib/services/jobs.ts + scoring/weekly-profit.ts + validators/jobs.ts + validators/customers.ts — zero consumers). customers.ts 250→85 lines, leads.ts 258→154 lines (dropped orphaned CRUD methods, kept reads/createLead with graceful empty + warn-once). createLead production path was Promise.resolve(null) then accessed `.id` → TypeError every capture-to-LEAD; now throws typed ServiceError(501) with admin redirect. -828 / +144 net lines. |
+| v10.0.54 | `753571b` | Wave A · tools.ts ghost calls | 16 sites across 9 hot-path Nick tools cleared. Analytics tools (getHabitStreaks, analyzeWeek, suggestMIT, dailyPulse, endOfDay, weeklyReview, decisionPreFlight) wired to identity_snapshot + DAILY-task replacements. customerLifetime sources customer + quotes from existing customer_search bridge response shape. createQuickQuote + triageStaleLead were both null-access TypeError crashes; now surface structured redirects with admin URLs. +375 / -144 net lines. |
+| v10.0.55 | `913ffd6` | Wave A FINAL · brain layer | 55 sites across 17 files cleared via shared shim module `lib/brain/legacy-shims.ts` (recentScoreSnapshots / recentDailyHabits / recentShopJobs / recentShopLeads / recentShopQuotes) + 8 contract tests. camera-intelligence rewritten to derive aggregations from `prisma.deviceEvent` directly (was returning all-zeros from non-existent cameraMetric/cameraAlert tables). thinking-engine L9 simulations read now resolves via BrainMemory category="simulation" (matching v10.0.46 writes). 16 brain modules unblocked. **Wave A complete: 203 ghost sites at v10.0.47 → 0 actionable.** |
+
+**Track B reliability work: COMPLETE.** All 5 sub-tracks (B.1 frontend, B.2 brain-bus, B.3 tests, B.4 schema ledger, B.5 same-turn fallback) shipped — plus B.5b mid-stream graceful degradation in v10.0.19.
+
+**Track E build-on-top dashboards: COMPLETE.** All 5 surfaces shipped (E.1 repos · E.2 schema-history · E.3 ecosystem briefing · E.4 deployment-truth · E.5 agent-traces). Plus 3 Horizon-5 dashboards (slow-queries, brain-bus tail, schema-coverage).
+
+**Track D doc stamping: COMPLETE.** All 6 top-level docs carry v10 truth or HISTORICAL banners (README, ARCHITECTURE, DATA-MODEL, REPO-MAP, RUNBOOK, ROADMAP, MASTER-CONTEXT, V9-PLAN, UPGRADE-PLAN).
+
+**Operational polish: COMPLETE.** Brain-bus producer wiring (cron.failure end-to-end), structured-logger sweep wave 1 (24 sites), authedFetch sweep (13 client-side sites), AgentTrace dashboard polish, schema-coverage audit. Bundle-analyzer script live (`pnpm analyze`).
+
+**v11 user-surface reconciliation: COMPLETE (v10.0.28→33).** 19 user-facing pages audited (chat, tasks, journal, knowledge, brain[+/categories/galaxy/continuity], body, financial, plan, pins, intel, devices/[id], /, content/history, photo-improver, social, mastery, integrations, settings, devices). 49 real bugs fixed across 6 commits. 9 pages audited as clean. Patterns: AbortController on polling, res.ok before .json(), stable React keys, structured logger sweep into client code, error banners on previously-silent failures, dead-code removal.
+
+**Cron-layer audit: COMPLETE (v10.0.34).** 8 fixes across 13 audited crons. Highest-leverage finds: memory-consolidation N+1 count queries (60s timeout on warm DB), data-cleanup mass-deletes had no audit trail (defeated v8 phase-2A), weekly-digest UTC midnight off-by-one date display, daily-report startOfDay UTC vs ET (dropped morning completions), auto-linker quadratic edge-write loop unbounded, brain-intelligence blindspot writes silently swallowed.
+
+**Brain-layer logic audit: COMPLETE (v10.0.35).** 7 fixes including 1 CRITICAL PII leak (raw journal text persisted into BrainMemory), HIGH PII leak (peopleMentioned in auditEvent payload), HIGH soft-delete bypass in mergeMemories (resurrection of deleted memories), HIGH wisdom-row confidence overwrite see-saw, HIGH commitment cross-rule double-fire race.
+
+**API route audit (v10.0.37): CRITICAL privacy hole closed.** Pre-v10.0.37 the sensitive-GET pre-push gate covered only 5 route prefixes; an audit caught **14 operator-private GET handlers** across 11 unscoped prefixes that had been silently unauthed since v9.1.17 — including /api/journal (raw thoughts), /api/devices/command (lock codes + camera arms), /api/goals (life goals + ?includeDeleted=1 bypass), /api/tasks, /api/missions, /api/commitments, /api/body, /api/habits, /api/mastery/mood-trend. All 14 now require auth: "owner" or requireSession(req). Pre-push gate widened from 5 → 16 prefixes so future bare GETs in those trees fail CI. Plus Zod input validation on /api/financial + /api/body POSTs (was leaking column names through Prisma errors on bad types) + /api/commitments active+overdue overlap fix.
+
+**Brain-layer audit wave 2 (v10.0.38): COMPLETE.** 7 more fixes incl 2 CRITICAL: pipeline-controller orphan-edge race (two `Date.now()` calls produced different keys → graph edge pointed at non-existent memory id), embedding-utils.semanticSearch unbounded full-table scan on metadata hydration. Plus customer PII in brain memory, contradiction-surfacer N+1, decision-quality-drift TZ bug, identity-snapshot synthetic-overwrite gap, missing soft-delete filter.
+
+**Cron audit wave 2 (v10.0.39): COMPLETE.** 9 more fixes incl 4 CRITICAL: embed-backfill 5 unbounded vectorEmbedding scans + 5 silent catches, learn-cron UTC vs ET startOfDay (off by 5h), journal-checkin slot detection used UTC hours wrong (1am ET fired as morning slot), backlog-triage destructive archive could silently fail per-row + spin forever on sticky DB issues. Plus weekly-review never persisted AI output (dead `Promise.resolve(null as any)` placeholder), correlation-scan + blindspot-surface N+1 race patterns, cost-regression dedup write failure spam Telegram.
+
+**Wave A · Ghost-feeder migration: COMPLETE (v10.0.50→55).** Five focused commits closing the structural pattern that audit waves 1-3 had documented but not yet repaired: 203 dead `Promise.resolve(...)` placeholders across 16 modules — silent feature death since the customer/job/lead tables moved to nickstire (TiDB on Railway) and the DailyScore/HabitLog tables retired (Apr 19). Total: 86 ghost sites cleared (v10.0.50 autonomous-engine, v10.0.51 business-intel, v10.0.53 service layer + 4 dead files removed, v10.0.54 lib/ai/tools.ts × 16, v10.0.55 lib/brain × 55). Architectural deliverable: `lib/brain/legacy-shims.ts` provides single-source replacements (`recentScoreSnapshots` → identity_snapshot JSON parse, `recentDailyHabits` → DAILY-task streakCount synthesis, `recentShop*` → graceful empty + warn-once). 4 CRITICAL crashes fixed (createLead null.id, createQuickQuote null.quoteNumber, triageStaleLead null.fullName, plus runSimulation already fixed in v10.0.46). camera-intelligence module fully rewritten to derive aggregations from real `prisma.deviceEvent` (was returning all-zeros from non-existent tables). Total Wave A net diff: ~1,250 lines added (mostly shim + tests + reflowed brain code) / ~1,200 lines removed (dead modules + dead production paths). **Pre-Wave-A: 203 ghost sites. Post-Wave-A: 0 actionable.** When the next nickstire bridge query lands (e.g. `jobs_range`), one shim function update lights up every consumer simultaneously instead of N inline edits.
+
+**Production v10 surfaces (12 dashboards beyond v8.x):**
+- /system/command-center · v9.0 NICK Prime control room
+- /system/prompt-comparison · v9.1 v1↔v2 shadow trend
+- /system/repos · v10 E.1 cross-repo health + ecosystem briefing
+- /system/schema-history · v10 B.4 migration audit
+- /system/deployment-truth · v10 E.4 single-pane state
+- /system/agent-traces · v10 E.5 AI call chains (with v10.0.23 polish)
+- /system/slow-queries · v10 H5 top-N Prisma query shapes
+- /system/brain-bus · v10 B.2 durable event tail
+- /system/schema-coverage · v10 H5 row × index × slow-query cross-ref
+
+### Active
+
+- **Track A · NICK Prime cutover** (time-gated, passive): `NICK_PRIME_PROMPT=shadow` running. 24-48h smoke window in progress. After parity holds (zero `prompt.shadow.build_failures` + delta-pct within ±5%), flip to `=1` and ship v9.2 deletion of the v1 builder.
+- **Track C · CommandCenterState universal adoption**: pending Track A flip.
+
+### Next required action
+
+Watch `/system/prompt-comparison` for shadow-trend data. Once 24-48h shows no build_failures and delta within ±5%, flip `NICK_PRIME_PROMPT=1` via Vercel CLI. Track C work then unblocks.
+
+> Single source of truth for "what's actually true right now." Future
+> agents — read this FIRST before trusting any older doc claim. All
+> numbers in this file were re-counted directly from the repo at the
+> commit hash above. When you add work, bump this file's "Last verified"
+> stamp + the impacted row.
+
+---
+
+## 1 · Verified reality
+
+| Metric | Value | How verified |
+|---|---|---|
+| HEAD commit | `913ffd6` (v10.0.55) | `git rev-parse --short HEAD` |
+| Branch | `codex/ollama-local` (deploys directly to autonicks.com) | `git rev-parse --abbrev-ref HEAD` |
+| Commits last 7d | 213 | `git log --since='7 days ago' --oneline \| wc -l` |
+| Prisma models | **69** (was 66 pre-v10; +3 from v10.0.1/2/8: BrainBusEvent, SchemaChangeLedger, AgentTrace) | `grep -c '^model ' prisma/schema.prisma` |
+| `@relation` declarations | 19 | `grep -c '@relation' prisma/schema.prisma` |
+| Migrations applied | 2 | `prisma/migrations/` |
+| API routes (`route.ts`) | **326** (+1 from v10.0.49 `/api/email/send`) | `find app/api -name 'route.ts' \| wc -l` |
+| `(mastery)` pages | **60** (+1 from v10.0.52 `/learn`; was 50 pre-v10 surface sweep) | `find 'app/(mastery)' -name 'page.tsx' \| wc -l` |
+| Test files | 63 (644/644 passing as of v10.0.55) | `find tests -name '*.test.ts' \| wc -l` + `pnpm test` |
+| **Auth-coverage gate** | **Hard-fail mode** · 0 unauthed mutating routes (51 retrofitted v8.26) | `bash scripts/pre-push-check.sh` |
+| `authedFetch` adoption | All client `fetch("/api/...")` migrated (253 call sites v8.28) | `grep` across `components/`, `app/(mastery)`, `hooks/` |
+| **Active crons** | **34** | `verify-crons.ts` — 6 slots headroom under Vercel Pro 40-cap |
+| Folded crons (run inside another cron) | 24 | `verify-crons.ts` |
+| Retired crons (deletion scheduled) | 5 | `verify-crons.ts` |
+| TypeScript errors | 0 | `pnpm typecheck` |
+| ESLint errors | 0 | `pnpm lint` |
+| ESLint warnings | 430 (tolerated; `--quiet` mode passes) | `pnpm lint` |
+| Pre-push gate steps | **9/9** (+ master-only full production build) | `bash scripts/pre-push-check.sh` |
+
+### Pre-push gate breakdown (v8.21 → v10.0.43 normalized labels)
+
+```
+  [1/9]  typecheck                     tsc --noEmit
+  [2/9]  lint                          eslint --quiet (warnings allowed)
+  [3/9]  tests                         vitest run (60 files · 610 passing)
+  [4/9]  raw-sql column audit          scripts/audit-raw-sql-columns.ts
+  [5/9]  cron manifest drift + budget  verify-crons.ts (≤38 active)
+  [6/9]  AI tool-catalog contract      vitest run tests/ai/
+  [7/9]  env-secret bypass guard       grep for `process.env.<SECRET> ?? ""`
+  [8/9]  API route auth coverage       hard-fail (mutating · v8.26 sweep complete)
+  [9/9]  sensitive GET-route auth      hard-fail (16 prefixes · v10.0.37 widened)
+  [+]    full production build         statenour-master only
+```
+
+Auth-coverage hard mode has been default since v8.26 (mutating) and v9.1.17 (sensitive GET). Emergency overrides: `AUTH_GATE_SOFT=1` / `SENSITIVE_GET_GATE_SOFT=1`.
+
+### CI
+
+GitHub Actions workflow at `.github/workflows/ci.yml` mirrors the local pre-push gates, plus runs the production build on `statenour-master`. The mirror workflow `.github/workflows/mirror-to-master.yml` fast-forwards `statenour-master` to `codex/ollama-local` HEAD on green CI.
+
+---
+
+## 2 · Doc-to-reality drift (now corrected)
+
+| Doc | Stale claim | Reality |
+|---|---|---|
+| `README.md` | "31 active crons" + "63 Prisma models" + "73 tests" | 34 active · 66 models · 41 test files |
+| `docs/ARCHITECTURE.md` | "209 handlers" + "31 active · 5 folded · 1 retired" + "63 models" | 313 handlers · 34/24/5 · 66 models |
+| `docs/DATA-MODEL.md` | "63 models" header | 66 models |
+| `docs/project/UPGRADE-PLAN.md` | Reality snapshot dated 2026-04-21 | re-stamped 2026-04-29; v8.x mega-overhaul live |
+| `docs/project/ROADMAP.md` | Last touched 2026-04-20 (v10.4 era) | trimmed to high-level future horizons; full v10/v11 detail archived |
+| `docs/project/MASTER-CONTEXT.md` | Apr 12, predates everything substantive | left in place — historical only; UPGRADE-PLAN is now active source |
+| `docs/UPGRADE-PLAN-V6.md` | v6 mega-overhaul plan | shipped per `v6_mega_overhaul.md` memory; left in place as historical |
+| `package.json` build script | `prisma db push --accept-data-loss && next build` ran on every Vercel deploy | dropped from default `build`; preserved as `build:push-schema` for explicit invocation only |
+
+---
+
+## 3 · Active version trees
+
+There are two parallel numbering schemes — they are NOT the same series:
+
+- **Personal-OS surface version** (v10.x → v11.x): the user-facing feature plan from Apr 20-22. Last bump was v11.1 mega-wave on Apr 22.
+- **Mega-overhaul wave version** (v6 → v7 → v8.x): the multi-wave engineering reset that ran Apr 28-29. v6 + v7 + v8 (with sub-versions through v8.24) are sequential waves on `codex/ollama-local`.
+
+Both apply. Roadmap items can reference either tree — note which when adding new ones.
+
+**Current wave:** v8.x mega-overhaul (Apr 29). 25 commits across v8.0 → v8.24. Latest: v8.24 (`08237d9`, 2026-04-29).
+
+Memory file at `~/.claude/projects/C--/memory/v8_mega_overhaul.md` carries the full version table for v6 → v8.24.
+
+---
+
+## 4 · Documentation hierarchy (read in order)
+
+1. **`docs/RECONCILIATION.md`** ← THIS FILE · ground truth for current state
+2. `docs/AGENT-CONTRACT.md` — what any agent needs to know before editing
+3. `docs/project/UPGRADE-PLAN.md` — **active execution source** (current wave + checkpoints)
+4. `docs/project/ROADMAP.md` — high-level future horizons (slimmed; not a wave plan)
+5. `docs/project/CHANGELOG.md` — shipped features by wave/version
+6. `docs/ARCHITECTURE.md` — subsystem map + data flow
+7. `docs/DATA-MODEL.md` — Prisma model catalog + retention
+8. `docs/SECURITY.md` — auth, CSP, secrets, boundaries
+9. `docs/RUNBOOK.md` — cron catalog + incident playbook
+10. `docs/REPO-MAP.md` — repos under `nourdean22/*`
+11. `docs/ULTRON-VISION.md` — product vision for `/`
+
+Archived: `docs/archive/` for retired plans (v10.x ROADMAP detail, Mar 27 prompt files, etc.)
+
+---
+
+## 5 · Build-script change rationale
+
+**Before** (every Vercel deploy):
+```json
+"build": "prisma generate && prisma db push --accept-data-loss && next build"
+```
+
+`prisma db push --accept-data-loss` blindly conforms the live Neon schema to whatever's in `prisma/schema.prisma`, **dropping any column or table not in the schema**. Two failure modes:
+
+1. A schema typo / accidental field deletion → silent data loss in prod on next deploy.
+2. The `--accept-data-loss` flag suppresses the safety prompt that exists specifically to catch this.
+
+**After:**
+```json
+"build": "prisma generate && next build",
+"build:push-schema": "prisma generate && prisma db push --accept-data-loss && next build",
+```
+
+Schema changes now flow through explicit `prisma migrate dev` → migration files → `prisma migrate deploy` (or, if needed, deliberate one-shot `pnpm build:push-schema` invocations). Vercel's default build no longer touches the schema.
+
+---
+
+## 6 · How to keep this honest
+
+Every wave that lands a commit:
+- Bump "Last verified" stamp at the top of this file.
+- Re-run the verification commands below; update Section 1 rows that changed.
+- Touch the impacted doc only with the new value (not stale prose).
+
+Verification commands (paste-ready):
+
+```bash
+# Reality counts
+git rev-parse --short HEAD
+git rev-parse --abbrev-ref HEAD
+git log --since='7 days ago' --oneline | wc -l
+grep -c '^model ' prisma/schema.prisma
+grep -c '@relation' prisma/schema.prisma
+find app/api -name 'route.ts' | wc -l
+find 'app/(mastery)' -name 'page.tsx' | wc -l
+find tests -name '*.test.ts' | wc -l
+pnpm exec tsx scripts/verify-crons.ts | tail -10
+
+# Quality
+pnpm typecheck
+pnpm lint
+pnpm test
+bash scripts/pre-push-check.sh
+```
+
+---
+
+*End of reconciliation. If something here is wrong, fix it in the same commit that introduced the drift — never let stale numbers float.*
+
+---
+
+**Reconciled at v10.0.484** · 2026-05-08 EOD · this doc was reviewed against the live state of the OS in the v10.0.442-484 sprint reconciliation pass. See `docs/cohort-2026-05-08-eod-summary.md` for the sprint summary and which sections of this doc were touched. If a claim in this doc contradicts code reality, the code wins · open an issue.
