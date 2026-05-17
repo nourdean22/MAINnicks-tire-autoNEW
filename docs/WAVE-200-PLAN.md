@@ -189,13 +189,47 @@ unchanged · new Inngest function adds Web Push + pre-rendered audio.
 - [ ] *(future · Phase 5+)* Outbound LiveKit voice call with the
   brief read live (waits for Cartesia voice clone training to finish)
 
-### **Phase 6 · Customer unified loop + predictive brain** *(target: 2-3 weeks · 5-8 commits)*
-- [ ] Convex layer over existing nickstire Drizzle/MySQL (one-way read sync first · write-back optional later)
-- [ ] React surface in nickstire admin: `Customer360` view per customer · timeline of every touch
-- [ ] Mem0 layer for per-customer preference: "Brennen prefers afternoons · pays late · drives a Cadillac"
-- [ ] Predictive layer: agentic RAG with Cohere Rerank 3.5 over `BrainMemory` · multi-hop for complex questions
-- [ ] Letta episodic memory for "what did Nour decide last time about X"
-- [ ] Anticipate cron upgrade: pre-computes 5 likely next-questions + drafts answers (existing cron extended)
+### **Phase 6 · Customer unified loop + predictive brain** *(SCAFFOLD LANDED 2026-05-17 · 1 commit · see ADR-0008)*
+
+Pragmatic scope · ship the read path + inference layer on the existing
+stack. Convex / Mem0 / Letta deferred per ADR-0008 (revisit when
+evidence demands them · zero blocking action items today).
+
+- [x] `customer_detail` query added to nickstire-side nour-os-query
+  handler · returns customer + last-10-invoices + last-5-estimates +
+  last-5-ALG + last-5-callbacks in one round-trip
+- [x] `lib/brain/customer-preferences.ts` · pure-function inference
+  (visitFrequency · paymentBehavior · conversionRate · declinedValue ·
+  avgTicket · LTV tier · openRecovery · hasOpenCallback) · 250 LOC ·
+  rule-based · operator-auditable
+- [x] `app/api/customer-360/[customerId]` · owner-only read endpoint ·
+  bridge + cached prefs + degraded-mode fallback
+- [x] `app/(mastery)/customer-360/[customerId]/page.tsx` · single-pane
+  view · LTV badge · summary line · 6-stat grid · 4-tab timeline ·
+  mobile-first · matches editorial-minimalist aesthetic
+- [x] `src/inngest/functions/customer-preferences.ts` · daily 11:00 UTC
+  recompute · concurrency 4 · per-customer step retries ·
+  soft-degrades when `recent_customer_ids` query unavailable
+- [x] Cohere Rerank 3.5 + agentic RAG · already shipped at v10.0.363
+  in `lib/brain/cohere-rerank.ts` + `lib/brain/contextual-recall.ts`
+  (verified during Phase 6 audit · same as Phase 2 skill registry —
+  the substrate predates Wave-200)
+- [x] ADR-0008 documents layered approach + Convex/Mem0/Letta deferral
+- [ ] OPERATOR: add `recent_customer_ids` query handler to nickstire's
+  nour-os-query.ts (~10 LOC SQL · returns
+  `{ customerIds: string[] }`) — enables the daily Inngest recompute.
+  Until then, per-visit live recompute still works fine
+- [ ] *(follow-up)* Wire morning-brief composer to surface preferences
+  for the top-3 callbacks
+- [ ] *(follow-up)* Wire outreach campaign builder to segment by
+  preference (prompt vs slow payer · high LTV · etc.)
+- [ ] *(future · Phase 6+)* Convex layer · evaluate when real-time
+  receptionist co-pilot lands
+- [ ] *(future)* Mem0 SaaS · evaluate if rule-based inference feels
+  narrow after 30d of use
+- [ ] *(future)* Letta episodic memory · "what did Nour decide last
+  time about X" — substrate already there via BrainMemory · needs a
+  consumer that asks the question
 
 ---
 
@@ -258,6 +292,7 @@ unchanged · new Inngest function adds Web Push + pre-rendered audio.
 - `docs/adr/0005-inngest-durable-workflows.md` — Inngest adoption + cutover (Phase 3)
 - `docs/adr/0006-livekit-voice-implementation.md` — LiveKit Python worker + HTTP bridge (Phase 4)
 - `docs/adr/0007-morning-brief-multichannel.md` — multi-channel brief delivery (Phase 5)
+- `docs/adr/0008-customer-360-predictive-brain.md` — Customer 360 + preferences layer (Phase 6)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/inngest/` — Phase 3 scaffold (client + functions)
 - `apps/voice/` — Phase 4 LiveKit Python worker
