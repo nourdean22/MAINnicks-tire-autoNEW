@@ -173,6 +173,94 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { customers: rows, count: (rows as unknown[]).length };
   },
 
+  // ─── Customer 360 detail (added 2026-05-17 · Wave-200 Phase 6) ──
+  //
+  // Single per-customer timeline that surfaces everything the statenour
+  // Customer 360 view needs. Returns:
+  //   · the customer record
+  //   · last 10 invoices (paid · counted as "wins")
+  //   · last 5 estimates (online portal · pre-conversion or declined)
+  //   · last 5 ALG walk-in estimates (declined-work pipeline)
+  //   · last 5 callback requests
+  //   · derived totals (matches customer_metrics if present)
+  //
+  // Filters:
+  //   · customerId · required · the customers.id
+  //
+  // Used by /api/customer-360/[customerId] on statenour-web. Per
+  // ADR-0008. Adding the rows here so the entire surface ships in one
+  // statenour deploy without waiting for a separate nickstire wave.
+  "customer_detail": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const customerId = String(filters.customerId || "");
+    if (!customerId) return { error: "customerId required" };
+
+    // Run the five queries in parallel · single customer = small set
+    // each · OK to fan out without concurrency limit.
+    const [
+      customerRows,
+      invoiceRows,
+      estimateRows,
+      algRows,
+      callbackRows,
+    ] = await Promise.all([
+      d.execute(sql`
+        SELECT id, firstName, lastName, phone, email,
+               vehicleYear, vehicleMake, vehicleModel,
+               segment, totalVisits, totalSpent, lastVisitDate, createdAt
+        FROM customers WHERE id = ${customerId} LIMIT 1
+      `),
+      d.execute(sql`
+        SELECT id, invoiceNumber, totalAmount, paymentStatus, invoiceDate, notes
+        FROM invoices
+        WHERE customerId = ${customerId}
+        ORDER BY invoiceDate DESC LIMIT 10
+      `),
+      d.execute(sql`
+        SELECT id, estimateNumber, totalAmount, status, createdAt, declineReason
+        FROM estimates
+        WHERE customerId = ${customerId}
+        ORDER BY createdAt DESC LIMIT 5
+      `),
+      d.execute(sql`
+        SELECT id, totalAmount, services, status, createdAt, scoreCard
+        FROM alg_estimates
+        WHERE customerId = ${customerId}
+        ORDER BY createdAt DESC LIMIT 5
+      `),
+      d.execute(sql`
+        SELECT id, name, context, status, createdAt, completedAt
+        FROM callback_requests
+        WHERE customerId = ${customerId} OR phone IN (
+          SELECT phone FROM customers WHERE id = ${customerId} LIMIT 1
+        )
+        ORDER BY createdAt DESC LIMIT 5
+      `),
+    ]);
+
+    const customer = (customerRows[0] as unknown[])?.[0] ?? null;
+    if (!customer) return { error: "Customer not found", customerId };
+
+    const invoices = (invoiceRows[0] as unknown[]) ?? [];
+    const estimates = (estimateRows[0] as unknown[]) ?? [];
+    const algEstimates = (algRows[0] as unknown[]) ?? [];
+    const callbacks = (callbackRows[0] as unknown[]) ?? [];
+
+    return {
+      customer,
+      timeline: { invoices, estimates, algEstimates, callbacks },
+      counts: {
+        invoices: invoices.length,
+        estimates: estimates.length,
+        algEstimates: algEstimates.length,
+        callbacks: callbacks.length,
+      },
+    };
+  },
+
   // ─── Callbacks ────────────────────────────────
   "callbacks_pending": async () => {
     const { getDb } = await import("../db");

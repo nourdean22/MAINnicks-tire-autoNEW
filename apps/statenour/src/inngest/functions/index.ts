@@ -10,3 +10,4 @@
 
 export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
 export { operatorMorningBrief } from "./morning-brief";
+export { customerPreferencesRecompute } from "./customer-preferences";
