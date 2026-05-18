@@ -33,6 +33,7 @@ import {
   Activity,
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   Copy,
   Loader2,
@@ -117,28 +118,38 @@ export default function JudgeEvalPage() {
 
       {data && (
         <>
-          {/* Verdict chip · the headline */}
+          {/* Verdict chip · the headline · Phase AA.4 polish · larger
+              icon sized to label baseline · vertical centering balanced
+              · headline upgraded to a 2-line stack with tabular-num
+              percentage hint when verdict has signal. */}
           <GlassCard className={cn("border", VERDICT_TONE[data.verdict as Verdict])}>
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 shrink-0">
+            <div className="flex items-center gap-4">
+              <span className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-current/10">
                 {data.verdict === "safe" ? (
-                  <CheckCircle2 size={18} className="text-emerald-400" />
+                  <CheckCircle2 size={22} className="text-emerald-400" />
                 ) : data.verdict === "regressing" ? (
-                  <AlertTriangle size={18} className="text-rose-400" />
+                  <AlertTriangle size={22} className="text-rose-400" />
                 ) : data.verdict === "watch" ? (
-                  <Eye size={18} className="text-amber-400" />
+                  <Eye size={22} className="text-amber-400" />
                 ) : (
-                  <Scale size={18} className="text-[var(--text-tertiary)]" />
+                  <Scale size={22} className="text-[var(--text-tertiary)]" />
                 )}
               </span>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-mono uppercase tracking-[0.14em] opacity-70 mb-0.5">
+                <p className="text-[9px] font-mono uppercase tracking-[0.18em] opacity-60 mb-1">
                   Phase 1 canary verdict · 7d window
                 </p>
-                <p className="text-sm font-bold uppercase tracking-wider">
-                  {data.verdict.replace("-", " ")}
-                </p>
-                <p className="text-[11px] mt-1 leading-relaxed">
+                <div className="flex items-baseline gap-2 mb-1">
+                  <p className="text-base font-bold uppercase tracking-wider leading-none">
+                    {data.verdict.replace("-", " ")}
+                  </p>
+                  {data.last7d.v2WinPct >= 0 && (
+                    <span className="text-[10px] font-mono tabular-nums opacity-70">
+                      · v2 {data.last7d.v2WinPct}% / {data.last7d.total} runs
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] leading-relaxed opacity-90">
                   {data.verdictReason}
                 </p>
               </div>
@@ -284,11 +295,45 @@ function CandidatePromptsSection({
         </div>
       )}
 
+      {/* Phase AA.3 · composed empty state · 3 sketched placeholder
+          rows + actionable explanation. Replaces the prior single-
+          line italic "no candidates" which the redesign skill flagged
+          as a missed getting-started opportunity. */}
       {!loading && samples.length === 0 && (
-        <p className="text-[11px] text-[var(--text-tertiary)] italic">
-          No fresh candidates in the last 7d · either /chat is silent
-          or every reply already has a comparison.
-        </p>
+        <div className="space-y-3">
+          <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+            No fresh candidates in the last 7d · either{" "}
+            <code className="text-[var(--gold)]">/chat</code> is silent
+            or every reply already has a comparison run on file.
+          </p>
+          <div className="space-y-1.5 opacity-40 pointer-events-none select-none">
+            {[
+              { intent: "decide", prompt: "should we swap suppliers for the Q3 buy" },
+              { intent: "compose", prompt: "draft a follow-up text for declined work" },
+              { intent: "plan", prompt: "plan the labor rate change rollout" },
+            ].map((s, i) => (
+              <div
+                key={i}
+                className="px-2 py-2 rounded border border-dashed border-[var(--border-default)] bg-[var(--bg-base)]/20"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+                    {s.intent}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-secondary)] truncate flex-1">
+                    {s.prompt}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-[10px] text-[var(--text-tertiary)] leading-relaxed">
+            ↳ Each new <code className="text-[var(--gold)]">/chat</code> reply
+            becomes a candidate the next time the daily{" "}
+            <code className="text-[var(--gold)]">judge-eval-shadow</code> cron
+            fires (or sooner if you hit refresh).
+          </p>
+        </div>
       )}
 
       {samples.length > 0 && (
@@ -312,15 +357,18 @@ function CandidatePromptsSection({
                 </span>
               </div>
               <div className="flex items-center gap-1.5">
+                {/* Phase AA.2 · active:scale-[0.97] micro-press + transition
+                    duration 100 · makes the copy actions feel clickable
+                    rather than visually inert. */}
                 <button
                   onClick={() => copyToClipboard(s.prompt, "prompt")}
-                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-void)]/60 inline-flex items-center gap-1"
+                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-void)]/60 active:scale-[0.97] transition-transform duration-100 inline-flex items-center gap-1"
                 >
                   <Copy size={9} /> prompt
                 </button>
                 <button
                   onClick={() => copyToClipboard(s.v2Reply, "v2 reply")}
-                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 inline-flex items-center gap-1"
+                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 active:scale-[0.97] transition-transform duration-100 inline-flex items-center gap-1"
                 >
                   <Copy size={9} /> v2 reply
                 </button>
@@ -336,6 +384,69 @@ function CandidatePromptsSection({
   );
 }
 
+/**
+ * Phase AA.1 · field-spec metadata · drives the FieldLabel renderer
+ * below so each input shows label + required marker + live char count
+ * on a single rhythmically-aligned row. Removes the prior pattern
+ * where label color was the only signal (rose for v1, emerald for v2)
+ * and required-ness was implicit from submit-time toast-only feedback.
+ */
+const FIELD_MAX = {
+  prompt: 4000,
+  v1Reply: 8000,
+  v2Reply: 8000,
+  intentClass: 80,
+  sourceMessageId: 64,
+} as const;
+
+function FieldLabel({
+  label,
+  required,
+  charCount,
+  charMax,
+  tone,
+}: {
+  label: string;
+  required?: boolean;
+  charCount: number;
+  charMax: number;
+  tone?: "rose" | "emerald" | "tertiary";
+}) {
+  const labelColor =
+    tone === "rose"
+      ? "text-rose-300"
+      : tone === "emerald"
+        ? "text-emerald-300"
+        : "text-[var(--text-tertiary)]";
+  const overage = charCount > charMax * 0.9;
+  return (
+    <div className="flex items-baseline justify-between mb-0.5">
+      <span
+        className={cn(
+          "text-[9px] font-mono uppercase tracking-[0.14em]",
+          labelColor,
+        )}
+      >
+        {label}
+        {required && (
+          <span className="ml-0.5 text-[var(--gold)]" aria-hidden="true">
+            *
+          </span>
+        )}
+        {required && <span className="sr-only">(required)</span>}
+      </span>
+      <span
+        className={cn(
+          "text-[9px] font-mono tabular-nums",
+          overage ? "text-amber-300" : "text-[var(--text-tertiary)]",
+        )}
+      >
+        {charCount}/{charMax}
+      </span>
+    </div>
+  );
+}
+
 function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
   const [prompt, setPrompt] = useState("");
   const [v1Reply, setV1Reply] = useState("");
@@ -344,10 +455,23 @@ function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
   const [sourceMessageId, setSourceMessageId] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const promptOk = prompt.trim().length > 0;
+  const v1Ok = v1Reply.trim().length > 0;
+  const v2Ok = v2Reply.trim().length > 0;
+  const allRequiredOk = promptOk && v1Ok && v2Ok;
+  const canSubmit = allRequiredOk && !submitting;
+  const missingLabel = !promptOk
+    ? "prompt"
+    : !v1Ok
+      ? "v1 reply"
+      : !v2Ok
+        ? "v2 reply"
+        : null;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt || !v1Reply || !v2Reply) {
-      toast.error("prompt + v1 reply + v2 reply are required");
+    if (!allRequiredOk) {
+      toast.error(`Required field missing: ${missingLabel}`);
       return;
     }
     setSubmitting(true);
@@ -394,86 +518,121 @@ function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
       </div>
       <form onSubmit={submit} className="space-y-2">
         <label className="block">
-          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-            prompt
-          </span>
+          <FieldLabel
+            label="prompt"
+            required
+            charCount={prompt.length}
+            charMax={FIELD_MAX.prompt}
+          />
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={2}
-            className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+            className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--gold)]/60 focus:ring-1 focus:ring-[var(--gold)]/30"
             placeholder="What's the concrete answer to..."
-            maxLength={4000}
+            maxLength={FIELD_MAX.prompt}
+            aria-required="true"
+            aria-invalid={!promptOk}
           />
         </label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label className="block">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-rose-300">
-              v1 reply
-            </span>
+            <FieldLabel
+              label="v1 reply"
+              required
+              tone="rose"
+              charCount={v1Reply.length}
+              charMax={FIELD_MAX.v1Reply}
+            />
             <textarea
               value={v1Reply}
               onChange={(e) => setV1Reply(e.target.value)}
               rows={5}
-              className="mt-0.5 w-full rounded border border-rose-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+              className="w-full rounded border border-rose-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono focus:outline-none focus:border-rose-400/70 focus:ring-1 focus:ring-rose-400/30"
               placeholder="Legacy V1 reply text"
-              maxLength={8000}
+              maxLength={FIELD_MAX.v1Reply}
+              aria-required="true"
+              aria-invalid={!v1Ok}
             />
           </label>
           <label className="block">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-emerald-300">
-              v2 reply
-            </span>
+            <FieldLabel
+              label="v2 reply"
+              required
+              tone="emerald"
+              charCount={v2Reply.length}
+              charMax={FIELD_MAX.v2Reply}
+            />
             <textarea
               value={v2Reply}
               onChange={(e) => setV2Reply(e.target.value)}
               rows={5}
-              className="mt-0.5 w-full rounded border border-emerald-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+              className="w-full rounded border border-emerald-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono focus:outline-none focus:border-emerald-400/70 focus:ring-1 focus:ring-emerald-400/30"
               placeholder="V2 (Mastra agent) reply text"
-              maxLength={8000}
+              maxLength={FIELD_MAX.v2Reply}
+              aria-required="true"
+              aria-invalid={!v2Ok}
             />
           </label>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label className="block">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              intent class (optional)
-            </span>
+            <FieldLabel
+              label="intent class (optional)"
+              charCount={intentClass.length}
+              charMax={FIELD_MAX.intentClass}
+            />
             <input
               type="text"
               value={intentClass}
               onChange={(e) => setIntentClass(e.target.value)}
-              className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] text-[var(--text-primary)] font-mono"
+              className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] text-[var(--text-primary)] font-mono focus:outline-none focus:border-[var(--gold)]/60 focus:ring-1 focus:ring-[var(--gold)]/30"
               placeholder="question · plan · compose · …"
-              maxLength={80}
+              maxLength={FIELD_MAX.intentClass}
             />
           </label>
           <label className="block">
-            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              source messageId (optional)
-            </span>
+            <FieldLabel
+              label="source messageId (optional)"
+              charCount={sourceMessageId.length}
+              charMax={FIELD_MAX.sourceMessageId}
+            />
             <input
               type="text"
               value={sourceMessageId}
               onChange={(e) => setSourceMessageId(e.target.value)}
-              className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] font-mono text-[var(--text-primary)]"
+              className="w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] font-mono text-[var(--text-primary)] focus:outline-none focus:border-[var(--gold)]/60 focus:ring-1 focus:ring-[var(--gold)]/30"
               placeholder="ChatMessage.id from candidate"
-              maxLength={64}
+              maxLength={FIELD_MAX.sourceMessageId}
             />
           </label>
         </div>
-        <button
-          type="submit"
-          disabled={submitting || !prompt || !v1Reply || !v2Reply}
-          className={cn(
-            "text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border",
-            submitting
-              ? "border-[var(--border-default)] text-[var(--text-tertiary)]"
-              : "border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10",
+        <div className="flex items-center gap-3 pt-1">
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className={cn(
+              "text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border transition-transform duration-100",
+              canSubmit
+                ? "border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-[0.97]"
+                : "border-[var(--border-default)] text-[var(--text-tertiary)] cursor-not-allowed",
+            )}
+            title={
+              submitting
+                ? "judging…"
+                : missingLabel
+                  ? `Required field missing: ${missingLabel}`
+                  : "judge + persist"
+            }
+          >
+            {submitting ? "judging…" : "judge + persist"}
+          </button>
+          {!submitting && missingLabel && (
+            <span className="text-[10px] font-mono text-amber-300/80">
+              ↳ fill {missingLabel} to enable
+            </span>
           )}
-        >
-          {submitting ? "judging…" : "judge + persist"}
-        </button>
+        </div>
       </form>
     </GlassCard>
   );
@@ -612,8 +771,12 @@ interface RecentRunData {
 
 function RecentRun({ r }: { r: RecentRunData }) {
   return (
-    <details className="rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 overflow-hidden">
-      <summary className="px-2.5 py-2 cursor-pointer hover:bg-[var(--bg-void)]/40 select-none">
+    // Phase AA.5 · `group` enables the chevron to react to the
+    // `[&[open]]` selector on the parent <details> · the default
+    // browser triangle is hidden via `[&::-webkit-details-marker]:hidden`
+    // + `list-none` so the Lucide ChevronDown can take its place.
+    <details className="group rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 overflow-hidden [&[open]>summary>.chevron]:rotate-180 transition-colors hover:border-[var(--border-hover)]">
+      <summary className="px-2.5 py-2 cursor-pointer hover:bg-[var(--bg-void)]/40 select-none list-none [&::-webkit-details-marker]:hidden">
         <div className="flex items-center gap-2">
           <span
             className={cn(
@@ -637,6 +800,11 @@ function RecentRun({ r }: { r: RecentRunData }) {
           <span className="text-[9px] font-mono text-[var(--text-tertiary)] shrink-0">
             {new Date(r.createdAt).toLocaleTimeString()}
           </span>
+          <ChevronDown
+            size={12}
+            className="chevron shrink-0 text-[var(--text-tertiary)] transition-transform duration-200"
+            aria-hidden="true"
+          />
         </div>
       </summary>
       <div className="px-2.5 py-2 border-t border-[var(--border-default)] bg-[var(--bg-void)]/30 space-y-2">
