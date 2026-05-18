@@ -25,6 +25,14 @@ export const STANDARD_MARKERS = [
   /\bevaluate\b/i,
 ];
 
+// P.1 · regex fix · `\b\/X\b` and `\b@X\b` patterns DIDN'T match at
+// start-of-string because `\b` requires a word char on one side and
+// `/` / `@` are non-word chars. The bug was silent · markers worked
+// in the middle of a message ("hey /mega run this") but NOT at the
+// start ("/mega run this"). Discovered by P.1 unit tests.
+// Fix: drop the leading `\b` before `/` and `@` · the prefix itself
+// IS a non-word char so it self-anchors. The trailing `\b` still
+// requires a word boundary after the keyword.
 export const DEEP_MARKERS = [
   /\bstrategy\b/i,
   /\bstrategic\b/i,
@@ -33,8 +41,8 @@ export const DEEP_MARKERS = [
   /\barchitect/i,
   /\bdeep think\b/i,
   /\bthink deeply\b/i,
-  /\b\/deep\b/i,
-  /\b@deep\b/i,
+  /\/deep\b/i,
+  /@deep\b/i,
 ];
 
 export const THOROUGH_MARKERS = [
@@ -43,14 +51,14 @@ export const THOROUGH_MARKERS = [
   /\bresearch (the|this|that|all|every)\b/i,
   /\bdeep dive\b/i,
   /\bthorough/i,
-  /\b\/thorough\b/i,
-  /\b@thorough\b/i,
-  /\b\/research\b/i,
+  /\/thorough\b/i,
+  /@thorough\b/i,
+  /\/research\b/i,
 ];
 
 export const MEGA_MARKERS = [
-  /\b\/mega\b/i,
-  /\b@mega\b/i,
+  /\/mega\b/i,
+  /@mega\b/i,
   /\bbiggest hammer\b/i,
   /\bevery angle\b/i,
   /\bspare no\b/i,
@@ -60,15 +68,15 @@ export const MEGA_MARKERS = [
 /** Phase M.1 · smart-tier markers · operator opts into the hierarchical
  *  router · cheap classifier picks sub-pipelines vs mega's fire-all. */
 export const SMART_MARKERS = [
-  /\b\/smart\b/i,
-  /\b@smart\b/i,
+  /\/smart\b/i,
+  /@smart\b/i,
   /\bpick the right\b/i,
   /\brouter\b/i,
 ];
 
 export const QUICK_OVERRIDES = [
-  /\b\/quick\b/i,
-  /\b@quick\b/i,
+  /\/quick\b/i,
+  /@quick\b/i,
 ];
 
 export interface CoreVerdict {

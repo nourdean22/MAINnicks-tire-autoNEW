@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   DEFAULT_DAILY_CAP_USD,
   __internals as budgetInternals,
@@ -54,7 +55,7 @@ export async function GET(req: Request) {
     await requireSession(req);
 
     const rows = await prisma.brainMemory.findMany({
-      where: { category: "reasoning_trace", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.REASONING_TRACE, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 500,
       select: {

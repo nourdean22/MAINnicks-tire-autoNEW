@@ -1,3 +1,4 @@
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 /**
  * lib/ai/personas/scorer.ts · Phase N.6 (2026-05-18 PM)
  *
@@ -58,7 +59,7 @@ export async function recordPersonaUsage(args: {
     const { prisma } = await import("@/lib/prisma");
     await prisma.brainMemory.create({
       data: {
-        category: "persona_usage",
+        category: BRAIN_CATEGORIES.PERSONA_USAGE,
         key: `persona_${args.personaKey}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         content: `${args.personaKey} ran for ${args.parentTier} (${args.durationMs}ms · confidence ${args.parentConfidence.toFixed(2)})`,
         confidence: args.parentConfidence,
@@ -90,7 +91,7 @@ export async function scorePersonas(
     const { prisma } = await import("@/lib/prisma");
     const { PERSONAS } = await import("./index");
     const rows = await prisma.brainMemory.findMany({
-      where: { category: "persona_usage", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.PERSONA_USAGE, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: lookback,
       select: { confidence: true, createdAt: true, metadata: true },

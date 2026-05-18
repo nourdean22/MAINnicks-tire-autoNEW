@@ -26,6 +26,7 @@
 import { prisma } from "@/lib/prisma";
 import type { ReasoningTier } from "./types";
 import { TIER_CONFIG } from "./tier-config";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const DEFAULT_DAILY_CAP_USD = 1.0;
 export const MEGA_PER_RUN_CAP_USD = 0.25;
@@ -91,7 +92,7 @@ async function getTodaySpendUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
 
     const rows = await prisma.brainMemory.findMany({
       where: {
-        category: "reasoning_trace",
+        category: BRAIN_CATEGORIES.REASONING_TRACE,
         createdAt: { gte: startGte },
         deletedAt: null,
       },
@@ -124,7 +125,7 @@ async function getInFlightUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
     const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
     const rows = await prisma.brainMemory.findMany({
       where: {
-        category: "reasoning_in_flight",
+        category: BRAIN_CATEGORIES.REASONING_IN_FLIGHT,
         createdAt: { gte: cutoff },
         deletedAt: null,
       },
@@ -157,7 +158,7 @@ export async function reserveBudget(
     const id = `inflight_${tier}_${Date.now()}_${crypto.randomUUID().slice(0, 10)}`;
     await prisma.brainMemory.create({
       data: {
-        category: "reasoning_in_flight",
+        category: BRAIN_CATEGORIES.REASONING_IN_FLIGHT,
         key: id,
         content: `reserved $${estimatedRunUsd.toFixed(3)} for ${tier} tier`,
         confidence: 0.5,
@@ -184,7 +185,7 @@ export async function releaseReservation(reservation: Reservation | null): Promi
   if (!reservation) return;
   try {
     await prisma.brainMemory.deleteMany({
-      where: { category: "reasoning_in_flight", key: reservation.id },
+      where: { category: BRAIN_CATEGORIES.REASONING_IN_FLIGHT, key: reservation.id },
     });
   } catch {
     // Best-effort · stale reservation will TTL out after RESERVATION_TTL_MS
@@ -199,7 +200,7 @@ async function pruneStaleReservations(): Promise<void> {
     const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
     await prisma.brainMemory.deleteMany({
       where: {
-        category: "reasoning_in_flight",
+        category: BRAIN_CATEGORIES.REASONING_IN_FLIGHT,
         createdAt: { lt: cutoff },
       },
     });

@@ -77,7 +77,10 @@ interface ReasonBody {
  *  trace persistence. Used as the auto-default if body.persist is
  *  not explicitly passed. */
 function detectPrivateMarker(text: string): boolean {
-  return /\b(@private|\/private)\b/i.test(text);
+  // P.1 fix · same start-of-string regex bug as classifier-core ·
+  // `\b@` and `\b\/` don't match at position 0 because `@` and `/`
+  // are non-word chars. Drop the leading `\b` · the prefix self-anchors.
+  return /(@private|\/private)\b/i.test(text);
 }
 
 export async function POST(req: Request) {

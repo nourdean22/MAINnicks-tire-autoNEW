@@ -55,7 +55,8 @@ interface ReasonBody {
 }
 
 function detectPrivateMarker(text: string): boolean {
-  return /\b(@private|\/private)\b/i.test(text);
+  // P.1 fix · drop leading \b · @ and / are non-word chars · self-anchor
+  return /(@private|\/private)\b/i.test(text);
 }
 
 function sseEvent(eventName: string, data: unknown): string {

@@ -39,6 +39,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/wisdom-suggest");
 
@@ -108,7 +109,7 @@ async function fetchRecentlyShownIds(): Promise<Set<string>> {
   try {
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const rows = await prisma.brainMemory.findMany({
-      where: { category: "wisdom_shown", updatedAt: { gte: since } },
+      where: { category: BRAIN_CATEGORIES.WISDOM_SHOWN, updatedAt: { gte: since } },
       select: { key: true },
       take: 200,
     });
@@ -296,10 +297,10 @@ export async function markWisdomShown(wisdomId: string): Promise<void> {
   try {
     await prisma.brainMemory.upsert({
       where: {
-        category_key: { category: "wisdom_shown", key: `shown:${wisdomId}` },
+        category_key: { category: BRAIN_CATEGORIES.WISDOM_SHOWN, key: `shown:${wisdomId}` },
       },
       create: {
-        category: "wisdom_shown",
+        category: BRAIN_CATEGORIES.WISDOM_SHOWN,
         key: `shown:${wisdomId}`,
         content: `pill suggestion shown for wisdom ${wisdomId}`,
         confidence: 0.5,
