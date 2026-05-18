@@ -49,11 +49,19 @@ interface PulseLine {
   tone: PulseTone;
 }
 
+interface WisdomLine {
+  text: string;
+  attribution: string;
+  href: string | null;
+}
+
 interface PulseShape {
   surface: PulseSurface;
   pulse: PulseLine | null;
   forecast: PulseLine | null;
   drift: PulseLine | null;
+  /** Phase F · context-matched wisdom · italic 4th line */
+  wisdom: WisdomLine | null;
   composedAt: string;
 }
 
@@ -104,7 +112,8 @@ export function OperatorPulse({
   const lines = [data.pulse, data.forecast, data.drift].filter(
     (l): l is PulseLine => l !== null,
   );
-  if (lines.length === 0) return null;
+  const hasAnyContent = lines.length > 0 || data.wisdom !== null;
+  if (!hasAnyContent) return null;
 
   return (
     <section
@@ -148,6 +157,43 @@ export function OperatorPulse({
           </div>
         );
       })}
+      {/* Phase F · wisdom · 4th line · italic · attribution to right.
+          Renders only when the wisdom matcher found a context-relevant
+          quote. Visually quieter than the action lines (no dot) so it
+          reads as a reflection alongside the pulse rather than another
+          to-do. */}
+      {data.wisdom ? (
+        (() => {
+          const wisdomBody = (
+            <div className="flex items-start gap-2.5 text-sm leading-snug pl-4">
+              <span className="min-w-0 flex-1">
+                <span className="mr-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                  wisdom
+                </span>
+                <span className="italic text-[var(--text-secondary)]">
+                  &ldquo;{data.wisdom.text}&rdquo;
+                </span>
+                <span className="ml-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] not-italic">
+                  · {data.wisdom.attribution}
+                </span>
+              </span>
+            </div>
+          );
+          return data.wisdom.href ? (
+            <Link
+              key="wisdom"
+              href={data.wisdom.href}
+              className="block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
+            >
+              {wisdomBody}
+            </Link>
+          ) : (
+            <div key="wisdom" className="block rounded-sm">
+              {wisdomBody}
+            </div>
+          );
+        })()
+      ) : null}
     </section>
   );
 }
