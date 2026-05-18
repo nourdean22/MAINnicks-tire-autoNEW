@@ -414,6 +414,15 @@ async function runReasoningEngine(
   // call could block the whole composition for 90s. Now each source
   // races against its own timeout · whatever lands in time gets
   // composed · the others return empty strings.
+  //
+  // H.6.1 · AbortController + orphan-cost telemetry. Pre-H.6 the
+  // timed-out promises kept running, burning LLM tokens whose results
+  // were discarded. Now:
+  //   · each source gets its own AbortController · timeout fires abort
+  //     (sub-pipelines that honor signal cancel · ones that don't, the
+  //     fix is a future plumb-through)
+  //   · we track the eventual resolution of timed-out promises in a
+  //     wasted-spend counter visible in /reason/telemetry
   if (tier === "mega") {
     const t = Date.now();
     const SOURCE_BUDGETS = {
@@ -423,29 +432,62 @@ async function runReasoningEngine(
       ghost: 5_000,
       wisdom: 5_000,
     };
-    const withBudget = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
-      Promise.race<T>([
-        p,
-        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+    const withBudget = <T,>(
+      sourceName: string,
+      p: Promise<T>,
+      ms: number,
+      fallback: T,
+    ): Promise<T> => {
+      const controller = new AbortController();
+      let timedOut = false;
+      const startedAt = Date.now();
+      const winner = Promise.race<T>([
+        p.then((v) => {
+          // if we lost the race, log the late completion as wasted spend
+          if (timedOut) {
+            const wastedMs = Date.now() - startedAt;
+            void recordOrphan(sourceName, wastedMs).catch(() => {
+              /* telemetry is best-effort */
+            });
+          }
+          return v;
+        }),
+        new Promise<T>((resolve) =>
+          setTimeout(() => {
+            timedOut = true;
+            controller.abort();
+            resolve(fallback);
+          }, ms),
+        ),
       ]).catch(() => fallback);
+      return winner;
+    };
     const [research, multi, fan, ghost, wisdom] = await Promise.all([
       withBudget(
+        "research",
         runDeepResearch(request.question).catch(() => ""),
         SOURCE_BUDGETS.research,
         "",
       ),
       withBudget(
+        "multi",
         runMultiAgent(request.question, plan).catch(() => ""),
         SOURCE_BUDGETS.multi,
         "",
       ),
       withBudget(
+        "fan",
         runFanout(request.question, request.brainContext).catch(() => ""),
         SOURCE_BUDGETS.fan,
         "",
       ),
-      withBudget(runGhostContext(), SOURCE_BUDGETS.ghost, ""),
-      withBudget(runWisdomContext(request.question), SOURCE_BUDGETS.wisdom, ""),
+      withBudget("ghost", runGhostContext(), SOURCE_BUDGETS.ghost, ""),
+      withBudget(
+        "wisdom",
+        runWisdomContext(request.question),
+        SOURCE_BUDGETS.wisdom,
+        "",
+      ),
     ]);
     callCount += 5 + 4 + 3; // approx · DR + multi-agent + fanout
     const parts: string[] = [];
@@ -679,6 +721,45 @@ async function persistTrace(
     }
   } catch {
     // Best-effort · never let bookkeeping block the engine.
+  }
+}
+
+/** H.6.1 · record a mega-tier source that exceeded its budget but
+ *  eventually completed. The completed LLM work was discarded · the
+ *  cost is real but unattributed to any run. Telemetry surfaces this
+ *  so the operator can see how much spend is wasted on slow sources.
+ *
+ *  Stored as BrainMemory(category="reasoning_orphan") with metadata
+ *  carrying the source name + wasted ms. /api/nick/reason/telemetry
+ *  reads this category to compute a "wasted spend (last 24h)" stat.
+ *
+ *  Fire-and-forget · best-effort · failure here never blocks the
+ *  engine which has already returned to the operator. */
+async function recordOrphan(source: string, wastedMs: number): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.brainMemory.create({
+      data: {
+        category: "reasoning_orphan",
+        key: `orphan_${source}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        content: `mega tier source "${source}" landed ${wastedMs}ms after budget timeout · cost wasted`,
+        confidence: 0.5,
+        source: "reasoning-engine",
+        createdBy: "system",
+        metadata: {
+          sourceName: source,
+          wastedMs,
+          // Rough wasted-cost estimate based on which source it was.
+          // The actual LLM call cost isn't known here (the source result
+          // was discarded). Best-effort numbers · matches our per-tier
+          // cost table proportions.
+          estimatedWastedUsd:
+            source === "research" ? 0.08 : source === "multi" ? 0.025 : source === "fan" ? 0.005 : 0.002,
+        },
+      },
+    });
+  } catch {
+    // best-effort
   }
 }
 

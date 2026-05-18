@@ -165,12 +165,22 @@ export default function ReasoningHistoryPage() {
                       minute: "2-digit",
                     })} · {h.stepCount} steps
                   </p>
-                  <Link
-                    href={`/reason?q=${encodeURIComponent(h.question)}`}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // H.6.3 · sessionStorage handoff · question text
+                      // (which may be sensitive) stays out of the URL.
+                      try {
+                        sessionStorage.setItem("reason:pending-q", h.question);
+                        window.location.href = "/reason?h=1";
+                      } catch {
+                        window.location.href = `/reason?q=${encodeURIComponent(h.question.slice(0, 80))}`;
+                      }
+                    }}
                     className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)]"
                   >
                     re-run →
-                  </Link>
+                  </button>
                 </div>
               </li>
             ))}

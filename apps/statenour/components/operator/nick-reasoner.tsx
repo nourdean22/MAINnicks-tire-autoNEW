@@ -407,20 +407,35 @@ export function NickReasoner({
                 <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
                   confidence {(result.trace.confidence * 100).toFixed(0)}%
                 </p>
-                {/* H.4.5 · continue-in-chat handoff. Routes to /chat
-                    with the question + answer prefixed as a system
-                    seed so the chat picks up where the reasoning
-                    left off · operator can ask follow-ups, drill
-                    in, or pivot without losing the thread. */}
-                <a
-                  href={`/chat?seed=${encodeURIComponent(
-                    `Earlier in /reason I asked: ${question.trim().slice(0, 240)}\n\nNick (${result.tier} tier) answered:\n${result.trace.answer.slice(0, 800)}\n\nLet's continue.`,
-                  )}`}
+                {/* H.4.5 + H.6.3 · continue-in-chat handoff. Routes to
+                    /chat with the question + answer prefixed as a seed
+                    so the chat picks up where the reasoning left off.
+                    H.6.3 · seed payload goes via sessionStorage instead
+                    of URL query string · keeps the operator's reasoning
+                    out of server access logs + browser history. The
+                    chat page reads + clears the sessionStorage entry
+                    on mount. ?h=1 flag tells chat to look. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const payload = `Earlier in /reason I asked: ${question.trim().slice(0, 240)}\n\nNick (${result.tier} tier) answered:\n${result.trace.answer.slice(0, 800)}\n\nLet's continue.`;
+                      sessionStorage.setItem("chat:pending-seed", payload);
+                      window.location.href = "/chat?h=1";
+                    } catch {
+                      // sessionStorage blocked (private mode, etc.) ·
+                      // fall back to the old query-string path
+                      const url = `/chat?seed=${encodeURIComponent(
+                        `Earlier in /reason: ${question.trim().slice(0, 80)}`,
+                      )}`;
+                      window.location.href = url;
+                    }
+                  }}
                   className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)] transition"
-                  title="open in /chat with question + answer pre-seeded"
+                  title="open in /chat with question + answer pre-seeded (kept out of URL)"
                 >
                   continue in chat →
-                </a>
+                </button>
               </div>
             </div>
           ) : null}
