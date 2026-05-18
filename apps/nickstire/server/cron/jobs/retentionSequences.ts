@@ -33,6 +33,13 @@ interface RetentionTier {
   message: (firstName: string, vehicle: string) => string;
 }
 
+// wave-181.46 brand-voice tightening per .claude/brand-voice-guidelines.md:
+//   - "free inspection" (KILL LIST) → "free check"
+//   - "same great service" (KILL LIST "great") → "same shop, same line, same fair price"
+//   - Added the Repair Haiku ("you don't pay until you say yes") to D180
+//     where the customer's resistance is highest (long gap → assume bad memory)
+//   - Tightened openers: "Hey {name}" (warmer, matches Brian's VAPI cadence)
+//     dropped exclamation marks (less "marketing-y", more shop-floor)
 const RETENTION_TIERS: RetentionTier[] = [
   {
     days: 45,
@@ -40,7 +47,7 @@ const RETENTION_TIERS: RetentionTier[] = [
     maxDays: 50,
     flags: ["sms_retention_sequences", "retention_45day"],
     message: (name, vehicle) =>
-      `Hi ${name}, it's been a while! Your ${vehicle} might be due for an oil change or tire rotation. Stop by Nick's Tire — no appointment needed. ${STORE_PHONE}`,
+      `Hey ${name} — your ${vehicle} is about due for an oil change or rotation. Walk in any day, first-come first-served. ${STORE_PHONE}`,
   },
   {
     days: 90,
@@ -48,7 +55,7 @@ const RETENTION_TIERS: RetentionTier[] = [
     maxDays: 95,
     flags: ["sms_retention_sequences"],
     message: (name, vehicle) =>
-      `Hey ${name}, we haven't seen your ${vehicle} in 3 months. Problems get worse over time — let us take a look before it gets expensive. Drop off anytime Mon-Sat 8-6.`,
+      `Hey ${name} — haven't seen your ${vehicle} in 3 months. Quick check now beats expensive fix later. Drop it off anytime, Mon-Sat 8-6.`,
   },
   {
     days: 180,
@@ -56,7 +63,7 @@ const RETENTION_TIERS: RetentionTier[] = [
     maxDays: 185,
     flags: ["sms_retention_sequences"],
     message: (name, vehicle) =>
-      `Hi ${name}, it's been 6 months since we worked on your ${vehicle}. We miss you! Come back for a free inspection — just pull up, we'll come to you. ${STORE_PHONE}`,
+      `Hey ${name} — 6 months since your ${vehicle} was in. Free check, written quote, you don't pay until you say yes. Pull up anytime. ${STORE_PHONE}`,
   },
   {
     days: 365,
@@ -64,7 +71,7 @@ const RETENTION_TIERS: RetentionTier[] = [
     maxDays: 370,
     flags: ["sms_retention_sequences"],
     message: (name, vehicle) =>
-      `${name}, it's been a year! Your ${vehicle} deserves some attention. Nick's Tire — same great service, same location. Pull up anytime. \uD83D\uDEDE ${STORE_PHONE}`,
+      `Hey ${name} \u2014 it's been a year. Your ${vehicle} earned a check-up. Same shop, same line, same fair price. ${STORE_PHONE}`,
   },
 ];
 
@@ -222,7 +229,11 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       const firstName = c.firstName || "there";
       const messageBody = tier.message(firstName, vehicle);
 
-      const result = await sendSms(c.phone, messageBody);
+      // wave-181.46 · route through F25e gateway (operator decision: Twilio
+      // is dead, Android phone is THE path). { via: "shop" } bypasses the
+      // SMS_KILL_SWITCH (Twilio-only) and sends through the F25e on Verizon
+      // so customers see the text from the shop's real number 216-862-0005.
+      const result = await sendSms(c.phone, messageBody, { via: "shop" });
 
       // Log to sms_messages table regardless of success
       await logRetentionSms(c.phone, messageBody, result.sid);

@@ -59,6 +59,13 @@ function formatMoney(cents: number): string {
 
 // Wave-101: exported so the bulk-SMS tRPC endpoint can reuse the
 // same templates the cron uses. Keeps message tone consistent.
+// wave-181.46 brand-voice tightening per .claude/brand-voice-guidelines.md:
+//   - Repair Haiku ("you don't pay until you say yes") added as the closer
+//     on BOTH tiers. This is the EXACT moment the customer's resistance
+//     is highest (they declined the quote once — what makes them say yes
+//     this time?) so the relief mechanism lands hardest here.
+//   - "Still on the fence" softened to customer-language phrasing
+//   - Quote-honoring made the explicit hook (sunk-cost recovery)
 export function buildSevenDayMessage(params: {
   name: string;
   amountCents: number;
@@ -68,9 +75,9 @@ export function buildSevenDayMessage(params: {
     ? params.service.slice(0, 60)
     : "the work we quoted";
   return (
-    `Hey ${params.name}, Nick's Tire & Auto — we quoted you ${formatMoney(params.amountCents)} for ${svc}. ` +
-    `Still on the fence? That number's still good this week. ` +
-    `Drop off anytime, we'll work around you. Reply STOP to opt out.`
+    `Hey ${params.name} — Nick's Tire & Auto. That ${formatMoney(params.amountCents)} ${svc} quote? ` +
+    `Still good this week. Free re-check, no charge, you don't pay until you say yes. ` +
+    `Drop off anytime. Reply STOP to opt out.`
   );
 }
 
@@ -79,8 +86,8 @@ export function buildThirtyDayMessage(params: {
   amountCents: number;
 }): string {
   return (
-    `Hey ${params.name}, it's been a month since we quoted ${formatMoney(params.amountCents)} at Nick's Tire & Auto. ` +
-    `Car issues rarely fix themselves — come in, we'll honor the quote. ` +
+    `Hey ${params.name} — it's been a month since we quoted ${formatMoney(params.amountCents)}. ` +
+    `Car stuff doesn't fix itself. We'll honor that quote, free re-check first — you don't pay until you say yes. ` +
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }
@@ -225,7 +232,8 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
       // 30-day follow-up takes precedence (more urgent)
       if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
         const body = buildThirtyDayMessage({ name, amountCents: amount });
-        const res = await sendSms(est.customerPhone, body);
+        // wave-181.46 · route through F25e gateway (Twilio dead per operator)
+        const res = await sendSms(est.customerPhone, body, { via: "shop" });
         if (res.success) {
           await d
             .update(algEstimates)
@@ -244,7 +252,8 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
           amountCents: amount,
           service: est.serviceDescription,
         });
-        const res = await sendSms(est.customerPhone, body);
+        // wave-181.46 · route through F25e gateway (Twilio dead per operator)
+        const res = await sendSms(est.customerPhone, body, { via: "shop" });
         if (res.success) {
           await d
             .update(algEstimates)
