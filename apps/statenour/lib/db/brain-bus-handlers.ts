@@ -470,6 +470,12 @@ const HANDLERS: Array<{ topic: string; handler: DurableHandler }> = [
   // v10.0.78 · reflection.created handler · downstream learning-journal
   // and wisdom-distiller can subscribe to fresh reflections without
   // polling. Long-term BrainMemory mirror keyed by reflection id.
+  //
+  // Phase D follow-up (2026-05-18) · also fires the journal pattern-radar
+  // auto-join hook for the new reflection. This was missing from the
+  // initial Phase D ship which only wired BrainDump capture · per
+  // ADR-0013 the radar should grow threads from ALL 4 journal sources.
+  // The hook is fire-and-forget · errors don't fail the handler.
   {
     topic: "reflection.created",
     handler: async (event, ctx) => {
@@ -514,6 +520,31 @@ const HANDLERS: Array<{ topic: string; handler: DurableHandler }> = [
           eventId: event.id,
           error: err instanceof Error ? err.message : String(err),
         });
+      }
+
+      // Phase D · ADR-0013 · journal pattern-radar auto-join hook for
+      // reflections. Fire-and-forget · captures the reflection insight
+      // (the body the cosine will run against) so the new entry can
+      // either silently join an active thread (sim ≥ 0.80) or surface
+      // a suggestion (0.65-0.80). Errors logged only · never fails
+      // the handler.
+      if (payload.reflectionId && payload.insight) {
+        try {
+          const { tryJoinActiveThreads } = await import(
+            "@/lib/services/journal-threads"
+          );
+          await tryJoinActiveThreads(
+            "reflection",
+            payload.reflectionId,
+            payload.insight,
+          );
+        } catch (err) {
+          log.warn("reflection.created.thread_join_failed", {
+            eventId: event.id,
+            reflectionId: payload.reflectionId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     },
   },

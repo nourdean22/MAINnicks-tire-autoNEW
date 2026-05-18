@@ -16,8 +16,8 @@
  * something fires.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useEffect, useState } from "react";
+import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
 
 interface Suggestion {
   key: string;
@@ -37,27 +37,20 @@ export function ThreadSuggestions({
   refreshSignal?: number;
   onActioned?: () => void;
 }) {
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/journal/suggestions");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data: Suggestion[] };
-      setSuggestions(json.data ?? []);
-    } catch {
-      // silent · suggestions are advisory · errors don't disrupt page
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch · errors
+  // silently no-op (suggestions are advisory · radar stays quiet
+  // when the API hiccups · the page doesn't degrade visually).
+  const { data, loading, reload } = useAuthedFetch<{
+    data: Suggestion[];
+  }>("/api/journal/suggestions");
+  const suggestions = data?.data ?? [];
 
   useEffect(() => {
-    void load();
-  }, [load, refreshSignal]);
+    if (refreshSignal != null) reload();
+  }, [refreshSignal, reload]);
+  const load = reload; // local alias · keeps existing call-sites in handlers below readable
 
   const accept = async (key: string) => {
     if (busyKey) return;

@@ -13,8 +13,8 @@
  * active threads visually).
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useEffect, useMemo, useState } from "react";
+import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 
 interface Thread {
   id: string;
@@ -34,32 +34,20 @@ export function ThreadRail({
 }: {
   refreshSignal?: number;
 }) {
-  const [threads, setThreads] = useState<Thread[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showDormant, setShowDormant] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await authedFetch(
-        `/api/journal/threads?includeDormant=true`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data: Thread[] };
-      setThreads(json.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch instead of
+  // bespoke state-mgmt + manual reload effect. Same semantics ·
+  // ~22 LOC removed · the refreshSignal prop bumps trigger reload().
+  const { data, error, loading, reload } = useAuthedFetch<{
+    data: Thread[];
+  }>("/api/journal/threads?includeDormant=true");
+  const threads = data?.data ?? [];
 
   useEffect(() => {
-    void load();
-  }, [load, refreshSignal]);
+    if (refreshSignal != null) reload();
+  }, [refreshSignal, reload]);
 
   const { active, dormant } = useMemo(() => {
     const a: Thread[] = [];
