@@ -18,6 +18,8 @@ import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
 import { buildJudgeEvalSummary } from "@/lib/services/judge-eval";
+import { buildAiCostFeed } from "@/lib/services/ai-cost";
+import { readGhostNourCandidates } from "@/lib/services/ghost-nour";
 import { readRecentV2Samples } from "@/lib/ai/judge-eval/sampler";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 
@@ -105,4 +107,26 @@ export const systemRouter = router({
         excludeAlreadyCompared: true,
       });
     }),
+
+  /**
+   * Phase Y.2 (2026-05-18 PM) · owner-only · AI cost/latency/volume
+   * feed for `/system/ai-cost`. 3 windows (today/7d/30d) + 14-day
+   * sparkline trend + per-feature/per-model breakdowns. Delegates to
+   * `lib/services/ai-cost.ts` so the legacy REST endpoint and tRPC
+   * procedure can't drift.
+   */
+  aiCost: operatorProcedure.query(async () => buildAiCostFeed()),
+
+  /**
+   * Phase Y.4 (2026-05-18 PM) · owner-only · recent MasteryDecision
+   * rows with no actualOutcome yet · the /system/ghost-nour page
+   * surfaces these as "run ghost on this" cards for pending decisions.
+   *
+   * The POST handler (similarity search + recommendation) stays on
+   * REST for now · mutations + heavy result shape · separate phase
+   * scope when needed.
+   */
+  ghostNourCandidates: operatorProcedure
+    .input(z.object({ take: z.number().int().min(1).max(50).default(20) }))
+    .query(async ({ input }) => readGhostNourCandidates({ take: input.take })),
 });

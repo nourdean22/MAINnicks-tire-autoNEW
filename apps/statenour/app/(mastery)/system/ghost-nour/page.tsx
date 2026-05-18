@@ -16,7 +16,7 @@
  *   · typing-form shake on empty submit
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
@@ -24,6 +24,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface Match {
   id: number;
   date: string;
@@ -51,15 +52,11 @@ interface Prediction {
   generatedAt: string;
 }
 
-interface Candidate {
-  id: number;
-  date: string;
-  title: string;
-  domain: string | null;
-  chosen: string | null;
-  stakes: string | null;
-  createdAt: string;
-}
+// Phase Y.4 (2026-05-18 PM) · Candidate type now flows from the
+// tRPC procedure's return shape (see usage of `candidates` below) ·
+// the local `Candidate` interface is removed. The Prediction +
+// Match + Choice interfaces stay because the POST handler still
+// returns raw JSON · separate scope to migrate that.
 
 function tintForGrade(n: number | null): string {
   if (n === null) return "text-zinc-500";
@@ -88,23 +85,19 @@ export default function GhostNourPage() {
   const [situation, setSituation] = useState("");
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [loading, setLoading] = useState(false);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [formShake, setFormShake] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const loadCandidates = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/ghost-nour?list=recent", { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-      const data = json.data ?? json;
-      setCandidates(data.candidates ?? []);
-    } catch {
-      // non-critical
-    }
-  }, []);
-
-  useEffect(() => { loadCandidates(); }, [loadCandidates]);
+  // Phase Y.4 · React Query handles the candidate-list fetch · types
+  // flow from the tRPC procedure · no manual `Candidate` interface
+  // drift (the page-local one had `id: number` but Prisma returns
+  // string · this migration fixes that silently).
+  const utils = trpc.useUtils();
+  const { data: candidates = [] } = trpc.system.ghostNourCandidates.useQuery(
+    { take: 20 },
+    { staleTime: 30_000 },
+  );
+  const loadCandidates = () => void utils.system.ghostNourCandidates.invalidate();
 
   async function runGhost(situationText?: string) {
     const text = (situationText ?? situation).trim();

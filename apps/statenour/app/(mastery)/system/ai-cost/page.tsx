@@ -27,39 +27,21 @@
  *   · strict mode (refuse calls > $X estimate)
  */
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { Activity } from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "@/lib/trpc/root";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface Breakdown {
-  key: string;
-  calls: number;
-  costCents: number;
-  avgLatencyMs: number;
-  errorRate: number;
-}
-
-interface WindowAgg {
-  totalCalls: number;
-  totalCostCents: number;
-  avgLatencyMs: number;
-  errorRate: number;
-  byFeature: Breakdown[];
-  byModel: Breakdown[];
-}
-
-interface Feed {
-  today: WindowAgg;
-  last7d: WindowAgg;
-  last30d: WindowAgg;
-  trend: { day: string; calls: number; costCents: number }[];
-  generatedAt: string;
-}
+// Phase Y.2 (2026-05-18 PM) · types now inferred from the system
+// router so the manual Breakdown/WindowAgg/Feed mirrors are gone.
+type Feed = inferRouterOutputs<AppRouter>["system"]["aiCost"];
+type Breakdown = Feed["today"]["byFeature"][number];
 
 type Window = "today" | "7d" | "30d";
 
@@ -140,34 +122,16 @@ function BreakdownTable({ rows, total }: { rows: Breakdown[]; total: number }) {
 }
 
 export default function AiCostPage() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [window, setWindow] = useState<Window>("7d");
-  const fetchRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
-    fetchRef.current?.abort();
-    const ac = new AbortController();
-    fetchRef.current = ac;
-    try {
-      const res = await authedFetch("/api/system/ai-cost", { signal: ac.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        console.error("ai-cost fetch failed", e);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase Y.2 · React Query · 60s refetch + abort handling built-in ·
+  // no more manual AbortController dance.
+  const { data: feed, isFetching: loading, refetch } =
+    trpc.system.aiCost.useQuery(undefined, {
+      refetchInterval: 60_000,
+      staleTime: 30_000,
+    });
+  const load = () => void refetch();
 
   const active = feed ? (window === "today" ? feed.today : window === "7d" ? feed.last7d : feed.last30d) : null;
 
