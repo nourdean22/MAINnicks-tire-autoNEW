@@ -144,26 +144,47 @@ export async function buildGoalsSnapshot(): Promise<GoalsSnapshot> {
         },
       },
     }),
-    // Latest MasteryScore per domain · groupBy max(date) per domain
-    prisma.$queryRaw<Array<{ domain: string; score: number; date: string }>>`
-      SELECT domain, score, date
-      FROM mastery_scores ms
-      WHERE date = (
-        SELECT MAX(date) FROM mastery_scores WHERE domain = ms.domain
-      )
-      ORDER BY domain
-    `,
-    // Same but 7 days ago for delta calculation
-    prisma.$queryRaw<Array<{ domain: string; score: number; date: string }>>`
-      SELECT domain, score, date
-      FROM mastery_scores ms
-      WHERE date = (
-        SELECT MAX(date) FROM mastery_scores
-        WHERE domain = ms.domain
-          AND date <= DATE(NOW() - INTERVAL '7 days')::text
-      )
-      ORDER BY domain
-    `,
+    // Latest MasteryScore per domain · use Prisma groupBy for the
+    // max(date) lookup, then a single findMany for the actual rows.
+    // Avoids raw SQL column-name brittleness (model uses created_at
+    // mapped from createdAt etc). 2026-05-18 fix.
+    prisma.masteryScore
+      .findMany({ orderBy: { date: "desc" }, take: 200 })
+      .then((rows) => {
+        // Reduce to latest-per-domain in memory
+        const latest = new Map<string, typeof rows[number]>();
+        for (const r of rows) {
+          if (!latest.has(r.domain)) latest.set(r.domain, r);
+        }
+        return Array.from(latest.values()).map((r) => ({
+          domain: r.domain,
+          score: Number(r.score),
+          date: r.date,
+        }));
+      }),
+    // Same but 7 days ago for delta calculation. Cheap memory filter
+    // over the same recent rows (already paged in above query).
+    prisma.masteryScore
+      .findMany({
+        where: {
+          date: {
+            lte: new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10),
+          },
+        },
+        orderBy: { date: "desc" },
+        take: 200,
+      })
+      .then((rows) => {
+        const latest = new Map<string, typeof rows[number]>();
+        for (const r of rows) {
+          if (!latest.has(r.domain)) latest.set(r.domain, r);
+        }
+        return Array.from(latest.values()).map((r) => ({
+          domain: r.domain,
+          score: Number(r.score),
+          date: r.date,
+        }));
+      }),
     prisma.brainMemory.findMany({
       where: {
         category: "goal_prune_candidate",
@@ -172,11 +193,18 @@ export async function buildGoalsSnapshot(): Promise<GoalsSnapshot> {
       select: { key: true },
     }),
     // Most recent GoalEvent per goal for activity recency
-    prisma.$queryRaw<Array<{ goalId: string; lastEvent: Date }>>`
-      SELECT "goalId", MAX("createdAt") AS "lastEvent"
-      FROM "GoalEvent"
-      GROUP BY "goalId"
-    `,
+    // 2026-05-18 fix · table maps to snake_case "goal_events" via
+    // @@map("goal_events") · same for column names (camelCase model
+    // fields map to snake_case columns). Use Prisma's safer groupBy
+    // to avoid raw-SQL column-naming brittleness.
+    prisma.goalEvent
+      .groupBy({ by: ["goalId"], _max: { createdAt: true } })
+      .then((rows) =>
+        rows.map((r) => ({
+          goalId: r.goalId,
+          lastEvent: (r._max.createdAt ?? new Date(0)) as Date,
+        })),
+      ),
   ]).catch((err) => {
     log.warn("snapshot_query_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
