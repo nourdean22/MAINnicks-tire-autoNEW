@@ -45,6 +45,7 @@ import type {
   ReasoningTrace,
 } from "./types";
 import { classifyReasoning } from "./classifier";
+import { TIER_CONFIG } from "./tier-config";
 
 const log = rootLogger.withSurface("ai/reasoning/engine");
 
@@ -959,13 +960,12 @@ async function runReasoningEngine(
     );
   }
 
-  // Step 5 · critique + refine (smart, deep, thorough, mega)
-  // M.1 · smart tier gets the same critique loop as deep · the router
-  // already saved cost on the sub-pipelines · running critique is
-  // still the highest-leverage quality lift.
+  // Step 5 · critique + refine · O.1 reads from TIER_CONFIG instead of
+  // hardcoded tier list · adding a new tier with `hasCritique: true`
+  // automatically opts it in.
   let final = draft;
   let confidence = 0.75;
-  if (tier === "smart" || tier === "deep" || tier === "thorough" || tier === "mega") {
+  if (TIER_CONFIG[tier].hasCritique && TIER_CONFIG[tier].hasRefine) {
     try {
       const t = Date.now();
       const critique = await runCritique(request.question, draft, acc);
@@ -1200,18 +1200,8 @@ function buildResult(
   //     similar non-rated providers)
   //   · sub-pipeline calls dominate · we knew about <30% of the calls
   //     so the accumulator under-represents real spend
-  const callCost =
-    tier === "mega"
-      ? 0.008
-      : tier === "thorough"
-        ? 0.005
-        : tier === "deep"
-          ? 0.002
-          : tier === "smart"
-            ? 0.0015
-            : tier === "standard"
-              ? 0.0008
-              : 0.00015;
+  // O.1 · reads from TIER_CONFIG single source of truth
+  const callCost = TIER_CONFIG[tier].callCostEstimate;
   const estimateUsd = Math.round(callCount * callCost * 1000) / 1000;
   const knownRatio = accCalls > 0 ? (accCalls - callsWithoutCost) / Math.max(1, callCount) : 0;
   // If we know the cost of ≥30% of the calls AND the accumulator's

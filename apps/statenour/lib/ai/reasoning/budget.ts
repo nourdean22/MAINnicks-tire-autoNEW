@@ -25,6 +25,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { ReasoningTier } from "./types";
+import { TIER_CONFIG } from "./tier-config";
 
 export const DEFAULT_DAILY_CAP_USD = 1.0;
 export const MEGA_PER_RUN_CAP_USD = 0.25;
@@ -62,25 +63,10 @@ export interface Reservation {
 
 /** Pre-run cost estimate per tier. Conservative · over-estimates so
  *  the cap is hit before we actually exceed it. */
+/** O.1 · reads from TIER_CONFIG single source of truth · adding a new
+ *  tier without updating tier-config.ts is now a compile error. */
 function estimateTierCost(tier: ReasoningTier): number {
-  switch (tier) {
-    case "mega":
-      return 0.25;
-    case "thorough":
-      return 0.12;
-    case "deep":
-      return 0.025;
-    case "smart":
-      // M.1 · between standard + deep · the router itself is cheap
-      // (~$0.001) but the picked sub-pipeline(s) add cost · 0.015
-      // covers router + 1 typical sub-pipeline · 0.030 worst case
-      return 0.015;
-    case "standard":
-      return 0.006;
-    case "quick":
-    default:
-      return 0.0005;
-  }
+  return TIER_CONFIG[tier].budgetEstimateUsd;
 }
 
 /** Sum today's spend by reading back BrainMemory(category="reasoning_trace")
