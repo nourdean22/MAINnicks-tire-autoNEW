@@ -87,6 +87,22 @@ async function main(): Promise<void> {
   console.log(`  Server URL:          ${config.serverUrl}`);
   console.log("");
 
+  // wave-181.50 · inject VAPI_WEBHOOK_SECRET into config.server.secret at
+  // PATCH time. VAPI's nested `server` object PATCH replaces the whole
+  // object — without injecting the secret, every update would clear it
+  // and silently break webhook signatures (the bug we just spent 5 days
+  // tracking down). Keep the secret out of static code; pull from env.
+  const webhookSecret = process.env.VAPI_WEBHOOK_SECRET;
+  if (webhookSecret && config.server) {
+    config.server.secret = webhookSecret;
+    console.log(`  Server secret:       <injected from VAPI_WEBHOOK_SECRET, ${webhookSecret.length} chars>`);
+  } else if (config.server) {
+    console.log(`  ⚠️  Server secret:    <NOT INJECTED — VAPI_WEBHOOK_SECRET env missing>`);
+    console.log(`     This will clear the secret on VAPI's side and break webhook signatures.`);
+    console.log(`     Aborting to prevent the regression.`);
+    process.exit(1);
+  }
+
   console.log(`PATCH https://api.vapi.ai/assistant/${ASSISTANT_ID}`);
 
   const res = await fetch(`${VAPI_BASE}/assistant/${ASSISTANT_ID}`, {

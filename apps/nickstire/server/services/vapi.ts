@@ -1243,6 +1243,11 @@ interface VapiAssistantConfig {
     emotionRecognitionEnabled: boolean;
   };
   serverUrl?: string;
+  // wave-181.50 — VAPI prefers the nested `server` object for new traffic.
+  // The top-level serverUrl is legacy/alias. Setting BOTH for safety. The
+  // secret field is omitted here and injected at PATCH time from
+  // VAPI_WEBHOOK_SECRET env var by the update script.
+  server?: { url: string; timeoutSeconds?: number; secret?: string };
   serverMessages: string[];
   clientMessages: string[];
   endCallFunctionEnabled: boolean;
@@ -1362,7 +1367,14 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     },
 
     // ─── Webhooks ───────────────────────────────────────
+    // wave-181.50 — set BOTH legacy top-level serverUrl AND the modern
+    // nested server.url. VAPI's prod routing prefers the nested field;
+    // before this fix, the nested url was the root (https://nickstire.org/)
+    // causing every tool call to hit the React SPA → 0 DB writes for 5
+    // days. Secret is injected by vapi-update-assistant.ts at PATCH time
+    // from VAPI_WEBHOOK_SECRET env (not stored in code).
     serverUrl,
+    server: serverUrl ? { url: serverUrl, timeoutSeconds: 20 } : undefined,
     serverMessages: [
       "function-call",
       "tool-calls",
