@@ -7,6 +7,12 @@
 #
 # Build context: monorepo root (NOT apps/statenour/) so workspace deps resolve.
 # Build cmd:  docker build -f apps/statenour/Dockerfile -t statenour-web .
+#
+# 2026-05-18 cache-bust: 7 commits failed to deploy with persistent
+# BuildKit "failed to calculate checksum of ref xlcz1rbthtyc9xz5avtbuesdd"
+# (same hash on every retry → bad layer cached on Railway's build infra).
+# Tweaking this comment changes the Dockerfile content hash so BuildKit
+# starts a fresh cache key. Safe no-op for the build itself.
 
 # ── 1 · deps ───────────────────────────────────────────────────────────
 FROM node:20-alpine AS deps
