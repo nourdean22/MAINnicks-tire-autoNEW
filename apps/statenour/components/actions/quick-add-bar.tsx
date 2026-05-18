@@ -64,8 +64,14 @@ export function QuickAddBar({
     return parseQuickAdd(text);
   }, [newTask]);
 
+  // H.3.1 · suppress DeepModeNudge on this quick-add bar. Tasks are
+  // short verbs ("call mom", "ship feature") — they routinely contain
+  // "strategy" / "research" / etc. keywords the classifier matches.
+  // The nudge there would fire on every task add. data-no-deep-nudge
+  // on this wrapper makes the global watcher skip any focused input
+  // inside it.
   return (
-    <div className="space-y-1">
+    <div className="space-y-1" data-no-deep-nudge>
       <div className="flex gap-1.5">
         <Input
           placeholder="What needs to happen?"

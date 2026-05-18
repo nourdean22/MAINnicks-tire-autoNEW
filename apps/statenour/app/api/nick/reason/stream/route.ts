@@ -21,6 +21,8 @@
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { reasonStreaming } from "@/lib/ai/reasoning/engine";
+import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
+import { checkBudget } from "@/lib/ai/reasoning/budget";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +42,8 @@ interface ReasonBody {
   question?: unknown;
   brainContext?: unknown;
   tier?: unknown;
+  /** H.3.4 · explicit operator ack for mega-tier spend */
+  confirmExpensive?: unknown;
 }
 
 function sseEvent(eventName: string, data: unknown): string {
@@ -79,10 +83,43 @@ export async function POST(req: Request) {
         ? body.brainContext
         : undefined;
 
-    const tier =
+    const requestedTier =
       typeof body.tier === "string" && VALID_TIERS.has(body.tier as ReasoningTier)
         ? (body.tier as ReasoningTier)
         : undefined;
+
+    // H.3.4 · mega-tier confirm gate (SSE variant returns the gate as
+    // a 402 JSON · the SSE stream never opens for ungated mega requests)
+    const effectiveTier = requestedTier ?? classifyReasoning(question).tier;
+    if (effectiveTier === "mega" && body.confirmExpensive !== true) {
+      return new Response(
+        JSON.stringify({
+          error: "confirm_expensive",
+          message: "Mega tier runs $0.20+ per call. Re-send with confirmExpensive=true.",
+          tier: "mega",
+          estimatedUsd: 0.25,
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // H.3.3 · daily budget cap · gate before opening the SSE stream
+    const budget = await checkBudget(effectiveTier);
+    if (!budget.allow) {
+      return new Response(
+        JSON.stringify({
+          error: "budget_exceeded",
+          message: budget.reason,
+          spentTodayUsd: budget.spentTodayUsd,
+          capUsd: budget.capUsd,
+          estimatedRunUsd: budget.estimatedRunUsd,
+        }),
+        { status: 402, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    // Re-resolve `tier` for the inner stream after the gates pass
+    const tier = requestedTier;
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {

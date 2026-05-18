@@ -124,15 +124,27 @@ export function NickReasoner({
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
-  // Phase H.2 · streaming run · POSTs to /api/nick/reason/stream and
-  // consumes SSE events. Each `step` event appends to liveSteps so
-  // the operator sees Nick's thinking unfold in real time. `result`
-  // event lands the final ReasoningResult. authedFetch handles auth ·
-  // EventSource doesn't pass cookies the same way so we use fetch +
-  // ReadableStream parser instead.
-  const run = useCallback(async () => {
+  // Phase H.2 · live-trace run · POSTs to /api/nick/reason/stream and
+  // consumes Server-Sent Events. Each `step` event appends to liveSteps
+  // so the operator sees step-by-step progress as Nick reasons (not
+  // token-by-token — each step is an atomic LLM call). `result` event
+  // lands the final ReasoningResult.
+  //
+  // H.3.3 + H.3.4 · handles 402 budget/confirm responses · shows a
+  // confirm dialog for mega tier and surfaces the budget cap when
+  // hit instead of bubbling up as a generic error.
+  const run = useCallback(async (confirmExpensive = false) => {
     const q = question.trim();
     if (!q || busy) return;
+    // H.3.4 · client-side mega confirm. Before the network call, if
+    // operator picked mega and hasn't confirmed yet, ask first.
+    if (tier === "mega" && !confirmExpensive) {
+      const ok = window.confirm(
+        "Mega tier runs deep-research + multi-agent + fanout + ghost predictions + wisdom in parallel.\n\nEstimated cost: ~$0.20\nEstimated time: 60-120s\n\nContinue?",
+      );
+      if (!ok) return;
+      confirmExpensive = true;
+    }
     setBusy(true);
     setError(null);
     setResult(null);
@@ -146,10 +158,34 @@ export function NickReasoner({
           question: q,
           brainContext,
           tier: tier === "auto" ? undefined : tier,
+          confirmExpensive,
         }),
       });
       if (!res.ok || !res.body) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+          spentTodayUsd?: number;
+          capUsd?: number;
+        };
+        // H.3.4 · server-side mega confirm (auto-classifier triggered mega)
+        if (res.status === 402 && body.error === "confirm_expensive") {
+          const ok = window.confirm(
+            `${body.message}\n\nRetry with confirmation?`,
+          );
+          if (ok) {
+            setBusy(false);
+            void run(true);
+            return;
+          }
+          throw new Error("Mega run cancelled.");
+        }
+        // H.3.3 · daily budget exhausted
+        if (res.status === 402 && body.error === "budget_exceeded") {
+          throw new Error(
+            `Daily reasoning budget hit · $${(body.spentTodayUsd ?? 0).toFixed(3)} / $${(body.capUsd ?? 1).toFixed(2)} · resets midnight ET.`,
+          );
+        }
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
       const reader = res.body.getReader();
@@ -220,15 +256,25 @@ export function NickReasoner({
       ].join(" ")}
     >
       <header className="space-y-1">
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
-          nick · reasoning engine
-        </p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            nick · reasoning engine
+          </p>
+          <a
+            href="/reason/history"
+            className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
+          >
+            history →
+          </a>
+        </div>
         <h1 className="text-2xl font-medium text-[var(--text-primary)]">
           Watch Nick think.
         </h1>
         <p className="text-sm text-[var(--text-secondary)]">
           Ask a hard question. The engine picks a tier, runs a step-by-step
-          reasoning loop, and shows you every move. Cmd/Ctrl+Enter to send.
+          reasoning loop, and emits each step to the live trace as it
+          completes. Each step is an atomic LLM call · expect 2-10s
+          between trace updates. Cmd/Ctrl+Enter to send.
         </p>
       </header>
 
@@ -294,7 +340,7 @@ export function NickReasoner({
             </div>
           ) : busy ? (
             <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] animate-pulse">
-              streaming · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} so far...
+              live trace · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} done · current step in flight...
             </p>
           ) : null}
 
