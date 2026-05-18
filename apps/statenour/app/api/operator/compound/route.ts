@@ -17,6 +17,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import {
   buildCompoundChain,
   type CompoundSurface,
@@ -49,11 +50,12 @@ export async function GET(req: Request) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/operator/compound",
+      op: "GET",
+    });
     return NextResponse.json(
-      {
-        error: "compound_chain_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: "compound_chain_failed", message: publicMessage, errorId },
       { status: 500 },
     );
   }

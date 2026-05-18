@@ -685,7 +685,10 @@ async function persistTrace(
 ): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
-    const key = `reasoning_${result.tier}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // H.7.7 · crypto.randomUUID instead of Math.random · stronger
+    // uniqueness · negligible cost difference · removes the birthday-
+    // paradox risk on busy days.
+    const key = `reasoning_${result.tier}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
     const summary = result.trace.answer.length > 240
       ? result.trace.answer.slice(0, 237) + "…"
       : result.trace.answer;
@@ -711,18 +714,26 @@ async function persistTrace(
       },
     });
 
-    // H.4.2 · opportunistic rotation · once every ~10 writes, prune.
-    // Sampling means we don't run a delete on every write but keep
-    // the table bounded over time. Rules:
-    //   · delete rows older than 30 days unconditionally
-    //   · if still >500 rows, delete the oldest down to 500
-    if (Math.random() < 0.1) {
+    // H.4.2 + H.7.4 · DETERMINISTIC rotation · every 10th write since
+    // module load triggers a prune. Pre-H.7 was Math.random() < 0.1
+    // which under burst writes could either over-prune (3 rotates in
+    // a minute) or under-prune (no rotate for 50 writes). Deterministic
+    // counter gives predictable cadence: exactly 1 prune per 10 writes.
+    persistWriteCounter += 1;
+    if (persistWriteCounter % ROTATION_EVERY_N === 0) {
       void rotateReasoningTraces();
     }
   } catch {
     // Best-effort · never let bookkeeping block the engine.
   }
 }
+
+/** H.7.4 · deterministic-rotation counter · module-scope so all
+ *  persistTrace calls in the same process increment a shared counter.
+ *  Resets to 0 on serverless cold start (acceptable · rotation will
+ *  still fire periodically). */
+let persistWriteCounter = 0;
+const ROTATION_EVERY_N = 10;
 
 /** H.6.1 · record a mega-tier source that exceeded its budget but
  *  eventually completed. The completed LLM work was discarded · the
@@ -741,7 +752,8 @@ async function recordOrphan(source: string, wastedMs: number): Promise<void> {
     await prisma.brainMemory.create({
       data: {
         category: "reasoning_orphan",
-        key: `orphan_${source}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        // H.7.7 · same crypto.randomUUID upgrade
+        key: `orphan_${source}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
         content: `mega tier source "${source}" landed ${wastedMs}ms after budget timeout · cost wasted`,
         confidence: 0.5,
         source: "reasoning-engine",
@@ -874,7 +886,12 @@ async function runReasoningWithPersist(
   request: ReasoningRequest,
 ): Promise<ReasoningResult> {
   const result = await runReasoningEngine(request);
-  void persistTrace(request.question, result);
+  // H.7.3 · honor persist opt-out · sensitive runs skip the BrainMemory
+  // trace write entirely. The run still completes; it's just invisible
+  // in /reason/history.
+  if (request.persist !== false) {
+    void persistTrace(request.question, result);
+  }
   return result;
 }
 
@@ -886,7 +903,9 @@ export async function reasonStreaming(
   onStep: (step: ReasoningStep) => void,
 ): Promise<ReasoningResult> {
   const result = await runReasoningEngine(request, onStep);
-  void persistTrace(request.question, result);
+  if (request.persist !== false) {
+    void persistTrace(request.question, result);
+  }
   return result;
 }
 

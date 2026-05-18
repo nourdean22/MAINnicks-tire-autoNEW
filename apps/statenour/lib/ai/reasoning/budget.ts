@@ -81,7 +81,12 @@ function estimateTierCost(tier: ReasoningTier): number {
 /** Sum today's spend by reading back BrainMemory(category="reasoning_trace")
  *  rows created since midnight ET. Each row carries metadata.usd from
  *  Phase H.2.2 persistence. */
-async function getTodaySpendUsd(): Promise<number> {
+/** Sentinel returned by getTodaySpendUsd on read failure. H.7.2 fail-
+ *  closed semantics · checkBudget treats this as "cap exceeded" so
+ *  the operator gets a clean 402 instead of a wide-open gate. */
+export const BUDGET_READ_FAILED = Symbol("BUDGET_READ_FAILED");
+
+async function getTodaySpendUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
   try {
     // ET midnight · matches the operator's local-day rhythm
     const startOfDayEt = new Date();
@@ -110,8 +115,11 @@ async function getTodaySpendUsd(): Promise<number> {
     }
     return Math.round(total * 1000) / 1000;
   } catch {
-    // Open the gate if the read fails · don't block work on a tooling bug
-    return 0;
+    // H.7.2 · fail CLOSED · pre-fix we returned 0 (open the gate) which
+    // meant a Prisma outage = unlimited spend. Now we return a sentinel
+    // and checkBudget rejects. Operator can override with explicit
+    // /force=true if they know Prisma is the issue · NOT in this wave.
+    return BUDGET_READ_FAILED;
   }
 }
 
@@ -120,7 +128,7 @@ async function getTodaySpendUsd(): Promise<number> {
  *  the cap by reading the same pre-write spend. Stale reservations
  *  (engine crashed) are pruned by maxAge filter and the next call to
  *  pruneStaleReservations. */
-async function getInFlightUsd(): Promise<number> {
+async function getInFlightUsd(): Promise<number | typeof BUDGET_READ_FAILED> {
   try {
     const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
     const rows = await prisma.brainMemory.findMany({
@@ -140,8 +148,8 @@ async function getInFlightUsd(): Promise<number> {
     }
     return Math.round(total * 1000) / 1000;
   } catch {
-    // Same fail-open as today-spend · don't block on tooling errors
-    return 0;
+    // H.7.2 · fail CLOSED · same pattern as getTodaySpendUsd
+    return BUDGET_READ_FAILED;
   }
 }
 
@@ -154,7 +162,8 @@ export async function reserveBudget(
   estimatedRunUsd: number,
 ): Promise<Reservation | null> {
   try {
-    const id = `inflight_${tier}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    // H.7.7 · crypto.randomUUID for stronger uniqueness
+    const id = `inflight_${tier}_${Date.now()}_${crypto.randomUUID().slice(0, 10)}`;
     await prisma.brainMemory.create({
       data: {
         category: "reasoning_in_flight",
@@ -216,10 +225,26 @@ export async function checkBudget(
   // H.6.2 · opportunistic prune of stale reservations · runs roughly
   // every 10th check so the in-flight set never accumulates indefinitely.
   if (Math.random() < 0.1) void pruneStaleReservations();
-  const [spentTodayUsd, inFlightUsd] = await Promise.all([
+  const [spentRaw, inFlightRaw] = await Promise.all([
     getTodaySpendUsd(),
     getInFlightUsd(),
   ]);
+  // H.7.2 · if EITHER read failed we fail closed · the cap can't be
+  // safely enforced without knowing current spend. Return a 402 so
+  // the operator sees the failure mode instead of a wide-open gate.
+  if (spentRaw === BUDGET_READ_FAILED || inFlightRaw === BUDGET_READ_FAILED) {
+    return {
+      allow: false,
+      spentTodayUsd: 0,
+      inFlightUsd: 0,
+      capUsd,
+      estimatedRunUsd: estimateTierCost(tier),
+      reason:
+        "Budget store unavailable (Prisma error). Failing closed to protect spend · retry once it's back.",
+    };
+  }
+  const spentTodayUsd = spentRaw;
+  const inFlightUsd = inFlightRaw;
   const estimatedRunUsd = estimateTierCost(tier);
   // H.6.2 · TOCTOU close · the cap check now includes already-reserved
   // headroom from runs still executing. Pre-fix, two concurrent

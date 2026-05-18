@@ -133,6 +133,12 @@ export function NickReasoner({
   // H.3.3 + H.3.4 · handles 402 budget/confirm responses · shows a
   // confirm dialog for mega tier and surfaces the budget cap when
   // hit instead of bubbling up as a generic error.
+  //
+  // H.7.6 · self-recursive retry pattern caught by react-hooks/
+  // immutability lint pre-fix. Now stashed in a ref so the inner
+  // 402-retry path goes through runRef.current() instead of run()
+  // directly · no self-reference in the closure.
+  const runRef = useRef<((confirmExpensive?: boolean) => Promise<void>) | null>(null);
   const run = useCallback(async (confirmExpensive = false) => {
     const q = question.trim();
     if (!q || busy) return;
@@ -175,7 +181,8 @@ export function NickReasoner({
           );
           if (ok) {
             setBusy(false);
-            void run(true);
+            // H.7.6 · use the ref · avoids self-reference lint warning
+            void runRef.current?.(true);
             return;
           }
           throw new Error("Mega run cancelled.");
@@ -219,6 +226,11 @@ export function NickReasoner({
       setBusy(false);
     }
   }, [question, brainContext, tier, busy]);
+
+  // H.7.6 · keep the ref in sync with the latest `run` closure
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
 
   // Phase H.2 · auto-run on mount when both flags + question are present.
   // Ref-tracked so we don't fire twice in strict-mode dev.

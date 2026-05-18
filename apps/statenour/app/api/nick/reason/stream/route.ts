@@ -20,6 +20,7 @@
 
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import { reasonStreaming } from "@/lib/ai/reasoning/engine";
 import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
 import {
@@ -48,6 +49,12 @@ interface ReasonBody {
   tier?: unknown;
   /** H.3.4 · explicit operator ack for mega-tier spend */
   confirmExpensive?: unknown;
+  /** H.7.3 · opt out of trace persistence for sensitive runs */
+  persist?: unknown;
+}
+
+function detectPrivateMarker(text: string): boolean {
+  return /\b(@private|\/private)\b/i.test(text);
 }
 
 function sseEvent(eventName: string, data: unknown): string {
@@ -130,6 +137,13 @@ export async function POST(req: Request) {
 
     // Re-resolve `tier` for the inner stream after the gates pass
     const tier = requestedTier;
+    // H.7.3 · persist flag · explicit override or auto-detect marker
+    const persist =
+      body.persist === false
+        ? false
+        : body.persist === true
+          ? true
+          : !detectPrivateMarker(question);
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -160,7 +174,7 @@ export async function POST(req: Request) {
 
         try {
           const result = await reasonStreaming(
-            { question, brainContext, tier },
+            { question, brainContext, tier, persist },
             (step) => send("step", step),
           );
           send("result", result);
@@ -198,10 +212,16 @@ export async function POST(req: Request) {
         headers: { "Content-Type": "application/json" },
       });
     }
+    // H.7.1 · sanitize
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/nick/reason/stream",
+      op: "POST",
+    });
     return new Response(
       JSON.stringify({
         error: "stream_init_failed",
-        message: err instanceof Error ? err.message : String(err),
+        message: publicMessage,
+        errorId,
       }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );

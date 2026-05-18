@@ -21,6 +21,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import {
   DEFAULT_DAILY_CAP_USD,
   __internals as budgetInternals,
@@ -142,7 +143,9 @@ export async function GET(req: Request) {
     const totalSpendAll = Math.round(
       tierStats.reduce((s, t) => s + t.totalCostUsd, 0) * 1000,
     ) / 1000;
-    const spentTodayUsd = await budgetInternals.getTodaySpendUsd();
+    // H.7.2 · degrade BUDGET_READ_FAILED sentinel to 0 for telemetry read-path
+    const rawSpend = await budgetInternals.getTodaySpendUsd();
+    const spentTodayUsd = typeof rawSpend === "number" ? rawSpend : 0;
 
     // H.5.3 · marker quality summary · per bucket, avg confidence +
     // fallback rate. Surfaces the learning signal · a marker with
@@ -199,11 +202,12 @@ export async function GET(req: Request) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/nick/reason/telemetry",
+      op: "GET",
+    });
     return NextResponse.json(
-      {
-        error: "telemetry_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: "telemetry_failed", message: publicMessage, errorId },
       { status: 500 },
     );
   }

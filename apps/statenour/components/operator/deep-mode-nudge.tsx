@@ -51,9 +51,14 @@ export function DeepModeNudge() {
         setVerdict(null);
         return;
       }
-      // Only react to textarea + input[type=text|search|null] with .value
       const tag = el.tagName;
-      if (tag !== "TEXTAREA" && tag !== "INPUT") {
+      const htmlEl = el as HTMLElement;
+      // H.7.5 · accept TEXTAREA + INPUT + contentEditable elements
+      // (rich text editors that don't use a textarea · operator
+      // could be drafting deep thoughts there too).
+      const isEditable =
+        tag === "TEXTAREA" || tag === "INPUT" || htmlEl.isContentEditable;
+      if (!isEditable) {
         setVerdict(null);
         return;
       }
@@ -62,19 +67,26 @@ export function DeepModeNudge() {
       // boxes) opt out without the nudge needing to know about them.
       // Walks up the DOM tree from the focused element to find an
       // ancestor with the attribute · zero coupling to specific pages.
-      if ((el as HTMLElement).closest("[data-no-deep-nudge]")) {
+      if (htmlEl.closest("[data-no-deep-nudge]")) {
         setVerdict(null);
         return;
       }
-      const input = el as HTMLInputElement | HTMLTextAreaElement;
+      // Input type allowlist · keep passwords/emails/numbers out
       if (tag === "INPUT") {
-        const t = (input as HTMLInputElement).type;
+        const t = (htmlEl as HTMLInputElement).type;
         if (t && !["text", "search", "url", ""].includes(t)) {
           setVerdict(null);
           return;
         }
       }
-      const value = input.value ?? "";
+      // H.7.5 · extract value · .value for inputs/textareas, textContent
+      // for contentEditable. Cap at 4k chars so a massive Notion-style
+      // editor doesn't blow the classifier regex pass.
+      const rawValue =
+        tag === "TEXTAREA" || tag === "INPUT"
+          ? (htmlEl as HTMLInputElement | HTMLTextAreaElement).value
+          : (htmlEl.textContent ?? "");
+      const value = (rawValue ?? "").slice(0, 4000);
       // H.4.1 · use the shared classifier · same verdict the server uses
       const v = classifyCore(value);
       if (shouldNudge(v.tier)) {
@@ -91,7 +103,14 @@ export function DeepModeNudge() {
       // Delay so a click on the chip itself isn't lost when focus moves.
       setTimeout(() => {
         const el = document.activeElement;
-        if (el && (el.tagName === "TEXTAREA" || el.tagName === "INPUT")) return;
+        if (
+          el &&
+          (el.tagName === "TEXTAREA" ||
+            el.tagName === "INPUT" ||
+            (el as HTMLElement).isContentEditable)
+        ) {
+          return;
+        }
         setVerdict(null);
       }, 200);
     };

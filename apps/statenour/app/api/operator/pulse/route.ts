@@ -18,6 +18,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import {
   buildOperatorPulse,
   type PulseSurface,
@@ -50,11 +51,12 @@ export async function GET(req: Request) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/operator/pulse",
+      op: "GET",
+    });
     return NextResponse.json(
-      {
-        error: "operator_pulse_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: "operator_pulse_failed", message: publicMessage, errorId },
       { status: 500 },
     );
   }

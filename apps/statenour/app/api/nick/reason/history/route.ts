@@ -20,6 +20,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import {
   DEFAULT_DAILY_CAP_USD,
   __internals as budgetInternals,
@@ -102,7 +103,11 @@ export async function GET(req: Request) {
     const totalSpendAll = Math.round(
       history.reduce((s, h) => s + h.usd, 0) * 1000,
     ) / 1000;
-    const spentTodayUsd = await budgetInternals.getTodaySpendUsd();
+    // H.7.2 · getTodaySpendUsd may return BUDGET_READ_FAILED sentinel
+    // on Prisma error · degrade to 0 for the read-only telemetry view
+    // (operator just sees an empty bar instead of a 500).
+    const rawSpend = await budgetInternals.getTodaySpendUsd();
+    const spentTodayUsd = typeof rawSpend === "number" ? rawSpend : 0;
     const tierCounts: Record<string, number> = {};
     for (const h of history) tierCounts[h.tier] = (tierCounts[h.tier] ?? 0) + 1;
 
@@ -124,11 +129,12 @@ export async function GET(req: Request) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/nick/reason/history",
+      op: "GET",
+    });
     return NextResponse.json(
-      {
-        error: "history_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: "history_failed", message: publicMessage, errorId },
       { status: 500 },
     );
   }
