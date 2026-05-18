@@ -84,11 +84,31 @@ export interface ChainStats {
   totalScoreboardShifts: number;
 }
 
+/** Phase G.2 · forward-looking · "if you complete these, here's what
+ *  compounds" · open task with a goalId, grouped by axis. Lets the
+ *  operator see the leverage stack they haven't activated yet. */
+export interface PotentialChain {
+  /** Same shape as AxisChain but the task list is OPEN, not DONE */
+  domain: string;
+  score: number | null;
+  delta7d: number | null;
+  scoreboard: { label: string; display: string; href: string | null } | null;
+  goals: GoalSegment[];
+}
+
 export interface CompoundChainSnapshot {
   surface: CompoundSurface;
   stats: ChainStats;
-  /** Chains grouped by axis · sorted by impact (most tasks / biggest δ first) */
+  /** Backward-looking chains · "this is what compounded in {window}" */
   axes: AxisChain[];
+  /** Phase G.2 · forward-looking · "if you complete these open tasks,
+   *  this is what would compound". Top 8 open tasks with goalId,
+   *  grouped by axis. */
+  potential: PotentialChain[];
+  /** Phase G.2 · orphan signal · count of DONE tasks in the window
+   *  that have no goalId (uncaptured compound leverage). Component
+   *  surfaces a small "N tasks done without a goal link" nudge. */
+  orphanDoneCount: number;
   /** When this was composed (UTC ISO) */
   composedAt: string;
 }
@@ -163,6 +183,37 @@ function effortBandToMinutes(band: string | null | undefined): number | null {
   }
 }
 
+/** Phase G.2 helper · fetch DONE tasks with goalId in a window.
+ *  Pulled out so the buildCompoundChain composer can call it once for
+ *  the primary window and again for the fallback widen-passes. */
+async function fetchDoneTasksWithGoalIn(start: Date, end: Date) {
+  return prisma.task
+    .findMany({
+      where: {
+        status: "DONE",
+        updatedAt: { gte: start, lte: end },
+        deletedAt: null,
+        goalId: { not: null },
+      },
+      select: {
+        id: true,
+        title: true,
+        updatedAt: true,
+        actualMinutes: true,
+        effort: true,
+        goalId: true,
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 60,
+    })
+    .catch((err) => {
+      log.warn("done_tasks_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+      return [];
+    });
+}
+
 function findScoreboardForAxis(
   domain: string,
   numbers: ScoreboardNumber[],
@@ -181,16 +232,43 @@ function findScoreboardForAxis(
 export async function buildCompoundChain(
   surface: CompoundSurface,
 ): Promise<CompoundChainSnapshot> {
-  const { start, end, label } = windowForSurface(surface);
+  let { start, end, label } = windowForSurface(surface);
 
-  const [doneTasks, goalsSnap, scoreboardSnap] = await Promise.all([
+  // Phase G.2 · window fallback · if the primary window has zero
+  // chained completions, widen so the chain rarely looks dead. Order:
+  // today → this week → last 30 days. Operator on a quiet day still
+  // sees the most-recent compound trail instead of a blank pane.
+  let doneTasks = await fetchDoneTasksWithGoalIn(start, end);
+  if (doneTasks.length === 0 && label === "today") {
+    const widerStart = new Date(Date.now() - 7 * 86_400_000);
+    const widerTasks = await fetchDoneTasksWithGoalIn(widerStart, end);
+    if (widerTasks.length > 0) {
+      doneTasks = widerTasks;
+      start = widerStart;
+      label = "this week";
+    }
+  }
+  if (doneTasks.length === 0) {
+    const widestStart = new Date(Date.now() - 30 * 86_400_000);
+    const widestTasks = await fetchDoneTasksWithGoalIn(widestStart, end);
+    if (widestTasks.length > 0) {
+      doneTasks = widestTasks;
+      start = widestStart;
+      label = "last 30 days";
+    }
+  }
+
+  const [goalsSnap, scoreboardSnap, openTasks, orphanDoneCount] = await Promise.all([
+    buildGoalsSnapshot(),
+    buildMetaScoreboard(),
+    // Phase G.2 · potential chain · open tasks WITH a goalId · these
+    // would compound if completed. Sorted by ROI so the highest-
+    // leverage potential surfaces first.
     prisma.task
       .findMany({
         where: {
-          status: "DONE",
-          updatedAt: { gte: start, lte: end },
+          status: { in: ["INBOX", "READY", "DOING"] },
           deletedAt: null,
-          // Only tasks linked to a goal are part of the compound chain
           goalId: { not: null },
         },
         select: {
@@ -201,17 +279,25 @@ export async function buildCompoundChain(
           effort: true,
           goalId: true,
         },
-        orderBy: { updatedAt: "desc" },
-        take: 60,
+        orderBy: [{ roiScore: "desc" }, { updatedAt: "desc" }],
+        take: 8,
       })
-      .catch((err) => {
-        log.warn("done_tasks_failed", {
-          err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-        });
-        return [];
-      }),
-    buildGoalsSnapshot(),
-    buildMetaScoreboard(),
+      .catch(() => []),
+    // Phase G.2 · orphan count · DONE in primary window WITHOUT goalId.
+    // Count only · the nudge is "tag these so they compound". Uses the
+    // *original* "today" window for the count even after fallback so
+    // the operator gets a today-specific signal regardless of how wide
+    // the chain composer's window stretched.
+    prisma.task
+      .count({
+        where: {
+          status: "DONE",
+          updatedAt: { gte: windowForSurface(surface).start, lte: windowForSurface(surface).end },
+          deletedAt: null,
+          goalId: null,
+        },
+      })
+      .catch(() => 0),
   ]).catch((err) => {
     log.warn("snapshot_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
@@ -325,6 +411,62 @@ export async function buildCompoundChain(
     (a) => a.scoreboard !== null && Math.abs(a.delta7d ?? 0) > 0,
   ).length;
 
+  // Phase G.2 · compose the potential (forward) chain from open tasks.
+  // Same grouping logic as backward chain · the tasks list is OPEN
+  // tasks instead of DONE. Renders as "if you complete these, here's
+  // what would compound."
+  const potentialMap = new Map<string, PotentialChain>();
+  for (const t of openTasks) {
+    if (!t.goalId) continue;
+    const goal = goalsById.get(t.goalId);
+    if (!goal) continue;
+    const taskSeg: TaskSegment = {
+      id: t.id,
+      title: t.title,
+      completedAt: t.updatedAt.toISOString(),
+      effort:
+        t.actualMinutes && t.actualMinutes > 0
+          ? t.actualMinutes
+          : effortBandToMinutes(t.effort),
+    };
+    let entry = potentialMap.get(goal.domain);
+    if (!entry) {
+      const axisScore = findAxisForDomain(goal.domain, goalsSnap.axes);
+      const scoreboard = findScoreboardForAxis(goal.domain, scoreboardSnap.numbers);
+      entry = {
+        domain: goal.domain,
+        score: axisScore?.score ?? null,
+        delta7d: axisScore?.delta7d ?? null,
+        scoreboard: scoreboard
+          ? { label: scoreboard.label, display: scoreboard.display, href: scoreboard.link }
+          : null,
+        goals: [],
+      };
+      potentialMap.set(goal.domain, entry);
+    }
+    let goalSeg = entry.goals.find((g) => g.id === goal.id);
+    if (!goalSeg) {
+      goalSeg = {
+        id: goal.id,
+        title: goal.title,
+        domain: goal.domain,
+        progress: goal.progress,
+        tasks: [],
+      };
+      entry.goals.push(goalSeg);
+    }
+    goalSeg.tasks.push(taskSeg);
+  }
+  const potentialArray = Array.from(potentialMap.values());
+  for (const p of potentialArray) {
+    p.goals.sort((a, b) => b.tasks.length - a.tasks.length);
+  }
+  potentialArray.sort((a, b) => {
+    const aTasks = a.goals.reduce((s, g) => s + g.tasks.length, 0);
+    const bTasks = b.goals.reduce((s, g) => s + g.tasks.length, 0);
+    return bTasks - aTasks;
+  });
+
   return {
     surface,
     stats: {
@@ -335,6 +477,8 @@ export async function buildCompoundChain(
       totalScoreboardShifts,
     },
     axes: axesArray,
+    potential: potentialArray,
+    orphanDoneCount,
     composedAt: new Date().toISOString(),
   };
 }

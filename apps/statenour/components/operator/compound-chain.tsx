@@ -68,10 +68,24 @@ interface ChainStats {
   totalScoreboardShifts: number;
 }
 
+/** Phase G.2 · forward-looking · open task chain · same shape as
+ *  AxisChain but the task list is OPEN, not DONE. */
+interface PotentialChain {
+  domain: string;
+  score: number | null;
+  delta7d: number | null;
+  scoreboard: { label: string; display: string; href: string | null } | null;
+  goals: GoalSegment[];
+}
+
 interface CompoundShape {
   surface: CompoundSurface;
   stats: ChainStats;
   axes: AxisChain[];
+  /** Phase G.2 · forward-looking chains */
+  potential: PotentialChain[];
+  /** Phase G.2 · today's DONE tasks without a goalId · uncaptured leverage */
+  orphanDoneCount: number;
   composedAt: string;
 }
 
@@ -97,41 +111,104 @@ export function CompoundChain({
   }, [reload]);
 
   if (!data) return null;
-  if (data.stats.totalTasks === 0) return null;
-
-  const { stats, axes } = data;
+  const { stats, axes, potential, orphanDoneCount } = data;
+  // Phase G.2 · self-hide ONLY when there's nothing in any of the three
+  // possible sections (backward chain · forward chain · orphan nudge).
+  // Pre-G.2 we hid whenever today's done count was 0 · that was the
+  // common case so the chain section never showed.
+  const hasBackward = stats.totalTasks > 0;
+  const hasForward = potential.length > 0;
+  const hasOrphans = orphanDoneCount > 0;
+  if (!hasBackward && !hasForward && !hasOrphans) return null;
 
   return (
     <section
       aria-label={`compound chain · ${surface}`}
       className={[
-        "mx-auto max-w-[64ch] px-3 py-3 space-y-3",
+        "mx-auto max-w-[64ch] px-3 py-3 space-y-5",
         className ?? "",
       ].join(" ")}
     >
-      {/* Headline · "Today · 3 tasks compounded" */}
-      <header className="flex items-baseline justify-between gap-3">
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
-          {stats.window} · compounded
-        </p>
-        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
-          {stats.totalTasks} task{stats.totalTasks === 1 ? "" : "s"} ·{" "}
-          {stats.totalGoalsLifted} goal{stats.totalGoalsLifted === 1 ? "" : "s"} ·{" "}
-          {stats.totalAxesMoved} ax{stats.totalAxesMoved === 1 ? "is" : "es"}
-        </p>
-      </header>
+      {/* Backward chain · "what compounded in {window}" */}
+      {hasBackward ? (
+        <div className="space-y-3">
+          <header className="flex items-baseline justify-between gap-3">
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              {stats.window} · compounded
+            </p>
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+              {stats.totalTasks} task{stats.totalTasks === 1 ? "" : "s"} ·{" "}
+              {stats.totalGoalsLifted} goal{stats.totalGoalsLifted === 1 ? "" : "s"} ·{" "}
+              {stats.totalAxesMoved} ax{stats.totalAxesMoved === 1 ? "is" : "es"}
+            </p>
+          </header>
+          <ul className="space-y-3">
+            {axes.map((axis) => (
+              <AxisChainRow key={axis.domain} axis={axis} variant="done" />
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
-      {/* Chains · grouped by axis */}
-      <ul className="space-y-3">
-        {axes.map((axis) => (
-          <AxisChainRow key={axis.domain} axis={axis} />
-        ))}
-      </ul>
+      {/* Forward chain · "if you complete these, here's what compounds" */}
+      {hasForward ? (
+        <div className="space-y-3">
+          <header className="flex items-baseline justify-between gap-3">
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+              {hasBackward ? "next · potential" : "potential · ready"}
+            </p>
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+              {potential.reduce((s, p) => s + p.goals.reduce((g, g2) => g + g2.tasks.length, 0), 0)} open ·{" "}
+              {potential.length} ax{potential.length === 1 ? "is" : "es"}
+            </p>
+          </header>
+          <ul className="space-y-3">
+            {potential.map((axis) => (
+              <AxisChainRow
+                key={`potential-${axis.domain}`}
+                axis={axis}
+                variant="open"
+              />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Orphan nudge · DONE in window without a goalId · uncaptured
+          leverage · 1-line · gold dot · links to /tasks for linking */}
+      {hasOrphans ? (
+        <Link
+          href="/tasks"
+          className="block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
+        >
+          <div className="flex items-start gap-2.5 text-sm leading-snug">
+            <span
+              aria-hidden
+              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--gold)] shadow-[0_0_0_2px_rgba(253,185,19,0.18)]"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="mr-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                gap
+              </span>
+              <span className="text-[var(--text-primary)]">
+                {orphanDoneCount} task{orphanDoneCount === 1 ? "" : "s"} done today without a goal link · tag to compound
+              </span>
+            </span>
+          </div>
+        </Link>
+      ) : null}
     </section>
   );
 }
 
-function AxisChainRow({ axis }: { axis: AxisChain }) {
+function AxisChainRow({
+  axis,
+  variant = "done",
+}: {
+  axis: AxisChain | PotentialChain;
+  /** "done" = backward · checkmark glyph · "open" = forward · arrow glyph */
+  variant?: "done" | "open";
+}) {
   const delta = axis.delta7d ?? 0;
   const deltaStr =
     delta > 0
@@ -183,14 +260,21 @@ function AxisChainRow({ axis }: { axis: AxisChain }) {
       {/* Goals + tasks · indented under the axis */}
       <ul className="pl-4 space-y-1.5 border-l border-white/5">
         {axis.goals.map((goal) => (
-          <GoalChainRow key={goal.id} goal={goal} />
+          <GoalChainRow key={goal.id} goal={goal} variant={variant} />
         ))}
       </ul>
     </li>
   );
 }
 
-function GoalChainRow({ goal }: { goal: GoalSegment }) {
+function GoalChainRow({
+  goal,
+  variant = "done",
+}: {
+  goal: GoalSegment;
+  variant?: "done" | "open";
+}) {
+  const glyph = variant === "open" ? "→" : "✓";
   return (
     <li>
       <div className="flex items-baseline justify-between gap-2 text-sm">
@@ -211,7 +295,7 @@ function GoalChainRow({ goal }: { goal: GoalSegment }) {
               aria-hidden
               className="text-[var(--text-tertiary)] shrink-0"
             >
-              ✓
+              {glyph}
             </span>
             <span className="truncate min-w-0 flex-1">{task.title}</span>
             {task.effort ? (
