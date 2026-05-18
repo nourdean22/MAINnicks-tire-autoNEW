@@ -317,7 +317,9 @@ future similar entries.
 - [x] UI · ThreadRadar + ThreadRail wired into /journal page
   (ABOVE the metacognition card · null when empty so page looks
   unchanged unless something fires)
-- [ ] OPERATOR: apply parked migration via Neon SQL editor when ready
+- [x] OPERATOR: apply parked migration via Neon SQL editor — APPLIED
+  2026-05-18 · both `journal_threads` + `journal_thread_memberships`
+  verified in prod Neon
 - [ ] OPERATOR: open /journal day after first 22:00 UTC cron · name
   first thread if convergence fires
 
