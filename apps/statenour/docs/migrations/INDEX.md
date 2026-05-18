@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S/T/U + **Y** | 2026-05-18 PM | **9/50+ surfaces** · ai-cost + ghost-nour (Y) · 6 procedures live in system router | Continue `/system/*` (policies · repos) · then `/chat`, `/voice`, `/tasks` |
+| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y + **Z** | 2026-05-18 PM | **10/50+ surfaces** · 4th domain router shipped (`chat`) · ChatHistorySearch (Cmd+F) migrated with optimistic-cache-update pattern | Continue `/system/*` (policies · repos) · then more chat sub-surfaces |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 | **Inline category strings → BRAIN_CATEGORIES** | Phase O.2 + P.2 | 2026-05-18 PM | **H+ scope done (8 files · 21 sites)** · 100+ legacy untouched | Optional H+ codemod rerun · legacy migration is separate scope |
 

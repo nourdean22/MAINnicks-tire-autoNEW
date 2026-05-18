@@ -12,11 +12,13 @@ import { router } from "./trpc";
 import { nickRouter } from "./routers/nick";
 import { operatorRouter } from "./routers/operator";
 import { systemRouter } from "./routers/system";
+import { chatRouter } from "./routers/chat";
 
 export const appRouter = router({
   nick: nickRouter,
   operator: operatorRouter,
   system: systemRouter,
+  chat: chatRouter,
 });
 
 /** Type-only export for the client · NEVER import appRouter on the

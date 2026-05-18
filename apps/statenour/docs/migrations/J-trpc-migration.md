@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 9 / 50+ surfaces · ~18% complete · 3 domain routers (nick · operator · system with 6 procedures) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`)
+**Status:** 10 / 50+ surfaces · ~20% complete · **4 domain routers (nick · operator · system · chat)** · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (9)
+## Migrated surfaces (10)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -31,7 +31,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | `/system/cron-diagnostics` (read only) | `authedFetch` → `/api/system/cron-diagnostics` | `trpc.system.cronDiagnostics.useQuery()` | T.4 |
 | `/system/lens-stats` | `authedFetch` → `/api/system/lens-stats?days=N` | `trpc.system.lensStats.useQuery({days})` | U.4 |
 | `/system/ai-cost` | `authedFetch` → `/api/system/ai-cost` | `trpc.system.aiCost.useQuery()` | **Y.2** |
-| `/system/ghost-nour` (candidates list) | `authedFetch` → `/api/system/ghost-nour?list=recent` | `trpc.system.ghostNourCandidates.useQuery()` | **Y.4** |
+| `/system/ghost-nour` (candidates list) | `authedFetch` → `/api/system/ghost-nour?list=recent` | `trpc.system.ghostNourCandidates.useQuery()` | Y.4 |
+| ChatHistorySearch (Cmd+F overlay) | `authedFetch` → `/api/chat/search?q=X&limit=25` (debounced × 2 sites) | `trpc.chat.search.useQuery({q, limit})` + `setData()` optimistic drop | **Z.3** |
 
 ## Architectural notes
 
@@ -49,6 +50,16 @@ End-to-end types flow from server → client · no manual mirrors.
   React Query to refetch · same UX as the previous `await load()` path
   with less plumbing. Sets the template for partial migrations where
   mutations come later.
+- **Z.3** introduced the **optimistic-cache-update** pattern · the
+  ChatHistorySearch `deleteConvo` mutation drops the deleted row from
+  React Query's cache immediately via `utils.chat.search.setData()`,
+  then invalidates to reconcile with the server. Removes the prior
+  fetch-race window where the operator saw the deleted row reappear
+  briefly. Same shape as TanStack Query's standard optimistic-update
+  recipe · sets the template for future delete/archive mutations.
+- **Z.2** added the **4th domain router** (`chat`) for chat-domain
+  procedures. Streaming endpoints (POST /api/ai/chat) stay excluded
+  from tRPC migration · subscription support needs WebSocket infra.
 
 ## Pending surfaces (~46)
 
