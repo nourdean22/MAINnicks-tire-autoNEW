@@ -1,8 +1,12 @@
 # Migration 0002 · journal_threads + journal_thread_memberships
 
-> **Status**: PARKED · awaiting operator apply to Neon prod
+> **Status**: APPLIED to Neon prod 2026-05-18 via SQL editor
 > **ADR**: 0013 · journal pattern-radar
 > **Phase**: Wave-200 Phase D (post-goals page merge sibling)
+>
+> Both tables verified via:
+> `SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_name IN ('journal_threads','journal_thread_memberships');`
+> → returned 2 rows.
 
 ## What it does
 

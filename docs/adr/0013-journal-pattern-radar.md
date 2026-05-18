@@ -1,6 +1,6 @@
 # ADR-0013 · /journal pattern-radar · convergence detection → named threads
 
-> **Status**: Accepted (2026-05-18 · Phase D · post Wave-200)
+> **Status**: Accepted · APPLIED to Neon prod 2026-05-18 · radar fully live
 > **Date**: 2026-05-18 · brainstorming locked Q1–Q5 + Understanding Lock confirmed
 > **Decision drivers**: operator diagnosed two pains · (a) metacognition
 > card is inert, (b) chronological feed is flat with no synthesis ·
@@ -248,12 +248,11 @@ in-memory cosine on ~200 entries is sub-100ms.
 
 ## Operator action items
 
-1. Apply parked migration (`prisma/migrations-pending/0002_journal_threads/`)
-   when ready (same flow as ADR-0012)
-2. Verify Inngest dashboard shows two new functions
-   (`journal-convergence` + `journal-thread-dormancy`)
-3. Wait for first nightly cron run (10pm UTC) · visit /journal next
-   day · if convergence fires, name first thread
+1. ~~Apply parked migration~~ — APPLIED 2026-05-18 via Neon SQL editor
+2. ~~Verify Inngest dashboard shows two new functions~~ — Inngest PUT
+   sync returned `modified:true` post-deploy · functions registered
+3. Wait for first nightly cron run (22:00 UTC = 6pm ET) · visit
+   /journal next day · if convergence fires, name first thread
 
 ## Decision log
 
