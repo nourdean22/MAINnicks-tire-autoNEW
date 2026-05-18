@@ -417,7 +417,12 @@ export default function About() {
               {
                 icon: <ShieldCheck className="w-6 h-6" />,
                 title: "Written estimate before any work",
-                sub: "Every repair over $100 — full written estimate, line-by-line. We don't touch it without your approval.",
+                // wave-181.44 · replaced "without your approval" (formal,
+                // procedural) with the relief haiku ("you don't pay until
+                // you say yes") — same phrase Brian uses on every VAPI
+                // repair call. Cross-touchpoint consistency per
+                // brand-perception step 5.
+                sub: "Every repair over $100 — full written estimate, line-by-line. You don't pay until you say yes.",
                 anchor: "Industry standard: verbal-only, sometimes",
               },
               {
