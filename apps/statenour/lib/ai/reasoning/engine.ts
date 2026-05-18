@@ -89,7 +89,44 @@ function makeRecorder(
 
 // ── Sub-step implementations · each one is independent + tolerant ──
 
-async function runPlan(question: string, tier: ReasoningTier): Promise<string> {
+/** H.5.1 · per-run cost accumulator · pushed into by each engine
+ *  sub-fn after aiChat returns. AiResponse.costUsd was added in H.4.7
+ *  · this is the engine-side consumer that aggregates real cost. When
+ *  any aiChat returns no costUsd (e.g. local Ollama with no rate),
+ *  the accumulator still increments the call count but the usd stays
+ *  at the sum-of-known-only. buildResult prefers acc.usd when non-zero,
+ *  otherwise falls back to per-tier estimate. */
+interface CostAccumulator {
+  usd: number;
+  calls: number;
+  /** Count of calls that did NOT return a costUsd (local providers,
+   *  providers not in the rate table). Used to detect "no real cost
+   *  data" scenarios. */
+  callsWithoutCost: number;
+}
+
+function makeAccumulator(): CostAccumulator {
+  return { usd: 0, calls: 0, callsWithoutCost: 0 };
+}
+
+function recordReply(
+  acc: CostAccumulator | undefined,
+  reply: { costUsd?: number } | null | undefined,
+): void {
+  if (!acc) return;
+  acc.calls += 1;
+  if (reply && typeof reply.costUsd === "number" && Number.isFinite(reply.costUsd)) {
+    acc.usd += reply.costUsd;
+  } else {
+    acc.callsWithoutCost += 1;
+  }
+}
+
+async function runPlan(
+  question: string,
+  tier: ReasoningTier,
+  acc?: CostAccumulator,
+): Promise<string> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
     [
@@ -103,18 +140,9 @@ NO MARKDOWN HEADERS. Be terse and concrete.`,
     ],
     "fast",
   );
+  recordReply(acc, reply);
   return (reply?.content ?? "").trim();
 }
-
-// H.4.7 · AiResponse now carries optional usage + costUsd fields
-// (computed from per-provider rate table in provider.ts). The
-// reasoning engine threading through every sub-fn would be ~100+
-// LOC of signature churn · scoped to H.5 to ship cleanly in this
-// wave. Today the new field is available to direct callers like
-// /api/system/agent-traces · which can now report real cost per
-// call instead of fixed estimates. Engine.ts buildResult cost
-// estimate still uses the per-tier guess — replacing that is the
-// follow-up.
 
 async function runFanout(
   question: string,
@@ -196,6 +224,7 @@ async function runDraft(
   question: string,
   context: string,
   brainContext?: string,
+  acc?: CostAccumulator,
 ): Promise<string> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
@@ -222,12 +251,14 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "reason",
   );
+  recordReply(acc, reply);
   return (reply?.content ?? "").trim();
 }
 
 async function runCritique(
   question: string,
   draft: string,
+  acc?: CostAccumulator,
 ): Promise<{ issues: string[]; suggestions: string[]; verdict: "ship" | "refine" }> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
@@ -250,6 +281,7 @@ async function runCritique(
     ],
     "fast",
   );
+  recordReply(acc, reply);
   const text = (reply?.content ?? "").trim();
   try {
     // Tolerant JSON parse · the model sometimes wraps in ```json
@@ -273,6 +305,7 @@ async function runRefine(
   question: string,
   draft: string,
   critique: { issues: string[]; suggestions: string[] },
+  acc?: CostAccumulator,
 ): Promise<string> {
   if (critique.issues.length === 0 && critique.suggestions.length === 0) {
     return draft;
@@ -293,6 +326,7 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
     ],
     "reason",
   );
+  recordReply(acc, reply);
   return (reply?.content ?? draft).trim();
 }
 
@@ -313,6 +347,9 @@ async function runReasoningEngine(
 ): Promise<ReasoningResult> {
   const startedAt = Date.now();
   const rec = makeRecorder(startedAt, onStep);
+  // H.5.1 · per-run cost accumulator · sub-fns push into this · buildResult
+  // prefers acc.usd over the per-tier estimate when non-zero.
+  const acc = makeAccumulator();
 
   // Step 1 · classify
   const classifyStart = Date.now();
@@ -341,17 +378,18 @@ async function runReasoningEngine(
       ],
       "fast",
     );
+    recordReply(acc, reply);
     callCount += 1;
     rec.push("deliver", "quick reply", null, Date.now() - t);
     const answer = (reply?.content ?? "").trim();
-    return buildResult(rec, answer, 0.7, startedAt, tier, verdict.reason, callCount);
+    return buildResult(rec, answer, 0.7, startedAt, tier, verdict.reason, callCount, acc);
   }
 
   // Step 2 · plan
   let plan = "";
   try {
     const t = Date.now();
-    plan = await runPlan(request.question, tier);
+    plan = await runPlan(request.question, tier, acc);
     callCount += 1;
     rec.push(
       "plan",
@@ -496,7 +534,7 @@ async function runReasoningEngine(
   let draft = "";
   try {
     const t = Date.now();
-    draft = await runDraft(request.question, context, request.brainContext);
+    draft = await runDraft(request.question, context, request.brainContext, acc);
     callCount += 1;
     rec.push(
       "deliver",
@@ -527,6 +565,7 @@ async function runReasoningEngine(
       tier,
       verdict.reason,
       callCount,
+      acc,
     );
   }
 
@@ -536,7 +575,7 @@ async function runReasoningEngine(
   if (tier === "deep" || tier === "thorough" || tier === "mega") {
     try {
       const t = Date.now();
-      const critique = await runCritique(request.question, draft);
+      const critique = await runCritique(request.question, draft, acc);
       callCount += 1;
       rec.push(
         "critique",
@@ -548,7 +587,7 @@ async function runReasoningEngine(
       );
       if (critique.verdict === "refine") {
         const tr = Date.now();
-        final = await runRefine(request.question, draft, critique);
+        final = await runRefine(request.question, draft, critique, acc);
         callCount += 1;
         rec.push(
           "refine",
@@ -570,7 +609,7 @@ async function runReasoningEngine(
     // Standard tier · cheaper critique pass · skip refinement
     try {
       const t = Date.now();
-      const critique = await runCritique(request.question, draft);
+      const critique = await runCritique(request.question, draft, acc);
       callCount += 1;
       rec.push(
         "critique",
@@ -586,7 +625,7 @@ async function runReasoningEngine(
     }
   }
 
-  return buildResult(rec, final, confidence, startedAt, tier, verdict.reason, callCount);
+  return buildResult(rec, final, confidence, startedAt, tier, verdict.reason, callCount, acc);
 }
 
 /** Phase H.2 · persist a completed reasoning run to BrainMemory so
@@ -695,11 +734,28 @@ function buildResult(
   tier: ReasoningTier,
   classifierReason: string,
   callCount: number,
+  acc?: CostAccumulator,
 ): ReasoningResult {
   const totalMs = Date.now() - startedAt;
-  // Rough cost estimate · ~$0.00015 per fast call · scaled by tier.
-  // Mega is the most expensive · runs DR + multi-agent + fanout in
-  // parallel which compounds the per-call cost vs sequential tiers.
+  // H.5.1 · prefer real cost from the accumulator when present.
+  // The accumulator captures aiChat() costUsd from every engine
+  // sub-fn (plan / draft / critique / refine + quick-tier passthrough).
+  // Sub-pipelines that have their own internal LLM calls (pretask-
+  // fanout · multi-agent-orchestrator · deep-research) are not yet
+  // threaded — their cost still leaks to the per-tier estimate. When
+  // the accumulator's known portion is non-trivial we use it · else
+  // we fall back to the estimate so cost is never reported as 0
+  // (which would lie about spend).
+  const accUsd = acc?.usd ?? 0;
+  const accCalls = acc?.calls ?? 0;
+  const callsWithoutCost = acc?.callsWithoutCost ?? 0;
+
+  // Fall back to estimate when ANY of the following is true:
+  //   · no accumulator passed (legacy callers)
+  //   · accumulator reports zero (all calls were ollama-local or
+  //     similar non-rated providers)
+  //   · sub-pipeline calls dominate · we knew about <30% of the calls
+  //     so the accumulator under-represents real spend
   const callCost =
     tier === "mega"
       ? 0.008
@@ -710,13 +766,20 @@ function buildResult(
           : tier === "standard"
             ? 0.0008
             : 0.00015;
+  const estimateUsd = Math.round(callCount * callCost * 1000) / 1000;
+  const knownRatio = accCalls > 0 ? (accCalls - callsWithoutCost) / Math.max(1, callCount) : 0;
+  // If we know the cost of ≥30% of the calls AND the accumulator's
+  // known portion is non-zero, trust it. Else fall back to estimate.
+  const useReal = accUsd > 0 && knownRatio >= 0.3;
+  const finalUsd = useReal ? Math.round(accUsd * 1000) / 1000 : estimateUsd;
+
   const trace: ReasoningTrace = {
     steps: rec.snapshot(),
     answer,
     confidence,
     totalMs,
     cost: {
-      usd: Math.round(callCount * callCost * 1000) / 1000,
+      usd: finalUsd,
       calls: callCount,
     },
   };

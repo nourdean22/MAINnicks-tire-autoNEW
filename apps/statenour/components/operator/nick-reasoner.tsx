@@ -260,12 +260,20 @@ export function NickReasoner({
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
             nick · reasoning engine
           </p>
-          <a
-            href="/reason/history"
-            className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
-          >
-            history →
-          </a>
+          <div className="flex items-center gap-4">
+            <a
+              href="/reason/telemetry"
+              className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
+            >
+              telemetry →
+            </a>
+            <a
+              href="/reason/history"
+              className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--gold)] transition"
+            >
+              history →
+            </a>
+          </div>
         </div>
         <h1 className="text-2xl font-medium text-[var(--text-primary)]">
           Watch Nick think.

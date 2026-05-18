@@ -76,6 +76,13 @@ export async function GET(req: Request) {
 
     // Marker counts (which classifier reasons fire most)
     const markerCounts: Record<string, number> = {};
+    // H.5.3 · per-marker quality · feeds the future classifier-learning
+    // pass · which markers reliably produce high-confidence answers
+    // (worth keeping) vs which produce low-confidence (worth tuning).
+    const markerQuality = new Map<
+      string,
+      { confidences: number[]; fallbacks: number }
+    >();
 
     for (const r of rows) {
       const m = (r.metadata ?? {}) as {
@@ -105,6 +112,11 @@ export async function GET(req: Request) {
       if (reason) {
         const bucket = reason.split(/\s+/)[0] || "other";
         markerCounts[bucket] = (markerCounts[bucket] ?? 0) + 1;
+        // H.5.3 · attach quality to the bucket
+        const qual = markerQuality.get(bucket) ?? { confidences: [], fallbacks: 0 };
+        qual.confidences.push(r.confidence ?? 0);
+        if ((r.confidence ?? 0) <= 0.3) qual.fallbacks += 1;
+        markerQuality.set(bucket, qual);
       }
     }
 
@@ -132,6 +144,40 @@ export async function GET(req: Request) {
     ) / 1000;
     const spentTodayUsd = await budgetInternals.getTodaySpendUsd();
 
+    // H.5.3 · marker quality summary · per bucket, avg confidence +
+    // fallback rate. Surfaces the learning signal · a marker with
+    // low avg confidence + high fallback rate is a candidate to tune.
+    interface MarkerQualityRow {
+      marker: string;
+      count: number;
+      avgConfidence: number;
+      fallbackRate: number;
+      verdict: "good" | "ok" | "tune";
+    }
+    const markerQualityRows: MarkerQualityRow[] = Array.from(
+      markerQuality.entries(),
+    )
+      .map(([marker, q]) => {
+        const avg =
+          q.confidences.reduce((s, n) => s + n, 0) /
+          Math.max(1, q.confidences.length);
+        const fb = (q.fallbacks / Math.max(1, q.confidences.length)) * 100;
+        const verdict: MarkerQualityRow["verdict"] =
+          avg >= 0.75 && fb < 10
+            ? "good"
+            : avg >= 0.5 && fb < 25
+              ? "ok"
+              : "tune";
+        return {
+          marker,
+          count: q.confidences.length,
+          avgConfidence: Math.round(avg * 1000) / 1000,
+          fallbackRate: Math.round(fb * 10) / 10,
+          verdict,
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+
     return NextResponse.json(
       {
         totals: {
@@ -144,6 +190,7 @@ export async function GET(req: Request) {
         },
         tierStats,
         markerCounts,
+        markerQuality: markerQualityRows,
         fetchedAt: new Date().toISOString(),
       },
       { headers: { "Cache-Control": "private, max-age=30" } },
