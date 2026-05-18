@@ -72,10 +72,12 @@ function greeting(tod: Tod): string {
 }
 
 export function HomeNarrator() {
-  const { data: payload } = useAuthedFetch<{ ok: boolean; data: HealthShape }>(
-    "/api/health",
-  );
-  const data = payload?.data;
+  // 2026-05-18 PM bugfix · useAuthedFetch already auto-unwraps the
+  // {data: ...} envelope that apiHandler routes return. Original
+  // ship declared the type as `{ ok, data: HealthShape }` and then
+  // did `payload?.data` · double-unwrap meant data was always
+  // undefined and HomeNarrator silently returned null on prod.
+  const { data, reload } = useAuthedFetch<HealthShape>("/api/health");
 
   // Re-render at the top of each hour so the time-of-day shifts feel
   // natural without a full reload. Cheap · just a state bump.
@@ -90,7 +92,8 @@ export function HomeNarrator() {
 
   // Re-fetch on the same domains the old HomeStrip subscribed to so
   // capture writes (chat tool calls, etc) push-refresh the sentence.
-  const { reload } = useAuthedFetch<unknown>("/api/health");
+  // Reuses the reload from the single useAuthedFetch above · the
+  // pre-bugfix duplicate fetch call has been removed.
   useEffect(() => {
     const off = onDataChanged(
       ["tasks", "goals", "score", "brain", "commitments"],

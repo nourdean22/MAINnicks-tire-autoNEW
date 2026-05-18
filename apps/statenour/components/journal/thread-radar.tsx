@@ -45,13 +45,14 @@ export function ThreadRadar({
   onThreadCreated?: () => void;
 }) {
   // Phase D · audit-fix #1 (2026-05-18) · collapsed bespoke
-  // state-mgmt block to the shared useAuthedFetch hook. Same
-  // semantics · ~14 LOC removed · matches the pattern the
-  // other mastery surfaces should converge on.
-  const { data, error, loading, reload } = useAuthedFetch<{
-    data: Candidate[];
-  }>("/api/journal/convergence");
-  const candidates = data?.data ?? [];
+  // state-mgmt block to the shared useAuthedFetch hook.
+  // 2026-05-18 PM bugfix · useAuthedFetch auto-unwraps the
+  // {data:...} envelope from apiHandler routes · original ship
+  // double-wrapped the type which meant `candidates` was always [].
+  const { data, error, loading, reload } = useAuthedFetch<Candidate[]>(
+    "/api/journal/convergence",
+  );
+  const candidates = data ?? [];
 
   // Manual scan trigger · 2026-05-18 PM follow-up · operator can
   // now run the convergence pipeline on demand instead of waiting

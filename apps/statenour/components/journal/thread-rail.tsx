@@ -46,12 +46,14 @@ export function ThreadRail({
   const [createErr, setCreateErr] = useState<string | null>(null);
 
   // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch instead of
-  // bespoke state-mgmt + manual reload effect. Same semantics ·
-  // ~22 LOC removed · the refreshSignal prop bumps trigger reload().
-  const { data, error, loading, reload } = useAuthedFetch<{
-    data: Thread[];
-  }>("/api/journal/threads?includeDormant=true");
-  const threads = data?.data ?? [];
+  // bespoke state-mgmt + manual reload effect.
+  // 2026-05-18 PM bugfix · useAuthedFetch auto-unwraps the
+  // {data:...} envelope · original ship double-wrapped which meant
+  // `threads` was always [].
+  const { data, error, loading, reload } = useAuthedFetch<Thread[]>(
+    "/api/journal/threads?includeDormant=true",
+  );
+  const threads = data ?? [];
 
   useEffect(() => {
     if (refreshSignal != null) reload();
