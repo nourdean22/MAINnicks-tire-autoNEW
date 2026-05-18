@@ -17,6 +17,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { AntiPatternMeta } from "@/lib/brain/memory-metadata-types";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const GRADE_TO_NUM: Record<string, number> = {
   A: 4, "A+": 4, "A-": 3.7,
@@ -97,7 +98,7 @@ export async function autoPromoteFailedDecisions(
     const content = `[auto-draft from ${d.grade}-graded decision] ${d.title}. ${d.chosen ? `You chose: ${d.chosen}.` : ""} Lesson: review this before taking a similar decision.`;
 
     const existing = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "anti_pattern", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key } },
     });
     if (existing) {
       const existingMeta = (existing.metadata as Partial<AntiPatternMeta> | null) ?? {};
@@ -108,7 +109,7 @@ export async function autoPromoteFailedDecisions(
         revisitCount: (existingMeta.revisitCount ?? 0) + 1,
       };
       await prisma.brainMemory.update({
-        where: { category_key: { category: "anti_pattern", key } },
+        where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key } },
         data: {
           content,
           metadata: mergedMeta as unknown as object,
@@ -119,7 +120,7 @@ export async function autoPromoteFailedDecisions(
     } else {
       await prisma.brainMemory.create({
         data: {
-          category: "anti_pattern",
+          category: BRAIN_CATEGORIES.ANTI_PATTERN,
           key,
           content,
           metadata: meta as unknown as object,

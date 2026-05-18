@@ -21,6 +21,7 @@ import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { today, daysAgo } from "@/lib/utils/datetime";
 // v10.0.65 · structured logger for surfacing dedupe-delete failures.
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 const log = rootLogger.withSurface("brain/memory-consolidation");
 
 // ─── 1. MERGE: Combine similar memories ──────────────────
@@ -153,7 +154,7 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
     const existing =
       probe.length >= 20
         ? await prisma.brainMemory.findFirst({
-            where: { category: "wisdom", content: { contains: probe } },
+            where: { category: BRAIN_CATEGORIES.WISDOM, content: { contains: probe } },
           })
         : null;
 
@@ -176,9 +177,9 @@ export async function promoteToWisdom(): Promise<{ promoted: number }> {
       // cron chain continues.
       try {
         await prisma.brainMemory.upsert({
-          where: { category_key: { category: "wisdom", key: `wisdom_from_${c.id}` } },
+          where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: `wisdom_from_${c.id}` } },
           create: {
-            category: "wisdom",
+            category: BRAIN_CATEGORIES.WISDOM,
             key: `wisdom_from_${c.id}`,
             content: `[PROVEN PATTERN] ${c.content} (confirmed ${c.seenCount}x, ${(c.confidence * 100).toFixed(0)}% confidence)`,
             confidence: 1.0,
@@ -225,7 +226,7 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
   // (each unique key keeps only its newest, so the long tail is
   // already pruned by prior runs).
   const freqDupes = await prisma.brainMemory.findMany({
-    where: { category: "action_frequency" },
+    where: { category: BRAIN_CATEGORIES.ACTION_FREQUENCY },
     orderBy: { createdAt: "desc" },
     select: { id: true, key: true },
     take: 500,
@@ -439,7 +440,7 @@ function getCategoryWeight(category: string): number {
 export async function crossPollinate(): Promise<{ connections: number }> {
   // Find unconnected high-value memories and link them
   const [wisdoms, contradictions, predictions, reflections] = await Promise.all([
-    prisma.brainMemory.findMany({ where: { category: "wisdom" }, take: 10, select: { id: true, content: true } }),
+    prisma.brainMemory.findMany({ where: { category: BRAIN_CATEGORIES.WISDOM }, take: 10, select: { id: true, content: true } }),
     prisma.contradiction.findMany({ where: { resolved: false }, take: 5, select: { id: true, claim: true, gap: true } }),
     prisma.prediction.findMany({ where: { status: "pending" }, take: 5, select: { id: true, prediction: true } }),
     prisma.reflection.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 5, select: { id: true, insight: true } }),
@@ -498,7 +499,7 @@ export async function selfHeal(): Promise<{ fixed: number }> {
   // Fix orphaned memories (no category)
   const orphaned = await prisma.brainMemory.updateMany({
     where: { category: "" },
-    data: { category: "uncategorized" },
+    data: { category: BRAIN_CATEGORIES.UNCATEGORIZED },
   });
   fixed += orphaned.count;
 
@@ -549,7 +550,7 @@ export async function systemHealthCheck(): Promise<Record<string, unknown>> {
     // v7.9: health stats only count alive rows so soft-deleted entries
     // don't trigger false "we have memories" green checks.
     prisma.brainMemory.count({ where: { deletedAt: null } }),
-    prisma.brainMemory.count({ where: { category: "wisdom", deletedAt: null } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null } }),
     prisma.contradiction.count({ where: { resolved: false } }),
     prisma.prediction.count({ where: { status: "pending" } }),
     prisma.reflection.count({ where: { deletedAt: null } }),
@@ -558,7 +559,7 @@ export async function systemHealthCheck(): Promise<Record<string, unknown>> {
     // BrainMemory(category="simulation") · count from there instead of
     // the prior Promise.resolve(0) that always showed 0 simulations
     // even after dozens had been run.
-    prisma.brainMemory.count({ where: { category: "simulation", deletedAt: null } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.SIMULATION, deletedAt: null } }),
     prisma.identitySnapshot.count({ where: { deletedAt: null } }),
     prisma.causalChain.count(),
     prisma.environmentalSignal.count(),

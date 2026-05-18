@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import type { TaskType, ProviderName } from "@/lib/ai/provider";
 import type { ChatMode } from "@/lib/ai/chat-mode";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface AiConfig {
   // ── Provider + mode overrides ──
@@ -106,7 +107,7 @@ export async function getAiConfig(): Promise<AiConfig> {
 
   try {
     const row = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "ai_config", key: "global" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.AI_CONFIG, key: "global" } },
       select: { content: true },
     });
 
@@ -149,7 +150,7 @@ export async function updateAiConfig(
 
   try {
     await prisma.brainMemory.upsert({
-      where: { category_key: { category: "ai_config", key: "global" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.AI_CONFIG, key: "global" } },
       update: {
         content: JSON.stringify(next),
         source: "settings_ui",
@@ -158,7 +159,7 @@ export async function updateAiConfig(
         metadata: metaJson,
       },
       create: {
-        category: "ai_config",
+        category: BRAIN_CATEGORIES.AI_CONFIG,
         key: "global",
         content: JSON.stringify(next),
         source: "settings_ui",

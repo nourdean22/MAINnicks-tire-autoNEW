@@ -416,7 +416,7 @@ async function pickWisdomForPulse(input: {
   const rawRows = await prisma.brainMemory
     .findMany({
       where: {
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         deletedAt: null,
         confidence: { gte: 0.4 },
       },

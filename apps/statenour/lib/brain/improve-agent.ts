@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface JudgmentRow {
   messageId: string;
@@ -138,7 +139,7 @@ export async function getRecentJudgments(
   const sinceDate = new Date(Date.now() - daysBack * 86_400_000);
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: "reply_judgment",
+      category: BRAIN_CATEGORIES.REPLY_JUDGMENT,
       deletedAt: null,
       lastSeen: { gte: sinceDate },
     },

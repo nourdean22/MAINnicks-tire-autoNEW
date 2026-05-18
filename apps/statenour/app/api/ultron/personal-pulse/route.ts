@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("ultron/personal-pulse");
 
@@ -97,12 +98,12 @@ export async function GET() {
           select: { createdAt: true, summary: true, rawThoughts: true },
         }),
         prisma.brainMemory.findUnique({
-          where: { category_key: { category: "mit", key: todayStr } },
+          where: { category_key: { category: BRAIN_CATEGORIES.MIT, key: todayStr } },
           select: { content: true, updatedAt: true },
         }),
         prisma.brainMemory
           .findUnique({
-            where: { category_key: { category: "tomorrow_note", key: tomorrowStr } },
+            where: { category_key: { category: BRAIN_CATEGORIES.TOMORROW_NOTE, key: tomorrowStr } },
             select: { content: true },
           })
           .catch(() => null),
@@ -146,7 +147,7 @@ export async function GET() {
         prisma.brainMemory
           .findMany({
             where: {
-              category: "contradiction",
+              category: BRAIN_CATEGORIES.CONTRADICTION,
               createdAt: { gte: new Date(now - 7 * 86400_000) },
             },
             orderBy: { createdAt: "desc" },
@@ -158,7 +159,7 @@ export async function GET() {
         // maturity instead of stale MasteryScore "mind" domain).
         prisma.brainMemory
           .findUnique({
-            where: { category_key: { category: "identity_snapshot", key: "current" } },
+            where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
             select: { content: true },
           })
           .catch(() => null),

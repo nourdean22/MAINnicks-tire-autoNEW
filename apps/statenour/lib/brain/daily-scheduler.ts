@@ -13,6 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { sendTelegram } from "@/lib/services/telegram";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface TimeBlock {
   time: string;
@@ -77,7 +78,7 @@ export async function generateDailySchedule(): Promise<{
     // day regardless of state).
     prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
         select: { content: true, updatedAt: true, deletedAt: true },
       })
       .then((row) => {

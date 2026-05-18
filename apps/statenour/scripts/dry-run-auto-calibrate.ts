@@ -17,6 +17,7 @@
  *   (add --apply to actually write — don't, unless you know)
  */
 import { loadEnv, confirmDatabase } from "./_lib/safety";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 async function main() {
   loadEnv();
@@ -63,7 +64,7 @@ async function main() {
 
   const recentContradictions = await prisma.brainMemory.findMany({
     where: {
-      category: "contradiction",
+      category: BRAIN_CATEGORIES.CONTRADICTION,
       createdAt: { gte: daysAgo(14) },
     },
     select: { content: true },

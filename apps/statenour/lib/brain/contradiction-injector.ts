@@ -42,6 +42,7 @@ import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "./embedding-utils";
 import type { Contradiction, ContradictionStatus } from "./contradiction-surfacer";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const SIMILARITY_THRESHOLD = 0.7;
 const LOOKBACK_DAYS = 60;
@@ -88,7 +89,7 @@ export async function findRelevantContradictions(
     const since = new Date(Date.now() - LOOKBACK_DAYS * 86400_000);
     const rows = await prisma.brainMemory.findMany({
       where: {
-        category: "contradiction",
+        category: BRAIN_CATEGORIES.CONTRADICTION,
         deletedAt: null,
         createdAt: { gte: since },
       },

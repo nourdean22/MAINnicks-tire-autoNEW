@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { getEmbedding } from "@/lib/ai/provider";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/conversation-recall");
 
@@ -98,7 +99,7 @@ export async function findRelatedConversations(
   const memories = await prisma.brainMemory
     .findMany({
       where: {
-        category: "conversation_summary",
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
         deletedAt: null,
         key: excludeConversationId
           ? { not: `conv_${excludeConversationId}` }

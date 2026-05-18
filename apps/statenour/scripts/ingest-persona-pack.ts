@@ -17,6 +17,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomSeed {
   key: string;
@@ -247,7 +248,7 @@ async function main() {
     } else {
       await prisma.brainMemory.create({
         data: {
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           key: seed.key,
           content: seed.content,
           confidence: 1.0,

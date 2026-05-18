@@ -23,6 +23,7 @@ const aiChat = makeTracedAiChat("outcome-tracker");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopJobs } from "@/lib/brain/legacy-shims";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // ---------------------------------------------------------------------------
 // Prediction outcome scoring
@@ -188,7 +189,7 @@ export async function getAccuracyReport(): Promise<AccuracyReport> {
     }),
     prisma.prediction.count({ where: { status: "pending" } }),
     prisma.brainMemory.findMany({
-      where: { category: "prediction_lesson", deletedAt: null }, // v10.0.66
+      where: { category: BRAIN_CATEGORIES.PREDICTION_LESSON, deletedAt: null }, // v10.0.66
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { content: true },

@@ -27,6 +27,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type SkillTier = "tiny" | "tactical" | "strategic";
 export type SkillPolarity = "do" | "avoid";
@@ -396,7 +397,7 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
   // Never overwrite a promoted active skill
   const activeExists = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "skill", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
       select: { id: true },
     })
     .catch(() => null);
@@ -404,7 +405,7 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
 
   const existing = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "skill_pending", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
       select: { id: true, content: true },
     })
     .catch(() => null);
@@ -425,7 +426,7 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
         updated_at: skill.updated_at,
       };
       await prisma.brainMemory.update({
-        where: { category_key: { category: "skill_pending", key } },
+        where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
         data: {
           content: JSON.stringify(merged),
           lastSeen: new Date(),
@@ -439,7 +440,7 @@ async function persistCandidate(skill: Skill): Promise<"new" | "updated" | "skip
   }
   await prisma.brainMemory.create({
     data: {
-      category: "skill_pending",
+      category: BRAIN_CATEGORIES.SKILL_PENDING,
       key,
       content: JSON.stringify(skill),
       confidence: 0.5,
@@ -521,6 +522,9 @@ export interface StoredSkill extends Skill {
   pending: boolean;
 }
 
+// Phase BB · type-position carve-out · inline string matches
+// BRAIN_CATEGORIES.SKILL value · cannot use namespace ref in type
+// context. Callers pass BRAIN_CATEGORIES.SKILL at the call site.
 async function loadCategory(category: "skill" | "skill_pending"): Promise<StoredSkill[]> {
   // v10.0.46 — added `deletedAt: null`. `loadCategory` feeds
   // `buildSkillsContextBlock()` which injects into the system
@@ -555,7 +559,7 @@ export async function loadPendingSkills(): Promise<StoredSkill[]> {
  */
 export async function promoteSkill(key: string, note?: string): Promise<StoredSkill | null> {
   const pending = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "skill_pending", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } },
     select: { content: true },
   });
   if (!pending) return null;
@@ -575,9 +579,9 @@ export async function promoteSkill(key: string, note?: string): Promise<StoredSk
   };
 
   const created = await prisma.brainMemory.upsert({
-    where: { category_key: { category: "skill", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
     create: {
-      category: "skill",
+      category: BRAIN_CATEGORIES.SKILL,
       key,
       content: JSON.stringify(promoted),
       confidence: 0.7,
@@ -593,7 +597,7 @@ export async function promoteSkill(key: string, note?: string): Promise<StoredSk
 
   // Remove the pending row so it doesn't keep appearing as a candidate
   await prisma.brainMemory
-    .delete({ where: { category_key: { category: "skill_pending", key } } })
+    .delete({ where: { category_key: { category: BRAIN_CATEGORIES.SKILL_PENDING, key } } })
     .catch(() => {});
 
   return { ...promoted, dbId: created.id, key: created.key, pending: false };
@@ -613,7 +617,7 @@ export async function dropSkill(
 /** Flip graduated flag on an active skill. */
 export async function setGraduated(key: string, graduated: boolean): Promise<StoredSkill | null> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "skill", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
     select: { id: true, content: true },
   });
   if (!row) return null;
@@ -621,7 +625,7 @@ export async function setGraduated(key: string, graduated: boolean): Promise<Sto
     const prev = JSON.parse(row.content) as Skill;
     const next: Skill = { ...prev, graduated, updated_at: new Date().toISOString() };
     await prisma.brainMemory.update({
-      where: { category_key: { category: "skill", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
       data: { content: JSON.stringify(next), lastSeen: new Date() },
     });
     return { ...next, dbId: row.id, key, pending: false };
@@ -640,7 +644,7 @@ export async function setGraduated(key: string, graduated: boolean): Promise<Sto
  *  the row content so re-fires don't spam. */
 export async function reinforceSkill(key: string, succeeded: boolean): Promise<StoredSkill | null> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "skill", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
     select: { id: true, content: true },
   });
   if (!row) return null;
@@ -686,7 +690,7 @@ export async function reinforceSkill(key: string, succeeded: boolean): Promise<S
     const confidence = times_fired >= 3 ? Math.max(0.2, Math.min(0.95, success_rate * 0.95)) : 0.7;
 
     await prisma.brainMemory.update({
-      where: { category_key: { category: "skill", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key } },
       data: {
         content: JSON.stringify(next),
         confidence,
@@ -732,7 +736,7 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
   // Pull all graduation-ready skill rows. The marker lives in the
   // content JSON · scan all `skill` rows then filter.
   const candidates = await prisma.brainMemory.findMany({
-    where: { category: "skill", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.SKILL, deletedAt: null },
     select: { id: true, key: true, content: true, updatedAt: true },
     take: 500,
   }).catch(() => []);
@@ -780,7 +784,7 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
 
       // Avoid double-promotion: idempotent via skip-if-exists.
       const existing = await prisma.brainMemory.findUnique({
-        where: { category_key: { category: "wisdom", key: wisdomKey } },
+        where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key: wisdomKey } },
         select: { id: true },
       }).catch(() => null);
       if (existing) {
@@ -798,7 +802,7 @@ export async function autoPromoteStableSkillsToWisdom(): Promise<{
       // outcome-proven skill, not an LLM-inferred wisdom).
       await prisma.brainMemory.create({
         data: {
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           key: wisdomKey,
           content: wisdomText,
           source: "skill_graduation",

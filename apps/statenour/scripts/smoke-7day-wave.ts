@@ -29,6 +29,7 @@ import {
 } from "@/lib/ai/prompt/policy/operator-rules";
 import { withEfSearch, EF_SEARCH } from "@/lib/db/vector-tuning";
 import { applyMode, nextMode } from "@/components/chat/mode-persona-chip";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface SmokeResult { layer: string; pass: boolean; detail: string; ms: number }
 
@@ -148,7 +149,7 @@ async function main() {
   results.push(
     await check("wisdom-graph.cosine", async () => {
       const wisdoms = await prisma.brainMemory.findMany({
-        where: { category: "wisdom", deletedAt: null, confidence: { gte: 0.8 } },
+        where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, confidence: { gte: 0.8 } },
         select: { id: true },
         take: 1,
       });

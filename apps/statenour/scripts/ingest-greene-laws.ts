@@ -12,7 +12,7 @@
  * ingestion + the v10.0.365 Buffett/Gates/Musk persona pack.
  *
  * INGESTION SHAPE
- *   category: "wisdom"
+ *   category: BRAIN_CATEGORIES.WISDOM
  *   key:      "wisdom_greene_<book>_<number>"     (idempotent · upsert)
  *   content:  "[Greene · {book}, Law/Strategy N] {title} ·
  *              {essence} · Apply: {nourApplication}"
@@ -27,6 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const BOOK_LABELS: Record<string, string> = {
   FORTY_EIGHT_LAWS: "48 Laws of Power",
@@ -115,7 +116,7 @@ async function main() {
     } else {
       await prisma.brainMemory.create({
         data: {
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           key,
           content,
           confidence: 1.0,

@@ -11,12 +11,11 @@ and the next milestone.
 |---|---|---|---|---|
 | **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y + **Z** | 2026-05-18 PM | **10/50+ surfaces** · 4th domain router shipped (`chat`) · ChatHistorySearch (Cmd+F) migrated with optimistic-cache-update pattern | Continue `/system/*` (policies · repos) · then more chat sub-surfaces |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
-| **Inline category strings → BRAIN_CATEGORIES** | Phase O.2 + P.2 | 2026-05-18 PM | **H+ scope done (8 files · 21 sites)** · 100+ legacy untouched | Optional H+ codemod rerun · legacy migration is separate scope |
-
 ## Completed migrations
 
 | Migration | Completed | Notes |
 |---|---|---|
+| **Inline category strings → BRAIN_CATEGORIES** | **BB (2026-05-18 PM)** | 133 files · 411 inline-string replacements via `scripts/codemod-categories.ts --scope=registered` · 3 type-position carve-outs documented inline (TS union literals where the namespace ref would be invalid). Codemod now reads BRAIN_CATEGORIES registry at runtime so future entries are picked up automatically. Type-position guard added (negative lookahead on `|` neighbors) prevents regression. Re-running the codemod now reports 0 changes · idempotent. |
 | **M.2 persona wiring** (runMultiAgent ← personas) | **U (2026-05-18 PM)** | 4/4 reasoning sub-pipelines wired · 10 typed personas in registry · N.6 scorer feeds from all sub-pipelines. R+S.1 = runMultiAgent · S.3 = smart-tier router (inheritance) · T = deep-research worker (+ 2 specialist personas) · U = pretask-fanout 3 lenses |
 | Audit findings 12/12 | H.8 (2026-05-18 PM) | All HIGH/MEDIUM/LOW from /find-bugs closed |
 | Mastra agent V2 (`AGENT_V2=true`) | v10.0.485 | Default path · V1 still reachable via env flag |

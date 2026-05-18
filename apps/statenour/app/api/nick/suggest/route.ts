@@ -39,6 +39,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { today as todayET } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -177,7 +178,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .count({
           where: {
-            category: "contradiction",
+            category: BRAIN_CATEGORIES.CONTRADICTION,
             deletedAt: null,
             confidence: { gte: 0.6 },
           },
@@ -224,7 +225,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .findMany({
           where: {
-            category: "pinned_user",
+            category: BRAIN_CATEGORIES.PINNED_USER,
             updatedAt: { lt: thirtyDaysAgo },
             deletedAt: null,
           },

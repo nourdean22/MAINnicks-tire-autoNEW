@@ -23,6 +23,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { violationRate } from "@/lib/brain/wisdom-distiller";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface WisdomViolation {
   id: string;
@@ -106,7 +107,7 @@ export async function computeWisdomViolations(opts: { daysBack?: number; limit?:
   if (window.text.length < 100) return [];
 
   const wisdoms = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null, confidence: { gte: 0.5 } },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, confidence: { gte: 0.5 } },
     select: { id: true, key: true, content: true, source: true, confidence: true, metadata: true },
     take: 500, // upper bound · ~241 curated + plenty of headroom
   });

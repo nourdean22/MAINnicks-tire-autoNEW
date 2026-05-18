@@ -55,6 +55,7 @@ import type { ProviderName } from "@/lib/ai/provider";
 import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -411,7 +412,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           () =>
             prisma.brainMemory.create({
               data: {
-                category: "nick_quality",
+                category: BRAIN_CATEGORIES.NICK_QUALITY,
                 key: scoreKey,
                 source: "output_critic",
                 content: contentCritic
@@ -1130,7 +1131,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           () =>
             prisma.brainMemory.create({
               data: {
-                category: "reply_quality",
+                category: BRAIN_CATEGORIES.REPLY_QUALITY,
                 key: logKey,
                 source: "output_critic",
                 content: `LOW-SCORE reply (${critic.overall}/100) · turn=${turnSignal.intent}/${turnSignal.outputShape} · reasons: ${critic.reasons.join(" · ")}`,
@@ -1287,9 +1288,9 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             const longMsgs = userMsgs.filter((m) => (m.content?.length || 0) > 200).length;
             const content = `[Chat Pattern ${new Date().toISOString().slice(0, 10)}] Avg msg: ${avgLen} chars. ${shortMsgs}/${userMsgs.length} short (<30ch), ${longMsgs}/${userMsgs.length} long (>200ch). Topic tier: ${topicTier}. Personality: ${personality}. Mode: ${mode}.`;
             await prisma.brainMemory.upsert({
-              where: { category_key: { category: "chat_pattern", key: "latest_session" } },
+              where: { category_key: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session" } },
               update: { content, confidence: 0.7, updatedAt: new Date() },
-              create: { category: "chat_pattern", key: "latest_session", content, confidence: 0.7, source: "chat" },
+              create: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session", content, confidence: 0.7, source: "chat" },
             });
           },
           { timeoutMs: 5_000, silentTimeout: true }

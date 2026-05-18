@@ -29,6 +29,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { computeTodayBurn, dailyBudgetCents } from "@/lib/services/cost-slo";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
     Promise.resolve(dailyBudgetCents()),
     prisma.brainMemory.findMany({
       where: {
-        category: "eval_run",
+        category: BRAIN_CATEGORIES.EVAL_RUN,
         createdAt: { gte: since24h },
         deletedAt: null,
       },

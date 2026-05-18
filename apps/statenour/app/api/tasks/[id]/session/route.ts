@@ -21,6 +21,7 @@
 import { apiHandler, readRequestJson } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 type Kind = "note" | "photo" | "voice" | "log";
 
@@ -83,7 +84,7 @@ export const POST = apiHandler(
 
     const mem = await prisma.brainMemory.create({
       data: {
-        category: "task_session",
+        category: BRAIN_CATEGORIES.TASK_SESSION,
         key: `session:${id}:${ts}`,
         source: "ultron-desk",
         content: summary,
@@ -107,7 +108,7 @@ export const GET = apiHandler(
 
     const rows = await prisma.brainMemory
       .findMany({
-        where: { category: "task_session", key: { startsWith: `session:${id}:` } },
+        where: { category: BRAIN_CATEGORIES.TASK_SESSION, key: { startsWith: `session:${id}:` } },
         orderBy: { createdAt: "asc" },
         take: 100,
         select: {

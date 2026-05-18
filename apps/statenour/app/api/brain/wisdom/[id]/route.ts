@@ -18,6 +18,7 @@ import type { NextRequest } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { withTracing } from "@/lib/utils/with-tracing";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface UpdateBody {
   content?: string;
@@ -119,7 +120,7 @@ async function postHandler(req: NextRequest, ctx?: unknown): Promise<Response> {
       const updated = await prisma.brainMemory.update({
         where: { id },
         data: {
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           confidence: 0.9, // promoted but conservative
           createdBy: "user",
           metadata: meta as never,

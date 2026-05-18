@@ -19,6 +19,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("conversation-memory", "chat");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/conversation-memory");
 
@@ -221,10 +222,10 @@ export async function summarizeAndStoreConversation(
   try {
     const mem = await prisma.brainMemory.upsert({
       where: {
-        category_key: { category: "conversation_summary", key: `conv_${conversationId}` },
+        category_key: { category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY, key: `conv_${conversationId}` },
       },
       create: {
-        category: "conversation_summary",
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
         key: `conv_${conversationId}`,
         content: summaryContent,
         confidence: 0.75,

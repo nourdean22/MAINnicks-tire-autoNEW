@@ -2,23 +2,24 @@
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 async function main() {
   const since7d = new Date(Date.now() - 7 * 86_400_000);
   const since30d = new Date(Date.now() - 30 * 86_400_000);
 
   const last7d = await prisma.brainMemory.count({
-    where: { category: "reply_judgment", lastSeen: { gte: since7d }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.REPLY_JUDGMENT, lastSeen: { gte: since7d }, deletedAt: null },
   });
   const last30d = await prisma.brainMemory.count({
-    where: { category: "reply_judgment", lastSeen: { gte: since30d }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.REPLY_JUDGMENT, lastSeen: { gte: since30d }, deletedAt: null },
   });
   const allTime = await prisma.brainMemory.count({
-    where: { category: "reply_judgment", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.REPLY_JUDGMENT, deletedAt: null },
   });
 
   const mostRecent = await prisma.brainMemory.findFirst({
-    where: { category: "reply_judgment", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.REPLY_JUDGMENT, deletedAt: null },
     orderBy: { lastSeen: "desc" },
     select: { key: true, content: true, lastSeen: true, createdAt: true },
   });

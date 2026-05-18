@@ -158,7 +158,7 @@ export async function findRelatedWisdom(
 
   const rawWisdoms = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       confidence: { gte: 0.3 },
     },

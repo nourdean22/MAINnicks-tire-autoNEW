@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { buildMorningBrief } from "@/lib/services/morning-brief";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 60;
 
@@ -42,7 +43,7 @@ export const GET = cronHandler(async () => {
   let existing: { id: string } | null = null;
   try {
     existing = await prisma.brainMemory.findFirst({
-      where: { category: "morning_brief", key: brief.date },
+      where: { category: BRAIN_CATEGORIES.MORNING_BRIEF, key: brief.date },
       select: { id: true },
     });
   } catch (err) {
@@ -94,7 +95,7 @@ export const GET = cronHandler(async () => {
   try {
     await prisma.brainMemory.create({
       data: {
-        category: "morning_brief",
+        category: BRAIN_CATEGORIES.MORNING_BRIEF,
         key: brief.date,
         content: brief.text,
         confidence: 0.95,

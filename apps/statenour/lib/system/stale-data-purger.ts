@@ -203,7 +203,7 @@ async function purgeOrphanConvos(): Promise<PurgeResult> {
     .map((c) => c.id);
   if (snapshotOrphans.length === 0) {
     return {
-      category: "orphan_conversations",
+      category: BRAIN_CATEGORIES.ORPHAN_CONVERSATIONS,
       purged: 0,
       note: "No orphan conversations found",
     };
@@ -240,7 +240,7 @@ async function purgeOrphanConvos(): Promise<PurgeResult> {
       ? `Deleted ${result.count} orphan conversations (${result.changed} caught live + skipped)`
       : `Deleted ${result.count} orphan 1-message conversations + their messages`;
   return {
-    category: "orphan_conversations",
+    category: BRAIN_CATEGORIES.ORPHAN_CONVERSATIONS,
     purged: result.count,
     note,
   };
@@ -258,7 +258,7 @@ async function purgeOverdueDecisions(): Promise<PurgeResult> {
     data: { reviewDate: null },
   });
   return {
-    category: "overdue_decisions_reviews",
+    category: BRAIN_CATEGORIES.OVERDUE_DECISIONS_REVIEWS,
     purged: result.count,
     note: `Cleared reviewDate on ${result.count} overdue decisions (still visible on /decisions, just not in the overdue queue)`,
   };
@@ -270,7 +270,7 @@ async function purgeAncientDeviceEvents(): Promise<PurgeResult> {
     where: { createdAt: { lt: since180d } },
   });
   return {
-    category: "ancient_device_events",
+    category: BRAIN_CATEGORIES.ANCIENT_DEVICE_EVENTS,
     purged: result.count,
     note: `Deleted ${result.count} DeviceEvent rows >180d old`,
   };

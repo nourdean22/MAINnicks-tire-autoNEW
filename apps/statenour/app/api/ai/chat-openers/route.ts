@@ -20,6 +20,7 @@
  */
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface Opener {
   id: string;
@@ -75,7 +76,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .count({
           where: {
-            category: "contradiction",
+            category: BRAIN_CATEGORIES.CONTRADICTION,
             createdAt: { gte: new Date(now - 14 * 86400_000) },
           },
         })
@@ -96,18 +97,18 @@ export const GET = apiHandler(
         .catch(() => ({ count: 0, sample: null })),
       prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "ghost_prediction", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
           select: { content: true, updatedAt: true },
         })
         .catch(() => null),
       prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },
         })
         .catch(() => null),
       prisma.brainMemory
-        .count({ where: { category: "skill_pending" } })
+        .count({ where: { category: BRAIN_CATEGORIES.SKILL_PENDING } })
         .catch(() => 0),
       prisma.task
         .count({
@@ -130,7 +131,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .findFirst({
           where: {
-            category: "pinned_user",
+            category: BRAIN_CATEGORIES.PINNED_USER,
             updatedAt: { lt: new Date(now - 14 * 86400_000) },
           },
           orderBy: { updatedAt: "asc" },

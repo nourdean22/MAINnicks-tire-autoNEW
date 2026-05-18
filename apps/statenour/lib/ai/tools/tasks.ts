@@ -15,6 +15,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const tasksTools = {
   getMasteryScores: tool({
@@ -1124,7 +1125,7 @@ export const tasksTools = {
       // Also store as brain memory for pattern analysis
       await prisma.brainMemory.create({
         data: {
-          category: "decision_log",
+          category: BRAIN_CATEGORIES.DECISION_LOG,
           key: `decision_${decision.id}`,
           content: `Decision: "${title}" — chose "${chosen}" (${stakes} stakes). Reasoning: ${reasoning}`,
           confidence: 0.8,
@@ -1290,7 +1291,7 @@ export const tasksTools = {
       // Store the lesson as a brain memory for future reference
       await prisma.brainMemory.create({
         data: {
-          category: "lesson",
+          category: BRAIN_CATEGORIES.LESSON,
           key: `decision_replay_${replay.title.slice(0, 30)}`,
           content: `Decision: ${replay.title}. Choice: ${replay.choiceMade}. Outcome (${outcomeScore}/10): ${outcome}. Lesson: ${lesson}`,
           source: "decision_replay",
@@ -1434,7 +1435,7 @@ export const tasksTools = {
       const recentSnapshots = await prisma.brainMemory
         .findMany({
           where: {
-            category: "identity_snapshot",
+            category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
             deletedAt: null,
             updatedAt: { gte: daysAgo(7) },
           },
@@ -1628,9 +1629,9 @@ export const tasksTools = {
       const targets = { revenue, personal, health, setAt: new Date().toISOString() };
 
       await prisma.brainMemory.upsert({
-        where: { category_key: { category: "weekly_target", key: `week_${weekKey}` } },
+        where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
         create: {
-          category: "weekly_target",
+          category: BRAIN_CATEGORIES.WEEKLY_TARGET,
           key: `week_${weekKey}`,
           content: `Week of ${weekKey}: REVENUE: ${revenue} | PERSONAL: ${personal} | HEALTH: ${health}`,
           confidence: 1.0,
@@ -1656,7 +1657,7 @@ export const tasksTools = {
       const weekKey = weekStart.toISOString().slice(0, 10);
 
       const target = await prisma.brainMemory.findUnique({
-        where: { category_key: { category: "weekly_target", key: `week_${weekKey}` } },
+        where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
       });
 
       if (!target) return { hasTargets: false, message: "No targets set for this week. It's time to set them." };
@@ -1730,7 +1731,7 @@ export const tasksTools = {
       );
       const snap = await prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { updatedAt: true, deletedAt: true },
         })
         .catch((): null => null);
@@ -1767,7 +1768,7 @@ export const tasksTools = {
         // downstream return shape.
         prisma.brainMemory
           .findUnique({
-            where: { category_key: { category: "identity_snapshot", key: "current" } },
+            where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
             select: { content: true, updatedAt: true, deletedAt: true },
           })
           .then((row) => {
@@ -1823,7 +1824,7 @@ export const tasksTools = {
         // v10.0.54 · todayScore replaced with identity_snapshot read.
         prisma.brainMemory
           .findUnique({
-            where: { category_key: { category: "identity_snapshot", key: "current" } },
+            where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
             select: { content: true, updatedAt: true, deletedAt: true },
           })
           .then((row) => {
@@ -1871,7 +1872,7 @@ export const tasksTools = {
         prisma.brainMemory
           .findMany({
             where: {
-              category: "identity_snapshot",
+              category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
               deletedAt: null,
               updatedAt: { gte: daysAgo(7) },
             },
@@ -1947,7 +1948,7 @@ export const tasksTools = {
         prisma.brainMemory
           .findMany({
             where: {
-              category: "identity_snapshot",
+              category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
               deletedAt: null,
               updatedAt: { gte: sevenDaysAgoDate },
             },

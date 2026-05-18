@@ -32,6 +32,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type AxisDirection = "rising" | "falling" | "stable";
 
@@ -261,7 +262,7 @@ async function computeSocialBattery(): Promise<Omit<IdentityAxis, "direction" | 
   // weighted by chat_importance rows; soft-deleted rows would still
   // skew the axis until hard-deleted. Now: only live rows.
   const rows = await prisma.brainMemory.findMany({
-    where: { category: "chat_importance", createdAt: { gte: since }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE, createdAt: { gte: since }, deletedAt: null },
     select: { content: true },
     take: 400,
   });
@@ -334,7 +335,7 @@ type StoredOverrides = Partial<Record<AxisKey, StoredAxisOverride>>;
 
 async function loadCurrentOverrides(): Promise<StoredOverrides> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "identity_snapshot", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
     select: { content: true },
   }).catch(() => null);
   if (!row) return {};
@@ -354,7 +355,7 @@ async function loadCurrentOverrides(): Promise<StoredOverrides> {
 
 async function loadPreviousValues(): Promise<Partial<Record<AxisKey, number>>> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "identity_snapshot", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
     select: { content: true },
   }).catch(() => null);
   if (!row) return {};
@@ -434,9 +435,9 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
   const todayKey = now.toISOString().slice(0, 10);
   await Promise.all([
     prisma.brainMemory.upsert({
-      where: { category_key: { category: "identity_snapshot", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       create: {
-        category: "identity_snapshot",
+        category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
         key: "current",
         content: payload,
         confidence: 0.7,
@@ -445,9 +446,9 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
       update: { content: payload, lastSeen: now },
     }),
     prisma.brainMemory.upsert({
-      where: { category_key: { category: "identity_snapshot", key: `history:${todayKey}` } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: `history:${todayKey}` } },
       create: {
-        category: "identity_snapshot",
+        category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
         key: `history:${todayKey}`,
         content: payload,
         confidence: 0.7,
@@ -475,7 +476,7 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
   // We seed the previous 6 days with slightly-perturbed values so the
   // sparkline is immediately readable. Only seeds if no history exists.
   const existingHistory = await prisma.brainMemory.count({
-    where: { category: "identity_snapshot", key: { startsWith: "history:" } },
+    where: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: { startsWith: "history:" } },
   }).catch(() => 999);
   if (existingHistory <= 1) {
     await seedSyntheticHistory(snapshot, now);
@@ -524,7 +525,7 @@ async function seedSyntheticHistory(current: IdentitySnapshot, now: Date): Promi
     // exists at this date — the seed is for first-run only.
     const existing = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: `history:${dateKey}` } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: `history:${dateKey}` } },
         select: { id: true },
       })
       .catch(() => null);
@@ -532,7 +533,7 @@ async function seedSyntheticHistory(current: IdentitySnapshot, now: Date): Promi
       await prisma.brainMemory
         .create({
           data: {
-            category: "identity_snapshot",
+            category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
             key: `history:${dateKey}`,
             content: JSON.stringify(synthetic),
             confidence: 0.4, // lower — it's synthetic
@@ -550,7 +551,7 @@ async function seedSyntheticHistory(current: IdentitySnapshot, now: Date): Promi
  */
 export async function loadIdentitySnapshot(): Promise<IdentitySnapshot> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "identity_snapshot", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
     select: { content: true },
   });
   if (row) {
@@ -573,7 +574,7 @@ export async function loadIdentityHistory(days = 30): Promise<Array<{
 }>> {
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: "identity_snapshot",
+      category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
       key: { startsWith: "history:" },
     },
     orderBy: { key: "asc" },
@@ -720,7 +721,7 @@ export async function setManualOverride(axis: AxisKey, value: number | null): Pr
   current.axes[axis].updated_at = new Date().toISOString();
   const payload = JSON.stringify(current);
   await prisma.brainMemory.update({
-    where: { category_key: { category: "identity_snapshot", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
   return current;

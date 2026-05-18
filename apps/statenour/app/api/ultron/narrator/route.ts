@@ -9,6 +9,7 @@ import { cached } from "@/lib/utils/cache";
 import { generateNarrations, type Narration } from "@/lib/ultron/narrator";
 
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 /**
  * GET /api/ultron/narrator
  *
@@ -43,7 +44,7 @@ export async function GET() {
       // going to help. Surface a positive one higher in the list.
       const recentFeedback = await prisma.brainMemory
         .findMany({
-          where: { category: "narrator_feedback" },
+          where: { category: BRAIN_CATEGORIES.NARRATOR_FEEDBACK },
           orderBy: { createdAt: "desc" },
           take: 5,
           select: { content: true },
@@ -129,12 +130,12 @@ export async function PATCH(req: Request) {
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
-          category: "narrator_feedback",
+          category: BRAIN_CATEGORIES.NARRATOR_FEEDBACK,
           key: `narr:${body.narrationId}`,
         },
       },
       create: {
-        category: "narrator_feedback",
+        category: BRAIN_CATEGORIES.NARRATOR_FEEDBACK,
         key: `narr:${body.narrationId}`,
         content: JSON.stringify({
           narrationId: body.narrationId,

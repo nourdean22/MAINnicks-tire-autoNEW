@@ -30,6 +30,7 @@
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
 import { semanticSearch } from "./embedding-utils";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const NEGATION_TOKENS = [
   "not", "no longer", "never", "don't", "doesn't", "won't",
@@ -195,9 +196,9 @@ export async function surfaceContradictions(newBrainMemoryId: string): Promise<C
     const key = buildContradictionKey(c.new_memory_id, c.old_memory_id);
     await prisma.brainMemory
       .upsert({
-        where: { category_key: { category: "contradiction", key } },
+        where: { category_key: { category: BRAIN_CATEGORIES.CONTRADICTION, key } },
         create: {
-          category: "contradiction",
+          category: BRAIN_CATEGORIES.CONTRADICTION,
           key,
           content: JSON.stringify(c),
           confidence: c.similarity,
@@ -243,7 +244,7 @@ export async function loadRecentContradictions(
   // /system/prompt anchors). Soft-deleted contradictions Nour had
   // already resolved would still surface as fresh challenges.
   const rows = await prisma.brainMemory.findMany({
-    where: { category: "contradiction", createdAt: { gte: since }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: since }, deletedAt: null },
     orderBy: { createdAt: "desc" },
     take: 40,
     select: { key: true, content: true, createdAt: true },
@@ -283,7 +284,7 @@ export async function resolveContradiction(
   note?: string,
 ): Promise<StoredContradiction | null> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "contradiction", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.CONTRADICTION, key } },
     select: { id: true, content: true, createdAt: true },
   });
   if (!row) return null;
@@ -303,7 +304,7 @@ export async function resolveContradiction(
   };
 
   await prisma.brainMemory.update({
-    where: { category_key: { category: "contradiction", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.CONTRADICTION, key } },
     data: {
       content: JSON.stringify(resolved),
       lastSeen: new Date(),

@@ -42,6 +42,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("session-distiller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.35 — structured logger; the v10.0.21 sweep missed this file.
 const log = rootLogger.withSurface("brain/session-distiller");
@@ -103,7 +104,7 @@ export async function findEligibleConversations(limit = 10): Promise<string[]> {
   // Skip any that already have a fresh distill
   const existing = await prisma.brainMemory.findMany({
     where: {
-      category: "chat_summary",
+      category: BRAIN_CATEGORIES.CHAT_SUMMARY,
       key: { in: withEnough.map((c) => c.id) },
       deletedAt: null, // v10.0.66 · soft-deleted distill = redistill
     },
@@ -212,9 +213,9 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
   // Persist as a BrainMemory row. The embed-backfill cron will index
   // it for vector search overnight.
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "chat_summary", key: conversationId } },
+    where: { category_key: { category: BRAIN_CATEGORIES.CHAT_SUMMARY, key: conversationId } },
     create: {
-      category: "chat_summary",
+      category: BRAIN_CATEGORIES.CHAT_SUMMARY,
       key: conversationId,
       content: JSON.stringify(distill),
       confidence: 0.75,
@@ -258,7 +259,7 @@ If a field has nothing to record, use [] or null. Never invent content. Be terse
 async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void> {
   const MAX_THREADS = 5;
   const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "nick_current_concerns", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
     select: { content: true },
   }).catch(() => null);
 
@@ -309,9 +310,9 @@ async function updateNickCurrentConcerns(distill: SessionDistill): Promise<void>
     .slice(0, MAX_THREADS);
 
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "nick_current_concerns", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
     create: {
-      category: "nick_current_concerns",
+      category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS,
       key: "current",
       content: JSON.stringify({ updatedAt: new Date().toISOString(), threads: merged }),
       confidence: 0.9,
@@ -336,7 +337,7 @@ export async function getNickCurrentConcerns(): Promise<{
   threads: Array<{ text: string; kind: "open" | "followup"; sourceLastAt: string }>;
 } | null> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "nick_current_concerns", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.NICK_CURRENT_CONCERNS, key: "current" } },
     select: { content: true },
   }).catch(() => null);
   if (!row?.content) return null;

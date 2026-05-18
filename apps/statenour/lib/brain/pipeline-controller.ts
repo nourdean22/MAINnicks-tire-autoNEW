@@ -34,6 +34,7 @@ const aiChat = makeTracedAiChat("pipeline-controller");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { VALID_MOODS, simpleHash } from "@/lib/brain/journal-ingest";
 import { today } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // ─── INBOUND: Process events from nickstire.org ──────────
 
@@ -133,14 +134,14 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   if (event.type === "booking" || event.type === "lead") {
     const dayOfWeek = new Date().toLocaleDateString("en-US", { timeZone: "America/New_York", weekday: "long" });
     const existingSignal = await prisma.environmentalSignal.findFirst({
-      where: { date: today(), category: "operational" },
+      where: { date: today(), category: BRAIN_CATEGORIES.OPERATIONAL },
     });
 
     if (!existingSignal) {
       await prisma.environmentalSignal.create({
         data: {
           date: today(),
-          category: "operational",
+          category: BRAIN_CATEGORIES.OPERATIONAL,
           signal: `${dayOfWeek} activity: ${event.type} received`,
           impact: "Tracking daily shop activity flow",
           urgency: "low",
@@ -488,12 +489,12 @@ export async function generateShopIntelligence(): Promise<{ brief: string; actio
       select: { category: true, content: true },
     }),
     prisma.prediction.findMany({
-      where: { status: "pending", category: "business" },
+      where: { status: "pending", category: BRAIN_CATEGORIES.BUSINESS },
       take: 5,
       select: { prediction: true, confidence: true },
     }),
     prisma.contradiction.findMany({
-      where: { resolved: false, category: "business" },
+      where: { resolved: false, category: BRAIN_CATEGORIES.BUSINESS },
       take: 3,
       select: { claim: true, reality: true },
     }),
@@ -560,7 +561,7 @@ export async function feedbackLoop(actionType: string, actionResult: unknown, co
 
   // Track action frequency for self-optimization
   const existing = await prisma.brainMemory.findFirst({
-    where: { category: "action_frequency", key: `freq_${actionType}`, deletedAt: null }, // v10.0.66
+    where: { category: BRAIN_CATEGORIES.ACTION_FREQUENCY, key: `freq_${actionType}`, deletedAt: null }, // v10.0.66
   });
 
   if (existing) {

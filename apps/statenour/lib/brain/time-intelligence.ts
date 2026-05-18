@@ -14,6 +14,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopJobs } from "@/lib/brain/legacy-shims";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface TimePattern {
   category: string;
@@ -124,7 +125,7 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
 
   if (dayAvgs.length >= 3) {
     patterns.push({
-      category: "day_of_week",
+      category: BRAIN_CATEGORIES.DAY_OF_WEEK,
       peakWindow: dayAvgs[0]?.day || "unknown",
       lowWindow: dayAvgs[dayAvgs.length - 1]?.day || "unknown",
       detail: `Best: ${dayAvgs[0]?.day} (${dayAvgs[0]?.avgScore.toFixed(1)}/10), Worst: ${dayAvgs[dayAvgs.length - 1]?.day} (${dayAvgs[dayAvgs.length - 1]?.avgScore.toFixed(1)}/10)`,
@@ -154,7 +155,7 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
       .reduce((s, v) => s + v, 0) / eveningDecisions.length;
 
     patterns.push({
-      category: "decision_timing",
+      category: BRAIN_CATEGORIES.DECISION_TIMING,
       peakWindow: "6am-12pm",
       lowWindow: "6pm-midnight",
       detail: `Morning decisions avg grade: ${morningAvg.toFixed(1)}/10, Evening: ${eveningAvg.toFixed(1)}/10`,
@@ -165,7 +166,7 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
   const revByDay = dayAvgs.sort((a, b) => b.revenue - a.revenue);
   if (revByDay.length >= 3 && revByDay[0].revenue > 0) {
     patterns.push({
-      category: "revenue_timing",
+      category: BRAIN_CATEGORIES.REVENUE_TIMING,
       peakWindow: revByDay[0].day,
       lowWindow: revByDay[revByDay.length - 1].day,
       detail: `Best revenue day: ${revByDay[0].day} ($${revByDay[0].revenue.toFixed(0)}), Worst: ${revByDay[revByDay.length - 1].day} ($${revByDay[revByDay.length - 1].revenue.toFixed(0)})`,
@@ -177,12 +178,12 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
-          category: "time_pattern",
+          category: BRAIN_CATEGORIES.TIME_PATTERN,
           key: `time_${p.category}`,
         },
       },
       create: {
-        category: "time_pattern",
+        category: BRAIN_CATEGORIES.TIME_PATTERN,
         key: `time_${p.category}`,
         content: `${p.category}: Peak=${p.peakWindow}, Low=${p.lowWindow}. ${p.detail}`,
         confidence: 0.7,
@@ -222,7 +223,7 @@ export async function analyzeTimePatterns(): Promise<TimeIntelligence> {
 export async function getTimeIntelligenceContext(): Promise<string> {
   const patterns = await prisma.brainMemory
     .findMany({
-      where: { category: "time_pattern" },
+      where: { category: BRAIN_CATEGORIES.TIME_PATTERN },
       orderBy: { confidence: "desc" },
       take: 5,
       select: { content: true },

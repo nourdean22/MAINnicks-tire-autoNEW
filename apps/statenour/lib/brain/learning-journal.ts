@@ -33,6 +33,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("learning-journal");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.529.23 · typed groupBy result shapes · replaces the prior
 // `as any[]` casts at the consumer sites. BrainMemory.category is
@@ -126,9 +127,9 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
     prisma.brainMemory.count({ where: { updatedAt: { gte: todayStart }, confidence: { lt: 0.2 } } }),
     prisma.prediction.count({ where: { status: "confirmed", updatedAt: { gte: todayStart } } }),
     prisma.prediction.count({ where: { status: "disproven", updatedAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: "wisdom", createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: "blind_spot", createdAt: { gte: todayStart } } }),
-    prisma.brainMemory.count({ where: { category: "counter_intuitive", createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.BLIND_SPOT, createdAt: { gte: todayStart } } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: todayStart } } }),
     prisma.reflection.findMany({ where: { date: todayStr, deletedAt: null }, select: { insight: true }, take: 3 }),
     // Historical
     prisma.brainMemory.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
@@ -156,7 +157,7 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
       by: ["category"],
       _count: true,
       _avg: { confidence: true },
-      orderBy: { _count: { category: "desc" } },
+      orderBy: { _count: { category: BRAIN_CATEGORIES.DESC } },
     }).catch((): CategoryDepthRow[] => []),
     // v10.0.529.23 · weak-spot detection · was 14 sequential queries
     // (findFirst + count per important domain). Now 1 groupBy that
@@ -363,7 +364,7 @@ Don't be generic — reference specific numbers.`,
 export async function getLatestLearningJournalEntry(): Promise<JournalEntry | null> {
   try {
     const row = await prisma.brainMemory.findFirst({
-      where: { category: "learning_journal", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.LEARNING_JOURNAL, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { metadata: true },
     });
@@ -385,7 +386,7 @@ export async function getLearningJournalContext(): Promise<string> {
   try {
     // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
     const entries = await prisma.brainMemory.findMany({
-      where: { category: "learning_journal", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.LEARNING_JOURNAL, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { content: true },

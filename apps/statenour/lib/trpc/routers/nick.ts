@@ -22,6 +22,7 @@ import {
   __internals as budgetInternals,
 } from "@/lib/ai/reasoning/budget";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const VALID_TIERS = ["quick", "standard", "smart", "deep", "thorough", "mega"] as const;
 const TierSchema = z.enum(VALID_TIERS);
@@ -108,7 +109,7 @@ export const nickRouter = router({
       const limit = input?.limit ?? 50;
 
       const rows = await prisma.brainMemory.findMany({
-        where: { category: "reasoning_trace", deletedAt: null },
+        where: { category: BRAIN_CATEGORIES.REASONING_TRACE, deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: limit,
         select: {
@@ -178,7 +179,7 @@ export const nickRouter = router({
    */
   telemetry: operatorProcedure.query(async () => {
     const rows = await prisma.brainMemory.findMany({
-      where: { category: "reasoning_trace", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.REASONING_TRACE, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 500,
       select: { createdAt: true, confidence: true, metadata: true },

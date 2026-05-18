@@ -11,6 +11,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("api/ai/assist");
 
@@ -67,9 +68,9 @@ export async function POST(req: NextRequest) {
             deadline: { lt: new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) },
           },
         }),
-        prisma.brainMemory.count({ where: { category: "contradiction", createdAt: { gte: new Date(Date.now() - 14 * 86400_000) } } }),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(Date.now() - 14 * 86400_000) } } }),
         prisma.brainMemory.findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },
         }).catch(() => null),
       ]);

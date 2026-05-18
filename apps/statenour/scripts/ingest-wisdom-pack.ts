@@ -31,6 +31,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomEntry {
   text: string;
@@ -96,9 +97,9 @@ async function main() {
       const key = `wisdom_${pack.pack}_${String(i).padStart(3, "0")}`;
       try {
         await prisma.brainMemory.upsert({
-          where: { category_key: { category: "wisdom", key } },
+          where: { category_key: { category: BRAIN_CATEGORIES.WISDOM, key } },
           create: {
-            category: "wisdom",
+            category: BRAIN_CATEGORIES.WISDOM,
             key,
             content: entry.text,
             confidence: entry.confidence,

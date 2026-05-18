@@ -12,6 +12,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type HealthRange = "24h" | "7d" | "30d";
 
@@ -149,7 +150,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     prisma.reflection.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.captureInboxItem.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.brainMemory.findUnique({
-      where: { category_key: { category: "identity_snapshot", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { updatedAt: true },
     }).catch(() => null),
     prisma.cronJobLog.findFirst({

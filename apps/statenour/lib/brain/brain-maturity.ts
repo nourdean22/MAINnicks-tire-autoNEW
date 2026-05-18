@@ -20,6 +20,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface DomainMaturity {
   domain: string;
@@ -99,7 +100,7 @@ export async function getBrainMaturity(): Promise<BrainMaturityReport> {
       where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
       _count: { id: true },
     }),
-    prisma.brainMemory.count({ where: { category: "wisdom" } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM } }),
     prisma.prediction.findMany({
       where: { status: { in: ["confirmed", "disproven"] } },
       select: { category: true, status: true },

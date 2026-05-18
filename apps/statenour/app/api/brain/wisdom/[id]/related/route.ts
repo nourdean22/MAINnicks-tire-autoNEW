@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { withTracing } from "@/lib/utils/with-tracing";
 import { tagWisdomTopics, topicLabel, type WisdomTopic } from "@/lib/brain/wisdom-topic-tagger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -78,7 +79,7 @@ async function handler(req: NextRequest, ctx?: unknown): Promise<Response> {
 
   // Pull all wisdom IDs (excluding anchor) and their embeddings
   const allWisdomIds = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null, id: { not: anchorId }, confidence: { gte: 0.5 } },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, id: { not: anchorId }, confidence: { gte: 0.5 } },
     select: { id: true, key: true, content: true },
   });
   if (allWisdomIds.length === 0) return NextResponse.json({ related: [] });

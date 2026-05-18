@@ -1,6 +1,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * POST /api/system/anti-patterns/revisit — mark an anti-pattern as
@@ -24,7 +25,7 @@ interface AntiPatternMeta {
 export const POST = apiHandler(async (req) => {
   const { key } = Schema.parse(await req.json());
   const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "anti_pattern", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key } },
   });
   if (!existing) {
     throw Object.assign(new Error(`no anti-pattern: ${key}`), { status: 404, code: "NOT_FOUND" });
@@ -45,7 +46,7 @@ export const POST = apiHandler(async (req) => {
     revisitCount: (meta.revisitCount ?? 0) + 1,
   };
   await prisma.brainMemory.update({
-    where: { category_key: { category: "anti_pattern", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key } },
     data: { metadata: next as unknown as object },
   });
   return { key, revisitCount: next.revisitCount };

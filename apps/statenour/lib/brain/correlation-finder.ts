@@ -21,6 +21,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -534,7 +535,7 @@ export async function getCorrelationContext(): Promise<string> {
     // correlation rows for the system prompt every chat turn;
     // pre-fix soft-deleted correlations stayed in Nick's context.
     const memories = await prisma.brainMemory.findMany({
-      where: { category: "hidden_correlation", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.HIDDEN_CORRELATION, deletedAt: null },
       orderBy: { confidence: "desc" },
       take: 3,
       select: { content: true },

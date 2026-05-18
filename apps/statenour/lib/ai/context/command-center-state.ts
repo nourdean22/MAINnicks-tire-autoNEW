@@ -21,6 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { DOMAINS } from "@/lib/mastery/config";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // ── Summaries (every shape stays small + JSON-friendly) ─────────────
 
@@ -492,7 +493,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     // v9.1.8 · User-pinned permanent memory. Top 6 by recent activity.
     prisma.brainMemory
       .findMany({
-        where: { category: "pinned_user", deletedAt: null },
+        where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null },
         orderBy: { updatedAt: "desc" },
         take: 6,
         select: {
@@ -557,7 +558,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
     prisma.brainMemory
       .findFirst({
         where: {
-          category: "weekly_target",
+          category: BRAIN_CATEGORIES.WEEKLY_TARGET,
           key: `week_${currentWeekKey}`,
           deletedAt: null,
         },

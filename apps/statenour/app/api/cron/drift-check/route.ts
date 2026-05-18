@@ -11,6 +11,7 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("cron/drift-check");
 
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
 export const GET = cronHandler(async () => {
@@ -47,7 +48,7 @@ export const GET = cronHandler(async () => {
     const [identityRow, overdueCommits, openContradictions] = await Promise.all([
       prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },
         })
         .catch(() => null),
@@ -62,7 +63,7 @@ export const GET = cronHandler(async () => {
       prisma.brainMemory
         .count({
           where: {
-            category: "contradiction",
+            category: BRAIN_CATEGORIES.CONTRADICTION,
             createdAt: { gte: daysAgo(7) },
           },
         })

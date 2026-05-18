@@ -27,6 +27,7 @@ import { countUnresolved } from "./contradiction-surfacer";
 import { loadGhostAccuracy } from "./ghost-nick";
 import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface Nudge {
   severity: "high" | "medium" | "low";
@@ -175,13 +176,13 @@ export async function computeNudges(): Promise<Nudge[]> {
   const [pinHygiene, beliefRefresh] = await Promise.all([
     prisma.brainMemory
       .findFirst({
-        where: { category: "nudge_pin_hygiene", key: "weekly_pin_review" },
+        where: { category: BRAIN_CATEGORIES.NUDGE_PIN_HYGIENE, key: "weekly_pin_review" },
         select: { content: true, metadata: true, updatedAt: true },
       })
       .catch(() => null),
     prisma.brainMemory
       .findFirst({
-        where: { category: "belief_refresh_report" },
+        where: { category: BRAIN_CATEGORIES.BELIEF_REFRESH_REPORT },
         orderBy: { updatedAt: "desc" },
         select: { content: true, updatedAt: true, metadata: true },
       })
@@ -235,7 +236,7 @@ export async function computeNudges(): Promise<Nudge[]> {
       // streaks / pin candidates stayed in the nudge stream until
       // hard-deleted by data-cleanup cron.
       where: {
-        category: "correlation_alert",
+        category: BRAIN_CATEGORIES.CORRELATION_ALERT,
         updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
         deletedAt: null,
       },
@@ -244,17 +245,17 @@ export async function computeNudges(): Promise<Nudge[]> {
       select: { key: true, content: true, metadata: true },
     }).catch((): never[] => []),
     prisma.brainMemory.findUnique({
-      where: { category_key: { category: "decision_drift", key: "weekly" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.DECISION_DRIFT, key: "weekly" } },
       select: { content: true, metadata: true, deletedAt: true },
     }).catch((): null => null),
     prisma.brainMemory.findMany({
-      where: { category: "prediction_streak", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.PREDICTION_STREAK, deletedAt: null },
       orderBy: { updatedAt: "desc" },
       take: 8,
       select: { key: true, content: true, metadata: true },
     }).catch((): never[] => []),
     prisma.brainMemory.findMany({
-      where: { category: "hq_pin_candidate", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.HQ_PIN_CANDIDATE, deletedAt: null },
       orderBy: { updatedAt: "desc" },
       take: 5,
       select: { key: true, content: true, metadata: true },
@@ -330,7 +331,7 @@ export async function computeNudges(): Promise<Nudge[]> {
   // (the table stays small — dismissals roll off via
   // metadata.expiresAt) and suppress anything that matches.
   const acks = await prisma.brainMemory.findMany({
-    where: { category: "nudge_ack" },
+    where: { category: BRAIN_CATEGORIES.NUDGE_ACK },
     select: { key: true, metadata: true },
   });
   const now = Date.now();

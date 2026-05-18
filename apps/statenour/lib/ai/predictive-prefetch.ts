@@ -17,6 +17,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface PrefetchResult {
   label: string;
@@ -137,7 +138,7 @@ export async function prefetchIntents(
               .catch((): never[] => []),
             prisma.brainMemory
               .findFirst({
-                where: { category: "mit" },
+                where: { category: BRAIN_CATEGORIES.MIT },
                 orderBy: { createdAt: "desc" },
                 select: { content: true, createdAt: true },
               })
@@ -200,7 +201,7 @@ export async function prefetchIntents(
         (async () => {
           const mem = await prisma.brainMemory
             .findMany({
-              where: { category: "financial_forecast" },
+              where: { category: BRAIN_CATEGORIES.FINANCIAL_FORECAST },
               orderBy: { createdAt: "desc" },
               take: 3,
               select: { content: true, confidence: true, createdAt: true },

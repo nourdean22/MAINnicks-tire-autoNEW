@@ -1,14 +1,25 @@
 #!/usr/bin/env tsx
 /**
- * scripts/codemod-categories.ts · Phase P.2 (2026-05-18 PM)
+ * scripts/codemod-categories.ts · Phase P.2 + BB (2026-05-18 PM)
  *
- * Rewrites H+ inline `category: "reasoning_trace"` strings to
- * `category: BRAIN_CATEGORIES.REASONING_TRACE` so typos become
- * compile errors. Closes the O.2 loop · O.2 added the entries to
- * the registry but call sites still used inline strings.
+ * Rewrites inline `category: "literal"` strings to
+ * `category: BRAIN_CATEGORIES.ENUM_KEY` so typos become compile
+ * errors. Closes the O.2 loop · O.2 added entries to the registry
+ * but call sites still used inline strings.
  *
- * SCOPE · H+ categories only · the 100+ legacy inline strings stay
- * untouched (separate codemod wave if ever needed · low value vs risk).
+ * SCOPES (pick via --scope flag):
+ *   --scope=h-plus       · default · only the 9 H+ category entries
+ *                           (preserves Phase P.2 behavior · narrow + safe)
+ *   --scope=registered   · BB · ALL inline strings that match a
+ *                           BRAIN_CATEGORIES entry · broader sweep
+ *                           with file-level safety filter
+ *
+ * BB safety net · in --scope=registered mode we ONLY touch files
+ * that import + use `prisma.brainMemory` somewhere. Files that have
+ * inline `category: "..."` matching a registry value but DON'T use
+ * brainMemory at all (integration registries · tool catalogs ·
+ * automation trigger configs) are skipped · those `category` fields
+ * belong to other models and would corrupt if rewritten.
  *
  * Modes:
  *   --dry-run (default) · prints planned changes · no writes
@@ -39,7 +50,27 @@ const H_PLUS_CATEGORIES: Array<{ literal: string; enumKey: string }> = [
   { literal: "pulse_wisdom_shown", enumKey: "PULSE_WISDOM_SHOWN" },
 ];
 
-const SCAN_GLOBS = [
+/** Phase BB · read the full BRAIN_CATEGORIES registry from
+ *  lib/brain/categories.ts at runtime · keeps the codemod in sync
+ *  with the registry without manual duplication. Matches
+ *  `KEY: "literal",` patterns (object-literal entries). */
+function readRegisteredCategories(repoRoot: string): Array<{ literal: string; enumKey: string }> {
+  const path = join(
+    repoRoot,
+    "apps/statenour/lib/brain/categories.ts",
+  );
+  const text = readFileSync(path, "utf8");
+  const entries: Array<{ literal: string; enumKey: string }> = [];
+  const re = /^\s*([A-Z][A-Z0-9_]*)\s*:\s*"([a-z][a-z0-9_]*)"/gm;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    entries.push({ enumKey: m[1], literal: m[2] });
+  }
+  return entries;
+}
+
+/** H+ scope · narrow set of well-known target files (Phase P.2 default). */
+const H_PLUS_SCAN_GLOBS = [
   "apps/statenour/lib/ai/reasoning/**/*.ts",
   "apps/statenour/lib/ai/personas/**/*.ts",
   "apps/statenour/lib/services/operator-pulse.ts",
@@ -48,6 +79,16 @@ const SCAN_GLOBS = [
   "apps/statenour/app/api/operator/**/*.ts",
   "apps/statenour/app/api/system/**/*.ts",
   "apps/statenour/scripts/audit-deps.ts",
+];
+
+/** BB · registered scope · broader tree · file-level filter
+ *  (only touches files that use prisma.brainMemory) compensates. */
+const REGISTERED_SCAN_GLOBS = [
+  "apps/statenour/lib/**/*.ts",
+  "apps/statenour/lib/**/*.tsx",
+  "apps/statenour/app/**/*.ts",
+  "apps/statenour/app/**/*.tsx",
+  "apps/statenour/scripts/**/*.ts",
 ];
 
 const IGNORE_GLOBS = [
@@ -64,7 +105,9 @@ interface FileChange {
 
 function rewriteFile(
   filePath: string,
+  categories: Array<{ literal: string; enumKey: string }>,
   apply: boolean,
+  requireBrainMemoryContext: boolean,
 ): FileChange | null {
   let content: string;
   try {
@@ -73,16 +116,33 @@ function rewriteFile(
     return null;
   }
 
+  // BB safety net · in registered scope we ONLY touch files that
+  // actually use prisma.brainMemory. Catches the false-positive
+  // case where unrelated `category: "ai"` (integration registry)
+  // or `category: "asc"` (prisma orderBy) lives in a file that
+  // would otherwise match the literal regex.
+  if (requireBrainMemoryContext && !/prisma\.brainMemory/.test(content)) {
+    return null;
+  }
+
   const replacements: FileChange["replacements"] = [];
   let newContent = content;
   let touched = false;
 
-  for (const { literal, enumKey } of H_PLUS_CATEGORIES) {
+  for (const { literal, enumKey } of categories) {
     // Match `category: "literal"` and `category: 'literal'` · the
     // value form (not bare string usage). Limits blast radius vs
     // matching the literal anywhere.
+    //
+    // Phase BB type-position guard · negative lookahead skips
+    // TS union-type literals where the match is followed by `|`
+    // (e.g. `category: "skill" | "skill_pending"` is a type, not a
+    // value · `BRAIN_CATEGORIES.SKILL` in that position is invalid
+    // TS namespace reference · stay inline). Also skips when the
+    // PREVIOUS non-whitespace token is `|` (same pattern, suffix
+    // form: `category: "foo" | "literal"`).
     const re = new RegExp(
-      `category:\\s*["']${literal}["']`,
+      `(?<!\\|\\s{0,5}["'])category:\\s*["']${literal}["'](?!\\s{0,5}\\|)`,
       "g",
     );
     const matches = newContent.match(re);
@@ -129,36 +189,58 @@ function rewriteFile(
   };
 }
 
+type Scope = "h-plus" | "registered";
+
+function resolveScope(argv: string[]): Scope {
+  for (const a of argv) {
+    if (a === "--scope=h-plus") return "h-plus";
+    if (a === "--scope=registered") return "registered";
+  }
+  return "h-plus";
+}
+
 function main(): void {
   const argv = process.argv.slice(2);
   const apply = argv.includes("--apply");
   const jsonOut = argv.includes("--json");
+  const scope = resolveScope(argv);
   const repoRoot = execSync("git rev-parse --show-toplevel", {
     encoding: "utf8",
   }).trim();
 
+  const categories =
+    scope === "registered" ? readRegisteredCategories(repoRoot) : H_PLUS_CATEGORIES;
+  const scanGlobs =
+    scope === "registered" ? REGISTERED_SCAN_GLOBS : H_PLUS_SCAN_GLOBS;
+  const requireBrainMemoryContext = scope === "registered";
+
   const targetFiles: string[] = [];
-  for (const g of SCAN_GLOBS) {
+  for (const g of scanGlobs) {
     const matches = globSync(g, { cwd: repoRoot, ignore: IGNORE_GLOBS });
     targetFiles.push(...matches.map((f) => join(repoRoot, f)));
   }
+  // De-dupe in case of overlapping globs
+  const uniqueFiles = Array.from(new Set(targetFiles));
 
   const changes: FileChange[] = [];
-  for (const f of targetFiles) {
-    const result = rewriteFile(f, apply);
+  for (const f of uniqueFiles) {
+    const result = rewriteFile(f, categories, apply, requireBrainMemoryContext);
     if (result) changes.push(result);
   }
 
   if (jsonOut) {
-    console.log(JSON.stringify({ apply, changes }, null, 2));
+    console.log(
+      JSON.stringify({ apply, scope, categoriesScanned: categories.length, filesScanned: uniqueFiles.length, changes }, null, 2),
+    );
   } else {
+    const header = `[scope=${scope} · categories=${categories.length} · files=${uniqueFiles.length}]`;
     if (changes.length === 0) {
       console.log(
-        `✓ codemod-categories · no inline H+ category strings found in ${targetFiles.length} files`,
+        `✓ codemod-categories · ${header} · no inline category strings found`,
       );
     } else {
       console.log(
-        `${apply ? "✓ applied" : "→ dry-run"} · ${changes.length} file(s) ${apply ? "rewritten" : "would be rewritten"}:`,
+        `${apply ? "✓ applied" : "→ dry-run"} · ${header} · ${changes.length} file(s) ${apply ? "rewritten" : "would be rewritten"}:`,
       );
       for (const c of changes) {
         const rel = relative(repoRoot, c.file).replace(/\\/g, "/");

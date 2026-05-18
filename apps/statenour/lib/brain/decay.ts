@@ -23,6 +23,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Skill } from "./skill-extractor";
 import type { Belief } from "./belief-harvester";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface DecaySummary {
   skills_decayed: number;
@@ -43,7 +44,7 @@ export async function runDecay(): Promise<DecaySummary> {
   // them by changing values that gate `loadCategory()` visibility.
   const activeSkillRows = await prisma.brainMemory
     .findMany({
-      where: { category: "skill", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.SKILL, deletedAt: null },
       select: { id: true, key: true, content: true, confidence: true },
     })
     .catch(() => []);
@@ -73,7 +74,7 @@ export async function runDecay(): Promise<DecaySummary> {
         }
         await prisma.brainMemory
           .update({
-            where: { category_key: { category: "skill", key: r.key } },
+            where: { category_key: { category: BRAIN_CATEGORIES.SKILL, key: r.key } },
             data: updates,
           })
           .catch(() => {});
@@ -89,7 +90,7 @@ export async function runDecay(): Promise<DecaySummary> {
   // the skills query above).
   const beliefRows = await prisma.brainMemory
     .findMany({
-      where: { category: "belief", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.BELIEF, deletedAt: null },
       select: { id: true, key: true, content: true, confidence: true, updatedAt: true },
     })
     .catch(() => []);
@@ -109,7 +110,7 @@ export async function runDecay(): Promise<DecaySummary> {
       if (newConfidence < r.confidence - 0.01) {
         await prisma.brainMemory
           .update({
-            where: { category_key: { category: "belief", key: r.key } },
+            where: { category_key: { category: BRAIN_CATEGORIES.BELIEF, key: r.key } },
             data: { confidence: newConfidence, lastSeen: now },
           })
           .catch(() => {});

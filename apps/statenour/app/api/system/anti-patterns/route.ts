@@ -2,6 +2,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { softDelete } from "@/lib/db/soft-delete";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * Anti-pattern library (W12.4).
@@ -55,7 +56,7 @@ interface AntiPatternMeta {
 export const GET = apiHandler(async () => {
   // v8.27 · soft-delete retrofit · don't resurface deleted patterns.
   const rows = await prisma.brainMemory.findMany({
-    where: { category: "anti_pattern", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.ANTI_PATTERN, deletedAt: null },
     orderBy: { updatedAt: "desc" },
   });
   const byDomain: Record<Domain, number> = {
@@ -109,7 +110,7 @@ export const POST = apiHandler(async (req) => {
     tags: body.tags,
   };
   const existing = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "anti_pattern", key: body.key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key: body.key } },
   });
   if (existing) {
     // Merge — keep original firstTriedAt + revisit history, update lesson text + severity.
@@ -123,7 +124,7 @@ export const POST = apiHandler(async (req) => {
       outcome: body.outcome,
     };
     const updated = await prisma.brainMemory.update({
-      where: { category_key: { category: "anti_pattern", key: body.key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key: body.key } },
       data: {
         content: body.lesson,
         metadata: merged as unknown as object,
@@ -134,7 +135,7 @@ export const POST = apiHandler(async (req) => {
   }
   const created = await prisma.brainMemory.create({
     data: {
-      category: "anti_pattern",
+      category: BRAIN_CATEGORIES.ANTI_PATTERN,
       key: body.key,
       content: body.lesson,
       metadata: meta as unknown as object,
@@ -155,7 +156,7 @@ export const DELETE = apiHandler(async (req) => {
   // recoverable from the trash view and preserves their occurrence
   // history for the brain pattern miner.
   const result = await softDelete("brainMemory", {
-    category_key: { category: "anti_pattern", key },
+    category_key: { category: BRAIN_CATEGORIES.ANTI_PATTERN, key },
   });
   return { key, deleted: result.ok, soft: true, noop: result.noop };
 }, { auth: "owner" }); // v9.1.17 · added by add-get-route-auth.ts

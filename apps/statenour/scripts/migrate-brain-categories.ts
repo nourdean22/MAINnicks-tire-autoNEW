@@ -16,8 +16,8 @@
  *
  * Safety:
  *   - Dry-run prints exactly what will change (category + rowcount).
- *   - Conflict handling: if a row `{ category: "skills", key: "foo" }`
- *     conflicts with an existing `{ category: "skill", key: "foo" }`,
+ *   - Conflict handling: if a row `{ category: BRAIN_CATEGORIES.SKILLS, key: "foo" }`
+ *     conflicts with an existing `{ category: BRAIN_CATEGORIES.SKILL, key: "foo" }`,
  *     we DELETE the older deprecated row (by createdAt). Never merge
  *     metadata silently — that would risk data loss.
  *

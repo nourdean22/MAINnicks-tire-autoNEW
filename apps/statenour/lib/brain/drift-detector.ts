@@ -17,6 +17,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { recordMetric } from "@/lib/services/metrics";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentShopLeads } from "@/lib/brain/legacy-shims";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface DriftSignal {
   source: string;
@@ -167,13 +168,13 @@ export async function computeDriftScore(): Promise<CompositeDriftResult> {
   // deleted goals remained as drift baselines, and deleted patterns
   // inflated the drift score. Skewed Signal 7 in both directions.
   const statedGoals = await prisma.brainMemory.findMany({
-    where: { category: "preference", key: { startsWith: "stated_goal_" }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.PREFERENCE, key: { startsWith: "stated_goal_" }, deletedAt: null },
     select: { content: true },
   });
 
   const recentPatterns = await prisma.brainMemory.findMany({
     where: {
-      category: "pattern",
+      category: BRAIN_CATEGORIES.PATTERN,
       createdAt: { gte: new Date(sevenDaysAgo) },
       deletedAt: null,
     },

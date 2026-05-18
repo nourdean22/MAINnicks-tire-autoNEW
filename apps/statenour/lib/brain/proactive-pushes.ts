@@ -36,6 +36,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { today } from "@/lib/utils/datetime";
 import { getTodaysAnticipated } from "@/lib/brain/anticipated-questions";
 import { getNickCurrentConcerns } from "@/lib/brain/session-distiller";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/proactive-pushes");
 
@@ -55,9 +56,9 @@ interface PushResult {
  */
 async function markPushSent(slot: PushSlot, dateKey: string): Promise<void> {
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "proactive_push_sent", key: `${slot}_${dateKey}` } },
+    where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `${slot}_${dateKey}` } },
     create: {
-      category: "proactive_push_sent",
+      category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
       key: `${slot}_${dateKey}`,
       content: `${slot} push sent at ${new Date().toISOString()}`,
       source: "proactive_push_cron",
@@ -73,7 +74,7 @@ async function markPushSent(slot: PushSlot, dateKey: string): Promise<void> {
 
 async function alreadyPushed(slot: PushSlot, dateKey: string): Promise<boolean> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "proactive_push_sent", key: `${slot}_${dateKey}` } },
+    where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: `${slot}_${dateKey}` } },
     select: { id: true },
   }).catch(() => null);
   return row !== null;

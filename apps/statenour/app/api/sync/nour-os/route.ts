@@ -6,6 +6,7 @@ import { processGmailItems } from "@/lib/integrations/gmail-sync";
 // service · was prisma.task.create direct with hardcoded "m-inbox".
 import { createTask } from "@/lib/services/tasks";
 import { resolveInboxMissionId } from "@/lib/services/missions";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -45,10 +46,10 @@ export const POST = syncHandler(async (req) => {
       // paths.
       result = await prisma.brainMemory.upsert({
         where: {
-          category_key: { category: "identity_snapshot", key: "current" },
+          category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" },
         },
         create: {
-          category: "identity_snapshot",
+          category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
           key: "current",
           content: JSON.stringify(data),
           confidence: 0.9,

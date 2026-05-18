@@ -23,6 +23,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("wisdom-distiller");
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomCandidate {
   theme: string;
@@ -261,7 +262,7 @@ export async function distillWisdom(): Promise<string[]> {
 
   // Existing wisdom (to avoid duplicates)
   const existingWisdom = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null }, // v9.1.25 · soft-delete filter
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null }, // v9.1.25 · soft-delete filter
     select: { content: true },
   });
 
@@ -410,7 +411,7 @@ export async function validateWisdom(): Promise<{
   // cron from blowing past the 60s envelope as the wisdom corpus
   // grows.
   const wisdom = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
     orderBy: { confidence: "desc" },
     take: 200,
     select: { id: true, content: true, confidence: true, seenCount: true, createdAt: true, updatedAt: true },
@@ -443,7 +444,7 @@ export async function validateWisdom(): Promise<{
 
   // Check for contradictions: wisdom that conflicts with recent counter-intuitive findings
   const recentCI = await prisma.brainMemory.findMany({
-    where: { category: "counter_intuitive", createdAt: { gte: new Date(Date.now() - 14 * 86400000) }, deletedAt: null }, // v10.0.66
+    where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, createdAt: { gte: new Date(Date.now() - 14 * 86400000) }, deletedAt: null }, // v10.0.66
     select: { content: true },
     take: 10,
   }).catch((): never[] => []);
@@ -497,13 +498,13 @@ export async function getWisdomContext(): Promise<string> {
   try {
     const [wisdom, contradictions] = await Promise.all([
       prisma.brainMemory.findMany({
-        where: { category: "wisdom", confidence: { gte: 0.3 }, deletedAt: null }, // v10.0.66 · system-prompt feeder
+        where: { category: BRAIN_CATEGORIES.WISDOM, confidence: { gte: 0.3 }, deletedAt: null }, // v10.0.66 · system-prompt feeder
         orderBy: { confidence: "desc" },
         take: 10,
         select: { content: true, confidence: true, seenCount: true, updatedAt: true },
       }),
       prisma.brainMemory.findMany({
-        where: { category: "wisdom_contradiction", deletedAt: null }, // v10.0.66 · system-prompt feeder
+        where: { category: BRAIN_CATEGORIES.WISDOM_CONTRADICTION, deletedAt: null }, // v10.0.66 · system-prompt feeder
         orderBy: { createdAt: "desc" },
         take: 3,
         select: { content: true },

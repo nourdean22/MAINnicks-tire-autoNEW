@@ -172,7 +172,7 @@ export async function scanStaleData(): Promise<StaleReport> {
     //    v11.2 fix (D9/D16) — was `content: { contains: "status:candidate" }`
     //    which was (a) a substring search on JSON-serialized content
     //    (brittle) AND (b) wrong: skill candidates are stored with
-    //    `category: "skill_pending"`, not a status field inside content.
+    //    `category: BRAIN_CATEGORIES.SKILL_PENDING`, not a status field inside content.
     //    The old filter matched zero rows. Now: correct category.
     safeQuery(
       async () => {

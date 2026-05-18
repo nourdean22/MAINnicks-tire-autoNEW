@@ -5,6 +5,7 @@ import { sendEmail } from "@/lib/services/email";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/autonomous");
 
@@ -232,7 +233,7 @@ const RULES: ActionRule[] = [
       );
       const snap = await prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { updatedAt: true, deletedAt: true },
         })
         .catch(() => null);
@@ -335,7 +336,7 @@ const RULES: ActionRule[] = [
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
       const weekKey = weekStart.toISOString().slice(0, 10);
       const targets = await prisma.brainMemory.findUnique({
-        where: { category_key: { category: "weekly_target", key: `week_${weekKey}` } },
+        where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
       });
       if (!targets) return [{ noTargets: true }];
       return [{ targets: targets.content }];
@@ -463,7 +464,7 @@ const RULES: ActionRule[] = [
       const recentSnap = await prisma.brainMemory
         .findFirst({
           where: {
-            category: "identity_snapshot",
+            category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
             deletedAt: null,
             updatedAt: { gte: threeDaysAgo },
           },
@@ -731,7 +732,7 @@ const RULES: ActionRule[] = [
       if (contentPrefix.length >= 20) {
         const dupe = await prisma.brainMemory.findFirst({
           where: {
-            category: "wisdom",
+            category: BRAIN_CATEGORIES.WISDOM,
             content: { contains: contentPrefix },
             id: { not: memory.id },
           },
@@ -773,7 +774,7 @@ const RULES: ActionRule[] = [
       await prisma.brainMemory.update({
         where: { id: memory.id },
         data: {
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           confidence: Math.min(1, memory.confidence + 0.2),
           content: `[PROMOTED TO WISDOM] ${memory.content}`,
         },
@@ -833,7 +834,7 @@ const RULES: ActionRule[] = [
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const recentMentions = await prisma.brainMemory.count({
         where: {
-          category: "relationship",
+          category: BRAIN_CATEGORIES.RELATIONSHIP,
           key: { startsWith: "dania_mention_" },
           createdAt: { gte: sevenDaysAgo },
         },

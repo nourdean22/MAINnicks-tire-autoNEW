@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { timingSafeEqual } from "node:crypto";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * POST /api/nour-os/query
@@ -90,7 +91,7 @@ async function handleQuery(
       // (matches the /mit telegram command shape in webhook route).
       const today = todayStr();
       const mit = await prisma.brainMemory.findUnique({
-        where: { category_key: { category: "mit", key: today } },
+        where: { category_key: { category: BRAIN_CATEGORIES.MIT, key: today } },
         select: { content: true, confidence: true, updatedAt: true },
       });
       return mit ? { text: mit.content, confidence: mit.confidence, updatedAt: mit.updatedAt } : null;
@@ -102,7 +103,7 @@ async function handleQuery(
         .toLocaleDateString("en-CA", { timeZone: "America/New_York" });
       const memory = await prisma.brainMemory.findFirst({
         where: {
-          category: "backlog_triage",
+          category: BRAIN_CATEGORIES.BACKLOG_TRIAGE,
           OR: [
             { key: `top_3_backlog_${today}` },
             { key: `top_3_backlog_${yesterday}` },
@@ -177,7 +178,7 @@ async function handleQuery(
     case "top_wisdom": {
       const limit = Math.min(Number(filters.limit ?? 10), 30);
       const wisdom = await prisma.brainMemory.findMany({
-        where: { category: "wisdom", confidence: { gte: 0.8 } },
+        where: { category: BRAIN_CATEGORIES.WISDOM, confidence: { gte: 0.8 } },
         orderBy: [{ confidence: "desc" }, { seenCount: "desc" }],
         take: limit,
         select: { content: true, confidence: true, seenCount: true, createdAt: true },
@@ -253,7 +254,7 @@ async function handleQuery(
             return all[0] ?? null;
           })(),
           prisma.brainMemory.findUnique({
-            where: { category_key: { category: "mit", key: today } },
+            where: { category_key: { category: BRAIN_CATEGORIES.MIT, key: today } },
             select: { content: true },
           }),
           // OpenLoop count retired Apr 18 — inbox-Task count is the

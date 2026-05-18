@@ -27,6 +27,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -38,7 +39,7 @@ export async function GET(req: Request) {
 
     const today = new Date().toISOString().slice(0, 10);
     const row = await prisma.brainMemory.findFirst({
-      where: { category: "morning_brief_audio", key: today },
+      where: { category: BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO, key: today },
       select: { content: true, metadata: true },
     });
 

@@ -33,6 +33,7 @@ import { recallIndustryIntel } from "@/lib/automotive/industry-monitor";
 import { requireSession } from "@/lib/auth-guard";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -89,9 +90,9 @@ export async function POST(req: Request) {
       .findMany({
         where: {
           OR: [
-            { category: "pinned_user" },
+            { category: BRAIN_CATEGORIES.PINNED_USER },
             { category: "commitment" },
-            { category: "feedback", confidence: { gte: 0.8 } },
+            { category: BRAIN_CATEGORIES.FEEDBACK, confidence: { gte: 0.8 } },
           ],
         },
         orderBy: { updatedAt: "desc" },

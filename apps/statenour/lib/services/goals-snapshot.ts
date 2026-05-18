@@ -24,6 +24,7 @@
 import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/goals-snapshot");
 
@@ -187,7 +188,7 @@ export async function buildGoalsSnapshot(): Promise<GoalsSnapshot> {
       }),
     prisma.brainMemory.findMany({
       where: {
-        category: "goal_prune_candidate",
+        category: BRAIN_CATEGORIES.GOAL_PRUNE_CANDIDATE,
         deletedAt: null,
       },
       select: { key: true },

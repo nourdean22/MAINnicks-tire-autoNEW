@@ -9,6 +9,7 @@ import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 /**
  * GET  /api/ultron/tomorrow-note — latest draft for tomorrow (if cached in BrainMemory)
  * POST /api/ultron/tomorrow-note — generate a fresh draft from today's state
@@ -63,7 +64,7 @@ export async function GET(req: Request) {
     const key = `note:${tomorrowDateString()}`;
     const row = await prisma.brainMemory
       .findFirst({
-        where: { category: "tomorrow_note", key },
+        where: { category: BRAIN_CATEGORIES.TOMORROW_NOTE, key },
         orderBy: { createdAt: "desc" },
       })
       .catch(() => null);
@@ -120,9 +121,9 @@ export async function POST(req: Request) {
         approved: true,
       };
       await prisma.brainMemory.upsert({
-        where: { category_key: { category: "tomorrow_note", key: memKey } },
+        where: { category_key: { category: BRAIN_CATEGORIES.TOMORROW_NOTE, key: memKey } },
         create: {
-          category: "tomorrow_note",
+          category: BRAIN_CATEGORIES.TOMORROW_NOTE,
           key: memKey,
           content: JSON.stringify(note),
           confidence: 0.9,
@@ -162,19 +163,19 @@ export async function POST(req: Request) {
       prisma.brainMemory
         .count({
           where: {
-            category: "contradiction",
+            category: BRAIN_CATEGORIES.CONTRADICTION,
             createdAt: { gte: daysAgo(14) },
           },
         })
         .catch(() => 0),
       prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true },
         })
         .catch(() => null),
       prisma.brainMemory
-        .count({ where: { category: "skill" } })
+        .count({ where: { category: BRAIN_CATEGORIES.SKILL } })
         .catch(() => 0),
       // Lightweight attention proxy from recent chat messages
       prisma.chatMessage
@@ -292,9 +293,9 @@ Rules:
 
     // Persist as DRAFT (upsert — regenerating overwrites)
     await prisma.brainMemory.upsert({
-      where: { category_key: { category: "tomorrow_note", key: memKey } },
+      where: { category_key: { category: BRAIN_CATEGORIES.TOMORROW_NOTE, key: memKey } },
       create: {
-        category: "tomorrow_note",
+        category: BRAIN_CATEGORIES.TOMORROW_NOTE,
         key: memKey,
         content: JSON.stringify(draft),
         confidence: 0.6,

@@ -28,6 +28,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("thinking-engine");
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -429,7 +430,7 @@ export async function getThinkingLayersContext(): Promise<string> {
   // confidence. Malformed JSON content is skipped.
   const simRows = await prisma.brainMemory
     .findMany({
-      where: { category: "simulation", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.SIMULATION, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { content: true },

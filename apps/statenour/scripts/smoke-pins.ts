@@ -22,6 +22,7 @@
  */
 
 import { loadEnv, confirmDatabase } from "./_lib/safety";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 async function main() {
   loadEnv();
@@ -43,7 +44,7 @@ async function main() {
   console.log(`▶ writing test pin (key: ${key})`);
   const created = await prisma.brainMemory.create({
     data: {
-      category: "pinned_user",
+      category: BRAIN_CATEGORIES.PINNED_USER,
       key,
       content: sentinelPhrase,
       confidence: 1.0,
@@ -55,7 +56,7 @@ async function main() {
   try {
     console.log(`▶ reading back via pinned query`);
     const readback = await prisma.brainMemory.findMany({
-      where: { category: "pinned_user", key },
+      where: { category: BRAIN_CATEGORIES.PINNED_USER, key },
       take: 1,
     });
     if (readback.length === 0) {

@@ -37,6 +37,7 @@ import {
 } from "@/lib/brain/embedding-utils";
 import { getEmbedding, aiChat, type AiMessage } from "@/lib/ai/provider";
 import { Prisma } from "@prisma/client";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/journal-convergence");
 
@@ -580,12 +581,12 @@ export async function persistCandidates(
       .upsert({
         where: {
           category_key: {
-            category: "journal_convergence_candidate",
+            category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
             key: c.clusterHash,
           },
         },
         create: {
-          category: "journal_convergence_candidate",
+          category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
           key: c.clusterHash,
           content,
           confidence: c.coherence,

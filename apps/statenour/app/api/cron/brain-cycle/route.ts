@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { publish as publishBus } from "@/lib/db/brain-bus";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/brain-cycle");
 
@@ -82,7 +83,7 @@ export const GET = cronHandler(async () => {
   const historyRows = await prisma.brainMemory
     .findMany({
       where: {
-        category: "identity_snapshot",
+        category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
         key: { startsWith: "history:" },
         updatedAt: { gte: daysAgo(7) },
       },

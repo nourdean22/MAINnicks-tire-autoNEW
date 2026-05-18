@@ -48,6 +48,7 @@
 import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/decision-replay-coach");
 
@@ -388,7 +389,7 @@ export async function matchWisdom(
     .findMany({
       // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
       where: activeOnly({
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         confidence: { gte: 0.5 },
       }),
       orderBy: { confidence: "desc" },
