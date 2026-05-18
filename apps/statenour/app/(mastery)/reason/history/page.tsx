@@ -18,7 +18,9 @@
  */
 
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase J · tRPC migration · history page now reads via trpc.nick.history ·
+// types inferred from the router · no manual HistoryShape mirror.
+import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 
@@ -60,12 +62,20 @@ const TIER_TONE: Record<string, string> = {
 };
 
 export default function ReasoningHistoryPage() {
-  const { data, error, loading, reload } = useAuthedFetch<HistoryShape>(
-    "/api/nick/reason/history?limit=50",
+  const { data, error, isLoading, refetch } = trpc.nick.history.useQuery(
+    { limit: 50 },
+    { staleTime: 30_000 },
   );
 
-  if (loading && !data) return <MasterySkeleton cards={4} maxWidth="max-w-3xl" />;
-  if (error) return <MasteryErrorView label="Reasoning history" error={error} onRetry={reload} />;
+  if (isLoading && !data) return <MasterySkeleton cards={4} maxWidth="max-w-3xl" />;
+  if (error)
+    return (
+      <MasteryErrorView
+        label="Reasoning history"
+        error={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
   if (!data) return null;
 
   const { history, stats } = data;

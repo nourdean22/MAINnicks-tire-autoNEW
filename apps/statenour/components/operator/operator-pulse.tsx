@@ -37,8 +37,10 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { onDataChanged } from "@/lib/events/data-change";
+// Phase J · tRPC migration · OperatorPulse reads via
+// trpc.operator.pulse · types inferred · legacy REST kept for back-compat.
+import { trpc } from "@/lib/trpc/client";
 
 type PulseTone = "gold" | "amber" | "emerald" | "neutral";
 type PulseSurface = "tasks" | "goals" | "scoreboard" | "home";
@@ -86,12 +88,12 @@ export function OperatorPulse({
   surface: PulseSurface;
   className?: string;
 }) {
-  // useAuthedFetch auto-unwraps the {data: ...} envelope · this route
-  // returns the snapshot directly (no envelope) so the type below is
-  // PulseShape and the hook returns it as-is. Avoids the double-wrap
-  // class of bugs (see HomeNarrator 2026-05-18 PM bugfix).
-  const { data, reload } = useAuthedFetch<PulseShape>(
-    `/api/operator/pulse?surface=${surface}`,
+  // Phase J · tRPC · types inferred from the server router · no more
+  // manual PulseShape mirror that drifted across H.2 (mega tier),
+  // H.5 (cost field), H.6.2 (inFlightUsd) waves.
+  const { data, refetch } = trpc.operator.pulse.useQuery(
+    { surface },
+    { staleTime: 30_000 },
   );
 
   // Re-fetch on cross-surface data changes · check-off on /tasks should
@@ -102,11 +104,11 @@ export function OperatorPulse({
     const off = onDataChanged(
       ["tasks", "goals", "score", "brain", "commitments", "any"],
       () => {
-        setTimeout(reload, 500);
+        setTimeout(refetch, 500);
       },
     );
     return off;
-  }, [reload]);
+  }, [refetch]);
 
   if (!data) return null;
   // Phase G.2 fix · label by slot intent · pre-fix the labels were

@@ -18,6 +18,11 @@ import { GlobalTopTicker } from "@/components/hud/global-top-ticker";
 // when nothing matches. Lives in layout so it monitors every mastery
 // surface (chat textarea, task quick-add, journal, etc).
 import { DeepModeNudge } from "@/components/operator/deep-mode-nudge";
+// Phase J (2026-05-18 PM) · TRPCProvider · wraps every mastery surface
+// so any component can call trpc.X.useQuery / useMutation with end-
+// to-end type safety. Legacy useAuthedFetch calls keep working ·
+// gradual migration · no big-bang cutover.
+import { TRPCProvider } from "@/components/providers/trpc-provider";
 
 export default function MasteryLayout({
   children,
@@ -25,6 +30,7 @@ export default function MasteryLayout({
   children: React.ReactNode;
 }) {
   return (
+    <TRPCProvider>
     <NourStateProvider>
       <NeuralBackground />
       <PageTracker />
@@ -99,5 +105,6 @@ export default function MasteryLayout({
         <BottomPulseTicker />
       </div>
     </NourStateProvider>
+    </TRPCProvider>
   );
 }
