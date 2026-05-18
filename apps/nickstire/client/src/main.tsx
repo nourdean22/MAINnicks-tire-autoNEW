@@ -86,3 +86,37 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
 }
+
+// wave-181.56 · self-heal on stale lazy-chunk failures
+//
+// When a Vite hashed chunk fails to load (because the build was rolled
+// over since the page was served and the old chunk hash 404s), Vite
+// fires a `vite:preloadError` event. Default behaviour: the dynamic
+// import rejects → React Suspense fallback fires the ErrorBoundary →
+// customer sees "THIS PAGE RAN INTO AN ERROR".
+//
+// Self-heal: catch the event once per session, hard-reload the page so
+// the browser fetches the current index.html (with current chunk
+// hashes). Use sessionStorage to prevent infinite reload loops if
+// the new build is genuinely broken.
+//
+// Reference: https://vite.dev/guide/build.html#load-error-handling
+//
+// Background: wave-181.54/.55 deleted 199 stale prerendered pages
+// that referenced dead chunk hashes from a previous build. This
+// listener prevents the same class of bug recurring on the next
+// prerender drift — if it happens, the user reloads once
+// automatically and gets the working version.
+if (typeof window !== "undefined") {
+  window.addEventListener("vite:preloadError", (event) => {
+    const reloadedKey = "vite-preload-error-reload";
+    if (sessionStorage.getItem(reloadedKey)) {
+      console.error("[preloadError] Already reloaded once this session — likely a real bug, not stale-bundle. Letting ErrorBoundary handle.", event);
+      return;
+    }
+    sessionStorage.setItem(reloadedKey, String(Date.now()));
+    event.preventDefault();
+    console.warn("[preloadError] Stale lazy chunk detected. Hard-reloading once to fetch fresh manifest.");
+    window.location.reload();
+  });
+}
