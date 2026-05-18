@@ -33,6 +33,8 @@ export const FLAG_DEFINITIONS = [
   { key: "vip_auto_recognition", description: "Auto-SMS new VIP customers with 10% off perk" },
   { key: "referral_loop_closer", description: "Auto-SMS both parties when referral converts" },
   { key: "weather_triggered_sms", description: "Auto-SMS lapsed customers on weather events" },
+  { key: "retention_7day", description: "wave-181.47 · post-visit D7 check-in SMS (warm, no pitch)" },
+  { key: "retention_14day", description: "wave-181.47 · post-visit D14 reactivation SMS (re-check + relief haiku)" },
   { key: "retention_45day", description: "Auto-SMS 45-day retention maintenance tip" },
   { key: "sms_auto_quote", description: "Auto-respond to inbound SMS price questions" },
   { key: "churn_prediction_alerts", description: "Telegram alerts for high-risk churn customers" },
