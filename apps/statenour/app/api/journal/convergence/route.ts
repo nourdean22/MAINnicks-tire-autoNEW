@@ -1,11 +1,20 @@
 /**
  * /api/journal/convergence · ADR-0013 · Phase D
  *
- * Owner-only · read + dismiss convergence candidates the nightly
- * cron wrote. Confirmation flows through POST /api/journal/threads.
+ * Owner-only · read + manual-trigger + dismiss convergence candidates.
+ * Confirmation flows through POST /api/journal/threads (different
+ * route · this one is for the candidate lifecycle).
  *
  *   GET     /api/journal/convergence            → ConvergenceCandidateRow[]
+ *   POST    /api/journal/convergence            → run scan NOW (manual)
  *   DELETE  /api/journal/convergence?hash=...   → soft-delete by clusterHash
+ *
+ * POST · added 2026-05-18 PM follow-up · was missing from initial
+ * Phase D ship · operator had to wait for nightly 22:00 UTC cron
+ * to see any candidates · now they can trigger on demand from the
+ * ThreadRadar "scan now" button + see immediate result. Same scan
+ * the Inngest cron runs · returns telemetry so the UI can show
+ * how many entries were scanned + how many candidates found.
  */
 
 import { NextResponse } from "next/server";
@@ -19,7 +28,9 @@ import {
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-export const maxDuration = 15;
+// Manual scan can take ~30-60s for a busy 14-day window · raise
+// max-duration so the operator doesn't get a 504 mid-scan.
+export const maxDuration = 90;
 
 const log = rootLogger.withSurface("api/journal/convergence");
 
@@ -32,6 +43,31 @@ export async function GET(req: Request) {
     log.error("candidates_list_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
+      { status: 500 },
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    await requireSession(req);
+    // Dynamic import so the heavy convergence module + AI provider
+    // chain only load when an operator actually triggers a scan ·
+    // the GET path stays light-weight.
+    const { runConvergenceScan } = await import(
+      "@/lib/services/journal-convergence"
+    );
+    const result = await runConvergenceScan();
+    log.info("manual_scan_triggered", result);
+    return NextResponse.json({
+      ok: true,
+      ranAt: new Date().toISOString(),
+      ...result,
+    });
+  } catch (err) {
+    log.error("manual_scan_failed", { error: sanitizeError(err) });
+    return NextResponse.json(
+      { ok: false, error: sanitizeError(err) },
       { status: 500 },
     );
   }

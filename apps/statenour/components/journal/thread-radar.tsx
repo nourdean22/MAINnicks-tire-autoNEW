@@ -53,14 +53,137 @@ export function ThreadRadar({
   }>("/api/journal/convergence");
   const candidates = data?.data ?? [];
 
-  if (loading) return null; // silent · radar shouldn't shimmer
-  if (error || candidates.length === 0) return null;
+  // Manual scan trigger · 2026-05-18 PM follow-up · operator can
+  // now run the convergence pipeline on demand instead of waiting
+  // for the nightly 22:00 UTC cron. Reports last-scan telemetry
+  // inline so they see the system working even when no candidates
+  // surface (e.g. when entries don't yet cluster ≥0.75 cohesion).
+  const [scanState, setScanState] = useState<{
+    busy: boolean;
+    lastResult: {
+      scanned: number;
+      found: number;
+      afterPrune: number;
+      at: string;
+    } | null;
+    error: string | null;
+  }>({ busy: false, lastResult: null, error: null });
+
+  const triggerScan = async () => {
+    if (scanState.busy) return;
+    setScanState((s) => ({ ...s, busy: true, error: null }));
+    try {
+      const res = await authedFetch("/api/journal/convergence", {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      const json = (await res.json()) as {
+        ranAt: string;
+        scannedEntries: number;
+        candidatesFound: number;
+        candidatesAfterPrune: number;
+      };
+      setScanState({
+        busy: false,
+        lastResult: {
+          scanned: json.scannedEntries,
+          found: json.candidatesFound,
+          afterPrune: json.candidatesAfterPrune,
+          at: json.ranAt,
+        },
+        error: null,
+      });
+      // Reload candidates · auto-show any new ones the scan just wrote.
+      reload();
+    } catch (err) {
+      setScanState({
+        busy: false,
+        lastResult: null,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  };
+
+  if (loading) return null; // silent on initial load
+
+  // Empty-radar surface: still render so the operator has a "scan
+  // now" affordance + sees the last-scan telemetry when one ran.
+  if (error || candidates.length === 0) {
+    // Only show the empty rail when there's a reason to (operator
+    // just triggered a scan, OR there's a stale result to show).
+    // Hide entirely if neither — keeps page calm when nothing yet.
+    if (!scanState.busy && !scanState.lastResult && !scanState.error) {
+      return (
+        <section className="mb-8">
+          <button
+            type="button"
+            onClick={triggerScan}
+            className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition min-h-[32px] inline-flex items-center"
+            title="run the convergence scan now · normally fires nightly at 22:00 UTC"
+          >
+            scan radar now →
+          </button>
+        </section>
+      );
+    }
+    return (
+      <section className="mb-8 space-y-3">
+        <MasterySectionLabel
+          label="Pattern radar"
+          action={
+            <button
+              type="button"
+              onClick={triggerScan}
+              disabled={scanState.busy}
+              className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            >
+              {scanState.busy ? "scanning..." : "scan again"}
+            </button>
+          }
+        />
+        <p className="text-xs text-[var(--text-secondary)]">
+          {scanState.error ? (
+            <span className="text-red-300">{scanState.error}</span>
+          ) : scanState.lastResult ? (
+            <>
+              No themes coalescing yet · scanned{" "}
+              {scanState.lastResult.scanned} entries · found{" "}
+              {scanState.lastResult.found} candidate
+              {scanState.lastResult.found === 1 ? "" : "s"}
+              {scanState.lastResult.afterPrune !==
+              scanState.lastResult.found
+                ? ` (${scanState.lastResult.afterPrune} new after pruning existing-thread members)`
+                : ""}
+              .
+            </>
+          ) : (
+            "Scanning recent entries for emerging themes..."
+          )}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className="mb-8 space-y-3">
       <MasterySectionLabel
         label={`Coalescing · ${candidates.length} ${candidates.length === 1 ? "theme" : "themes"}`}
-        action={<span className="text-white/30">pattern radar</span>}
+        action={
+          <button
+            type="button"
+            onClick={triggerScan}
+            disabled={scanState.busy}
+            className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] disabled:opacity-50"
+            title="re-run the convergence scan"
+          >
+            {scanState.busy ? "scanning..." : "rescan"}
+          </button>
+        }
       />
       <ul className="space-y-3">
         {candidates.map((c) => (
