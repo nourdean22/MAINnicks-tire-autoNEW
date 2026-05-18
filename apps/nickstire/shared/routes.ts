@@ -52,14 +52,16 @@ const CORE_PAGES: RouteEntry[] = [
     path: "/services",
     priority: 0.9,
     changefreq: "weekly",
-    // wave-181.29 GSC tune · /services was cannibalizing the homepage for
-    // branded queries ("nicks tire and auto" — /services ranked pos 1.8,
-    // / ranked pos 2.1). Stripped "Nick's" + "| Nick's" from the title
-    // so this page stops competing for brand queries and stays anchored
-    // to "auto repair services" intent. Description keeps social-proof
-    // anchor but de-emphasizes brand-name in first 80 chars.
-    title: "Auto Repair Services Cleveland · Tires Brakes Diagnostics Oil",
-    description: "All Cleveland auto repair services — tires, brakes, diagnostics, emissions, oil, alignment. Walk-in 7 days. Free written estimates. 4.9★ from 1,700+ drivers.",
+    // wave-181.44 GSC tune v2 · prior meta (181.29) was a feature-list
+    // ("tires, brakes, diagnostics, emissions, oil, alignment") and
+    // earned only 0.5% CTR at pos 3.1 over 90 days — strong rank, weak
+    // earn = snippet wasn't differentiating. Brand-perception audit
+    // identified the missing "relief" mechanism that lands on every
+    // VAPI repair call. Applied here as V1 Benefit Lead variant per
+    // seo-aeo-meta-description-generator skill. Aligned with ServicesOverview.tsx
+    // SEOHead so prerender + runtime <head> match.
+    title: "Cleveland Auto Repair · You Don't Pay Until You Say Yes",
+    description: "Cleveland auto repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days.",
     group: "core",
     sitemap: true,
     prerender: true,

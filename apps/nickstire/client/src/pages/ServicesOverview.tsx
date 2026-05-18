@@ -91,9 +91,17 @@ export default function ServicesOverview() {
           past. New title leads with "Nick's Tire & Auto" so brand searches
           recognize the match. Description trimmed from 175 → 152 chars so
           the phone number survives SERP truncation on mobile. */}
+      {/* wave-181.44 · meta rewrite v2 applying the relief haiku.
+          V1 (Benefit Lead) per seo-aeo-meta-description-generator skill.
+          Replaces the prior feature-list meta which earned 0.5% CTR at
+          pos 3.1 across 1,486 90-day impressions — strong rank, weak
+          earn = snippet wasn't differentiating. Title is 53 chars
+          (well under 60 hard limit). Description is 146 chars (within
+          140-155 sweet spot). Aligned with routes.ts so prerender +
+          runtime <head> match. */}
       <SEOHead
-        title="Nick's Tire & Auto Cleveland · Walk-In Auto Repair 7 Days"
-        description={`Nick's Tire & Auto on Euclid Ave, Cleveland. Tires, brakes, oil, diagnostics, AC, transmission. Walk in 7 days. 4.9★ from 1,700+ reviews. ${BUSINESS.phone.display}`}
+        title="Cleveland Auto Repair · You Don't Pay Until You Say Yes"
+        description="Cleveland auto repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days."
         canonicalPath="/services"
       />
       <Breadcrumbs items={[{ label: "Services", href: "/services" }]} />
@@ -128,9 +136,15 @@ export default function ServicesOverview() {
             </h1>
             {/* 2026-05-06 copy wave: useful-absurd close ("We call it
                 Tuesday") names the chain pattern ($99 diagnostic fee)
-                without lecturing about it. Operators 4 + 3 stacked. */}
+                without lecturing about it. Operators 4 + 3 stacked.
+                wave-181.44: added the RELIEF haiku as a second sentence —
+                same line that lands on every VAPI repair call. Cross-
+                touchpoint consistency per brand-perception step 5. */}
             <p className="mt-6 text-foreground/70 text-lg leading-relaxed max-w-2xl body-pretty">
               Oil change to head gasket — same playbook every time. Lift the car, hand you the flashlight, walk you under it before any wrench moves. The chains call that <span className="text-foreground/85">"a $99 diagnostic fee."</span> <span className="text-[#FDB913]">We call it Tuesday.</span>
+            </p>
+            <p className="mt-4 text-foreground/80 text-lg leading-relaxed max-w-2xl body-pretty">
+              Free check. Written quote. <span className="text-[#FDB913] font-semibold">You don't pay until you say yes.</span>
             </p>
             <div className="mt-8 flex flex-wrap gap-4">
               <a
