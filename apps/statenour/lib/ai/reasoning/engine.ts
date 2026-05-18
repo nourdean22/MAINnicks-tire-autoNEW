@@ -126,6 +126,7 @@ async function runPlan(
   question: string,
   tier: ReasoningTier,
   acc?: CostAccumulator,
+  signal?: AbortSignal,
 ): Promise<string> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
@@ -139,6 +140,7 @@ NO MARKDOWN HEADERS. Be terse and concrete.`,
       { role: "user", content: question },
     ],
     "fast",
+    { signal },
   );
   recordReply(acc, reply);
   return (reply?.content ?? "").trim();
@@ -253,6 +255,7 @@ async function runDraft(
   context: string,
   brainContext?: string,
   acc?: CostAccumulator,
+  signal?: AbortSignal,
 ): Promise<string> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
@@ -278,6 +281,7 @@ If the context is empty or contradicts itself, say so explicitly and proceed wit
       { role: "user", content: question },
     ].filter((m): m is { role: "system" | "user" | "assistant"; content: string } => m !== null),
     "reason",
+    { signal },
   );
   recordReply(acc, reply);
   return (reply?.content ?? "").trim();
@@ -287,6 +291,7 @@ async function runCritique(
   question: string,
   draft: string,
   acc?: CostAccumulator,
+  signal?: AbortSignal,
 ): Promise<{ issues: string[]; suggestions: string[]; verdict: "ship" | "refine" }> {
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
@@ -311,6 +316,7 @@ async function runCritique(
       },
     ],
     "fast",
+    { signal },
   );
   recordReply(acc, reply);
   const text = (reply?.content ?? "").trim();
@@ -337,6 +343,7 @@ async function runRefine(
   draft: string,
   critique: { issues: string[]; suggestions: string[] },
   acc?: CostAccumulator,
+  signal?: AbortSignal,
 ): Promise<string> {
   if (critique.issues.length === 0 && critique.suggestions.length === 0) {
     return draft;
@@ -359,6 +366,7 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
       },
     ],
     "reason",
+    { signal },
   );
   recordReply(acc, reply);
   return (reply?.content ?? draft).trim();
@@ -466,69 +474,96 @@ async function runReasoningEngine(
       ghost: 5_000,
       wisdom: 5_000,
     };
+    // L.1 + L.5 · AbortSignal.timeout for cancellation + Promise.withResolvers
+    // for the race. Sub-pipelines that honor signal (engine sub-fns
+    // via aiChat) get their fetch aborted on budget timeout · the
+    // orphan-promise spend leak from H.6.1 is closed at the
+    // architectural level for any path that wires the signal through.
     const withBudget = <T,>(
       sourceName: string,
-      p: Promise<T>,
+      buildPromise: (signal: AbortSignal) => Promise<T>,
       ms: number,
       fallback: T,
     ): Promise<T> => {
-      const controller = new AbortController();
-      let timedOut = false;
+      const timeoutSignal = AbortSignal.timeout(ms);
       const startedAt = Date.now();
-      const winner = Promise.race<T>([
-        p.then((v) => {
-          // if we lost the race, log the late completion as wasted spend
-          if (timedOut) {
+      const { promise, resolve } = Promise.withResolvers<T>();
+      // When timeout fires, resolve with fallback · the original promise
+      // is allowed to either complete (and be recorded as orphan) OR
+      // honor the signal and reject with AbortError (preferred · no
+      // wasted spend).
+      timeoutSignal.addEventListener(
+        "abort",
+        () => resolve(fallback),
+        { once: true },
+      );
+      buildPromise(timeoutSignal)
+        .then((v) => {
+          if (timeoutSignal.aborted) {
+            // We lost the race AND the sub-pipeline didn't honor abort
+            // (legacy code path). Log orphan + drop result.
             const wastedMs = Date.now() - startedAt;
             void recordOrphan(sourceName, wastedMs).catch(() => {
-              /* telemetry is best-effort */
+              /* best-effort */
             });
+          } else {
+            resolve(v);
           }
-          return v;
-        }),
-        new Promise<T>((resolve) =>
-          setTimeout(() => {
-            timedOut = true;
-            controller.abort();
-            resolve(fallback);
-          }, ms),
-        ),
-      ]).catch(() => fallback);
-      return winner;
+        })
+        .catch((err) => {
+          // AbortError means cancellation worked · NOT an orphan
+          if (
+            err &&
+            ((err as { name?: string }).name === "AbortError" ||
+              /abort/i.test(String((err as { message?: string }).message ?? "")))
+          ) {
+            // Race already resolved with fallback · no-op
+            return;
+          }
+          if (!timeoutSignal.aborted) resolve(fallback);
+        });
+      return promise;
     };
     // H.8 · sub-pipelines now return { content, callCount, usd } · we
     // accumulate real counts + costs (when known) instead of the
     // pre-H.8 magic `callCount += 5 + 4 + 3`. Empty-fallback shape
     // matches so the timeout path doesn't crash on .content access.
     const emptyPipe: SubPipelineResult = { content: "", callCount: 0, usd: 0 };
+    // L.1 · build-on-demand pattern · withBudget passes the timeout
+    // signal into the builder so sub-pipelines that honor it (engine
+    // sub-fns) can abort their underlying fetch on timeout. Sub-
+    // pipelines that don't yet honor signal (runMultiAgent ·
+    // runDeepResearch · runFanout · runGhostContext · runWisdomContext)
+    // continue to leak orphans until their internal aiChat calls are
+    // wired through · future scope L+ wave.
     const [research, multi, fan, ghost, wisdom] = await Promise.all([
       withBudget(
         "research",
-        runDeepResearch(request.question).catch(() => emptyPipe),
+        () => runDeepResearch(request.question).catch(() => emptyPipe),
         SOURCE_BUDGETS.research,
         emptyPipe,
       ),
       withBudget(
         "multi",
-        runMultiAgent(request.question, plan).catch(() => emptyPipe),
+        () => runMultiAgent(request.question, plan).catch(() => emptyPipe),
         SOURCE_BUDGETS.multi,
         emptyPipe,
       ),
       withBudget(
         "fan",
-        runFanout(request.question, request.brainContext).catch(() => emptyPipe),
+        () => runFanout(request.question, request.brainContext).catch(() => emptyPipe),
         SOURCE_BUDGETS.fan,
         emptyPipe,
       ),
       withBudget(
         "ghost",
-        runGhostContext().then((s) => ({ content: s, callCount: 0, usd: 0 })),
+        () => runGhostContext().then((s) => ({ content: s, callCount: 0, usd: 0 })),
         SOURCE_BUDGETS.ghost,
         emptyPipe,
       ),
       withBudget(
         "wisdom",
-        runWisdomContext(request.question).then((s) => ({
+        () => runWisdomContext(request.question).then((s) => ({
           content: s,
           callCount: 0,
           usd: 0,

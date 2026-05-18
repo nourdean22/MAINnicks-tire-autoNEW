@@ -389,11 +389,12 @@ export async function buildCompoundChain(
 
   // Sort: axes by total task count desc · then by absolute delta desc.
   // Goals within axis by task count desc.
-  const axesArray = Array.from(axisMap.values());
-  for (const a of axesArray) {
-    a.goals.sort((g1, g2) => g2.tasks.length - g1.tasks.length);
-  }
-  axesArray.sort((a, b) => {
+  // L.3 · toSorted (ES2023) · non-mutating · clearer intent than
+  // in-place .sort on accumulator arrays.
+  const axesArray = Array.from(axisMap.values()).map((a) => ({
+    ...a,
+    goals: a.goals.toSorted((g1, g2) => g2.tasks.length - g1.tasks.length),
+  })).toSorted((a, b) => {
     const aTasks = a.goals.reduce((s, g) => s + g.tasks.length, 0);
     const bTasks = b.goals.reduce((s, g) => s + g.tasks.length, 0);
     if (bTasks !== aTasks) return bTasks - aTasks;
@@ -457,11 +458,11 @@ export async function buildCompoundChain(
     }
     goalSeg.tasks.push(taskSeg);
   }
-  const potentialArray = Array.from(potentialMap.values());
-  for (const p of potentialArray) {
-    p.goals.sort((a, b) => b.tasks.length - a.tasks.length);
-  }
-  potentialArray.sort((a, b) => {
+  // L.3 · toSorted (ES2023)
+  const potentialArray = Array.from(potentialMap.values()).map((p) => ({
+    ...p,
+    goals: p.goals.toSorted((a, b) => b.tasks.length - a.tasks.length),
+  })).toSorted((a, b) => {
     const aTasks = a.goals.reduce((s, g) => s + g.tasks.length, 0);
     const bTasks = b.goals.reduce((s, g) => s + g.tasks.length, 0);
     return bTasks - aTasks;

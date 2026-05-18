@@ -1045,7 +1045,18 @@ export function classifyProviderFailure(err: unknown): ProviderFailure["failureC
  * Tries each provider in the chain with 45s timeout per attempt.
  * Venice requests get task-adaptive params (reasoning, temperature, penalties).
  */
-export async function aiChat(messages: AiMessage[], taskType: TaskType = "reason"): Promise<AiResponse> {
+export async function aiChat(
+  messages: AiMessage[],
+  taskType: TaskType = "reason",
+  opts: { signal?: AbortSignal } = {},
+): Promise<AiResponse> {
+  // L.1 · external AbortSignal support · when caller passes a signal,
+  // every per-provider attempt combines the external + per-attempt
+  // timeout via AbortSignal.any(). Caller cancellation (e.g. mega-tier
+  // budget timeout) actually aborts the in-flight fetch instead of
+  // letting the LLM call complete and discarding the result. Closes
+  // the orphan-promise spend leak noted in H.6.1.
+  const externalSignal = opts.signal;
   const systemMessages = messages.filter((m) => m.role === "system");
   const nonSystemMessages = messages.filter((m) => m.role !== "system");
   const systemPrompt = systemMessages.map((m) => m.content).join("\n\n") || undefined;
@@ -1108,8 +1119,26 @@ export async function aiChat(messages: AiMessage[], taskType: TaskType = "reason
   const failures: ProviderFailure[] = [];
 
   for (const entry of toTry) {
+    // L.1 · early-bail if the external signal already aborted (operator
+    // cancelled before this provider got its turn).
+    if (externalSignal?.aborted) {
+      failures.push({
+        provider: entry.name,
+        modelId: entry.modelId,
+        durationMs: 0,
+        message: "external abort before attempt",
+        failureClass: "timeout",
+      });
+      break;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT);
+    // L.1 · merge the external signal with our per-attempt timeout signal
+    // via AbortSignal.any (ES2024 · Node 22+). Either abort cancels the
+    // fetch · external abort gets surfaced as failureClass:"timeout".
+    const combinedSignal = externalSignal
+      ? AbortSignal.any([externalSignal, controller.signal])
+      : controller.signal;
     const attemptStart = Date.now();
     const resolvedModelId = entry.name === "venice"
       ? resolveVeniceModelForTask(taskType)
@@ -1155,7 +1184,7 @@ export async function aiChat(messages: AiMessage[], taskType: TaskType = "reason
               messages: chatMessages,
             }),
         maxOutputTokens: MAX_OUTPUT_TOKENS,
-        abortSignal: controller.signal,
+        abortSignal: combinedSignal,
       });
       clearTimeout(timeout);
       // Strip Venice GLM <think> blocks (belt-and-suspenders with API-level strip)
