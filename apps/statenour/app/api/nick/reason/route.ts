@@ -43,8 +43,10 @@ export const maxDuration = 120;
 const VALID_TIERS = new Set<ReasoningTier>([
   "quick",
   "standard",
+  "smart",
   "deep",
   "thorough",
+  "mega",
 ]);
 
 interface ReasonBody {

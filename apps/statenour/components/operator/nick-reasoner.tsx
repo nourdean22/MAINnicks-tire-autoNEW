@@ -50,7 +50,7 @@ function parseSseFrame(raw: string): { event: string; data: unknown } | null {
   }
 }
 
-type ReasoningTier = "quick" | "standard" | "deep" | "thorough" | "mega";
+type ReasoningTier = "quick" | "standard" | "smart" | "deep" | "thorough" | "mega";
 type ReasoningStepKind =
   | "classify"
   | "decompose"
@@ -97,6 +97,7 @@ const KIND_DOT: Record<ReasoningStepKind, string> = {
 const TIER_OPTIONS: Array<{ value: ReasoningTier | "auto"; label: string; hint: string }> = [
   { value: "auto", label: "auto", hint: "classifier picks" },
   { value: "standard", label: "standard", hint: "~5s · ~$0.005" },
+  { value: "smart", label: "smart", hint: "~10s · ~$0.015 · router picks sources" },
   { value: "deep", label: "deep", hint: "~15s · ~$0.02" },
   { value: "thorough", label: "thorough", hint: "~45s · ~$0.10" },
   { value: "mega", label: "mega", hint: "~90s · ~$0.20 · everything" },
@@ -364,6 +365,29 @@ export function NickReasoner({
               live trace · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} done · current step in flight...
             </p>
           ) : null}
+
+          {/* M.3 · plan-first · CrewAI-inspired · surface the plan step
+              detail as a top-level section so the operator sees Nick's
+              plan before scrolling through the trace. Pulls from result
+              when complete · liveSteps during streaming. */}
+          {(() => {
+            const stepsForPlan = result ? result.trace.steps : liveSteps;
+            const planStep = stepsForPlan.find((s) => s.kind === "plan");
+            const planText = planStep?.detail;
+            if (typeof planText !== "string" || planText.length === 0) {
+              return null;
+            }
+            return (
+              <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.04] p-3 space-y-2">
+                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-sky-300/90">
+                  nick&apos;s plan
+                </p>
+                <pre className="text-xs text-[var(--text-primary)] whitespace-pre-wrap font-sans leading-relaxed">
+                  {planText}
+                </pre>
+              </div>
+            );
+          })()}
 
           <ol className="space-y-2 border-l border-white/10 pl-4">
             {(result ? result.trace.steps : liveSteps).map((step, i) => (

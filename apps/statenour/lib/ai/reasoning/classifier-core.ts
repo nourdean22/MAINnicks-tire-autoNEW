@@ -57,6 +57,15 @@ export const MEGA_MARKERS = [
   /\bcharizard\b/i,
 ];
 
+/** Phase M.1 · smart-tier markers · operator opts into the hierarchical
+ *  router · cheap classifier picks sub-pipelines vs mega's fire-all. */
+export const SMART_MARKERS = [
+  /\b\/smart\b/i,
+  /\b@smart\b/i,
+  /\bpick the right\b/i,
+  /\brouter\b/i,
+];
+
 export const QUICK_OVERRIDES = [
   /\b\/quick\b/i,
   /\b@quick\b/i,
@@ -87,6 +96,12 @@ export function classifyCore(question: string): CoreVerdict {
   for (const re of MEGA_MARKERS) {
     if (re.test(trimmed)) {
       return { tier: "mega", reason: `mega marker matched (${re.source})` };
+    }
+  }
+  // M.1 · smart tier · operator-explicit · hierarchical router
+  for (const re of SMART_MARKERS) {
+    if (re.test(trimmed)) {
+      return { tier: "smart", reason: `smart marker matched (${re.source})` };
     }
   }
   for (const re of THOROUGH_MARKERS) {

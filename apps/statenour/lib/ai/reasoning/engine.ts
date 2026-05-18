@@ -225,6 +225,77 @@ async function runDeepResearch(question: string): Promise<SubPipelineResult> {
   return { content: report.synthesis, callCount: calls, usd: 0 };
 }
 
+// Phase M.1 · smart-tier router · cheap classifier picks sub-pipelines
+//
+// CrewAI's hierarchical-process insight applied to our parallel
+// orchestrator · a router LLM looks at the question + plan and picks
+// which 1-2 sub-pipelines to run instead of mega's fire-all-5 pattern.
+// Typical mega cost ~$0.20 · smart routes to 1-2 sources for ~$0.015.
+//
+// Returns a JSON list of source names to invoke. Falls back to fanout
+// only on parse failure (cheapest safe default).
+export type SmartSource = "research" | "multi" | "fan" | "ghost" | "wisdom";
+
+interface RouterDecision {
+  use: SmartSource[];
+  reason: string;
+}
+
+async function runRouter(
+  question: string,
+  plan: string,
+  acc?: CostAccumulator,
+  signal?: AbortSignal,
+): Promise<RouterDecision> {
+  const { aiChat } = await import("@/lib/ai/provider");
+  const reply = await aiChat(
+    [
+      {
+        role: "system",
+        content: `You are a sub-pipeline ROUTER for Nick's reasoning engine. Given a question and its plan, pick which 1-3 sources to invoke.
+
+SOURCES:
+- "fan"      · 3-lens pretask fanout (research/risk/plan) · best for: decisions, trade-offs, multi-faceted analysis
+- "research" · multi-round deep web research (Perplexity) · best for: facts, news, market data, anything time-sensitive
+- "multi"    · multi-agent parallel sub-agents · best for: decomposable tasks, compare-N, synthesis
+- "ghost"    · operator-state predictions · best for: questions about the operator's own patterns/goals
+- "wisdom"   · related Buffett/Naval/Munger/etc quotes · best for: principle/philosophy/strategy framing
+
+PICK SPARINGLY. The default is "fan" if you're unsure. Add more only when each truly helps. Output JSON:
+{
+  "use": ["fan", "research"],
+  "reason": "decision question · needs web data + risk analysis"
+}
+
+NO COMMENTARY. NO MARKDOWN. Max 3 sources.`,
+      },
+      // SAFE: question + plan are operator-owned · plan came from our
+      // own runPlan call · the router is a sub-LLM deciding which
+      // pipelines to invoke · PI-001 false positive.
+      { role: "user", content: `QUESTION:\n${question}\n\nPLAN:\n${plan}` },
+    ],
+    "fast",
+    { signal },
+  );
+  recordReply(acc, reply);
+  const text = (reply?.content ?? "").trim();
+  try {
+    const cleaned = text.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "");
+    const parsed = JSON.parse(cleaned);
+    const VALID: SmartSource[] = ["research", "multi", "fan", "ghost", "wisdom"];
+    const use = (Array.isArray(parsed.use) ? parsed.use : [])
+      .filter((s: unknown): s is SmartSource => typeof s === "string" && VALID.includes(s as SmartSource))
+      .slice(0, 3);
+    return {
+      use: use.length > 0 ? use : ["fan"],
+      reason: typeof parsed.reason === "string" ? parsed.reason : "router default",
+    };
+  } catch {
+    // Parse failure · safe default · just fanout
+    return { use: ["fan"], reason: "router parse failed · defaulted to fanout" };
+  }
+}
+
 // Phase H.2 · mega-tier helpers · ghost-nick predictions + wisdom
 
 async function runGhostContext(): Promise<string> {
@@ -446,6 +517,113 @@ async function runReasoningEngine(
 
   // Step 3 · context gather (fanout · multi-agent · deep-research · mega)
   let context = "";
+
+  // M.1 · smart tier · CrewAI-inspired hierarchical router
+  // A cheap router LLM (~$0.001) looks at the question + plan and
+  // picks 1-3 of the 5 mega-tier sources to invoke. Saves ~85% of
+  // mega's cost on questions that don't need everything.
+  if (tier === "smart") {
+    const t = Date.now();
+    const decision = await runRouter(request.question, plan, acc).catch(() => ({
+      use: ["fan"] as SmartSource[],
+      reason: "router threw · defaulted to fanout",
+    }));
+    rec.push(
+      "agent_call",
+      `router · picked ${decision.use.length} source${decision.use.length === 1 ? "" : "s"}: ${decision.use.join(", ")} · ${decision.reason.slice(0, 100)}`,
+      decision,
+      Date.now() - t,
+    );
+    const SOURCE_BUDGETS_SMART = {
+      research: 45_000,
+      multi: 20_000,
+      fan: 15_000,
+      ghost: 5_000,
+      wisdom: 5_000,
+    };
+    const tt = Date.now();
+    const pickedPromises = decision.use.map((src) => {
+      const timeoutSignal = AbortSignal.timeout(SOURCE_BUDGETS_SMART[src]);
+      const startedAt = Date.now();
+      const builder: () => Promise<{ name: SmartSource; content: string; callCount: number; usd: number }> = async () => {
+        try {
+          if (src === "research") {
+            const r = await runDeepResearch(request.question);
+            return { name: src, content: r.content, callCount: r.callCount, usd: r.usd };
+          }
+          if (src === "multi") {
+            const r = await runMultiAgent(request.question, plan);
+            return { name: src, content: r.content, callCount: r.callCount, usd: r.usd };
+          }
+          if (src === "fan") {
+            const r = await runFanout(request.question, request.brainContext);
+            return { name: src, content: r.content, callCount: r.callCount, usd: r.usd };
+          }
+          if (src === "ghost") {
+            const s = await runGhostContext();
+            return { name: src, content: s, callCount: 0, usd: 0 };
+          }
+          const s = await runWisdomContext(request.question);
+          return { name: src, content: s, callCount: 0, usd: 0 };
+        } catch {
+          return { name: src, content: "", callCount: 0, usd: 0 };
+        }
+      };
+      const { promise, resolve } = Promise.withResolvers<{
+        name: SmartSource;
+        content: string;
+        callCount: number;
+        usd: number;
+      }>();
+      const fallback = { name: src, content: "", callCount: 0, usd: 0 };
+      timeoutSignal.addEventListener(
+        "abort",
+        () => {
+          const wastedMs = Date.now() - startedAt;
+          void recordOrphan(`smart:${src}`, wastedMs).catch(() => {});
+          resolve(fallback);
+        },
+        { once: true },
+      );
+      builder().then((v) => {
+        if (!timeoutSignal.aborted) resolve(v);
+      });
+      return promise;
+    });
+    const results = await Promise.all(pickedPromises);
+    callCount += results.reduce((s, r) => s + r.callCount, 0);
+    for (const r of results) {
+      if (r.usd > 0) {
+        acc.usd += r.usd;
+        acc.calls += r.callCount;
+      } else {
+        acc.calls += r.callCount;
+        acc.callsWithoutCost += r.callCount;
+      }
+    }
+    const parts: string[] = [];
+    const labels: Record<SmartSource, string> = {
+      research: "# DEEP RESEARCH",
+      multi: "# MULTI-AGENT SYNTHESIS",
+      fan: "# FANOUT (research / risk / plan)",
+      ghost: "# GHOST NICK PREDICTIONS",
+      wisdom: "# RELATED WISDOM",
+    };
+    for (const r of results) {
+      if (r.content) parts.push(`${labels[r.name]}\n${r.content}`);
+    }
+    context = parts.join("\n\n---\n\n");
+    rec.push(
+      "tool_call",
+      `smart composite · ${parts.length}/${decision.use.length} picked sources landed`,
+      {
+        picked: decision.use,
+        reason: decision.reason,
+        landed: results.filter((r) => r.content).map((r) => r.name),
+      },
+      Date.now() - tt,
+    );
+  }
 
   // Mega tier · run EVERYTHING in parallel and compose · deep-research +
   // multi-agent + fanout + ghost-nick + wisdom. The biggest hammer for
@@ -736,10 +914,13 @@ async function runReasoningEngine(
     );
   }
 
-  // Step 5 · critique + refine (deep, thorough, mega)
+  // Step 5 · critique + refine (smart, deep, thorough, mega)
+  // M.1 · smart tier gets the same critique loop as deep · the router
+  // already saved cost on the sub-pipelines · running critique is
+  // still the highest-leverage quality lift.
   let final = draft;
   let confidence = 0.75;
-  if (tier === "deep" || tier === "thorough" || tier === "mega") {
+  if (tier === "smart" || tier === "deep" || tier === "thorough" || tier === "mega") {
     try {
       const t = Date.now();
       const critique = await runCritique(request.question, draft, acc);
@@ -981,9 +1162,11 @@ function buildResult(
         ? 0.005
         : tier === "deep"
           ? 0.002
-          : tier === "standard"
-            ? 0.0008
-            : 0.00015;
+          : tier === "smart"
+            ? 0.0015
+            : tier === "standard"
+              ? 0.0008
+              : 0.00015;
   const estimateUsd = Math.round(callCount * callCost * 1000) / 1000;
   const knownRatio = accCalls > 0 ? (accCalls - callsWithoutCost) / Math.max(1, callCount) : 0;
   // If we know the cost of ≥30% of the calls AND the accumulator's
