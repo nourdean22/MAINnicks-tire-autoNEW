@@ -60,7 +60,11 @@ export type ReasoningTier =
   /** Run multi-agent + fanout + critique · ~8-15s · ~$0.02 */
   | "deep"
   /** Run deep-research + multi-agent + critique · ~30-60s · ~$0.10 */
-  | "thorough";
+  | "thorough"
+  /** Phase H.2 · Mega Charizard · deep-research + multi-agent + ghost-nick
+   *  predictions + wisdom citation in one composite. The biggest hammer
+   *  for the hardest questions. ~60-120s · ~$0.20+ */
+  | "mega";
 
 export interface ReasoningRequest {
   /** The question to reason about */

@@ -64,6 +64,15 @@ const THOROUGH_MARKERS = [
   /\b\/research\b/i,
 ];
 
+const MEGA_MARKERS = [
+  /\b\/mega\b/i,
+  /\b@mega\b/i,
+  /\bbiggest hammer\b/i,
+  /\bevery angle\b/i,
+  /\bspare no\b/i,
+  /\bcharizard\b/i,
+];
+
 const QUICK_OVERRIDES = [
   /\b\/quick\b/i,
   /\b@quick\b/i,
@@ -88,6 +97,13 @@ export function classifyReasoning(question: string): ClassifierVerdict {
   // Trivial questions (under 20 chars) are quick
   if (length < 20) {
     return { tier: "quick", reason: `short question (${length} chars)` };
+  }
+
+  // Mega tier · operator-explicit only · never auto-promoted (expensive)
+  for (const re of MEGA_MARKERS) {
+    if (re.test(trimmed)) {
+      return { tier: "mega", reason: `mega marker matched (${re.source})` };
+    }
   }
 
   // Explicit thorough markers
@@ -144,5 +160,6 @@ export const __markers = {
   STANDARD_MARKERS,
   DEEP_MARKERS,
   THOROUGH_MARKERS,
+  MEGA_MARKERS,
   QUICK_OVERRIDES,
 };

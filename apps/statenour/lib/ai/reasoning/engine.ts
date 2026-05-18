@@ -50,7 +50,10 @@ const log = rootLogger.withSurface("ai/reasoning/engine");
 
 // ── Per-step micro-helpers ──────────────────────────────────────────
 
-function makeRecorder(startedAt: number) {
+function makeRecorder(
+  startedAt: number,
+  onStep?: (step: ReasoningStep) => void,
+) {
   const steps: ReasoningStep[] = [];
   let lastStart = startedAt;
   return {
@@ -61,14 +64,22 @@ function makeRecorder(startedAt: number) {
       explicitDuration?: number,
     ): void {
       const now = Date.now();
-      steps.push({
+      const step: ReasoningStep = {
         kind,
         label,
         detail,
         elapsedMs: now - startedAt,
         durationMs: explicitDuration ?? now - lastStart,
-      });
+      };
+      steps.push(step);
       lastStart = now;
+      if (onStep) {
+        try {
+          onStep(step);
+        } catch {
+          // Streaming callbacks must never block the engine.
+        }
+      }
     },
     snapshot(): ReasoningStep[] {
       return [...steps];
@@ -144,6 +155,31 @@ async function runDeepResearch(question: string): Promise<string> {
   const { runDeepResearch } = await import("@/lib/ai/deep-research");
   const report = await runDeepResearch({ question });
   return report.synthesis;
+}
+
+// Phase H.2 · mega-tier helpers · ghost-nick predictions + wisdom
+
+async function runGhostContext(): Promise<string> {
+  try {
+    const { buildGhostContextBlock } = await import("@/lib/brain/ghost-nick");
+    const block = await buildGhostContextBlock();
+    return (block ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function runWisdomContext(question: string): Promise<string> {
+  try {
+    const { findRelatedWisdom } = await import("@/lib/brain/wisdom-suggest");
+    const suggestions = await findRelatedWisdom(question, 3);
+    if (suggestions.length === 0) return "";
+    return suggestions
+      .map((s, i) => `[${i + 1}] ${s.source}: ${s.text}`)
+      .join("\n\n");
+  } catch {
+    return "";
+  }
 }
 
 async function runDraft(
@@ -263,9 +299,10 @@ OUTPUT: the refined answer only · no commentary · no preamble.`,
  */
 async function runReasoningEngine(
   request: ReasoningRequest,
+  onStep?: (step: ReasoningStep) => void,
 ): Promise<ReasoningResult> {
   const startedAt = Date.now();
-  const rec = makeRecorder(startedAt);
+  const rec = makeRecorder(startedAt, onStep);
 
   // Step 1 · classify
   const classifyStart = Date.now();
@@ -317,10 +354,45 @@ async function runReasoningEngine(
     rec.push("plan", "plan step failed · continuing with empty plan");
   }
 
-  // Step 3 · context gather (fanout · multi-agent · deep-research per tier)
+  // Step 3 · context gather (fanout · multi-agent · deep-research · mega)
   let context = "";
 
-  if (tier === "thorough") {
+  // Mega tier · run EVERYTHING in parallel and compose · deep-research +
+  // multi-agent + fanout + ghost-nick + wisdom. The biggest hammer for
+  // the hardest questions. ~60-120s wall · ~$0.20+. Each piece tolerant
+  // of failure · we synthesize whatever lands.
+  if (tier === "mega") {
+    const t = Date.now();
+    const [research, multi, fan, ghost, wisdom] = await Promise.all([
+      runDeepResearch(request.question).catch(() => ""),
+      runMultiAgent(request.question, plan).catch(() => ""),
+      runFanout(request.question, request.brainContext).catch(() => ""),
+      runGhostContext(),
+      runWisdomContext(request.question),
+    ]);
+    callCount += 5 + 4 + 3; // approx · DR + multi-agent + fanout
+    const parts: string[] = [];
+    if (research) parts.push(`# DEEP RESEARCH\n${research}`);
+    if (multi) parts.push(`# MULTI-AGENT SYNTHESIS\n${multi}`);
+    if (fan) parts.push(`# FANOUT (research / risk / plan)\n${fan}`);
+    if (ghost) parts.push(`# GHOST NICK PREDICTIONS\n${ghost}`);
+    if (wisdom) parts.push(`# RELATED WISDOM\n${wisdom}`);
+    context = parts.join("\n\n---\n\n");
+    rec.push(
+      "tool_call",
+      `mega composite · ${parts.length} sources · ${context.length} chars`,
+      {
+        research: research.slice(0, 200),
+        multi: multi.slice(0, 200),
+        fan: fan.slice(0, 200),
+        ghost: ghost.slice(0, 200),
+        wisdom: wisdom.slice(0, 200),
+      },
+      Date.now() - t,
+    );
+  }
+
+  if (!context && tier === "thorough") {
     try {
       const t = Date.now();
       context = await runDeepResearch(request.question);
@@ -408,10 +480,10 @@ async function runReasoningEngine(
     );
   }
 
-  // Step 5 · critique + refine (only for deep/thorough)
+  // Step 5 · critique + refine (deep, thorough, mega)
   let final = draft;
   let confidence = 0.75;
-  if (tier === "deep" || tier === "thorough") {
+  if (tier === "deep" || tier === "thorough" || tier === "mega") {
     try {
       const t = Date.now();
       const critique = await runCritique(request.question, draft);
@@ -467,6 +539,47 @@ async function runReasoningEngine(
   return buildResult(rec, final, confidence, startedAt, tier, verdict.reason, callCount);
 }
 
+/** Phase H.2 · persist a completed reasoning run to BrainMemory so
+ *  the system has a history of what Nick reasoned about + which tier
+ *  + how long + what answer landed. Fire-and-forget · failure here
+ *  must never block the result. Future engines can read this to learn
+ *  which classifier verdicts produced wasted vs valuable runs. */
+async function persistTrace(
+  question: string,
+  result: ReasoningResult,
+): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const key = `reasoning_${result.tier}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const summary = result.trace.answer.length > 240
+      ? result.trace.answer.slice(0, 237) + "…"
+      : result.trace.answer;
+    await prisma.brainMemory.create({
+      data: {
+        category: "reasoning_trace",
+        key,
+        content: `[${result.tier}] ${question.slice(0, 120)} → ${summary}`,
+        confidence: result.trace.confidence,
+        source: "reasoning-engine",
+        createdBy: "system",
+        metadata: {
+          tier: result.tier,
+          classifierReason: result.classifierReason,
+          totalMs: result.trace.totalMs,
+          calls: result.trace.cost.calls,
+          usd: result.trace.cost.usd,
+          stepCount: result.trace.steps.length,
+          stepKinds: result.trace.steps.map((s) => s.kind),
+          questionLength: question.length,
+          answerLength: result.trace.answer.length,
+        },
+      },
+    });
+  } catch {
+    // Best-effort · never let bookkeeping block the engine.
+  }
+}
+
 function buildResult(
   rec: ReturnType<typeof makeRecorder>,
   answer: string,
@@ -477,8 +590,19 @@ function buildResult(
   callCount: number,
 ): ReasoningResult {
   const totalMs = Date.now() - startedAt;
-  // Rough cost estimate · ~$0.00015 per fast call · scaled by tier
-  const callCost = tier === "thorough" ? 0.005 : tier === "deep" ? 0.002 : tier === "standard" ? 0.0008 : 0.00015;
+  // Rough cost estimate · ~$0.00015 per fast call · scaled by tier.
+  // Mega is the most expensive · runs DR + multi-agent + fanout in
+  // parallel which compounds the per-call cost vs sequential tiers.
+  const callCost =
+    tier === "mega"
+      ? 0.008
+      : tier === "thorough"
+        ? 0.005
+        : tier === "deep"
+          ? 0.002
+          : tier === "standard"
+            ? 0.0008
+            : 0.00015;
   const trace: ReasoningTrace = {
     steps: rec.snapshot(),
     answer,
@@ -492,14 +616,39 @@ function buildResult(
   return { trace, tier, classifierReason };
 }
 
+// Phase H.2 · wrap the engine in a function that also persists the
+// trace (fire-and-forget). The persistence is post-result so it
+// never adds latency to the operator-facing path.
+async function runReasoningWithPersist(
+  request: ReasoningRequest,
+): Promise<ReasoningResult> {
+  const result = await runReasoningEngine(request);
+  void persistTrace(request.question, result);
+  return result;
+}
+
+/** Phase H.2 · streaming variant · same engine but fires onStep for
+ *  every step as it lands. Returns the final result for the caller to
+ *  emit a "complete" event. The SSE route uses this. */
+export async function reasonStreaming(
+  request: ReasoningRequest,
+  onStep: (step: ReasoningStep) => void,
+): Promise<ReasoningResult> {
+  const result = await runReasoningEngine(request, onStep);
+  void persistTrace(request.question, result);
+  return result;
+}
+
 // Guarded entry · ensures the engine ALWAYS returns something even if
 // the whole loop throws. Fallback returns a single-step trace with
 // the bare question and a basic standard-tier passthrough.
+// H.2 · mega tier gets a 180s timeout · runs DR + multi-agent in
+// parallel which can stretch past the 90s budget on bad-network days.
 export const reason = withGuardian(
   "reasoning-engine",
-  runReasoningEngine,
+  runReasoningWithPersist,
   {
-    timeoutMs: 90_000,
+    timeoutMs: 180_000,
     maxRetries: 0, // each step has its own retry budget
   },
 );

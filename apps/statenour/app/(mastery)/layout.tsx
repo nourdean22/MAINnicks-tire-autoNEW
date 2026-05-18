@@ -11,6 +11,13 @@ import { BrainDumpModal } from "@/components/brain-dump-modal";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { BottomPulseTicker } from "@/components/ultron/bottom-pulse-ticker";
 import { GlobalTopTicker } from "@/components/hud/global-top-ticker";
+// Phase H.2 (2026-05-18 PM) · DeepModeNudge · global watcher that
+// surfaces a tiny gold chip when the focused input matches the
+// reasoning classifier at tier ≥ deep · one-tap to /reason pre-filled.
+// Non-invasive · listens to document focus/input events · self-hides
+// when nothing matches. Lives in layout so it monitors every mastery
+// surface (chat textarea, task quick-add, journal, etc).
+import { DeepModeNudge } from "@/components/operator/deep-mode-nudge";
 
 export default function MasteryLayout({
   children,
@@ -70,6 +77,10 @@ export default function MasteryLayout({
       </AmbientAura>
       {/* Floating orb — single nav surface for all viewports. */}
       <FloatingHome />
+      {/* Phase H.2 · global deep-mode hint · sees focused input, runs
+          quick client classifier, chip appears bottom-right when
+          verdict ≥ deep. One-tap to /reason. */}
+      <DeepModeNudge />
       {/* Global brain-dump capture — Cmd/Ctrl+Shift+J from anywhere. */}
       <BrainDumpModal />
       {/* v7.3 · Apr 29 · BottomPulseTicker is GLOBAL now. Was scoped to
