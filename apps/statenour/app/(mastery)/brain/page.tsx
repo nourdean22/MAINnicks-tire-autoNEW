@@ -19,6 +19,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
@@ -72,13 +73,21 @@ function BrainPageInner() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3 flex-wrap">
+      {/* Canonical editorial header · matches /goals + /scoreboard pattern
+          per ADR-0015 design tokens. Pre-2026-05-18 PM the header used
+          lowercase Barlow Condensed with the page name only · now adds
+          the eyebrow supertitle, displays the .page-title scale, and
+          right-aligns the deep-dive nav. */}
+      <header className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-lg font-[var(--font-display)] font-bold lowercase tracking-wider text-[var(--text-primary)]">
-            brain
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
+            Mastery
+          </p>
+          <h1 className="text-2xl font-medium text-[var(--text-primary)]">
+            Brain
           </h1>
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-            everything the system knows about you · learns every day
+          <p className="text-xs text-[var(--text-tertiary)] mt-1.5 max-w-[60ch]">
+            Everything the system knows about you · learns every day.
           </p>
         </div>
         {/* v10.0.529.49 · deep-dive nav cut from 8 buttons → 1.
@@ -91,13 +100,13 @@ function BrainPageInner() {
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           <a
             href="/brain/health"
-            className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
+            className="text-[10px] font-semibold uppercase tracking-[0.14em] px-3 py-2 min-h-[44px] inline-flex items-center rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
             title="memory rollup · categories · continuity"
           >
             health →
           </a>
         </div>
-      </div>
+      </header>
 
       <BrainMaturityHeader refreshKey={refreshKey} />
 
@@ -105,63 +114,78 @@ function BrainPageInner() {
           same NickSuggestions strip mounted in chat now appears here ·
           tapping a chip navigates to /chat?q=...&suggKind=X&suggId=Y
           where the chat page hydrates input + transport anchors on
-          mount. Closes the "I'm reviewing my brain · what action
-          should I take" loop without leaving the page first. */}
+          mount. */}
       <NickSuggestions />
 
-      {/* v10.0.218 · cross-system narrative ribbon · sits ABOVE actionable
-          panels because it answers "what's the SHAPE of this week" before
-          the operator dives into "what should I do right now". Auto-hides
-          on weeks with no surfaceable patterns — clean weeks get no ribbon. */}
-      <InsightRibbon />
+      {/* ZONE 1 · SIGNAL · what the brain noticed worth surfacing.
+          Each panel silent-when-empty per its own design · the zone
+          label only appears when this audit treatment was added
+          2026-05-18 PM to give visual rhythm to the 20+ panel wall.
+          Pre-treatment they were 20 stacked atoms · post-treatment
+          they're 5 named zones with the same atoms inside. */}
+      <section className="space-y-3 pt-2">
+        <MasterySectionLabel label="Signal" />
+        <div className="space-y-6">
+          <InsightRibbon />
+          <BrainInsightsPanel />
+          <PatternCard />
+          <ActiveAlertsCard />
+        </div>
+      </section>
 
-      {/* v10.0.407 · brain insights panel · 3-up dashboard for the
-          new feedback layers (violations · evolution · improve-agent).
-          Auto-hides when no signal in any bucket. */}
-      <BrainInsightsPanel />
+      {/* ZONE 2 · PREDICTIONS · what the brain thinks comes next. */}
+      <section className="space-y-3 pt-2">
+        <MasterySectionLabel label="Predictions" />
+        <div className="space-y-6">
+          <PredictionStreaksCard />
+          <GhostNickStrip />
+        </div>
+      </section>
 
-      {/* v10.0.529.79 · Wave 23 · #2 · pattern clusters · "the system
-          noticed" surface. Auto-hides until 3+ insights cluster on
-          the same 8-axis identity dimension. */}
-      <PatternCard />
+      {/* ZONE 3 · CONTEXT · pinned + nudges. */}
+      <section className="space-y-3 pt-2">
+        <MasterySectionLabel label="Context" />
+        <div className="space-y-6">
+          <NudgePanel />
+          <PinnedContextPanel />
+        </div>
+      </section>
 
-      <ActiveAlertsCard />
+      {/* ZONE 4 · SELF-MODEL + REFLECTION · the durable knowledge
+          the brain carries about the operator. Largest zone · also
+          the most operator-actionable (resolve contradictions, edit
+          beliefs, etc). */}
+      <section className="space-y-3 pt-2">
+        <MasterySectionLabel label="Self-model" />
+        <div className="space-y-6">
+          <ContradictionResolutionPanel focusKey={focusContradictionKey} />
+          <div id="contradictions" className="scroll-mt-24">
+            <ContradictionsCard />
+          </div>
+          <DecisionReplayCard />
+          <div id="preferences" className="scroll-mt-24">
+            <PreferencesCard />
+          </div>
+          <div id="persona-drift" className="scroll-mt-24">
+            <PersonaDriftCard />
+          </div>
+          <SkillLibraryPanel />
+          <IdentityPanel />
+          <QualitativeIdentityPanel />
+          <BeliefsPanel />
+        </div>
+      </section>
 
-      <PredictionStreaksCard />
-
-      <NudgePanel />
-
-      <PinnedContextPanel />
-
-      <GhostNickStrip />
-
-      <ContradictionResolutionPanel focusKey={focusContradictionKey} />
-
-      {/* v10.0.529.48 · relocated cards · grouped here as the new
-          "self-model + reflection" cluster on /brain. Each is silent
-          on empty so they earn slots only when there's signal. */}
-      <div id="contradictions" className="scroll-mt-24">
-        <ContradictionsCard />
-      </div>
-      <DecisionReplayCard />
-      <div id="preferences" className="scroll-mt-24">
-        <PreferencesCard />
-      </div>
-      <div id="persona-drift" className="scroll-mt-24">
-        <PersonaDriftCard />
-      </div>
-
-      <SkillLibraryPanel />
-
-      <IdentityPanel />
-
-      <QualitativeIdentityPanel />
-
-      <BeliefsPanel />
-
-      <ToolTelemetryPanel />
-
-      <SuggestionTelemetryPanel />
+      {/* ZONE 5 · TELEMETRY · ops view into how tools + suggestions
+          are firing. Useful when debugging brain behavior · low
+          priority for daily reflection. */}
+      <section className="space-y-3 pt-2">
+        <MasterySectionLabel label="Telemetry" />
+        <div className="space-y-6">
+          <ToolTelemetryPanel />
+          <SuggestionTelemetryPanel />
+        </div>
+      </section>
     </div>
   );
 }
