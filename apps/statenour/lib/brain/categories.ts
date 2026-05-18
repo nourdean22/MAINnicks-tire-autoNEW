@@ -240,6 +240,12 @@ export const BRAIN_CATEGORIES = {
   /** Wave-200 Phase 6 · per-customer inferred preferences. Indexed
    *  per customerId in `key`. Metadata is the structured payload. */
   CUSTOMER_PREFERENCE: "customer_preference",
+  /** Phase A.1 (Goals page) · Nick-flagged stale goal candidates.
+   *  Key = LifeGoal.id · content = human-readable summary ·
+   *  metadata = { goalId, goalTitle, horizon, daysSinceActivity }.
+   *  Written by goal-pruner Inngest cron · read by /goals page +
+   *  /api/goals/snapshot. Soft-deleted when activity resumes. */
+  GOAL_PRUNE_CANDIDATE: "goal_prune_candidate",
 
   // ═══ DEPRECATED — kept so old data still reads; codemod migrates writes ═══
 
