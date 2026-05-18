@@ -20,7 +20,9 @@
  */
 
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase J · tRPC · telemetry reads via trpc.nick.telemetry · types
+// inferred · marker quality + tier stats all flow from one source.
+import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 
@@ -80,12 +82,20 @@ function fmtMs(ms: number): string {
 }
 
 export default function TelemetryPage() {
-  const { data, error, loading, reload } = useAuthedFetch<TelemetryShape>(
-    "/api/nick/reason/telemetry",
+  const { data, error, isLoading, refetch } = trpc.nick.telemetry.useQuery(
+    undefined,
+    { staleTime: 30_000 },
   );
 
-  if (loading && !data) return <MasterySkeleton cards={3} maxWidth="max-w-3xl" />;
-  if (error) return <MasteryErrorView label="Reasoning telemetry" error={error} onRetry={reload} />;
+  if (isLoading && !data) return <MasterySkeleton cards={3} maxWidth="max-w-3xl" />;
+  if (error)
+    return (
+      <MasteryErrorView
+        label="Reasoning telemetry"
+        error={error.message}
+        onRetry={() => void refetch()}
+      />
+    );
   if (!data) return null;
 
   const { totals, tierStats, markerQuality } = data;

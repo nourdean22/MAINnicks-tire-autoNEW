@@ -32,8 +32,13 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { onDataChanged } from "@/lib/events/data-change";
+// Phase J · tRPC migration · CompoundChain now reads via
+// trpc.operator.compound · types are inferred from the server router ·
+// no more manual CompoundShape mirror that drifts as the server
+// composer evolves. The legacy GET /api/operator/compound endpoint
+// stays mounted for back-compat callers.
+import { trpc } from "@/lib/trpc/client";
 
 type CompoundSurface = "tasks" | "goals" | "scoreboard" | "home";
 
@@ -96,8 +101,9 @@ export function CompoundChain({
   surface: CompoundSurface;
   className?: string;
 }) {
-  const { data, reload } = useAuthedFetch<CompoundShape>(
-    `/api/operator/compound?surface=${surface}`,
+  const { data, refetch } = trpc.operator.compound.useQuery(
+    { surface },
+    { staleTime: 30_000 },
   );
 
   // Re-fetch on task/goal events so a check-off updates the chain
@@ -105,10 +111,10 @@ export function CompoundChain({
   useEffect(() => {
     const off = onDataChanged(
       ["tasks", "goals", "score", "any"],
-      () => setTimeout(reload, 500),
+      () => setTimeout(refetch, 500),
     );
     return off;
-  }, [reload]);
+  }, [refetch]);
 
   if (!data) return null;
   const { stats, axes, potential, orphanDoneCount } = data;
