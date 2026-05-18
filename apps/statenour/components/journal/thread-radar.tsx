@@ -21,6 +21,7 @@
 
 import { useMemo, useState } from "react";
 import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface CandidateMember {
   entrySource: "brain_dump" | "reflection" | "situation_log" | "decision_replay";
@@ -57,15 +58,10 @@ export function ThreadRadar({
 
   return (
     <section className="mb-8 space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-xs uppercase tracking-[0.22em] text-white/40">
-          Coalescing · {candidates.length}{" "}
-          {candidates.length === 1 ? "theme" : "themes"}
-        </h2>
-        <span className="text-[10px] uppercase tracking-wider text-white/30">
-          pattern radar
-        </span>
-      </div>
+      <MasterySectionLabel
+        label={`Coalescing · ${candidates.length} ${candidates.length === 1 ? "theme" : "themes"}`}
+        action={<span className="text-white/30">pattern radar</span>}
+      />
       <ul className="space-y-3">
         {candidates.map((c) => (
           <CandidateCard

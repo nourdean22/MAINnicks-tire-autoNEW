@@ -18,6 +18,7 @@
 
 import { useEffect, useState } from "react";
 import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface Suggestion {
   key: string;
@@ -94,14 +95,11 @@ export function ThreadSuggestions({
 
   return (
     <section className="mb-8 space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-xs uppercase tracking-[0.22em] text-white/40">
-          Possible joins · {suggestions.length}
-        </h2>
-        <span className="text-[10px] uppercase tracking-wider text-white/30">
-          borderline matches
-        </span>
-      </div>
+      <MasterySectionLabel
+        label="Possible joins"
+        count={suggestions.length}
+        action={<span className="text-white/30">borderline matches</span>}
+      />
       <ul className="space-y-2">
         {suggestions.map((s) => (
           <li

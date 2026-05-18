@@ -15,6 +15,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface Thread {
   id: string;
@@ -64,20 +65,21 @@ export function ThreadRail({
 
   return (
     <section className="mb-8 space-y-3">
-      <div className="flex items-baseline justify-between gap-3">
-        <h2 className="text-xs uppercase tracking-[0.22em] text-white/40">
-          Threads · {active.length} active
-        </h2>
-        {dormant.length > 0 ? (
-          <button
-            type="button"
-            onClick={() => setShowDormant((s) => !s)}
-            className="text-[10px] uppercase tracking-wider text-white/40 hover:text-white/70"
-          >
-            {showDormant ? "hide" : "show"} {dormant.length} dormant
-          </button>
-        ) : null}
-      </div>
+      <MasterySectionLabel
+        label="Threads"
+        count={`${active.length} active`}
+        action={
+          dormant.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowDormant((s) => !s)}
+              className="text-white/40 hover:text-white/70"
+            >
+              {showDormant ? "hide" : "show"} {dormant.length} dormant
+            </button>
+          ) : undefined
+        }
+      />
 
       {active.length > 0 ? (
         <ul className="space-y-2">
