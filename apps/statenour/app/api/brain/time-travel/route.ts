@@ -20,6 +20,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -118,7 +119,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .findFirst({
           where: {
-            category: "identity_snapshot",
+            category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
             createdAt: { gte: dayStart, lte: dayEnd },
             deletedAt: null,
           },
@@ -128,7 +129,7 @@ export const GET = apiHandler(
       prisma.brainMemory
         .findFirst({
           where: {
-            category: "system_health_digest",
+            category: BRAIN_CATEGORIES.SYSTEM_HEALTH_DIGEST,
             key: date,
             deletedAt: null,
           },

@@ -25,6 +25,7 @@ import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
 // v10.0.529.32 · Arc B Feature 4 · Ghost Nick persona-drift events
 // surfaced as a ranked source. Same urgency tier as contradiction.
 import { loadRecentDrifts } from "@/lib/brain/persona-drift-detector";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * GET /api/ultron/situation
@@ -149,16 +150,16 @@ export async function GET() {
         // Pin stats for ambient + headline
         prisma.brainMemory
           .findMany({
-            where: { category: "pinned_user" },
+            where: { category: BRAIN_CATEGORIES.PINNED_USER },
             orderBy: { updatedAt: "desc" },
             select: { id: true, updatedAt: true },
           })
           .catch((): Array<{ id: string; updatedAt: Date }> => []),
-        prisma.brainMemory.count({ where: { category: "pinned_user" } }).catch(() => 0),
+        prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.PINNED_USER } }).catch(() => 0),
         prisma.brainMemory
           .count({
             where: {
-              category: "pinned_user",
+              category: BRAIN_CATEGORIES.PINNED_USER,
               updatedAt: { lt: daysAgo(14) },
             },
           })
@@ -196,7 +197,7 @@ export async function GET() {
         prisma.brainMemory
           .findUnique({
             where: {
-              category_key: { category: "ghost_prediction", key: "current" },
+              category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" },
             },
             select: { content: true, updatedAt: true },
           })

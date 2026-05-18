@@ -23,6 +23,7 @@ import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,7 +52,7 @@ export async function GET(req: Request) {
     });
 
     const row = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "morning_brief", key: today } },
+      where: { category_key: { category: BRAIN_CATEGORIES.MORNING_BRIEF, key: today } },
       select: { content: true, updatedAt: true, metadata: true },
     });
 

@@ -1,6 +1,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { safeQuery, isQuotaExhausted } from "@/lib/db/safe-prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * GET /api/system/pulse — the tiny rollup that powers the FloatingHome
@@ -175,7 +176,7 @@ export const GET = apiHandler(async () => {
     type QMeta = import("@/lib/brain/memory-metadata-types").NickQualityMeta;
     const scorecards = await safeQuery(
       () => prisma.brainMemory.findMany({
-        where: { category: "nick_quality", createdAt: { gte: since14d } },
+        where: { category: BRAIN_CATEGORIES.NICK_QUALITY, createdAt: { gte: since14d } },
         select: { metadata: true, createdAt: true },
         take: 1000,
       }),

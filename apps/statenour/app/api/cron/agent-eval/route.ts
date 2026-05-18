@@ -30,6 +30,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { QUALITY_PROMPTS as GOLD_PROMPTS } from "@/tests/fixtures/quality-prompts.gold";
 import { brainMemory } from "@/lib/brain/memory-manager";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 60;
 
@@ -65,7 +66,7 @@ async function loadYesterdayResults(): Promise<Map<string, boolean>> {
   const since = new Date(Date.now() - 26 * 60 * 60 * 1000); // last 26h
   const yesterday = await prisma.brainMemory.findFirst({
     where: {
-      category: "eval_run",
+      category: BRAIN_CATEGORIES.EVAL_RUN,
       createdAt: { gte: since },
       deletedAt: null,
     },

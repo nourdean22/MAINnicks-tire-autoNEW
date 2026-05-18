@@ -17,6 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo, today, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -666,7 +667,7 @@ export async function findTeachingMoments(): Promise<TeachingMoment[]> {
 export async function getTeachingMomentsContext(): Promise<string> {
   try {
     const moments = await prisma.brainMemory.findMany({
-      where: { category: "teaching_moment", deletedAt: null }, // v10.0.66 · system-prompt feeder
+      where: { category: BRAIN_CATEGORIES.TEACHING_MOMENT, deletedAt: null }, // v10.0.66 · system-prompt feeder
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { content: true },

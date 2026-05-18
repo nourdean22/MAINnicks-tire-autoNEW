@@ -29,6 +29,7 @@
  */
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const GET = apiHandler(
   async () => {
@@ -88,7 +89,7 @@ export const GET = apiHandler(
         select: memorySelect,
       }),
       prisma.brainMemory.findMany({
-        where: { category: "wisdom", createdAt: { gte: day1 }, deletedAt: null },
+        where: { category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: day1 }, deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: 15,
         select: memorySelect,

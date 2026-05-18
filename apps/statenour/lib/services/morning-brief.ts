@@ -36,6 +36,7 @@
 import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.529.2 M6 fix · surface silent-degrade paths for the 5 parallel
 // personal-slice queries. Each `.catch` previously returned the fallback
@@ -594,7 +595,7 @@ export async function buildWellbeingSlice(
       .findMany({
         // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
         where: activeOnly({
-          category: "wisdom",
+          category: BRAIN_CATEGORIES.WISDOM,
           confidence: { gte: 0.5 },
         }),
         orderBy: { confidence: "desc" },

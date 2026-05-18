@@ -34,12 +34,13 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { prisma } from "@/lib/prisma";
 import * as fs from "fs";
 import * as path from "path";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // ── Category classification keywords ──
 
 const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }[] = [
   {
-    category: "business",
+    category: BRAIN_CATEGORIES.BUSINESS,
     keywords: [
       "tire", "shop", "nick", "nicks", "auto", "mechanic", "invoice", "estimate",
       "customer", "review", "booking", "appointment", "work order", "bay", "tech",
@@ -51,7 +52,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 10,
   },
   {
-    category: "marketing",
+    category: BRAIN_CATEGORIES.MARKETING,
     keywords: [
       "instagram", "post", "caption", "content", "social media", "marketing",
       "seo", "google ads", "ads", "campaign", "brand", "rebrand", "logo",
@@ -60,7 +61,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 9,
   },
   {
-    category: "strategy",
+    category: BRAIN_CATEGORIES.STRATEGY,
     keywords: [
       "strategy", "plan", "goal", "mission", "roadmap", "vision", "growth",
       "expand", "second location", "competitor", "market", "invest", "investing",
@@ -70,7 +71,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 8,
   },
   {
-    category: "personal_development",
+    category: BRAIN_CATEGORIES.PERSONAL_DEVELOPMENT,
     keywords: [
       "mindset", "discipline", "focus", "overthinking", "motivation", "habit",
       "routine", "morning", "stoic", "philosophy", "self-improvement", "confidence",
@@ -81,7 +82,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 7,
   },
   {
-    category: "health",
+    category: BRAIN_CATEGORIES.HEALTH,
     keywords: [
       "workout", "gym", "boxing", "weight", "diet", "calorie", "supplement",
       "protein", "creatine", "adderall", "adhd", "sleep", "energy", "fitness",
@@ -92,7 +93,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 6,
   },
   {
-    category: "tech",
+    category: BRAIN_CATEGORIES.TECH,
     keywords: [
       "code", "coding", "api", "database", "deploy", "server", "react",
       "typescript", "javascript", "python", "ai", "model", "chatgpt",
@@ -102,7 +103,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 5,
   },
   {
-    category: "relationships",
+    category: BRAIN_CATEGORIES.RELATIONSHIPS,
     keywords: [
       "wife", "dania", "marriage", "family", "mother", "friend",
       "social", "approaching", "dating", "relationship", "trust",
@@ -111,7 +112,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 4,
   },
   {
-    category: "food",
+    category: BRAIN_CATEGORIES.FOOD,
     keywords: [
       "calorie", "recipe", "cook", "meal", "restaurant", "food",
       "chili", "steak", "chicken", "pork", "halal", "ingredient",
@@ -120,7 +121,7 @@ const CATEGORY_RULES: { category: string; keywords: string[]; priority: number }
     priority: 3,
   },
   {
-    category: "random",
+    category: BRAIN_CATEGORIES.RANDOM,
     keywords: [],
     priority: 0,
   },
@@ -166,7 +167,7 @@ export function classifyConversation(title: string): { category: string; subcate
   }
 
   if (matches.length === 0) {
-    return { category: "random", subcategories: [], relevanceScore: 10 };
+    return { category: BRAIN_CATEGORIES.RANDOM, subcategories: [], relevanceScore: 10 };
   }
 
   // Sort by hits * priority (most relevant first)
@@ -314,7 +315,7 @@ export async function processConversations(
   // be marked as "already done" and skipped on the next run — even
   // though Nour had pruned it explicitly. Now: only see live rows.
   const processed = await prisma.brainMemory.findMany({
-    where: { category: "chatgpt_conversation", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.CHATGPT_CONVERSATION, deletedAt: null },
     select: { key: true },
   }).catch(() => []);
   const processedKeys = new Set(processed.map((p) => p.key));
@@ -432,19 +433,19 @@ export async function getChatGPTContext(): Promise<string> {
   try {
     const [summary, decisions, preferences] = await Promise.all([
       prisma.brainMemory.findMany({
-        where: { category: "chatgpt_summary", deletedAt: null }, // v10.0.66 · system-prompt feeder
+        where: { category: BRAIN_CATEGORIES.CHATGPT_SUMMARY, deletedAt: null }, // v10.0.66 · system-prompt feeder
         orderBy: { createdAt: "desc" },
         take: 1,
         select: { content: true },
       }),
       prisma.brainMemory.findMany({
-        where: { category: "chatgpt_decision", deletedAt: null }, // v10.0.66 · system-prompt feeder
+        where: { category: BRAIN_CATEGORIES.CHATGPT_DECISION, deletedAt: null }, // v10.0.66 · system-prompt feeder
         orderBy: { confidence: "desc" },
         take: 5,
         select: { content: true },
       }),
       prisma.brainMemory.findMany({
-        where: { category: "chatgpt_preference", deletedAt: null }, // v10.0.66 · system-prompt feeder
+        where: { category: BRAIN_CATEGORIES.CHATGPT_PREFERENCE, deletedAt: null }, // v10.0.66 · system-prompt feeder
         orderBy: { confidence: "desc" },
         take: 5,
         select: { content: true },

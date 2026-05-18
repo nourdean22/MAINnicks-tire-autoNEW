@@ -42,6 +42,7 @@ import { logger } from "@/lib/logger";
 import { enrichInsightAsync } from "@/lib/services/auto-learn-llm";
 import { recordGhostOutcome } from "@/lib/brain/ghost-nick";
 import { semanticSearch, storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = logger.withSurface("auto-learn");
 
@@ -481,7 +482,7 @@ async function tryWisdomCitation({ task }: AutoLearnArgs): Promise<WisdomCitatio
     .findMany({
       // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
       where: activeOnly({
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         confidence: { gte: 0.5 },
       }),
       orderBy: { confidence: "desc" },

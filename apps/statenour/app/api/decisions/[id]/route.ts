@@ -18,6 +18,7 @@ import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
 import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const GET = apiHandler(
   async (_req, ctx) => {
@@ -64,7 +65,7 @@ export const GET = apiHandler(
     const antiPatterns = decision.domain
       ? await prisma.brainMemory.findMany({
           where: {
-            category: "anti_pattern",
+            category: BRAIN_CATEGORIES.ANTI_PATTERN,
             deletedAt: null,
             metadata: { path: ["domain"], equals: decision.domain },
           },

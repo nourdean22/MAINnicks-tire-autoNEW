@@ -15,6 +15,7 @@ import { searchColdMemory } from "@/lib/brain/cold-memory";
 import { recordError } from "@/lib/errors/record-error";
 
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
@@ -53,7 +54,7 @@ async function resolveYesterday(): Promise<string> {
   const [identityRow, dumps, doneCount, contradictionCount] = await Promise.all([
     prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: `history:${date}` } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: `history:${date}` } },
         select: { content: true },
       })
       .catch(() => null),
@@ -76,7 +77,7 @@ async function resolveYesterday(): Promise<string> {
     prisma.brainMemory
       .count({
         where: {
-          category: "contradiction",
+          category: BRAIN_CATEGORIES.CONTRADICTION,
           createdAt: {
             gte: new Date(`${date}T00:00:00Z`),
             lt: new Date(`${date}T23:59:59Z`),
@@ -123,7 +124,7 @@ async function resolveWeek(): Promise<string> {
     prisma.brainMemory
       .findMany({
         where: {
-          category: "identity_snapshot",
+          category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
           key: { startsWith: "history:" },
           updatedAt: { gte: weekAgo },
         },

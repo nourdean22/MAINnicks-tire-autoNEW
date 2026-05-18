@@ -2,11 +2,12 @@
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 async function main() {
   // 1. Wisdoms with nick_advice_ key prefix
   const nickAdviceWisdoms = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null, key: { startsWith: "nick_advice_" } },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, key: { startsWith: "nick_advice_" } },
     select: { id: true, key: true, content: true, confidence: true, createdAt: true, lastSeen: true },
   });
   console.log(`[1] wisdoms with nick_advice_ key prefix: ${nickAdviceWisdoms.length}`);
@@ -17,7 +18,7 @@ async function main() {
   // 2. Wisdoms whose content starts with [PROMOTED TO WISDOM]
   const promotedJunk = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       content: { startsWith: "[PROMOTED TO WISDOM]" },
     },
@@ -29,7 +30,7 @@ async function main() {
   // 3. Wisdoms whose content starts with [PROVEN PATTERN]
   const provenPattern = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       content: { startsWith: "[PROVEN PATTERN]" },
     },
@@ -48,7 +49,7 @@ async function main() {
 
   // 5. Total wisdoms
   const total = await prisma.brainMemory.count({
-    where: { category: "wisdom", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
   });
   console.log(`\n[5] total active wisdoms: ${total}`);
   const junkPct = (((nickAdviceWisdoms.length + promotedJunk.length + provenPattern.length + tooShort.length) / Math.max(1, total)) * 100).toFixed(1);

@@ -14,6 +14,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
       }).catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
       prisma.brainMemory
         .findUnique({
-          where: { category_key: { category: "identity_snapshot", key: "current" } },
+          where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
           select: { content: true, deletedAt: true },
         })
         .then((r) => (r && r.deletedAt ? null : r))

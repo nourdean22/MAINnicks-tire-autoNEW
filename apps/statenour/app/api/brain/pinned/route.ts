@@ -10,13 +10,14 @@ import { softDelete } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const runtime = "nodejs";
 
 /**
  * PINNED MEMORY API — Nour's always-loaded context slots.
  *
  * A pin is a BrainMemory row with:
- *   category:    "pinned_user"
+ *   category: BRAIN_CATEGORIES.PINNED_USER
  *   confidence:  1.0 (max — survives every pruning pass)
  *   expiresAt:   null (permanent)
  *   source:      "pin:chat" | "pin:command" | "pin:manual" | etc.
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
     const pins = await prisma.brainMemory.findMany({
       // v8.24 · soft-delete retrofit. Without `deletedAt: null`, archived
       // pins would resurface on the user's pin board after deletion.
-      where: { category: "pinned_user", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null },
       orderBy: { updatedAt: "desc" },
       take: 50,
       select: {
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
     const key = slugifyKey(content);
 
     const existing = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "pinned_user", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key } },
     });
 
     const metadata: PinMetadata = {
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest) {
         })
       : await prisma.brainMemory.create({
           data: {
-            category: "pinned_user",
+            category: BRAIN_CATEGORIES.PINNED_USER,
             key,
             content: content.slice(0, 1200),
             confidence: 1.0,

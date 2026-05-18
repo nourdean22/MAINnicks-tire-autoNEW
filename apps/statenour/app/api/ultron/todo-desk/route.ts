@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * GET /api/ultron/todo-desk
@@ -241,7 +242,7 @@ export async function GET() {
         // on each DONE. Falls back to an empty set if the writeback
         // hasn't run yet (fresh install / no completions).
         prisma.brainMemory.findMany({
-          where: { category: "effort_band_avg", deletedAt: null },
+          where: { category: BRAIN_CATEGORIES.EFFORT_BAND_AVG, deletedAt: null },
           select: { key: true, content: true },
         }),
         prisma.driftAlert.findMany({
@@ -257,11 +258,11 @@ export async function GET() {
           select: { itemKey: true, title: true, actionabilityScore: true, capturedAt: true },
         }),
         prisma.brainMemory.findUnique({
-          where: { category_key: { category: "mit", key: todayStr } },
+          where: { category_key: { category: BRAIN_CATEGORIES.MIT, key: todayStr } },
           select: { content: true },
         }),
         prisma.brainMemory.findUnique({
-          where: { category_key: { category: "tomorrow_note", key: tomorrowStr } },
+          where: { category_key: { category: BRAIN_CATEGORIES.TOMORROW_NOTE, key: tomorrowStr } },
           select: { content: true },
         }).catch(() => null),
         // Tasks explicitly queued for tomorrow via dueDate

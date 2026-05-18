@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/wealth-brief");
 
@@ -50,7 +51,7 @@ export const GET = cronHandler(async () => {
 
   // Per-week dedup · only one brief per ISO week.
   const sent = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "proactive_push_sent", key: dedupKey } },
+    where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: dedupKey } },
     select: { id: true },
   }).catch(() => null);
   if (sent) {
@@ -119,7 +120,7 @@ export const GET = cronHandler(async () => {
   // Mark sent · 14d TTL covers operator scrolling back to debug.
   await prisma.brainMemory.create({
     data: {
-      category: "proactive_push_sent",
+      category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
       key: dedupKey,
       content: `wealth brief sent for week ${isoWeek}`,
       source: "wealth_brief_cron",
@@ -208,7 +209,7 @@ async function pickWisdom(theme: SignalResult["theme"]): Promise<WisdomCandidate
 
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       OR: orFilters,
     },

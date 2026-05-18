@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomRow {
   id: string;
@@ -41,7 +42,7 @@ function bar(n: number, max: number, width = 20): string {
 
 async function main() {
   const wisdoms = (await prisma.brainMemory.findMany({
-    where: { category: "wisdom" },
+    where: { category: BRAIN_CATEGORIES.WISDOM },
     select: {
       id: true,
       key: true,

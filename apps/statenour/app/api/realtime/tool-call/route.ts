@@ -25,6 +25,7 @@ import { resolveInboxMissionId } from "@/lib/services/missions";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const runtime = "nodejs";
 
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
           where: { id: `pin-${slug}` },
           create: {
             id: `pin-${slug}`,
-            category: "pinned_user",
+            category: BRAIN_CATEGORIES.PINNED_USER,
             key: slug,
             content,
             metadata: label ? { label } : undefined,

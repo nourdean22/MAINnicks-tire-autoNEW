@@ -12,6 +12,7 @@ import { loadQualitativeIdentity } from "@/lib/brain/qualitative-identity";
 import { loadActiveBeliefs, loadBeliefCandidates } from "@/lib/brain/belief-harvester";
 import { countUnresolved, loadAllContradictions } from "@/lib/brain/contradiction-surfacer";
 import { loadGhostAccuracy } from "@/lib/brain/ghost-nick";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const GET = apiHandler(
   async () => {
@@ -39,8 +40,8 @@ export const GET = apiHandler(
       countUnresolved(14).catch(() => 0),
       loadAllContradictions(90).catch(() => []),
       loadGhostAccuracy().catch(() => null),
-      prisma.brainMemory.count({ where: { category: "chat_importance" } }).catch(() => 0),
-      prisma.brainMemory.count({ where: { category: "chat_summary" } }).catch(() => 0),
+      prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE } }).catch(() => 0),
+      prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.CHAT_SUMMARY } }).catch(() => 0),
     ]);
 
     const graduatedCount = skillsActive.filter((s) => s.graduated).length;

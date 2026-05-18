@@ -11,6 +11,7 @@ import { computeQualitativeIdentity } from "@/lib/brain/qualitative-identity";
 import { harvestBeliefs } from "@/lib/brain/belief-harvester";
 import { runDecay } from "@/lib/brain/decay";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 60;
 
@@ -21,7 +22,7 @@ export const GET = cronHandler(async () => {
   const yesterday = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
   const prevRow = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "identity_snapshot", key: `history:${yesterday}` } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: `history:${yesterday}` } },
       select: { content: true },
     })
     .catch(() => null);

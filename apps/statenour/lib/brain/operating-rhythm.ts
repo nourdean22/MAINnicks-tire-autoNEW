@@ -28,6 +28,7 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { today, daysAgo } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/operating-rhythm");
 
@@ -91,7 +92,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
     // Brain-maturity score (still local — not in nickstire).
     prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
         select: { content: true },
       })
       .then((row) => {

@@ -22,6 +22,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -61,7 +62,7 @@ export async function GET(req: Request) {
   const rows = await prisma.brainMemory
     .findMany({
       where: {
-        category: "nick_quality",
+        category: BRAIN_CATEGORIES.NICK_QUALITY,
         createdAt: { gte: since },
         ...(q && { content: { contains: q, mode: "insensitive" } }),
       },

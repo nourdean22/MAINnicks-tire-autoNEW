@@ -21,6 +21,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // Compression kicks in past this many messages.
 // Apr 19 · Threshold raised 12 → 20 so the compression AI call
@@ -178,7 +179,7 @@ async function getCachedSummary(
   const mem = await prisma.brainMemory
     .findFirst({
       where: {
-        category: "conversation_summary",
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
         key: `conv_summary_${conversationId}`,
       },
     })
@@ -208,9 +209,9 @@ async function storeSummary(
   const key = `conv_summary_${conversationId}`;
   await prisma.brainMemory
     .upsert({
-      where: { category_key: { category: "conversation_summary", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY, key } },
       create: {
-        category: "conversation_summary",
+        category: BRAIN_CATEGORIES.CONVERSATION_SUMMARY,
         key,
         content: summary,
         confidence: 0.8,

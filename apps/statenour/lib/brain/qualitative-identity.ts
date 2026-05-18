@@ -26,6 +26,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export type IdentityBucket = "values" | "fears" | "operating_style" | "rhythms" | "red_lines";
 
@@ -121,7 +122,7 @@ function distill(raw: string, max = 120): string {
 async function loadPreviousOverrides(): Promise<QualitativeIdentity | null> {
   const row = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "qualitative_identity", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
       select: { content: true },
     })
     .catch(() => null);
@@ -151,13 +152,13 @@ export async function computeQualitativeIdentity(): Promise<QualitativeIdentity>
     // v10.0.46 — added `deletedAt: null` to chat_importance + belief
     // reads. Deleted markers were inflating identity scoring inputs.
     prisma.brainMemory.findMany({
-      where: { category: "chat_importance", createdAt: { gte: since }, deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE, createdAt: { gte: since }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 200,
       select: { id: true, content: true, createdAt: true },
     }),
     prisma.brainMemory.findMany({
-      where: { category: "belief", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.BELIEF, deletedAt: null },
       take: 30,
       select: { id: true, content: true },
     }),
@@ -261,9 +262,9 @@ export async function computeQualitativeIdentity(): Promise<QualitativeIdentity>
   const historyKey = `history:${now.toISOString().slice(0, 10)}`;
   await Promise.all([
     prisma.brainMemory.upsert({
-      where: { category_key: { category: "qualitative_identity", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
       create: {
-        category: "qualitative_identity",
+        category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY,
         key: "current",
         content: payload,
         confidence: 0.7,
@@ -272,9 +273,9 @@ export async function computeQualitativeIdentity(): Promise<QualitativeIdentity>
       update: { content: payload, lastSeen: now },
     }),
     prisma.brainMemory.upsert({
-      where: { category_key: { category: "qualitative_identity", key: historyKey } },
+      where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: historyKey } },
       create: {
-        category: "qualitative_identity",
+        category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY,
         key: historyKey,
         content: payload,
         confidence: 0.7,
@@ -289,7 +290,7 @@ export async function computeQualitativeIdentity(): Promise<QualitativeIdentity>
 
 export async function loadQualitativeIdentity(): Promise<QualitativeIdentity> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "qualitative_identity", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
     select: { content: true },
   });
   if (row) {
@@ -318,7 +319,7 @@ export async function addManualEntry(bucket: IdentityBucket, text: string): Prom
   current[bucket] = current[bucket].slice(0, 10);
   const payload = JSON.stringify(current);
   await prisma.brainMemory.update({
-    where: { category_key: { category: "qualitative_identity", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
   return current;
@@ -329,7 +330,7 @@ export async function removeEntry(bucket: IdentityBucket, text: string): Promise
   current[bucket] = current[bucket].filter((e) => e.text !== text);
   const payload = JSON.stringify(current);
   await prisma.brainMemory.update({
-    where: { category_key: { category: "qualitative_identity", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.QUALITATIVE_IDENTITY, key: "current" } },
     data: { content: payload, lastSeen: new Date() },
   });
   return current;

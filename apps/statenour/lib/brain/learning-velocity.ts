@@ -14,6 +14,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface LearningVelocity {
   period: string;
@@ -58,9 +59,9 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
     prisma.brainMemory.count({
       where: { createdAt: { gte: fourteenDaysAgo, lt: sevenDaysAgo } },
     }),
-    prisma.brainMemory.count({ where: { category: "wisdom" } }),
+    prisma.brainMemory.count({ where: { category: BRAIN_CATEGORIES.WISDOM } }),
     prisma.brainMemory.count({
-      where: { category: "wisdom", createdAt: { gte: thirtyDaysAgo } },
+      where: { category: BRAIN_CATEGORIES.WISDOM, createdAt: { gte: thirtyDaysAgo } },
     }),
     prisma.prediction.count({ where: { status: "confirmed" } }),
     prisma.prediction.count({ where: { status: "disproven" } }),
@@ -161,12 +162,12 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
   await prisma.brainMemory.upsert({
     where: {
       category_key: {
-        category: "learning_velocity",
+        category: BRAIN_CATEGORIES.LEARNING_VELOCITY,
         key: `velocity_${new Date().toISOString().slice(0, 10)}`,
       },
     },
     create: {
-      category: "learning_velocity",
+      category: BRAIN_CATEGORIES.LEARNING_VELOCITY,
       key: `velocity_${new Date().toISOString().slice(0, 10)}`,
       content: `Brain health: ${healthScore}/100 | Growth: ${growthScore > 0 ? "+" : ""}${growthScore.toFixed(0)}% | Memories: ${memoriesThisWeek}/wk (${memoriesThisWeek > memoriesLastWeek ? "↑" : memoriesThisWeek < memoriesLastWeek ? "↓" : "→"}) | Wisdom: ${totalWisdom} | Predictions: ${(predictionRate * 100).toFixed(0)}% accurate (${predictionTrend}) | Chains: ${totalChains}`,
       confidence: 0.9,
@@ -187,7 +188,7 @@ export async function measureLearningVelocity(): Promise<LearningVelocity> {
 export async function getLearningVelocityContext(): Promise<string> {
   const vel = await prisma.brainMemory
     .findFirst({
-      where: { category: "learning_velocity" },
+      where: { category: BRAIN_CATEGORIES.LEARNING_VELOCITY },
       orderBy: { createdAt: "desc" },
       select: { content: true },
     })

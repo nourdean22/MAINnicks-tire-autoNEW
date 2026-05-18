@@ -15,6 +15,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface PriorityInput {
   title: string;
@@ -113,7 +114,7 @@ export async function inferTaskPriority(input: PriorityInput): Promise<PriorityO
   try {
     const snap = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
         select: { content: true },
       })
       .catch(() => null);

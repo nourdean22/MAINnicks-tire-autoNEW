@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
 import type { AutomationRule } from "@prisma/client";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface SystemContext {
   devices: { id: string; status: string; currentState: unknown; deviceType: string }[];
@@ -71,7 +72,7 @@ export class AutomationEngine {
           break;
         }
         case "pattern": {
-          // { type: "pattern", category: "anomaly", minConfidence: 0.7 }
+          // { type: "pattern", category: BRAIN_CATEGORIES.ANOMALY, minConfidence: 0.7 }
           // Check if any recent brain memory matches.
           // v10.0.65 · soft-delete bypass fix · pre-fix this query
           // matched soft-deleted memories too, so a memory the

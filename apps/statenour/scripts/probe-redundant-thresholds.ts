@@ -22,12 +22,13 @@ loadEnvConfig(process.cwd());
 import { prisma } from "@/lib/prisma";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { tagWisdomTopics } from "@/lib/brain/wisdom-topic-tagger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 async function main() {
   console.log("=== redundant-threshold probe · v10.0.415 ===\n");
 
   const wisdoms = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null, confidence: { gte: 0.5 } },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, confidence: { gte: 0.5 } },
     select: { id: true, key: true, content: true, confidence: true },
   });
   const embeds = await prisma.vectorEmbedding.findMany({

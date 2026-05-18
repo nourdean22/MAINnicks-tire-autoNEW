@@ -10,6 +10,7 @@ import { queryNickBatch } from "@/lib/nickstire/query";
 // v10.0.283 · drop 5 `any` in fetchBrainPulseItems · use the upstream types
 import type { Nudge } from "@/lib/brain/cross-system-nudge";
 import type { IdentityAxis, AxisKey } from "@/lib/brain/identity-snapshot";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * GET /api/ultron/ticker
@@ -35,6 +36,10 @@ import type { IdentityAxis, AxisKey } from "@/lib/brain/identity-snapshot";
 
 interface TickerItem {
   id: string;                     // stable, used as React key
+  // Phase BB · codemod-categories.ts type-position carve-out · this
+  // is a TS union-type literal not a value · the BRAIN_CATEGORIES
+  // rewrite would create a namespace reference in type context.
+  // Intentional inline string · matches BRAIN_CATEGORIES.MARKET value.
   category: "market" | "macro" | "industry" | "local" | "timeline" | "shop" | "brain";
   symbol?: string;                // e.g. "SPX", "OIL", "YOU", "SHOP", "BRAIN"
   label: string;                  // short display text
@@ -79,7 +84,7 @@ async function fetchStooqQuote(symbol: string, label: string): Promise<TickerIte
     const deltaPct = ((close - open) / open) * 100;
     return {
       id: `mkt-${symbol}`,
-      category: "market",
+      category: BRAIN_CATEGORIES.MARKET,
       symbol: label,
       label: `${label} ${close.toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
       deltaPct: Math.round(deltaPct * 100) / 100,
@@ -103,24 +108,24 @@ async function fetchStooqQuote(symbol: string, label: string): Promise<TickerIte
 const STATIC_MACRO: TickerItem[] = [
   {
     id: "macro-fed",
-    category: "macro",
+    category: BRAIN_CATEGORIES.MACRO,
     label: "Fed holds rates — watching CPI print next week",
     href: "https://www.federalreserve.gov/monetarypolicy.htm",
   },
   {
     id: "macro-autos",
-    category: "industry",
+    category: BRAIN_CATEGORIES.INDUSTRY,
     label: "Auto lease originations +6% YoY — demand softening",
     href: "https://www.autonews.com/",
   },
   {
     id: "macro-tires",
-    category: "industry",
+    category: BRAIN_CATEGORIES.INDUSTRY,
     label: "Tire futures ▼ 2% on Q2 import data",
   },
   {
     id: "local-weather",
-    category: "local",
+    category: BRAIN_CATEGORIES.LOCAL,
     label: "Ontario snow advisory Thursday — morning rush impact",
   },
 ];
@@ -128,7 +133,7 @@ const STATIC_MACRO: TickerItem[] = [
 function timelineToTickerItem(t: Timeline): TickerItem {
   return {
     id: `tl-${t.id}`,
-    category: "timeline",
+    category: BRAIN_CATEGORIES.TIMELINE,
     symbol: "YOU",
     label: t.text,
     severity: t.severity,
@@ -162,7 +167,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
       const jobs = typeof rev.invoiceCount === "number" ? rev.invoiceCount : 0;
       items.push({
         id: "shop-rev",
-        category: "shop",
+        category: BRAIN_CATEGORIES.SHOP,
         symbol: "SHOP",
         label: `$${rev.totalDollars.toLocaleString()} today · ${jobs} jobs`,
         severity: rev.totalDollars > 0 ? "win" : "info",
@@ -174,7 +179,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
     if (leads && typeof leads.count === "number" && leads.count > 0) {
       items.push({
         id: "shop-leads",
-        category: "shop",
+        category: BRAIN_CATEGORIES.SHOP,
         symbol: "LEADS",
         label: `${leads.count} urgent lead${leads.count === 1 ? "" : "s"} waiting`,
         severity: leads.count >= 3 ? "warn" : "info",
@@ -186,7 +191,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
     if (callbacks && typeof callbacks.count === "number" && callbacks.count > 0) {
       items.push({
         id: "shop-callbacks",
-        category: "shop",
+        category: BRAIN_CATEGORIES.SHOP,
         symbol: "CALLS",
         label: `${callbacks.count} callback${callbacks.count === 1 ? "" : "s"} pending`,
         severity: callbacks.count >= 5 ? "warn" : "info",
@@ -200,7 +205,7 @@ async function fetchShopPulse(): Promise<TickerItem[]> {
       if (topAlert && typeof topAlert.msg === "string") {
         items.push({
           id: "shop-attn",
-          category: "shop",
+          category: BRAIN_CATEGORIES.SHOP,
           symbol: "ATTN",
           label: String(topAlert.msg).slice(0, 80),
           severity: "warn",
@@ -296,7 +301,7 @@ async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
       if (daysSince < 2) {
         items.push({
           id: "self-body",
-          category: "timeline",
+          category: BRAIN_CATEGORIES.TIMELINE,
           symbol: "BODY",
           label: `${workoutStreak.streakCount}d workout streak 🔥`,
           deltaPct: null,
@@ -324,7 +329,7 @@ async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
             : `${sign}$${Math.round(abs).toLocaleString()}`;
           items.push({
             id: "self-money",
-            category: "timeline",
+            category: BRAIN_CATEGORIES.TIMELINE,
             symbol: "MONEY",
             label: `net Δ ${formatted}`,
             deltaPct: null,
@@ -404,7 +409,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         tasksActive !== null && tasksActive > tasksDue ? ` · ${tasksActive} active` : "";
       items.push({
         id: "ops-tasks",
-        category: "timeline",
+        category: BRAIN_CATEGORIES.TIMELINE,
         symbol: "TASKS",
         label: `${tasksDue} due today${activeStr}`,
         severity: tasksDue >= 5 ? "warn" : "info",
@@ -423,7 +428,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         scoreToday >= 80 ? "win" : scoreToday >= 50 ? "info" : "warn";
       items.push({
         id: "ops-score",
-        category: "timeline",
+        category: BRAIN_CATEGORIES.TIMELINE,
         symbol: "SCORE",
         label: `${scoreToday}/100 today`,
         severity: tone,
@@ -442,7 +447,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
           : `$${dollars.toFixed(2)}`;
       items.push({
         id: "ops-cost",
-        category: "timeline",
+        category: BRAIN_CATEGORIES.TIMELINE,
         symbol: "AI$",
         label: `${formatted} today`,
         severity: cents >= 1000 ? "warn" : "info",
@@ -479,7 +484,7 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
     for (const n of nudges.filter((x: Nudge) => x.severity === "high").slice(0, 2)) {
       items.push({
         id: `brain-nudge-${n.source}-${n.text.slice(0, 20)}`,
-        category: "brain",
+        category: BRAIN_CATEGORIES.BRAIN,
         symbol: "BRAIN",
         label: `‼ ${n.text}`,
         severity: "warn",
@@ -491,7 +496,7 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
     if (medium && items.length < 3) {
       items.push({
         id: `brain-nudge-med-${medium.source}`,
-        category: "brain",
+        category: BRAIN_CATEGORIES.BRAIN,
         symbol: "BRAIN",
         label: `⚠ ${medium.text}`,
         severity: "warn",
@@ -503,7 +508,7 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
     if (openContradictions > 0) {
       items.push({
         id: `brain-contradict`,
-        category: "brain",
+        category: BRAIN_CATEGORIES.BRAIN,
         symbol: "BRAIN",
         label: `⚠ ${openContradictions} open contradiction${openContradictions > 1 ? "s" : ""}`,
         severity: "warn",
@@ -521,7 +526,7 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
         const arrow = axis.direction === "rising" ? "↑" : "↓";
         items.push({
           id: `brain-axis-${key}`,
-          category: "brain",
+          category: BRAIN_CATEGORIES.BRAIN,
           symbol: "BRAIN",
           label: `${key.replace(/_/g, " ")} ${arrow} ${axis.manual ?? axis.value}`,
           severity: axis.direction === "rising" ? "win" : "info",

@@ -2,6 +2,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { daysAgo } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/auto-calibrate");
 
@@ -97,7 +98,7 @@ export const GET = cronHandler(async () => {
   // in the last 14d gets flagged for review, not auto-verified.
   const recentContradictions = await prisma.brainMemory.findMany({
     where: {
-      category: "contradiction",
+      category: BRAIN_CATEGORIES.CONTRADICTION,
       createdAt: { gte: daysAgo(14) },
     },
     select: { content: true },
@@ -217,7 +218,7 @@ export const GET = cronHandler(async () => {
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
-          category: "belief_refresh_report",
+          category: BRAIN_CATEGORIES.BELIEF_REFRESH_REPORT,
           key: `report-${now.toISOString().slice(0, 10)}`,
         },
       },
@@ -228,7 +229,7 @@ export const GET = cronHandler(async () => {
         metadata: { changes, generatedAt: now.toISOString() } as any,
       },
       create: {
-        category: "belief_refresh_report",
+        category: BRAIN_CATEGORIES.BELIEF_REFRESH_REPORT,
         key: `report-${now.toISOString().slice(0, 10)}`,
         content: summary,
         confidence: 0.9,

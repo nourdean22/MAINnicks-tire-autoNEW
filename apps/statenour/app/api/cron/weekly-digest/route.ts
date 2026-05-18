@@ -6,6 +6,7 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("cron/weekly-digest");
 
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
 function getResend() {
@@ -59,7 +60,7 @@ export const GET = cronHandler(async () => {
     prisma.brainMemory
       .findMany({
         where: {
-          category: "identity_snapshot",
+          category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
           key: { startsWith: "history:" },
           updatedAt: { gte: new Date(sevenDaysAgo) },
         },

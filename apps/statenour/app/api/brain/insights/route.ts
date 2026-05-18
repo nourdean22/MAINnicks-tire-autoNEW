@@ -18,6 +18,7 @@
  */
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface BrainInsight {
   kind:
@@ -60,14 +61,14 @@ export const GET = apiHandler(
     // confronting a tough problem space. Worth surfacing.
     const apRecent = await prisma.brainMemory.count({
       where: {
-        category: "anti_pattern",
+        category: BRAIN_CATEGORIES.ANTI_PATTERN,
         deletedAt: null,
         createdAt: { gte: recentSince },
       },
     });
     const apPrior = await prisma.brainMemory.count({
       where: {
-        category: "anti_pattern",
+        category: BRAIN_CATEGORIES.ANTI_PATTERN,
         deletedAt: null,
         createdAt: { gte: priorSince, lt: recentSince },
       },

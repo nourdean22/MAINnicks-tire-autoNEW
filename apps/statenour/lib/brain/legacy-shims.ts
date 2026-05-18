@@ -31,6 +31,7 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/legacy-shims");
 
@@ -71,7 +72,7 @@ export async function recentScoreSnapshots(days = 14): Promise<LegacyScoreRow[]>
   const rows = await prisma.brainMemory
     .findMany({
       where: {
-        category: "identity_snapshot",
+        category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
         deletedAt: null,
         updatedAt: { gte: since },
       },

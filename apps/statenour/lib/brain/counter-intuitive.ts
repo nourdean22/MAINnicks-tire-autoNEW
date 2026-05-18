@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { daysAgo } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentShopJobs,
@@ -208,7 +209,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           reality: `${best.day} actually averages $${best.avg.toFixed(0)}/day vs Monday's $${byDow[1]?.count > 0 ? (byDow[1].total / byDow[1].count).toFixed(0) : "0"}`,
           dataPoints: jobs.length,
           impact: `Staffing and marketing could be optimized for ${best.day}`,
-          category: "revenue",
+          category: BRAIN_CATEGORIES.REVENUE,
         });
       }
     }
@@ -235,7 +236,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
         reality: `$500-1500 quotes convert at ${(highRate * 100).toFixed(0)}% vs under-$500 at ${(lowRate * 100).toFixed(0)}%`,
         dataPoints: lowQuotes.length + highQuotes.length,
         impact: "Mid-range customers may value quality over price. Consider premium positioning.",
-        category: "pricing",
+        category: BRAIN_CATEGORIES.PRICING,
       });
     }
   }
@@ -277,7 +278,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           : Number(diff) < -5
             ? "COUNTER-INTUITIVE: Non-workout days actually performed better. The causation may be indirect."
             : "The correlation is weak. Other factors may matter more.",
-        category: "causation",
+        category: BRAIN_CATEGORIES.CAUSATION,
       });
     }
   }
@@ -311,7 +312,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
         reality: `${best.source} converts at ${(best.rate * 100).toFixed(0)}% (n=${best.total}) vs ${worst.source} at ${(worst.rate * 100).toFixed(0)}% (n=${worst.total})`,
         dataPoints: leads.length,
         impact: `Consider shifting marketing spend toward ${best.source} leads`,
-        category: "leads",
+        category: BRAIN_CATEGORIES.LEADS,
       });
     }
   }
@@ -357,7 +358,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
             reality: `Low-energy days actually produce better decision grades (${lowAvg.toFixed(1)} vs ${highAvg.toFixed(1)} on A-F scale)`,
             dataPoints: highEnergyCount + lowEnergyCount,
             impact: "High energy may lead to overconfidence. Low energy forces more careful deliberation.",
-            category: "decision_quality",
+            category: BRAIN_CATEGORIES.DECISION_QUALITY,
           });
         }
       }
@@ -386,7 +387,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           impact: multiRate > singleRate
             ? "Customers who need more work are MORE committed. They've already decided to fix the car — they're not price-shopping."
             : "Similar conversion rates mean upselling isn't hurting you. The extra revenue per converted quote is pure margin.",
-          category: "pricing",
+          category: BRAIN_CATEGORIES.PRICING,
         });
       }
     }
@@ -413,7 +414,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           reality: `Weekend leads convert at ${(weekendRate * 100).toFixed(0)}% vs weekday ${(weekdayRate * 100).toFixed(0)}%`,
           dataPoints: weekendLeads.length + weekdayLeads.length,
           impact: "Weekend researchers have TIME to think. They're not rushed. By Monday they're ready to commit.",
-          category: "leads",
+          category: BRAIN_CATEGORIES.LEADS,
         });
       } else if (weekdayRate > weekendRate + 0.1) {
         findings.push({
@@ -421,7 +422,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           reality: `Weekday leads convert ${((weekdayRate - weekendRate) * 100).toFixed(0)}% better than weekend leads`,
           dataPoints: weekendLeads.length + weekdayLeads.length,
           impact: "Weekend leads may be comparison-shopping. Prioritize fast response on weekday leads.",
-          category: "leads",
+          category: BRAIN_CATEGORIES.LEADS,
         });
       }
     }
@@ -444,7 +445,7 @@ export async function findCounterIntuitive(): Promise<CounterIntuitive[]> {
           reality: `15-60 min responses convert at ${(modRate * 100).toFixed(0)}% vs instant (<15 min) at ${(instantRate * 100).toFixed(0)}%`,
           dataPoints: instant.length + moderate.length,
           impact: "Instant responses may feel automated/desperate. A 15-30 min response feels personal and deliberate.",
-          category: "response_timing",
+          category: BRAIN_CATEGORIES.RESPONSE_TIMING,
         });
       }
     }
@@ -471,7 +472,7 @@ export async function getCounterIntuitiveContext(): Promise<string> {
     // Pull from stored memories (computed during cron, not live).
     // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
     const memories = await prisma.brainMemory.findMany({
-      where: { category: "counter_intuitive", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.COUNTER_INTUITIVE, deletedAt: null },
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { content: true },

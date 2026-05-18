@@ -32,6 +32,7 @@ import type { NextRequest } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import { withTracing } from "@/lib/utils/with-tracing";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface WisdomEntry {
   id: string;
@@ -64,7 +65,7 @@ async function handler(req: NextRequest): Promise<Response> {
   try { await requireSession(req); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
 
   const rows = await prisma.brainMemory.findMany({
-    where: { category: "wisdom", deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null },
     orderBy: [{ confidence: "desc" }, { seenCount: "desc" }],
     select: {
       id: true,

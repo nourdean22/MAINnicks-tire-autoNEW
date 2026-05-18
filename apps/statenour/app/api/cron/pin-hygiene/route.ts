@@ -1,5 +1,6 @@
 import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const maxDuration = 60;
 
@@ -34,7 +35,7 @@ export const GET = cronHandler(async () => {
   // produce findings entries for every row beyond index 5 — no
   // upper bound. 200-row cap + 50 findings cap.
   const pins = await prisma.brainMemory.findMany({
-    where: { category: "pinned_user" },
+    where: { category: BRAIN_CATEGORIES.PINNED_USER },
     orderBy: { updatedAt: "desc" },
     take: 200,
     select: {
@@ -119,7 +120,7 @@ export const GET = cronHandler(async () => {
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
-          category: "nudge_pin_hygiene",
+          category: BRAIN_CATEGORIES.NUDGE_PIN_HYGIENE,
           key: "weekly_pin_review",
         },
       },
@@ -130,7 +131,7 @@ export const GET = cronHandler(async () => {
         metadata: { findings: cappedFindings, totalFindings: findings.length, generatedAt: new Date().toISOString() } as any,
       },
       create: {
-        category: "nudge_pin_hygiene",
+        category: BRAIN_CATEGORIES.NUDGE_PIN_HYGIENE,
         key: "weekly_pin_review",
         content: summary,
         confidence: 0.85,
@@ -144,7 +145,7 @@ export const GET = cronHandler(async () => {
     await prisma.brainMemory
       .deleteMany({
         where: {
-          category: "nudge_pin_hygiene",
+          category: BRAIN_CATEGORIES.NUDGE_PIN_HYGIENE,
           key: "weekly_pin_review",
         },
       })

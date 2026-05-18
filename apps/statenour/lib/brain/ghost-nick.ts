@@ -137,7 +137,7 @@ export async function getGhostPredictions(force = false): Promise<GhostPredictio
   if (!force) {
     const existing = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "ghost_prediction", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
         select: { content: true, updatedAt: true },
       })
       .catch(() => null);
@@ -256,9 +256,9 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
   // Persist with signature-level evidence for debugging
   const payload = JSON.stringify({ ...bundle, signature_evidence: evidence });
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "ghost_prediction", key: "current" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
     create: {
-      category: "ghost_prediction",
+      category: BRAIN_CATEGORIES.GHOST_PREDICTION,
       key: "current",
       content: payload,
       confidence: 0.6,
@@ -296,7 +296,7 @@ export async function recordGhostOutcome(
 ): Promise<GhostMatchResult | null> {
   const row = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "ghost_prediction", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
       select: { content: true },
     })
     .catch(() => null);
@@ -319,7 +319,7 @@ export async function recordGhostOutcome(
 
   const accRow = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "ghost_accuracy", key: "rolling" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
       select: { content: true },
     })
     .catch(() => null);
@@ -339,9 +339,9 @@ export async function recordGhostOutcome(
 
   const payload = JSON.stringify(acc);
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "ghost_accuracy", key: "rolling" } },
+    where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
     create: {
-      category: "ghost_accuracy",
+      category: BRAIN_CATEGORIES.GHOST_ACCURACY,
       key: "rolling",
       content: payload,
       confidence: 0.7,
@@ -358,6 +358,7 @@ export async function recordGhostOutcome(
 // dismissed_at, expires_at }. Survives bundle recomputes so the same
 // task doesn't keep reappearing within 24h of being dismissed.
 import { createHash } from "node:crypto";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 function dismissKey(idOrTitle: string): string {
   return "dismiss:" + createHash("sha1").update(idOrTitle.toLowerCase()).digest("hex").slice(0, 12);
 }
@@ -370,7 +371,7 @@ async function loadActiveDismissals(): Promise<Set<string>> {
   const rows = await prisma.brainMemory
     .findMany({
       where: {
-        category: "ghost_prediction",
+        category: BRAIN_CATEGORIES.GHOST_PREDICTION,
         key: { startsWith: "dismiss:" },
         lastSeen: { gte: since },
         deletedAt: null,
@@ -402,9 +403,9 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
   const now = new Date();
   await prisma.brainMemory
     .upsert({
-      where: { category_key: { category: "ghost_prediction", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key } },
       create: {
-        category: "ghost_prediction",
+        category: BRAIN_CATEGORIES.GHOST_PREDICTION,
         key,
         content: JSON.stringify({
           taskIdOrTitle,
@@ -428,7 +429,7 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
   // 2. Also flip the flag inside the current bundle for immediate UI
   const row = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "ghost_prediction", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
       select: { content: true },
     })
     .catch(() => null);
@@ -444,7 +445,7 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
     }
     if (touched) {
       await prisma.brainMemory.update({
-        where: { category_key: { category: "ghost_prediction", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.GHOST_PREDICTION, key: "current" } },
         data: { content: JSON.stringify(bundle), lastSeen: now },
       });
     }
@@ -457,7 +458,7 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
 export async function loadGhostAccuracy(): Promise<GhostAccuracy | null> {
   const row = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "ghost_accuracy", key: "rolling" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
       select: { content: true },
     })
     .catch(() => null);

@@ -32,6 +32,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/customer-preferences");
 
@@ -260,10 +261,10 @@ export async function persistCustomerPreferences(
   const jsonMetadata = prefs as unknown as Prisma.InputJsonValue;
   await prisma.brainMemory.upsert({
     where: {
-      category_key: { category: "customer_preference", key: prefs.customerId },
+      category_key: { category: BRAIN_CATEGORIES.CUSTOMER_PREFERENCE, key: prefs.customerId },
     },
     create: {
-      category: "customer_preference",
+      category: BRAIN_CATEGORIES.CUSTOMER_PREFERENCE,
       key: prefs.customerId,
       content: prefs.summary,
       confidence: 0.85,
@@ -304,7 +305,7 @@ export async function getCustomerPreferences(
   customerId: string,
 ): Promise<CustomerPreferences | null> {
   const row = await prisma.brainMemory.findFirst({
-    where: { category: "customer_preference", key: customerId },
+    where: { category: BRAIN_CATEGORIES.CUSTOMER_PREFERENCE, key: customerId },
     select: { metadata: true },
   });
   if (!row?.metadata) return null;

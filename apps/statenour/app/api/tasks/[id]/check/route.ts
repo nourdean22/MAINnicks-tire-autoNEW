@@ -17,6 +17,7 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { logger as rootLogger } from "@/lib/logger";
 import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.529.13 · 4 console.warn sites swapped to structured logger so
 // silent-degradation in skill-reinforce, reality-gap, ghost-outcome,
@@ -284,9 +285,9 @@ export const POST = apiHandler(async (req, { params }) => {
         const total = recent.reduce((a, r) => a + r.actualMinutes, 0);
         const avg = Math.round((total / recent.length) * 10) / 10;
         await prisma.brainMemory.upsert({
-          where: { category_key: { category: "effort_band_avg", key: updated.effort } },
+          where: { category_key: { category: BRAIN_CATEGORIES.EFFORT_BAND_AVG, key: updated.effort } },
           create: {
-            category: "effort_band_avg",
+            category: BRAIN_CATEGORIES.EFFORT_BAND_AVG,
             key: updated.effort,
             content: JSON.stringify({
               avgMinutes: avg,

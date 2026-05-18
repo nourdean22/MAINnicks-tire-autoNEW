@@ -17,6 +17,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("predictive-engine");
 import { extractJsonArray, extractJsonObject } from "@/lib/ai/extract-structured";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentDailyHabits,
@@ -346,9 +347,9 @@ export async function evaluatePredictions(): Promise<{ checked: number; confirme
       .join(", ");
 
     await prisma.brainMemory.upsert({
-      where: { category_key: { category: "prediction_calibration", key: "accuracy_current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.PREDICTION_CALIBRATION, key: "accuracy_current" } },
       create: {
-        category: "prediction_calibration",
+        category: BRAIN_CATEGORIES.PREDICTION_CALIBRATION,
         key: "accuracy_current",
         content: `Overall prediction accuracy: ${(rate * 100).toFixed(0)}% (${confirmed}/${total}). By category: ${categoryAccuracy || "insufficient data"}. ${rate < 0.4 ? "LOW ACCURACY — reduce confidence on future predictions." : rate > 0.7 ? "Well calibrated." : "Moderate accuracy — room to improve."}`,
         confidence: 0.9,

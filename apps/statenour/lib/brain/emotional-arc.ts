@@ -17,6 +17,7 @@ const aiChat = makeTracedAiChat("emotional-arc");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
 import { recentScoreSnapshots } from "@/lib/brain/legacy-shims";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface EmotionalArc {
   period: string;
@@ -245,12 +246,12 @@ BAD analysis:
       .upsert({
         where: {
           category_key: {
-            category: "emotional_arc",
+            category: BRAIN_CATEGORIES.EMOTIONAL_ARC,
             key: `arc_${today()}`,
           },
         },
         create: {
-          category: "emotional_arc",
+          category: BRAIN_CATEGORIES.EMOTIONAL_ARC,
           key: `arc_${today()}`,
           content: `${arc.trajectory} | ${arc.dominantState} | Triggers: ${arc.triggers.join(", ")}${arc.decisionRisk ? ` | RISK: ${arc.decisionRisk}` : ""}`,
           confidence: 0.7,
@@ -279,7 +280,7 @@ function toDateStr(d: Date): string {
 export async function getEmotionalArcContext(): Promise<string> {
   const arc = await prisma.brainMemory
     .findFirst({
-      where: { category: "emotional_arc" },
+      where: { category: BRAIN_CATEGORIES.EMOTIONAL_ARC },
       orderBy: { createdAt: "desc" },
       select: { content: true },
     })

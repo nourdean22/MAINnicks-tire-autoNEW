@@ -27,10 +27,14 @@
 
 import { prisma } from "@/lib/prisma";
 import { createHash } from "node:crypto";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface Belief {
   statement: string;               // human-readable belief
   theme_tokens: string[];          // the tokens that clustered
+  // Phase BB · type-position carve-out · inline string matches
+  // BRAIN_CATEGORIES.PREFERENCE value · cannot use the namespace
+  // reference in type-union context.
   category: "preference" | "decision" | "commitment";
   evidence_ids: string[];          // BrainMemory ids
   evidence_count: number;
@@ -102,7 +106,7 @@ export async function harvestBeliefs(): Promise<{
     where: {
       // v9.1.18 · soft-delete sweep continuation.
       deletedAt: null,
-      category: "chat_importance",
+      category: BRAIN_CATEGORIES.CHAT_IMPORTANCE,
       createdAt: { gte: since },
     },
     orderBy: { createdAt: "desc" },
@@ -192,7 +196,7 @@ export async function harvestBeliefs(): Promise<{
     // Skip if promoted belief with same key already exists
     const promoted = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "belief", key } },
+        where: { category_key: { category: BRAIN_CATEGORIES.BELIEF, key } },
         select: { id: true },
       })
       .catch(() => null);
@@ -224,7 +228,7 @@ export async function harvestBeliefs(): Promise<{
 
     const existing = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "belief_candidate", key } },
+        where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } },
         select: { id: true, content: true },
       })
       .catch(() => null);
@@ -241,7 +245,7 @@ export async function harvestBeliefs(): Promise<{
           updated_at: belief.updated_at,
         };
         await prisma.brainMemory.update({
-          where: { category_key: { category: "belief_candidate", key } },
+          where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } },
           data: {
             content: JSON.stringify(merged),
             lastSeen: new Date(),
@@ -255,7 +259,7 @@ export async function harvestBeliefs(): Promise<{
     } else {
       await prisma.brainMemory.create({
         data: {
-          category: "belief_candidate",
+          category: BRAIN_CATEGORIES.BELIEF_CANDIDATE,
           key,
           content: JSON.stringify(belief),
           confidence: belief.confidence,
@@ -302,7 +306,7 @@ export async function loadBeliefCandidates(): Promise<StoredBelief[]> {
 
 export async function promoteBelief(key: string, overrideStatement?: string): Promise<StoredBelief | null> {
   const row = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "belief_candidate", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } },
     select: { content: true },
   });
   if (!row) return null;
@@ -319,9 +323,9 @@ export async function promoteBelief(key: string, overrideStatement?: string): Pr
     updated_at: new Date().toISOString(),
   };
   const created = await prisma.brainMemory.upsert({
-    where: { category_key: { category: "belief", key } },
+    where: { category_key: { category: BRAIN_CATEGORIES.BELIEF, key } },
     create: {
-      category: "belief",
+      category: BRAIN_CATEGORIES.BELIEF,
       key,
       content: JSON.stringify(promoted),
       confidence: 0.8,
@@ -331,7 +335,7 @@ export async function promoteBelief(key: string, overrideStatement?: string): Pr
     select: { id: true, key: true },
   });
   await prisma.brainMemory
-    .delete({ where: { category_key: { category: "belief_candidate", key } } })
+    .delete({ where: { category_key: { category: BRAIN_CATEGORIES.BELIEF_CANDIDATE, key } } })
     .catch(() => {});
   return { ...promoted, dbId: created.id, key: created.key };
 }

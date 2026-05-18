@@ -44,6 +44,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { fetchShopSnapshot, type ShopSnapshot } from "@/lib/services/bridge";
 import { tracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   sendTelegram,
   formatTelegramNotification,
@@ -259,7 +260,7 @@ export async function matchWisdom(
   const pool = await prisma.brainMemory
     .findMany({
       where: activeOnly({
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         confidence: { gte: 0.4 },
       }),
       orderBy: { confidence: "desc" },

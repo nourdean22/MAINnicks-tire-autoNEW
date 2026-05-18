@@ -26,6 +26,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/importance-scorer");
 
@@ -235,9 +236,9 @@ export async function persistIfImportant(
 
   const persisted = await prisma.brainMemory
     .upsert({
-      where: { category_key: { category: "chat_importance", key } },
+      where: { category_key: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE, key } },
       create: {
-        category: "chat_importance",
+        category: BRAIN_CATEGORIES.CHAT_IMPORTANCE,
         key,
         content: storedContent,
         confidence,

@@ -18,6 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   answerCallbackQuery,
   editTelegramMessage,
@@ -358,10 +359,10 @@ async function cmdMit(args: string, chatId: string): Promise<void> {
     const { prisma } = await import("@/lib/prisma");
     const date = new Date().toISOString().slice(0, 10);
     await prisma.brainMemory.upsert({
-      where: { category_key: { category: "mit", key: date } },
+      where: { category_key: { category: BRAIN_CATEGORIES.MIT, key: date } },
       update: { content: args.trim(), confidence: 1.0 },
       create: {
-        category: "mit",
+        category: BRAIN_CATEGORIES.MIT,
         key: date,
         content: args.trim(),
         source: "telegram",

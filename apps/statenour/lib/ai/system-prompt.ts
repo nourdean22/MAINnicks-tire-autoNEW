@@ -94,7 +94,7 @@ import {
 async function getRealityGapContext(): Promise<string> {
   try {
     const rows = await prisma.brainMemory.findMany({
-      where: { category: "effort_band_avg", deletedAt: null }, // v7.9
+      where: { category: BRAIN_CATEGORIES.EFFORT_BAND_AVG, deletedAt: null }, // v7.9
       select: { key: true, content: true },
     });
     if (rows.length === 0) return "";
@@ -194,6 +194,7 @@ function tierGate<T>(
  * AsyncLocalStorage avoids threading through every helper signature.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface PromptTelemetry {
   tier: TopicTier;
@@ -680,13 +681,13 @@ export async function buildSystemPromptUncached(
   // previously two sequential findMany calls = 2 round-trips to Neon.
   const [codingPrefs, archMemories] = await Promise.all([
     prisma.brainMemory.findMany({
-      where: { category: "coding_preference", deletedAt: null }, // v7.9
+      where: { category: BRAIN_CATEGORIES.CODING_PREFERENCE, deletedAt: null }, // v7.9
       orderBy: { confidence: "desc" },
       take: 5,
       select: { content: true },
     }).catch((): never[] => []),
     prisma.brainMemory.findMany({
-      where: { category: "architecture", deletedAt: null }, // v7.9
+      where: { category: BRAIN_CATEGORIES.ARCHITECTURE, deletedAt: null }, // v7.9
       orderBy: { confidence: "desc" },
       take: 8,
       select: { content: true },
@@ -704,7 +705,7 @@ export async function buildSystemPromptUncached(
   const { computeIsoWeekKey } = await import("@/lib/ai/context/command-center-state");
   const weekKey = computeIsoWeekKey(new Date());
   const weeklyTarget = await prisma.brainMemory.findUnique({
-    where: { category_key: { category: "weekly_target", key: `week_${weekKey}` } },
+    where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
     select: { content: true, metadata: true },
   }).catch((): null => null);
 
@@ -1179,14 +1180,14 @@ export async function buildSystemPromptUncached(
     getBrainContinuitySummary().catch((): string => ""),
     // Chat personality learning — set by the chat route every 10th message.
     prisma.brainMemory.findUnique({
-      where: { category_key: { category: "chat_pattern", key: "latest_session" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session" } },
       select: { content: true, updatedAt: true },
     }).catch((): null => null),
     // Nour's pinned context slots — user-controlled permanent memory.
     // Up to 15 candidates; ranker picks the best 5 by label × recency
     // × reinforce × source within a 1200-char budget.
     prisma.brainMemory.findMany({
-      where: { category: "pinned_user", deletedAt: null }, // v7.9
+      where: { category: BRAIN_CATEGORIES.PINNED_USER, deletedAt: null }, // v7.9
       orderBy: { updatedAt: "desc" },
       select: {
         key: true,

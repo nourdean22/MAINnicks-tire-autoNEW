@@ -36,6 +36,7 @@ import {
 } from "@/lib/brain/wisdom-evolution";
 import { computeWisdomViolations } from "@/lib/brain/wisdom-violations";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface SmokeResult {
   layer: string;
@@ -145,7 +146,7 @@ async function smokeWisdomGraph(): Promise<SmokeResult> {
     // Pick a high-confidence wisdom with an embedding · simulate the
     // /api/brain/wisdom/[id]/related call without hitting HTTP.
     const anchor = await prisma.brainMemory.findFirst({
-      where: { category: "wisdom", deletedAt: null, confidence: { gte: 0.8 } },
+      where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: null, confidence: { gte: 0.8 } },
       orderBy: { lastSeen: "desc" },
       select: { id: true, key: true },
     });
@@ -175,7 +176,7 @@ async function smokeWisdomGraph(): Promise<SmokeResult> {
 
     const allWisdoms = await prisma.brainMemory.findMany({
       where: {
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         deletedAt: null,
         id: { not: anchor.id },
         confidence: { gte: 0.5 },

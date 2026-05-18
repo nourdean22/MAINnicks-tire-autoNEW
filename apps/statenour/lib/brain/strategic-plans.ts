@@ -14,6 +14,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("strategic-plans");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { today, daysAgo } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import {
   recentScoreSnapshots,
   recentShopJobs,
@@ -111,9 +112,9 @@ export async function assessStrategicPlans(): Promise<{
     .join(" | ");
 
   await prisma.brainMemory.upsert({
-    where: { category_key: { category: "strategic_plan", key: `plan_math_${today()}` } },
+    where: { category_key: { category: BRAIN_CATEGORIES.STRATEGIC_PLAN, key: `plan_math_${today()}` } },
     create: {
-      category: "strategic_plan",
+      category: BRAIN_CATEGORIES.STRATEGIC_PLAN,
       key: `plan_math_${today()}`,
       content: `PLAN PROGRESS [${today()}]: ${mathSummary.slice(0, 450)}`,
       confidence: 0.85,
@@ -176,12 +177,12 @@ Be honest. If a plan has 0 task completions in 30 days, it's behind. Don't sugar
     await prisma.brainMemory.upsert({
       where: {
         category_key: {
-          category: "strategic_plan",
+          category: BRAIN_CATEGORIES.STRATEGIC_PLAN,
           key: `plan_assessment_${today()}`,
         },
       },
       create: {
-        category: "strategic_plan",
+        category: BRAIN_CATEGORIES.STRATEGIC_PLAN,
         key: `plan_assessment_${today()}`,
         content: summary.slice(0, 500),
         confidence: 0.8,
@@ -208,7 +209,7 @@ Be honest. If a plan has 0 task completions in 30 days, it's behind. Don't sugar
 export async function getStrategicPlanContext(): Promise<string> {
   const plan = await prisma.brainMemory
     .findFirst({
-      where: { category: "strategic_plan" },
+      where: { category: BRAIN_CATEGORIES.STRATEGIC_PLAN },
       orderBy: { createdAt: "desc" },
       select: { content: true },
     })

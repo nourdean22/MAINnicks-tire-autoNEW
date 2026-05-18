@@ -27,6 +27,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { safeParseBody } from "@/lib/utils/http";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("api/ai/tasks");
 
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
     }),
     prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "identity_snapshot", key: "current" } },
+        where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
         select: { content: true },
       })
       .catch(() => null),

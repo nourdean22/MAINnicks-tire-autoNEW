@@ -50,6 +50,7 @@ import { createHash } from "node:crypto";
 import { getEmbedding } from "@/lib/ai/provider";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/persona-drift-detector");
 
@@ -114,7 +115,7 @@ export function renderIdentityToText(
 export async function computePersonaVector(): Promise<number[] | null> {
   const snap = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "identity_snapshot", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { content: true, updatedAt: true },
     })
     .catch(() => null);
@@ -503,7 +504,7 @@ export async function getPersonaAnchorPrompt(): Promise<string> {
 
   const snap = await prisma.brainMemory
     .findUnique({
-      where: { category_key: { category: "identity_snapshot", key: "current" } },
+      where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
       select: { content: true, updatedAt: true },
     })
     .catch(() => null);

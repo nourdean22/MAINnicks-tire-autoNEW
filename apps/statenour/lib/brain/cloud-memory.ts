@@ -10,6 +10,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 interface BrainSnapshot {
   timestamp: string;
@@ -233,7 +234,7 @@ export async function detectContradictions(): Promise<string[]> {
         select: { content: true },
       }).catch(() => null),
       prisma.brainMemory.findFirst({
-        where: { category: "staff_efficiency" },
+        where: { category: BRAIN_CATEGORIES.STAFF_EFFICIENCY },
         orderBy: { updatedAt: "desc" },
         select: { content: true },
       }).catch(() => null),

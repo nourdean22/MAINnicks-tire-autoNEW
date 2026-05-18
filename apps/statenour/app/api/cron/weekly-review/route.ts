@@ -10,6 +10,7 @@ import { logger as rootLogger } from "@/lib/logger";
 const log = rootLogger.withSurface("cron/weekly-review");
 
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
 function getWeekStartMonday(): string {
@@ -37,7 +38,7 @@ export const GET = cronHandler(async () => {
     prisma.brainMemory
       .findMany({
         where: {
-          category: "identity_snapshot",
+          category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
           key: { startsWith: "history:" },
           updatedAt: { gte: new Date(weekAgo) },
         },
@@ -67,7 +68,7 @@ export const GET = cronHandler(async () => {
       select: { description: true, status: true, deadline: true },
     }),
     prisma.brainMemory
-      .count({ where: { category: "contradiction", createdAt: { gte: new Date(weekAgo) } } })
+      .count({ where: { category: BRAIN_CATEGORIES.CONTRADICTION, createdAt: { gte: new Date(weekAgo) } } })
       .catch(() => 0),
   ]);
 

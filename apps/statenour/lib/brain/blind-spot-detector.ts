@@ -19,6 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { daysAgo, today, toDateString } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface BlindSpot {
   domain: string;
@@ -405,7 +406,7 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
 export async function getBlindSpotContext(): Promise<string> {
   try {
     const spots = await prisma.brainMemory.findMany({
-      where: { deletedAt: null, category: "blind_spot" }, // v9.1.18
+      where: { deletedAt: null, category: BRAIN_CATEGORIES.BLIND_SPOT }, // v9.1.18
       orderBy: { createdAt: "desc" },
       take: 5,
       select: { content: true },

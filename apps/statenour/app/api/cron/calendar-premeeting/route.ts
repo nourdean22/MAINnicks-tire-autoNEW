@@ -25,6 +25,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/calendar-premeeting");
 
@@ -69,7 +70,7 @@ export const GET = cronHandler(async () => {
     // dropped from the window by then.
     const dedupKey = `premeeting_${meta.eventId ?? row.key}`;
     const existing = await prisma.brainMemory.findUnique({
-      where: { category_key: { category: "proactive_push_sent", key: dedupKey } },
+      where: { category_key: { category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT, key: dedupKey } },
       select: { id: true },
     }).catch(() => null);
     if (existing) {
@@ -124,7 +125,7 @@ export const GET = cronHandler(async () => {
     // Mark as pushed
     await prisma.brainMemory.create({
       data: {
-        category: "proactive_push_sent",
+        category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
         key: dedupKey,
         content: `pre-meeting card sent for ${eventTitle} at ${new Date().toISOString()}`,
         source: "calendar_premeeting_cron",

@@ -17,6 +17,7 @@ import { today } from "@/lib/utils/datetime";
 import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { classifyThought as classifyThoughtFn } from "@/lib/brain/journal-ingest";
 import { runKnowledgeSync } from "@/lib/brain/knowledge-sync";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const brainTools = {
   surfaceAntiPatterns: tool({
@@ -42,7 +43,7 @@ export const brainTools = {
       const rows = await prisma.brainMemory
         .findMany({
           where: {
-            category: "anti_pattern",
+            category: BRAIN_CATEGORIES.ANTI_PATTERN,
             deletedAt: null,
           },
           orderBy: [{ confidence: "desc" }, { updatedAt: "desc" }],
@@ -462,9 +463,9 @@ export const brainTools = {
           .replace(/-+/g, "-")
           .slice(0, 60);
       const row = await prisma.brainMemory.upsert({
-        where: { category_key: { category: "pinned_user", key: slug } },
+        where: { category_key: { category: BRAIN_CATEGORIES.PINNED_USER, key: slug } },
         create: {
-          category: "pinned_user",
+          category: BRAIN_CATEGORIES.PINNED_USER,
           key: slug,
           content,
           confidence: confidence ?? 0.95,
@@ -512,7 +513,7 @@ export const brainTools = {
         type AntiMeta = import("@/lib/brain/memory-metadata-types").AntiPatternMeta;
         const queryTokens = tokenize(intent);
         const rows = await prisma.brainMemory.findMany({
-          where: { category: "anti_pattern", deletedAt: null }, // v7.9
+          where: { category: BRAIN_CATEGORIES.ANTI_PATTERN, deletedAt: null }, // v7.9
           take: 200,
         });
         const matches = rows
@@ -622,7 +623,7 @@ export const brainTools = {
     inputSchema: z.object({}),
     execute: async () => {
       const correlations = await prisma.brainMemory.findMany({
-        where: { category: "habit_revenue_correlation", confidence: { gte: 0.3 }, deletedAt: null }, // v7.9
+        where: { category: BRAIN_CATEGORIES.HABIT_REVENUE_CORRELATION, confidence: { gte: 0.3 }, deletedAt: null }, // v7.9
         orderBy: { confidence: "desc" },
         take: 5,
       });

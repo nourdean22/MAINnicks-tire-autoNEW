@@ -1,5 +1,6 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /**
  * GET /api/system/quality — Nick-quality trend (W12.1).
@@ -51,7 +52,7 @@ async function windowAggregate(since: Date) {
   // v8.27 · soft-delete retrofit · quality scorecards from deleted
   // chat turns shouldn't pollute the rolling Nick-quality average.
   const rows = await prisma.brainMemory.findMany({
-    where: { category: "nick_quality", createdAt: { gte: since }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.NICK_QUALITY, createdAt: { gte: since }, deletedAt: null },
     select: { metadata: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });
@@ -115,7 +116,7 @@ export const GET = apiHandler(async () => {
     windowAggregate(start7d),
     windowAggregate(start30d),
     prisma.brainMemory.findMany({
-      where: { category: "nick_quality", createdAt: { gte: start14d }, deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.NICK_QUALITY, createdAt: { gte: start14d }, deletedAt: null },
       select: { createdAt: true, metadata: true },
       orderBy: { createdAt: "asc" },
     }),

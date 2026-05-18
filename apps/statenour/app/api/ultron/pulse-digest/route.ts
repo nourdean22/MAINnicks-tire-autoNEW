@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // CP7 · Railway build cannot reach Neon during static prerender. Force
 // runtime-only · same effective behavior as Vercel due to cached().
@@ -160,7 +161,7 @@ export async function GET() {
             },
           }),
           prisma.brainMemory.findFirst({
-            where: { category: "backlog_triage", createdAt: { gte: today } },
+            where: { category: BRAIN_CATEGORIES.BACKLOG_TRIAGE, createdAt: { gte: today } },
             select: { content: true, createdAt: true },
           }),
           prisma.auditEvent.count({

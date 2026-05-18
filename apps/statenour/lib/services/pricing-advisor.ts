@@ -37,6 +37,7 @@ import { multiSourceSearch } from "@/lib/ai/multi-search";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/pricing-advisor");
 const aiChat = makeTracedAiChat("pricing-advisor", "cron");
@@ -368,7 +369,7 @@ export async function recallPricingWisdoms(
   try {
     const wisdoms = await prisma.brainMemory.findMany({
       where: activeOnly({
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         confidence: { gte: 0.5 },
         OR: [
           { content: { contains: "inversion", mode: "insensitive" } },

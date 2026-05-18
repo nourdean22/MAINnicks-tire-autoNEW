@@ -14,6 +14,7 @@ import { MEGA_JOB_COUNTS } from "@/src/inngest/jobs";
 // the actual wrap outcome (active/failed/inactive), not just env
 // presence.
 import { braintrustWrapStatus } from "@/lib/ai/braintrust-wrap";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 // v10.0.514 · 30s outer cache. The 2026-05-12 slow-paths Lighthouse
 // addendum showed this route at 5.5s on the homepage with 5 parallel
@@ -60,7 +61,7 @@ export const GET = apiHandler(async () => {
       // /journal in a while.
       prisma.brainMemory.count({
         where: {
-          category: "journal_convergence_candidate",
+          category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
           deletedAt: null,
         },
       }).catch(() => 0),
@@ -68,7 +69,7 @@ export const GET = apiHandler(async () => {
       // count = lots of borderline matches waiting for triage.
       prisma.brainMemory.count({
         where: {
-          category: "journal_thread_suggestion",
+          category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
           deletedAt: null,
         },
       }).catch(() => 0),
@@ -80,7 +81,7 @@ export const GET = apiHandler(async () => {
     const today = new Date().toISOString().slice(0, 10);
     const briefRow = await prisma.brainMemory
       .findUnique({
-        where: { category_key: { category: "morning_brief", key: today } },
+        where: { category_key: { category: BRAIN_CATEGORIES.MORNING_BRIEF, key: today } },
         select: { updatedAt: true },
       })
       .catch(() => null);

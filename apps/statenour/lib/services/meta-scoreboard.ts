@@ -27,6 +27,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/meta-scoreboard");
 
@@ -223,7 +224,7 @@ async function detectCronFailureBurst(): Promise<ScoreboardNumber | null> {
 
 async function detectStaleGoalSurge(): Promise<ScoreboardNumber | null> {
   const stale = await prisma.brainMemory
-    .count({ where: { category: "goal_prune_candidate", deletedAt: null } })
+    .count({ where: { category: BRAIN_CATEGORIES.GOAL_PRUNE_CANDIDATE, deletedAt: null } })
     .catch(() => 0);
   if (stale < 3) return null;
   return {
@@ -307,7 +308,7 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
     ]).then((r) => r.filter((n): n is ScoreboardNumber => n !== null)),
     prisma.brainMemory
       .findFirst({
-        where: { category: "morning_brief" },
+        where: { category: BRAIN_CATEGORIES.MORNING_BRIEF },
         orderBy: { updatedAt: "desc" },
         select: { updatedAt: true },
       })
@@ -315,7 +316,7 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
     // Phase A.3 · latest brief-time pinned scoreboard snapshot
     prisma.brainMemory
       .findFirst({
-        where: { category: "scoreboard_pinned", deletedAt: null },
+        where: { category: BRAIN_CATEGORIES.SCOREBOARD_PINNED, deletedAt: null },
         orderBy: { updatedAt: "desc" },
         select: { updatedAt: true, metadata: true },
       })

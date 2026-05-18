@@ -26,6 +26,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("decision-patterns");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export interface DecisionPattern {
   pattern: string;
@@ -254,9 +255,9 @@ export async function analyzeDecisionPatterns(): Promise<{
   // Store math patterns as brain memories
   for (const p of mathResults) {
     await prisma.brainMemory.upsert({
-      where: { category_key: { category: "decision_pattern", key: `dp_math_${p.name.replace(/\s+/g, "_").toLowerCase().slice(0, 40)}` } },
+      where: { category_key: { category: BRAIN_CATEGORIES.DECISION_PATTERN, key: `dp_math_${p.name.replace(/\s+/g, "_").toLowerCase().slice(0, 40)}` } },
       create: {
-        category: "decision_pattern",
+        category: BRAIN_CATEGORIES.DECISION_PATTERN,
         key: `dp_math_${p.name.replace(/\s+/g, "_").toLowerCase().slice(0, 40)}`,
         content: `${p.name}: ${p.finding} → ${p.intervention}`,
         confidence: p.confidence,
@@ -306,7 +307,7 @@ export async function analyzeDecisionPatterns(): Promise<{
 export async function getDecisionPatternContext(): Promise<string> {
   // v10.0.65 · soft-delete bypass fix · system-prompt feeder.
   const patterns = await prisma.brainMemory.findMany({
-    where: { category: "decision_pattern", confidence: { gte: 0.3 }, deletedAt: null },
+    where: { category: BRAIN_CATEGORIES.DECISION_PATTERN, confidence: { gte: 0.3 }, deletedAt: null },
     orderBy: { confidence: "desc" },
     take: 5,
     select: { content: true, confidence: true },

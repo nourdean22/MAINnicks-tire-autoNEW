@@ -21,6 +21,7 @@
 import { loadEnvConfig } from "@next/env";
 loadEnvConfig(process.cwd());
 import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const APPLY = process.argv.includes("--apply");
 
@@ -39,7 +40,7 @@ async function main() {
   for (const prefix of JUNK_PREFIXES) {
     const rows = await prisma.brainMemory.findMany({
       where: {
-        category: "wisdom",
+        category: BRAIN_CATEGORIES.WISDOM,
         deletedAt: null,
         content: { startsWith: prefix },
       },
@@ -54,7 +55,7 @@ async function main() {
   // /brain/wisdom?evolution=1 if needed.
   const nickAdviceWithoutTag = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       key: { startsWith: "nick_advice_" },
       NOT: { OR: JUNK_PREFIXES.map((p) => ({ content: { startsWith: p } })) },
@@ -96,7 +97,7 @@ async function main() {
 
   console.log(`✓ soft-deleted ${result.count} junk wisdoms`);
   console.log("  these are reversible · find them via:");
-  console.log("  prisma.brainMemory.findMany({ where: { category: 'wisdom', deletedAt: { not: null } } })");
+  console.log("  prisma.brainMemory.findMany({ where: { category: BRAIN_CATEGORIES.WISDOM, deletedAt: { not: null } } })");
 
   await prisma.$disconnect();
 }

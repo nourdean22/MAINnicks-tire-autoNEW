@@ -29,6 +29,7 @@
 import { prisma } from "@/lib/prisma";
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { tagWisdomTopics, type WisdomTopic } from "@/lib/brain/wisdom-topic-tagger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const STALE_DAYS_THRESHOLD = 60;
 const STALE_CONFIDENCE_FLOOR = 0.5;
@@ -100,7 +101,7 @@ export async function findStaleCandidates(
   const cutoff = new Date(Date.now() - daysThreshold * 86_400_000);
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       lastSeen: { lt: cutoff },
       confidence: { lt: confidenceFloor },
@@ -146,7 +147,7 @@ export async function findRedundantPairs(
   // low-confidence ones · those are already stale candidates).
   const wisdoms = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       confidence: { gte: 0.5 },
     },
@@ -245,7 +246,7 @@ export async function findLowTrustCandidates(): Promise<LowTrustCandidate[]> {
   const recentCutoff = new Date(Date.now() - 14 * 86_400_000);
   const rows = await prisma.brainMemory.findMany({
     where: {
-      category: "wisdom",
+      category: BRAIN_CATEGORIES.WISDOM,
       deletedAt: null,
       confidence: { lt: 0.5, gte: 0.2 }, // not deleted-tier, not yet stale
       lastSeen: { gte: recentCutoff }, // recently active
