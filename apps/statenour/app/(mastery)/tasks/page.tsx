@@ -73,6 +73,11 @@ import { TodaysCompound } from "@/components/actions/todays-compound";
 // shared with /goals + /scoreboard + / home · the intelligence overlay
 // the three surfaces were missing post-Phase-D.
 import { OperatorPulse } from "@/components/operator/operator-pulse";
+// Phase G (2026-05-18 PM) · CompoundChain · the see-your-work-compound
+// visualization. task → goal → axis → scoreboard chain · grouped by
+// axis · reads like prose ("Today · 3 tasks compounded · Business
+// ↑0.3 · 2 goals lifted").
+import { CompoundChain } from "@/components/operator/compound-chain";
 import { KommandoShell } from "@/components/actions/kommando-modes";
 import { useGoalProjectBridge } from "@/hooks/use-goal-project-bridge";
 import { useTaskDerivedState } from "@/hooks/use-task-derived-state";
@@ -1171,6 +1176,12 @@ function TasksPageInner() {
           context band is static while this strip moves with every
           check-off. Hides when nothing happened yet today. */}
       <TodaysCompound />
+      {/* Phase G (2026-05-18 PM) · CompoundChain · the prose-narrated
+          chain of TODAY's work · task → goal → axis → scoreboard. Sits
+          BELOW the chip strip (which is high-signal at-a-glance) ·
+          this is the deeper "what compounded into what" view. Self-
+          hides when nothing happened. surface="tasks" → today's window. */}
+      <CompoundChain surface="tasks" className="px-0 mx-0" />
       {/* v10.0.529.72 · Wave 18 IA merge · brain + life context band lives
           here on /tasks (the execution surface) so the operator's daily
           flow has context inline · no second nav hop. Brain row links to
