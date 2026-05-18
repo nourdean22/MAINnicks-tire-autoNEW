@@ -43,6 +43,9 @@ const InputSchema = z.object({
   v1Reply: z.string().min(1).max(8000),
   v2Reply: z.string().min(1).max(8000),
   intentClass: z.string().max(80).optional(),
+  /** Phase W · ChatMessage.id this comparison came from · lets the
+   *  sampler skip already-compared rows. Optional. */
+  sourceMessageId: z.string().max(64).optional(),
 });
 
 export const POST = apiHandler(
@@ -67,6 +70,7 @@ export const POST = apiHandler(
       v2Reply: input.v2Reply,
       judgment,
       intentClass: input.intentClass,
+      sourceMessageId: input.sourceMessageId,
     });
 
     return { id, judgment };

@@ -22,6 +22,13 @@ import { BUSINESS } from "@shared/business";
 const log = createLogger("cron:retention");
 
 // ─── RETENTION TIERS ─────────────────────────────────
+interface MessageVariant {
+  /** Bucket label persisted to sms_messages.variantKey ("v1" / "v2" / etc.) */
+  key: string;
+  /** Message builder — receives firstName and vehicle string */
+  build: (firstName: string, vehicle: string) => string;
+}
+
 interface RetentionTier {
   days: number;
   /** Day range: match customers whose last visit was between minDays..maxDays ago */
@@ -29,8 +36,16 @@ interface RetentionTier {
   maxDays: number;
   /** Feature flag(s) that must be enabled */
   flags: FlagKey[];
-  /** Message builder — receives firstName and vehicle string */
-  message: (firstName: string, vehicle: string) => string;
+  /**
+   * Message copy. EITHER:
+   *   `message` — single fixed string (no A/B test)
+   *   `variants` — array of {key, build}; we hash customerId to pick.
+   *                When set, the selected variant key is persisted to
+   *                sms_messages.variantKey for read-out in the admin tile.
+   * Exactly one of these must be set.
+   */
+  message?: (firstName: string, vehicle: string) => string;
+  variants?: MessageVariant[];
 }
 
 // wave-181.46 brand-voice tightening per .claude/brand-voice-guidelines.md:
@@ -109,42 +124,17 @@ function isWithinRetentionHours(): boolean {
 }
 
 // ─── SMS LOGGING ─────────────────────────────────────
-/** Log a retention SMS send to the sms_messages table */
-async function logRetentionSms(phone: string, body: string, sid?: string): Promise<void> {
-  try {
-    const { getDb } = await import("../../db");
-    const { smsMessages, smsConversations } = await import("../../../drizzle/schema");
-    const { eq: eqOp } = await import("drizzle-orm");
-    const db = await getDb();
-    if (!db) return;
-
-    // Find or create conversation for this phone
-    let [conv] = await db
-      .select({ id: smsConversations.id })
-      .from(smsConversations)
-      .where(eqOp(smsConversations.phone, phone))
-      .limit(1);
-
-    if (!conv) {
-      const [inserted] = await db
-        .insert(smsConversations)
-        .values({ phone })
-        .$returningId();
-      conv = { id: inserted.id };
-    }
-
-    await db.insert(smsMessages).values({
-      conversationId: conv.id,
-      direction: "outbound",
-      body,
-      twilioSid: sid || null,
-      status: sid ? "sent" : "failed",
-    });
-  } catch (err) {
-    log.warn("Failed to log retention SMS to DB", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+// wave-181.51 — delegate to the shared smsInstrumentation.logOutboundSms
+// so retention, declined-recovery, and cross-sell all write the same
+// shape (incl. variantKey). Keep this thin wrapper for call-site clarity.
+async function logRetentionSms(
+  phone: string,
+  body: string,
+  sid?: string,
+  variantKey?: string,
+): Promise<void> {
+  const { logOutboundSms } = await import("../../services/smsInstrumentation");
+  await logOutboundSms(phone, body, sid, variantKey);
 }
 
 // ─── CORE PROCESSOR ──────────────────────────────────
@@ -250,7 +240,31 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       const vehicle = vehicleParts.length > 0 ? vehicleParts.join(" ") : "vehicle";
 
       const firstName = c.firstName || "there";
-      const messageBody = tier.message(firstName, vehicle);
+
+      // wave-181.51 — pick A/B variant when tier.variants is set, else use
+      // the legacy single-message path. variantKey is persisted to
+      // sms_messages.variantKey for the /admin SMS Performance tile.
+      //
+      // variantKey doubles as the per-tier campaign label:
+      //   no A/B test   → "retention_d7"           (just the tier)
+      //   with A/B test → "retention_d7_v1" / "_v2" (tier + bucket)
+      // The admin tile groups by prefix so per-tier stats roll up cleanly.
+      const tierKey = `retention_d${tier.days}`;
+      let messageBody: string;
+      let variantKey: string;
+      if (tier.variants && tier.variants.length > 0) {
+        const { selectVariant } = await import("../../services/smsInstrumentation");
+        const picked = selectVariant(c.id, tier.variants.map((v) => ({ key: v.key, payload: v.build })));
+        messageBody = picked.payload(firstName, vehicle);
+        variantKey = `${tierKey}_${picked.key}`;
+      } else if (tier.message) {
+        messageBody = tier.message(firstName, vehicle);
+        variantKey = tierKey;
+      } else {
+        // Misconfigured tier — skip rather than send empty SMS
+        log.warn(`Retention ${tier.days}d tier has neither message nor variants, skipping customer #${c.id}`);
+        continue;
+      }
 
       // wave-181.46 · route through F25e gateway (operator decision: Twilio
       // is dead, Android phone is THE path). { via: "shop" } bypasses the
@@ -259,7 +273,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       const result = await sendSms(c.phone, messageBody, { via: "shop" });
 
       // Log to sms_messages table regardless of success
-      await logRetentionSms(c.phone, messageBody, result.sid);
+      await logRetentionSms(c.phone, messageBody, result.sid, variantKey);
 
       if (result.success) {
         // Update the customer's retention tracking

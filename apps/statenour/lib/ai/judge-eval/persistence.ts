@@ -28,6 +28,10 @@ export interface RecordComparisonArgs {
   judgment: Judgment;
   /** Optional · used for per-intent aggregation in the dashboard. */
   intentClass?: string;
+  /** Optional · Phase W · ChatMessage.id this comparison came from.
+   *  Lets the sampler skip already-compared rows so the operator
+   *  doesn't duplicate work. */
+  sourceMessageId?: string;
 }
 
 export interface ComparisonRow {
@@ -61,6 +65,7 @@ export async function recordComparison(args: RecordComparisonArgs): Promise<stri
         winner: args.judgment.winner,
         v2Score: args.judgment.v2Score,
         intentClass: args.intentClass ?? null,
+        sourceMessageId: args.sourceMessageId ?? null,
         parsed: args.judgment.parsed,
       }),
     );

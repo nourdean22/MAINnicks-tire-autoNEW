@@ -63,3 +63,4 @@ export { snapRouter } from "./snap";
 export { trafficFunnelRouter } from "./trafficFunnel";
 export { conversionRouter } from "./conversion";
 export { seoToolsRouter } from "./seoTools";
+export { smsPerformanceRouter } from "./smsPerformance";

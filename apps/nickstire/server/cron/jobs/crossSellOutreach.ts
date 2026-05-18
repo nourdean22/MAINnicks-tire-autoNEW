@@ -117,6 +117,11 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
 
       // wave-181.46 · route through F25e gateway (Twilio dead per operator)
       const result = await sendSms(rec.phone, message, { via: "shop" });
+      // wave-181.51 — persist to sms_messages so the /admin SMS Performance
+      // tile sees these sends (pre-181.51 immediate sends bypassed the table
+      // because sendSms() only persists the delayed-queue path).
+      const { logOutboundSms } = await import("../../services/smsInstrumentation");
+      await logOutboundSms(rec.phone, message, result.sid, "cross_sell");
       if (result.success) {
         sent++;
         log.info(`Cross-sell SMS sent to ${firstName} (${rec.service}): ${rec.reason}`);

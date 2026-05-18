@@ -171,6 +171,13 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           deviceId: event.deviceId,
           receivedAt: payload.receivedAt,
         }).catch(() => undefined);
+        // wave-181.51 — attribute this reply to the most recent outbound
+        // SMS within 7d. Helper is fully fail-open (try/catch + log-only)
+        // so an unapplied migration cannot break the webhook.
+        (async () => {
+          const { recordSmsReply } = await import("../../services/smsInstrumentation");
+          await recordSmsReply(normalized, body);
+        })().catch(() => undefined);
       }
       res.status(200).json({ received: true });
       return;

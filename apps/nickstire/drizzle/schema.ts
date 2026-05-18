@@ -779,10 +779,33 @@ export const smsMessages = mysqlTable("sms_messages", {
   /** Delivery status */
   status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received"]).default("queued").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
+  // ─── wave-181.51 · SMS INSTRUMENTATION ──────────────
+  // Persisted per-send metrics so attribution doesn't require keyword-
+  // sniffing the body. Reply tracking written by the SMS gateway
+  // webhook; conversion attribution written by an eventBus subscriber
+  // on booking_created / lead_captured.
+  /** Inbound replies received within 7d of this send (outbound rows only) */
+  replyCount: int("replyCount").default(0).notNull(),
+  /** First inbound reply timestamp (NULL until a reply lands) */
+  firstReplyAt: timestamp("firstReplyAt"),
+  /** Customer texted STOP after this send (subset of replyCount) */
+  optOutAt: timestamp("optOutAt"),
+  /** Bookings/leads created within 14d of this send (outbound rows only) */
+  convertedCount: int("convertedCount").default(0).notNull(),
+  /** The booking we credit this send for (first inside window) */
+  attributedBookingId: int("attributedBookingId"),
+  /** Timestamp the attribution was recorded */
+  attributedAt: timestamp("attributedAt"),
+  /** A/B variant bucket (e.g. "v1" / "v2"); NULL = pre-variant rollout */
+  variantKey: varchar("variantKey", { length: 50 }),
 }, (table) => ({
   idx_sms_msg_conv: index("idx_sms_msg_conv").on(table.conversationId),
   idx_sms_msg_created: index("idx_sms_msg_created").on(table.createdAt),
   idx_sms_msg_status_created: index("idx_sms_msg_status_created").on(table.status, table.createdAt),
+  // wave-181.51 — narrows "most recent outbound to phone X" lookups
+  sms_attribution_idx: index("sms_attribution_idx").on(table.direction, table.createdAt),
+  // wave-181.51 — supports A/B aggregator queries in the admin tile
+  sms_variant_idx: index("sms_variant_idx").on(table.variantKey, table.createdAt),
 }));
 
 export type SmsMessage = typeof smsMessages.$inferSelect;
