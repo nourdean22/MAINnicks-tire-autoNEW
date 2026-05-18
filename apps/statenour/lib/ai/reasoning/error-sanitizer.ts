@@ -23,7 +23,12 @@ const log = rootLogger.withSurface("api/error-sanitizer");
 
 /** Tags an error and returns a safe public-facing message + the
  *  internal error id that ops can grep in logs to find the root
- *  cause without exposing it to the wire. */
+ *  cause without exposing it to the wire.
+ *
+ *  Phase K · also persists the full sanitized entry to ErrorLog so
+ *  the operator can paste the errorId into /system/reviews and see
+ *  the full stack + classification + raw message · closes the loop
+ *  on "user reports an error → operator finds the cause in 10s". */
 export function sanitizeError(
   err: unknown,
   context: { route: string; op?: string },
@@ -33,6 +38,7 @@ export function sanitizeError(
     .slice(2, 8)}`;
   const rawMsg = err instanceof Error ? err.message : String(err);
   const stack = err instanceof Error ? err.stack : undefined;
+  const classified = classifyForOperator(rawMsg);
 
   // Log the FULL error internally · ops greps `errorId` to find it
   log.error("sanitized_error", {
@@ -41,16 +47,57 @@ export function sanitizeError(
     op: context.op,
     rawMsg: rawMsg.slice(0, 800),
     stack: stack?.slice(0, 1500),
+    classified,
   });
 
-  // Classify into a small set of operator-friendly buckets · the
-  // public message reveals KIND of error but not contents.
-  const classified = classifyForOperator(rawMsg);
+  // Phase K · also persist to ErrorLog so /system/reviews can find
+  // it by errorId. Fire-and-forget · failure here never blocks the
+  // sanitizer's return.
+  void persistToErrorLog({
+    errorId,
+    route: context.route,
+    op: context.op,
+    rawMsg,
+    stack,
+    classified,
+  }).catch(() => {
+    /* best-effort */
+  });
 
   return {
     publicMessage: `${classified}. Reference: ${errorId}`,
     errorId,
   };
+}
+
+async function persistToErrorLog(entry: {
+  errorId: string;
+  route: string;
+  op?: string;
+  rawMsg: string;
+  stack?: string;
+  classified: string;
+}): Promise<void> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    await prisma.errorLog.create({
+      data: {
+        level: "error",
+        message: `[${entry.errorId}] ${entry.classified} · ${entry.route}`,
+        stack: entry.stack?.slice(0, 4000),
+        context: {
+          kind: "sanitized_error",
+          errorId: entry.errorId,
+          route: entry.route,
+          op: entry.op,
+          rawMsg: entry.rawMsg.slice(0, 2000),
+          classified: entry.classified,
+        },
+      },
+    });
+  } catch {
+    // best-effort
+  }
 }
 
 function classifyForOperator(rawMsg: string): string {

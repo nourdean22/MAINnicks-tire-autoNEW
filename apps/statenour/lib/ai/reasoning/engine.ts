@@ -302,6 +302,9 @@ async function runCritique(
 
 "verdict" is "ship" if the answer is good enough · "refine" if material issues exist.`,
       },
+      // SAFE: question + draft are operator-owned content · the critic
+      // is a sub-LLM reasoning about Nick's own output · no untrusted
+      // external input enters this prompt. PI-001 false positive.
       {
         role: "user",
         content: `QUESTION:\n${question}\n\nDRAFT:\n${draft}`,
@@ -347,6 +350,9 @@ async function runRefine(
 
 OUTPUT: the refined answer only · no commentary · no preamble.`,
       },
+      // SAFE: question + draft are operator-owned · critique.issues +
+      // .suggestions came from our own runCritique call · the model is
+      // refining its own prior output · PI-001 false positive.
       {
         role: "user",
         content: `QUESTION:\n${question}\n\nORIGINAL DRAFT:\n${draft}\n\nISSUES:\n${critique.issues.map((i) => `- ${i}`).join("\n")}\n\nSUGGESTIONS:\n${critique.suggestions.map((s) => `- ${s}`).join("\n")}`,
