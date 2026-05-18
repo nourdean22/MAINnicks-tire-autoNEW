@@ -144,17 +144,35 @@ NO MARKDOWN HEADERS. Be terse and concrete.`,
   return (reply?.content ?? "").trim();
 }
 
+/** H.8 · sub-pipeline runner return type · carries actual call count
+ *  + actual cost (when the pipeline reports it) so the engine
+ *  accumulator gets real numbers instead of magic constants. */
+interface SubPipelineResult {
+  content: string;
+  /** Best-known call count from this sub-pipeline · used for the
+   *  engine's callCount tally + fallback estimate when usd is 0. */
+  callCount: number;
+  /** Real USD cost when the sub-pipeline reports it (multi-agent
+   *  does · deep-research + fanout don't yet). 0 when unknown. */
+  usd: number;
+}
+
 async function runFanout(
   question: string,
   brainContext?: string,
-): Promise<string> {
-  // Reuse the existing pretask-fanout · 3 parallel lenses + composite
+): Promise<SubPipelineResult> {
+  // Reuse the existing pretask-fanout · 3 parallel lenses + composite.
+  // H.8 · always 4 calls (3 lens + 1 composite) · count is deterministic
+  // even though the per-lens cost isn't reported back.
   const { runFanout } = await import("@/lib/ai/pretask-fanout");
   const fanout = await runFanout({ question, brainContext });
-  return fanout.composite;
+  return { content: fanout.composite, callCount: 4, usd: 0 };
 }
 
-async function runMultiAgent(question: string, plan: string): Promise<string> {
+async function runMultiAgent(
+  question: string,
+  plan: string,
+): Promise<SubPipelineResult> {
   const { runMultiAgent } = await import("@/lib/ai/multi-agent-orchestrator");
   // Derive sub-agents from the plan · each step becomes one focused
   // sub-agent task. Cap at 4 to bound cost.
@@ -186,13 +204,23 @@ async function runMultiAgent(question: string, plan: string): Promise<string> {
     goal: question,
     subAgents,
   });
-  return report.synthesis;
+  // H.8 · real call count = sub-agents + 1 synthesizer · real cost
+  // from MultiAgentReport.costEstimateUsd (already exposed).
+  return {
+    content: report.synthesis,
+    callCount: report.results.length + 1,
+    usd: report.costEstimateUsd ?? 0,
+  };
 }
 
-async function runDeepResearch(question: string): Promise<string> {
+async function runDeepResearch(question: string): Promise<SubPipelineResult> {
   const { runDeepResearch } = await import("@/lib/ai/deep-research");
   const report = await runDeepResearch({ question });
-  return report.synthesis;
+  // H.8 · real call count = 1 planner + N rounds + 1 synthesizer.
+  // Each round is one Perplexity search call. Cost not exposed by
+  // deep-research today · fall back to 0 (engine estimate covers it).
+  const calls = 1 + (report.rounds?.length ?? 0) + 1;
+  return { content: report.synthesis, callCount: calls, usd: 0 };
 }
 
 // Phase H.2 · mega-tier helpers · ghost-nick predictions + wisdom
@@ -462,65 +490,121 @@ async function runReasoningEngine(
       ]).catch(() => fallback);
       return winner;
     };
+    // H.8 · sub-pipelines now return { content, callCount, usd } · we
+    // accumulate real counts + costs (when known) instead of the
+    // pre-H.8 magic `callCount += 5 + 4 + 3`. Empty-fallback shape
+    // matches so the timeout path doesn't crash on .content access.
+    const emptyPipe: SubPipelineResult = { content: "", callCount: 0, usd: 0 };
     const [research, multi, fan, ghost, wisdom] = await Promise.all([
       withBudget(
         "research",
-        runDeepResearch(request.question).catch(() => ""),
+        runDeepResearch(request.question).catch(() => emptyPipe),
         SOURCE_BUDGETS.research,
-        "",
+        emptyPipe,
       ),
       withBudget(
         "multi",
-        runMultiAgent(request.question, plan).catch(() => ""),
+        runMultiAgent(request.question, plan).catch(() => emptyPipe),
         SOURCE_BUDGETS.multi,
-        "",
+        emptyPipe,
       ),
       withBudget(
         "fan",
-        runFanout(request.question, request.brainContext).catch(() => ""),
+        runFanout(request.question, request.brainContext).catch(() => emptyPipe),
         SOURCE_BUDGETS.fan,
-        "",
+        emptyPipe,
       ),
-      withBudget("ghost", runGhostContext(), SOURCE_BUDGETS.ghost, ""),
+      withBudget(
+        "ghost",
+        runGhostContext().then((s) => ({ content: s, callCount: 0, usd: 0 })),
+        SOURCE_BUDGETS.ghost,
+        emptyPipe,
+      ),
       withBudget(
         "wisdom",
-        runWisdomContext(request.question),
+        runWisdomContext(request.question).then((s) => ({
+          content: s,
+          callCount: 0,
+          usd: 0,
+        })),
         SOURCE_BUDGETS.wisdom,
-        "",
+        emptyPipe,
       ),
     ]);
-    callCount += 5 + 4 + 3; // approx · DR + multi-agent + fanout
+    // H.8 · real callCount from sub-pipelines, replacing magic constants
+    callCount += research.callCount + multi.callCount + fan.callCount;
+    // H.8 · push real usd into the accumulator (multi-agent reports it)
+    if (research.usd > 0) {
+      acc.usd += research.usd;
+      acc.calls += research.callCount;
+    } else {
+      acc.calls += research.callCount;
+      acc.callsWithoutCost += research.callCount;
+    }
+    if (multi.usd > 0) {
+      acc.usd += multi.usd;
+      acc.calls += multi.callCount;
+    } else {
+      acc.calls += multi.callCount;
+      acc.callsWithoutCost += multi.callCount;
+    }
+    if (fan.usd > 0) {
+      acc.usd += fan.usd;
+      acc.calls += fan.callCount;
+    } else {
+      acc.calls += fan.callCount;
+      acc.callsWithoutCost += fan.callCount;
+    }
     const parts: string[] = [];
-    if (research) parts.push(`# DEEP RESEARCH\n${research}`);
-    if (multi) parts.push(`# MULTI-AGENT SYNTHESIS\n${multi}`);
-    if (fan) parts.push(`# FANOUT (research / risk / plan)\n${fan}`);
-    if (ghost) parts.push(`# GHOST NICK PREDICTIONS\n${ghost}`);
-    if (wisdom) parts.push(`# RELATED WISDOM\n${wisdom}`);
+    if (research.content) parts.push(`# DEEP RESEARCH\n${research.content}`);
+    if (multi.content) parts.push(`# MULTI-AGENT SYNTHESIS\n${multi.content}`);
+    if (fan.content) parts.push(`# FANOUT (research / risk / plan)\n${fan.content}`);
+    if (ghost.content) parts.push(`# GHOST NICK PREDICTIONS\n${ghost.content}`);
+    if (wisdom.content) parts.push(`# RELATED WISDOM\n${wisdom.content}`);
     context = parts.join("\n\n---\n\n");
     const dropped = 5 - parts.length;
     rec.push(
       "tool_call",
-      `mega composite · ${parts.length}/5 sources landed${dropped > 0 ? ` · ${dropped} timed out` : ""}`,
+      `mega composite · ${parts.length}/5 sources landed${dropped > 0 ? ` · ${dropped} timed out` : ""} · ${research.callCount + multi.callCount + fan.callCount} real calls`,
       {
-        research: research ? research.slice(0, 200) : "(timed out or empty)",
-        multi: multi ? multi.slice(0, 200) : "(timed out or empty)",
-        fan: fan ? fan.slice(0, 200) : "(timed out or empty)",
-        ghost: ghost ? ghost.slice(0, 200) : "(timed out or empty)",
-        wisdom: wisdom ? wisdom.slice(0, 200) : "(timed out or empty)",
+        research: research.content ? research.content.slice(0, 200) : "(timed out or empty)",
+        multi: multi.content ? multi.content.slice(0, 200) : "(timed out or empty)",
+        fan: fan.content ? fan.content.slice(0, 200) : "(timed out or empty)",
+        ghost: ghost.content ? ghost.content.slice(0, 200) : "(timed out or empty)",
+        wisdom: wisdom.content ? wisdom.content.slice(0, 200) : "(timed out or empty)",
         budgets: SOURCE_BUDGETS,
+        realCallCount: {
+          research: research.callCount,
+          multi: multi.callCount,
+          fan: fan.callCount,
+          realUsd: Math.round((research.usd + multi.usd + fan.usd) * 1000) / 1000,
+        },
       },
       Date.now() - t,
     );
   }
 
+  // H.8 · helper to ingest a sub-pipeline result into the accumulator
+  const ingestSubPipeline = (res: SubPipelineResult) => {
+    callCount += res.callCount;
+    if (res.usd > 0) {
+      acc.usd += res.usd;
+      acc.calls += res.callCount;
+    } else {
+      acc.calls += res.callCount;
+      acc.callsWithoutCost += res.callCount;
+    }
+  };
+
   if (!context && tier === "thorough") {
     try {
       const t = Date.now();
-      context = await runDeepResearch(request.question);
-      callCount += 5; // deep research makes ~3-5 search calls + synth
+      const dr = await runDeepResearch(request.question);
+      ingestSubPipeline(dr);
+      context = dr.content;
       rec.push(
         "tool_call",
-        `deep research · ${context.length} chars synthesized`,
+        `deep research · ${context.length} chars synthesized · ${dr.callCount} real calls`,
         context.slice(0, 600),
         Date.now() - t,
       );
@@ -536,12 +620,12 @@ async function runReasoningEngine(
     try {
       const t = Date.now();
       const multi = await runMultiAgent(request.question, plan);
-      callCount += 4;
-      context = multi;
+      ingestSubPipeline(multi);
+      context = multi.content;
       rec.push(
         "agent_call",
-        "multi-agent synthesis composed",
-        multi.slice(0, 600),
+        `multi-agent synthesis composed · ${multi.callCount} sub-agents${multi.usd > 0 ? ` · $${multi.usd.toFixed(4)}` : ""}`,
+        multi.content.slice(0, 600),
         Date.now() - t,
       );
     } catch (err) {
@@ -556,12 +640,12 @@ async function runReasoningEngine(
     try {
       const t = Date.now();
       const fan = await runFanout(request.question, request.brainContext);
-      callCount += 3;
-      context = fan;
+      ingestSubPipeline(fan);
+      context = fan.content;
       rec.push(
         "fanout",
-        "3-lens fanout composed (research · risk · plan)",
-        fan.slice(0, 600),
+        `3-lens fanout composed (research · risk · plan) · ${fan.callCount} calls`,
+        fan.content.slice(0, 600),
         Date.now() - t,
       );
     } catch (err) {
