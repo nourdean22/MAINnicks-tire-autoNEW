@@ -1,20 +1,45 @@
 #!/usr/bin/env sh
 # Husky pre-commit hook — runs fast checks before every commit.
-# To enable: run `pnpm add -D husky && pnpm exec husky init` once,
-# then this file is copied in and activated.
 #
-# We run in order of increasing cost: fast source lint → types → tests.
-# If any step fails, the commit is aborted with the failure output.
+# wave-181.49 — fixed for monorepo cutover (CP1-CP2, May 13). Previously
+# called `pnpm run lint:source` from the root, which broke when those
+# scripts moved into apps/nickstire/package.json. Now delegates per-app.
+#
+# Runs in order of increasing cost: brand-voice (instant, scoped) →
+# source lint (fast) → types (slower). Tests dropped from the pre-commit
+# chain — full suite takes ~45s, too slow for every commit; run via
+# `pnpm test` manually or in CI.
+#
+# To bypass for a legitimate one-off: git commit --no-verify
+#   (use sparingly — bypasses ALL hooks not just brand-voice)
 
 set -e
 
-echo "[pre-commit] Source lint (console.* in server, etc)..."
-pnpm run lint:source
+# Detect whether any nickstire files are staged. If not, skip the
+# nickstire checks entirely (e.g. for statenour-only commits).
+NICKSTIRE_STAGED=$(git diff --cached --name-only | grep -c "^apps/nickstire/" || true)
 
-echo "[pre-commit] TypeScript check..."
-pnpm run check
+if [ "$NICKSTIRE_STAGED" -gt 0 ]; then
+  echo "[pre-commit] $NICKSTIRE_STAGED nickstire file(s) staged → running nickstire checks"
 
-echo "[pre-commit] Tests..."
-pnpm run test -- --bail=1
+  # Brand-voice kill list (wave-181.49) — instant, scoped to copy files only.
+  # Backed by .claude/brand-voice-guidelines.md §3.
+  echo "[pre-commit] Brand-voice lint (kill list)..."
+  (cd apps/nickstire && pnpm run lint:brand-voice)
 
-echo "\u2713 pre-commit OK"
+  echo "[pre-commit] Source lint (console.* in server, etc)..."
+  (cd apps/nickstire && pnpm run lint:source)
+
+  echo "[pre-commit] Hook-after-return lint..."
+  (cd apps/nickstire && pnpm run lint:hooks)
+
+  echo "[pre-commit] Route registry validation..."
+  (cd apps/nickstire && pnpm run validate:routes)
+
+  echo "[pre-commit] TypeScript check..."
+  (cd apps/nickstire && pnpm run check)
+else
+  echo "[pre-commit] no nickstire files staged → skipping nickstire checks"
+fi
+
+echo "✓ pre-commit OK"
