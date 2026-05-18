@@ -29,6 +29,7 @@ import Link from "next/link";
 import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -148,15 +149,22 @@ function Header({ axes, pruneCandidates }: { axes: AxisScore[]; pruneCandidates:
     <header>
       <div className="flex items-baseline justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-1">
+          {/* Canonical eyebrow tracking 0.14em + .eyebrow weight ·
+              matches /brain, /scoreboard pattern post-2026-05-18 PM
+              design-tokens pass (ADR-0015). Pre-pass this used
+              tracking-[0.18em] + text-white/40 literal · which the
+              audit flagged as drift from the .eyebrow CSS class. */}
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
             Mastery
           </p>
-          <h1 className="text-2xl font-medium">Goals</h1>
+          <h1 className="text-2xl font-medium text-[var(--text-primary)]">
+            Goals
+          </h1>
         </div>
         {pruneCandidates > 0 ? (
           <Link
             href={`/chat?q=walk%20me%20through%20pruning%20the%20${pruneCandidates}%20stale%20goals%20Nick%20flagged`}
-            className="text-xs px-3 py-2 rounded-full border border-amber-500/40 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/[0.12] transition"
+            className="text-xs px-3 py-2 min-h-[44px] inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/[0.12] transition"
           >
             {pruneCandidates} stale · review →
           </Link>
@@ -344,18 +352,16 @@ function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[]
   return (
     <aside className="space-y-8">
       {/* Mastery summary · compact list view */}
-      <section>
-        <h3 className="text-[10px] uppercase tracking-[0.22em] text-white/40 mb-3">
-          8-axis mastery
-        </h3>
+      <section className="space-y-3">
+        <MasterySectionLabel label="8-axis mastery" />
         {axes.length === 0 ? (
-          <p className="text-xs text-white/40">No scores yet.</p>
+          <p className="text-xs text-[var(--text-tertiary)]">No scores yet.</p>
         ) : (
           <ul className="space-y-2">
             {axes.map((a) => (
               <li key={a.domain} className="flex items-center justify-between text-xs">
-                <span className="text-white/70">{a.domain}</span>
-                <span className="tabular-nums text-white/90">
+                <span className="text-[var(--text-secondary)]">{a.domain}</span>
+                <span className="tabular-nums text-[var(--text-primary)]">
                   {a.score.toFixed(1)}
                   <span
                     className={`ml-2 ${
@@ -363,7 +369,7 @@ function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[]
                         ? "text-emerald-300"
                         : a.delta7d < 0
                         ? "text-red-300"
-                        : "text-white/30"
+                        : "text-[var(--text-tertiary)]"
                     }`}
                   >
                     {a.delta7d > 0 ? "↑" : a.delta7d < 0 ? "↓" : "—"}
@@ -376,15 +382,8 @@ function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[]
       </section>
 
       {/* Active missions · the WORK */}
-      <section>
-        <div className="flex items-baseline justify-between mb-3">
-          <h3 className="text-[10px] uppercase tracking-[0.22em] text-white/40">
-            Active missions
-          </h3>
-          <span className="text-[10px] tabular-nums text-white/40">
-            {missions.length}
-          </span>
-        </div>
+      <section className="space-y-3">
+        <MasterySectionLabel label="Active missions" count={missions.length} />
         {missions.length === 0 ? (
           <p className="text-xs text-white/40">No active missions.</p>
         ) : (

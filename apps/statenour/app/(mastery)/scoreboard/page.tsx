@@ -25,6 +25,7 @@ import Link from "next/link";
 import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
+import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 type Trend = "up" | "down" | "flat";
 
@@ -79,10 +80,12 @@ export default function ScoreboardPage() {
         <Header state={data.state} lastBriefAt={data.lastBriefAt} />
 
         {anomalies.length > 0 ? (
-          <section className="mt-6">
-            <h2 className="text-[10px] uppercase tracking-[0.22em] text-amber-300/80 mb-3">
-              Anomalous · {anomalies.length}
-            </h2>
+          <section className="mt-6 space-y-3">
+            <MasterySectionLabel
+              label="Anomalous"
+              count={anomalies.length}
+              tone="amber"
+            />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {anomalies.map((n) => (
                 <Card key={n.key} number={n} />
@@ -91,12 +94,15 @@ export default function ScoreboardPage() {
           </section>
         ) : null}
 
-        <section className="mt-6">
-          <h2 className="text-[10px] uppercase tracking-[0.22em] text-white/40 mb-3">
-            Anchors · {anchors.length}
-          </h2>
+        <section className="mt-6 space-y-3">
+          <MasterySectionLabel
+            label="Anchors"
+            count={anchors.length}
+          />
           {anchors.length === 0 ? (
-            <p className="text-sm text-white/50">No anchor numbers right now.</p>
+            <p className="text-sm text-[var(--text-secondary)]">
+              No anchor numbers right now.
+            </p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {anchors.map((n) => (
@@ -114,7 +120,7 @@ export default function ScoreboardPage() {
 
 function Header({
   state,
-  lastBriefAt,
+  lastBriefAt: _lastBriefAt,
 }: {
   state: "calm" | "alive";
   lastBriefAt: string | null;
@@ -122,14 +128,19 @@ function Header({
   return (
     <header className="flex items-start justify-between gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-1">
+        {/* Canonical eyebrow tracking 0.14em + .eyebrow weight ·
+            matches /goals + /brain pattern post-2026-05-18 PM
+            design-tokens pass (ADR-0015). */}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
           What matters now
         </p>
-        <h1 className="text-2xl font-medium">Scoreboard</h1>
+        <h1 className="text-2xl font-medium text-[var(--text-primary)]">
+          Scoreboard
+        </h1>
       </div>
       <span
         className={[
-          "inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-wider",
+          "inline-flex items-center px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.14em] font-semibold",
           state === "alive"
             ? "bg-amber-500/10 text-amber-200 border border-amber-500/30"
             : "bg-emerald-500/10 text-emerald-200 border border-emerald-500/30",
