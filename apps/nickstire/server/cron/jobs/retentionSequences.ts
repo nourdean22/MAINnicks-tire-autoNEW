@@ -40,7 +40,30 @@ interface RetentionTier {
 //     where the customer's resistance is highest (long gap → assume bad memory)
 //   - Tightened openers: "Hey {name}" (warmer, matches Brian's VAPI cadence)
 //     dropped exclamation marks (less "marketing-y", more shop-floor)
+//
+// wave-181.47 — added D7 + D14 tiers per growth-engine onboarding framework.
+// The first 14 days post-visit had ZERO touchpoints (next was D45) — that's
+// the highest-recall window and we were silent. D7 = post-work check-in (warm,
+// no pitch). D14 = active reactivation if anything didn't take ("free re-check,
+// you don't pay until you say yes"). Both gated by separate flags so Nour can
+// roll out cautiously then promote to the main sequence flag.
 const RETENTION_TIERS: RetentionTier[] = [
+  {
+    days: 7,
+    minDays: 5,
+    maxDays: 9,
+    flags: ["sms_retention_sequences", "retention_7day"],
+    message: (name, vehicle) =>
+      `Hey ${name} — quick check-in. Everything good with the ${vehicle} after the work? Reply if you noticed anything off. — Nick's`,
+  },
+  {
+    days: 14,
+    minDays: 12,
+    maxDays: 16,
+    flags: ["sms_retention_sequences", "retention_14day"],
+    message: (name, vehicle) =>
+      `Hey ${name} — 2 weeks since your ${vehicle} was in. Anything not holding up? Free re-check, you don't pay until you say yes. ${STORE_PHONE}`,
+  },
   {
     days: 45,
     minDays: 40,
