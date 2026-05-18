@@ -1,15 +1,20 @@
 "use client";
 
-// Phase B follow-up · 2026-05-18 · `useSearchParams()` (introduced
-// for the ?goalId=X filter) requires the page to opt out of static
-// prerender. Without this, `pnpm run build` fails with:
-//   Error occurred prerender · useSearchParams() should be wrapped
-//   in a Suspense boundary
-// Diagnosed via Railway Agent after 1 deploy failed at static-gen.
-// force-dynamic is simpler than refactoring the whole 1,181-LOC page
-// into a Suspense-wrapped inner component · the page is operator-
-// only + already authenticated + always SSR'd anyway.
-export const dynamic = "force-dynamic";
+// Phase B follow-up · 2026-05-18 PM · second attempt at the
+// useSearchParams() prerender fix. First attempt added
+// `export const dynamic = "force-dynamic"` to this page · that does
+// NOT take effect on "use client" pages (route segment config is
+// only honored by Server Components). Railway Agent caught it after
+// the build kept failing identically.
+//
+// Real fix: wrap TasksPageInner in <Suspense> from the exported
+// outer TasksPage component. The Suspense boundary lets Next.js
+// build the page shell statically while useSearchParams() resolves
+// at runtime · which is what we want for an authenticated client
+// page that needs ?goalId= from the URL.
+//
+// See ADR-0014 (Railway recovery) for the full multi-layer
+// diagnosis chain.
 
 /**
  * Actions page · /tasks
@@ -29,7 +34,7 @@ export const dynamic = "force-dynamic";
  * /api/goals · /api/actions-brain · /api/ai/tasks.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { logger as rootLogger } from "@/lib/logger";
 
@@ -120,7 +125,19 @@ function unwrap<T>(x: Envelope<T>): T {
 
 // ─── Page ──────────────────────────────────────────────
 
+// Outer page · Suspense boundary required because the inner
+// component calls useSearchParams() (Phase B's ?goalId= filter).
+// Per Next.js 16 docs, useSearchParams in a client component MUST
+// be wrapped in <Suspense> for static prerender to succeed.
 export default function TasksPage() {
+  return (
+    <Suspense fallback={null}>
+      <TasksPageInner />
+    </Suspense>
+  );
+}
+
+function TasksPageInner() {
   const nourState = useNourState();
   // v10.0.529.17 · `driftOverride` was aspirational dead state ·
   // pre-fix it lived as `useState(false)` with a `setDriftOverride`
