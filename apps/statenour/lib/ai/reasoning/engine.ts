@@ -44,6 +44,7 @@ import type {
   ReasoningTier,
   ReasoningTrace,
 } from "./types";
+import type { SubAgentTask } from "@/lib/ai/multi-agent-orchestrator";
 import { classifyReasoning } from "./classifier";
 import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -178,53 +179,72 @@ async function runMultiAgent(
   plan: string,
 ): Promise<SubPipelineResult> {
   const { runMultiAgent } = await import("@/lib/ai/multi-agent-orchestrator");
+
   // Derive sub-agents from the plan · each step becomes one focused
   // sub-agent task. Cap at 4 to bound cost.
+  //
+  // Phase R · M.2 wiring · each sub-agent now carries a typed persona:
+  //   · plan-derived steps → research-analyst (concrete-fact tasks)
+  //   · fallback 2-angle split → research-analyst + contrarian-critic
+  // The orchestrator uses persona's role/goal/backstory as the system
+  // prompt instead of the generic SUB_AGENT_SYSTEM, and N.6's scorer
+  // (recordPersonaUsage) now sees `research-analyst`/`contrarian-critic`
+  // instead of `step_1`/`what`/`why` placeholders.
   const planLines = plan
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => /^\d+[.)]/.test(l))
     .slice(0, 4);
-  const subAgents = planLines.length > 0
+  const subAgents: SubAgentTask[] = planLines.length > 0
     ? planLines.map((line, i) => ({
         name: `step_${i + 1}`,
         task: line.replace(/^\d+[.)]\s*/, ""),
         outputHint: "Concrete · no fluff · max 200 words.",
+        persona: "research-analyst",
       }))
     : [
-        // Fallback · split the question into 2 simple angles
+        // Fallback · split the question into "what's the concrete
+        // answer" + "what could go wrong with that answer". This
+        // pairs the research-analyst (find facts) with the
+        // contrarian-critic (surface failure modes) · the same
+        // 2-lens setup CrewAI uses for cheap fact-vs-risk fan-out.
         {
           name: "what",
           task: `What is the concrete answer to: ${question}`,
           outputHint: "Direct answer · max 200 words.",
+          persona: "research-analyst",
         },
         {
           name: "why",
-          task: `Why is the right answer the right one? What are the trade-offs of the alternatives for: ${question}`,
-          outputHint: "Reasoning · max 200 words.",
+          task: `What could go wrong with the obvious answer to: ${question} · which failure modes are being missed?`,
+          outputHint: "Risks + missed angles · max 200 words.",
+          persona: "contrarian-critic",
         },
       ];
+
   const report = await runMultiAgent({
     goal: question,
     subAgents,
   });
   // N.6 · record persona usage per sub-agent · scorer reads these
   // rows to compute "which personas reliably produce high-confidence
-  // answers". Best-effort · failure here never blocks the engine. The
-  // confidence used here is the multi-agent's own cost-estimate
-  // implied confidence · the actual parent run's confidence is set
-  // later in buildResult and isn't available here yet · scorer
-  // re-aggregates via the parent trace's metadata later.
+  // answers". Best-effort · failure here never blocks the engine.
+  //
+  // Phase R · post-M.2 wiring · `r.name` is now the persona key when
+  // a persona was passed (the orchestrator sets `effectiveName =
+  // task.persona ?? task.name`). For plan-derived runs that means
+  // we always record `research-analyst`. For the fallback 2-angle
+  // split we record `research-analyst` + `contrarian-critic`. N.6's
+  // scorer can finally compute per-persona avgConfidence + fallbackRate
+  // verdicts off real persona keys instead of `step_N` placeholders.
   void (async () => {
     try {
       const { recordPersonaUsage } = await import("@/lib/ai/personas/scorer");
       for (const r of report.results) {
-        // Pre-M.2: sub-agent names are inline strings like "step_1"
-        // Post-M.2 wiring (H+): would be persona keys like "research-analyst"
         await recordPersonaUsage({
           personaKey: r.name,
           parentTier: "multi-agent",
-          parentConfidence: r.failed ? 0.2 : 0.7, // placeholder · refined when M.2 wiring lands
+          parentConfidence: r.failed ? 0.2 : 0.7, // placeholder · refined when buildResult lands
           durationMs: r.durationMs ?? 0,
         });
       }

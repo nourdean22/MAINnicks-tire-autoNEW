@@ -32,6 +32,7 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import { getPersona, personaToSystemPrompt } from "@/lib/ai/personas";
 
 const log = rootLogger.withSurface("ai/multi-agent");
 
@@ -45,6 +46,22 @@ export interface SubAgentTask {
   task: string;
   /** Optional · constrain output to a specific shape */
   outputHint?: string;
+  /**
+   * Phase R · M.2 wiring · optional persona key from the typed
+   * library (`lib/ai/personas/index.ts`). When set:
+   *   1. The sub-agent uses `personaToSystemPrompt(persona)` as its
+   *      system prompt (role + goal + backstory + outputHint) instead
+   *      of the generic SUB_AGENT_SYSTEM.
+   *   2. The result's `name` field becomes the persona key — so the
+   *      synthesizer dossier reads `# research-analyst` instead of
+   *      `# step_1`, and N.6's recordPersonaUsage telemetry sees real
+   *      persona keys instead of placeholders.
+   *
+   * Unknown persona keys fall back to the generic system prompt and
+   * are logged as a soft warning · prevents typos from silently
+   * disabling persona steering.
+   */
+  persona?: string;
 }
 
 export interface SubAgentResult {
@@ -86,9 +103,33 @@ REQUIREMENTS
 
 Plain text. No markdown headers. No bullets unless absolutely necessary.`;
 
+/**
+ * Phase R · pure helper · resolves the system prompt for a sub-agent.
+ * Used by `callSubAgent` and exported for unit-testability (the prompt
+ * resolution is the only behavior worth testing in isolation; the rest
+ * is provider plumbing).
+ *
+ *   · No persona key → generic SUB_AGENT_SYSTEM (back-compat)
+ *   · Known persona key → personaToSystemPrompt(persona) (role + goal
+ *     + backstory + outputHint composed)
+ *   · Unknown persona key → SUB_AGENT_SYSTEM + warn log (typos don't
+ *     silently disable steering)
+ */
+export function resolveSubAgentSystemPrompt(personaKey?: string): string {
+  if (!personaKey) return SUB_AGENT_SYSTEM;
+  const persona = getPersona(personaKey);
+  if (!persona) {
+    log.warn("persona_unknown", { personaKey, fallback: "generic" });
+    return SUB_AGENT_SYSTEM;
+  }
+  return personaToSystemPrompt(persona);
+}
+
 // v10.0.529.106 · Wave 59 · routes through aiChat() provider chain
 // instead of raw fetch to OpenAI. Same Wave 59 fix applied across
 // pretask-fanout.ts and deep-research.ts.
+//
+// Phase R · `task.persona` overrides the generic system prompt when set.
 async function callSubAgent(
   task: SubAgentTask,
   goalContext: string,
@@ -97,10 +138,12 @@ async function callSubAgent(
     task.outputHint ? `\n\nOUTPUT FORMAT: ${task.outputHint}` : ""
   }`;
 
+  const systemPrompt = resolveSubAgentSystemPrompt(task.persona);
+
   const { aiChat } = await import("@/lib/ai/provider");
   const reply = await aiChat(
     [
-      { role: "system", content: SUB_AGENT_SYSTEM },
+      { role: "system", content: systemPrompt },
       { role: "user", content: prompt },
     ],
     "reason",
@@ -192,19 +235,26 @@ export async function runMultiAgent(args: {
   }
 
   // Fire all sub-agents in parallel
+  //
+  // Phase R · when `task.persona` is set, the result's `name` becomes
+  // the persona key. The synthesizer dossier then reads
+  // `# research-analyst` / `# contrarian-critic` instead of generic
+  // `# step_1` / `# what` · semantically richer for the synthesizer
+  // LLM AND N.6's recordPersonaUsage telemetry sees real persona keys.
   const results = await Promise.all(
     args.subAgents.map(async (task) => {
       const subStart = Date.now();
+      const effectiveName = task.persona ?? task.name;
       try {
         const output = await guardedSubAgent(task, args.goal);
         return {
-          name: task.name,
+          name: effectiveName,
           output,
           durationMs: Date.now() - subStart,
         };
       } catch (err) {
         return {
-          name: task.name,
+          name: effectiveName,
           output: "",
           durationMs: Date.now() - subStart,
           failed: true,
