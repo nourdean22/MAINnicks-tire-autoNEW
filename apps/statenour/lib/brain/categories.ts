@@ -227,6 +227,32 @@ export const BRAIN_CATEGORIES = {
   STRATEGIC_PLAN: "strategic_plan",
   STRATEGY: "strategy",
 
+  // ── H-series · reasoning engine (2026-05-18 PM) ──
+  /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
+  REASONING_TRACE: "reasoning_trace",
+  /** Phase H.6.1 · mega-tier timed-out source completed late · wasted spend. */
+  REASONING_ORPHAN: "reasoning_orphan",
+  /** Phase H.6.2 · in-flight budget reservation · closes TOCTOU on cap. */
+  REASONING_IN_FLIGHT: "reasoning_in_flight",
+  /** Phase N.1 · idempotency key store · prevents double-tap charges. */
+  REASONING_IDEMPOTENCY: "reasoning_idempotency",
+  /** Phase N.6 · persona usage telemetry · feeds the scorer. */
+  PERSONA_USAGE: "persona_usage",
+
+  // ── Phase F · wisdom display tracking ──
+  /** Phase F · pill UI shown-recently tracker · 24h cooldown. */
+  WISDOM_SHOWN: "wisdom_shown",
+  /** Phase F · OperatorPulse wisdom cooldown · 6h. */
+  PULSE_WISDOM_SHOWN: "pulse_wisdom_shown",
+
+  // ── Phase K · operator review pipeline (2026-05-18 PM) ──
+  /** Phase K · sanitized error log mirror (alongside the runtime
+   *  log) so the /system/reviews errorId lookup can grep them. */
+  SANITIZED_ERROR: "sanitized_error",
+  /** Phase K · weekly pnpm-audit critical/high CVE findings ·
+   *  surfaces in the existing /system/logs unified tail. */
+  DEPENDENCY_CVE: "dependency_cve",
+
   // ── WAVE-200 (2026-05-17) ──
   /** Wave-200 Phase 5 · daily operator brief composer output. Indexed
    *  per ET-date in `key`. Content is brief HTML. ~2KB typical. */
