@@ -21,19 +21,24 @@
  * the daily cron is wired.
  */
 
+import { useState } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { authedFetch } from "@/hooks/use-authed-fetch";
+import { toast } from "sonner";
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
   ChevronLeft,
+  Copy,
   Loader2,
   Scale,
   Eye,
+  Sparkles,
 } from "lucide-react";
 
 type Winner = "v1" | "v2" | "tie";
@@ -54,11 +59,16 @@ const WINNER_TONE: Record<Winner, string> = {
 };
 
 export default function JudgeEvalPage() {
+  const utils = trpc.useUtils();
   const { data, isLoading, error, refetch } =
     trpc.system.judgeEvalSummary.useQuery(undefined, {
       refetchInterval: 60_000,
       staleTime: 30_000,
     });
+  const samplesQ = trpc.system.judgeEvalSamples.useQuery(
+    { take: 10, sinceDays: 7 },
+    { staleTime: 60_000 },
+  );
 
   return (
     <div className="space-y-4">

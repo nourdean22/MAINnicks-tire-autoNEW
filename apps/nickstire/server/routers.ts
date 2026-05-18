@@ -82,6 +82,7 @@ import {
   trafficFunnelRouter,
   seoToolsRouter,
   conversionRouter,
+  smsPerformanceRouter,
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
@@ -234,6 +235,11 @@ export const appRouter = router({
   // Wraps scripts/gsc-submit-sitemap.ts as tRPC mutations so admin
   // can trigger from the UI without SSH-ing into Railway.
   seoTools: seoToolsRouter,
+
+  // wave-181.51 — SMS Performance read-out (reply + conversion attribution
+  // per outbound send, rolled up per tier). Powers the /admin Outreach Hub
+  // → Performance tab. See server/routers/smsPerformance.ts.
+  smsPerformance: smsPerformanceRouter,
 });
 
 export type AppRouter = typeof appRouter;

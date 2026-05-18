@@ -18,6 +18,7 @@ import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
 import { buildJudgeEvalSummary } from "@/lib/services/judge-eval";
+import { readRecentV2Samples } from "@/lib/ai/judge-eval/sampler";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
@@ -77,4 +78,31 @@ export const systemRouter = router({
   judgeEvalSummary: operatorProcedure.query(async () => {
     return buildJudgeEvalSummary();
   }),
+
+  /**
+   * Phase W (2026-05-18 PM) · owner-only · candidate V2 chat replies
+   * the operator can use to seed comparisons. Pairs each assistant
+   * reply with its immediately-preceding user prompt + filters out
+   * samples that already have a comparison run recorded.
+   *
+   * Input · `{ take: 1-50, sinceDays: 1-30 }` · default 20 / 7d
+   *
+   * Returns: CandidateSample[] · the dashboard "Candidate prompts"
+   * section renders these with copy-prompt + copy-v2-reply buttons
+   * that feed into the /api/judge-eval/run workflow.
+   */
+  judgeEvalSamples: operatorProcedure
+    .input(
+      z.object({
+        take: z.number().int().min(1).max(50).default(20),
+        sinceDays: z.number().int().min(1).max(30).default(7),
+      }),
+    )
+    .query(async ({ input }) => {
+      return readRecentV2Samples({
+        take: input.take,
+        sinceDays: input.sinceDays,
+        excludeAlreadyCompared: true,
+      });
+    }),
 });

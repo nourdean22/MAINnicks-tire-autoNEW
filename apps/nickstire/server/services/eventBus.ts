@@ -165,6 +165,28 @@ async function ensureInitialized(): Promise<void> {
     },
   });
 
+  // 2b2. wave-181.51 — SMS conversion attribution. When a lead is
+  // captured or a booking is created, attribute it back to the most
+  // recent outbound SMS to the same phone within 14d. Writes to
+  // sms_messages.{convertedCount, attributedBookingId, attributedAt}.
+  // Helper is fully fail-open — a DB miss never blocks downstream
+  // destinations (softFail also catches anything we didn't).
+  registerDestination({
+    name: "sms-attribution",
+    enabled: true,
+    handles: ["lead_captured", "booking_created", "callback_requested"],
+    softFail: true,
+    handler: async (event) => {
+      const phone = event.data.phone || event.data.customerPhone || "";
+      if (!phone) return;
+      const bookingId = event.type === "booking_created"
+        ? (typeof event.data.id === "number" ? event.data.id : null)
+        : null;
+      const { recordSmsConversion } = await import("./smsInstrumentation");
+      await recordSmsConversion(phone, bookingId);
+    },
+  });
+
   // 2c. Auto-Lead Creation + Drip Campaign Enrollment (event-driven automation)
   registerDestination({
     name: "automation-engine",

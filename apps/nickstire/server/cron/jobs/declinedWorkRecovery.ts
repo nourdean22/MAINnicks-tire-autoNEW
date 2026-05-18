@@ -229,11 +229,22 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
       const name = firstName(est.customerName);
       const amount = est.estimatedAmount || 0;
 
+      // wave-181.51 — persist outbound sends to sms_messages so the
+      // /admin SMS Performance tile can read reply + conversion rates.
+      // Pre-181.51 these sends were invisible because sendSms() only
+      // persists delayed/queued messages — immediate sends bypassed
+      // the table entirely.
+      const { logOutboundSms } = await import("../../services/smsInstrumentation");
+
       // 30-day follow-up takes precedence (more urgent)
       if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
         const body = buildThirtyDayMessage({ name, amountCents: amount });
         // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
+        // Log to sms_messages regardless of success — failed sends matter
+        // for failure-rate analysis. variantKey is "declined_d30" so the
+        // admin tile can break out tier-level stats.
+        await logOutboundSms(est.customerPhone, body, res.sid, "declined_d30");
         if (res.success) {
           await d
             .update(algEstimates)
@@ -254,6 +265,7 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
         });
         // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
+        await logOutboundSms(est.customerPhone, body, res.sid, "declined_d7");
         if (res.success) {
           await d
             .update(algEstimates)
