@@ -35,6 +35,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
 import { ThreadRadar } from "@/components/journal/thread-radar";
 import { ThreadRail } from "@/components/journal/thread-rail";
+import { ThreadSuggestions } from "@/components/journal/thread-suggestions";
 import {
   TYPE_META,
   type FeedEntry,
@@ -339,6 +340,10 @@ export default function JournalPage() {
           over nightly self-assessment. */}
       <ThreadRadar onThreadCreated={() => setThreadRefresh((n) => n + 1)} />
       <ThreadRail refreshSignal={threadRefresh} />
+      <ThreadSuggestions
+        refreshSignal={threadRefresh}
+        onActioned={() => setThreadRefresh((n) => n + 1)}
+      />
 
       {/* v10.0.529.24 · METACOGNITION CARD — Nick's nightly self-
           assessment of his own brain, computed by the evening cron and

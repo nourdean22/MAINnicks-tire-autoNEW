@@ -62,6 +62,17 @@ export interface ConvergenceCandidateRow {
   }>;
 }
 
+export interface ThreadSuggestion {
+  key: string; // `${threadId}:${entrySource}:${entryId}` · for dismiss
+  threadId: string;
+  threadName: string;
+  entrySource: EntrySource;
+  entryId: string;
+  excerpt: string;
+  similarity: number;
+  createdAt: string;
+}
+
 /**
  * For the ThreadRail · returns active (and optionally dormant)
  * threads with a small recent-excerpt preview to render.
@@ -470,6 +481,149 @@ export async function persistThreadSuggestion(input: {
         error: sanitizeError(err),
       });
     });
+}
+
+/**
+ * For the suggested-joins UI surface · entries that landed in the
+ * SUGGEST band (0.65 ≤ sim < 0.80) and are waiting for the operator
+ * to confirm/reject. Joins back to threads + source tables to render
+ * thread name + entry excerpt.
+ */
+export async function listThreadSuggestions(): Promise<ThreadSuggestion[]> {
+  const rows = await prisma.brainMemory.findMany({
+    where: {
+      category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
+      deletedAt: null,
+    },
+    orderBy: { confidence: "desc" },
+    take: 30,
+    select: {
+      key: true,
+      confidence: true,
+      createdAt: true,
+      metadata: true,
+    },
+  });
+  if (rows.length === 0) return [];
+
+  // Parse + collect thread + entry refs to backfill names + excerpts.
+  const parsed: Array<{
+    key: string;
+    threadId: string;
+    entrySource: EntrySource;
+    entryId: string;
+    similarity: number;
+    createdAt: Date;
+  }> = [];
+  for (const r of rows) {
+    if (!r.key) continue;
+    const meta = (r.metadata ?? {}) as Record<string, unknown>;
+    const threadId = String(meta.threadId ?? "");
+    const entrySource = String(meta.entrySource ?? "");
+    const entryId = String(meta.entryId ?? "");
+    if (!threadId || !entryId) continue;
+    if (!(ENTRY_SOURCES as readonly string[]).includes(entrySource)) continue;
+    parsed.push({
+      key: r.key,
+      threadId,
+      entrySource: entrySource as EntrySource,
+      entryId,
+      similarity: typeof meta.similarity === "number" ? meta.similarity : r.confidence,
+      createdAt: r.createdAt,
+    });
+  }
+  if (parsed.length === 0) return [];
+
+  const [threads, excerpts] = await Promise.all([
+    prisma.journalThread.findMany({
+      where: { id: { in: [...new Set(parsed.map((p) => p.threadId))] } },
+      select: { id: true, name: true },
+    }),
+    fetchExcerpts(
+      parsed.map((p) => ({ entrySource: p.entrySource, entryId: p.entryId })),
+    ),
+  ]);
+  const threadMap = new Map(threads.map((t) => [t.id, t.name] as const));
+
+  return parsed
+    .filter((p) => threadMap.has(p.threadId))
+    .map((p) => ({
+      key: p.key,
+      threadId: p.threadId,
+      threadName: threadMap.get(p.threadId)!,
+      entrySource: p.entrySource,
+      entryId: p.entryId,
+      excerpt:
+        excerpts.get(`${p.entrySource}:${p.entryId}`) ?? "(entry not found)",
+      similarity: p.similarity,
+      createdAt: p.createdAt.toISOString(),
+    }));
+}
+
+/**
+ * Operator confirms a suggested join → promotes to a real
+ * JournalThreadEntry (joinMode="operator") and clears the suggestion.
+ * Reuses joinThread() so the rolling centroid stays accurate.
+ */
+export async function acceptThreadSuggestion(
+  key: string,
+): Promise<{ joined: boolean; error?: string }> {
+  const row = await prisma.brainMemory.findFirst({
+    where: {
+      category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
+      key,
+      deletedAt: null,
+    },
+    select: { id: true, metadata: true, confidence: true },
+  });
+  if (!row) return { joined: false, error: "suggestion not found" };
+
+  const meta = (row.metadata ?? {}) as Record<string, unknown>;
+  const threadId = String(meta.threadId ?? "");
+  const entrySource = String(meta.entrySource ?? "");
+  const entryId = String(meta.entryId ?? "");
+  if (
+    !threadId ||
+    !entryId ||
+    !(ENTRY_SOURCES as readonly string[]).includes(entrySource)
+  ) {
+    return { joined: false, error: "suggestion metadata malformed" };
+  }
+
+  const result = await joinThread({
+    threadId,
+    entrySource: entrySource as EntrySource,
+    entryId,
+    similarity:
+      typeof meta.similarity === "number" ? meta.similarity : row.confidence,
+    joinMode: "operator",
+  });
+  // Always clear the suggestion · either we joined or it was already
+  // a member · either way it shouldn't keep nagging the operator.
+  await prisma.brainMemory.updateMany({
+    where: { id: row.id },
+    data: { deletedAt: new Date() },
+  });
+  return result;
+}
+
+/**
+ * Operator dismisses a suggestion · soft-delete only · no auto-rejoin
+ * for the same (thread, entry) pair until the next convergence scan
+ * decides to write the suggestion again (which is rare).
+ */
+export async function dismissThreadSuggestion(
+  key: string,
+): Promise<{ dismissed: boolean }> {
+  const res = await prisma.brainMemory.updateMany({
+    where: {
+      category: BRAIN_CATEGORIES.JOURNAL_THREAD_SUGGESTION,
+      key,
+      deletedAt: null,
+    },
+    data: { deletedAt: new Date() },
+  });
+  return { dismissed: res.count > 0 };
 }
 
 /**
