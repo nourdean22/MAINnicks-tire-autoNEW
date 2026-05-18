@@ -129,6 +129,11 @@ export function OperatorPulse({
       ].join(" ")}
     >
       {slots.map(({ key: labelKey, line }) => {
+        // Phase H.2 · one-tap deep · every pulse line gets a small
+        // "ask nick →" link that deep-links to /reason with the pulse
+        // text pre-filled and the engine auto-running. Closes the
+        // see → ask-deep loop without the operator having to copy-paste.
+        const reasonHref = `/reason?q=${encodeURIComponent(line.text)}`;
         const body = (
           <span className="flex items-start gap-2.5 text-sm leading-snug">
             <span
@@ -147,17 +152,25 @@ export function OperatorPulse({
             </span>
           </span>
         );
-        return line.href ? (
-          <Link
-            key={labelKey}
-            href={line.href}
-            className="block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
-          >
-            {body}
-          </Link>
-        ) : (
-          <div key={labelKey} className="block rounded-sm">
-            {body}
+        return (
+          <div key={labelKey} className="group relative flex items-start gap-2">
+            {line.href ? (
+              <Link
+                href={line.href}
+                className="flex-1 min-w-0 block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div className="flex-1 min-w-0 block rounded-sm">{body}</div>
+            )}
+            <Link
+              href={reasonHref}
+              className="shrink-0 self-center text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[var(--gold)] transition"
+              title="ask Nick to think deeply about this"
+            >
+              ask →
+            </Link>
           </div>
         );
       })}

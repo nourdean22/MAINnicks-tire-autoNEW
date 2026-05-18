@@ -28,10 +28,29 @@
  *     footer
  */
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 
-type ReasoningTier = "quick" | "standard" | "deep" | "thorough";
+/** Parse one SSE frame · "event: NAME\ndata: JSON" · returns null on
+ *  malformed/empty frames. */
+function parseSseFrame(raw: string): { event: string; data: unknown } | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  let event = "message";
+  let dataLine = "";
+  for (const line of trimmed.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) dataLine += line.slice(5).trim();
+  }
+  if (!dataLine) return null;
+  try {
+    return { event, data: JSON.parse(dataLine) };
+  } catch {
+    return null;
+  }
+}
+
+type ReasoningTier = "quick" | "standard" | "deep" | "thorough" | "mega";
 type ReasoningStepKind =
   | "classify"
   | "decompose"
@@ -80,33 +99,47 @@ const TIER_OPTIONS: Array<{ value: ReasoningTier | "auto"; label: string; hint: 
   { value: "standard", label: "standard", hint: "~5s · ~$0.005" },
   { value: "deep", label: "deep", hint: "~15s · ~$0.02" },
   { value: "thorough", label: "thorough", hint: "~45s · ~$0.10" },
+  { value: "mega", label: "mega", hint: "~90s · ~$0.20 · everything" },
 ];
 
 export function NickReasoner({
   initialQuestion,
   brainContext,
+  autoRun,
   className,
 }: {
   initialQuestion?: string;
   brainContext?: string;
+  /** When true + initialQuestion present, fires the engine on mount.
+   *  Used by deep-link entry from /reason?q=... · operator lands and
+   *  the engine is already running. */
+  autoRun?: boolean;
   className?: string;
 }) {
   const [question, setQuestion] = useState(initialQuestion ?? "");
   const [tier, setTier] = useState<ReasoningTier | "auto">("auto");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ReasoningResult | null>(null);
+  const [liveSteps, setLiveSteps] = useState<ReasoningStep[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
+  // Phase H.2 · streaming run · POSTs to /api/nick/reason/stream and
+  // consumes SSE events. Each `step` event appends to liveSteps so
+  // the operator sees Nick's thinking unfold in real time. `result`
+  // event lands the final ReasoningResult. authedFetch handles auth ·
+  // EventSource doesn't pass cookies the same way so we use fetch +
+  // ReadableStream parser instead.
   const run = useCallback(async () => {
     const q = question.trim();
     if (!q || busy) return;
     setBusy(true);
     setError(null);
     setResult(null);
+    setLiveSteps([]);
     setExpandedStep(null);
     try {
-      const res = await authedFetch("/api/nick/reason", {
+      const res = await authedFetch("/api/nick/reason/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -115,18 +148,53 @@ export function NickReasoner({
           tier: tier === "auto" ? undefined : tier,
         }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-      const payload = (await res.json()) as ReasoningResult;
-      setResult(payload);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // SSE frames are delimited by \n\n
+        let idx: number;
+        while ((idx = buffer.indexOf("\n\n")) !== -1) {
+          const raw = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 2);
+          const parsed = parseSseFrame(raw);
+          if (!parsed) continue;
+          if (parsed.event === "step") {
+            const step = parsed.data as ReasoningStep;
+            setLiveSteps((prev) => [...prev, step]);
+          } else if (parsed.event === "result") {
+            setResult(parsed.data as ReasoningResult);
+          } else if (parsed.event === "error") {
+            const errPayload = parsed.data as { message?: string };
+            throw new Error(errPayload.message ?? "stream error");
+          }
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }, [question, brainContext, tier, busy]);
+
+  // Phase H.2 · auto-run on mount when both flags + question are present.
+  // Ref-tracked so we don't fire twice in strict-mode dev.
+  const autoRanRef = useRef(false);
+  useEffect(() => {
+    if (autoRun && initialQuestion && !autoRanRef.current) {
+      autoRanRef.current = true;
+      void run();
+    }
+    // intentional · we want this to fire only when autoRun lands true once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRun, initialQuestion]);
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -210,22 +278,28 @@ export function NickReasoner({
         <p className="text-sm text-red-300">{error}</p>
       ) : null}
 
-      {/* Trace · steps unfolding */}
-      {result ? (
+      {/* Trace · steps unfolding (live during streaming, final after result lands) */}
+      {liveSteps.length > 0 || result ? (
         <div className="space-y-5">
-          <div className="space-y-1">
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
-              tier · {result.tier} · {result.classifierReason}
+          {result ? (
+            <div className="space-y-1">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+                tier · {result.tier} · {result.classifierReason}
+              </p>
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
+                {totalSeconds}s · {result.trace.cost.calls} call
+                {result.trace.cost.calls === 1 ? "" : "s"} ·{" "}
+                ${result.trace.cost.usd.toFixed(3)} est
+              </p>
+            </div>
+          ) : busy ? (
+            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] animate-pulse">
+              streaming · {liveSteps.length} step{liveSteps.length === 1 ? "" : "s"} so far...
             </p>
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] tabular-nums">
-              {totalSeconds}s · {result.trace.cost.calls} call
-              {result.trace.cost.calls === 1 ? "" : "s"} ·{" "}
-              ${result.trace.cost.usd.toFixed(3)} est
-            </p>
-          </div>
+          ) : null}
 
           <ol className="space-y-2 border-l border-white/10 pl-4">
-            {result.trace.steps.map((step, i) => (
+            {(result ? result.trace.steps : liveSteps).map((step, i) => (
               <li key={i} className="space-y-1">
                 <button
                   type="button"
@@ -266,18 +340,20 @@ export function NickReasoner({
             ))}
           </ol>
 
-          {/* Final answer block */}
-          <div className="rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3">
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
-              nick · answer
-            </p>
-            <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
-              {result.trace.answer}
+          {/* Final answer block · only after result lands */}
+          {result ? (
+            <div className="rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3">
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+                nick · answer
+              </p>
+              <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
+                {result.trace.answer}
+              </div>
+              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
+                confidence {(result.trace.confidence * 100).toFixed(0)}%
+              </p>
             </div>
-            <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
-              confidence {(result.trace.confidence * 100).toFixed(0)}%
-            </p>
-          </div>
+          ) : null}
         </div>
       ) : null}
     </section>
