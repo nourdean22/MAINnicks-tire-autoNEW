@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
+import { buildLensStats } from "@/lib/services/lens-stats";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
@@ -45,4 +46,19 @@ export const systemRouter = router({
   cronDiagnostics: operatorProcedure.query(async () => {
     return scanCronHealth();
   }),
+
+  /**
+   * Phase U.3 (2026-05-18 PM) · owner-only · strategic-frameworks
+   * lens-firing aggregates over a configurable window. Delegates to
+   * the shared `lib/services/lens-stats.ts` service that the legacy
+   * REST endpoint also calls · drift between consumers impossible.
+   *
+   * Input · `{ days: 1-90 }` default 7 · query param shape mirrors
+   * the legacy `?days=N` REST URL.
+   */
+  lensStats: operatorProcedure
+    .input(z.object({ days: z.number().int().min(1).max(90).default(7) }))
+    .query(async ({ input }) => {
+      return buildLensStats({ days: input.days });
+    }),
 });

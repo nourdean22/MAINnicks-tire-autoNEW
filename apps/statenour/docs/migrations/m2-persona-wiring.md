@@ -2,7 +2,7 @@
 
 **Started:** Phase M.2 (2026-05-18 PM)
 **Strategy:** Coexistence · inline sub-agents keep working · personas add structure
-**Status:** Library shipped (M.2) · **3/N call sites wired (R + S.1 + T)** · T adds RESEARCH_PLANNER + RESEARCH_SYNTHESIZER specialists for the deep-research worker · N.6 scorer now feeds from multi-agent fan-out AND deep-research worker
+**Status:** ✅ **COMPLETED in Phase U (2026-05-18 PM)** · all 4 reasoning sub-pipelines wired · 10 typed personas live in the registry · N.6 scorer feeds from EVERY sub-pipeline
 
 ## Why
 
@@ -59,25 +59,42 @@ research-analyst + contrarian-critic · plan-derived steps use
 research-analyst. N.6's `recordPersonaUsage` now sees real persona
 keys.
 
-Next call sites to wire:
+Call sites · all wired:
 
-1. ~~**`smart-tier runRouter` sub-pipeline**~~ **DONE in Phase S.3**
-   (verified · the router's "multi" route calls
-   `runMultiAgent(question, plan)` which now passes typed personas
-   per plan line via R + S.1's wiring. No separate code change
-   needed · inheritance documented in `engine.ts` above runRouter.)
-2. ~~**`thorough-tier deep-research worker`**~~ **DONE in Phase T**
-   · extracted `RESEARCH_PLANNER` + `RESEARCH_SYNTHESIZER` as
-   specialist personas in `lib/ai/personas/index.ts` · `deep-research.ts`
-   now does `personaToSystemPrompt(RESEARCH_PLANNER)` /
-   `personaToSystemPrompt(RESEARCH_SYNTHESIZER)` at module load ·
-   `recordPersonaUsage` calls wired so N.6 scorer sees the deep-
-   research persona keys (planner duration · synth duration ·
-   implied-confidence). All domain anchors preserved (JSON output
-   shape · Cleveland OH tire-shop framing · Perplexity `[N]`
-   citation markers).
-3. ~~**Plan-derived steps with action verbs**~~ **DONE in Phase
-   S.1** · `classifyStepIntent()` helper now picks
-   `research-analyst` vs `execution-planner` per plan line based
-   on the leading verb. 36 action verbs whitelisted with
-   conjugations (build/building/built etc).
+1. ✅ **`runMultiAgent` (engine.ts)** · DONE in Phase R · the engine's
+   2-fallback sub-agents ("what" + "why") map to research-analyst +
+   contrarian-critic. Plan-derived steps map per-line via
+   `classifyStepIntent()` (S.1) · research-analyst for find-X
+   tasks · execution-planner for do-Y action verbs.
+2. ✅ **`smart-tier runRouter`** · DONE in Phase S.3 (inheritance ·
+   no code change needed · documented in engine.ts above runRouter ·
+   the router's "multi" path calls runMultiAgent which inherits R+S.1).
+3. ✅ **`thorough-tier deep-research worker`** · DONE in Phase T ·
+   `RESEARCH_PLANNER` + `RESEARCH_SYNTHESIZER` specialist personas
+   preserve the JSON output shape + Cleveland OH tire-shop framing
+   + Perplexity `[N]` citation markers the inline strings carried.
+   recordPersonaUsage wired so N.6 scorer sees the deep-research
+   persona keys.
+4. ✅ **`pretask-fanout` (3 lenses)** · DONE in Phase U · research lens
+   → research-analyst · risk lens → contrarian-critic · plan lens
+   → execution-planner. Mapping pinned in `LENS_PERSONA_KEY`
+   exported constant so test catches any drift. recordPersonaUsage
+   wired per lens so the scorer feeds from this pipeline too.
+
+## How N.6's scorer feeds now
+
+Pre-M.2 · `recordPersonaUsage` was called with placeholder names
+(`step_1`, `what`, `why`) so `scorePersonas()` produced meaningless
+per-placeholder verdicts. Post-U the scorer sees a finite set of real
+persona keys across all 4 reasoning sub-pipelines:
+
+| persona key | which sub-pipeline writes it |
+|---|---|
+| `research-analyst` | runMultiAgent (S.1 routing) · pretask-fanout (research lens) |
+| `contrarian-critic` | runMultiAgent fallback · pretask-fanout (risk lens) |
+| `execution-planner` | runMultiAgent (S.1 routing) · pretask-fanout (plan lens) |
+| `research-planner` | deep-research worker (T) |
+| `research-synthesizer` | deep-research worker (T) |
+
+When `scorePersonas()` runs it can now compute per-persona
+`avgConfidence` and `fallbackRate` across the entire reasoning stack.
