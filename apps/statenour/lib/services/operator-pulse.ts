@@ -78,7 +78,7 @@ function findTrailingAxis(axes: AxisScore[]): AxisScore | null {
   const candidates = axes.filter((a) => a.delta7d <= 0);
   if (candidates.length === 0) return null;
   // Sort by composite badness · low score AND falling delta both count
-  const ranked = [...candidates].sort((a, b) => {
+  const ranked = candidates.toSorted((a, b) => {
     const aBad = (10 - a.score) + Math.abs(a.delta7d) * 2;
     const bBad = (10 - b.score) + Math.abs(b.delta7d) * 2;
     return bBad - aBad;
@@ -199,7 +199,7 @@ function composeForGoals(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" 
         g.daysSinceActivity !== null &&
         g.daysSinceActivity >= 14,
     )
-    .sort((a, b) => (b.daysSinceActivity ?? 0) - (a.daysSinceActivity ?? 0));
+    .toSorted((a, b) => (b.daysSinceActivity ?? 0) - (a.daysSinceActivity ?? 0));
   const drift: PulseLine | null = dormant[0]
     ? {
         text: `Drift · "${dormant[0].title.slice(0, 44)}${dormant[0].title.length > 44 ? "…" : ""}" · ${dormant[0].daysSinceActivity}d quiet`,

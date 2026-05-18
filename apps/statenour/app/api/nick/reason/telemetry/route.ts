@@ -64,80 +64,74 @@ export async function GET(req: Request) {
       },
     });
 
-    // Per-tier accumulators
-    const byTier = new Map<
-      string,
-      {
-        latencies: number[];
-        costs: number[];
-        confidences: number[];
-        fallbackCount: number;
-      }
-    >();
-
-    // Marker counts (which classifier reasons fire most)
-    const markerCounts: Record<string, number> = {};
-    // H.5.3 · per-marker quality · feeds the future classifier-learning
-    // pass · which markers reliably produce high-confidence answers
-    // (worth keeping) vs which produce low-confidence (worth tuning).
-    const markerQuality = new Map<
-      string,
-      { confidences: number[]; fallbacks: number }
-    >();
-
-    for (const r of rows) {
+    // L.2 · Pre-extract the typed metadata so the groupBy callbacks
+    // stay declarative · pre-L the accumulator loop was 20 LOC of
+    // .get/.set boilerplate.
+    interface TraceRow {
+      tier: string;
+      classifierReason: string;
+      totalMs: number;
+      usd: number;
+      confidence: number;
+      isFallback: boolean;
+      markerBucket: string | null;
+    }
+    const traces: TraceRow[] = rows.map((r) => {
       const m = (r.metadata ?? {}) as {
         tier?: string;
         classifierReason?: string;
         totalMs?: number;
         usd?: number;
-        stepKinds?: string[];
       };
-      const tier = m.tier ?? "unknown";
-      const entry = byTier.get(tier) ?? {
-        latencies: [],
-        costs: [],
-        confidences: [],
-        fallbackCount: 0,
-      };
-      entry.latencies.push(m.totalMs ?? 0);
-      entry.costs.push(m.usd ?? 0);
-      entry.confidences.push(r.confidence ?? 0);
-      // "fallback" signal · confidence ≤ 0.3 OR any step label contains "failed"
-      const wasFailure = (r.confidence ?? 0) <= 0.3;
-      if (wasFailure) entry.fallbackCount += 1;
-      byTier.set(tier, entry);
-
-      // Bucket classifier reasons by first word
+      const confidence = r.confidence ?? 0;
       const reason = (m.classifierReason ?? "").trim();
-      if (reason) {
-        const bucket = reason.split(/\s+/)[0] || "other";
-        markerCounts[bucket] = (markerCounts[bucket] ?? 0) + 1;
-        // H.5.3 · attach quality to the bucket
-        const qual = markerQuality.get(bucket) ?? { confidences: [], fallbacks: 0 };
-        qual.confidences.push(r.confidence ?? 0);
-        if ((r.confidence ?? 0) <= 0.3) qual.fallbacks += 1;
-        markerQuality.set(bucket, qual);
-      }
+      return {
+        tier: m.tier ?? "unknown",
+        classifierReason: reason,
+        totalMs: m.totalMs ?? 0,
+        usd: m.usd ?? 0,
+        confidence,
+        isFallback: confidence <= 0.3,
+        markerBucket: reason ? (reason.split(/\s+/)[0] || "other") : null,
+      };
+    });
+
+    // L.2 · Map.groupBy (ES2024) · replaces the per-tier .get/.set loop
+    const byTier = Map.groupBy(traces, (t) => t.tier);
+
+    // Marker counts (which classifier reasons fire most)
+    const markerCounts: Record<string, number> = {};
+    // H.5.3 + L.2 · group by marker bucket · skip rows with no bucket
+    const tracesWithMarker = traces.filter(
+      (t): t is TraceRow & { markerBucket: string } => t.markerBucket !== null,
+    );
+    const byMarker = Map.groupBy(tracesWithMarker, (t) => t.markerBucket);
+    for (const [bucket, items] of byMarker) {
+      markerCounts[bucket] = items.length;
     }
 
+    // L.3 · toSorted (ES2023) replaces spread-then-mutate sort
     const tierStats: TierStat[] = Array.from(byTier.entries())
-      .map(([tier, e]) => {
-        const sortedLat = [...e.latencies].sort((a, b) => a - b);
+      .map(([tier, items]) => {
+        const latencies = items.map((i) => i.totalMs);
+        const costs = items.map((i) => i.usd);
+        const confidences = items.map((i) => i.confidence);
+        const fallbackCount = items.filter((i) => i.isFallback).length;
+        const sortedLat = latencies.toSorted((a, b) => a - b);
         const sum = (arr: number[]) => arr.reduce((s, n) => s + n, 0);
         return {
           tier,
-          runs: e.latencies.length,
-          avgLatencyMs: Math.round(sum(e.latencies) / Math.max(1, e.latencies.length)),
+          runs: items.length,
+          avgLatencyMs: Math.round(sum(latencies) / Math.max(1, items.length)),
           p50LatencyMs: percentile(sortedLat, 50),
           p95LatencyMs: percentile(sortedLat, 95),
-          avgCostUsd: Math.round((sum(e.costs) / Math.max(1, e.costs.length)) * 10000) / 10000,
-          totalCostUsd: Math.round(sum(e.costs) * 1000) / 1000,
-          avgConfidence: Math.round((sum(e.confidences) / Math.max(1, e.confidences.length)) * 1000) / 1000,
-          fallbackRate: Math.round((e.fallbackCount / Math.max(1, e.latencies.length)) * 1000) / 10,
+          avgCostUsd: Math.round((sum(costs) / Math.max(1, items.length)) * 10000) / 10000,
+          totalCostUsd: Math.round(sum(costs) * 1000) / 1000,
+          avgConfidence: Math.round((sum(confidences) / Math.max(1, items.length)) * 1000) / 1000,
+          fallbackRate: Math.round((fallbackCount / Math.max(1, items.length)) * 1000) / 10,
         };
       })
-      .sort((a, b) => b.runs - a.runs);
+      .toSorted((a, b) => b.runs - a.runs);
 
     const totalRuns = rows.length;
     const totalSpendAll = Math.round(
@@ -157,14 +151,13 @@ export async function GET(req: Request) {
       fallbackRate: number;
       verdict: "good" | "ok" | "tune";
     }
-    const markerQualityRows: MarkerQualityRow[] = Array.from(
-      markerQuality.entries(),
-    )
-      .map(([marker, q]) => {
-        const avg =
-          q.confidences.reduce((s, n) => s + n, 0) /
-          Math.max(1, q.confidences.length);
-        const fb = (q.fallbacks / Math.max(1, q.confidences.length)) * 100;
+    // L.2 + L.3 · iterate the byMarker groupBy directly · toSorted result
+    const markerQualityRows: MarkerQualityRow[] = Array.from(byMarker.entries())
+      .map(([marker, items]) => {
+        const confidences = items.map((i) => i.confidence);
+        const fallbacks = items.filter((i) => i.isFallback).length;
+        const avg = confidences.reduce((s, n) => s + n, 0) / Math.max(1, items.length);
+        const fb = (fallbacks / Math.max(1, items.length)) * 100;
         const verdict: MarkerQualityRow["verdict"] =
           avg >= 0.75 && fb < 10
             ? "good"
@@ -173,13 +166,13 @@ export async function GET(req: Request) {
               : "tune";
         return {
           marker,
-          count: q.confidences.length,
+          count: items.length,
           avgConfidence: Math.round(avg * 1000) / 1000,
           fallbackRate: Math.round(fb * 10) / 10,
           verdict,
         };
       })
-      .sort((a, b) => b.count - a.count);
+      .toSorted((a, b) => b.count - a.count);
 
     return NextResponse.json(
       {

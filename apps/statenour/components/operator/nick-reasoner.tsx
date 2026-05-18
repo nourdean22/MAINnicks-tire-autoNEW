@@ -195,13 +195,14 @@ export function NickReasoner({
         }
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
+      // L.4 · async iterator (ES2018+) replaces while(true)+reader.read()
+      // Modern body.pipeThrough(TextDecoderStream) + for-await · auto-
+      // cleanup on early-exit · no manual reader.releaseLock() to forget.
+      const decoderStream = new TextDecoderStream();
+      const textStream = res.body.pipeThrough(decoderStream);
       let buffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+      for await (const chunk of textStream as unknown as AsyncIterable<string>) {
+        buffer += chunk;
         // SSE frames are delimited by \n\n
         let idx: number;
         while ((idx = buffer.indexOf("\n\n")) !== -1) {
