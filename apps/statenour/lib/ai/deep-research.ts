@@ -26,6 +26,11 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  RESEARCH_PLANNER,
+  RESEARCH_SYNTHESIZER,
+  personaToSystemPrompt,
+} from "@/lib/ai/personas";
 
 const log = rootLogger.withSurface("ai/deep-research");
 
@@ -45,37 +50,20 @@ export interface DeepResearchReport {
   durationMs: number;
 }
 
-const PLANNER_SYSTEM = `You decompose a research question into 3-5 specific sub-queries that, together, would yield a comprehensive answer.
-
-GOOD sub-query examples:
-- "Goodyear UltraGrip 215/55R17 wholesale price 2024"
-- "Cleveland tire shop average labor rate 2024 BLS"
-- "Discount Tire vs Tire Choice customer review themes"
-
-BAD sub-queries (too broad):
-- "tires"
-- "industry trends"
-- "auto repair"
-
-Output JSON only:
-{
-  "subQueries": ["...", "...", "..."]
-}
-
-Max 5 sub-queries. NO MARKDOWN.`;
-
-const SYNTHESIZER_SYSTEM = `You synthesize multiple research rounds into a tight cited report for an operator who runs a tire shop in Cleveland OH.
-
-REQUIREMENTS
-- Use inline [N] markers for each claim · N matches the citation list at the bottom
-- 200-400 words total
-- Prefer specific numbers / dates / quotes over generic claims
-- If sources contradict, say so
-- If a claim has only one source, mark it "[N · single source]"
-- Plain text · no markdown headers · no bullets unless absolutely necessary
-- End with a 1-line "what to do next" if the operator could act on this
-
-NO HEDGING. NO PREAMBLE. Just the report.`;
+// Phase T (2026-05-18 PM) · system prompts now come from the typed
+// persona library (RESEARCH_PLANNER + RESEARCH_SYNTHESIZER in
+// lib/ai/personas/index.ts) so the deep-research worker flows through
+// the same persona-as-system-prompt mechanism as runMultiAgent.
+// N.6's recordPersonaUsage() telemetry sees these keys too · the
+// scorer can finally compute per-persona verdicts for the entire
+// reasoning stack, not just the multi-agent fan-out.
+//
+// The persona backstories preserve all the domain anchors the old
+// inline SYSTEM strings had (JSON output shape · Perplexity [N]
+// citation markers · Cleveland OH tire-shop framing) · this is NOT
+// a generic-personas migration that loses fidelity.
+const PLANNER_SYSTEM = personaToSystemPrompt(RESEARCH_PLANNER);
+const SYNTHESIZER_SYSTEM = personaToSystemPrompt(RESEARCH_SYNTHESIZER);
 
 interface PlanArgs {
   question: string;
@@ -163,10 +151,14 @@ export async function runDeepResearch(args: {
   const startedAt = Date.now();
 
   // 1. Plan sub-queries
+  const plannerStart = Date.now();
+  let plannerFailed = false;
   const subQueries: string[] = await planSubQueries({ question: args.question }).catch((e) => {
     log.warn("planner_failed", { err: (e as Error).message });
+    plannerFailed = true;
     return [] as string[];
   });
+  const plannerMs = Date.now() - plannerStart;
 
   if (subQueries.length === 0) {
     // Fallback · just one direct query
@@ -193,17 +185,51 @@ export async function runDeepResearch(args: {
   const successful = roundResults.filter((r) => r.content);
 
   // 3. Synthesize
+  const synthStart = Date.now();
   let synthesis = "";
+  let synthFailed = false;
   if (successful.length > 0) {
     synthesis = await synthesize({ question: args.question, rounds: successful }).catch(
-      () => "",
+      () => {
+        synthFailed = true;
+        return "";
+      },
     );
+  } else {
+    synthFailed = true;
   }
+  const synthMs = Date.now() - synthStart;
 
   // Flatten unique citations
   const allCitations = Array.from(
     new Set(roundResults.flatMap((r) => r.citations)),
   );
+
+  // Phase T · N.6 telemetry · record persona usage for the planner +
+  // synthesizer so scorePersonas() can compute per-persona verdicts
+  // for the deep-research stack too (previously only multi-agent
+  // fan-out fed the scorer). Confidence is implied from success: a
+  // planner that returned subQueries gets 0.7 · failed gets 0.2. Same
+  // implied-confidence pattern as engine.ts runMultiAgent.
+  void (async () => {
+    try {
+      const { recordPersonaUsage } = await import("@/lib/ai/personas/scorer");
+      await recordPersonaUsage({
+        personaKey: RESEARCH_PLANNER.key,
+        parentTier: "deep-research",
+        parentConfidence: plannerFailed ? 0.2 : 0.7,
+        durationMs: plannerMs,
+      });
+      await recordPersonaUsage({
+        personaKey: RESEARCH_SYNTHESIZER.key,
+        parentTier: "deep-research",
+        parentConfidence: synthFailed ? 0.2 : 0.7,
+        durationMs: synthMs,
+      });
+    } catch {
+      /* best-effort */
+    }
+  })();
 
   return {
     question: args.question,

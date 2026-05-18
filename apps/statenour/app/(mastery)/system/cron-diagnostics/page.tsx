@@ -2,15 +2,25 @@
 
 /**
  * /system/cron-diagnostics — human-readable "why are my crons silent"
- * dashboard. Hits /api/system/cron-diagnostics and renders the
+ * dashboard. Hits the cronDiagnostics tRPC procedure and renders the
  * prioritized diagnoses card + per-job summary table.
  *
  * Designed as the one-stop page Nour opens when he suspects stale
  * data across the OS. Shows the root cause at the top (critical
  * diagnoses first) instead of burying it under stats.
+ *
+ * Phase T.4 (2026-05-18 PM) · migrated from
+ * `useAuthedFetch("/api/system/cron-diagnostics")` to
+ * `trpc.system.cronDiagnostics.useQuery()`. Types flow from
+ * `lib/system/cron-diagnostics.ts` via the system router · the
+ * manual `Report`/`Diagnosis`/`JobSummary`/`KilledCron` interfaces
+ * are gone (1 source of truth). Mutations stay on REST (coexistence
+ * pattern) and call `utils.system.cronDiagnostics.invalidate()` to
+ * trigger a React Query refetch instead of the previous manual
+ * `load()` callback.
  */
 
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useState } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -19,50 +29,10 @@ import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Settings } from "lucide-react";
 
 type Severity = "critical" | "warning" | "info";
-
-interface Diagnosis {
-  severity: Severity;
-  headline: string;
-  detail: string;
-  fix: string;
-}
-
-interface JobSummary {
-  jobName: string;
-  lastSuccessAt: string | null;
-  lastFailAt: string | null;
-  /** Latest failure message for this job (v11.2). */
-  lastError?: string | null;
-  success48h: number;
-  fail48h: number;
-}
-
-interface KilledCron {
-  jobName: string;
-  note: string | null;
-  updatedAt: string | null;
-}
-
-interface Report {
-  checkedAt: string;
-  summary: {
-    declaredActiveCrons: number;
-    jobsWithLogsLast48h: number;
-    silentDeclaredCrons: number;
-    killedIndividually: number;
-    pauseAllCrons: boolean;
-    cronSecretPresent: boolean;
-    googleOauthConfigured: boolean;
-    totalLogRowsLast48h: number;
-  };
-  diagnoses: Diagnosis[];
-  jobSummaries: JobSummary[];
-  silentDeclaredCrons: string[];
-  killedIndividually: KilledCron[];
-}
 
 const SEVERITY_BG: Record<Severity, string> = {
   critical: "border-rose-500/40 bg-rose-500/[0.05]",
@@ -86,28 +56,24 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function CronDiagnosticsPage() {
-  const [report, setReport] = useState<Report | null>(null);
-  const [loading, setLoading] = useState(true);
   // Per-job action state: holds the jobName currently being triggered
   // or re-enabled so the UI can show a spinner on that row and block
   // double-clicks. One op at a time per page.
   const [busyJob, setBusyJob] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/cron-diagnostics", {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setReport(json.data ?? json);
-    } catch (e) {
-      console.error("cron-diagnostics load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase T.4 · React Query · types inferred from the cronDiagnostics
+  // procedure · no manual Report/Diagnosis/etc mirrors to drift. The
+  // previous page polled load() inside useEffect on mount only · the
+  // new path keeps that behavior (no refetchInterval) and adds
+  // invalidate-after-mutation for a tighter feedback loop.
+  const utils = trpc.useUtils();
+  const { data: report, isLoading: loading, refetch } =
+    trpc.system.cronDiagnostics.useQuery(undefined, { staleTime: 30_000 });
+  const load = useCallback(() => void refetch(), [refetch]);
+  const invalidate = useCallback(
+    () => utils.system.cronDiagnostics.invalidate(),
+    [utils],
+  );
 
   /** Fire a cron manually via /api/settings/crons/trigger. */
   const runNow = useCallback(
@@ -129,14 +95,14 @@ export default function CronDiagnosticsPage() {
             `${jobName} ran · ${result.durationMs ?? result.duration_ms ?? "?"}ms`,
           );
         }
-        await load();
+        await invalidate();
       } catch (e) {
         toast.error(`trigger failed: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         setBusyJob(null);
       }
     },
-    [load],
+    [invalidate],
   );
 
   /** Flip a cron's enabled flag back to true via /api/settings/crons PATCH. */
@@ -151,19 +117,15 @@ export default function CronDiagnosticsPage() {
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast.success(`${jobName} re-enabled`);
-        await load();
+        await invalidate();
       } catch (e) {
         toast.error(`enable failed: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         setBusyJob(null);
       }
     },
-    [load],
+    [invalidate],
   );
-
-  useEffect(() => {
-    load();
-  }, [load]);
 
   const criticalCount = report?.diagnoses.filter((d) => d.severity === "critical").length ?? 0;
   const warningCount = report?.diagnoses.filter((d) => d.severity === "warning").length ?? 0;
