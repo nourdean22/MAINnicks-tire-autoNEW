@@ -127,6 +127,56 @@ If we hit this trap a second time, ship the `railway.toml` approach
 - The 9 failed deploys produced harmless build noise · no data loss ·
   no impact on running Phase A.2 deployment serving traffic
 
+## The third layer · `force-dynamic` doesn't apply to client pages (added 2026-05-18 PM)
+
+After force-dynamic shipped on /tasks (commit `3eb5cbe`) and /journal
+(commit `fa83558`), every subsequent deploy STILL failed at static
+prerender. Railway Agent's second diagnosis:
+
+> "The error is still `/tasks` — your `force-dynamic` didn't take
+> effect. The issue is that `force-dynamic` only works if it's
+> exported from the page file itself, not a parent layout."
+>
+> "`useSearchParams()` is being called in a child component that's
+> not wrapped in `<Suspense>`. The `force-dynamic` export only
+> applies to that specific page file—child components still need
+> Suspense boundaries if they use [useSearchParams]"
+
+Actually the deeper fact (caught after testing): **route segment
+config exports (`dynamic`, `revalidate`, etc.) are only honored by
+Server Components. When `"use client"` is at the top of a page
+file, the entire file is a Client Component, and the config
+exports are silently ignored at build time.**
+
+So my "simpler than refactoring" comment in commit `3eb5cbe` was
+wrong — the refactor was the ONLY working option for a "use client"
+page. The third-attempt fix (commit `6b3083d`) does the right thing:
+
+```tsx
+"use client";
+
+// Outer · Suspense boundary
+export default function TasksPage() {
+  return (
+    <Suspense fallback={null}>
+      <TasksPageInner />
+    </Suspense>
+  );
+}
+
+// Inner · the actual page body, can use useSearchParams freely
+function TasksPageInner() {
+  const searchParams = useSearchParams();
+  // ... rest of 1,181 LOC unchanged
+}
+```
+
+LESSON · for ANY future `"use client"` page that needs useSearchParams:
+- Do NOT add `export const dynamic = "force-dynamic"` (silently ignored)
+- DO split into outer/inner pattern with Suspense at the boundary
+- Verify with `pnpm run build` locally before pushing — the build
+  surfaces the prerender error directly, no Railway round-trip needed
+
 ## The second layer · masked-bug discovery (added 2026-05-18 after rootDirectory fix)
 
 When Railway's rootDirectory was cleared and the build progressed past
