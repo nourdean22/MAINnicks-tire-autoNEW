@@ -25,20 +25,12 @@ import { X, Search, MessageSquare, User, Bot, Loader2, Download, Star, Archive, 
 import { toast } from "sonner";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
-interface Snippet {
-  messageId: string;
-  role: string;
-  snippet: string;
-  createdAt: string;
-}
+import { trpc } from "@/lib/trpc/client";
 
-interface SearchResultGroup {
-  conversationId: string;
-  conversationTitle: string;
-  lastMatchAt: string;
-  totalMatches: number;
-  snippets: Snippet[];
-}
+// Phase Z (2026-05-18 PM) · Snippet + SearchResultGroup types now flow
+// from the chat.search procedure's return shape · the manual mirrors
+// are removed below. Mutations (toggleConvoFlag, deleteConvo) stay
+// on REST per coexistence pattern.
 
 interface ChatHistorySearchProps {
   open: boolean;
@@ -48,11 +40,28 @@ interface ChatHistorySearchProps {
 
 export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearchProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResultGroup[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [totalMessages, setTotalMessages] = useState(0);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Phase Z · React Query handles search. Manual debounce stays as a
+  // 250ms gate that controls when the debouncedQuery key changes ·
+  // React Query then deduplicates / caches / refetches per input.
+  const trimmedDebounced = debouncedQuery.trim();
+  const utils = trpc.useUtils();
+  const searchQ = trpc.chat.search.useQuery(
+    { q: trimmedDebounced, limit: 25 },
+    {
+      enabled: trimmedDebounced.length >= 2,
+      staleTime: 5_000,
+    },
+  );
+  const results = searchQ.data?.results ?? [];
+  const totalMessages = searchQ.data?.totalMessages ?? 0;
+  const loading = searchQ.isFetching;
+  const refreshSearch = useCallback(() => {
+    void utils.chat.search.invalidate();
+  }, [utils]);
 
   // Focus input when opened
   useEffect(() => {
@@ -60,8 +69,7 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
       requestAnimationFrame(() => inputRef.current?.focus());
     } else {
       setQuery("");
-      setResults([]);
-      setTotalMessages(0);
+      setDebouncedQuery("");
     }
   }, [open]);
 
@@ -78,53 +86,16 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Debounced search
+  // Debounced query · 250ms · same cadence as the pre-Z manual debounce.
+  // React Query takes over from here · per-input refetch + cache.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    const trimmed = query.trim();
-    if (trimmed.length < 2) {
-      setResults([]);
-      setTotalMessages(0);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      setLoading(true);
-      try {
-        const res = await authedFetch(`/api/chat/search?q=${encodeURIComponent(trimmed)}&limit=25`);
-        if (!res.ok) throw new Error("search failed");
-        const raw = await res.json();
-        const data = raw?.data ?? raw;
-        setResults(Array.isArray(data.results) ? data.results : []);
-        setTotalMessages(data.totalMessages ?? 0);
-      } catch {
-        setResults([]);
-      }
-      setLoading(false);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedQuery(query);
     }, 250);
-
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
-
-  // May 02 · per-row mutations. Star/archive PATCH the conversation
-  // flag; delete removes it. After each, refresh results so the user
-  // sees the new state. Optimistic update would be nicer but the
-  // response shape doesn't include flag state, so a refetch is the
-  // simplest way to stay consistent.
-  const refreshSearch = useCallback(() => {
-    const trimmed = query.trim();
-    if (trimmed.length < 2) return;
-    void (async () => {
-      try {
-        const res = await authedFetch(`/api/chat/search?q=${encodeURIComponent(trimmed)}&limit=25`);
-        if (!res.ok) return;
-        const raw = await res.json();
-        const data = raw?.data ?? raw;
-        setResults(Array.isArray(data.results) ? data.results : []);
-        setTotalMessages(data.totalMessages ?? 0);
-      } catch {}
-    })();
   }, [query]);
 
   const toggleConvoFlag = useCallback(async (conversationId: string, flag: "starred" | "archived") => {
@@ -151,16 +122,26 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
       const r = await authedFetch(`/api/ai/chat/${conversationId}`, { method: "DELETE" });
       if (r.ok) {
         toast.success("deleted");
-        // Drop the row from local state so the list updates
-        // immediately without a re-fetch race.
-        setResults((prev) => prev.filter((g) => g.conversationId !== conversationId));
+        // Phase Z · optimistic drop · setData() removes the row from
+        // React Query's cache so the list updates immediately without
+        // a re-fetch race. invalidate() then triggers a background
+        // refetch to reconcile with the server.
+        utils.chat.search.setData({ q: trimmedDebounced, limit: 25 }, (old) =>
+          old
+            ? {
+                ...old,
+                results: old.results.filter((g) => g.conversationId !== conversationId),
+              }
+            : old,
+        );
+        void utils.chat.search.invalidate();
       } else {
         toast.error("Delete failed");
       }
     } catch {
       toast.error("Delete failed");
     }
-  }, []);
+  }, [utils, trimmedDebounced]);
 
   const handleJump = useCallback(
     (conversationId: string) => {
