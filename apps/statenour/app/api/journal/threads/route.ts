@@ -16,6 +16,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import {
   confirmCandidate,
+  createEmptyThread,
   listThreads,
 } from "@/lib/services/journal-threads";
 
@@ -41,6 +42,18 @@ export async function GET(req: Request) {
   }
 }
 
+/**
+ * POST /api/journal/threads · two modes:
+ *   1. { clusterHash, name, summary? }   · confirm convergence candidate
+ *   2. { name, summary? }                · operator-initiated empty thread
+ *
+ * Mode #2 added 2026-05-18 PM follow-up · operator-control completion.
+ * When body has clusterHash, treat as confirm-candidate (existing). When
+ * body has only name, create an empty thread the auto-join hook can
+ * populate. memberCount starts at 0 · scoreEntryAgainstActiveThreads
+ * filters those out until first member joins via auto-join or operator
+ * pinning (future).
+ */
 export async function POST(req: Request) {
   try {
     await requireSession(req);
@@ -49,17 +62,22 @@ export async function POST(req: Request) {
       name?: string;
       summary?: string;
     };
-    if (!body.clusterHash || !body.name) {
+    if (!body.name) {
       return NextResponse.json(
-        { error: "clusterHash and name are required" },
+        { error: "name is required" },
         { status: 400 },
       );
     }
-    const result = await confirmCandidate({
-      clusterHash: body.clusterHash,
-      name: body.name,
-      summary: body.summary ?? null,
-    });
+    const result = body.clusterHash
+      ? await confirmCandidate({
+          clusterHash: body.clusterHash,
+          name: body.name,
+          summary: body.summary ?? null,
+        })
+      : await createEmptyThread({
+          name: body.name,
+          summary: body.summary ?? null,
+        });
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 422 });
     }

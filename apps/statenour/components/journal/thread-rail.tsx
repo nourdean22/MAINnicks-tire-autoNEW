@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface Thread {
@@ -37,6 +37,13 @@ export function ThreadRail({
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showDormant, setShowDormant] = useState(false);
+  // Operator-initiated thread creation · 2026-05-18 PM follow-up ·
+  // closes the operator-control gap (previously threads could only
+  // be born from convergence candidates).
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [createBusy, setCreateBusy] = useState(false);
+  const [createErr, setCreateErr] = useState<string | null>(null);
 
   // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch instead of
   // bespoke state-mgmt + manual reload effect. Same semantics ·
@@ -50,6 +57,33 @@ export function ThreadRail({
     if (refreshSignal != null) reload();
   }, [refreshSignal, reload]);
 
+  const submitNewThread = async () => {
+    const name = newName.trim();
+    if (!name || createBusy) return;
+    setCreateBusy(true);
+    setCreateErr(null);
+    try {
+      const res = await authedFetch("/api/journal/threads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      setNewName("");
+      setCreating(false);
+      reload();
+    } catch (e) {
+      setCreateErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCreateBusy(false);
+    }
+  };
+
   const { active, dormant } = useMemo(() => {
     const a: Thread[] = [];
     const d: Thread[] = [];
@@ -61,7 +95,36 @@ export function ThreadRail({
 
   if (loading) return null;
   if (error) return null;
-  if (active.length === 0 && dormant.length === 0) return null;
+  // No threads yet · still render a compact create-row so the operator
+  // can manually start a thread without waiting for convergence.
+  if (active.length === 0 && dormant.length === 0) {
+    return (
+      <section className="mb-8">
+        {creating ? (
+          <NewThreadForm
+            newName={newName}
+            setNewName={setNewName}
+            busy={createBusy}
+            err={createErr}
+            onSubmit={submitNewThread}
+            onCancel={() => {
+              setCreating(false);
+              setNewName("");
+              setCreateErr(null);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCreating(true)}
+            className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition min-h-[32px] inline-flex items-center"
+          >
+            + new thread
+          </button>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="mb-8 space-y-3">
@@ -69,17 +132,43 @@ export function ThreadRail({
         label="Threads"
         count={`${active.length} active`}
         action={
-          dormant.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => setShowDormant((s) => !s)}
-              className="text-white/40 hover:text-white/70"
-            >
-              {showDormant ? "hide" : "show"} {dormant.length} dormant
-            </button>
-          ) : undefined
+          <div className="flex items-center gap-3">
+            {!creating ? (
+              <button
+                type="button"
+                onClick={() => setCreating(true)}
+                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              >
+                + new
+              </button>
+            ) : null}
+            {dormant.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowDormant((s) => !s)}
+                className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
+              >
+                {showDormant ? "hide" : "show"} {dormant.length} dormant
+              </button>
+            ) : null}
+          </div>
         }
       />
+
+      {creating ? (
+        <NewThreadForm
+          newName={newName}
+          setNewName={setNewName}
+          busy={createBusy}
+          err={createErr}
+          onSubmit={submitNewThread}
+          onCancel={() => {
+            setCreating(false);
+            setNewName("");
+            setCreateErr(null);
+          }}
+        />
+      ) : null}
 
       {active.length > 0 ? (
         <ul className="space-y-2">
@@ -217,5 +306,74 @@ function ThreadCard({
         </div>
       ) : null}
     </li>
+  );
+}
+
+// Operator-initiated thread creation form · inline composer in
+// ThreadRail. Type name → enter to submit · cancel button to bail.
+// On success: thread is born empty (memberCount=0) · auto-join hook
+// on future captures finds it via centroid-similarity scoring.
+function NewThreadForm({
+  newName,
+  setNewName,
+  busy,
+  err,
+  onSubmit,
+  onCancel,
+}: {
+  newName: string;
+  setNewName: (v: string) => void;
+  busy: boolean;
+  err: string | null;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-[#FDB913]/30 bg-[#FDB913]/[0.04] p-3 space-y-2">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+        New thread
+      </p>
+      <div className="flex gap-2 items-stretch">
+        <input
+          type="text"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value.slice(0, 120))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !busy) {
+              e.preventDefault();
+              onSubmit();
+            }
+            if (e.key === "Escape") onCancel();
+          }}
+          placeholder="theme name (e.g. 'the pricing puzzle')"
+          autoFocus
+          className="flex-1 min-h-[44px] px-3 rounded border border-white/15 bg-transparent text-sm text-[var(--text-primary)] placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/60"
+        />
+        <button
+          type="button"
+          onClick={onSubmit}
+          disabled={busy || newName.trim().length === 0}
+          className="text-xs uppercase tracking-[0.14em] px-3 min-h-[44px] rounded bg-[#FDB913] text-black font-medium hover:bg-[#FDB913]/90 disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          {busy ? "..." : "create"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="text-xs uppercase tracking-[0.14em] px-3 min-h-[44px] rounded border border-white/15 text-white/70 hover:bg-white/5 disabled:opacity-30"
+        >
+          cancel
+        </button>
+      </div>
+      {err ? (
+        <p className="text-[11px] text-red-300">{err}</p>
+      ) : (
+        <p className="text-[11px] text-[var(--text-tertiary)]">
+          Empty thread · auto-join populates it as new captures match
+          its centroid (or pin members later).
+        </p>
+      )}
+    </div>
   );
 }
