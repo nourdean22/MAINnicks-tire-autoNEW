@@ -15,6 +15,13 @@ const PUBLIC_PREFIXES = [
   "/api/images",      // Generated image serving (public, cached)
   "/api/cron",        // Cron jobs (own CRON_SECRET auth)
   "/api/sync",        // Bridge sync (own Bearer auth)
+  // 2026-05-17 · WAVE-200 Phase 3 follow-up · Inngest serve endpoint.
+  // Same pattern as /api/telegram · Inngest hits this with their own
+  // HMAC-signed requests, validated by inngest/next's serve() handler
+  // using INNGEST_SIGNING_KEY. Must bypass NextAuth so the signed
+  // probe gets through. The 503+hint wrapper in the route handles
+  // the unconfigured case.
+  "/api/inngest",
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
