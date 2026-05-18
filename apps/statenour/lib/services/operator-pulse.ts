@@ -52,11 +52,23 @@ export interface PulseLine {
   tone: "gold" | "amber" | "emerald" | "neutral";
 }
 
+export interface WisdomLine {
+  /** The wisdom quote text · max 180 chars after composition */
+  text: string;
+  /** Attribution (e.g. "Buffett", "Naval", "principle", "you") */
+  attribution: string;
+  /** Optional link to the wisdom row in /brain/wisdom */
+  href: string | null;
+}
+
 export interface OperatorPulseSnapshot {
   surface: PulseSurface;
   pulse: PulseLine | null;
   forecast: PulseLine | null;
   drift: PulseLine | null;
+  /** Phase F (2026-05-18 PM) · context-matched wisdom quote · keyword
+   *  + persona weighted · no embedding cost · null when nothing fits. */
+  wisdom: WisdomLine | null;
   composedAt: string;
 }
 
@@ -300,6 +312,206 @@ function composeForHome(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" |
   return { pulse, forecast, drift };
 }
 
+// ── Phase F · context-matched wisdom selector ───────────────────────
+//
+// Pulls one wisdom quote from BrainMemory(category="wisdom") that
+// matches the current pulse context. KEYWORD + persona-weighted ·
+// NO embedding cost (we already paid that price for the embedding
+// rows; for pulse-context selection we want sub-100ms).
+//
+// Matching strategy (rough but useful):
+//   1. Build a set of candidate keywords from pulse parts (trailing
+//      axis · anomaly label · domain · loopKind etc).
+//   2. Pull recent + high-confidence wisdom rows.
+//   3. Score each row by overlap with keywords + persona boost +
+//      not-shown-recently penalty.
+//   4. Return the top match (or null if nothing meaningfully overlaps).
+//
+// If no signal-bearing keywords exist (calm day · no anomalies) we
+// fall back to one operator-favored persona quote (Buffett/Naval/
+// Munger) rotated by date so the pulse always has something
+// reflective even when there's nothing burning.
+
+const PERSONA_RANK: Record<string, number> = {
+  buffett: 1.20,
+  naval: 1.20,
+  munger: 1.18,
+  bezos: 1.15,
+  jobs: 1.10,
+  greene: 1.10,
+  gates: 1.05,
+  musk: 1.05,
+  satori: 0.85,
+};
+
+function personaFromKey(key: string): string | null {
+  const m = key.match(/^wisdom_([a-z]+)_/);
+  return m ? m[1] : null;
+}
+
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 4),
+  );
+}
+
+function buildWisdomKeywords(parts: {
+  pulse: PulseLine | null;
+  forecast: PulseLine | null;
+  drift: PulseLine | null;
+  trailingAxis: AxisScore | null;
+  topAnomaly: ScoreboardNumber | null;
+  surface: PulseSurface;
+}): Set<string> {
+  const keywords = new Set<string>();
+  if (parts.pulse) tokenize(parts.pulse.text).forEach((w) => keywords.add(w));
+  if (parts.drift) tokenize(parts.drift.text).forEach((w) => keywords.add(w));
+  if (parts.trailingAxis) keywords.add(parts.trailingAxis.domain.toLowerCase());
+  if (parts.topAnomaly) {
+    tokenize(parts.topAnomaly.label).forEach((w) => keywords.add(w));
+    if (parts.topAnomaly.why) tokenize(parts.topAnomaly.why).forEach((w) => keywords.add(w));
+  }
+  // Surface adds an implicit semantic frame · tasks → execution · goals
+  // → strategy · scoreboard → measurement · home → reflection. These
+  // keywords aren't strict matches but bias the persona selection.
+  if (parts.surface === "tasks") {
+    keywords.add("action");
+    keywords.add("execute");
+    keywords.add("focus");
+  } else if (parts.surface === "goals") {
+    keywords.add("strategy");
+    keywords.add("vision");
+    keywords.add("long");
+  } else if (parts.surface === "scoreboard") {
+    keywords.add("measure");
+    keywords.add("number");
+    keywords.add("signal");
+  } else if (parts.surface === "home") {
+    keywords.add("today");
+    keywords.add("morning");
+  }
+  return keywords;
+}
+
+async function pickWisdomForPulse(input: {
+  pulse: PulseLine | null;
+  forecast: PulseLine | null;
+  drift: PulseLine | null;
+  trailingAxis: AxisScore | null;
+  topAnomaly: ScoreboardNumber | null;
+  surface: PulseSurface;
+}): Promise<WisdomLine | null> {
+  const keywords = buildWisdomKeywords(input);
+  if (keywords.size === 0) return null;
+
+  // Pull a recent slice of wisdom · 300 rows is plenty for keyword
+  // scoring · indexed read so this is sub-50ms.
+  const rows = await prisma.brainMemory
+    .findMany({
+      where: {
+        category: "wisdom",
+        deletedAt: null,
+        confidence: { gte: 0.4 },
+      },
+      select: {
+        id: true,
+        key: true,
+        content: true,
+        source: true,
+        confidence: true,
+        seenCount: true,
+      },
+      orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
+      take: 300,
+    })
+    .catch(() => [] as Array<{
+      id: string;
+      key: string;
+      content: string;
+      source: string | null;
+      confidence: number | null;
+      seenCount: number | null;
+    }>);
+  if (rows.length === 0) return null;
+
+  // Recently shown cooldown · don't loop the same quote across surfaces
+  // in the same session.
+  const since = new Date(Date.now() - 6 * 60 * 60 * 1000);
+  const shownRecently = await prisma.brainMemory
+    .findMany({
+      where: { category: "pulse_wisdom_shown", updatedAt: { gte: since } },
+      select: { key: true },
+      take: 200,
+    })
+    .then((r) => new Set(r.map((x) => x.key.replace(/^pulse:/, ""))))
+    .catch(() => new Set<string>());
+
+  // Score each candidate
+  let best: { row: (typeof rows)[number]; score: number } | null = null;
+  for (const row of rows) {
+    const persona = personaFromKey(row.key);
+    const personaBoost = persona ? (PERSONA_RANK[persona] ?? 1.0) : 1.0;
+    const contentTokens = tokenize(row.content);
+    let overlap = 0;
+    for (const k of keywords) {
+      if (contentTokens.has(k)) overlap += 1;
+    }
+    if (overlap === 0) continue;
+
+    const recentPenalty = shownRecently.has(row.id) ? 0.4 : 1.0;
+    const confidence = Number(row.confidence ?? 0.5);
+    const score = overlap * personaBoost * confidence * recentPenalty;
+    if (!best || score > best.score) {
+      best = { row, score };
+    }
+  }
+  if (!best) return null;
+
+  // Fire-and-forget: mark this wisdom as shown so the same quote
+  // doesn't echo across rapid page navigations within 6h.
+  void prisma.brainMemory
+    .upsert({
+      where: {
+        category_key: { category: "pulse_wisdom_shown", key: `pulse:${best.row.id}` },
+      },
+      create: {
+        category: "pulse_wisdom_shown",
+        key: `pulse:${best.row.id}`,
+        content: `pulse surfaced wisdom ${best.row.id}`,
+        confidence: 0.5,
+        source: "operator-pulse",
+        createdBy: "system",
+      },
+      update: { updatedAt: new Date(), seenCount: { increment: 1 } },
+    })
+    .catch(() => {
+      /* non-fatal · the pulse still renders if the bookkeeping write fails */
+    });
+
+  // Format the line · cap at 180 chars · attribution from persona key
+  // or source label.
+  const persona = personaFromKey(best.row.key);
+  const attribution = persona
+    ? persona.charAt(0).toUpperCase() + persona.slice(1)
+    : best.row.source === "manual" || best.row.source === "user"
+      ? "you"
+      : best.row.source === "skill_ingestion"
+        ? "principle"
+        : "wisdom";
+  const text = best.row.content.length > 180
+    ? best.row.content.slice(0, 177).trimEnd() + "…"
+    : best.row.content;
+  return {
+    text,
+    attribution,
+    href: `/brain/wisdom?focus=${encodeURIComponent(best.row.id)}`,
+  };
+}
+
 // ── Public composer ─────────────────────────────────────────────────
 
 const NEW_YORK_TZ = "America/New_York";
@@ -415,11 +627,27 @@ export async function buildOperatorPulse(
       break;
   }
 
+  // Phase F · context-matched wisdom · pure keyword + persona scoring
+  // over an indexed BrainMemory read · sub-100ms typical · null when
+  // nothing fits. Fails closed: if wisdom selection throws, the pulse
+  // still ships its three core lines.
+  const trailingAxis = findTrailingAxis(goals.axes);
+  const topAnomaly = scoreboard.numbers.find((n) => n.anomalous) ?? null;
+  const wisdom = await pickWisdomForPulse({
+    pulse: parts.pulse,
+    forecast: parts.forecast,
+    drift: parts.drift,
+    trailingAxis,
+    topAnomaly,
+    surface,
+  }).catch(() => null);
+
   return {
     surface,
     pulse: parts.pulse,
     forecast: parts.forecast,
     drift: parts.drift,
+    wisdom,
     composedAt: new Date().toISOString(),
   };
 }
@@ -432,6 +660,8 @@ export const __internals = {
   composeForGoals,
   composeForScoreboard,
   composeForHome,
+  pickWisdomForPulse,
+  buildWisdomKeywords,
 };
 
 // Convenience re-exports so consumers don't need to import from multiple files.
