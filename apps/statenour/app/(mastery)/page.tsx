@@ -1,6 +1,12 @@
 import { Suspense } from "react";
 import ChatPage from "./chat/page";
 import { HomeNarrator } from "@/components/home/home-narrator";
+// Phase E (2026-05-18 PM) · OperatorPulse · home variant composes the
+// loudest cross-surface signal (top anomaly > top open task) + week
+// shape + drift. Sits BELOW HomeNarrator (greeting + nav) so the
+// editorial sentence stays the entry point · pulse adds the
+// "right now" intelligence layer just above the chat composer.
+import { OperatorPulse } from "@/components/operator/operator-pulse";
 
 /**
  * The home route · 2026-05-18 PM · HomeStrip → HomeNarrator
@@ -35,6 +41,7 @@ export default function HomePage() {
   return (
     <Suspense fallback={null}>
       <HomeNarrator />
+      <OperatorPulse surface="home" />
       <ChatPage />
     </Suspense>
   );

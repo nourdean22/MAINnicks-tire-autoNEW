@@ -67,6 +67,12 @@ import { NowPanel } from "@/components/actions/now-panel";
 import { type AiTask } from "@/components/actions/ai-suggestions-band";
 import { ActionsContextBand } from "@/components/actions/actions-context-band";
 import { TodaysCompound } from "@/components/actions/todays-compound";
+// Phase E (2026-05-18 PM) · OperatorPulse · forward-looking intelligence
+// strip · "right now the move is X · pace is Y · drift is Z". Pairs with
+// TodaysCompound (backward-looking) above the work surface. ONE component
+// shared with /goals + /scoreboard + / home · the intelligence overlay
+// the three surfaces were missing post-Phase-D.
+import { OperatorPulse } from "@/components/operator/operator-pulse";
 import { KommandoShell } from "@/components/actions/kommando-modes";
 import { useGoalProjectBridge } from "@/hooks/use-goal-project-bridge";
 import { useTaskDerivedState } from "@/hooks/use-task-derived-state";
@@ -1150,6 +1156,13 @@ function TasksPageInner() {
           </button>
         </div>
       ) : null}
+      {/* Phase E (2026-05-18 PM) · OperatorPulse · the forward-looking
+          intelligence layer · ABOVE TodaysCompound because pulse =
+          "what's the move RIGHT NOW" trumps "what happened today" in
+          terms of operator orientation. Self-hides when nothing has
+          signal. Surface="tasks" so the composition emphasizes top-ROI
+          open task + 7d pace + stalest promise. */}
+      <OperatorPulse surface="tasks" className="px-0" />
       {/* v10.0.529.79 · Wave 23 · #1 · TodaysCompound strip · shows
           today's compounded auto-learn signal (mastery delta · insight
           count · wisdom matched · goals lifted · focused minutes) so

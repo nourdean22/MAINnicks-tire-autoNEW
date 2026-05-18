@@ -30,6 +30,10 @@ import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+// Phase E (2026-05-18 PM) · OperatorPulse · trailing-axis + 7d shape +
+// dormant-goal drift. Mounts right under the header so the operator
+// sees the forward-looking story BEFORE the static ladder.
+import { OperatorPulse } from "@/components/operator/operator-pulse";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -123,6 +127,11 @@ export default function GoalsPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
         <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />
+
+        {/* Phase E (2026-05-18 PM) · OperatorPulse · surface-aware pulse
+            line · trailing-axis insight + 7d pace breakdown + oldest
+            dormant goal. Self-hides when nothing has signal. */}
+        <OperatorPulse surface="goals" className="mt-6 px-0 mx-0" />
 
         {/* Main grid · ladder on left · sidebar on right (collapses on mobile) */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
