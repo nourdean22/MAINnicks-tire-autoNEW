@@ -151,21 +151,11 @@ export const GET = apiHandler(async (req) => {
   const mode = url.searchParams.get("list") ?? "recent";
 
   if (mode === "recent") {
-    // Recent decisions with no review yet — candidates to run ghost on.
-    const rows = await prisma.masteryDecision.findMany({
-      where: { actualOutcome: null, deletedAt: null }, // v10.0.68
-      orderBy: { createdAt: "desc" },
-      take: 20,
-      select: {
-        id: true,
-        date: true,
-        title: true,
-        domain: true,
-        chosen: true,
-        stakes: true,
-        createdAt: true,
-      },
-    });
+    // Phase Y.3 (2026-05-18 PM) · delegates to shared service · same
+    // function the `trpc.system.ghostNourCandidates` procedure calls ·
+    // drift impossible.
+    const { readGhostNourCandidates } = await import("@/lib/services/ghost-nour");
+    const rows = await readGhostNourCandidates();
     return { mode: "recent", candidates: rows };
   }
 
