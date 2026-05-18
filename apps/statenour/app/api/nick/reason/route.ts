@@ -24,6 +24,8 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { reason } from "@/lib/ai/reasoning/engine";
+import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
+import { checkBudget } from "@/lib/ai/reasoning/budget";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
 export const dynamic = "force-dynamic";
@@ -44,6 +46,10 @@ interface ReasonBody {
   question?: unknown;
   brainContext?: unknown;
   tier?: unknown;
+  /** H.3.4 · operator must explicitly confirm runs at mega tier · the
+   *  UI flips this true after a confirm dialog. Without it, mega
+   *  requests get rejected with 402 (cost gate). */
+  confirmExpensive?: unknown;
 }
 
 export async function POST(req: Request) {
@@ -78,12 +84,49 @@ export async function POST(req: Request) {
         ? body.brainContext
         : undefined;
 
-    const tier =
+    const requestedTier =
       typeof body.tier === "string" && VALID_TIERS.has(body.tier as ReasoningTier)
         ? (body.tier as ReasoningTier)
         : undefined;
 
-    const result = await reason({ question, brainContext, tier });
+    // H.3.4 · mega-tier confirm gate. If operator picked mega (or the
+    // classifier returns mega via a marker), require confirmExpensive=true.
+    // Auto-classifier never picks mega so this only fires on explicit
+    // tier or marker matches.
+    const effectiveTier =
+      requestedTier ?? classifyReasoning(question).tier;
+    if (effectiveTier === "mega" && body.confirmExpensive !== true) {
+      return NextResponse.json(
+        {
+          error: "confirm_expensive",
+          message:
+            "Mega tier runs $0.20+ per call. Re-send with confirmExpensive=true to proceed.",
+          tier: "mega",
+          estimatedUsd: 0.25,
+        },
+        { status: 402 },
+      );
+    }
+
+    // H.3.3 · daily budget cap. Read today's persisted spend, reject if
+    // this run would push past the cap. Endpoint returns 402 so the UI
+    // can render a "today's budget exhausted · resets at midnight ET"
+    // message instead of a generic 500.
+    const budget = await checkBudget(effectiveTier);
+    if (!budget.allow) {
+      return NextResponse.json(
+        {
+          error: "budget_exceeded",
+          message: budget.reason,
+          spentTodayUsd: budget.spentTodayUsd,
+          capUsd: budget.capUsd,
+          estimatedRunUsd: budget.estimatedRunUsd,
+        },
+        { status: 402 },
+      );
+    }
+
+    const result = await reason({ question, brainContext, tier: requestedTier });
     return NextResponse.json(result, {
       // Reasoning results are user-specific + time-sensitive · don't cache.
       headers: { "Cache-Control": "private, no-store" },

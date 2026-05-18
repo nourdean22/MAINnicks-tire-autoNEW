@@ -93,6 +93,15 @@ export function DeepModeNudge() {
         setVerdict(null);
         return;
       }
+      // H.3.1 · respect any ancestor with [data-no-deep-nudge]. This lets
+      // high-noise surfaces (journal entries, quick-add bars, search
+      // boxes) opt out without the nudge needing to know about them.
+      // Walks up the DOM tree from the focused element to find an
+      // ancestor with the attribute · zero coupling to specific pages.
+      if ((el as HTMLElement).closest("[data-no-deep-nudge]")) {
+        setVerdict(null);
+        return;
+      }
       const input = el as HTMLInputElement | HTMLTextAreaElement;
       if (tag === "INPUT") {
         const t = (input as HTMLInputElement).type;

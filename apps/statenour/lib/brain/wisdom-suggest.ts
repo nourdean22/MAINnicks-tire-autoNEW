@@ -155,7 +155,7 @@ export async function findRelatedWisdom(
   const queryVec = await getEmbedding(trimmed.slice(0, 1500));
   if (!Array.isArray(queryVec) || queryVec.length === 0) return [];
 
-  const wisdoms = await prisma.brainMemory.findMany({
+  const rawWisdoms = await prisma.brainMemory.findMany({
     where: {
       category: "wisdom",
       deletedAt: null,
@@ -170,7 +170,31 @@ export async function findRelatedWisdom(
       createdAt: true,
       seenCount: true,
     },
-    take: 600,
+    take: 800, // raised from 600 because the filter below drops noise
+  });
+  // H.3.2 · filter system-promoted noise. Pre-fix, "[PROMOTED TO WISDOM]
+  // Nick advice (2026-04-11): System health: Green ..." was matching as
+  // genuine wisdom because category=wisdom is set by both curated
+  // ingestion AND a system cron that promotes old Nick replies. Filter
+  // by both key prefix and source field · keeps human-curated +
+  // distilled wisdom, drops auto-promoted system entries.
+  const wisdoms = rawWisdoms.filter((w) => {
+    if (!w.content || w.content.length < 20) return false;
+    // Reject the visible "[PROMOTED TO WISDOM]" marker
+    if (/^\s*\[PROMOTED TO WISDOM\]/i.test(w.content)) return false;
+    if (/^\s*\[nick advice\]/i.test(w.content)) return false;
+    // Reject system-cron sources that auto-write wisdom rows
+    const noisySources = new Set([
+      "wisdom_sync_cron",
+      "device_analysis",
+      "conversation_analysis",
+      "history_ingestion",
+    ]);
+    if (w.source && noisySources.has(w.source)) return false;
+    // Reject the nick_advice key prefix · these are operator chat
+    // replies promoted into the wisdom corpus by a v9 cron.
+    if (w.key && /^(nick_?advice|nickadvice|chat_reply)_/i.test(w.key)) return false;
+    return true;
   });
   if (wisdoms.length === 0) return [];
 

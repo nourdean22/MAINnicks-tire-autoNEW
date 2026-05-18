@@ -408,9 +408,10 @@ async function pickWisdomForPulse(input: {
   const keywords = buildWisdomKeywords(input);
   if (keywords.size === 0) return null;
 
-  // Pull a recent slice of wisdom · 300 rows is plenty for keyword
-  // scoring · indexed read so this is sub-50ms.
-  const rows = await prisma.brainMemory
+  // Pull a recent slice of wisdom · 400 rows is plenty for keyword
+  // scoring · indexed read so this is sub-50ms. Raised from 300 to
+  // 400 because the H.3.2 filter below drops noisy system entries.
+  const rawRows = await prisma.brainMemory
     .findMany({
       where: {
         category: "wisdom",
@@ -426,7 +427,7 @@ async function pickWisdomForPulse(input: {
         seenCount: true,
       },
       orderBy: [{ confidence: "desc" }, { createdAt: "desc" }],
-      take: 300,
+      take: 400,
     })
     .catch(() => [] as Array<{
       id: string;
@@ -436,6 +437,24 @@ async function pickWisdomForPulse(input: {
       confidence: number | null;
       seenCount: number | null;
     }>);
+  // H.3.2 · same source-filter as lib/brain/wisdom-suggest.ts · keeps
+  // human-curated + distilled wisdom · drops system-cron auto-promoted
+  // entries ("[PROMOTED TO WISDOM] Nick advice ... System health:
+  // Green ..." was leaking through pre-fix).
+  const NOISY_SOURCES = new Set([
+    "wisdom_sync_cron",
+    "device_analysis",
+    "conversation_analysis",
+    "history_ingestion",
+  ]);
+  const rows = rawRows.filter((w) => {
+    if (!w.content || w.content.length < 20) return false;
+    if (/^\s*\[PROMOTED TO WISDOM\]/i.test(w.content)) return false;
+    if (/^\s*\[nick advice\]/i.test(w.content)) return false;
+    if (w.source && NOISY_SOURCES.has(w.source)) return false;
+    if (w.key && /^(nick_?advice|nickadvice|chat_reply)_/i.test(w.key)) return false;
+    return true;
+  });
   if (rows.length === 0) return null;
 
   // Recently shown cooldown · don't loop the same quote across surfaces

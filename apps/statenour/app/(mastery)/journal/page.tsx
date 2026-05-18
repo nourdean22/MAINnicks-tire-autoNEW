@@ -342,8 +342,13 @@ function JournalPageInner() {
     return Array.from(groups.entries());
   }, [sortedEntries]);
 
+  // H.3.1 · suppress DeepModeNudge across the entire journal surface.
+  // Journal entries ARE deep thinking — every brain-dump, decision-
+  // replay, reflection would trigger the classifier and surface the
+  // chip on every keystroke. data-no-deep-nudge on the root wrapper
+  // makes the global watcher skip any focused input inside it.
   return (
-    <div className="min-h-screen text-zinc-100 space-y-5">
+    <div className="min-h-screen text-zinc-100 space-y-5" data-no-deep-nudge>
       <SectionHeader
         icon={<NotebookPen size={16} className="text-[var(--gold)]" />}
         label="Journal"
