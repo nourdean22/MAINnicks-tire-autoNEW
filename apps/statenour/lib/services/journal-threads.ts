@@ -198,6 +198,61 @@ export async function listConvergenceCandidates(): Promise<
 // ──────────────────────── Write paths ────────────────────────
 
 /**
+ * Operator creates an EMPTY thread manually (no convergence candidate).
+ * Useful when the operator has a theme in mind but the cron hasn't
+ * detected it yet, or when they want to pre-create a thread so the
+ * auto-join hook on future captures has a target.
+ *
+ * No seed members · no centroid yet · the first auto-join or operator
+ * pin populates both. Until then the thread has memberCount=0 and is
+ * inert to scoreEntryAgainstActiveThreads (which filters memberCount>0).
+ */
+export async function createEmptyThread(input: {
+  name: string;
+  summary?: string | null;
+}): Promise<{ threadId: string } | { error: string }> {
+  const name = input.name.trim();
+  if (name.length === 0 || name.length > 120) {
+    return { error: "name must be 1-120 chars" };
+  }
+  // Reject obvious duplicates (case-insensitive name match on active
+  // threads only · operator gets a clearer message than the upstream
+  // database error would give).
+  const existing = await prisma.journalThread.findFirst({
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      deletedAt: null,
+      status: { in: ["active", "dormant"] },
+    },
+    select: { id: true, status: true },
+  });
+  if (existing) {
+    return {
+      error: `thread "${name}" already exists (${existing.status})`,
+    };
+  }
+
+  const now = new Date();
+  const thread = await prisma.journalThread.create({
+    data: {
+      name,
+      summary: input.summary?.trim().slice(0, 400) || null,
+      status: "active",
+      coherence: null, // unknown until first members join
+      detectedAt: now, // counts as "detected" by operator intent
+      namedAt: now,
+      lastJoinAt: null, // never joined yet
+      centroid: null, // computed on first join via rollCentroid
+      memberCount: 0,
+    },
+    select: { id: true },
+  });
+
+  log.info("empty_thread_created", { threadId: thread.id, name });
+  return { threadId: thread.id };
+}
+
+/**
  * Operator confirms a convergence candidate → spawn a JournalThread,
  * link seed members, compute true-mean centroid, soft-delete the
  * candidate row (keeps history, prevents re-detection).
