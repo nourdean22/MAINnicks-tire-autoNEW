@@ -29,17 +29,35 @@ import type { ReasoningTier } from "./types";
 export const DEFAULT_DAILY_CAP_USD = 1.0;
 export const MEGA_PER_RUN_CAP_USD = 0.25;
 
+/** H.6.2 · TTL for stale in-flight reservations. Anything older than
+ *  this is assumed to be from a crashed engine run and gets cleaned
+ *  up on the next budget check. Long enough to outlast the slowest
+ *  mega run (120s upper bound) plus generous slack. */
+export const RESERVATION_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
 export interface BudgetVerdict {
   /** Whether to allow the run */
   allow: boolean;
   /** Today's spend in USD before this run · 0 if unknown */
   spentTodayUsd: number;
+  /** H.6.2 · in-flight reservation total · sum of estimated cost
+   *  for runs currently executing. Included in the cap check to
+   *  close the TOCTOU gap. */
+  inFlightUsd: number;
   /** Configured cap */
   capUsd: number;
   /** Estimated cost of THIS run (pre-execution guess) */
   estimatedRunUsd: number;
   /** Human-readable reason · used by the UI when allow=false */
   reason: string;
+}
+
+export interface Reservation {
+  /** BrainMemory key for the reservation row · pass to releaseReservation
+   *  after the run completes. */
+  id: string;
+  /** Estimated cost reserved · refunded if release is called. */
+  estimatedRunUsd: number;
 }
 
 /** Pre-run cost estimate per tier. Conservative · over-estimates so
@@ -97,13 +115,119 @@ async function getTodaySpendUsd(): Promise<number> {
   }
 }
 
+/** H.6.2 · sum currently-in-flight reservations. Adds to spent-today
+ *  for the budget check so two concurrent requests can't both pass
+ *  the cap by reading the same pre-write spend. Stale reservations
+ *  (engine crashed) are pruned by maxAge filter and the next call to
+ *  pruneStaleReservations. */
+async function getInFlightUsd(): Promise<number> {
+  try {
+    const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
+    const rows = await prisma.brainMemory.findMany({
+      where: {
+        category: "reasoning_in_flight",
+        createdAt: { gte: cutoff },
+        deletedAt: null,
+      },
+      select: { metadata: true },
+      take: 100,
+    });
+    let total = 0;
+    for (const r of rows) {
+      const m = (r.metadata ?? null) as { usd?: number } | null;
+      const usd = typeof m?.usd === "number" ? m.usd : 0;
+      if (Number.isFinite(usd)) total += usd;
+    }
+    return Math.round(total * 1000) / 1000;
+  } catch {
+    // Same fail-open as today-spend · don't block on tooling errors
+    return 0;
+  }
+}
+
+/** H.6.2 · reserve budget headroom for a run that's about to start.
+ *  Writes a BrainMemory(category="reasoning_in_flight") row. Caller
+ *  MUST call releaseReservation in a finally block, otherwise the
+ *  reservation persists until RESERVATION_TTL_MS expires. */
+export async function reserveBudget(
+  tier: ReasoningTier,
+  estimatedRunUsd: number,
+): Promise<Reservation | null> {
+  try {
+    const id = `inflight_${tier}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    await prisma.brainMemory.create({
+      data: {
+        category: "reasoning_in_flight",
+        key: id,
+        content: `reserved $${estimatedRunUsd.toFixed(3)} for ${tier} tier`,
+        confidence: 0.5,
+        source: "reasoning-engine",
+        createdBy: "system",
+        metadata: {
+          usd: estimatedRunUsd,
+          tier,
+          reservedAt: Date.now(),
+        },
+      },
+    });
+    return { id, estimatedRunUsd };
+  } catch {
+    // Best-effort · if reservation write fails, fall back to no-reservation
+    // (caller still proceeds · TOCTOU window is the cost of resilience).
+    return null;
+  }
+}
+
+/** H.6.2 · release a reservation after the run completes. Called from
+ *  a finally block so it always runs, even on engine error. */
+export async function releaseReservation(reservation: Reservation | null): Promise<void> {
+  if (!reservation) return;
+  try {
+    await prisma.brainMemory.deleteMany({
+      where: { category: "reasoning_in_flight", key: reservation.id },
+    });
+  } catch {
+    // Best-effort · stale reservation will TTL out after RESERVATION_TTL_MS
+  }
+}
+
+/** H.6.2 · prune reservation rows older than the TTL. Opportunistic
+ *  · called from the budget check at ~10% sampling so the table stays
+ *  bounded even if a bunch of engine runs crash. */
+async function pruneStaleReservations(): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - RESERVATION_TTL_MS);
+    await prisma.brainMemory.deleteMany({
+      where: {
+        category: "reasoning_in_flight",
+        createdAt: { lt: cutoff },
+      },
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 export async function checkBudget(
   tier: ReasoningTier,
   options?: { capUsd?: number },
 ): Promise<BudgetVerdict> {
   const capUsd = options?.capUsd ?? DEFAULT_DAILY_CAP_USD;
-  const spentTodayUsd = await getTodaySpendUsd();
+  // H.6.2 · opportunistic prune of stale reservations · runs roughly
+  // every 10th check so the in-flight set never accumulates indefinitely.
+  if (Math.random() < 0.1) void pruneStaleReservations();
+  const [spentTodayUsd, inFlightUsd] = await Promise.all([
+    getTodaySpendUsd(),
+    getInFlightUsd(),
+  ]);
   const estimatedRunUsd = estimateTierCost(tier);
+  // H.6.2 · TOCTOU close · the cap check now includes already-reserved
+  // headroom from runs still executing. Pre-fix, two concurrent
+  // requests both read the same spend-today and both passed the gate.
+  // Now each request adds its reservation BEFORE the next request
+  // reads, so the second request sees the first request's reserved
+  // headroom too.
+  const effectiveSpend = spentTodayUsd + inFlightUsd;
 
   // Mega per-run hard cap · even if daily cap has room, one mega run
   // can't claim more than MEGA_PER_RUN_CAP_USD. Protects against the
@@ -112,30 +236,38 @@ export async function checkBudget(
     return {
       allow: false,
       spentTodayUsd,
+      inFlightUsd,
       capUsd,
       estimatedRunUsd,
       reason: `Mega tier estimated at $${estimatedRunUsd.toFixed(2)} exceeds per-run cap $${MEGA_PER_RUN_CAP_USD.toFixed(2)}.`,
     };
   }
 
-  // Daily cap
-  if (spentTodayUsd + estimatedRunUsd > capUsd) {
+  // Daily cap · includes both completed and in-flight
+  if (effectiveSpend + estimatedRunUsd > capUsd) {
     return {
       allow: false,
       spentTodayUsd,
+      inFlightUsd,
       capUsd,
       estimatedRunUsd,
-      reason: `Daily reasoning cap would be exceeded · $${spentTodayUsd.toFixed(3)} spent + $${estimatedRunUsd.toFixed(3)} estimate > $${capUsd.toFixed(2)} cap.`,
+      reason: `Daily reasoning cap would be exceeded · $${spentTodayUsd.toFixed(3)} spent + $${inFlightUsd.toFixed(3)} in-flight + $${estimatedRunUsd.toFixed(3)} estimate > $${capUsd.toFixed(2)} cap.`,
     };
   }
 
   return {
     allow: true,
     spentTodayUsd,
+    inFlightUsd,
     capUsd,
     estimatedRunUsd,
-    reason: `Within budget · $${spentTodayUsd.toFixed(3)} spent + $${estimatedRunUsd.toFixed(3)} estimate ≤ $${capUsd.toFixed(2)} cap.`,
+    reason: `Within budget · $${spentTodayUsd.toFixed(3)} spent + $${inFlightUsd.toFixed(3)} in-flight + $${estimatedRunUsd.toFixed(3)} estimate ≤ $${capUsd.toFixed(2)} cap.`,
   };
 }
 
-export const __internals = { estimateTierCost, getTodaySpendUsd };
+export const __internals = {
+  estimateTierCost,
+  getTodaySpendUsd,
+  getInFlightUsd,
+  pruneStaleReservations,
+};

@@ -25,7 +25,11 @@ import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { reason } from "@/lib/ai/reasoning/engine";
 import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
-import { checkBudget } from "@/lib/ai/reasoning/budget";
+import {
+  checkBudget,
+  reserveBudget,
+  releaseReservation,
+} from "@/lib/ai/reasoning/budget";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
 export const dynamic = "force-dynamic";
@@ -108,10 +112,10 @@ export async function POST(req: Request) {
       );
     }
 
-    // H.3.3 · daily budget cap. Read today's persisted spend, reject if
-    // this run would push past the cap. Endpoint returns 402 so the UI
-    // can render a "today's budget exhausted · resets at midnight ET"
-    // message instead of a generic 500.
+    // H.3.3 · daily budget cap · H.6.2 closes TOCTOU by including
+    // in-flight reservations in the cap check. Read today's persisted
+    // spend + in-flight, reject if this run would push past the cap.
+    // Returns 402 so the UI can render a budget-exhausted state.
     const budget = await checkBudget(effectiveTier);
     if (!budget.allow) {
       return NextResponse.json(
@@ -119,6 +123,7 @@ export async function POST(req: Request) {
           error: "budget_exceeded",
           message: budget.reason,
           spentTodayUsd: budget.spentTodayUsd,
+          inFlightUsd: budget.inFlightUsd,
           capUsd: budget.capUsd,
           estimatedRunUsd: budget.estimatedRunUsd,
         },
@@ -126,11 +131,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await reason({ question, brainContext, tier: requestedTier });
-    return NextResponse.json(result, {
-      // Reasoning results are user-specific + time-sensitive · don't cache.
-      headers: { "Cache-Control": "private, no-store" },
-    });
+    // H.6.2 · reserve headroom BEFORE the engine runs · next concurrent
+    // request will see this reservation in its checkBudget. Released
+    // in the finally block so a crashed engine doesn't leak the slot
+    // (and the TTL prune cleans up if release itself fails).
+    const reservation = await reserveBudget(effectiveTier, budget.estimatedRunUsd);
+    try {
+      const result = await reason({ question, brainContext, tier: requestedTier });
+      return NextResponse.json(result, {
+        // Reasoning results are user-specific + time-sensitive · don't cache.
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    } finally {
+      void releaseReservation(reservation);
+    }
   } catch (err) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });

@@ -22,7 +22,11 @@ import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
 import { reasonStreaming } from "@/lib/ai/reasoning/engine";
 import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
-import { checkBudget } from "@/lib/ai/reasoning/budget";
+import {
+  checkBudget,
+  reserveBudget,
+  releaseReservation,
+} from "@/lib/ai/reasoning/budget";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
 export const dynamic = "force-dynamic";
@@ -103,7 +107,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // H.3.3 · daily budget cap · gate before opening the SSE stream
+    // H.3.3 + H.6.2 · daily budget cap with in-flight reservations
     const budget = await checkBudget(effectiveTier);
     if (!budget.allow) {
       return new Response(
@@ -111,12 +115,18 @@ export async function POST(req: Request) {
           error: "budget_exceeded",
           message: budget.reason,
           spentTodayUsd: budget.spentTodayUsd,
+          inFlightUsd: budget.inFlightUsd,
           capUsd: budget.capUsd,
           estimatedRunUsd: budget.estimatedRunUsd,
         }),
         { status: 402, headers: { "Content-Type": "application/json" } },
       );
     }
+
+    // H.6.2 · reserve headroom before opening the stream. Released
+    // in the finally of the stream's start callback (which runs
+    // whether the engine succeeds, fails, or the client disconnects).
+    const reservation = await reserveBudget(effectiveTier, budget.estimatedRunUsd);
 
     // Re-resolve `tier` for the inner stream after the gates pass
     const tier = requestedTier;
@@ -131,6 +141,19 @@ export async function POST(req: Request) {
             // Client may have disconnected · ignore.
           }
         };
+
+        // H.6.1 · SSE keepalive · proxies (nginx, Cloudflare) often
+        // drop idle SSE connections at 30-60s. Mega tier can run
+        // 60-120s with multi-second gaps between steps. Ping every
+        // 15s with an SSE comment line which EventSource ignores
+        // but keeps the connection alive.
+        const keepalive = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(`: keepalive\n\n`));
+          } catch {
+            // Client gone · let the next step/close handle teardown
+          }
+        }, 15_000);
 
         // Initial heartbeat so the client knows the connection opened.
         send("open", { startedAt: new Date().toISOString() });
@@ -148,6 +171,9 @@ export async function POST(req: Request) {
             message: err instanceof Error ? err.message : String(err),
           });
         } finally {
+          clearInterval(keepalive);
+          // H.6.2 · release reservation whether engine succeeded or not
+          void releaseReservation(reservation);
           try {
             controller.close();
           } catch {

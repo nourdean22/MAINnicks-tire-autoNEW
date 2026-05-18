@@ -129,11 +129,19 @@ export function OperatorPulse({
       ].join(" ")}
     >
       {slots.map(({ key: labelKey, line }) => {
-        // Phase H.2 · one-tap deep · every pulse line gets a small
-        // "ask nick →" link that deep-links to /reason with the pulse
-        // text pre-filled and the engine auto-running. Closes the
-        // see → ask-deep loop without the operator having to copy-paste.
-        const reasonHref = `/reason?q=${encodeURIComponent(line.text)}`;
+        // Phase H.2 + H.6.3 · one-tap deep · every pulse line gets a
+        // small "ask nick →" button that hands off via sessionStorage
+        // to /reason (no URL leak of the line's text · pulse content
+        // includes operator state that shouldn't appear in access logs).
+        // Falls back to ?q= when sessionStorage is unavailable.
+        const askDeep = () => {
+          try {
+            sessionStorage.setItem("reason:pending-q", line.text);
+            window.location.href = "/reason?h=1";
+          } catch {
+            window.location.href = `/reason?q=${encodeURIComponent(line.text.slice(0, 80))}`;
+          }
+        };
         const body = (
           <span className="flex items-start gap-2.5 text-sm leading-snug">
             <span
@@ -164,13 +172,14 @@ export function OperatorPulse({
             ) : (
               <div className="flex-1 min-w-0 block rounded-sm">{body}</div>
             )}
-            <Link
-              href={reasonHref}
+            <button
+              type="button"
+              onClick={askDeep}
               className="shrink-0 self-center text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[var(--gold)] transition"
               title="ask Nick to think deeply about this"
             >
               ask →
-            </Link>
+            </button>
           </div>
         );
       })}
