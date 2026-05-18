@@ -55,6 +55,13 @@ export interface MetaScoreboardSnapshot {
   composedAt: string;
   lastBriefAt: string | null;
   state: "calm" | "alive";
+  /** Phase A.3 · whether today's brief pinned a scoreboard snapshot
+   *  at 10:00 UTC. When present, page can render "Δ since brief"
+   *  annotations · operator knows what mattered when brief fired. */
+  pinnedAt: string | null;
+  /** Phase A.3 · brief-time picks (subset of current numbers · may
+   *  differ from live numbers if state flipped between brief + now) */
+  pinnedNumbers: ScoreboardNumber[] | null;
 }
 
 // ── Anchor pickers · cheap reads · always present ───────────────────
@@ -284,7 +291,7 @@ const ANCHOR_COUNT = 5;
 const MAX_NUMBERS = 10;
 
 export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
-  const [anchors, anomalies, lastBrief] = await Promise.all([
+  const [anchors, anomalies, lastBrief, pinnedRow] = await Promise.all([
     Promise.all([
       pickRevenueToday(),
       pickOpenTasks(),
@@ -305,6 +312,14 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
         select: { updatedAt: true },
       })
       .catch(() => null),
+    // Phase A.3 · latest brief-time pinned scoreboard snapshot
+    prisma.brainMemory
+      .findFirst({
+        where: { category: "scoreboard_pinned", deletedAt: null },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true, metadata: true },
+      })
+      .catch(() => null),
   ]).catch((err) => {
     log.warn("snapshot_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
@@ -318,11 +333,23 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
     ...anchors.slice(0, Math.max(ANCHOR_COUNT, MAX_NUMBERS - anomalies.length)),
   ].slice(0, MAX_NUMBERS);
 
+  // Phase A.3 · decode pinned numbers from BrainMemory metadata
+  let pinnedNumbers: ScoreboardNumber[] | null = null;
+  const pinnedMeta = pinnedRow?.metadata as
+    | { numbers?: ScoreboardNumber[] }
+    | null
+    | undefined;
+  if (pinnedMeta?.numbers && Array.isArray(pinnedMeta.numbers)) {
+    pinnedNumbers = pinnedMeta.numbers;
+  }
+
   return {
     numbers,
     composedAt: new Date().toISOString(),
     lastBriefAt: lastBrief?.updatedAt?.toISOString() ?? null,
     state: anomalies.length > 0 ? "alive" : "calm",
+    pinnedAt: pinnedRow?.updatedAt?.toISOString() ?? null,
+    pinnedNumbers,
   };
 }
 

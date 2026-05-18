@@ -37,6 +37,9 @@ type TaskFilter = {
   status?: string;
   sort?: string;
   missionId?: string;
+  /** Phase B (2026-05-18) · filter to tasks tagged to a specific
+   *  LifeGoal · drives the /goals → /tasks?goalId=X cross-link. */
+  goalId?: string;
   /** v7.9 — pass "all" to include soft-deleted rows (admin/undo views). */
   deletedAt?: "all";
 };
@@ -201,6 +204,8 @@ export async function listTasks(filter: TaskFilter = {}) {
           missionId: filter.missionId
         }
       : {}),
+    // Phase B (2026-05-18) · goalId filter for /goals cross-link
+    ...(filter.goalId ? { goalId: filter.goalId } : {}),
     // v7.9: hide soft-deleted tasks unless caller opted in via {deletedAt: 'all'}
     ...(filter.deletedAt === "all" ? {} : { deletedAt: null }),
   };

@@ -355,6 +355,8 @@ evidence demands them · zero blocking action items today).
 - `docs/adr/0009-mastra-memory.md` — Mastra in-process memory now · `@mastra/pg` Phase 1.3 (Phase 1.2)
 - `docs/adr/0010-goals-page-merge.md` — /plan + /mastery merged into /goals · LADDER + SIDEBAR · pruner cron (Phase A.1 · post Wave-200)
 - `docs/adr/0011-meta-scoreboard.md` — /scoreboard page · 5 anchors + 4 anomaly detectors · calm/alive state · brief feeds meta (Phase A.2)
+- `docs/adr/0012-mission-lifegoal-fk.md` — Mission.lifeGoalId schema migration · parked at prisma/migrations-pending/ (Phase A.3)
+- `docs/system-pages-audit.md` — 35-page /system/* consolidation plan · operator action items per row (Phase C)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/mastra/memory.ts` — Phase 1.2 Mastra memory factory
 - `apps/statenour/src/inngest/jobs.ts` — single source of truth for mega-cron job arrays

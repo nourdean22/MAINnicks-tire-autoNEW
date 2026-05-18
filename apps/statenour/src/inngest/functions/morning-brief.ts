@@ -236,7 +236,62 @@ async function generateBriefAudio(brief: ComposedBrief): Promise<{
 }
 
 /**
- * The Inngest orchestrator · three sequential checkpoints, each
+ * Phase A.3 follow-up (2026-05-18) · brief feeds meta.
+ * Snapshots the meta-scoreboard at brief-time so /scoreboard can
+ * surface "as of 6am" picks · operator sees what mattered when the
+ * brief fired vs what matters now.
+ *
+ * Writes BrainMemory(category="scoreboard_pinned", key=YYYY-MM-DD)
+ * with the full ScoreboardNumber[] from buildMetaScoreboard(). The
+ * page-side reads the latest pinned row · uses it as the baseline ·
+ * adds runtime-detected anomalies on top.
+ */
+async function pinScoreboard(briefDate: string): Promise<{
+  status: "pinned" | "skipped";
+  numberCount?: number;
+  reason?: string;
+}> {
+  try {
+    const { buildMetaScoreboard } = await import(
+      "@/lib/services/meta-scoreboard"
+    );
+    const { prisma } = await import("@/lib/prisma");
+    const { Prisma } = await import("@prisma/client");
+    const snapshot = await buildMetaScoreboard();
+    const metadata = { numbers: snapshot.numbers, state: snapshot.state } as unknown as
+      | typeof Prisma.JsonNull
+      | object;
+    await prisma.brainMemory.upsert({
+      where: {
+        category_key: { category: "scoreboard_pinned", key: briefDate },
+      },
+      create: {
+        category: "scoreboard_pinned",
+        key: briefDate,
+        content: `Brief-time scoreboard · ${snapshot.state} · ${snapshot.numbers.length} numbers`,
+        confidence: 1.0,
+        source: "inngest/morning-brief",
+        metadata: metadata as never,
+      },
+      update: {
+        content: `Brief-time scoreboard · ${snapshot.state} · ${snapshot.numbers.length} numbers`,
+        metadata: metadata as never,
+      },
+    });
+    return { status: "pinned", numberCount: snapshot.numbers.length };
+  } catch (err) {
+    log.warn("pin_scoreboard_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return {
+      status: "skipped",
+      reason: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    };
+  }
+}
+
+/**
+ * The Inngest orchestrator · four sequential checkpoints, each
  * separately retried. Cron trigger at 10:00 UTC daily.
  */
 export const operatorMorningBrief = inngest.createFunction(
@@ -251,6 +306,10 @@ export const operatorMorningBrief = inngest.createFunction(
     const brief = await step.run("compose", composeBrief);
     const push = await step.run("web-push", () => sendBriefPush(brief));
     const audio = await step.run("voice-file", () => generateBriefAudio(brief));
+    // Phase A.3 · pin scoreboard picks for /scoreboard "as of 6am"
+    const pinned = await step.run("pin-scoreboard", () =>
+      pinScoreboard(brief.date),
+    );
 
     return {
       date: brief.date,
@@ -260,6 +319,8 @@ export const operatorMorningBrief = inngest.createFunction(
       audioStatus: audio.status,
       audioBytes: audio.bytes ?? null,
       audioReason: audio.reason ?? null,
+      scoreboardPinned: pinned.status,
+      scoreboardNumberCount: pinned.numberCount ?? null,
     };
   },
 );

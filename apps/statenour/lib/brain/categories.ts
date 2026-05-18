@@ -246,6 +246,12 @@ export const BRAIN_CATEGORIES = {
    *  Written by goal-pruner Inngest cron · read by /goals page +
    *  /api/goals/snapshot. Soft-deleted when activity resumes. */
   GOAL_PRUNE_CANDIDATE: "goal_prune_candidate",
+  /** Phase A.3 · daily meta-scoreboard snapshot pinned at brief-time
+   *  (10:00 UTC via morning-brief Inngest). Key = YYYY-MM-DD ·
+   *  metadata = { numbers: ScoreboardNumber[], state }. Read by
+   *  meta-scoreboard composer to show "as of 6am" baseline · live
+   *  page-render adds runtime-detected anomalies on top. */
+  SCOREBOARD_PINNED: "scoreboard_pinned",
 
   // ═══ DEPRECATED — kept so old data still reads; codemod migrates writes ═══
 
