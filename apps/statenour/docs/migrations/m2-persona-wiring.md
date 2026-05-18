@@ -2,7 +2,7 @@
 
 **Started:** Phase M.2 (2026-05-18 PM)
 **Strategy:** Coexistence · inline sub-agents keep working · personas add structure
-**Status:** Library shipped (M.2) · 0 call sites wired
+**Status:** Library shipped (M.2) · **1/N call sites wired (R · engine runMultiAgent)** · N.6 scorer now sees real persona keys
 
 ## Why
 
@@ -51,8 +51,25 @@ to the persona library or the orchestrator.
 
 ## Next milestone
 
-Pick one engine sub-pipeline (e.g. `runMultiAgent` in the engine.ts
+~~Pick one engine sub-pipeline (e.g. `runMultiAgent` in the engine.ts
 wrapper) and convert its 2-fallback sub-agents ("what" + "why") to
-named personas (`research-analyst` + `contrarian-critic`). Validate
-the persona scorer's data plumbing now sees real persona keys instead
-of `step_1`/`step_2`.
+named personas (`research-analyst` + `contrarian-critic`).~~ **DONE
+in Phase R (2026-05-18 PM).** The fallback split now uses
+research-analyst + contrarian-critic · plan-derived steps use
+research-analyst. N.6's `recordPersonaUsage` now sees real persona
+keys.
+
+Next call sites to wire:
+
+1. **`smart-tier runRouter` sub-pipeline** · the router's "multi"
+   route currently calls `runMultiAgent(question, plan)` · would pick
+   up the persona wiring automatically. Sanity-check there's no
+   alternate construction path inside the router itself.
+2. **`thorough-tier deep-research worker`** · uses 1 planner + N
+   round agents + 1 synthesizer · planner = `execution-planner` ·
+   round agents = `research-analyst` · synthesizer = `synthesizer`.
+3. **Plan-derived steps with action verbs** · current Phase R wiring
+   passes `research-analyst` to every plan step. Steps that read as
+   "do X" rather than "find Y" should use `execution-planner`
+   instead · would need a small `classifyStepIntent()` helper to
+   choose between the two per line.
