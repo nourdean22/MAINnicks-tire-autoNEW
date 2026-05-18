@@ -651,6 +651,20 @@ ${rawText}`,
     rawChars: rawText.length,
   });
 
+  // Phase D · ADR-0013 · journal pattern-radar auto-join hook.
+  // Score the new entry against active thread centroids · sim ≥ 0.80
+  // → silent auto-join · 0.65 ≤ sim < 0.80 → suggestion persisted for
+  // operator confirmation. Fire-and-forget · capture never fails
+  // because the radar is down. SituationLog / Reflection / DecisionReplay
+  // writers can call the same helper when they're ready · today only
+  // BrainDump is wired (the most-common capture path).
+  void (async () => {
+    const { tryJoinActiveThreads } = await import(
+      "@/lib/services/journal-threads"
+    );
+    await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
+  })();
+
   return {
     brainDumpId: brainDump.id,
     entryType,

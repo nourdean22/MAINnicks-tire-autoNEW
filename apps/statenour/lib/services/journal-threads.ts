@@ -473,6 +473,74 @@ export async function persistThreadSuggestion(input: {
 }
 
 /**
+ * Capture post-hook · fire-and-forget. Scores a freshly-captured
+ * entry against active thread centroids and either auto-joins it
+ * (sim ≥ 0.80) or records a suggestion (0.65 ≤ sim < 0.80) for the
+ * operator to confirm on next /journal visit.
+ *
+ * Use from BrainDump.create / Reflection.write / SituationLog.create
+ * / DecisionReplay.create call sites. Errors are swallowed (logged
+ * only) · capture writes must never fail because the radar is down.
+ *
+ * Performance · uses the cached centroid · single round-trip to fetch
+ * active threads + their centroids · O(M·d) cosine where M = active
+ * thread count (typically <10).
+ */
+export async function tryJoinActiveThreads(
+  entrySource: EntrySource,
+  entryId: string,
+  text: string,
+): Promise<void> {
+  try {
+    const { scoreEntryAgainstActiveThreads } = await import(
+      "./journal-convergence"
+    );
+    const score = await scoreEntryAgainstActiveThreads(
+      entrySource,
+      entryId,
+      text,
+    );
+    if (score.action === "auto-join") {
+      await joinThread({
+        threadId: score.threadId,
+        entrySource,
+        entryId,
+        similarity: score.similarity,
+        joinMode: "auto",
+        textForEmbedding: text,
+      });
+      log.info("auto_join_fired", {
+        threadId: score.threadId,
+        entrySource,
+        entryId,
+        similarity: score.similarity,
+      });
+    } else if (score.action === "suggest") {
+      await persistThreadSuggestion({
+        threadId: score.threadId,
+        entrySource,
+        entryId,
+        similarity: score.similarity,
+      });
+      log.info("thread_suggestion_persisted", {
+        threadId: score.threadId,
+        entrySource,
+        entryId,
+        similarity: score.similarity,
+      });
+    }
+    // action === "ignore" → silent · most captures land here · the
+    // radar only fires on real signal.
+  } catch (err) {
+    log.warn("try_join_active_threads_failed", {
+      entrySource,
+      entryId,
+      error: sanitizeError(err),
+    });
+  }
+}
+
+/**
  * Daily dormancy sweep · mark threads with no joins in
  * DEFAULTS.dormancyDays as status="dormant". Soft state · operator
  * can still see them in a collapsed section · auto-join can
