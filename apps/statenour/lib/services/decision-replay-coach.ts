@@ -572,6 +572,29 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
         select: { id: true },
       });
       replayId = created.id;
+
+      // Phase D · ADR-0013 · journal pattern-radar auto-join hook
+      // for decision replays · the 4th and final journal source
+      // wired (after BrainDump, Reflection, SituationLog). Combines
+      // title + reasoning + lesson into the body the radar scores
+      // against · fire-and-forget · errors swallowed because the
+      // replay row already persisted successfully.
+      void (async () => {
+        try {
+          const { tryJoinActiveThreads } = await import(
+            "@/lib/services/journal-threads"
+          );
+          const text = [decision.title, decision.reasoning, input.lesson]
+            .filter((s): s is string => Boolean(s && s.trim().length > 0))
+            .join("\n")
+            .trim();
+          if (text) {
+            await tryJoinActiveThreads("decision_replay", created.id, text);
+          }
+        } catch {
+          // best-effort · silent
+        }
+      })();
     }
   } catch (err) {
     log.warn("markReplayed_db_write_failed", {

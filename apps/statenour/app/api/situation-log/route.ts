@@ -67,6 +67,25 @@ export async function POST(req: NextRequest) {
       include: { law: true },
     });
 
+    // Phase D · ADR-0013 · journal pattern-radar auto-join hook for
+    // situation logs · the 3rd of 4 journal sources to wire (after
+    // BrainDump in journal-ingest.ts and Reflection in
+    // brain-bus-handlers.ts). Fire-and-forget · captures the
+    // situation text so the new entry can either silently join an
+    // active thread (sim ≥ 0.80) or surface a suggestion (0.65-0.80).
+    // Errors logged via dynamic import only · never fails the POST.
+    void (async () => {
+      try {
+        const { tryJoinActiveThreads } = await import(
+          "@/lib/services/journal-threads"
+        );
+        await tryJoinActiveThreads("situation_log", log.id, situation);
+      } catch {
+        // Best-effort · silent on failure · the situation log already
+        // landed successfully · the radar will catch it on next scan.
+      }
+    })();
+
     return NextResponse.json({ log });
   } catch (err) {
     console.error("[situation-log]", err);
