@@ -41,12 +41,12 @@ export function ThreadSuggestions({
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch · errors
-  // silently no-op (suggestions are advisory · radar stays quiet
-  // when the API hiccups · the page doesn't degrade visually).
-  const { data, loading, reload } = useAuthedFetch<{
-    data: Suggestion[];
-  }>("/api/journal/suggestions");
-  const suggestions = data?.data ?? [];
+  // silently no-op (suggestions are advisory · radar stays quiet).
+  // 2026-05-18 PM bugfix · auto-unwrap fix · was double-wrapped.
+  const { data, loading, reload } = useAuthedFetch<Suggestion[]>(
+    "/api/journal/suggestions",
+  );
+  const suggestions = data ?? [];
 
   useEffect(() => {
     if (refreshSignal != null) reload();
