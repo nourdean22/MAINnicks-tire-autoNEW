@@ -70,7 +70,27 @@ export async function POST(req: Request) {
   //
   // See: docs/adr/0001-mastra-adoption.md · WAVE-200-PLAN Phase 1.5
   const { AGENT_V2_ENABLED } = await import("@/src/mastra/agents/nick");
-  if (AGENT_V2_ENABLED) {
+
+  // ── Phase W (2026-05-18 PM) · X-Force-Agent header override ──────
+  // Owner-only per-request override of the AGENT_V2 env gate. Enables
+  // the judge-eval corpus-building workflow · the operator (or a
+  // future shadow-execute cron) can POST `x-force-agent: v1` to fire
+  // the same prompt through the legacy pipeline AND `x-force-agent:
+  // v2` to fire through Mastra, regardless of the deploy-wide flag.
+  //
+  // Safe because:
+  //   · requireSession() already ran above · only the operator can
+  //     set this header
+  //   · It doesn't bypass auth, rate-limit, or budget gates · those
+  //     all run later in the legacy branch and apply to V1 too
+  //   · Default behavior (no header) is unchanged · env flag wins
+  //
+  // See: docs/migrations/agent-v1-to-v2.md · Phase 0 corpus-building
+  const forceAgent = (req.headers.get("x-force-agent") ?? "").trim().toLowerCase();
+  const useV2 =
+    forceAgent === "v1" ? false : forceAgent === "v2" ? true : AGENT_V2_ENABLED;
+
+  if (useV2) {
     // 2026-05-17 follow-up · code-reviewer + silent-failure-hunter both
     // flagged the original V2 branch as missing the error scaffolding
     // the legacy path has. Wrapping with try/catch + recordError +

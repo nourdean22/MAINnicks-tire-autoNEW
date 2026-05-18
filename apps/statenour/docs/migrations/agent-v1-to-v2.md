@@ -32,13 +32,26 @@ V2 rebuilt the section composer with a canonical contract:
 - [x] **Ad-hoc trigger endpoint** · Phase V · `POST /api/judge-eval/run`
       lets the operator build the corpus from real prod replies without
       requiring shadow-execute infra yet
+- [x] **Candidate prompts sampler** · Phase W (2026-05-18 PM) ·
+      `lib/ai/judge-eval/sampler.ts` reads recent V2 assistant replies
+      from ChatMessage + pairs each with its preceding user prompt ·
+      filters out already-compared rows via `sourceMessageId` ·
+      `trpc.system.judgeEvalSamples` procedure + a "Candidate prompts"
+      dashboard section render the queue with copy-to-clipboard
+      buttons. Operator workflow: copy prompt → run through V1 (see
+      below) → paste both into the ad-hoc form.
+- [x] **X-Force-Agent header override** · Phase W · the `/api/ai/chat`
+      route now reads `x-force-agent: v1`/`v2` per-request (owner-only ·
+      session check runs first). Lets the operator (or a future cron)
+      fire the SAME prompt through V1 then V2 to get matched pairs
+      without flipping the deploy-wide `AGENT_V2` env flag. This is the
+      mechanism the Phase V+ shadow-execute cron will use.
 - [ ] **At least 30 days of V1 trace data captured for baseline** ·
-      time-dependent · the operator can backfill by posting historical
-      V1 replies via the `/run` endpoint OR a future cron can
-      shadow-execute V1 against a 10% canary slice of new requests
-- [ ] **Daily cron to sample & judge** · Phase V+ scope · once the
-      shadow-execute pattern is designed, wire a cron that picks ~10
-      recent V2 turns + re-runs each through V1 + judges + persists
+      time-dependent · operator can now run pairs via:
+      `curl /api/ai/chat -H "x-force-agent: v1"` + `... -H "x-force-agent: v2"`,
+      then `POST /api/judge-eval/run` with the two outputs.
+- [ ] **Daily cron to sample & judge** · Phase V+ scope · automate the
+      manual loop above via a scheduled job · ~10 turns/day sampled.
 
 ### Phase 1 · canary (pending Phase 0)
 - 10% of turns routed to V2 · 90% V1
@@ -58,18 +71,19 @@ V2 rebuilt the section composer with a canonical contract:
 - Archive V1 section files under `lib/ai/prompt/_archive/`
 - Update tests to V2-only
 
-## Current state (as of Phase V ship)
+## Current state (as of Phase W ship)
 
 - `AGENT_V2=true` env flag is the ACTIVE default
 - V1 code path still reachable when env flag is false (back-compat)
-- Phase 0 prerequisites: **judge-eval comparator + parity dashboard
-  SHIPPED in Phase V**
-- Safety net is now WIRED for any sample the operator posts via
-  `POST /api/judge-eval/run` · the `/system/judge-eval` page shows
-  win rate per intent + canary verdict in real time
+- Phase 0 prerequisites: judge-eval + dashboard (V) + sampler +
+  force-override (W) ALL SHIPPED · the manual + scriptable workflow
+  to build the corpus is complete end-to-end
+- Safety net WIRED · `/system/judge-eval` shows the verdict chip
+  + per-intent breakdown · sampler shows the fresh candidate queue
 - Still pending · 30-day baseline corpus capture (time-dependent;
-  the gating mechanism + dashboard exist · the corpus just needs to
-  fill up via either backfill of historical replies or live capture)
+  the gating mechanism + dashboard + sampling + V1/V2 force-fire
+  all exist · the corpus just needs to fill up via the manual loop
+  the operator can now run from `/system/judge-eval` or curl)
 
 ## Risk
 

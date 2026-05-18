@@ -217,7 +217,265 @@ export default function JudgeEvalPage() {
           </p>
         </>
       )}
+
+      {/* Phase W · Candidate prompts · operator workflow: copy
+          prompt + v2 reply → manually generate v1 reply → paste
+          into the ad-hoc form below. The sampler filters out
+          already-compared rows so each card is fresh work. */}
+      <CandidatePromptsSection
+        samples={samplesQ.data ?? []}
+        loading={samplesQ.isLoading}
+      />
+
+      {/* Phase W · Ad-hoc compare form · paste in prompt + v1 + v2
+          and POST through /api/judge-eval/run. Same shape as the
+          curl path · just bound to a tiny form for operator UX. */}
+      <AdHocCompareForm
+        onJudged={() => {
+          void utils.system.judgeEvalSummary.invalidate();
+          void utils.system.judgeEvalSamples.invalidate();
+        }}
+      />
     </div>
+  );
+}
+
+interface SampleData {
+  messageId: string;
+  conversationId: string;
+  prompt: string;
+  v2Reply: string;
+  createdAt: string;
+  intentClass: string | null;
+}
+
+function CandidatePromptsSection({
+  samples,
+  loading,
+}: {
+  samples: SampleData[];
+  loading: boolean;
+}) {
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("clipboard write failed");
+    }
+  };
+
+  return (
+    <GlassCard>
+      <div className="flex items-center gap-2 mb-3">
+        <Sparkles size={13} className="text-[var(--gold)]" />
+        <span className="section-label">
+          Candidate prompts · {samples.length} fresh
+        </span>
+        <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto">
+          7d · uncompared only
+        </span>
+      </div>
+
+      {loading && samples.length === 0 && (
+        <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-3 justify-center">
+          <Loader2 size={12} className="animate-spin" />
+          scanning recent V2 replies…
+        </div>
+      )}
+
+      {!loading && samples.length === 0 && (
+        <p className="text-[11px] text-[var(--text-tertiary)] italic">
+          No fresh candidates in the last 7d · either /chat is silent
+          or every reply already has a comparison.
+        </p>
+      )}
+
+      {samples.length > 0 && (
+        <div className="space-y-1.5">
+          {samples.map((s) => (
+            <div
+              key={s.messageId}
+              className="px-2 py-2 rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40"
+            >
+              <div className="flex items-center gap-2 mb-1">
+                {s.intentClass && (
+                  <span className="text-[9px] font-mono uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-300">
+                    {s.intentClass}
+                  </span>
+                )}
+                <span className="text-[10px] text-[var(--text-secondary)] truncate flex-1">
+                  {s.prompt.slice(0, 120)}
+                </span>
+                <span className="text-[9px] font-mono text-[var(--text-tertiary)] shrink-0">
+                  {new Date(s.createdAt).toLocaleTimeString()}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => copyToClipboard(s.prompt, "prompt")}
+                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--bg-void)]/60 inline-flex items-center gap-1"
+                >
+                  <Copy size={9} /> prompt
+                </button>
+                <button
+                  onClick={() => copyToClipboard(s.v2Reply, "v2 reply")}
+                  className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded border border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/10 inline-flex items-center gap-1"
+                >
+                  <Copy size={9} /> v2 reply
+                </button>
+                <span className="text-[9px] font-mono text-[var(--text-tertiary)] ml-auto truncate">
+                  {s.messageId.slice(0, 12)}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </GlassCard>
+  );
+}
+
+function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
+  const [prompt, setPrompt] = useState("");
+  const [v1Reply, setV1Reply] = useState("");
+  const [v2Reply, setV2Reply] = useState("");
+  const [intentClass, setIntentClass] = useState("");
+  const [sourceMessageId, setSourceMessageId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt || !v1Reply || !v2Reply) {
+      toast.error("prompt + v1 reply + v2 reply are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const res = await authedFetch("/api/judge-eval/run", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          v1Reply,
+          v2Reply,
+          intentClass: intentClass || undefined,
+          sourceMessageId: sourceMessageId || undefined,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        toast.error(json?.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      const winner = (json?.data?.judgment?.winner as string) ?? "unknown";
+      const v2Score = json?.data?.judgment?.v2Score as number | undefined;
+      toast.success(
+        `Judged · ${winner}${v2Score !== undefined ? ` · v2 ${v2Score}` : ""}`,
+      );
+      setPrompt("");
+      setV1Reply("");
+      setV2Reply("");
+      setIntentClass("");
+      setSourceMessageId("");
+      onJudged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <GlassCard>
+      <div className="flex items-center gap-2 mb-3">
+        <Scale size={13} className="text-[var(--gold)]" />
+        <span className="section-label">Compare new pair</span>
+      </div>
+      <form onSubmit={submit} className="space-y-2">
+        <label className="block">
+          <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+            prompt
+          </span>
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={2}
+            className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+            placeholder="What's the concrete answer to..."
+            maxLength={4000}
+          />
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-rose-300">
+              v1 reply
+            </span>
+            <textarea
+              value={v1Reply}
+              onChange={(e) => setV1Reply(e.target.value)}
+              rows={5}
+              className="mt-0.5 w-full rounded border border-rose-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+              placeholder="Legacy V1 reply text"
+              maxLength={8000}
+            />
+          </label>
+          <label className="block">
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-emerald-300">
+              v2 reply
+            </span>
+            <textarea
+              value={v2Reply}
+              onChange={(e) => setV2Reply(e.target.value)}
+              rows={5}
+              className="mt-0.5 w-full rounded border border-emerald-500/30 bg-[var(--bg-base)]/40 px-2 py-1.5 text-[11px] text-[var(--text-primary)] font-mono"
+              placeholder="V2 (Mastra agent) reply text"
+              maxLength={8000}
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+              intent class (optional)
+            </span>
+            <input
+              type="text"
+              value={intentClass}
+              onChange={(e) => setIntentClass(e.target.value)}
+              className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] text-[var(--text-primary)] font-mono"
+              placeholder="question · plan · compose · …"
+              maxLength={80}
+            />
+          </label>
+          <label className="block">
+            <span className="text-[9px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+              source messageId (optional)
+            </span>
+            <input
+              type="text"
+              value={sourceMessageId}
+              onChange={(e) => setSourceMessageId(e.target.value)}
+              className="mt-0.5 w-full rounded border border-[var(--border-default)] bg-[var(--bg-base)]/40 px-2 py-1 text-[11px] font-mono text-[var(--text-primary)]"
+              placeholder="ChatMessage.id from candidate"
+              maxLength={64}
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          disabled={submitting || !prompt || !v1Reply || !v2Reply}
+          className={cn(
+            "text-[10px] font-mono uppercase tracking-wider px-3 py-1.5 rounded border",
+            submitting
+              ? "border-[var(--border-default)] text-[var(--text-tertiary)]"
+              : "border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10",
+          )}
+        >
+          {submitting ? "judging…" : "judge + persist"}
+        </button>
+      </form>
+    </GlassCard>
   );
 }
 
