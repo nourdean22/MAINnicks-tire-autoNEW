@@ -1300,18 +1300,37 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     },
 
     // ─── Voice (Text-to-Speech) ─────────────────────────
-    // wave-181.36: switched 11Labs Adam → Cartesia Barbershop Man.
-    // Cartesia Sonic has the lowest TTS latency on the market (~75ms
-    // first-token vs 11Labs Turbo ~200ms) which materially cuts the
-    // dead-air feel on phone calls. Voice choice "Barbershop Man" is
-    // a warm friendly blue-collar US male — matches Nick's identity
-    // better than the more polished/neutral 11Labs Adam. Swappable in
-    // ~30s via VAPI dashboard if a different vibe is wanted.
+    // wave-181.42: Cartesia → 11Labs Brian. Operator: "i want something
+    // human like." Cartesia Sonic is the lowest-latency TTS but the
+    // voice still reads slightly synthetic to a careful ear. 11Labs
+    // eleven_turbo_v2_5 + Brian (mature gravelly US male, already used
+    // for the FOLLOW_UP assistant in this file) is the best human-quality
+    // / latency trade-off in production phone agents today.
+    //
+    // Latency note: first-token ~200ms (vs Cartesia ~75ms). The 125ms
+    // gap is perceivable as a slightly slower pickup but well within
+    // normal human turn-taking. Brian's voice quality more than offsets
+    // it for a tire-shop receptionist where "talking to a real person"
+    // matters more than millisecond response.
+    //
+    // Tuning knobs (11Labs-specific):
+    //   stability 0.50    — slightly less than default (0.5) so Brian
+    //                       gets natural variation rather than monotone
+    //   similarityBoost 0.80 — stick close to Brian's reference timbre
+    //   style 0.30        — bumped from previous 0.20 (Adam) to add
+    //                       more natural emotion/style on long sentences
+    //   useSpeakerBoost true — louder + cleaner on phone audio
+    //   optimizeStreamingLatency 3 — 0-4; 3 is the sweet spot for phone
     voice: {
-      provider: "cartesia",
-      voiceId: "79f8b5fb-2cc8-479a-80df-29f7a7cf1a3e", // Friendly Sidekick — bouncy + upbeat (wave-181.37, operator: Barbershop Man too sleepy)
-      model: "sonic-2",
-      language: "en",
+      provider: "11labs",
+      voiceId: "nPczCjzI2devNBz1zQrb", // Brian — mature gravelly US male
+      model: "eleven_turbo_v2_5",
+      stability: 0.50,
+      similarityBoost: 0.80,
+      style: 0.30,
+      useSpeakerBoost: true,
+      optimizeStreamingLatency: 3,
+      enableSsmlParsing: true,
     },
 
     // ─── LLM brain ──────────────────────────────────────
