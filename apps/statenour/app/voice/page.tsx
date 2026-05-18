@@ -1,35 +1,46 @@
 "use client";
 
 /**
- * /voice · Wave-200 Phase 4 (2026-05-17)
+ * /voice · Wave-200 Phase 4 (2026-05-17) · redesigned 2026-05-18 PM
  *
- * PWA-installable push-to-talk launcher into the operator's personal
- * LiveKit voice loop. Tap to connect · tap again to disconnect.
+ * Two distinct activities live here:
  *
- * Architecture:
- *   · This page mints a LiveKit join token via POST /api/voice/token
- *     (owner-only · 5min TTL)
- *   · Connects to LiveKit Cloud via WebRTC using the official client
- *     SDK (@livekit/components-react is the React surface · we use
- *     the lower-level client SDK because we only need one room +
- *     one participant + push-to-talk semantics)
- *   · The Python agent worker (apps/voice) is already listening for
- *     jobs on the operator-{userId} room · joins automatically
+ *   1. Today's brief · pre-rendered Cartesia audio + the text preview
+ *      that explains what the operator's about to hear. PRIMARY surface
+ *      on morning visits · this is what the HomeNarrator "brief ready"
+ *      link lands on.
  *
- * Graceful degrades:
- *   · 503 from /api/voice/token → show "voice not configured" with
- *     link to ADR-0006 for setup steps
- *   · Microphone permission denied → show "grant mic access · refresh"
- *   · Disconnect mid-call → reconnect attempt with backoff (LiveKit
- *     SDK handles this natively · we surface status)
+ *   2. Live voice session · LiveKit push-to-talk into the Mastra agent.
+ *      Secondary surface · for when the operator wants conversation
+ *      instead of consumption.
+ *
+ * Pre-redesign the brief was a small button below the giant LiveKit
+ * button. That was wrong for morning intent (operator usually wants
+ * the brief, not a call). Now the brief preview leads · the live-call
+ * button is visually equal but below.
+ *
+ * Aesthetic per docs/aesthetic-principles.md:
+ *   · text-[var(--text-primary)] body
+ *   · gold ONLY on the live-call active state
+ *   · 60ch reading width on the brief preview
+ *   · canonical .eyebrow class for section labels (0.14em)
+ *
+ * Architecture (unchanged):
+ *   · GET /api/morning-brief returns today's brief text + preview +
+ *     composedAt timestamp (NEW · 2026-05-18 PM)
+ *   · GET /api/morning-brief/today.mp3 returns the Cartesia-rendered
+ *     audio (Phase 5)
+ *   · POST /api/voice/token mints a 5-min LiveKit join token
+ *   · Python agent worker (apps/voice) auto-joins the operator-{userId}
+ *     room
  *
  * See:
  *   - docs/adr/0006-livekit-voice-implementation.md
- *   - app/api/voice/token/route.ts
- *   - apps/voice/agent.py
+ *   - docs/adr/0007-morning-brief-multichannel.md
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 
 type ConnState =
   | "idle"
@@ -49,13 +60,18 @@ interface VoiceToken {
   expiresInSeconds: number;
 }
 
+interface BriefPayload {
+  ready: boolean;
+  date: string;
+  composedAt: string | null;
+  text: string | null;
+  preview: string | null;
+}
+
 export default function VoicePage() {
   const [state, setState] = useState<ConnState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
-  // Holds the LiveKit Room object once connected. Typed loosely
-  // because we lazy-import the SDK below (keeps the page bundle
-  // small for cold visits that never tap the button).
   const roomRef = useRef<unknown | null>(null);
 
   const disconnect = useCallback(async () => {
@@ -89,9 +105,6 @@ export default function VoicePage() {
       setRoomName(data.room);
       setState("connecting");
 
-      // Lazy import keeps livekit-client out of the initial bundle ·
-      // page renders instantly · SDK only loads when the operator
-      // taps "connect".
       const { Room, RoomEvent } = await import("livekit-client");
       const room = new Room({
         adaptiveStream: true,
@@ -104,10 +117,6 @@ export default function VoicePage() {
       room.on(RoomEvent.Connected, () => setState("connected"));
       room.on(RoomEvent.LocalTrackPublished, () => setState("listening"));
       room.on(RoomEvent.TrackSubscribed, (track) => {
-        // Auto-attach the agent's audio to a hidden <audio> so the
-        // operator hears the reply. LiveKit SDK handles browser
-        // audio-context init when triggered via user gesture (the
-        // initial Connect tap counts).
         if (track.kind === "audio") {
           const el = document.getElementById("voice-output") as
             | HTMLAudioElement
@@ -121,7 +130,6 @@ export default function VoicePage() {
       room.on(RoomEvent.TrackUnsubscribed, () => setState("listening"));
 
       await room.connect(data.url, data.token);
-      // Enable microphone immediately · single-tap UX.
       await room.localParticipant.setMicrophoneEnabled(true);
     } catch (err) {
       const msg =
@@ -132,7 +140,6 @@ export default function VoicePage() {
     }
   }, [disconnect]);
 
-  // Auto-disconnect on unmount.
   useEffect(() => {
     return () => {
       void disconnect();
@@ -147,30 +154,178 @@ export default function VoicePage() {
 
   return (
     <main
-      className="min-h-[100dvh] bg-[#0A0A0A] text-white flex flex-col items-center justify-center px-6 py-10"
-      // Lock the viewport so the PTT UI fills the screen · phone-first
+      className="min-h-[100dvh] bg-[var(--bg-void,#0A0A0A)] text-[var(--text-primary)] px-6 py-10"
       style={{ overscrollBehavior: "none" }}
     >
-      <h1 className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
-        Nick · voice
-      </h1>
-      <p className="text-white/60 text-sm mb-12 text-center max-w-xs">
+      <div className="mx-auto max-w-[60ch] space-y-12">
+        {/* Brief section · primary on morning visits */}
+        <BriefSection liveCallActive={isLive} />
+
+        {/* Divider · subtle separator between consume vs converse */}
+        <div className="border-t border-[var(--border-default,rgba(255,255,255,0.08))]" />
+
+        {/* Live-call section · secondary */}
+        <LiveCallSection
+          state={state}
+          error={error}
+          roomName={roomName}
+          isLive={isLive}
+          onConnect={() => void connect()}
+          onDisconnect={() => void disconnect()}
+        />
+      </div>
+
+      {/* hidden audio sink the SDK attaches subscriber tracks to */}
+      <audio id="voice-output" autoPlay playsInline className="hidden" />
+    </main>
+  );
+}
+
+// ── Brief section · brief preview + play button ─────────────────────
+
+function BriefSection({ liveCallActive }: { liveCallActive: boolean }) {
+  const { data: brief } = useAuthedFetch<BriefPayload>("/api/morning-brief");
+  const [playState, setPlayState] = useState<
+    "idle" | "loading" | "playing" | "error"
+  >("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const play = useCallback(async () => {
+    if (liveCallActive) return;
+    setErrorMsg(null);
+    setPlayState("loading");
+    try {
+      const audio = audioRef.current;
+      if (!audio) {
+        setPlayState("error");
+        setErrorMsg("audio element missing");
+        return;
+      }
+      audio.src = "/api/morning-brief/today.mp3";
+      audio.onended = () => setPlayState("idle");
+      audio.onerror = () => {
+        setPlayState("error");
+        setErrorMsg("playback failed · audio may not be rendered yet");
+      };
+      await audio.play();
+      setPlayState("playing");
+    } catch (err) {
+      setPlayState("error");
+      setErrorMsg(err instanceof Error ? err.message : String(err));
+    }
+  }, [liveCallActive]);
+
+  const stop = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+    setPlayState("idle");
+  }, []);
+
+  const composedAt = brief?.composedAt
+    ? new Date(brief.composedAt).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        timeZone: "America/New_York",
+      })
+    : null;
+
+  return (
+    <section className="space-y-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+        Today's brief{composedAt ? ` · composed ${composedAt}` : ""}
+      </p>
+
+      {brief == null ? (
+        <p className="text-sm text-[var(--text-secondary)]">Loading…</p>
+      ) : brief.ready ? (
+        <>
+          {brief.preview ? (
+            <blockquote className="text-base sm:text-lg leading-relaxed text-[var(--text-primary)] border-l-2 border-[var(--gold)]/30 pl-4">
+              {brief.preview}
+            </blockquote>
+          ) : null}
+          <button
+            type="button"
+            onClick={playState === "playing" ? stop : () => void play()}
+            disabled={liveCallActive || playState === "loading"}
+            className={[
+              "inline-flex items-center gap-2 px-5 py-3 min-h-[44px] rounded-md text-sm font-medium",
+              "border transition-colors",
+              "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]/60",
+              liveCallActive
+                ? "opacity-30 cursor-not-allowed border-[var(--border-default,rgba(255,255,255,0.15))]"
+                : playState === "playing"
+                  ? "border-[var(--gold)] bg-[var(--gold)]/10 text-[var(--gold)]"
+                  : "border-[var(--gold)]/40 bg-[var(--gold)]/[0.04] text-[var(--text-primary)] hover:border-[var(--gold)]/80 hover:bg-[var(--gold)]/[0.08]",
+            ].join(" ")}
+          >
+            {playState === "loading"
+              ? "Loading…"
+              : playState === "playing"
+                ? "■ Stop"
+                : playState === "error"
+                  ? "Retry"
+                  : "▶ Play brief"}
+          </button>
+          {errorMsg ? (
+            <p className="text-xs text-red-300">{errorMsg}</p>
+          ) : null}
+        </>
+      ) : (
+        <p className="text-sm text-[var(--text-secondary)]">
+          No brief composed yet for today · the cron runs at 10:00 UTC.
+          Check back, or trigger via /api/cron/morning-brief manually.
+        </p>
+      )}
+
+      <audio ref={audioRef} preload="none" />
+    </section>
+  );
+}
+
+// ── Live-call section · LiveKit push-to-talk ────────────────────────
+
+function LiveCallSection({
+  state,
+  error,
+  roomName,
+  isLive,
+  onConnect,
+  onDisconnect,
+}: {
+  state: ConnState;
+  error: string | null;
+  roomName: string | null;
+  isLive: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}) {
+  return (
+    <section className="space-y-4 flex flex-col items-center text-center">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] self-start">
+        Talk to Nick
+      </p>
+      <p className="text-sm text-[var(--text-secondary)] max-w-sm">
         Tap to start a voice session · the agent listens and speaks back.
         Tap again to end.
       </p>
 
       <button
         type="button"
-        onClick={isLive ? () => void disconnect() : () => void connect()}
+        onClick={isLive ? onDisconnect : onConnect}
         className={[
-          "relative w-56 h-56 rounded-full select-none",
+          "relative w-40 h-40 sm:w-48 sm:h-48 rounded-full select-none",
           "transition-all duration-200 ease-out",
-          "border border-white/10",
-          "focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FDB913]/60",
+          "border border-[var(--border-default,rgba(255,255,255,0.15))]",
+          "focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--gold)]/60",
           "active:scale-[0.97]",
           isLive
-            ? "bg-[#FDB913] text-black shadow-[0_0_60px_rgba(253,185,19,0.35)]"
-            : "bg-white/[0.04] text-white hover:bg-white/[0.08]",
+            ? "bg-[var(--gold)] text-black shadow-[0_0_60px_rgba(253,185,19,0.35)]"
+            : "bg-white/[0.04] hover:bg-white/[0.08]",
           state === "minting" || state === "connecting"
             ? "opacity-70 pointer-events-none"
             : "",
@@ -190,9 +345,9 @@ export default function VoicePage() {
         </span>
       </button>
 
-      <div className="mt-8 text-center min-h-[3rem]">
+      <div className="min-h-[2rem]">
         {roomName ? (
-          <p className="text-[10px] uppercase tracking-[0.22em] text-white/30">
+          <p className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
             room · {roomName}
           </p>
         ) : null}
@@ -200,110 +355,6 @@ export default function VoicePage() {
           <p className="mt-2 text-sm text-red-300 max-w-xs">{error}</p>
         ) : null}
       </div>
-
-      {/* 2026-05-17 follow-up · Play-today's-brief shortcut.
-          Pre-rendered audio at /api/morning-brief/today.mp3 (Phase 5).
-          Single-tap autoplay. Disabled while a voice session is live
-          so playback doesn't compete with the LiveKit downlink. */}
-      <PlayTodaysBriefButton disabled={isLive} />
-
-      {/* hidden audio sink the SDK attaches subscriber tracks to */}
-      <audio id="voice-output" autoPlay playsInline className="hidden" />
-    </main>
-  );
-}
-
-// ── Play today's brief ──────────────────────────────────────────────
-
-type BriefPlayState = "idle" | "loading" | "playing" | "missing" | "error";
-
-function PlayTodaysBriefButton({ disabled }: { disabled: boolean }) {
-  const [state, setState] = useState<BriefPlayState>("idle");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const play = useCallback(async () => {
-    if (disabled) return;
-    setErrorMsg(null);
-    setState("loading");
-    try {
-      // HEAD probe first · cheap way to surface "no audio today" vs
-      // "audio downloading". The endpoint already does the BrainMemory
-      // read so HEAD is the same cost path.
-      const head = await fetch("/api/morning-brief/today.mp3", { method: "HEAD" });
-      if (head.status === 404) {
-        setState("missing");
-        return;
-      }
-      if (!head.ok) {
-        setState("error");
-        setErrorMsg(`audio fetch failed · ${head.status}`);
-        return;
-      }
-      const audio = audioRef.current;
-      if (!audio) {
-        setState("error");
-        setErrorMsg("audio element missing");
-        return;
-      }
-      audio.src = "/api/morning-brief/today.mp3";
-      audio.onended = () => setState("idle");
-      audio.onerror = () => {
-        setState("error");
-        setErrorMsg("playback failed");
-      };
-      await audio.play();
-      setState("playing");
-    } catch (err) {
-      setState("error");
-      setErrorMsg(err instanceof Error ? err.message : String(err));
-    }
-  }, [disabled]);
-
-  const stop = useCallback(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
-      audio.currentTime = 0;
-    }
-    setState("idle");
-  }, []);
-
-  const isPlaying = state === "playing";
-  const label =
-    state === "loading"
-      ? "Loading…"
-      : state === "playing"
-        ? "Stop brief"
-        : state === "missing"
-          ? "No brief today"
-          : state === "error"
-            ? "Retry brief"
-            : "Play today's brief";
-
-  return (
-    <div className="mt-6 flex flex-col items-center gap-2">
-      <button
-        type="button"
-        onClick={isPlaying ? stop : () => void play()}
-        disabled={disabled || state === "loading"}
-        className={[
-          "px-4 py-2 rounded-full text-sm",
-          "border border-white/15",
-          "transition-colors",
-          disabled
-            ? "opacity-40 cursor-not-allowed"
-            : "hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FDB913]/60",
-          state === "missing" ? "text-white/40" : "text-white/80",
-        ].join(" ")}
-        aria-label={label}
-      >
-        {label}
-      </button>
-      {errorMsg ? (
-        <p className="text-xs text-red-300 max-w-xs text-center">{errorMsg}</p>
-      ) : null}
-      <audio ref={audioRef} preload="none" />
-    </div>
+    </section>
   );
 }
