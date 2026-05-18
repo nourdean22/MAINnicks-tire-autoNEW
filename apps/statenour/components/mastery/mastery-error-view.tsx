@@ -42,19 +42,21 @@ export function MasteryErrorView({
   return (
     <main
       className={cn(
-        "min-h-[100dvh] bg-[#0A0A0A] text-white flex items-center justify-center px-6",
+        "min-h-[100dvh] bg-[var(--bg-void,#0A0A0A)] text-[var(--text-primary)] flex items-center justify-center px-6",
         className,
       )}
     >
       <div className="max-w-md text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
+        {/* Eyebrow tracking is canonical 0.14em per .eyebrow in
+            globals.css line 256-261 · was 0.18em pre-realign 2026-05-18 PM */}
+        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-3">
           {label}
         </p>
         <p className="text-sm text-red-300">{error}</p>
         <button
           type="button"
           onClick={onRetry}
-          className="mt-6 inline-flex items-center min-h-[44px] px-4 py-2 rounded border border-white/15 text-sm hover:bg-white/[0.04]"
+          className="mt-6 inline-flex items-center min-h-[44px] px-4 py-2 rounded border border-[var(--border-default,rgba(255,255,255,0.15))] text-sm hover:bg-white/[0.04]"
         >
           retry
         </button>

@@ -41,9 +41,9 @@ export function MasterySkeleton({
   cardGridClass = "space-y-3",
 }: MasterySkeletonProps) {
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-void,#0A0A0A)] text-[var(--text-primary)]">
       <div className={cn(maxWidth, "mx-auto px-4 sm:px-6 py-8 sm:py-10")}>
-        {/* Header skeleton · supertitle + title */}
+        {/* Header skeleton · eyebrow + title (mirrors PageHeader layout) */}
         <ShimmerSkeleton className="h-3 w-24 mb-3 !rounded" />
         <ShimmerSkeleton className="h-7 w-40 mb-8 !rounded" />
 
@@ -52,7 +52,7 @@ export function MasterySkeleton({
           {Array.from({ length: cards }).map((_, i) => (
             <div
               key={i}
-              className="rounded-lg border border-white/5 p-4 space-y-3"
+              className="rounded-lg border border-[var(--border-default,rgba(255,255,255,0.08))] p-4 space-y-3"
             >
               <ShimmerSkeleton className="h-3 w-1/3 !rounded" />
               <ShimmerSkeleton className="h-2 w-full !rounded" />
