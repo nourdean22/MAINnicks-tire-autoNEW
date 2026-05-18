@@ -211,6 +211,17 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "v10 B.4", severity: "info" }),
   },
   {
+    // Phase Q.3 · 2026-05-18 PM · live tracker for in-flight
+    // migrations (tRPC, AGENT_V2, persona-wiring) + feature flags
+    // board. Replaces "trust commit messages + MEMORY notes".
+    href: "/system/migrations",
+    title: "Migrations",
+    icon: GitBranch,
+    description:
+      "Live tracker · strangler-fig progress · % surfaces migrated · feature flag board · Q.3",
+    chip: () => ({ label: "tracker", severity: "info" }),
+  },
+  {
     href: "/system/agent-traces",
     title: "Agent Traces",
     icon: Workflow,
