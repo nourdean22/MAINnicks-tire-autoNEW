@@ -34,6 +34,11 @@ import { MasterySectionLabel } from "@/components/mastery/mastery-section-label"
 // dormant-goal drift. Mounts right under the header so the operator
 // sees the forward-looking story BEFORE the static ladder.
 import { OperatorPulse } from "@/components/operator/operator-pulse";
+// Phase G (2026-05-18 PM) · CompoundChain · 7d task→goal→axis chain ·
+// "this week per goal · which tasks moved you". Mounts BELOW the
+// pulse + above the ladder so the operator sees recent compounding
+// before the static future-goal view.
+import { CompoundChain } from "@/components/operator/compound-chain";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -132,6 +137,12 @@ export default function GoalsPage() {
             line · trailing-axis insight + 7d pace breakdown + oldest
             dormant goal. Self-hides when nothing has signal. */}
         <OperatorPulse surface="goals" className="mt-6 px-0 mx-0" />
+
+        {/* Phase G (2026-05-18 PM) · CompoundChain · this week's chain ·
+            which tasks moved which goals · grouped by axis. Reads as
+            a narrative of progress · "this week · 12 tasks · 5 goals ·
+            3 axes moved". Operator sees how the week actually compounded. */}
+        <CompoundChain surface="goals" className="mt-4 px-0 mx-0" />
 
         {/* Main grid · ladder on left · sidebar on right (collapses on mobile) */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">

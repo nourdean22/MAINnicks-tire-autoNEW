@@ -30,6 +30,11 @@ import { MasterySectionLabel } from "@/components/mastery/mastery-section-label"
 // cross-surface trailing-axis drift. Right above the anomaly grid so
 // the operator gets the action-forward narration BEFORE the raw numbers.
 import { OperatorPulse } from "@/components/operator/operator-pulse";
+// Phase G (2026-05-18 PM) · CompoundChain · this-week chain · what
+// compounded into the current scoreboard numbers. Mounted at the
+// bottom (below cards) because it's a "look back at what moved the
+// numbers" view · the cards themselves are the primary read.
+import { CompoundChain } from "@/components/operator/compound-chain";
 
 type Trend = "up" | "down" | "flat";
 
@@ -122,6 +127,12 @@ export default function ScoreboardPage() {
             </div>
           )}
         </section>
+
+        {/* Phase G (2026-05-18 PM) · CompoundChain · "what compounded
+            INTO these numbers this week" · backward-looking from anchors
+            to the tasks that fed them. Self-hides if no chained work
+            happened in the window. */}
+        <CompoundChain surface="scoreboard" className="mt-8 px-0 mx-0" />
 
         <Footer composedAt={data.composedAt} lastBriefAt={data.lastBriefAt} />
       </div>
