@@ -55,6 +55,15 @@ export function MasterySectionLabel({
   tone = "default",
   className,
 }: MasterySectionLabelProps) {
+  // 2026-05-18 PM bugfix · Chrome walkthrough caught: original
+  // implementation used <h2>, which globals.css line 157 styles as
+  // Barlow Condensed 1.25rem (20px) · global cascade overrode our
+  // text-[10px] tailwind utility on /scoreboard and other surfaces.
+  // Visible symptom: 'ANOMALOUS · 2' rendered ~32px tall instead of
+  // the intended ~10px eyebrow.
+  //
+  // Switched to <p role='heading' aria-level='2'> · keeps semantic
+  // role for screen readers but bypasses the h2 global style.
   return (
     <div
       className={cn(
@@ -62,11 +71,13 @@ export function MasterySectionLabel({
         className,
       )}
     >
-      <h2
+      <p
+        role="heading"
+        aria-level={2}
         className={cn(
           // Mirrors `.eyebrow` (globals.css line 256-261):
           // 0.625rem · weight 600 · uppercase · letter-spacing 0.14em
-          "text-[10px] font-semibold uppercase tracking-[0.14em] truncate",
+          "text-[10px] font-semibold uppercase tracking-[0.14em] truncate m-0",
           TONE_TEXT[tone],
         )}
       >
@@ -74,7 +85,7 @@ export function MasterySectionLabel({
         {count != null ? (
           <span className="ml-1 tabular-nums font-normal">· {count}</span>
         ) : null}
-      </h2>
+      </p>
       {action ? (
         <div className="shrink-0 text-[10px] uppercase tracking-[0.14em]">
           {action}
