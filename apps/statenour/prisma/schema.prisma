@@ -248,6 +248,13 @@ model Mission {
   /// relation type · self-referential many-to-many.
   linkedFrom         MissionLink[]      @relation("MissionLinkSource")
   linkedTo           MissionLink[]      @relation("MissionLinkTarget")
+  /// Phase A.3 schema migration (2026-05-18) · explicit parent goal.
+  /// Nullable so existing missions don't break · operator can backfill
+  /// gradually via /goals UI or chat. When set, completing the mission
+  /// can auto-bump the goal's progress. Per ADR-0012 + parked
+  /// migration at prisma/migrations-pending/0001_mission_lifegoalid/.
+  lifeGoalId         String?
+  lifeGoal           LifeGoal?          @relation(fields: [lifeGoalId], references: [id], onDelete: SetNull)
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
@@ -255,6 +262,7 @@ model Mission {
   @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([lifeGoalId])
 }
 
 /// v10.0.421 · mission-to-mission relationship join table.
@@ -2102,6 +2110,10 @@ model LifeGoal {
   /// `prisma.lifeGoal.findMany({ include: { tasks: true } })`.
   tasks  Task[]
   events GoalEvent[]
+  /// Phase A.3 schema migration (2026-05-18) · back-ref for
+  /// Mission.lifeGoalId · enables `lifeGoal.findMany({ include:
+  /// { missions: true } })` for the /goals page sidebar.
+  missions Mission[]
 
   @@index([domain, status])
   @@index([horizon, status])

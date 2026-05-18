@@ -18,7 +18,8 @@
  * /api/goals · /api/actions-brain · /api/ai/tasks.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.29 — structured logger for tasks-page client-side errors.
@@ -213,10 +214,25 @@ export default function TasksPage() {
 
   // ── Load ─────────────────────────────────────────────
 
-  // v10.0.29 — concurrency guard. Pre-v10.0.29 a fast double-tap
-  // (complete → instant complete on next task) fired two concurrent
-  // load() calls; whichever resolved last won, potentially restoring
-  // a task that was just deleted. Now: skip if already loading.
+  // Phase B (2026-05-18) · /goals → /tasks?goalId=X cross-link.
+  // Read URL params · forward to /api/tasks fetch · banner shows
+  // active filter with X-to-clear. Surgical augmentation · no
+  // refactor of the 1181-LOC core.
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const filterGoalId = searchParams?.get("goalId") ?? null;
+  const filterMissionId = searchParams?.get("missionId") ?? null;
+  const taskFetchUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (filterGoalId) params.set("goalId", filterGoalId);
+    if (filterMissionId) params.set("missionId", filterMissionId);
+    return params.toString() ? `/api/tasks?${params}` : "/api/tasks";
+  }, [filterGoalId, filterMissionId]);
+  const clearFilter = useCallback(() => {
+    router.push(pathname ?? "/tasks");
+  }, [router, pathname]);
+
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
   // work can short-circuit setState calls if user navigates away
@@ -239,7 +255,8 @@ export default function TasksPage() {
       type MissionsRaw = Envelope<Project[]> | Project[] | { missions?: Project[] } | unknown;
       type GoalsRaw = Envelope<{ goals: GoalCacheEntry[] }> | { goals: GoalCacheEntry[] } | GoalCacheEntry[] | unknown;
       const [tRaw, mRaw, gRaw] = await Promise.all([
-        authedFetch("/api/tasks").then((r): Promise<TasksRaw> | Task[] => (r.ok ? r.json() : [])).catch((): Task[] => []),
+        // Phase B · honor URL filter (goalId/missionId from /goals cross-link)
+        authedFetch(taskFetchUrl).then((r): Promise<TasksRaw> | Task[] => (r.ok ? r.json() : [])).catch((): Task[] => []),
         authedFetch("/api/missions").then((r): Promise<MissionsRaw> | Project[] => (r.ok ? r.json() : [])).catch((): Project[] => []),
         authedFetch("/api/goals").then((r): Promise<GoalsRaw> | { goals: GoalCacheEntry[] } => (r.ok ? r.json() : { goals: [] })).catch((): { goals: GoalCacheEntry[] } => ({ goals: [] })),
       ]);
@@ -313,7 +330,10 @@ export default function TasksPage() {
       setLoading(false);
       loadingRef.current = false;
     }
-  }, []);
+    // Phase B (2026-05-18) · taskFetchUrl in deps so URL filter
+    // changes re-trigger the load · operator clicks "5 tasks →" on
+    // /goals and lands here with the filtered set immediately.
+  }, [taskFetchUrl]);
 
   // v10.0.424 · debounced reload · 250ms coalesce · in-flight abort.
   // Replaces 3 of the 5 reload triggers (mount + interval + event-bus).
@@ -1082,6 +1102,26 @@ export default function TasksPage() {
     // notch. Pure CSS · no JS · zero layout impact on desktop because
     // env(safe-area-inset-bottom) resolves to 0 there.
     <div className="space-y-3 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+      {/* Phase B (2026-05-18) · cross-link filter banner. Renders when
+          operator arrives from /goals or /scoreboard via ?goalId or
+          ?missionId · X-to-clear returns to unfiltered view. */}
+      {(filterGoalId || filterMissionId) ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-[#FDB913]/30 bg-[#FDB913]/[0.04] px-4 py-2.5 text-sm">
+          <span className="text-white/80 truncate">
+            Filtered ·{" "}
+            <span className="font-medium text-[#FDB913]">
+              {filterGoalId ? "goal" : "mission"} · {(filterGoalId ?? filterMissionId ?? "").slice(0, 24)}
+            </span>
+          </span>
+          <button
+            type="button"
+            onClick={clearFilter}
+            className="shrink-0 text-xs uppercase tracking-wider text-white/60 hover:text-white/90 border border-white/15 rounded-full px-3 py-1"
+          >
+            clear
+          </button>
+        </div>
+      ) : null}
       {/* v10.0.529.79 · Wave 23 · #1 · TodaysCompound strip · shows
           today's compounded auto-learn signal (mastery delta · insight
           count · wisdom matched · goals lifted · focused minutes) so

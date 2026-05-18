@@ -17,6 +17,8 @@ export const GET = apiHandler(async (req) => {
     status: url.searchParams.get("status") || undefined,
     sort: url.searchParams.get("sort") || undefined,
     missionId: url.searchParams.get("missionId") || undefined,
+    // Phase B (2026-05-18) · goalId filter from /goals cross-link
+    goalId: url.searchParams.get("goalId") || undefined,
   });
 }, { auth: "owner" });
 
