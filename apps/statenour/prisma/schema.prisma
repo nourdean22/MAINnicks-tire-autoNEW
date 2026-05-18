@@ -2258,6 +2258,56 @@ model DecisionReplay {
   @@map("decision_replays")
 }
 
+// ─── Journal Pattern Radar · ADR-0013 (Phase D · 2026-05-18) ────────────────
+// Convergence detection over journal entries → named threads.
+// Threads are self-organizing clusters of related entries across all 4
+// journal sources (BrainDump · Reflection · SituationLog · DecisionReplay).
+// Polymorphic membership via (entrySource, entryId) is intentional —
+// the 4 sources are bounded and the existing /api/journal feed already
+// does the same polymorphic merge. YAGNI on 4 separate join tables.
+
+model JournalThread {
+  id          String               @id @default(cuid())
+  name        String
+  summary     String?              @db.Text
+  status      String               @default("active") // active | dormant | archived
+  coherence   Float? // last computed avg pairwise cosine
+  detectedAt  DateTime // when convergence first fired
+  namedAt     DateTime // when operator confirmed the name
+  lastJoinAt  DateTime? // most recent entry join (drives dormancy)
+  /// Cached centroid vector · JSON-encoded number[] · refreshed
+  /// incrementally on every join (new = (old·n + vec)/(n+1)) so
+  /// scoreEntryAgainstActiveThreads() doesn't re-fetch member vecs
+  /// per capture. memberCount tracks denominator for the rolling avg.
+  centroid    String?              @db.Text
+  memberCount Int                  @default(0)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  deletedAt   DateTime?
+  memberships JournalThreadEntry[]
+
+  @@index([status])
+  @@index([lastJoinAt])
+  @@index([deletedAt])
+  @@map("journal_threads")
+}
+
+model JournalThreadEntry {
+  id          String        @id @default(cuid())
+  threadId    String
+  entrySource String // brain_dump | reflection | situation_log | decision_replay
+  entryId     String
+  similarity  Float // cosine at time of join (0-1)
+  joinedAt    DateTime      @default(now())
+  joinMode    String // seed | auto | operator
+  thread      JournalThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, entrySource, entryId])
+  @@index([threadId])
+  @@index([entrySource, entryId])
+  @@map("journal_thread_memberships")
+}
+
 // ---------------------------------------------------------------------------
 // Content Creation
 // ---------------------------------------------------------------------------

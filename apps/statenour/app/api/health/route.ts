@@ -62,10 +62,11 @@ export const GET = apiHandler(async () => {
       // 2026-05-17 follow-up · WAVE-200 substrate visibility
       inngest: {
         configured: isInngestFullyConfigured(),
-        // 2026-05-17 · 6 functions: morning + evening mega-fanouts ·
+        // 2026-05-18 · 8 functions: morning + evening mega-fanouts ·
         // operator-morning-brief · customer-preferences-recompute ·
-        // bulk-sms-approval (template) · goal-pruner (Phase A.1)
-        functions: 6,
+        // bulk-sms-approval (template) · goal-pruner (Phase A.1) ·
+        // journal-convergence-scan (Phase D) · journal-thread-dormancy (Phase D)
+        functions: 8,
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
