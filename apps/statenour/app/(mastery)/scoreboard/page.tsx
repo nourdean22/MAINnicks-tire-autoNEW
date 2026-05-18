@@ -26,6 +26,10 @@ import { useAuthedFetch } from "@/hooks/use-authed-fetch";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+// Phase E (2026-05-18 PM) · OperatorPulse · top anomaly + 7d motion +
+// cross-surface trailing-axis drift. Right above the anomaly grid so
+// the operator gets the action-forward narration BEFORE the raw numbers.
+import { OperatorPulse } from "@/components/operator/operator-pulse";
 
 type Trend = "up" | "down" | "flat";
 
@@ -78,6 +82,13 @@ export default function ScoreboardPage() {
     <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <Header state={data.state} lastBriefAt={data.lastBriefAt} />
+
+        {/* Phase E (2026-05-18 PM) · OperatorPulse · top anomaly narration
+            + 7d motion across anchors + cross-surface trailing-axis drift.
+            Sits between the state badge and the cards · gives the
+            operator the "right now" story in one strip before the raw
+            number grid. */}
+        <OperatorPulse surface="scoreboard" className="mt-6 px-0 mx-0" />
 
         {anomalies.length > 0 ? (
           <section className="mt-6 space-y-3">
