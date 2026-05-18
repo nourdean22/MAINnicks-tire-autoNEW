@@ -1,5 +1,14 @@
 "use client";
 
+// Phase D follow-up audit (2026-05-18) · cross-link #1 ·
+// useSearchParams() reads ?search= from URL so ThreadRail's
+// "view in feed →" deep-link pre-populates the search box.
+// force-dynamic mirrors the /tasks fix in ADR-0014 · simpler
+// than refactoring this 720-LOC page into a Suspense-wrapped
+// inner component · the page is already client-only +
+// authenticated + dynamic at request time.
+export const dynamic = "force-dynamic";
+
 /**
  * JOURNAL — Unified thought-capture feed.
  *
@@ -17,6 +26,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useSearchParams } from "next/navigation";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -77,12 +87,20 @@ interface MetacognitionEntry {
 // ─── Page ──────────────────────────────────────────────
 
 export default function JournalPage() {
+  // Phase D follow-up audit (2026-05-18) · cross-link #1 ·
+  // initialize search from ?search= URL param so deep-links from
+  // ThreadRail "view in feed →" land on a pre-filtered view.
+  // The state mirror keeps subsequent typing reactive · the URL
+  // param is the seed, not the source of truth.
+  const searchParams = useSearchParams();
+  const initialSearch = searchParams?.get("search") ?? "";
+
   const [entries, setEntries] = useState<FeedEntry[]>([]);
   const [counts, setCounts] = useState<FeedResponse["data"]["counts"] | null>(null);
   const [loading, setLoading] = useState(true);
   const [source, setSource] = useState<SourceKey>("all");
   const [type, setType] = useState<TypeKey>("all");
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(initialSearch);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // v10.0.436 · sort key · localStorage-persisted · 6 modes
   type JournalSort = "newest" | "oldest" | "alpha-asc" | "alpha-desc" | "longest" | "shortest";
