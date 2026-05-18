@@ -106,11 +106,17 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       }
 
       // 3. Build and send the SMS
+      // wave-181.46 brand-voice tightening:
+      //   - "Based on your last visit, it might be time" (passive, hedgy) →
+      //     direct + concrete + customer language
+      //   - Customer language: "your last visit" → "your last check-up",
+      //     "drop-offs welcome" → "drop it off anytime"
       const firstName = (rec.name || "there").split(" ")[0];
       const serviceLabel = SERVICE_LABELS[rec.service] || rec.service;
-      const message = `Hi ${firstName}! Based on your last visit, it might be time for ${serviceLabel}. Come by Nick's Tire & Auto — drop-offs welcome! Reply STOP to opt out.`;
+      const message = `Hey ${firstName} — based on your last check-up, you're due for ${serviceLabel}. Free check, you don't pay until you say yes. Drop it off anytime. Reply STOP to opt out.`;
 
-      const result = await sendSms(rec.phone, message);
+      // wave-181.46 · route through F25e gateway (Twilio dead per operator)
+      const result = await sendSms(rec.phone, message, { via: "shop" });
       if (result.success) {
         sent++;
         log.info(`Cross-sell SMS sent to ${firstName} (${rec.service}): ${rec.reason}`);
