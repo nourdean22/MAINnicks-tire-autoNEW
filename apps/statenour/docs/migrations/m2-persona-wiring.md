@@ -2,7 +2,7 @@
 
 **Started:** Phase M.2 (2026-05-18 PM)
 **Strategy:** Coexistence · inline sub-agents keep working · personas add structure
-**Status:** Library shipped (M.2) · **1/N call sites wired (R · engine runMultiAgent)** · N.6 scorer now sees real persona keys
+**Status:** Library shipped (M.2) · **2/N call sites wired (R + S.1)** · S.1 adds per-step routing (research vs execution) · smart-tier inherits via runMultiAgent
 
 ## Why
 
@@ -61,15 +61,21 @@ keys.
 
 Next call sites to wire:
 
-1. **`smart-tier runRouter` sub-pipeline** · the router's "multi"
-   route currently calls `runMultiAgent(question, plan)` · would pick
-   up the persona wiring automatically. Sanity-check there's no
-   alternate construction path inside the router itself.
+1. ~~**`smart-tier runRouter` sub-pipeline**~~ **DONE in Phase S.3**
+   (verified · the router's "multi" route calls
+   `runMultiAgent(question, plan)` which now passes typed personas
+   per plan line via R + S.1's wiring. No separate code change
+   needed · inheritance documented in `engine.ts` above runRouter.)
 2. **`thorough-tier deep-research worker`** · uses 1 planner + N
-   round agents + 1 synthesizer · planner = `execution-planner` ·
-   round agents = `research-analyst` · synthesizer = `synthesizer`.
-3. **Plan-derived steps with action verbs** · current Phase R wiring
-   passes `research-analyst` to every plan step. Steps that read as
-   "do X" rather than "find Y" should use `execution-planner`
-   instead · would need a small `classifyStepIntent()` helper to
-   choose between the two per line.
+   round agents + 1 synthesizer · DELIBERATELY SKIPPED for now ·
+   the existing `PLANNER_SYSTEM` + `SYNTHESIZER_SYSTEM` in
+   `lib/ai/deep-research.ts` are domain-tuned (Cleveland OH tire
+   shop · Perplexity citation markers) and the generic personas
+   would LOSE that specificity. Better follow-up: extract
+   RESEARCH_PLANNER and RESEARCH_SYNTHESIZER as named specialist
+   personas in `lib/ai/personas/index.ts`, then wire them in.
+3. ~~**Plan-derived steps with action verbs**~~ **DONE in Phase
+   S.1** · `classifyStepIntent()` helper now picks
+   `research-analyst` vs `execution-planner` per plan line based
+   on the leading verb. 36 action verbs whitelisted with
+   conjugations (build/building/built etc).

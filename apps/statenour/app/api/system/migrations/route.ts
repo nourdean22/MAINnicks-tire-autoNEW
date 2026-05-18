@@ -64,12 +64,12 @@ const MIGRATIONS: Migration[] = [
     name: "M.2 persona wiring (runMultiAgent ← personas)",
     startedAt: "2026-05-18",
     strategy: "Coexistence · inline sub-agents keep working · personas add structure",
-    // Phase R (2026-05-18 PM) · stalled → in-progress
-    // First call-site wired · engine.ts runMultiAgent now passes
-    // research-analyst + contrarian-critic. N.6 scorer now sees real
-    // persona keys instead of step_N/what/why placeholders.
+    // Phase R + S (2026-05-18 PM) · stalled → in-progress
+    // 2 call-sites wired: R · engine.ts runMultiAgent uses
+    // research-analyst + contrarian-critic personas. S.1 adds
+    // classifyStepIntent() per-line routing. Smart-tier inherits.
     status: "in-progress",
-    nextMilestone: "Wire smart-tier runRouter sub-pipeline · also adopt execution-planner persona for plan-derived multi-agent steps with non-trivial actions",
+    nextMilestone: "Extract RESEARCH_PLANNER + RESEARCH_SYNTHESIZER specialist personas for the deep-research worker (kept domain-tuned · not migrated to generic personas)",
   },
 ];
 

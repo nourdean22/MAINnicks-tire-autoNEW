@@ -3,8 +3,8 @@
 /**
  * /system/health — OS health dashboard.
  *
- * Renders the /api/system/health-report data as a real UI. Groups
- * signals into 5 tiles:
+ * Renders the system health snapshot as a real UI. Groups signals
+ * into 5 tiles:
  *   1. Cron Health — per-job success/fail ratio + duration
  *   2. Error Patterns — grouped + counted, top-5 repeats
  *   3. Backlog Pressure — captures · commitments · inbox tasks · drift
@@ -12,10 +12,17 @@
  *   5. Vector Coverage — embedding rows per source type
  *
  * Range selector (24h / 7d / 30d) reshapes the cron + error slices.
- * Auto-refreshes every 2 minutes.
+ * Auto-refreshes every 2 minutes via React Query's refetchInterval.
+ *
+ * Phase S.3 (2026-05-18 PM) · migrated from
+ * `useAuthedFetch("/api/system/health-report?range=X")` to
+ * `trpc.system.healthReport.useQuery({ range })`. Types now flow
+ * from `lib/services/system-health.ts` via the system router · no
+ * manual HealthReport mirror to drift. The legacy REST endpoint
+ * stays mounted for back-compat.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
@@ -34,95 +41,25 @@ import { TrendCounter } from "@/components/ui/trend-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
-
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface HealthReport {
-  range: string;
-  generatedAt: string;
-  cron: {
-    totalLogs: number;
-    failureCount: number;
-    jobs: Array<{
-      jobName: string;
-      success: number;
-      failed: number;
-      avgMs: number;
-      healthy: boolean;
-    }>;
-  };
-  errors: {
-    total: number;
-    topPatterns: Array<{ msg: string; count: number }>;
-  };
-  backlog: {
-    activeCaptures: number;
-    activeCommitments: number;
-    inboxTasks: number;
-    unackedDriftAlerts: number;
-  };
-  freshness: {
-    /** @deprecated Apr 19 — DailyScore retired. Field kept nullable so
-     *  older health-report payloads don't error; always rendered as a
-     *  dash now. */
-    lastDailyScoreHoursAgo?: number | null;
-    lastDailyScoreDate?: string | null;
-    lastBrainDumpHoursAgo: number | null;
-    lastReflectionHoursAgo: number | null;
-    lastCaptureHoursAgo: number | null;
-    lastSkillExtractionHoursAgo?: number | null;
-    lastIdentityRefreshHoursAgo?: number | null;
-  };
-  lawFeedback: {
-    situationLogsWithLawId: number;
-    triggerContextLogs: number;
-  };
-  vectorIndex: Array<{ sourceType: string; count: number }>;
-  /** v10.0.275 · strategic-frameworks lens-firing summary */
-  lens?: {
-    totalFires: number;
-    fallbackRate: number;
-    top: Array<{ framework: string; count: number }>;
-  };
-  /** v10.0.275 · VAPI voice-call summary · null if VAPI_API_KEY not set */
-  voice?: {
-    totalCalls: number;
-    avgDurationSec: number;
-    totalCostUsd: number;
-  } | null;
-  /** v10.0.222 · prior-window baselines for TrendCounter deltas.
-   *  Optional — older payloads pre-deploy may not include it. */
-  previous?: {
-    cronTotal: number;
-    cronFailures: number;
-    errorTotal: number;
-  };
-}
+import { trpc } from "@/lib/trpc/client";
 
 export default function SystemHealthPage() {
-  const [data, setData] = useState<HealthReport | null>(null);
   const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
-  const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch(`/api/system/health-report?range=${range}`);
-      if (!res.ok) return;
-      const raw = (await res.json()) as { data?: HealthReport };
-      if (raw?.data) setData(raw.data);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [range]);
+  // Phase S.3 · React Query handles the 2-min refresh + per-range
+  // refetch automatically when `range` changes (it's part of the
+  // input key). Stale-while-revalidate avoids the prior "blank flash
+  // on range switch" the manual setState path had.
+  const { data, isLoading, refetch } = trpc.system.healthReport.useQuery(
+    { range },
+    {
+      refetchInterval: 120_000,
+      staleTime: 60_000,
+    },
+  );
+  const load = () => void refetch();
 
-  useEffect(() => {
-    load();
-    const iv = setInterval(load, 120_000); // 2 min
-    return () => clearInterval(iv);
-  }, [load]);
-
-  if (loading && !data) {
+  if (isLoading && !data) {
     return (
       <main className="max-w-4xl mx-auto px-3 py-4">
         <ShimmerSkeleton className="h-10 rounded" />

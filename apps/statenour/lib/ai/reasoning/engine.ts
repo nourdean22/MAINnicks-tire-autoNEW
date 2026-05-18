@@ -174,6 +174,77 @@ async function runFanout(
   return { content: fanout.composite, callCount: 4, usd: 0 };
 }
 
+/**
+ * Phase S.1 · classify a single plan line as a research task (find
+ * information) vs an execution task (do something concrete) so the
+ * orchestrator picks the right persona per step.
+ *
+ *   · execution → execution-planner (operator's chief of staff · turns
+ *     decisions into Monday-morning to-do steps · banned vague verbs)
+ *   · research → research-analyst (terse · factual · prefers numbers
+ *     and named sources)
+ *
+ * Heuristic: leading verb wins. Default = research-analyst (safer ·
+ * the analyst persona is also fine on action-shaped tasks; the planner
+ * is only better when the task IS clearly action).
+ *
+ * Exported for unit-testability · the per-line routing decision is
+ * the only behavior in this file worth testing in isolation.
+ */
+export function classifyStepIntent(
+  line: string,
+): "research-analyst" | "execution-planner" {
+  const stripped = line.replace(/^\d+[.)]\s*/, "").trim().toLowerCase();
+  if (!stripped) return "research-analyst";
+  // Take the first word (handle bullets, hyphens that already got
+  // stripped by the regex above).
+  const firstWord = stripped.split(/\s+/)[0] ?? "";
+
+  // Action verbs — operator-grade "do this" steps. Conjugations
+  // (present / present-progressive / past) all included because plan
+  // lines come from an LLM that mixes tenses freely (some models
+  // narrate a plan in past tense as if it's already done).
+  const EXECUTE_VERBS = new Set([
+    "build", "builds", "building", "built",
+    "create", "creates", "creating", "created",
+    "ship", "ships", "shipping", "shipped",
+    "send", "sends", "sending", "sent",
+    "post", "posts", "posting", "posted",
+    "publish", "publishes", "publishing", "published",
+    "deploy", "deploys", "deploying", "deployed",
+    "launch", "launches", "launching", "launched",
+    "schedule", "schedules", "scheduling", "scheduled",
+    "draft", "drafts", "drafting", "drafted",
+    "write", "writes", "writing", "wrote", "written",
+    "update", "updates", "updating", "updated",
+    "refactor", "refactors", "refactoring", "refactored",
+    "fix", "fixes", "fixing", "fixed",
+    "remove", "removes", "removing", "removed",
+    "delete", "deletes", "deleting", "deleted",
+    "install", "installs", "installing", "installed",
+    "configure", "configures", "configuring", "configured",
+    "run", "runs", "running", "ran",
+    "execute", "executes", "executing", "executed",
+    "implement", "implements", "implementing", "implemented",
+    "wire", "wires", "wiring", "wired",
+    "set", "sets", "setting",
+    "add", "adds", "adding", "added",
+    "open", "opens", "opening", "opened",
+    "close", "closes", "closing", "closed",
+    "merge", "merges", "merging", "merged",
+    "push", "pushes", "pushing", "pushed",
+    "commit", "commits", "committing", "committed",
+    "migrate", "migrates", "migrating", "migrated",
+    "rollback", "rolls", "rolled",
+    "call", "calls", "calling", "called",
+    "test", "tests", "testing", "tested",
+    "do", "did", "done",
+  ]);
+  if (EXECUTE_VERBS.has(firstWord)) return "execution-planner";
+
+  return "research-analyst";
+}
+
 async function runMultiAgent(
   question: string,
   plan: string,
@@ -183,13 +254,16 @@ async function runMultiAgent(
   // Derive sub-agents from the plan · each step becomes one focused
   // sub-agent task. Cap at 4 to bound cost.
   //
-  // Phase R · M.2 wiring · each sub-agent now carries a typed persona:
-  //   · plan-derived steps → research-analyst (concrete-fact tasks)
+  // Phase R + S.1 · M.2 wiring · each sub-agent now carries a typed
+  // persona picked per-step:
+  //   · plan-derived steps → classifyStepIntent(line) picks
+  //     research-analyst OR execution-planner based on the leading
+  //     verb · "find X" stays analyst, "create Y" goes to planner
   //   · fallback 2-angle split → research-analyst + contrarian-critic
   // The orchestrator uses persona's role/goal/backstory as the system
   // prompt instead of the generic SUB_AGENT_SYSTEM, and N.6's scorer
-  // (recordPersonaUsage) now sees `research-analyst`/`contrarian-critic`
-  // instead of `step_1`/`what`/`why` placeholders.
+  // (recordPersonaUsage) now sees real persona keys instead of
+  // `step_1`/`what`/`why` placeholders.
   const planLines = plan
     .split("\n")
     .map((l) => l.trim())
@@ -200,7 +274,7 @@ async function runMultiAgent(
         name: `step_${i + 1}`,
         task: line.replace(/^\d+[.)]\s*/, ""),
         outputHint: "Concrete · no fluff · max 200 words.",
-        persona: "research-analyst",
+        persona: classifyStepIntent(line),
       }))
     : [
         // Fallback · split the question into "what's the concrete
@@ -278,6 +352,12 @@ async function runDeepResearch(question: string): Promise<SubPipelineResult> {
 //
 // Returns a JSON list of source names to invoke. Falls back to fanout
 // only on parse failure (cheapest safe default).
+//
+// Phase S.3 · smart-tier inherits R + S.1 persona wiring automatically:
+// when the router picks "multi", it calls runMultiAgent(question, plan)
+// (the wrapper above), which now passes typed personas per plan line
+// via classifyStepIntent(). No separate wiring needed here · the
+// router's selection mechanism is orthogonal to persona steering.
 export type SmartSource = "research" | "multi" | "fan" | "ghost" | "wisdom";
 
 interface RouterDecision {
