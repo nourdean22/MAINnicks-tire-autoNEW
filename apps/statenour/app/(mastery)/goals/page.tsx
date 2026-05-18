@@ -24,8 +24,11 @@
  * See: ADR-0010 · lib/services/goals-snapshot.ts · app/api/goals/snapshot
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
+import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
+import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -99,36 +102,19 @@ const HORIZON_STYLE: Record<Horizon, { titleSize: string; opacity: string; paddi
 };
 
 export default function GoalsPage() {
-  const [data, setData] = useState<Snapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Phase D follow-up audit (2026-05-18) · collapsed 23 LOC of
+  // bespoke fetch+state mgmt to the shared useAuthedFetch hook ·
+  // pairs with MasteryErrorView + MasterySkeleton primitives ·
+  // matches the convention now used by /scoreboard + the 3
+  // /journal thread components.
+  const { data, error, loading, reload } = useAuthedFetch<Snapshot>(
+    "/api/goals/snapshot",
+  );
 
-  const fetchSnapshot = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/goals/snapshot");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
-      }
-      setData((await res.json()) as Snapshot);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchSnapshot();
-  }, [fetchSnapshot]);
-
-  if (loading && !data) return <SkeletonView />;
-  if (error)
-    return (
-      <ErrorView error={error} onRetry={() => void fetchSnapshot()} />
-    );
+  if (loading && !data) {
+    return <MasterySkeleton cards={3} maxWidth="max-w-6xl" />;
+  }
+  if (error) return <MasteryErrorView label="Goals" error={error} onRetry={reload} />;
   if (!data) return null;
 
   return (
@@ -434,41 +420,6 @@ function formatValue(value: number, unit: string): string {
   return `${value.toLocaleString()} ${unit}`;
 }
 
-function SkeletonView() {
-  return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
-      <div className="max-w-6xl mx-auto px-6 py-10">
-        <div className="h-3 w-24 bg-white/5 rounded mb-3" />
-        <div className="h-7 w-32 bg-white/10 rounded mb-8" />
-        <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-lg border border-white/5 p-4">
-              <div className="h-3 w-1/3 bg-white/10 rounded mb-3" />
-              <div className="h-2 w-full bg-white/5 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function ErrorView({ error, onRetry }: { error: string; onRetry: () => void }) {
-  return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white flex items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
-          Goals
-        </p>
-        <p className="text-sm text-red-300">{error}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-6 inline-flex items-center px-4 py-2 rounded border border-white/15 text-sm hover:bg-white/[0.04]"
-        >
-          retry
-        </button>
-      </div>
-    </main>
-  );
-}
+// SkeletonView + ErrorView extracted to components/mastery/ on 2026-05-18 ·
+// see MasterySkeleton + MasteryErrorView. The 50 LOC of bespoke per-page
+// implementations is now ~6 LOC of imports + 3 LOC of usage.

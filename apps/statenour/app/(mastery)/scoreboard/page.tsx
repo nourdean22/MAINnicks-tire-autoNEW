@@ -21,8 +21,10 @@
  * See: ADR-0011 · lib/services/meta-scoreboard.ts · /api/scoreboard/snapshot
  */
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
+import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 
 type Trend = "up" | "down" | "flat";
 
@@ -47,34 +49,25 @@ interface Snapshot {
 }
 
 export default function ScoreboardPage() {
-  const [data, setData] = useState<Snapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Phase D follow-up audit (2026-05-18) · collapsed bespoke
+  // fetch+state mgmt to the shared useAuthedFetch hook · pairs
+  // with MasteryErrorView + MasterySkeleton. Same primitives now
+  // used by /goals and the 3 /journal thread components.
+  const { data, error, loading, reload } = useAuthedFetch<Snapshot>(
+    "/api/scoreboard/snapshot",
+  );
 
-  const fetchSnapshot = useCallback(async () => {
-    setError(null);
-    setLoading(true);
-    try {
-      const res = await fetch("/api/scoreboard/snapshot");
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error ?? `HTTP ${res.status}`);
-      }
-      setData((await res.json()) as Snapshot);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchSnapshot();
-  }, [fetchSnapshot]);
-
-  if (loading && !data) return <SkeletonView />;
+  if (loading && !data) {
+    return (
+      <MasterySkeleton
+        cards={4}
+        maxWidth="max-w-3xl"
+        cardGridClass="grid grid-cols-1 sm:grid-cols-2 gap-3"
+      />
+    );
+  }
   if (error)
-    return <ErrorView error={error} onRetry={() => void fetchSnapshot()} />;
+    return <MasteryErrorView label="Scoreboard" error={error} onRetry={reload} />;
   if (!data) return null;
 
   const anomalies = data.numbers.filter((n) => n.anomalous);
@@ -222,47 +215,6 @@ function Footer({
   );
 }
 
-function SkeletonView() {
-  return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="h-3 w-24 bg-white/5 rounded mb-3" />
-        <div className="h-7 w-40 bg-white/10 rounded mb-8" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[0, 1, 2, 3].map((i) => (
-            <div key={i} className="rounded-lg border border-white/5 p-4">
-              <div className="h-3 w-1/3 bg-white/10 rounded mb-3" />
-              <div className="h-8 w-1/2 bg-white/5 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function ErrorView({
-  error,
-  onRetry,
-}: {
-  error: string;
-  onRetry: () => void;
-}) {
-  return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white flex items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
-          Scoreboard
-        </p>
-        <p className="text-sm text-red-300">{error}</p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-6 inline-flex items-center px-4 py-2 rounded border border-white/15 text-sm hover:bg-white/[0.04]"
-        >
-          retry
-        </button>
-      </div>
-    </main>
-  );
-}
+// SkeletonView + ErrorView extracted to components/mastery/ on 2026-05-18 ·
+// see MasterySkeleton + MasteryErrorView. Same primitives the /goals page
+// uses now, with different cards/maxWidth/gridClass per surface needs.
