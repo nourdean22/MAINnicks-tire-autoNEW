@@ -14,8 +14,8 @@
  */
 import "dotenv/config";
 import { getDb } from "../server/db";
-import { callbackRequests, bookings } from "../drizzle/schema";
-import { gte, sql } from "drizzle-orm";
+import { callbackRequests, bookings, leads } from "../drizzle/schema";
+import { gte, sql, and, like } from "drizzle-orm";
 
 const VAPI_KEY = process.env.VAPI_API_KEY;
 if (!VAPI_KEY) {
@@ -124,19 +124,44 @@ async function main() {
     process.exit(0);
   }
 
-  const callbacksToday = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(callbackRequests)
-    .where(gte(callbackRequests.createdAt, today));
-  const bookingsToday = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(bookings)
-    .where(gte(bookings.createdAt, today));
+  // wave-181.41 · cross-ref now filters to VAPI-attributed rows only
+  // (was counting ALL bookings/callbacks created today incl. website +
+  // admin-created → under-reported nothing but over-reported everything).
+  // Also adds the missing leads-table query for tireInquiry +
+  // checkTireStock fires, which were 100% invisible to the daily report.
+  // Markers per server/routers/voiceAgent.ts:
+  //   bookings.message     starts "[VOICE-AGENT]"            ← bookSlot
+  //   callbackRequests.context starts "[VOICE-AGENT"         ← escalate/scheduleCallback (mostly removed in 181.35)
+  //   leads.problem        starts "[VOICE-AGENT TIRE INQUIRY]" ← tireInquiry
+  //   leads.problem        starts "[VOICE-AGENT RACK CHECK]"   ← checkTireStock
+  const [vapiBookings, vapiCallbacks, vapiTireInquiries, vapiRackChecks] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` })
+      .from(bookings)
+      .where(and(gte(bookings.createdAt, today), like(bookings.message, "[VOICE-AGENT]%"))),
+    db.select({ count: sql<number>`count(*)` })
+      .from(callbackRequests)
+      .where(and(gte(callbackRequests.createdAt, today), like(callbackRequests.context, "[VOICE-AGENT%"))),
+    db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(and(gte(leads.createdAt, today), like(leads.problem, "[VOICE-AGENT TIRE INQUIRY]%"))),
+    db.select({ count: sql<number>`count(*)` })
+      .from(leads)
+      .where(and(gte(leads.createdAt, today), like(leads.problem, "[VOICE-AGENT RACK CHECK]%"))),
+  ]);
 
-  console.log(`\n┌── DB cross-reference (today: ${today.toDateString()}) ──`);
-  console.log(`│  Callbacks created:  ${callbacksToday[0]?.count ?? 0}`);
-  console.log(`│  Bookings created:   ${bookingsToday[0]?.count ?? 0}`);
-  console.log(`│  (subset of these may have come from VAPI escalate/bookSlot tools)`);
+  const b = vapiBookings[0]?.count ?? 0;
+  const c = vapiCallbacks[0]?.count ?? 0;
+  const ti = vapiTireInquiries[0]?.count ?? 0;
+  const rc = vapiRackChecks[0]?.count ?? 0;
+  const total = b + c + ti + rc;
+
+  console.log(`\n┌── VAPI-attributed DB writes (today: ${today.toDateString()}) ──`);
+  console.log(`│  bookSlot       → bookings table:           ${b}`);
+  console.log(`│  tireInquiry    → leads table:              ${ti}`);
+  console.log(`│  checkTireStock → leads table (rack check): ${rc}`);
+  console.log(`│  escalate/cb    → callbackRequests:         ${c}  (legacy — escalate removed 181.35)`);
+  console.log(`│  ─────────────────────────────────────────────────`);
+  console.log(`│  Total VAPI lead/booking captures today:    ${total}`);
   console.log(`└──\n`);
 
   process.exit(0);
