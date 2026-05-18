@@ -396,6 +396,7 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `callbacks_pending` | none | New callback requests |
 | `customer_search` | `term: string` | Top 20 matching customers |
 | `customer_detail` | `customerId: string` | `{ customer, timeline: { invoices, estimates, algEstimates, callbacks }, counts }` — added Wave-200 Phase 6 for Customer 360 |
+| `recent_customer_ids` | `sinceDays?: number` (default 90, max 365) | `{ customerIds: string[], count, sinceDays }` — drives statenour daily customer-preferences cron · cap 500 |
 | `feature_flags` | none | All flags + enabled state |
 | `gsc_summary` | `from?, to?` (YYYY-MM-DD; default last 30d) | `{ totalClicks, totalImpressions, avgCtr, avgPosition }` (CTR is %, position is float) |
 | `gsc_top_queries` | `from?, to?, limit?` (default 30d, top 10, max 50) | `{ queries: [{ query, clicks, impressions, ctr, avgPosition }] }` |

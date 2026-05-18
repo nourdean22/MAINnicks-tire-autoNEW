@@ -173,6 +173,39 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { customers: rows, count: (rows as unknown[]).length };
   },
 
+  // ─── Recent active customer IDs (added 2026-05-17 · Wave-200 Phase 6) ──
+  //
+  // Drives statenour's customer-preferences-recompute Inngest function
+  // (apps/statenour/src/inngest/functions/customer-preferences.ts).
+  // The cron runs daily at 11:00 UTC · grabs the IDs of customers
+  // touched in the last N days (default 90) · then fans out per-customer
+  // recompute via customer_detail.
+  //
+  // Returns: { customerIds: string[] } · cap 500 (matches statenour-side
+  // HARD_CAP) so a misbehaving caller can't blow out the fan-out budget.
+  //
+  // Filters:
+  //   · sinceDays · number · default 90 · how far back to look
+  //
+  // Per ADR-0008 (statenour) follow-up.
+  "recent_customer_ids": async (filters) => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { error: "No DB" };
+    const sinceDays = Math.max(1, Math.min(365, Number(filters.sinceDays ?? 90)));
+    const [rows] = await d.execute(sql`
+      SELECT id
+      FROM customers
+      WHERE lastVisitDate >= DATE_SUB(NOW(), INTERVAL ${sinceDays} DAY)
+        AND lastVisitDate IS NOT NULL
+      ORDER BY lastVisitDate DESC
+      LIMIT 500
+    `);
+    const customerIds = (rows as Array<{ id: string }>).map((r) => String(r.id));
+    return { customerIds, count: customerIds.length, sinceDays };
+  },
+
   // ─── Customer 360 detail (added 2026-05-17 · Wave-200 Phase 6) ──
   //
   // Single per-customer timeline that surfaces everything the statenour
