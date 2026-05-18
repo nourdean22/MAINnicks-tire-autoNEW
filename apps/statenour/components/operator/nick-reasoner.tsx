@@ -143,10 +143,12 @@ export function NickReasoner({
   const run = useCallback(async (confirmExpensive = false) => {
     const q = question.trim();
     if (!q || busy) return;
-    // H.3.4 · client-side mega confirm. Before the network call, if
-    // operator picked mega and hasn't confirmed yet, ask first.
+    // H.3.4 + N.4 · client-side mega confirm. Pre-N.4 used window.confirm
+    // which didn't trap focus + blocked the UI thread. Now uses an
+    // accessible Dialog with focus trap + ARIA conventions.
     if (tier === "mega" && !confirmExpensive) {
-      const ok = window.confirm(
+      const { megaConfirm } = await import("./mega-confirm-dialog");
+      const ok = await megaConfirm(
         "Mega tier runs deep-research + multi-agent + fanout + ghost predictions + wisdom in parallel.\n\nEstimated cost: ~$0.20\nEstimated time: 60-120s\n\nContinue?",
       );
       if (!ok) return;
@@ -177,7 +179,8 @@ export function NickReasoner({
         };
         // H.3.4 · server-side mega confirm (auto-classifier triggered mega)
         if (res.status === 402 && body.error === "confirm_expensive") {
-          const ok = window.confirm(
+          const { megaConfirm } = await import("./mega-confirm-dialog");
+          const ok = await megaConfirm(
             `${body.message}\n\nRetry with confirmation?`,
           );
           if (ok) {

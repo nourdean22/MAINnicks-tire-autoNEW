@@ -33,6 +33,7 @@ import { prisma } from "@/lib/prisma";
 import { buildGoalsSnapshot, type AxisScore } from "./goals-snapshot";
 import { buildMetaScoreboard, type ScoreboardNumber } from "./meta-scoreboard";
 import { today as todayET } from "@/lib/utils/datetime";
+import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/compound-chain");
@@ -229,7 +230,17 @@ function findScoreboardForAxis(
   );
 }
 
+/** N.5 · cached wrapper · 60s TTL matches the client cache headers
+ *  on /api/operator/compound. Chain queries are heavy (today's done
+ *  tasks join goals + axes + scoreboard) · cache hit avoids the
+ *  Promise.all of 4 snapshot builds. */
 export async function buildCompoundChain(
+  surface: CompoundSurface,
+): Promise<CompoundChainSnapshot> {
+  return cached(`compound:${surface}`, 60, () => buildCompoundChainUncached(surface));
+}
+
+async function buildCompoundChainUncached(
   surface: CompoundSurface,
 ): Promise<CompoundChainSnapshot> {
   let { start, end, label } = windowForSurface(surface);

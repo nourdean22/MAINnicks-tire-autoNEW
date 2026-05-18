@@ -206,8 +206,30 @@ async function runMultiAgent(
     goal: question,
     subAgents,
   });
-  // H.8 · real call count = sub-agents + 1 synthesizer · real cost
-  // from MultiAgentReport.costEstimateUsd (already exposed).
+  // N.6 · record persona usage per sub-agent · scorer reads these
+  // rows to compute "which personas reliably produce high-confidence
+  // answers". Best-effort · failure here never blocks the engine. The
+  // confidence used here is the multi-agent's own cost-estimate
+  // implied confidence · the actual parent run's confidence is set
+  // later in buildResult and isn't available here yet · scorer
+  // re-aggregates via the parent trace's metadata later.
+  void (async () => {
+    try {
+      const { recordPersonaUsage } = await import("@/lib/ai/personas/scorer");
+      for (const r of report.results) {
+        // Pre-M.2: sub-agent names are inline strings like "step_1"
+        // Post-M.2 wiring (H+): would be persona keys like "research-analyst"
+        await recordPersonaUsage({
+          personaKey: r.name,
+          parentTier: "multi-agent",
+          parentConfidence: r.failed ? 0.2 : 0.7, // placeholder · refined when M.2 wiring lands
+          durationMs: r.durationMs ?? 0,
+        });
+      }
+    } catch {
+      /* best-effort */
+    }
+  })();
   return {
     content: report.synthesis,
     callCount: report.results.length + 1,
@@ -466,12 +488,35 @@ async function runReasoningEngine(
 
   // Step 1 · classify
   const classifyStart = Date.now();
-  const verdict = request.tier
+  const baseVerdict = request.tier
     ? { tier: request.tier, reason: "operator-explicit override" }
     : classifyReasoning(request.question);
+  // N.2 · classifier tuner · adjusts the verdict based on learned
+  // marker-quality (H.5.3) data. Only DEMOTES · never promotes. Skips
+  // entirely for operator-explicit tier overrides. Refreshes from
+  // BrainMemory every 30min · in-memory cache otherwise.
+  let verdict = baseVerdict;
+  let adjusted = false;
+  if (!request.tier) {
+    try {
+      const { maybeAdjustTier } = await import("./classifier-tuner");
+      const tunerResult = await maybeAdjustTier(baseVerdict.reason, baseVerdict.tier);
+      if (tunerResult.adjusted) {
+        verdict = {
+          tier: tunerResult.tier,
+          reason: `${baseVerdict.reason} · tuned-down from ${baseVerdict.tier} (marker history: ${tunerResult.verdict?.verdict}, avg-conf ${tunerResult.verdict?.avgConfidence.toFixed(2)})`,
+        };
+        adjusted = true;
+      }
+    } catch {
+      // Tuner failed · proceed with base verdict (no degradation)
+    }
+  }
   rec.push(
     "classify",
-    `tier: ${verdict.tier} · ${verdict.reason}`,
+    adjusted
+      ? `tier: ${verdict.tier} (tuned from ${baseVerdict.tier}) · ${verdict.reason.slice(0, 120)}`
+      : `tier: ${verdict.tier} · ${verdict.reason}`,
     verdict,
     Date.now() - classifyStart,
   );

@@ -37,6 +37,7 @@
 import { prisma } from "@/lib/prisma";
 import { buildGoalsSnapshot, type AxisScore, type GoalRow } from "./goals-snapshot";
 import { buildMetaScoreboard, type ScoreboardNumber } from "./meta-scoreboard";
+import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("services/operator-pulse");
@@ -545,7 +546,17 @@ function isoStartOfTodayET(): Date {
   return new Date(iso);
 }
 
+/** N.5 · server-side cache wrapper · 30s TTL matches the client
+ *  staleTime · cuts the heavy goals + scoreboard snapshot queries
+ *  when multiple surfaces request the same pulse within the window
+ *  (which happens on every page navigation in the mastery area). */
 export async function buildOperatorPulse(
+  surface: PulseSurface,
+): Promise<OperatorPulseSnapshot> {
+  return cached(`pulse:${surface}`, 30, () => buildOperatorPulseUncached(surface));
+}
+
+async function buildOperatorPulseUncached(
   surface: PulseSurface,
 ): Promise<OperatorPulseSnapshot> {
   const startOfToday = isoStartOfTodayET();

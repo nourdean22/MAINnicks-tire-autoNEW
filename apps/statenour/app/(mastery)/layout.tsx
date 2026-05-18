@@ -23,6 +23,11 @@ import { DeepModeNudge } from "@/components/operator/deep-mode-nudge";
 // to-end type safety. Legacy useAuthedFetch calls keep working ·
 // gradual migration · no big-bang cutover.
 import { TRPCProvider } from "@/components/providers/trpc-provider";
+// Phase N.4 (2026-05-18 PM) · MegaConfirmHost · accessible focus-trap
+// Dialog for mega-tier cost confirms · replaces window.confirm.
+// Mounted once at layout root · components call megaConfirm() and
+// get a Promise<boolean>.
+import { MegaConfirmHost } from "@/components/operator/mega-confirm-dialog";
 
 export default function MasteryLayout({
   children,
@@ -87,6 +92,9 @@ export default function MasteryLayout({
           quick client classifier, chip appears bottom-right when
           verdict ≥ deep. One-tap to /reason. */}
       <DeepModeNudge />
+      {/* N.4 · global host for the focus-trap confirm Dialog · listens
+          for megaConfirm() calls + renders the modal. */}
+      <MegaConfirmHost />
       {/* Global brain-dump capture — Cmd/Ctrl+Shift+J from anywhere. */}
       <BrainDumpModal />
       {/* v7.3 · Apr 29 · BottomPulseTicker is GLOBAL now. Was scoped to
