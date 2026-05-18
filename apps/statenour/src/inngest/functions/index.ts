@@ -13,3 +13,7 @@ export { operatorMorningBrief } from "./morning-brief";
 export { customerPreferencesRecompute } from "./customer-preferences";
 export { bulkSmsApproval } from "./bulk-sms-approval";
 export { goalPruner } from "./goal-pruner";
+export {
+  journalConvergenceScan,
+  journalThreadDormancy,
+} from "./journal-convergence";

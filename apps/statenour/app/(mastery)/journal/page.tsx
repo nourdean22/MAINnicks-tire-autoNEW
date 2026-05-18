@@ -33,6 +33,8 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Calendar, NotebookPen, Search, X as XIcon } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
+import { ThreadRadar } from "@/components/journal/thread-radar";
+import { ThreadRail } from "@/components/journal/thread-rail";
 import {
   TYPE_META,
   type FeedEntry,
@@ -115,6 +117,11 @@ export default function JournalPage() {
   // without re-running the 16-query Promise.all the cron does. Null
   // when no cron run has landed yet or legacy rows have no metadata.
   const [meta, setMeta] = useState<MetacognitionEntry | null>(null);
+
+  // Phase D · ADR-0013 · pattern-radar refresh signal · bumped when
+  // operator confirms a convergence candidate so the ThreadRail
+  // re-pulls and shows the new thread above the feed.
+  const [threadRefresh, setThreadRefresh] = useState(0);
 
   const load = useCallback(async () => {
     // Abort any in-flight load so the latest filter wins on resolve.
@@ -323,6 +330,15 @@ export default function JournalPage() {
           "What's the unresolved tension I keep avoiding?",
         ]}
       />
+
+      {/* Phase D · ADR-0013 · pattern-radar
+          ThreadRadar shows convergence candidates the nightly cron
+          detected · silent when none. ThreadRail shows pinned active
+          (and dormant) threads · silent when none. Both sit ABOVE the
+          metacognition card so emerging-theme signals get priority
+          over nightly self-assessment. */}
+      <ThreadRadar onThreadCreated={() => setThreadRefresh((n) => n + 1)} />
+      <ThreadRail refreshSignal={threadRefresh} />
 
       {/* v10.0.529.24 · METACOGNITION CARD — Nick's nightly self-
           assessment of his own brain, computed by the evening cron and

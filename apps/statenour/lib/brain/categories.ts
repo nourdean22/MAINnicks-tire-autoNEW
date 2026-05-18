@@ -252,6 +252,18 @@ export const BRAIN_CATEGORIES = {
    *  meta-scoreboard composer to show "as of 6am" baseline · live
    *  page-render adds runtime-detected anomalies on top. */
   SCOREBOARD_PINNED: "scoreboard_pinned",
+  /** Phase D · ADR-0013 · journal pattern-radar convergence candidate.
+   *  Key = clusterHash · metadata = { size, coherence, members[],
+   *  nameSuggestions[], detectedAt }. Written by journal-convergence
+   *  Inngest cron · read by /journal page ThreadRadar card · soft-
+   *  deleted when operator names the cluster (becomes a JournalThread)
+   *  or dismisses it. */
+  JOURNAL_CONVERGENCE_CANDIDATE: "journal_convergence_candidate",
+  /** Phase D · auto-join suggestion (similarity in 0.65-0.80 band).
+   *  Key = `${threadId}:${entrySource}:${entryId}` · written by
+   *  capture-write post-hook · read by /journal page · operator
+   *  confirms/rejects through the ThreadRail UI. */
+  JOURNAL_THREAD_SUGGESTION: "journal_thread_suggestion",
 
   // ═══ DEPRECATED — kept so old data still reads; codemod migrates writes ═══
 
