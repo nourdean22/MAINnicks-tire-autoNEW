@@ -123,7 +123,11 @@ export const megaFanoutMorning = inngest.createFunction(
   {
     id: "mega-fanout-morning",
     name: "Mega cron fan-out · morning",
-    concurrency: { limit: 6 },
+    // 2026-05-17 · Inngest free tier caps concurrency at 5 (was 6 to
+    // mirror v10.0.195's withConcurrency · close enough · the rate-
+    // limit pressure spread benefit holds at 5). Bump back to 6 when
+    // upgrading the Inngest plan.
+    concurrency: { limit: 5 },
     retries: 3,
     // Cron trigger uses TZ=UTC by default — keep schedule identical
     // to the existing Vercel/Railway 9am UTC trigger. v4 SDK takes
@@ -168,7 +172,11 @@ export const megaFanoutEvening = inngest.createFunction(
   {
     id: "mega-fanout-evening",
     name: "Mega cron fan-out · evening",
-    concurrency: { limit: 6 },
+    // 2026-05-17 · Inngest free tier caps concurrency at 5 (was 6 to
+    // mirror v10.0.195's withConcurrency · close enough · the rate-
+    // limit pressure spread benefit holds at 5). Bump back to 6 when
+    // upgrading the Inngest plan.
+    concurrency: { limit: 5 },
     retries: 3,
     triggers: [{ cron: "0 3 * * *" }],
     onFailure: onInngestFailure,
