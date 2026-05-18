@@ -74,6 +74,22 @@ export const GET = apiHandler(async () => {
       }).catch(() => 0),
     ]);
 
+    // Morning brief readiness · 2026-05-18 PM follow-up · used by the
+    // homescreen narrator to lead with 'brief ready' when present.
+    // Cheap probe · the brief row is indexed by composite (category, key).
+    const today = new Date().toISOString().slice(0, 10);
+    const briefRow = await prisma.brainMemory
+      .findUnique({
+        where: { category_key: { category: "morning_brief", key: today } },
+        select: { updatedAt: true },
+      })
+      .catch(() => null);
+    const morningBrief = {
+      ready: briefRow != null,
+      date: today,
+      composedAt: briefRow?.updatedAt?.toISOString() ?? null,
+    };
+
     const tasks = { inbox: 0, ready: 0, doing: 0, done: 0, total: 0 };
     for (const g of taskCounts) {
       const count = g._count.id;
@@ -112,6 +128,7 @@ export const GET = apiHandler(async () => {
       commitments: { active: commitmentCount },
       devices,
       radar,
+      morningBrief,
       // 2026-05-17 follow-up · WAVE-200 substrate visibility
       inngest: {
         configured: isInngestFullyConfigured(),
