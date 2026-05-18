@@ -1,8 +1,12 @@
 # Migration 0001 · Mission.lifeGoalId
 
-> **Status**: PARKED · awaiting operator apply to Neon prod
+> **Status**: APPLIED to Neon prod 2026-05-18 via SQL editor
 > **ADR**: 0012 · explicit Mission→LifeGoal first-class relation
 > **Phase**: Wave-200 Phase A.3 (post-goals page merge)
+>
+> This directory is now historical. The schema lives in `schema.prisma`.
+> The `migrations-pending/` directory pattern (ADR-0012) records the SQL
+> that was actually applied · do not re-run.
 
 ## What it does
 

@@ -1,6 +1,6 @@
 # ADR-0012 · Mission.lifeGoalId FK · first-class mission↔goal relation
 
-> **Status**: Accepted · migration PARKED at `prisma/migrations-pending/`
+> **Status**: Accepted · APPLIED to Neon prod 2026-05-18
 > **Date**: 2026-05-18 · Phase A.3 schema follow-up to ADR-0010
 > **Decision drivers**: operator explicitly asked · implicit task-derived
 > linking documented as weak in ADR-0010 · ready to make it first-class
@@ -114,10 +114,12 @@ says single FK · upgrade later if needed.
 
 ## Operator action items
 
-1. Apply parked migration when comfortable (per
-   `prisma/migrations-pending/0001_mission_lifegoalid/README.md`)
+1. ~~Apply parked migration when comfortable~~ — APPLIED 2026-05-18 via
+   Neon SQL editor in single transaction
 2. Run `pnpm --filter @statenour/web exec prisma generate` after apply
-3. Redeploy statenour-web on Railway · types pick up
+   (already done at commit time · types already shipped)
+3. Redeploy statenour-web on Railway · types pick up — no action needed,
+   the next deploy auto-includes the regenerated client
 
 ## References
 
