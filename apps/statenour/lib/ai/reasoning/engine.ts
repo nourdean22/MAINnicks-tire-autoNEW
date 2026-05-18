@@ -46,6 +46,7 @@ import type {
 } from "./types";
 import { classifyReasoning } from "./classifier";
 import { TIER_CONFIG } from "./tier-config";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("ai/reasoning/engine");
 
@@ -1045,7 +1046,7 @@ async function persistTrace(
       : result.trace.answer;
     await prisma.brainMemory.create({
       data: {
-        category: "reasoning_trace",
+        category: BRAIN_CATEGORIES.REASONING_TRACE,
         key,
         content: `[${result.tier}] ${question.slice(0, 120)} → ${summary}`,
         confidence: result.trace.confidence,
@@ -1102,7 +1103,7 @@ async function recordOrphan(source: string, wastedMs: number): Promise<void> {
     const { prisma } = await import("@/lib/prisma");
     await prisma.brainMemory.create({
       data: {
-        category: "reasoning_orphan",
+        category: BRAIN_CATEGORIES.REASONING_ORPHAN,
         // H.7.7 · same crypto.randomUUID upgrade
         key: `orphan_${source}_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
         content: `mega tier source "${source}" landed ${wastedMs}ms after budget timeout · cost wasted`,
@@ -1138,20 +1139,20 @@ export async function rotateReasoningTraces(): Promise<{
     const cutoff = new Date(Date.now() - 30 * 86_400_000);
     const ageDel = await prisma.brainMemory.deleteMany({
       where: {
-        category: "reasoning_trace",
+        category: BRAIN_CATEGORIES.REASONING_TRACE,
         createdAt: { lt: cutoff },
       },
     });
     // After age-pruning, enforce 500-row cap. Cheap because the index
     // on (category, createdAt) makes the offset query bounded.
     const count = await prisma.brainMemory.count({
-      where: { category: "reasoning_trace", deletedAt: null },
+      where: { category: BRAIN_CATEGORIES.REASONING_TRACE, deletedAt: null },
     });
     let capDel = 0;
     if (count > 500) {
       const excess = count - 500;
       const oldRows = await prisma.brainMemory.findMany({
-        where: { category: "reasoning_trace", deletedAt: null },
+        where: { category: BRAIN_CATEGORIES.REASONING_TRACE, deletedAt: null },
         orderBy: { createdAt: "asc" },
         take: excess,
         select: { id: true },

@@ -39,6 +39,7 @@ import { buildGoalsSnapshot, type AxisScore, type GoalRow } from "./goals-snapsh
 import { buildMetaScoreboard, type ScoreboardNumber } from "./meta-scoreboard";
 import { cached } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("services/operator-pulse");
 
@@ -463,7 +464,7 @@ async function pickWisdomForPulse(input: {
   const since = new Date(Date.now() - 6 * 60 * 60 * 1000);
   const shownRecently = await prisma.brainMemory
     .findMany({
-      where: { category: "pulse_wisdom_shown", updatedAt: { gte: since } },
+      where: { category: BRAIN_CATEGORIES.PULSE_WISDOM_SHOWN, updatedAt: { gte: since } },
       select: { key: true },
       take: 200,
     })
@@ -496,10 +497,10 @@ async function pickWisdomForPulse(input: {
   void prisma.brainMemory
     .upsert({
       where: {
-        category_key: { category: "pulse_wisdom_shown", key: `pulse:${best.row.id}` },
+        category_key: { category: BRAIN_CATEGORIES.PULSE_WISDOM_SHOWN, key: `pulse:${best.row.id}` },
       },
       create: {
-        category: "pulse_wisdom_shown",
+        category: BRAIN_CATEGORIES.PULSE_WISDOM_SHOWN,
         key: `pulse:${best.row.id}`,
         content: `pulse surfaced wisdom ${best.row.id}`,
         confidence: 0.5,

@@ -22,6 +22,7 @@
  */
 
 import type { ReasoningResult } from "./types";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 export const IDEMPOTENCY_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -44,7 +45,7 @@ export async function lookupIdempotency(
     const cutoff = new Date(Date.now() - IDEMPOTENCY_TTL_MS);
     const row = await prisma.brainMemory.findFirst({
       where: {
-        category: "reasoning_idempotency",
+        category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY,
         key: `idem:${key}`,
         createdAt: { gte: cutoff },
         deletedAt: null,
@@ -77,7 +78,7 @@ export async function reserveIdempotency(key: string, requestHash: string): Prom
     const { prisma } = await import("@/lib/prisma");
     await prisma.brainMemory.create({
       data: {
-        category: "reasoning_idempotency",
+        category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY,
         key: `idem:${key}`,
         content: `in-flight · request hash ${requestHash.slice(0, 16)}`,
         confidence: 0.5,
@@ -113,7 +114,7 @@ export async function storeIdempotencyResult(
       }),
     );
     await prisma.brainMemory.updateMany({
-      where: { category: "reasoning_idempotency", key: `idem:${key}` },
+      where: { category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY, key: `idem:${key}` },
       data: {
         content: `completed · ${result.tier} tier · ${result.trace.cost.calls} calls`,
         metadata: metadataJson,
@@ -130,7 +131,7 @@ export async function releaseIdempotency(key: string): Promise<void> {
   try {
     const { prisma } = await import("@/lib/prisma");
     await prisma.brainMemory.deleteMany({
-      where: { category: "reasoning_idempotency", key: `idem:${key}` },
+      where: { category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY, key: `idem:${key}` },
     });
   } catch {
     // Best-effort
@@ -166,7 +167,7 @@ export async function pruneStaleIdempotency(): Promise<void> {
     const { prisma } = await import("@/lib/prisma");
     const cutoff = new Date(Date.now() - IDEMPOTENCY_TTL_MS);
     await prisma.brainMemory.deleteMany({
-      where: { category: "reasoning_idempotency", createdAt: { lt: cutoff } },
+      where: { category: BRAIN_CATEGORIES.REASONING_IDEMPOTENCY, createdAt: { lt: cutoff } },
     });
   } catch {
     // Best-effort

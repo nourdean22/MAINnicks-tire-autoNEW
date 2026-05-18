@@ -32,7 +32,16 @@ function validateAndCanonicalizeCategory(
 ): string {
   if (DEPRECATED_CATEGORY_MAP[category]) {
     const target = DEPRECATED_CATEGORY_MAP[category];
-    log.info("deprecated_category", { from: category, to: target, source });
+    // P.3 · elevated from log.info → log.warn so deprecated writes
+    // appear in the /system/logs warnings tier alongside the existing
+    // unknown_category warnings. Operator can spot drift without
+    // needing to dig into info-level logs.
+    log.warn("deprecated_category", {
+      from: category,
+      to: target,
+      source,
+      hint: "use BRAIN_CATEGORIES.* constant instead of the deprecated string · see lib/brain/categories.ts DEPRECATED_CATEGORY_MAP",
+    });
     return target;
   }
   if (!isKnownCategory(category)) {
