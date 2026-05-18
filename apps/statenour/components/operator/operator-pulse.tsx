@@ -109,10 +109,15 @@ export function OperatorPulse({
   }, [reload]);
 
   if (!data) return null;
-  const lines = [data.pulse, data.forecast, data.drift].filter(
-    (l): l is PulseLine => l !== null,
-  );
-  const hasAnyContent = lines.length > 0 || data.wisdom !== null;
+  // Phase G.2 fix · label by slot intent · pre-fix the labels were
+  // assigned by filtered-index so a null forecast made drift render
+  // as "forecast" (observed on /scoreboard 2026-05-18). Now each
+  // present line carries its own canonical label.
+  const slots: Array<{ key: "pulse" | "forecast" | "drift"; line: PulseLine }> = [];
+  if (data.pulse) slots.push({ key: "pulse", line: data.pulse });
+  if (data.forecast) slots.push({ key: "forecast", line: data.forecast });
+  if (data.drift) slots.push({ key: "drift", line: data.drift });
+  const hasAnyContent = slots.length > 0 || data.wisdom !== null;
   if (!hasAnyContent) return null;
 
   return (
@@ -123,8 +128,7 @@ export function OperatorPulse({
         className ?? "",
       ].join(" ")}
     >
-      {lines.map((line, i) => {
-        const labelKey = i === 0 ? "pulse" : i === 1 ? "forecast" : "drift";
+      {slots.map(({ key: labelKey, line }) => {
         const body = (
           <span className="flex items-start gap-2.5 text-sm leading-snug">
             <span
