@@ -178,9 +178,29 @@ function Card({ number }: { number: ScoreNumber }) {
       ) : null}
     </div>
   );
-  if (number.link) {
+  // Phase D follow-up audit (2026-05-18) · cross-link #3 · default
+  // an anomalous card with no explicit `link` to a /journal search
+  // pre-filtered by the metric label. Operator sees what they've
+  // journaled about the same theme · closes the audit's 'no
+  // scoreboard anomaly links to /goals or /journal' gap. Explicit
+  // `number.link` from the snapshot service still wins · this is
+  // purely a fallback for anomalies with no narrator-supplied link.
+  const resolvedHref =
+    number.link ??
+    (number.anomalous
+      ? `/journal?search=${encodeURIComponent(number.label)}`
+      : null);
+  if (resolvedHref) {
     return (
-      <Link href={number.link} className="block">
+      <Link
+        href={resolvedHref}
+        className="block"
+        title={
+          number.link
+            ? undefined
+            : `journal entries about '${number.label}'`
+        }
+      >
         {inner}
       </Link>
     );

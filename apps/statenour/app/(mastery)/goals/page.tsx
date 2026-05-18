@@ -267,9 +267,21 @@ function GoalCard({ goal }: { goal: GoalRow }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="text-sm font-medium truncate">{goal.title}</p>
-            <span className="text-[10px] uppercase tracking-wider text-white/40 border border-white/10 rounded px-1.5 py-0.5">
-              {goal.domain}
-            </span>
+            {/* Phase D follow-up audit (2026-05-18) · cross-link #2 ·
+                domain chip becomes a link to /journal pre-filtered
+                by the domain name. Operator can quickly see what
+                they've journaled about this goal's domain · closes
+                the audit's '/goals has no reciprocal journal link'
+                gap. Falls back to no-link if domain is empty. */}
+            {goal.domain ? (
+              <Link
+                href={`/journal?search=${encodeURIComponent(goal.domain)}`}
+                className="text-[10px] uppercase tracking-wider text-white/40 border border-white/10 rounded px-1.5 py-0.5 hover:text-white/70 hover:border-white/20"
+                title={`journal entries mentioning '${goal.domain}'`}
+              >
+                {goal.domain}
+              </Link>
+            ) : null}
             {isStale ? (
               <Link
                 href={`/chat?q=walk%20me%20through%20pruning%20goal%20${encodeURIComponent(goal.title)}`}
