@@ -26,19 +26,53 @@ export const GET = apiHandler(async () => {
   return cached("health_v1", 30, async () => {
     // Apr 17 sweep: DailyScore, MorningBrief, OpenLoop models retired. The
     // health endpoint now reflects the live Task/Commitment/Drift surface.
-    const [db, alertCount, taskCounts, commitmentCount, deviceCounts] =
-      await Promise.all([
-        checkDbConnection(),
-        prisma.driftAlert.count({ where: { resolved: false } }),
-        prisma.task.groupBy({ by: ["status"], _count: { id: true } }),
-        prisma.commitment.count({
-          where: { status: { in: ["active", "in_progress"] } },
-        }),
-        prisma.smartDevice.groupBy({
-          by: ["status"],
-          _count: { id: true },
-        }),
-      ]);
+    // 2026-05-18 PM · Phase D radar visibility added (4 extra cheap counts)
+    const [
+      db,
+      alertCount,
+      taskCounts,
+      commitmentCount,
+      deviceCounts,
+      threadCounts,
+      candidateCount,
+      suggestionCount,
+    ] = await Promise.all([
+      checkDbConnection(),
+      prisma.driftAlert.count({ where: { resolved: false } }),
+      prisma.task.groupBy({ by: ["status"], _count: { id: true } }),
+      prisma.commitment.count({
+        where: { status: { in: ["active", "in_progress"] } },
+      }),
+      prisma.smartDevice.groupBy({
+        by: ["status"],
+        _count: { id: true },
+      }),
+      // Phase D radar telemetry · 2026-05-18 PM follow-up · groupBy
+      // on status surfaces active + dormant + archived counts in
+      // one round-trip.
+      prisma.journalThread.groupBy({
+        by: ["status"],
+        where: { deletedAt: null },
+        _count: { id: true },
+      }).catch((): never[] => []),
+      // Pending convergence candidates (cron-detected, awaiting
+      // operator naming). High count = operator hasn't visited
+      // /journal in a while.
+      prisma.brainMemory.count({
+        where: {
+          category: "journal_convergence_candidate",
+          deletedAt: null,
+        },
+      }).catch(() => 0),
+      // Pending auto-join suggestions (0.65-0.80 sim band). High
+      // count = lots of borderline matches waiting for triage.
+      prisma.brainMemory.count({
+        where: {
+          category: "journal_thread_suggestion",
+          deletedAt: null,
+        },
+      }).catch(() => 0),
+    ]);
 
     const tasks = { inbox: 0, ready: 0, doing: 0, done: 0, total: 0 };
     for (const g of taskCounts) {
@@ -56,6 +90,20 @@ export const GET = apiHandler(async () => {
       else devices.offline += count;
     }
 
+    // Phase D radar rollup · same shape as devices/tasks groupBy.
+    const radar = {
+      threads: { active: 0, dormant: 0, archived: 0, total: 0 },
+      pendingCandidates: candidateCount,
+      pendingSuggestions: suggestionCount,
+    };
+    for (const g of threadCounts) {
+      const count = g._count.id;
+      radar.threads.total += count;
+      if (g.status === "active") radar.threads.active = count;
+      else if (g.status === "dormant") radar.threads.dormant = count;
+      else if (g.status === "archived") radar.threads.archived = count;
+    }
+
     return {
       status: db.connected ? "healthy" : "degraded",
       db: { connected: db.connected, latency_ms: db.latency_ms },
@@ -63,6 +111,7 @@ export const GET = apiHandler(async () => {
       alerts: { unresolved: alertCount },
       commitments: { active: commitmentCount },
       devices,
+      radar,
       // 2026-05-17 follow-up · WAVE-200 substrate visibility
       inngest: {
         configured: isInngestFullyConfigured(),
