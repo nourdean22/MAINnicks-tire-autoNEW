@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 4 / 50+ surfaces · ~8% complete
+**Status:** 5 / 50+ surfaces · ~10% complete · 3 domain routers (nick · operator · **system** ← added in S.2)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (4)
+## Migrated surfaces (5)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -27,6 +27,17 @@ End-to-end types flow from server → client · no manual mirrors.
 | `/reason/telemetry` | `useAuthedFetch<TelemetryShape>` | `trpc.nick.telemetry.useQuery` | J |
 | OperatorPulse component | `useAuthedFetch<PulseShape>` | `trpc.operator.pulse.useQuery` | J |
 | CompoundChain component | `useAuthedFetch<CompoundShape>` | `trpc.operator.compound.useQuery` | J |
+| `/system/health` | `useAuthedFetch` → `/api/system/health-report?range=X` | `trpc.system.healthReport.useQuery({range})` | **S.3** |
+
+## Architectural notes
+
+- **S.2** added the third domain router (`system`) · sets the
+  precedent for future `/system/*` migrations. The shared
+  `lib/services/system-health.ts` service is called by BOTH the
+  legacy REST handler and the tRPC procedure · drift is structurally
+  impossible.
+- React Query inherits the per-input refetch and 2-min `refetchInterval`
+  the previous `setInterval`-driven page had · less code, fewer bugs.
 
 ## Pending surfaces (~46)
 

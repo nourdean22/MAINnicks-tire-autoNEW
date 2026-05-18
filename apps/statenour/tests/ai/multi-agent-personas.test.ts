@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 import { resolveSubAgentSystemPrompt } from "@/lib/ai/multi-agent-orchestrator";
+import { classifyStepIntent } from "@/lib/ai/reasoning/engine";
 import {
   RESEARCH_ANALYST,
   CONTRARIAN_CRITIC,
@@ -110,5 +111,52 @@ describe("persona library · Phase R wiring depends on these contracts", () => {
     expect(prompt).toContain(CONTRARIAN_CRITIC.goal);
     expect(prompt).toContain(CONTRARIAN_CRITIC.backstory);
     expect(prompt).toContain(CONTRARIAN_CRITIC.outputHint);
+  });
+});
+
+describe("classifyStepIntent · Phase S.1 per-step persona routing", () => {
+  it("action verbs route to execution-planner", () => {
+    expect(classifyStepIntent("1. create a Notion page for the campaign")).toBe("execution-planner");
+    expect(classifyStepIntent("2) ship the v2 wave to production")).toBe("execution-planner");
+    expect(classifyStepIntent("3. deploy the migration script")).toBe("execution-planner");
+    expect(classifyStepIntent("4) schedule the follow-up email"))
+      .toBe("execution-planner");
+    expect(classifyStepIntent("draft the proposal")).toBe("execution-planner");
+    expect(classifyStepIntent("Update the dashboard copy")).toBe("execution-planner");
+    expect(classifyStepIntent("Refactor the auth flow")).toBe("execution-planner");
+    expect(classifyStepIntent("commit + push the change")).toBe("execution-planner");
+  });
+
+  it("research/question phrasing routes to research-analyst", () => {
+    expect(classifyStepIntent("1. find the top 3 competitors")).toBe("research-analyst");
+    expect(classifyStepIntent("2) what is the average cost per acquisition"))
+      .toBe("research-analyst");
+    expect(classifyStepIntent("3. analyze the conversion funnel")).toBe("research-analyst");
+    expect(classifyStepIntent("identify the biggest churn driver")).toBe("research-analyst");
+    expect(classifyStepIntent("compare option A vs option B")).toBe("research-analyst");
+    expect(classifyStepIntent("benchmark against Q3 numbers")).toBe("research-analyst");
+  });
+
+  it("conjugations of action verbs still route correctly", () => {
+    expect(classifyStepIntent("building the new dashboard")).toBe("execution-planner");
+    expect(classifyStepIntent("shipped the auth flow yesterday")).toBe("execution-planner");
+    expect(classifyStepIntent("creating a brand voice doc")).toBe("execution-planner");
+  });
+
+  it("empty/whitespace lines default to research-analyst (safe default)", () => {
+    expect(classifyStepIntent("")).toBe("research-analyst");
+    expect(classifyStepIntent("   ")).toBe("research-analyst");
+    expect(classifyStepIntent("1.")).toBe("research-analyst");
+  });
+
+  it("handles both `1.` and `1)` plan-line prefixes", () => {
+    expect(classifyStepIntent("1. ship it")).toBe("execution-planner");
+    expect(classifyStepIntent("1) ship it")).toBe("execution-planner");
+    expect(classifyStepIntent("1.ship it")).toBe("execution-planner");
+  });
+
+  it("ambiguous non-action words default to research-analyst", () => {
+    expect(classifyStepIntent("1. operator reviews the brief")).toBe("research-analyst");
+    expect(classifyStepIntent("2) team decides on direction")).toBe("research-analyst");
   });
 });
