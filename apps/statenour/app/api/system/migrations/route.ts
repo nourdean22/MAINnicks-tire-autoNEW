@@ -64,14 +64,16 @@ const MIGRATIONS: Migration[] = [
     name: "M.2 persona wiring (runMultiAgent ← personas)",
     startedAt: "2026-05-18",
     strategy: "Coexistence · inline sub-agents keep working · personas add structure",
-    // Phase R + S + T (2026-05-18 PM) · stalled → in-progress
-    // 3 call-sites wired:
+    // Phase U (2026-05-18 PM) · in-progress → COMPLETED
+    // All 4 reasoning sub-pipelines now flow through typed personas:
     //   R · engine.ts runMultiAgent uses research-analyst + contrarian-critic
-    //   S.1 · per-step classifyStepIntent() routing
+    //   S.1 · per-step classifyStepIntent() per plan line
     //   T · deep-research worker uses RESEARCH_PLANNER + RESEARCH_SYNTHESIZER
-    // Smart-tier inherits via runMultiAgent (verified S.3).
-    status: "in-progress",
-    nextMilestone: "Wire pretask-fanout.ts 3-lens fan-out · last reasoning sub-pipeline without typed personas (research + risk + plan lenses)",
+    //   U · pretask-fanout uses research-analyst + contrarian-critic + execution-planner
+    // N.6 scorer now feeds from EVERY reasoning sub-pipeline · per-persona
+    // verdicts compute across the entire stack.
+    status: "completed",
+    nextMilestone: "(MIGRATION COMPLETE · M.2 library now consumed by all 4 reasoning sub-pipelines · N.6 scorer feeds from all of them · no remaining placeholder personaKey usage)",
   },
 ];
 

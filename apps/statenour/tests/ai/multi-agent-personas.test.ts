@@ -14,6 +14,7 @@
 import { describe, expect, it } from "vitest";
 import { resolveSubAgentSystemPrompt } from "@/lib/ai/multi-agent-orchestrator";
 import { classifyStepIntent } from "@/lib/ai/reasoning/engine";
+import { LENS_PERSONA_KEY } from "@/lib/ai/pretask-fanout";
 import {
   RESEARCH_ANALYST,
   CONTRARIAN_CRITIC,
@@ -205,5 +206,46 @@ describe("specialist personas · Phase T deep-research wiring", () => {
     expect(planner).not.toBe(generic);
     expect(synth).not.toBe(generic);
     expect(planner).not.toBe(synth);
+  });
+});
+
+describe("pretask-fanout lens personas · Phase U.1 wiring", () => {
+  it("research lens maps to research-analyst", () => {
+    // pretask-fanout.ts hard-codes this mapping in LENS_PERSONA_KEY ·
+    // if research-analyst's key ever drifts this test catches it.
+    expect(LENS_PERSONA_KEY.research).toBe("research-analyst");
+    expect(getPersona(LENS_PERSONA_KEY.research)).not.toBeNull();
+  });
+
+  it("risk lens maps to contrarian-critic", () => {
+    expect(LENS_PERSONA_KEY.risk).toBe("contrarian-critic");
+    expect(getPersona(LENS_PERSONA_KEY.risk)).not.toBeNull();
+  });
+
+  it("plan lens maps to execution-planner", () => {
+    expect(LENS_PERSONA_KEY.plan).toBe("execution-planner");
+    expect(getPersona(LENS_PERSONA_KEY.plan)).not.toBeNull();
+  });
+
+  it("all 3 lens personas resolve to distinct system prompts", () => {
+    // The fanout fires the 3 lenses in parallel so their prompts must
+    // be distinguishable · same-prompt collisions would collapse the
+    // 3-angle analysis into 3 copies of the same answer.
+    const research = personaToSystemPrompt(RESEARCH_ANALYST);
+    const risk = personaToSystemPrompt(CONTRARIAN_CRITIC);
+    const plan = personaToSystemPrompt(EXECUTION_PLANNER);
+    expect(research).not.toBe(risk);
+    expect(risk).not.toBe(plan);
+    expect(research).not.toBe(plan);
+  });
+
+  it("PERSONAS registry includes all M.2 wired personas (10 total)", () => {
+    // Sanity · the M.2 chain (R + S + T + U) wired:
+    //   · research-analyst · contrarian-critic · execution-planner
+    //   · synthesizer · fact-checker
+    //   · research-planner · research-synthesizer (T specialists)
+    //   · buffett · naval · munger (wisdom personas)
+    // 10 personas total. Adding more is fine · this asserts the floor.
+    expect(Object.keys(PERSONAS).length).toBeGreaterThanOrEqual(10);
   });
 });

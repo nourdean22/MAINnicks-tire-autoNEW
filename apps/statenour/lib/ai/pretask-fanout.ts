@@ -32,6 +32,12 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  RESEARCH_ANALYST,
+  CONTRARIAN_CRITIC,
+  EXECUTION_PLANNER,
+  personaToSystemPrompt,
+} from "@/lib/ai/personas";
 
 const log = rootLogger.withSurface("ai/pretask-fanout");
 
@@ -50,31 +56,27 @@ interface FanoutArgs {
   brainContext?: string;
 }
 
-const RESEARCH_SYSTEM = `You are a research analyst. Given a question, list the 3-5 CONCRETE pieces of information needed to answer it well · numbers, names, current state of relevant systems. No fluff.
+// Phase U (2026-05-18 PM) · the 3 fanout lenses now flow through the
+// typed persona library · closes the M.2 wiring chain (R · runMultiAgent
+// + S.1 · per-step routing + T · deep-research worker + U · pretask
+// fanout = all reasoning sub-pipelines wired). N.6 scorer can now
+// compute per-persona verdicts for the ENTIRE reasoning stack.
+//
+// Maps · research lens → RESEARCH_ANALYST · risk lens →
+// CONTRARIAN_CRITIC · plan lens → EXECUTION_PLANNER. The personas'
+// goals + backstories already match each lens's intent exactly so
+// no domain fidelity is lost in the swap.
+const RESEARCH_SYSTEM = personaToSystemPrompt(RESEARCH_ANALYST);
+const RISK_SYSTEM = personaToSystemPrompt(CONTRARIAN_CRITIC);
+const PLAN_SYSTEM = personaToSystemPrompt(EXECUTION_PLANNER);
 
-Output format · plain text, hyphen list, max 200 words:
-- info needed 1
-- info needed 2
-- ...
-
-NO MARKDOWN. NO HEADERS. Be terse.`;
-
-const RISK_SYSTEM = `You are a contrarian risk analyst. Given a question/decision, list the 3-5 most likely failure modes · what could go wrong · what's being missed. Be specific not generic.
-
-Output format · plain text, hyphen list, max 200 words:
-- risk 1
-- risk 2
-- ...
-
-NO MARKDOWN. NO HEADERS. Be terse.`;
-
-const PLAN_SYSTEM = `You are an execution planner. Given a question/decision (assume it gets approved), sketch the 3-5 step sequence to do it · concrete actions with checkpoints. No vague verbs.
-
-Output format · plain text, numbered list, max 200 words:
-1. concrete step
-2. ...
-
-NO MARKDOWN. NO HEADERS. Be terse.`;
+/** Mapping from fanout lens name to persona key · exported so tests
+ *  + scorer consumers know which persona key each lens fires under. */
+export const LENS_PERSONA_KEY = {
+  research: RESEARCH_ANALYST.key,
+  risk: CONTRARIAN_CRITIC.key,
+  plan: EXECUTION_PLANNER.key,
+} as const;
 
 // v10.0.529.106 · Wave 59 · pre-Wave-59 each lens fired raw at
 // api.openai.com burning real OpenAI tokens even when Venice or
@@ -126,6 +128,11 @@ async function instrumentedLens(
   // GPT tokenization. Captures input + output combined.
   const estimatedTokens = Math.round((systemPrompt.length + userPrompt.length + text.length) / 4);
 
+  // Phase U · N.6 telemetry · record persona usage for the lens so
+  // scorePersonas() sees the fanout personas alongside multi-agent +
+  // deep-research. Implied confidence from success (0.7 / 0.2).
+  const personaKey = LENS_PERSONA_KEY[lensName];
+
   void (async () => {
     try {
       const { prisma } = await import("@/lib/prisma");
@@ -136,6 +143,7 @@ async function instrumentedLens(
           unit: "tokens",
           tags: {
             lens: lensName,
+            personaKey,
             durationMs,
             success,
             outputChars: text.length,
@@ -145,6 +153,20 @@ async function instrumentedLens(
       });
     } catch {
       // telemetry must never block the lens result
+    }
+  })();
+
+  void (async () => {
+    try {
+      const { recordPersonaUsage } = await import("@/lib/ai/personas/scorer");
+      await recordPersonaUsage({
+        personaKey,
+        parentTier: "pretask-fanout",
+        parentConfidence: success ? 0.7 : 0.2,
+        durationMs,
+      });
+    } catch {
+      /* best-effort · same pattern as runMultiAgent + deep-research */
     }
   })();
 

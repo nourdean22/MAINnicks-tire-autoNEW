@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 6 / 50+ surfaces · ~12% complete · 3 domain routers (nick · operator · system) · invalidate-after-mutation pattern adopted (T.4)
+**Status:** 7 / 50+ surfaces · ~14% complete · 3 domain routers (nick · operator · system with 3 procedures) · invalidate-after-mutation pattern adopted (T.4)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (6)
+## Migrated surfaces (7)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -28,7 +28,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | OperatorPulse component | `useAuthedFetch<PulseShape>` | `trpc.operator.pulse.useQuery` | J |
 | CompoundChain component | `useAuthedFetch<CompoundShape>` | `trpc.operator.compound.useQuery` | J |
 | `/system/health` | `useAuthedFetch` → `/api/system/health-report?range=X` | `trpc.system.healthReport.useQuery({range})` | S.3 |
-| `/system/cron-diagnostics` (read only) | `authedFetch` → `/api/system/cron-diagnostics` | `trpc.system.cronDiagnostics.useQuery()` | **T.4** |
+| `/system/cron-diagnostics` (read only) | `authedFetch` → `/api/system/cron-diagnostics` | `trpc.system.cronDiagnostics.useQuery()` | T.4 |
+| `/system/lens-stats` | `authedFetch` → `/api/system/lens-stats?days=N` | `trpc.system.lensStats.useQuery({days})` | **U.4** |
 
 ## Architectural notes
 

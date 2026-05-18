@@ -13,40 +13,19 @@
  *     teach / tasks / suggest-goals / nick-noticed
  *   · Window selector · 1d / 7d / 30d / 90d
  *
- * The numbers come from SystemMetric rows where metric = "ai.lens_fired"
- * (written by lib/ai/strategic-frameworks/record-lens-fire.ts). Empty
- * dashboard means no traffic since the v10.0.264 helper landed.
+ * Phase U.4 (2026-05-18 PM) · migrated from `useAuthedFetch` to
+ * `trpc.system.lensStats.useQuery({ days })`. Types now flow from
+ * `lib/services/lens-stats.ts` via the system router · the 3 manual
+ * interfaces (FrameworkAgg / SurfaceAgg / LensStats) are gone.
+ * React Query's refetchInterval replaces the manual 60s setInterval.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { FrameworkOrbit } from "@/components/3d/framework-orbit";
-
-interface FrameworkAgg {
-  framework: string;
-  count: number;
-  avgScore: number;
-}
-
-interface SurfaceAgg {
-  surface: string;
-  count: number;
-  fallbackCount: number;
-  fallbackRate: number;
-}
-
-interface LensStats {
-  windowDays: number;
-  sinceIso: string;
-  totalFires: number;
-  totalFallbacks: number;
-  fallbackRate: number;
-  topFrameworks: FrameworkAgg[];
-  surfaces: SurfaceAgg[];
-}
 
 const WINDOWS = [
   { label: "1d", days: 1 },
@@ -56,41 +35,18 @@ const WINDOWS = [
 ] as const;
 
 export default function LensStatsPage() {
-  const [data, setData] = useState<LensStats | null>(null);
   const [days, setDays] = useState<number>(7);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch(`/api/system/lens-stats?days=${days}`);
-      if (!r.ok) {
-        setError(`HTTP ${r.status}`);
-        setData(null);
-        return;
-      }
-      const payload = (await r.json()) as { data: LensStats } | LensStats;
-      const stats = "data" in payload ? payload.data : payload;
-      setData(stats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  // Auto-refresh every 60s · same cadence as ai-cost dashboard
-  useEffect(() => {
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase U.4 · React Query handles per-window refetch + 60s
+  // refetchInterval automatically. `days` is part of the input key
+  // so changing the window triggers an automatic refetch.
+  const { data, error, isLoading: loading } = trpc.system.lensStats.useQuery(
+    { days },
+    {
+      refetchInterval: 60_000,
+      staleTime: 30_000,
+    },
+  );
 
   const maxFrameworkCount = data?.topFrameworks[0]?.count ?? 1;
   const maxSurfaceCount = data?.surfaces[0]?.count ?? 1;
@@ -122,7 +78,7 @@ export default function LensStatsPage() {
 
       {error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-[12px] text-red-300">
-          Failed to load · {error}
+          Failed to load · {error.message}
         </div>
       )}
 

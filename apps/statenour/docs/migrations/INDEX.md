@@ -9,15 +9,15 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S.2/S.3 + **T.3/T.4** | 2026-05-18 PM | **6/50+ surfaces** · `/system/cron-diagnostics` migrated (read; mutations coexist on REST) · first invalidate-after-mutation pattern adopted | Continue `/system/*` (crons · logs) · `/chat`, `/voice` |
+| **tRPC migration** (REST → tRPC) | Phase J + S.2/S.3 + T.3/T.4 + **U.3/U.4** | 2026-05-18 PM | **7/50+ surfaces** · `/system/lens-stats` migrated · 3 procedures live in system router | Continue `/system/*` (crons · logs · agent-traces) · `/chat`, `/voice` |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint | 2026-05-07 | **AGENT_V2=true active in prod** · v1 still mounted as fallback | Phase 1 canary (10% of turns) · pending judge-eval comparator + parity dashboard |
-| **M.2 persona wiring** (runMultiAgent ← personas) | Phase M.2 + R + S.1/S.3 + **T** | 2026-05-18 PM | **3/N call sites wired** · T extracts deep-research specialist personas · N.6 scorer now feeds from multi-agent AND deep-research | Wire `pretask-fanout.ts` 3-lens fan-out · the last reasoning sub-pipeline without typed personas |
 | **Inline category strings → BRAIN_CATEGORIES** | Phase O.2 + P.2 | 2026-05-18 PM | **H+ scope done (8 files · 21 sites)** · 100+ legacy untouched | Optional H+ codemod rerun · legacy migration is separate scope |
 
 ## Completed migrations
 
 | Migration | Completed | Notes |
 |---|---|---|
+| **M.2 persona wiring** (runMultiAgent ← personas) | **U (2026-05-18 PM)** | 4/4 reasoning sub-pipelines wired · 10 typed personas in registry · N.6 scorer feeds from all sub-pipelines. R+S.1 = runMultiAgent · S.3 = smart-tier router (inheritance) · T = deep-research worker (+ 2 specialist personas) · U = pretask-fanout 3 lenses |
 | Audit findings 12/12 | H.8 (2026-05-18 PM) | All HIGH/MEDIUM/LOW from /find-bugs closed |
 | Mastra agent V2 (`AGENT_V2=true`) | v10.0.485 | Default path · V1 still reachable via env flag |
 
