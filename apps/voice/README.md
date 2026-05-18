@@ -11,7 +11,7 @@ agent worker is Python-only as of 2026-05).
    launcher at `/voice` on statenour-web)
 2. This Python worker accepts the job, opens audio tracks both ways
 3. Operator speaks → Deepgram Nova-3 transcribes (~180ms)
-4. Transcribed text → HTTP POST to `https://autonicks.com/api/agent`
+4. Transcribed text → HTTP POST to `https://statenour-web-production.up.railway.app/api/agent`
    (the Mastra endpoint shipped in Wave-200 Phase 1)
 5. Mastra agent reply streams back as text deltas
 6. Cartesia Sonic-2 speaks the deltas as they arrive (no buffering)
@@ -64,10 +64,10 @@ The agent prints a dispatch URL · open it in your browser to test.
      - `LIVEKIT_URL` `LIVEKIT_API_KEY` `LIVEKIT_API_SECRET`
      - `DEEPGRAM_API_KEY` (optional: `DEEPGRAM_MODEL=nova-3`)
      - `CARTESIA_API_KEY` `CARTESIA_VOICE_ID`
-     - `STATENOUR_AGENT_URL=https://autonicks.com/api/agent`
+     - `STATENOUR_AGENT_URL=https://statenour-web-production.up.railway.app/api/agent`
      - `STATENOUR_OWNER_COOKIE=appSession=...`
 3. Deploy · the worker auto-registers with LiveKit Cloud
-4. Test from the PWA at `https://autonicks.com/voice`
+4. Test from the PWA at `https://statenour-web-production.up.railway.app/voice`
 
 ## Cost estimate
 

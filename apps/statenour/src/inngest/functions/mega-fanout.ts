@@ -64,11 +64,10 @@ function stepIdFor(path: string): string {
 }
 
 function getBaseUrl(): string {
+  // 2026-05-17 follow-up · autonicks.com dropped · Railway is canonical.
   return (
     process.env.APP_BASE_URL?.trim() ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "https://autonicks.com")
+    "https://statenour-web-production.up.railway.app"
   );
 }
 

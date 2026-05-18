@@ -65,14 +65,13 @@ export async function GET(req: NextRequest) {
   }
 
   const slot = req.nextUrl.searchParams.get('slot') || 'morning';
-  // CP5 (Railway migration) · prefer APP_BASE_URL (Railway-style)
-  // · fall back to legacy Vercel env · final fallback to operator domain.
-  // Backward-compatible during dual-write window · works on both platforms.
+  // 2026-05-17 follow-up · autonicks.com domain dropped per operator ·
+  // Railway is the canonical host. Prefer APP_BASE_URL (set on Railway
+  // env), fall back to Railway-deploy default. Vercel env fallback
+  // removed because the Vercel deploy is being decommissioned.
   const baseUrl =
     process.env.APP_BASE_URL?.trim()
-    || (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : 'https://autonicks.com');
+    || 'https://statenour-web-production.up.railway.app';
 
   const now = new Date();
   // v10.0.45 — fixed weekly-block scheduling. Pre-fix
