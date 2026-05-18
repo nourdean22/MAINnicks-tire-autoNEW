@@ -6,14 +6,15 @@
  * /journal · /tasks).
  *
  * Phase D follow-up (2026-05-18) · the audit identified 3 different
- * tracking values being used for what is functionally the same idiom:
- *   · tracking-[0.22em] in goals sidebar, scoreboard headers, threads
- *   · tracking-[0.18em] in goals header supertitle, scoreboard cards
- *   · tracking-wider in goals domain tags, suggestions buttons
+ * tracking values used for what is functionally the same idiom
+ * (0.22em / 0.18em / wider). The aesthetic-principles.md doc
+ * §2 specifies `.eyebrow` at letter-spacing `0.14em` as the
+ * canonical eyebrow tracking · this primitive realigned to that
+ * value 2026-05-18 PM after the design-tokens audit.
  *
- * 0.22em is the canonical value · it's the boldest visual rhythm of
- * the three and matches the aesthetic principles doc most cleanly.
- * 0.18em and tracking-wider become aliases that collapse here.
+ * Color uses `var(--text-tertiary)` (canonical token, ~A3A3A3 in
+ * the dark theme) instead of bare `text-white/40` so the surface
+ * inherits any future palette evolution without code changes.
  *
  * The SectionHeader primitive (`components/ui/section-header.tsx`)
  * exists but uses `text-sm font-semibold` · that's the higher-density
@@ -23,9 +24,6 @@
  *
  * Anatomy:
  *   LABEL · count                                          right-action
- *
- * Where right-action is an optional small CTA (e.g. "stale · review →"
- * on /goals or "{N} dormant" on the ThreadRail).
  */
 
 import { cn } from "@/lib/utils";
@@ -34,18 +32,18 @@ import type { ReactNode } from "react";
 interface MasterySectionLabelProps {
   /** The label text. Always rendered as uppercase. */
   label: string;
-  /** Optional count rendered after a `·` separator, also uppercase. */
+  /** Optional count rendered after a `·` separator. */
   count?: number | string;
   /** Right-aligned slot for a small CTA or status chip. */
   action?: ReactNode;
-  /** Tone overrides the default white/40 muted color. */
+  /** Tone overrides the default tertiary muted color. */
   tone?: "default" | "amber" | "emerald";
   /** Additional classes on the outer wrapper. */
   className?: string;
 }
 
 const TONE_TEXT: Record<NonNullable<MasterySectionLabelProps["tone"]>, string> = {
-  default: "text-white/40",
+  default: "text-[var(--text-tertiary)]",
   amber: "text-amber-300/80",
   emerald: "text-emerald-300/80",
 };
@@ -66,17 +64,19 @@ export function MasterySectionLabel({
     >
       <h2
         className={cn(
-          "text-[10px] uppercase tracking-[0.22em] truncate",
+          // Mirrors `.eyebrow` (globals.css line 256-261):
+          // 0.625rem · weight 600 · uppercase · letter-spacing 0.14em
+          "text-[10px] font-semibold uppercase tracking-[0.14em] truncate",
           TONE_TEXT[tone],
         )}
       >
         {label}
         {count != null ? (
-          <span className="ml-1 tabular-nums">· {count}</span>
+          <span className="ml-1 tabular-nums font-normal">· {count}</span>
         ) : null}
       </h2>
       {action ? (
-        <div className="shrink-0 text-[10px] uppercase tracking-wider">
+        <div className="shrink-0 text-[10px] uppercase tracking-[0.14em]">
           {action}
         </div>
       ) : null}
