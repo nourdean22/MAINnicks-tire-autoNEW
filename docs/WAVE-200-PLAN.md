@@ -290,6 +290,37 @@ evidence demands them · zero blocking action items today).
   time about X" — substrate already there via BrainMemory · needs a
   consumer that asks the question
 
+### **Phase D · /journal pattern-radar** *(LANDED 2026-05-18 · see ADR-0013)*
+
+Evolves /journal from chronological storage into a Pattern Radar
+surface. Quiet by default · alerts fire only on CONVERGENCE
+(multiple recent entries pointing at one emerging theme) · operator
+names the cluster · it becomes a pinned thread auto-growing with
+future similar entries.
+
+- [x] Q1-Q5 brainstorming + Understanding Lock confirmed by operator
+- [x] ADR-0013 documents the design + 10-item Decision Log + the
+  vector-database-engineer audit fix (cached centroid on the thread
+  row to avoid N×M roundtrip on capture)
+- [x] schema · JournalThread + JournalThreadEntry (polymorphic
+  membership via entrySource + entryId · 4 bounded source types)
+- [x] migrations-pending/0002_journal_threads · parked per WAVE-200
+  non-negotiable #1
+- [x] services · journal-convergence (gather → embed → cluster →
+  prune → suggest → persist) + journal-threads (CRUD + rolling
+  centroid + dormancy)
+- [x] API · /api/journal/threads + /api/journal/convergence (both
+  owner-gated)
+- [x] inngest · journal-convergence-scan (nightly 22:00 UTC) +
+  journal-thread-dormancy (daily 23:00 UTC) · health endpoint
+  fn count 6 → 8
+- [x] UI · ThreadRadar + ThreadRail wired into /journal page
+  (ABOVE the metacognition card · null when empty so page looks
+  unchanged unless something fires)
+- [ ] OPERATOR: apply parked migration via Neon SQL editor when ready
+- [ ] OPERATOR: open /journal day after first 22:00 UTC cron · name
+  first thread if convergence fires
+
 ---
 
 ## Cost projection
@@ -356,6 +387,7 @@ evidence demands them · zero blocking action items today).
 - `docs/adr/0010-goals-page-merge.md` — /plan + /mastery merged into /goals · LADDER + SIDEBAR · pruner cron (Phase A.1 · post Wave-200)
 - `docs/adr/0011-meta-scoreboard.md` — /scoreboard page · 5 anchors + 4 anomaly detectors · calm/alive state · brief feeds meta (Phase A.2)
 - `docs/adr/0012-mission-lifegoal-fk.md` — Mission.lifeGoalId schema migration · parked at prisma/migrations-pending/ (Phase A.3)
+- `docs/adr/0013-journal-pattern-radar.md` — /journal pattern-radar · convergence detection → named threads · centroid cache via vector-DB audit (Phase D)
 - `docs/system-pages-audit.md` — 35-page /system/* consolidation plan · operator action items per row (Phase C)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/mastra/memory.ts` — Phase 1.2 Mastra memory factory
