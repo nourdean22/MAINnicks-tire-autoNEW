@@ -1,3 +1,7 @@
+// 2026-05-18 · Railway BuildKit snapshot was stuck on a stale
+// xlcz1rbthtyc9xz5avtbuesdd ref · 8 consecutive deploys failed at
+// COPY package.json step despite no real changes · forced a watched-
+// file source change (this comment) to trigger fresh context upload.
 import { apiHandler } from "@/lib/utils/http";
 import { prisma, checkDbConnection } from "@/lib/prisma";
 import { cached } from "@/lib/utils/cache";
