@@ -76,6 +76,17 @@ export interface ReasoningRequest {
   tier?: ReasoningTier;
   /** Operator id · used for memory writes + audit trail */
   operatorId?: string;
+  /** H.7.3 · opt out of trace persistence for sensitive runs.
+   *  When false, the run completes normally but no BrainMemory(
+   *  reasoning_trace) row is written. The trade-off: the run is
+   *  invisible in /reason/history AND its cost is missing from
+   *  the budget reader (so it won't count against tomorrow's cap
+   *  · counts against today's only via the in-flight reservation
+   *  while running). Defaults to true (persist).
+   *
+   *  Operator triggers this with `@private` or `/private` marker
+   *  in the question · classifier strips the marker + sets this. */
+  persist?: boolean;
 }
 
 export interface ReasoningResult {

@@ -23,6 +23,7 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/ai/reasoning/error-sanitizer";
 import { reason } from "@/lib/ai/reasoning/engine";
 import { classifyReasoning } from "@/lib/ai/reasoning/classifier";
 import {
@@ -54,6 +55,19 @@ interface ReasonBody {
    *  UI flips this true after a confirm dialog. Without it, mega
    *  requests get rejected with 402 (cost gate). */
   confirmExpensive?: unknown;
+  /** H.7.3 · operator opts the run out of trace persistence (sensitive
+   *  questions about personal/financial/relational topics that
+   *  shouldn't sit in BrainMemory for 30 days). Also auto-set when the
+   *  question contains @private or /private. */
+  persist?: unknown;
+}
+
+/** H.7.3 · detect operator privacy marker · matches @private or
+ *  /private as whole-word case-insensitive · returns true to suppress
+ *  trace persistence. Used as the auto-default if body.persist is
+ *  not explicitly passed. */
+function detectPrivateMarker(text: string): boolean {
+  return /\b(@private|\/private)\b/i.test(text);
 }
 
 export async function POST(req: Request) {
@@ -136,8 +150,21 @@ export async function POST(req: Request) {
     // in the finally block so a crashed engine doesn't leak the slot
     // (and the TTL prune cleans up if release itself fails).
     const reservation = await reserveBudget(effectiveTier, budget.estimatedRunUsd);
+    // H.7.3 · resolve persist flag · explicit body.persist wins · else
+    // auto-detect @private / /private marker in the question.
+    const persist =
+      body.persist === false
+        ? false
+        : body.persist === true
+          ? true
+          : !detectPrivateMarker(question);
     try {
-      const result = await reason({ question, brainContext, tier: requestedTier });
+      const result = await reason({
+        question,
+        brainContext,
+        tier: requestedTier,
+        persist,
+      });
       return NextResponse.json(result, {
         // Reasoning results are user-specific + time-sensitive · don't cache.
         headers: { "Cache-Control": "private, no-store" },
@@ -149,11 +176,15 @@ export async function POST(req: Request) {
     if (err instanceof ServiceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
+    // H.7.1 · sanitize · raw err.message could leak Prisma internals,
+    // provider URLs, partial prompts. sanitizeError logs the full
+    // error internally + returns a generic operator-readable message.
+    const { publicMessage, errorId } = sanitizeError(err, {
+      route: "/api/nick/reason",
+      op: "POST",
+    });
     return NextResponse.json(
-      {
-        error: "reasoning_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
+      { error: "reasoning_failed", message: publicMessage, errorId },
       { status: 500 },
     );
   }
