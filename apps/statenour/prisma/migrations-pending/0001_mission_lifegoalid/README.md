@@ -12,9 +12,12 @@ shared tasks · ADR-0010 noted this as a "weaker" trade-off).
 
 ## Why parked
 
-Per ADR-0009 + operator's migration discipline:
+Per WAVE-200-PLAN.md non-negotiable #1:
 
 > No prod DB schema changes without a parked migration first.
+
+(That rule was forged from the `Task.snoozed_until` incident · see
+`docs/WAVE-200-PLAN.md` line 315 for the full list.)
 
 The Prisma schema has been updated (operator can `pnpm prisma generate`
 to refresh types · build still works). This SQL applies the change to

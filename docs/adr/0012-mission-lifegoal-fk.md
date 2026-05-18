@@ -47,8 +47,8 @@ CREATE INDEX "Mission_lifeGoalId_idx" ON "Mission"("lifeGoalId");
 ```
 
 Parked at `apps/statenour/prisma/migrations-pending/0001_mission_lifegoalid/`
-per operator's migration discipline (ADR-0009: no prod DB schema
-changes without parked migration first).
+per operator's migration discipline (WAVE-200-PLAN non-negotiable #1:
+no prod DB schema changes without parked migration first).
 
 ### Behavior
 - **Nullable** · existing missions don't break · backfill is gradual
@@ -123,5 +123,5 @@ says single FK · upgrade later if needed.
 
 - `apps/statenour/prisma/schema.prisma`
 - `apps/statenour/prisma/migrations-pending/0001_mission_lifegoalid/`
-- ADR-0009 · migration discipline
+- WAVE-200-PLAN.md non-negotiable #1 · migration discipline
 - ADR-0010 · /goals page merge (noted this as Phase A.3 follow-up)
