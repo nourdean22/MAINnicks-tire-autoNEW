@@ -353,6 +353,7 @@ evidence demands them · zero blocking action items today).
 - `docs/adr/0007-morning-brief-multichannel.md` — multi-channel brief delivery (Phase 5)
 - `docs/adr/0008-customer-360-predictive-brain.md` — Customer 360 + preferences layer (Phase 6)
 - `docs/adr/0009-mastra-memory.md` — Mastra in-process memory now · `@mastra/pg` Phase 1.3 (Phase 1.2)
+- `docs/adr/0010-goals-page-merge.md` — /plan + /mastery merged into /goals · LADDER + SIDEBAR · pruner cron (Phase A.1 · post Wave-200)
 - `apps/statenour/src/mastra/` — Phase 0 scaffold (this commit)
 - `apps/statenour/src/mastra/memory.ts` — Phase 1.2 Mastra memory factory
 - `apps/statenour/src/inngest/jobs.ts` — single source of truth for mega-cron job arrays

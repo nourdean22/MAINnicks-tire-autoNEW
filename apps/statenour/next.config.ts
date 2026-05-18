@@ -134,7 +134,12 @@ const nextConfig: NextConfig = {
   redirects: async () => [
     { source: "/dashboard", destination: "/tasks", permanent: false },
     { source: "/habits", destination: "/tasks", permanent: false },
-    { source: "/goals", destination: "/tasks", permanent: false },
+    // 2026-05-17 · Phase A.1 · /plan + /mastery MERGED into /goals.
+    // The /goals route NOW exists as the merged surface · the prior
+    // `/goals → /tasks` placeholder (from when /goals was retired) is
+    // gone · sources flip to point AT /goals.
+    { source: "/plan", destination: "/goals", permanent: true },
+    { source: "/mastery", destination: "/goals", permanent: true },
     { source: "/nick", destination: "/chat", permanent: true },
   ],
 };
