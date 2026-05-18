@@ -31,6 +31,14 @@ import {
   reserveBudget,
   releaseReservation,
 } from "@/lib/ai/reasoning/budget";
+import {
+  lookupIdempotency,
+  reserveIdempotency,
+  storeIdempotencyResult,
+  releaseIdempotency,
+  hashRequest,
+  pruneStaleIdempotency,
+} from "@/lib/ai/reasoning/idempotency";
 import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
 export const dynamic = "force-dynamic";
@@ -109,6 +117,46 @@ export async function POST(req: Request) {
         ? (body.tier as ReasoningTier)
         : undefined;
 
+    // N.1 · idempotency check · Idempotency-Key header from client
+    // prevents double-tap from charging twice. Same-key requests
+    // return cached result (or "still in-flight" 425) without
+    // re-running the engine.
+    const idemKey = req.headers.get("idempotency-key");
+    if (idemKey) {
+      // Opportunistic TTL prune · ~10% sample
+      if (Math.random() < 0.1) void pruneStaleIdempotency();
+      const requestHash = hashRequest({
+        question,
+        brainContext,
+        tier: requestedTier,
+      });
+      const existing = await lookupIdempotency(idemKey);
+      if (existing?.result) {
+        // Cached completed result · return immediately · no charge
+        return NextResponse.json(existing.result, {
+          headers: {
+            "Cache-Control": "private, no-store",
+            "X-Idempotent-Replay": "true",
+          },
+        });
+      }
+      if (existing?.inFlight) {
+        // First request is still running · tell client to retry shortly
+        return NextResponse.json(
+          {
+            error: "in_flight",
+            message:
+              "A request with this idempotency key is still running. Poll again in 2s.",
+            firstSeenAt: existing.firstSeenAt,
+          },
+          { status: 425, headers: { "Retry-After": "2" } },
+        );
+      }
+      // First time seeing this key · reserve it · we'll store the
+      // result when the engine finishes (or release on failure).
+      await reserveIdempotency(idemKey, requestHash);
+    }
+
     // H.3.4 · mega-tier confirm gate. If operator picked mega (or the
     // classifier returns mega via a marker), require confirmExpensive=true.
     // Auto-classifier never picks mega so this only fires on explicit
@@ -160,6 +208,7 @@ export async function POST(req: Request) {
         : body.persist === true
           ? true
           : !detectPrivateMarker(question);
+    let runFailed = false;
     try {
       const result = await reason({
         question,
@@ -167,12 +216,26 @@ export async function POST(req: Request) {
         tier: requestedTier,
         persist,
       });
+      // N.1 · store the result under the idempotency key · subsequent
+      // requests with the same key return this without re-running.
+      if (idemKey) {
+        void storeIdempotencyResult(idemKey, result);
+      }
       return NextResponse.json(result, {
         // Reasoning results are user-specific + time-sensitive · don't cache.
         headers: { "Cache-Control": "private, no-store" },
       });
+    } catch (err) {
+      runFailed = true;
+      throw err;
     } finally {
       void releaseReservation(reservation);
+      // N.1 · release the idempotency reservation on failure so the
+      // operator can retry with the same key · successful runs already
+      // updated the row above via storeIdempotencyResult.
+      if (idemKey && runFailed) {
+        void releaseIdempotency(idemKey);
+      }
     }
   } catch (err) {
     if (err instanceof ServiceError) {

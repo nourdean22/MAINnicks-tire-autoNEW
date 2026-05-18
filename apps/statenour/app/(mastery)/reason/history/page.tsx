@@ -1,7 +1,12 @@
 "use client";
 
 /**
- * /reason/history · Phase H.3 (2026-05-18 PM)
+ * /reason/history · Phase H.3 (2026-05-18 PM) · Phase N.3 (2026-05-18 PM)
+ *
+ * N.3 · row virtualization · with the 500-row trace rotation cap (H.4.2),
+ * rendering all rows synchronously caused measurable lag on mobile.
+ * Now uses @tanstack/react-virtual to render only visible rows + a
+ * small overscan buffer. Same behavior · much smoother scroll.
  *
  * Surfaces the persisted reasoning_trace rows · closes the loop
  * Phase H.2.2 opened (persistence was write-only until this page).
@@ -17,7 +22,9 @@
  * + tier pills · matches the rest of the mastery surfaces.
  */
 
+import { useRef } from "react";
 import Link from "next/link";
+import { useVirtualizer } from "@tanstack/react-virtual";
 // Phase J · tRPC migration · history page now reads via trpc.nick.history ·
 // types inferred from the router · no manual HistoryShape mirror.
 import { trpc } from "@/lib/trpc/client";
@@ -138,18 +145,61 @@ export default function ReasoningHistoryPage() {
           </section>
         ) : null}
 
-        {/* History list */}
+        {/* History list · N.3 virtualized */}
         {history.length === 0 ? (
           <p className="text-sm text-[var(--text-tertiary)]">
             No reasoning runs yet. <Link href="/reason" className="text-[var(--gold)] hover:underline">Ask Nick →</Link>
           </p>
         ) : (
-          <ul className="space-y-3">
-            {history.map((h) => (
-              <li
-                key={h.id}
-                className="rounded-md border border-white/10 bg-white/[0.02] p-4 space-y-2 hover:bg-white/[0.04] transition"
-              >
+          <VirtualHistoryList history={history} />
+        )}
+      </div>
+    </main>
+  );
+}
+
+// N.3 · virtualized row list · only renders visible rows + overscan.
+// Estimated row height tuned to typical card (~180px with 2-line
+// question + 3-line answer). The virtualizer auto-measures actual
+// heights once mounted, so the estimate just affects the initial scroll.
+function VirtualHistoryList({ history }: { history: HistoryRow[] }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library -- tanstack-virtual's useVirtualizer returns measure/getVirtualItems functions that React 19's strict checker can't analyze · library-side limitation · the hook is stable per the @tanstack/react-virtual contract
+  const virtualizer = useVirtualizer({
+    count: history.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 180,
+    overscan: 6,
+  });
+  return (
+    <div
+      ref={parentRef}
+      className="rounded-md border border-white/5"
+      style={{ height: "70vh", maxHeight: "800px", overflow: "auto" }}
+    >
+      <ul
+        style={{
+          height: `${virtualizer.getTotalSize()}px`,
+          position: "relative",
+        }}
+      >
+        {virtualizer.getVirtualItems().map((vRow) => {
+          const h = history[vRow.index];
+          return (
+            <li
+              key={h.id}
+              ref={virtualizer.measureElement}
+              data-index={vRow.index}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${vRow.start}px)`,
+              }}
+              className="px-3 pb-3"
+            >
+              <div className="rounded-md border border-white/10 bg-white/[0.02] p-4 space-y-2 hover:bg-white/[0.04] transition">
                 <div className="flex items-baseline justify-between gap-3 text-[10px] font-mono uppercase tracking-[0.14em]">
                   <span className={TIER_TONE[h.tier] ?? "text-[var(--text-tertiary)]"}>
                     {h.tier}
@@ -178,8 +228,6 @@ export default function ReasoningHistoryPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      // H.6.3 · sessionStorage handoff · question text
-                      // (which may be sensitive) stays out of the URL.
                       try {
                         sessionStorage.setItem("reason:pending-q", h.question);
                         window.location.href = "/reason?h=1";
@@ -189,14 +237,14 @@ export default function ReasoningHistoryPage() {
                     }}
                     className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)]"
                   >
-                    re-run →
+                    re-run &rarr;
                   </button>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </main>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
