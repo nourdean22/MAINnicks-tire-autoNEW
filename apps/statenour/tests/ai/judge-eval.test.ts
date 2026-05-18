@@ -19,6 +19,7 @@
 
 import { describe, expect, it } from "vitest";
 import { parseJudgeResponse } from "@/lib/ai/judge-eval/comparator";
+import { classifyIntent } from "@/lib/ai/judge-eval/sampler";
 
 describe("parseJudgeResponse · Phase V judge-eval parser", () => {
   it("parses a clean JSON response", () => {
@@ -171,5 +172,83 @@ describe("parseJudgeResponse · Phase V judge-eval parser", () => {
     const result = parseJudgeResponse(raw);
     expect(result.dimensions[0].reason.length).toBeLessThanOrEqual(200);
     expect(result.summary.length).toBeLessThanOrEqual(400);
+  });
+});
+
+describe("classifyIntent · Phase X sampler heuristic", () => {
+  it("routes question-words to 'question'", () => {
+    expect(classifyIntent("what is the best tire for snow?")).toBe("question");
+    expect(classifyIntent("How do I rotate tires safely?")).toBe("question");
+    expect(classifyIntent("why won't the alignment hold?")).toBe("question");
+    expect(classifyIntent("WHEN should I replace shocks")).toBe("question");
+  });
+
+  it("routes composition verbs to 'compose'", () => {
+    expect(classifyIntent("write a customer follow-up text")).toBe("compose");
+    expect(classifyIntent("draft an email to the supplier")).toBe("compose");
+    expect(classifyIntent("Create a service description")).toBe("compose");
+    expect(classifyIntent("generate a daily newsletter")).toBe("compose");
+  });
+
+  it("routes summarize verbs to 'summarize'", () => {
+    expect(classifyIntent("summarize last week's revenue")).toBe("summarize");
+    expect(classifyIntent("TL;DR the meeting notes")).toBe("summarize");
+    expect(classifyIntent("tldr what happened in Q3")).toBe("summarize");
+  });
+
+  it("routes plan verbs to 'plan'", () => {
+    expect(classifyIntent("plan the Q4 marketing push")).toBe("plan");
+    expect(classifyIntent("design a customer loyalty flow")).toBe("plan");
+    expect(classifyIntent("outline the next migration")).toBe("plan");
+  });
+
+  it("routes decision-seeking phrases to 'decide'", () => {
+    expect(classifyIntent("should I switch tire suppliers")).toBe("decide");
+    expect(classifyIntent("do you think I should hire?")).toBe("decide");
+    expect(classifyIntent("recommend a new tool for invoicing")).toBe("decide");
+    expect(classifyIntent("advise me on hiring strategy")).toBe("decide");
+  });
+
+  it("routes debug requests to 'debug'", () => {
+    // Note · "fix"/"debug" leading verbs route to debug. "why X" stays
+    // as "question" by design (question form wins over content type ·
+    // checked first in the classifier · documented behavior).
+    expect(classifyIntent("fix the broken alignment machine")).toBe("debug");
+    expect(classifyIntent("debug why the SMS gateway is silent")).toBe("debug");
+  });
+
+  it("prioritizes question form over content type (why-questions stay 'question')", () => {
+    // Contract test · drift here would change which dashboard bucket
+    // every why-question lands in. Keep this behavior stable unless
+    // explicitly redesigning the routing precedence.
+    expect(classifyIntent("why isn't the cron firing")).toBe("question");
+    expect(classifyIntent("why won't the booking go through")).toBe("question");
+  });
+
+  it("routes review verbs to 'review'", () => {
+    expect(classifyIntent("audit last month's labor margins")).toBe("review");
+    expect(classifyIntent("review my Q3 pricing")).toBe("review");
+    expect(classifyIntent("inspect the brand voice consistency")).toBe("review");
+  });
+
+  it("routes long-form prompts (>250 chars) to 'long-form'", () => {
+    const longPrompt = "I want to think through a multi-quarter strategy that " +
+      "spans pricing, hiring, equipment financing, and brand positioning. " +
+      "There are tradeoffs between margin and volume that depend on competitor " +
+      "moves in the next 6 months and I want a structured framework.";
+    expect(classifyIntent(longPrompt)).toBe("long-form");
+  });
+
+  it("returns null for empty / ambiguous prompts", () => {
+    expect(classifyIntent("")).toBeNull();
+    expect(classifyIntent("   ")).toBeNull();
+    expect(classifyIntent("ok thanks")).toBeNull();
+    expect(classifyIntent("this is a short statement")).toBeNull();
+  });
+
+  it("is case-insensitive on the leading verb", () => {
+    expect(classifyIntent("WRITE a follow-up")).toBe("compose");
+    expect(classifyIntent("FIX the alignment")).toBe("debug");
+    expect(classifyIntent("Plan the launch")).toBe("plan");
   });
 });

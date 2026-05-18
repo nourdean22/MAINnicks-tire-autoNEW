@@ -56,8 +56,12 @@ interface SampleOptions {
  * Heuristic intent classifier · keeps the sampler dependency-free
  * (no LLM call). Matches the categories the dashboard's "by intent"
  * breakdown is most useful for · refined later as patterns emerge.
+ *
+ * Exported for unit-testability · the routing rules are stable
+ * enough that drift would meaningfully change which intent class a
+ * prompt lands in (and therefore which bucket the dashboard shows).
  */
-function classifyIntent(prompt: string): string | null {
+export function classifyIntent(prompt: string): string | null {
   const lc = prompt.trim().toLowerCase();
   if (!lc) return null;
   if (/^(what|when|where|who|how|why|which)\b/.test(lc)) return "question";

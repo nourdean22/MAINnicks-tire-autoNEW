@@ -98,6 +98,11 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/anticipate",
   "/api/cron/monthly-location-rank",
   "/api/cron/semantic-link",
+  // Phase X (2026-05-18 PM) · auto-corpus-builder for the AGENT_V1
+  // → AGENT_V2 prompt-builder migration · samples N fresh prompts ·
+  // replays each through V1 + V2 builders · judges + persists ·
+  // closes the last Phase 0 checkbox so canary can unblock.
+  "/api/cron/judge-eval-shadow",
 ];
 
 /**
