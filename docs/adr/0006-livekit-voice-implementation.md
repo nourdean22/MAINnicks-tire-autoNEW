@@ -130,14 +130,14 @@ One-time setup before voice works in prod:
      - `LIVEKIT_URL` · `LIVEKIT_API_KEY` · `LIVEKIT_API_SECRET`
      - `DEEPGRAM_API_KEY`
      - `CARTESIA_API_KEY` · `CARTESIA_VOICE_ID`
-     - `STATENOUR_AGENT_URL=https://autonicks.com/api/agent`
+     - `STATENOUR_AGENT_URL=https://statenour-web-production.up.railway.app/api/agent`
      - `STATENOUR_OWNER_COOKIE=appSession=...` (from a logged-in browser)
 4. **install** `livekit-server-sdk` in `apps/statenour/`:
    ```bash
    pnpm --filter @statenour/web add livekit-server-sdk
    ```
 5. **Deploy** the new Railway service · wait for green healthcheck
-6. **Test**: open `https://autonicks.com/voice` on phone · tap push-
+6. **Test**: open `https://statenour-web-production.up.railway.app/voice` on phone · tap push-
    to-talk · say "what's my morning brief" · Nick speaks the reply
 
 ## Rejected alternatives

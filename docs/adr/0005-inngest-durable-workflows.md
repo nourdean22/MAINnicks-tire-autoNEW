@@ -80,7 +80,7 @@ event loop.
    - Paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` into Railway
      statenour-web env vars
    - In the Inngest dashboard "Apps" page: connect
-     `https://autonicks.com/api/inngest` (PUT triggers registration)
+     `https://statenour-web-production.up.railway.app/api/inngest` (PUT triggers registration)
 2. **Verify** (Inngest dashboard): the two functions
    (`mega-fanout-morning` and `mega-fanout-evening`) appear with
    their cron schedules
@@ -198,7 +198,7 @@ locally · skipped in prod).
 1. Create Inngest account (free)
 2. Create app `statenour-web`
 3. Paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` into Railway env
-4. Connect `https://autonicks.com/api/inngest` in Inngest dashboard
+4. Connect `https://statenour-web-production.up.railway.app/api/inngest` in Inngest dashboard
 5. Wait one cycle · verify dashboard shows expected functions
 6. Disable Railway cron entry for `/api/cron/mega`
 7. Verify 7 consecutive successful runs · collapse duplicated job arrays

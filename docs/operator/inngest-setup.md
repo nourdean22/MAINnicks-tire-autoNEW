@@ -58,7 +58,7 @@ deploy to go live.
 ### 4 · Connect the serve endpoint
 
 1. Inngest dashboard → **Apps** → **`statenour-web`** → **Sync**
-2. Paste: **`https://autonicks.com/api/inngest`**
+2. Paste: **`https://statenour-web-production.up.railway.app/api/inngest`**
 3. Click **Sync app**
 4. Inngest probes the endpoint via PUT · validates the signing key ·
    discovers all 4 functions
@@ -76,7 +76,7 @@ If a function is missing, the sync failed · re-check the keys + URL.
 After the next scheduled trigger (next 03:00 UTC for evening or 09:00
 UTC for morning), the dashboard should show a run with green steps.
 
-Cross-check against `https://autonicks.com/system/crons` · the
+Cross-check against `https://statenour-web-production.up.railway.app/system/crons` · the
 `/api/cron/mega` row should ALSO have a row for the same window
 (legacy fan-out is still firing in parallel · expected during cutover).
 
@@ -142,7 +142,7 @@ chat as it intentionally fails on bad input.
 
 ## Health check
 
-Visit `https://autonicks.com/api/inngest` (or the local equivalent) to
+Visit `https://statenour-web-production.up.railway.app/api/inngest` (or the local equivalent) to
 see the current state:
 
 - **`{"ok": false, "configured": false}`** · keys not set yet
@@ -157,7 +157,7 @@ the friendly JSON only fires when Inngest hasn't yet connected.
 
 ### "Inngest can't reach my endpoint"
 
-- Verify `https://autonicks.com/api/inngest` returns 200 (or 503 with
+- Verify `https://statenour-web-production.up.railway.app/api/inngest` returns 200 (or 503 with
   config hint when keys missing)
 - Check Railway logs for the deploy that should have picked up the
   env vars · the dashboard sync runs through the live deployment

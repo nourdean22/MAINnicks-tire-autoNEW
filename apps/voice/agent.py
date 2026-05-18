@@ -85,6 +85,9 @@ logging.basicConfig(
 STATENOUR_AGENT_URL = os.environ.get(
     "STATENOUR_AGENT_URL", "http://localhost:3001/api/agent"
 )
+# 2026-05-17 · prod default points at the Railway deploy
+# (autonicks.com domain was dropped · Railway is canonical).
+# Override via env in apps/voice Railway service.
 
 # Owner-session cookie for /api/agent (it requires requireSession()).
 # Operator pastes their session cookie (sub-only personal endpoint).
