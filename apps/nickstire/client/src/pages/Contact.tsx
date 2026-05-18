@@ -88,7 +88,7 @@ export default function Contact() {
           address + hours + walk-in all visible. */}
       <SEOHead
         title="Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave"
-        description={`Nick's Tire & Auto · ${BUSINESS.phone.display} · 17625 Euclid Ave, Cleveland. Mon-Sat 8-6, Sun 9-4. Walk in 7 days. Free written estimates.`}
+        description={`Nick's Tire & Auto · ${BUSINESS.phone.display} · 17625 Euclid Ave, Cleveland. Mon-Sat 8-6, Sun 9-4. Walk in 7 days · free check, written quote, you don't pay until you say yes.`}
         canonicalPath="/contact"
       />
       <Breadcrumbs items={[{ label: "Contact", href: "/contact" }]} />
@@ -109,6 +109,13 @@ export default function Contact() {
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
                 Call us, stop by, or fill out the form below. Walk-ins are always welcome. We are located on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio.
+              </p>
+              {/* wave-181.48 · Repair Haiku trust line — same phrase as the
+                  VAPI prompt, /services hero, /about tile. Cross-touchpoint
+                  consistency per brand-perception step 5 (open question #1
+                  in .claude/brand-voice-guidelines.md). */}
+              <p className="mt-4 text-lg text-foreground/80 max-w-2xl leading-relaxed">
+                Free check. Written quote. <span className="text-[#FDB913] font-semibold">You don't pay until you say yes.</span>
               </p>
             </FadeIn>
           </div>
