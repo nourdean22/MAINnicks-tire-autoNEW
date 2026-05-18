@@ -20,14 +20,63 @@
  */
 
 import { requireSession } from "@/lib/auth-guard";
+import { timingSafeEqual } from "node:crypto";
 
 // force-dynamic · this is a streaming POST and must never be prerendered.
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
+/**
+ * 2026-05-17 follow-up · WAVE-200 Phase 4 ADR-0006 promised a dedicated
+ * voice-bridge bearer token so the LiveKit Python worker doesn't have
+ * to carry the operator's session cookie. This is that hardening.
+ *
+ * Auth precedence:
+ *   1. Authorization: Bearer <VOICE_BRIDGE_TOKEN> · the apps/voice
+ *      Python worker uses this. Long-lived · rotates by re-pasting
+ *      the env var on both services.
+ *   2. requireSession(req) · the browser useChat() path · unchanged.
+ *
+ * Constant-time compare so the token can't be inferred via timing.
+ * Returns the operator's user.id so memory thread/resource scoping
+ * works identically across both auth paths (we hard-code the
+ * operator's user.id when bridge auth is used · single-tenant system).
+ */
+const VOICE_BRIDGE_TOKEN = (process.env.VOICE_BRIDGE_TOKEN ?? "").trim();
+const VOICE_BRIDGE_USER_ID =
+  (process.env.VOICE_BRIDGE_USER_ID ?? "").trim() || "operator-1";
+
+function safeEqual(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) {
+    timingSafeEqual(bufA, bufA);
+    return false;
+  }
+  return timingSafeEqual(bufA, bufB);
+}
+
+async function resolveOperator(
+  req: Request,
+): Promise<{ id: string; email: string; role: string }> {
+  // Bridge token first (cheap · no DB hit)
+  if (VOICE_BRIDGE_TOKEN) {
+    const authHeader = req.headers.get("authorization") ?? "";
+    if (safeEqual(authHeader, `Bearer ${VOICE_BRIDGE_TOKEN}`)) {
+      return {
+        id: VOICE_BRIDGE_USER_ID,
+        email: "voice-bridge@statenour.local",
+        role: "operator",
+      };
+    }
+  }
+  return requireSession(req);
+}
+
 export async function POST(req: Request) {
-  const user = await requireSession(req);
+  const user = await resolveOperator(req);
 
   // Dynamic imports keep Mastra off the cold-path for the rest of the app
   // — /api/agent is the only consumer right now (Phase 1 test endpoint).

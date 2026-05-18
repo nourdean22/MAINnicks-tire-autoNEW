@@ -89,8 +89,14 @@ STATENOUR_AGENT_URL = os.environ.get(
 # (autonicks.com domain was dropped · Railway is canonical).
 # Override via env in apps/voice Railway service.
 
-# Owner-session cookie for /api/agent (it requires requireSession()).
-# Operator pastes their session cookie (sub-only personal endpoint).
+# 2026-05-17 follow-up · ADR-0006 voice-bridge bearer token (preferred).
+# Statenour-web /api/agent now accepts Authorization: Bearer <token> as
+# alternative to the operator session cookie. Long-lived · rotates by
+# re-pasting on both services. Set VOICE_BRIDGE_TOKEN to enable.
+VOICE_BRIDGE_TOKEN = os.environ.get("VOICE_BRIDGE_TOKEN", "")
+
+# Legacy · operator session cookie path (kept for back-compat). Used
+# only when VOICE_BRIDGE_TOKEN is unset.
 STATENOUR_OWNER_COOKIE = os.environ.get("STATENOUR_OWNER_COOKIE", "")
 
 # Voice config · Cartesia Sonic-3 voice id. Cartesia's playground
@@ -123,16 +129,21 @@ async def stream_from_mastra(user_text: str) -> AsyncIterator[str]:
     chunks (they're for the visual chat UI). Cartesia receives the
     text deltas and starts speaking before the model finishes.
     """
-    if not STATENOUR_OWNER_COOKIE:
-        # Defensive · without the cookie the endpoint 401s · surface
-        # a spoken error instead of a silent void.
-        yield "I can't reach the agent · the owner session cookie is missing."
+    # Prefer the bridge token · fall back to cookie. Without either,
+    # the endpoint 401s.
+    if VOICE_BRIDGE_TOKEN:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {VOICE_BRIDGE_TOKEN}",
+        }
+    elif STATENOUR_OWNER_COOKIE:
+        headers = {
+            "Content-Type": "application/json",
+            "Cookie": STATENOUR_OWNER_COOKIE,
+        }
+    else:
+        yield "I can't reach the agent · VOICE_BRIDGE_TOKEN or STATENOUR_OWNER_COOKIE missing."
         return
-
-    headers = {
-        "Content-Type": "application/json",
-        "Cookie": STATENOUR_OWNER_COOKIE,
-    }
     body = {"messages": [{"role": "user", "content": user_text}]}
 
     async with httpx.AsyncClient(timeout=AGENT_TIMEOUT_SECONDS) as client:
