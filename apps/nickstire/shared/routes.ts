@@ -92,8 +92,11 @@ const CORE_PAGES: RouteEntry[] = [
     // ADD a click-incentive: "Schedule drop-off online · most jobs
     // same day · free Uber within 5 miles." Pulls in the smaller
     // segment of visitors who want more than just phone/address.
+    // wave-181.48 — Added the Repair Haiku tail to description so the
+    // /contact SERP snippet carries the same promise as /services and the
+    // VAPI prompt. Title stays as the SERP answer (high zero-click intent).
     title: "Nick's Tire & Auto · (216) 862-0005 · 17625 Euclid Ave",
-    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Same day · free Uber 5mi · written estimate first.",
+    description: "Call (216) 862-0005 or walk in to 17625 Euclid Ave, Cleveland OH. Mon-Sat 8a-6p, Sun 9a-4p. Free check, written quote, you don't pay until you say yes.",
     group: "core",
     sitemap: true,
     prerender: true,
