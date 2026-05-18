@@ -1,6 +1,6 @@
 -- Phase A.3 schema migration · Mission.lifeGoalId
--- 2026-05-18 · per ADR-0012 · parked per operator's migration discipline
--- (ADR-0009: "No prod DB schema changes without a parked migration first").
+-- 2026-05-18 · per ADR-0012 · parked per WAVE-200 non-negotiable #1
+-- ("No prod DB schema changes without a parked migration first").
 --
 -- Apply to Neon prod when operator confirms connectivity:
 --   1. Verify schema.prisma matches this migration (no other drift)
