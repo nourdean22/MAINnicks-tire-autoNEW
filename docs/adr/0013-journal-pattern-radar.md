@@ -254,6 +254,66 @@ in-memory cosine on ~200 entries is sub-100ms.
 3. Wait for first nightly cron run (22:00 UTC = 6pm ET) · visit
    /journal next day · if convergence fires, name first thread
 
+## Phase D true completion (2026-05-18 morning)
+
+The initial Phase D ship only wired BrainDump capture into the
+auto-join hook · the other 3 sources silently bypassed the radar
+despite ADR-0013 §3 specifying ALL 4 sources should grow threads.
+
+Closed 2026-05-18 morning across 2 commits:
+
+  · Reflection · `lib/db/brain-bus-handlers.ts` reflection.created
+    handler extended to call tryJoinActiveThreads after its existing
+    BrainMemory mirror write (commit `ce3cc59`)
+  · SituationLog · `app/api/situation-log/route.ts` POST handler
+    fires tryJoinActiveThreads inline after row creation (commit
+    `de81a31`)
+  · DecisionReplay · `lib/services/decision-replay-coach.ts`
+    markReplayed() fires on NEW row creation, combining title +
+    reasoning + lesson into the body (commit `de81a31`)
+
+All 4 documented capture sources now feed convergence detection
+equally. Spec matches implementation.
+
+## Audit-driven cohesion pass (2026-05-18 morning)
+
+A cross-surface coherence audit (feature-dev:code-reviewer agent
+2026-05-18) compared /goals, /scoreboard, /tasks, /journal looking
+for aesthetic drift + missed cross-links + pattern duplication.
+Closed 10 of 13 findings across 4 commits in the morning · the
+remaining 3 (container max-width, color tokens, page-supertitle
+primitive) deferred for a coordinated design-tokens pass.
+
+NEW PRIMITIVES (components/mastery/):
+  · MasteryErrorView · the full-page-takeover error pattern shared
+    by goals + scoreboard (vs the inline-banner pattern /journal
+    uses, also deliberate per surface)
+  · MasterySkeleton · uses ShimmerSkeleton card variant instead of
+    bespoke static placeholders · parameterized by cards, maxWidth,
+    cardGridClass
+  · MasterySectionLabel · canonicalizes the 3-way tracking split
+    (0.22em / 0.18em / wider) on the editorial-minimalist section
+    heading idiom
+
+CROSS-LINK MESH (commits `fa83558` + `176803f`):
+  · ThreadRail expanded thread → 'view in feed →' anchor lands on
+    /journal?search=<thread name>
+  · GoalCard domain chip becomes a Link to /journal?search=<domain>
+  · Scoreboard anomaly Card (when narrator-link is null) defaults
+    to /journal?search=<metric label>
+
+The 4 mastery surfaces now mesh instead of being silos. The
+/journal page received useSearchParams() to read ?search= and seed
+the existing client-side text filter · ADR-0014's force-dynamic
+lesson applied proactively to avoid the prerender-failure trap.
+
+USEAUTHEDFETCH ADOPTION:
+The shared `useAuthedFetch<T>` hook is now the canonical fetch
+pattern across the 4 mastery surfaces (5 components total):
+ThreadRadar, ThreadRail, ThreadSuggestions, GoalsPage, ScoreboardPage.
+~50 LOC of duplicated bespoke fetch+state mgmt collapsed · the auth-
+cookie race guard the hook provides now applies uniformly.
+
 ## Decision log
 
 | # | Decision | Why |
