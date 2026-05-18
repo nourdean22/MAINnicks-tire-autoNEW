@@ -222,6 +222,17 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "tracker", severity: "info" }),
   },
   {
+    // Phase V · 2026-05-18 PM · AGENT_V1 → AGENT_V2 judge-eval
+    // dashboard · LLM-as-judge comparator · per-intent breakdown ·
+    // Phase 1 canary verdict (safe / watch / regressing).
+    href: "/system/judge-eval",
+    title: "Judge-eval V1↔V2",
+    icon: Beaker,
+    description:
+      "LLM-as-judge comparator · win rate per intent · canary verdict · Phase V unblocks AGENT_V2 cutover",
+    chip: () => ({ label: "verdict", severity: "info" }),
+  },
+  {
     href: "/system/agent-traces",
     title: "Agent Traces",
     icon: Workflow,

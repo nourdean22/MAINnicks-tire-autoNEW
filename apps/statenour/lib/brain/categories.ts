@@ -253,6 +253,13 @@ export const BRAIN_CATEGORIES = {
    *  surfaces in the existing /system/logs unified tail. */
   DEPENDENCY_CVE: "dependency_cve",
 
+  // ── Phase V · AGENT_V1 → AGENT_V2 judge-eval (2026-05-18 PM) ──
+  /** Phase V · prompt-comparison run record · stores prompt + V1 reply
+   *  + V2 reply + LLM-judge verdict · the /system/judge-eval dashboard
+   *  aggregates over these rows to compute win-rate trends per intent
+   *  class. Unblocks Phase 0 of the agent-v1-to-v2 migration. */
+  PROMPT_COMPARISON_RUN: "prompt_comparison_run",
+
   // ── WAVE-200 (2026-05-17) ──
   /** Wave-200 Phase 5 · daily operator brief composer output. Indexed
    *  per ET-date in `key`. Content is brief HTML. ~2KB typical. */

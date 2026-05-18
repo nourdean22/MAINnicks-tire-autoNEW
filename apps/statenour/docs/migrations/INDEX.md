@@ -10,7 +10,7 @@ and the next milestone.
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
 | **tRPC migration** (REST → tRPC) | Phase J + S.2/S.3 + T.3/T.4 + **U.3/U.4** | 2026-05-18 PM | **7/50+ surfaces** · `/system/lens-stats` migrated · 3 procedures live in system router | Continue `/system/*` (crons · logs · agent-traces) · `/chat`, `/voice` |
-| **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint | 2026-05-07 | **AGENT_V2=true active in prod** · v1 still mounted as fallback | Phase 1 canary (10% of turns) · pending judge-eval comparator + parity dashboard |
+| **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + **V** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs (judge-eval + parity dashboard) **SHIPPED in V** | Build 30-day baseline corpus via /api/judge-eval/run · then Phase 1 canary |
 | **Inline category strings → BRAIN_CATEGORIES** | Phase O.2 + P.2 | 2026-05-18 PM | **H+ scope done (8 files · 21 sites)** · 100+ legacy untouched | Optional H+ codemod rerun · legacy migration is separate scope |
 
 ## Completed migrations

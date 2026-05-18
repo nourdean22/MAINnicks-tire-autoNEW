@@ -49,15 +49,18 @@ const MIGRATIONS: Migration[] = [
     strategy: "Strangler fig · coexistence · gradual surface-by-surface",
     status: "in-progress",
     progressKind: "trpc-surfaces",
-    nextMilestone: "Migrate /chat, /voice, /system/* surfaces · piggyback on H+ waves",
+    nextMilestone: "Migrate /chat, /voice, remaining /system/* surfaces · piggyback on H+ waves",
   },
   {
     slug: "agent-v1-to-v2",
     name: "AGENT_V1 → AGENT_V2 (prompt builder)",
     startedAt: "2026-05-07",
     strategy: "Strangler fig with env flag (AGENT_V2=true)",
+    // Phase V (2026-05-18 PM) · Phase 0 safety net SHIPPED ·
+    // judge-eval comparator + parity dashboard now live · still
+    // need 30-day baseline corpus before Phase 1 canary
     status: "in-progress",
-    nextMilestone: "Phase 1 canary (10% of turns) · pending judge-eval comparator + parity dashboard",
+    nextMilestone: "Build 30-day baseline corpus via POST /api/judge-eval/run · then flip to Phase 1 canary (10% of turns) when /system/judge-eval verdict reads 'safe'",
   },
   {
     slug: "m2-persona-wiring",
