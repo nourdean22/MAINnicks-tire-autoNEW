@@ -19,8 +19,8 @@
  * /goals + /scoreboard precedent.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useMemo, useState } from "react";
+import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
 
 interface CandidateMember {
   entrySource: "brain_dump" | "reflection" | "situation_log" | "decision_replay";
@@ -43,28 +43,14 @@ export function ThreadRadar({
 }: {
   onThreadCreated?: () => void;
 }) {
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await authedFetch("/api/journal/convergence");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { data: Candidate[] };
-      setCandidates(json.data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase D · audit-fix #1 (2026-05-18) · collapsed bespoke
+  // state-mgmt block to the shared useAuthedFetch hook. Same
+  // semantics · ~14 LOC removed · matches the pattern the
+  // other mastery surfaces should converge on.
+  const { data, error, loading, reload } = useAuthedFetch<{
+    data: Candidate[];
+  }>("/api/journal/convergence");
+  const candidates = data?.data ?? [];
 
   if (loading) return null; // silent · radar shouldn't shimmer
   if (error || candidates.length === 0) return null;
@@ -86,7 +72,7 @@ export function ThreadRadar({
             key={c.clusterHash}
             candidate={c}
             onActioned={() => {
-              void load();
+              reload();
               onThreadCreated?.();
             }}
           />
