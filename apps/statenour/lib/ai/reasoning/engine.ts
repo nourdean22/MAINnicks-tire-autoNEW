@@ -106,6 +106,16 @@ NO MARKDOWN HEADERS. Be terse and concrete.`,
   return (reply?.content ?? "").trim();
 }
 
+// H.4.7 · AiResponse now carries optional usage + costUsd fields
+// (computed from per-provider rate table in provider.ts). The
+// reasoning engine threading through every sub-fn would be ~100+
+// LOC of signature churn · scoped to H.5 to ship cleanly in this
+// wave. Today the new field is available to direct callers like
+// /api/system/agent-traces · which can now report real cost per
+// call instead of fixed estimates. Engine.ts buildResult cost
+// estimate still uses the per-tier guess — replacing that is the
+// follow-up.
+
 async function runFanout(
   question: string,
   brainContext?: string,
@@ -361,14 +371,43 @@ async function runReasoningEngine(
   // multi-agent + fanout + ghost-nick + wisdom. The biggest hammer for
   // the hardest questions. ~60-120s wall · ~$0.20+. Each piece tolerant
   // of failure · we synthesize whatever lands.
+  //
+  // H.4.3 · per-source max-wait budget. Pre-fix, a slow deep-research
+  // call could block the whole composition for 90s. Now each source
+  // races against its own timeout · whatever lands in time gets
+  // composed · the others return empty strings.
   if (tier === "mega") {
     const t = Date.now();
+    const SOURCE_BUDGETS = {
+      research: 60_000, // deep-research is the slowest · biggest budget
+      multi: 25_000,
+      fan: 15_000,
+      ghost: 5_000,
+      wisdom: 5_000,
+    };
+    const withBudget = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+      Promise.race<T>([
+        p,
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+      ]).catch(() => fallback);
     const [research, multi, fan, ghost, wisdom] = await Promise.all([
-      runDeepResearch(request.question).catch(() => ""),
-      runMultiAgent(request.question, plan).catch(() => ""),
-      runFanout(request.question, request.brainContext).catch(() => ""),
-      runGhostContext(),
-      runWisdomContext(request.question),
+      withBudget(
+        runDeepResearch(request.question).catch(() => ""),
+        SOURCE_BUDGETS.research,
+        "",
+      ),
+      withBudget(
+        runMultiAgent(request.question, plan).catch(() => ""),
+        SOURCE_BUDGETS.multi,
+        "",
+      ),
+      withBudget(
+        runFanout(request.question, request.brainContext).catch(() => ""),
+        SOURCE_BUDGETS.fan,
+        "",
+      ),
+      withBudget(runGhostContext(), SOURCE_BUDGETS.ghost, ""),
+      withBudget(runWisdomContext(request.question), SOURCE_BUDGETS.wisdom, ""),
     ]);
     callCount += 5 + 4 + 3; // approx · DR + multi-agent + fanout
     const parts: string[] = [];
@@ -378,15 +417,17 @@ async function runReasoningEngine(
     if (ghost) parts.push(`# GHOST NICK PREDICTIONS\n${ghost}`);
     if (wisdom) parts.push(`# RELATED WISDOM\n${wisdom}`);
     context = parts.join("\n\n---\n\n");
+    const dropped = 5 - parts.length;
     rec.push(
       "tool_call",
-      `mega composite · ${parts.length} sources · ${context.length} chars`,
+      `mega composite · ${parts.length}/5 sources landed${dropped > 0 ? ` · ${dropped} timed out` : ""}`,
       {
-        research: research.slice(0, 200),
-        multi: multi.slice(0, 200),
-        fan: fan.slice(0, 200),
-        ghost: ghost.slice(0, 200),
-        wisdom: wisdom.slice(0, 200),
+        research: research ? research.slice(0, 200) : "(timed out or empty)",
+        multi: multi ? multi.slice(0, 200) : "(timed out or empty)",
+        fan: fan ? fan.slice(0, 200) : "(timed out or empty)",
+        ghost: ghost ? ghost.slice(0, 200) : "(timed out or empty)",
+        wisdom: wisdom ? wisdom.slice(0, 200) : "(timed out or empty)",
+        budgets: SOURCE_BUDGETS,
       },
       Date.now() - t,
     );
@@ -467,12 +508,21 @@ async function runReasoningEngine(
     log.warn("draft_failed", {
       err: err instanceof Error ? err.message.slice(0, 200) : String(err),
     });
-    rec.push("deliver", "draft failed · returning context only");
-    // Fallback · return the context as the answer
+    rec.push("deliver", "draft failed · returning Nick-voiced fallback");
+    // H.4.4 · Nick-voiced fallback, not raw context. Pre-fix we returned
+    // the composed fanout/multi-agent context as the answer, which is
+    // unstructured reasoning notes the operator never asked to see.
+    // Now we acknowledge the failure in Nick's voice and surface a
+    // truncated context preview as a footnote so the operator can
+    // still extract value if they want to.
+    const contextPreview = context
+      ? `\n\n---\n\nRaw reasoning notes (engine couldn't compose them into prose):\n${context.slice(0, 800)}${context.length > 800 ? "…" : ""}`
+      : "";
+    const fallback = `I gathered context for this but the synthesis step failed — likely a provider hiccup. Try re-asking (the engine cached nothing, so this is a fresh shot). If it fails again, drop the tier from "${tier}" to "standard" — it routes through different providers.${contextPreview}`;
     return buildResult(
       rec,
-      context || "Nick could not generate an answer.",
-      0.3,
+      fallback,
+      0.2, // honest low confidence
       startedAt,
       tier,
       verdict.reason,
@@ -543,7 +593,11 @@ async function runReasoningEngine(
  *  the system has a history of what Nick reasoned about + which tier
  *  + how long + what answer landed. Fire-and-forget · failure here
  *  must never block the result. Future engines can read this to learn
- *  which classifier verdicts produced wasted vs valuable runs. */
+ *  which classifier verdicts produced wasted vs valuable runs.
+ *
+ *  H.4.2 · also opportunistically trims old rows · keeps the table
+ *  bounded so reads stay fast and the operator's BrainMemory doesn't
+ *  bloat with thousands of stale traces. */
 async function persistTrace(
   question: string,
   result: ReasoningResult,
@@ -575,8 +629,61 @@ async function persistTrace(
         },
       },
     });
+
+    // H.4.2 · opportunistic rotation · once every ~10 writes, prune.
+    // Sampling means we don't run a delete on every write but keep
+    // the table bounded over time. Rules:
+    //   · delete rows older than 30 days unconditionally
+    //   · if still >500 rows, delete the oldest down to 500
+    if (Math.random() < 0.1) {
+      void rotateReasoningTraces();
+    }
   } catch {
     // Best-effort · never let bookkeeping block the engine.
+  }
+}
+
+/** H.4.2 · trim the reasoning_trace table · keeps storage + read perf
+ *  predictable. Called opportunistically from persistTrace. Public for
+ *  the optional cron route at /api/cron/prune-reasoning-traces. */
+export async function rotateReasoningTraces(): Promise<{
+  deletedByAge: number;
+  deletedByCap: number;
+}> {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const cutoff = new Date(Date.now() - 30 * 86_400_000);
+    const ageDel = await prisma.brainMemory.deleteMany({
+      where: {
+        category: "reasoning_trace",
+        createdAt: { lt: cutoff },
+      },
+    });
+    // After age-pruning, enforce 500-row cap. Cheap because the index
+    // on (category, createdAt) makes the offset query bounded.
+    const count = await prisma.brainMemory.count({
+      where: { category: "reasoning_trace", deletedAt: null },
+    });
+    let capDel = 0;
+    if (count > 500) {
+      const excess = count - 500;
+      const oldRows = await prisma.brainMemory.findMany({
+        where: { category: "reasoning_trace", deletedAt: null },
+        orderBy: { createdAt: "asc" },
+        take: excess,
+        select: { id: true },
+      });
+      const result = await prisma.brainMemory.deleteMany({
+        where: { id: { in: oldRows.map((r) => r.id) } },
+      });
+      capDel = result.count;
+    }
+    return { deletedByAge: ageDel.count, deletedByCap: capDel };
+  } catch (err) {
+    log.warn("rotate_failed", {
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return { deletedByAge: 0, deletedByCap: 0 };
   }
 }
 

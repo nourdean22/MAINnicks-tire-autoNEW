@@ -22,53 +22,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+// H.4.1 · single source of truth · classifier-core is isomorphic
+// (no Node-only deps · safe in client bundle). Pre-H.4 we had
+// parallel regex arrays here + server-side that drifted.
+import { classifyCore } from "@/lib/ai/reasoning/classifier-core";
+import type { ReasoningTier } from "@/lib/ai/reasoning/types";
 
-type ReasoningTier = "quick" | "standard" | "deep" | "thorough" | "mega";
-
-// Mirrors lib/ai/reasoning/classifier.ts heuristics · keep in sync.
-// (We avoid importing the server module here · client-side classifier
-// keeps the bundle lean.)
-const DEEP_MARKERS = [
-  /\bstrategy\b/i,
-  /\bstrategic\b/i,
-  /\bbusiness plan\b/i,
-  /\binvestment\b/i,
-  /\barchitect/i,
-  /\bdeep think\b/i,
-  /\bthink deeply\b/i,
-  /\b\/deep\b/i,
-  /\b@deep\b/i,
-];
-
-const THOROUGH_MARKERS = [
-  /\bdue diligence\b/i,
-  /\bcomprehensive\b/i,
-  /\bresearch (the|this|that|all|every)\b/i,
-  /\bdeep dive\b/i,
-  /\bthorough/i,
-  /\b\/thorough\b/i,
-  /\b@thorough\b/i,
-  /\b\/research\b/i,
-];
-
-const MEGA_MARKERS = [
-  /\b\/mega\b/i,
-  /\b@mega\b/i,
-  /\bbiggest hammer\b/i,
-  /\bcharizard\b/i,
-];
-
-function quickClassify(text: string): { tier: ReasoningTier; matched: boolean } {
-  const t = text.trim();
-  if (t.length < 30) return { tier: "quick", matched: false };
-  if (MEGA_MARKERS.some((re) => re.test(t))) return { tier: "mega", matched: true };
-  if (THOROUGH_MARKERS.some((re) => re.test(t))) return { tier: "thorough", matched: true };
-  if (DEEP_MARKERS.some((re) => re.test(t))) return { tier: "deep", matched: true };
-  // Length-based escalation when no markers
-  if (t.length >= 600 || (t.match(/\?/g) ?? []).length >= 3) {
-    return { tier: "deep", matched: true };
-  }
-  return { tier: "quick", matched: false };
+/** Only surface the chip for tiers worth interrupting the operator for.
+ *  Standard tier matches plenty of normal prose · the chip would feel
+ *  too aggressive. We surface deep / thorough / mega only. */
+function shouldNudge(tier: ReasoningTier): boolean {
+  return tier === "deep" || tier === "thorough" || tier === "mega";
 }
 
 export function DeepModeNudge() {
@@ -111,8 +75,9 @@ export function DeepModeNudge() {
         }
       }
       const value = input.value ?? "";
-      const v = quickClassify(value);
-      if (v.matched) {
+      // H.4.1 · use the shared classifier · same verdict the server uses
+      const v = classifyCore(value);
+      if (shouldNudge(v.tier)) {
         setVerdict({ tier: v.tier, text: value });
       } else {
         setVerdict(null);
