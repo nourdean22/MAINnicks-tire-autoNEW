@@ -174,7 +174,7 @@ function ThreadCard({
       </button>
 
       {expanded ? (
-        <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-2">
+        <div className="px-4 pb-4 border-t border-white/5 pt-3 space-y-3">
           {thread.summary ? (
             <p className="text-xs text-white/60 italic">
               "{thread.summary}"
@@ -193,11 +193,25 @@ function ThreadCard({
               </li>
             ))}
           </ul>
-          {thread.coherence != null ? (
-            <p className="text-[10px] uppercase tracking-wider text-white/30 pt-1">
-              coherence {(thread.coherence * 100).toFixed(0)}%
-            </p>
-          ) : null}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            {/* Phase D follow-up audit (2026-05-18) · cross-link #1 ·
+                operator can now click "view in feed" to land on /journal
+                pre-filtered by the thread name. Solves the audit's
+                'ThreadRail name has no link to filtered /journal' gap.
+                Search-by-name is the v1 mechanism · v2 could use a real
+                ?threadId= filter once /api/journal accepts it. */}
+            <a
+              href={`/journal?search=${encodeURIComponent(thread.name)}`}
+              className="text-[10px] uppercase tracking-wider text-amber-200/80 hover:text-amber-100 min-h-[32px] inline-flex items-center"
+            >
+              view in feed →
+            </a>
+            {thread.coherence != null ? (
+              <p className="text-[10px] uppercase tracking-wider text-white/30">
+                coherence {(thread.coherence * 100).toFixed(0)}%
+              </p>
+            ) : null}
+          </div>
         </div>
       ) : null}
     </li>
