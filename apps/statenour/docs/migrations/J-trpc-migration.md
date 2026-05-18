@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 5 / 50+ surfaces · ~10% complete · 3 domain routers (nick · operator · **system** ← added in S.2)
+**Status:** 6 / 50+ surfaces · ~12% complete · 3 domain routers (nick · operator · system) · invalidate-after-mutation pattern adopted (T.4)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (5)
+## Migrated surfaces (6)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -27,7 +27,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | `/reason/telemetry` | `useAuthedFetch<TelemetryShape>` | `trpc.nick.telemetry.useQuery` | J |
 | OperatorPulse component | `useAuthedFetch<PulseShape>` | `trpc.operator.pulse.useQuery` | J |
 | CompoundChain component | `useAuthedFetch<CompoundShape>` | `trpc.operator.compound.useQuery` | J |
-| `/system/health` | `useAuthedFetch` → `/api/system/health-report?range=X` | `trpc.system.healthReport.useQuery({range})` | **S.3** |
+| `/system/health` | `useAuthedFetch` → `/api/system/health-report?range=X` | `trpc.system.healthReport.useQuery({range})` | S.3 |
+| `/system/cron-diagnostics` (read only) | `authedFetch` → `/api/system/cron-diagnostics` | `trpc.system.cronDiagnostics.useQuery()` | **T.4** |
 
 ## Architectural notes
 
@@ -38,6 +39,13 @@ End-to-end types flow from server → client · no manual mirrors.
   impossible.
 - React Query inherits the per-input refetch and 2-min `refetchInterval`
   the previous `setInterval`-driven page had · less code, fewer bugs.
+- **T.4** introduced the **invalidate-after-mutation** pattern · the
+  cron-diagnostics page reads via tRPC but its `runNow` and `enableCron`
+  mutations stay on REST (coexistence). After each mutation the page
+  calls `utils.system.cronDiagnostics.invalidate()` which triggers
+  React Query to refetch · same UX as the previous `await load()` path
+  with less plumbing. Sets the template for partial migrations where
+  mutations come later.
 
 ## Pending surfaces (~46)
 

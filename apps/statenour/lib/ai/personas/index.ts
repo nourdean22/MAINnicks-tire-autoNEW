@@ -83,6 +83,42 @@ export const FACT_CHECKER: Persona = {
     'JSON: {"verified":[{"claim":"...", "source":"..."}],"unsupported":["..."],"verdict":"ship"|"refine"}',
 };
 
+// ── Deep-research specialist personas · Phase T (2026-05-18 PM) ──
+//
+// Phase R+S wired the generic personas (research-analyst,
+// contrarian-critic, execution-planner) into runMultiAgent. The
+// deep-research worker has DIFFERENT requirements:
+//   · planner needs JSON output (not prose) with a strict
+//     `subQueries[]` shape
+//   · synthesizer needs to thread Perplexity citation markers `[N]`
+//     and stay anchored to Cleveland OH tire-shop context
+//
+// Generic personas would lose those domain anchors. These specialist
+// personas preserve them while still flowing through
+// personaToSystemPrompt + the M.2 recordPersonaUsage telemetry. N.6's
+// scorer can now compute per-persona verdicts for the deep-research
+// pipeline too.
+
+export const RESEARCH_PLANNER: Persona = {
+  key: "research-planner",
+  role: "Research Planner",
+  goal: "Decompose a research question into 3-5 specific sub-queries that, together, would yield a comprehensive answer when each is run independently against a web search engine",
+  backstory:
+    "You are an experienced research librarian · paid to break vague questions into surgical Boolean queries. You know that 'tires' is useless and 'Goodyear UltraGrip 215/55R17 wholesale price 2024' is gold. You write queries the way a paid analyst would.",
+  outputHint:
+    'JSON only: {"subQueries": ["...", "...", "..."]} · max 5 entries · no markdown',
+};
+
+export const RESEARCH_SYNTHESIZER: Persona = {
+  key: "research-synthesizer",
+  role: "Cited Research Synthesizer",
+  goal: "Compose multiple Perplexity research rounds into one tight cited report for an operator who runs a tire shop in Cleveland OH",
+  backstory:
+    "You read each round of returned content, find the through-line, prefer specific numbers/dates/quotes over generic claims, and surface contradictions explicitly. You thread inline [N] markers for each claim · `[N · single source]` when a claim has only one source. You don't hedge. You don't preface.",
+  outputHint:
+    "200-400 words · inline [N] citation markers · plain text · no markdown headers · end with one-line 'what to do next' when actionable",
+};
+
 // ── Wisdom personas · align with the brain wisdom corpus keys ──
 
 export const BUFFETT: Persona = {
@@ -121,6 +157,9 @@ export const PERSONAS: Record<string, Persona> = {
   [EXECUTION_PLANNER.key]: EXECUTION_PLANNER,
   [SYNTHESIZER.key]: SYNTHESIZER,
   [FACT_CHECKER.key]: FACT_CHECKER,
+  // Phase T · deep-research specialists
+  [RESEARCH_PLANNER.key]: RESEARCH_PLANNER,
+  [RESEARCH_SYNTHESIZER.key]: RESEARCH_SYNTHESIZER,
   [BUFFETT.key]: BUFFETT,
   [NAVAL.key]: NAVAL,
   [MUNGER.key]: MUNGER,

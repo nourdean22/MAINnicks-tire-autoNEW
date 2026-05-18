@@ -16,6 +16,7 @@
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
+import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -29,4 +30,19 @@ export const systemRouter = router({
     .query(async ({ input }) => {
       return buildHealthReport({ range: input.range });
     }),
+
+  /**
+   * Phase T (2026-05-18 PM) · owner-only · cron health rollup with
+   * prioritized diagnoses. Delegates to `lib/system/cron-diagnostics`
+   * (the same module the legacy REST endpoint /api/system/cron-diagnostics
+   * and the local diagnostic script both call · single source of truth ·
+   * drift impossible).
+   *
+   * No input · always returns the full report. The page consumer
+   * (Phase T.4) used to poll this on a 30s interval via authedFetch
+   * · React Query now drives the refetch via refetchInterval.
+   */
+  cronDiagnostics: operatorProcedure.query(async () => {
+    return scanCronHealth();
+  }),
 });

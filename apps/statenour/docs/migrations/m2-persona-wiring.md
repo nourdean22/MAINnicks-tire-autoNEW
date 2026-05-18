@@ -2,7 +2,7 @@
 
 **Started:** Phase M.2 (2026-05-18 PM)
 **Strategy:** Coexistence · inline sub-agents keep working · personas add structure
-**Status:** Library shipped (M.2) · **2/N call sites wired (R + S.1)** · S.1 adds per-step routing (research vs execution) · smart-tier inherits via runMultiAgent
+**Status:** Library shipped (M.2) · **3/N call sites wired (R + S.1 + T)** · T adds RESEARCH_PLANNER + RESEARCH_SYNTHESIZER specialists for the deep-research worker · N.6 scorer now feeds from multi-agent fan-out AND deep-research worker
 
 ## Why
 
@@ -66,14 +66,16 @@ Next call sites to wire:
    `runMultiAgent(question, plan)` which now passes typed personas
    per plan line via R + S.1's wiring. No separate code change
    needed · inheritance documented in `engine.ts` above runRouter.)
-2. **`thorough-tier deep-research worker`** · uses 1 planner + N
-   round agents + 1 synthesizer · DELIBERATELY SKIPPED for now ·
-   the existing `PLANNER_SYSTEM` + `SYNTHESIZER_SYSTEM` in
-   `lib/ai/deep-research.ts` are domain-tuned (Cleveland OH tire
-   shop · Perplexity citation markers) and the generic personas
-   would LOSE that specificity. Better follow-up: extract
-   RESEARCH_PLANNER and RESEARCH_SYNTHESIZER as named specialist
-   personas in `lib/ai/personas/index.ts`, then wire them in.
+2. ~~**`thorough-tier deep-research worker`**~~ **DONE in Phase T**
+   · extracted `RESEARCH_PLANNER` + `RESEARCH_SYNTHESIZER` as
+   specialist personas in `lib/ai/personas/index.ts` · `deep-research.ts`
+   now does `personaToSystemPrompt(RESEARCH_PLANNER)` /
+   `personaToSystemPrompt(RESEARCH_SYNTHESIZER)` at module load ·
+   `recordPersonaUsage` calls wired so N.6 scorer sees the deep-
+   research persona keys (planner duration · synth duration ·
+   implied-confidence). All domain anchors preserved (JSON output
+   shape · Cleveland OH tire-shop framing · Perplexity `[N]`
+   citation markers).
 3. ~~**Plan-derived steps with action verbs**~~ **DONE in Phase
    S.1** · `classifyStepIntent()` helper now picks
    `research-analyst` vs `execution-planner` per plan line based

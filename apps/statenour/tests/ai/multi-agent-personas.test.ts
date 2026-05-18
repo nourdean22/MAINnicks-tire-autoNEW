@@ -18,6 +18,8 @@ import {
   RESEARCH_ANALYST,
   CONTRARIAN_CRITIC,
   EXECUTION_PLANNER,
+  RESEARCH_PLANNER,
+  RESEARCH_SYNTHESIZER,
   PERSONAS,
   getPersona,
   personaToSystemPrompt,
@@ -158,5 +160,50 @@ describe("classifyStepIntent · Phase S.1 per-step persona routing", () => {
   it("ambiguous non-action words default to research-analyst", () => {
     expect(classifyStepIntent("1. operator reviews the brief")).toBe("research-analyst");
     expect(classifyStepIntent("2) team decides on direction")).toBe("research-analyst");
+  });
+});
+
+describe("specialist personas · Phase T deep-research wiring", () => {
+  it("RESEARCH_PLANNER is registered under the expected key", () => {
+    // deep-research.ts uses personaToSystemPrompt(RESEARCH_PLANNER)
+    // at module load. If this key ever drifts the planner's prompt
+    // silently disappears · this test pins the contract.
+    expect(getPersona("research-planner")).not.toBeNull();
+    expect(RESEARCH_PLANNER.key).toBe("research-planner");
+  });
+
+  it("RESEARCH_SYNTHESIZER is registered under the expected key", () => {
+    expect(getPersona("research-synthesizer")).not.toBeNull();
+    expect(RESEARCH_SYNTHESIZER.key).toBe("research-synthesizer");
+  });
+
+  it("RESEARCH_PLANNER's prompt preserves JSON output shape requirement", () => {
+    // The deep-research _planSubQueries function depends on the LLM
+    // returning a JSON shape with `subQueries[]`. The persona prompt
+    // MUST carry this requirement forward or the parser silently
+    // falls back to a 1-query plan.
+    const prompt = personaToSystemPrompt(RESEARCH_PLANNER);
+    expect(prompt).toContain("JSON");
+    expect(prompt).toContain("subQueries");
+  });
+
+  it("RESEARCH_SYNTHESIZER's prompt preserves Cleveland OH tire-shop framing + [N] citation pattern", () => {
+    // These domain anchors are why we kept specialist personas instead
+    // of migrating to the generic SYNTHESIZER · regression would lose
+    // the operator-relevant context the deep-research worker needs.
+    const prompt = personaToSystemPrompt(RESEARCH_SYNTHESIZER);
+    expect(prompt).toContain("Cleveland");
+    expect(prompt).toContain("[N]");
+  });
+
+  it("resolveSubAgentSystemPrompt resolves the specialists too", () => {
+    // The orchestrator's persona lookup is the same getPersona() path
+    // deep-research uses · verify both new specialists round-trip.
+    const planner = resolveSubAgentSystemPrompt("research-planner");
+    const synth = resolveSubAgentSystemPrompt("research-synthesizer");
+    const generic = resolveSubAgentSystemPrompt();
+    expect(planner).not.toBe(generic);
+    expect(synth).not.toBe(generic);
+    expect(planner).not.toBe(synth);
   });
 });

@@ -9,9 +9,9 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + **S.2/S.3** | 2026-05-18 PM | **5/50+ surfaces** · `/system/health` migrated · 3rd domain router (`system`) added | Continue `/system/*` migrations · `/chat`, `/voice` next |
+| **tRPC migration** (REST → tRPC) | Phase J + S.2/S.3 + **T.3/T.4** | 2026-05-18 PM | **6/50+ surfaces** · `/system/cron-diagnostics` migrated (read; mutations coexist on REST) · first invalidate-after-mutation pattern adopted | Continue `/system/*` (crons · logs) · `/chat`, `/voice` |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint | 2026-05-07 | **AGENT_V2=true active in prod** · v1 still mounted as fallback | Phase 1 canary (10% of turns) · pending judge-eval comparator + parity dashboard |
-| **M.2 persona wiring** (runMultiAgent ← personas) | Phase M.2 + **R + S.1/S.3** | 2026-05-18 PM | **2/N call sites wired** · S.1 adds per-step routing via `classifyStepIntent()` (research vs execution) · smart-tier inherits | Extract RESEARCH_PLANNER + RESEARCH_SYNTHESIZER specialist personas for deep-research worker |
+| **M.2 persona wiring** (runMultiAgent ← personas) | Phase M.2 + R + S.1/S.3 + **T** | 2026-05-18 PM | **3/N call sites wired** · T extracts deep-research specialist personas · N.6 scorer now feeds from multi-agent AND deep-research | Wire `pretask-fanout.ts` 3-lens fan-out · the last reasoning sub-pipeline without typed personas |
 | **Inline category strings → BRAIN_CATEGORIES** | Phase O.2 + P.2 | 2026-05-18 PM | **H+ scope done (8 files · 21 sites)** · 100+ legacy untouched | Optional H+ codemod rerun · legacy migration is separate scope |
 
 ## Completed migrations
