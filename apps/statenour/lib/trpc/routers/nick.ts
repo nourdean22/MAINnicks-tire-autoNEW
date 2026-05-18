@@ -23,7 +23,7 @@ import {
 } from "@/lib/ai/reasoning/budget";
 import { prisma } from "@/lib/prisma";
 
-const VALID_TIERS = ["quick", "standard", "deep", "thorough", "mega"] as const;
+const VALID_TIERS = ["quick", "standard", "smart", "deep", "thorough", "mega"] as const;
 const TierSchema = z.enum(VALID_TIERS);
 
 const ReasonInput = z.object({

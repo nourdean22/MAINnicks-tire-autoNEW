@@ -38,6 +38,7 @@ export const maxDuration = 180;
 const VALID_TIERS = new Set<ReasoningTier>([
   "quick",
   "standard",
+  "smart",
   "deep",
   "thorough",
   "mega",

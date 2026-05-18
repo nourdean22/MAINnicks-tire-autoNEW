@@ -70,6 +70,11 @@ function estimateTierCost(tier: ReasoningTier): number {
       return 0.12;
     case "deep":
       return 0.025;
+    case "smart":
+      // M.1 · between standard + deep · the router itself is cheap
+      // (~$0.001) but the picked sub-pipeline(s) add cost · 0.015
+      // covers router + 1 typical sub-pipeline · 0.030 worst case
+      return 0.015;
     case "standard":
       return 0.006;
     case "quick":

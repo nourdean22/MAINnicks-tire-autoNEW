@@ -57,6 +57,10 @@ export type ReasoningTier =
   | "quick"
   /** Run pretask fanout + critique · ~3-5s · ~$0.005 */
   | "standard"
+  /** Phase M.1 · CrewAI-inspired hierarchical router · cheap classifier
+   *  LLM picks which 1-2 sub-pipelines to fire instead of mega's all-5
+   *  pattern. Cuts typical mega-tier waste · ~5-15s · ~$0.008-0.015. */
+  | "smart"
   /** Run multi-agent + fanout + critique · ~8-15s · ~$0.02 */
   | "deep"
   /** Run deep-research + multi-agent + critique · ~30-60s · ~$0.10 */
