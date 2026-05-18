@@ -155,15 +155,33 @@ Sourced from `apps/nickstire/CLAUDE.md` + `frontend-design` (DFII ≥ 8) skill:
 
 ## 9. Open Questions (need operator decision)
 
-| # | Question | Why it matters | Status |
-|---|---|---|---|
-| 1 | Should the Repair Haiku appear on the `/contact` page too? | Currently `/contact` only has phone + form. Adding the haiku as a trust line could lift the 0.2% CTR there. | Open |
-| 2 | Should the kill list (Section 3) be enforced via a CI lint on PR diffs? | Would prevent future copy from sneaking in "trusted/expert/quality" language. ~30 min to wire. | Open |
-| 3 | Tone for Spanish-language copy (if/when added) — direct translation, or re-localized to Cleveland Latino working-class voice? | We don't ship Spanish copy yet. Decide before launching multilingual. | Future |
-| 4 | When VAPI transcripts surface a new high-frequency customer phrase, what's the cadence to update Section 4 (Customer Language)? | Weekly transcript audit ships those words into the prompt. Should be monthly snapshot into this doc. | Open |
-| 5 | Tone for legal / compliance copy (privacy policy, terms) — does it stay in brand voice or flip formal? | Currently formal. If audience reads = trust signal, flip-formal is fine. | Likely fine |
+Each open question carries a **recommendation** + **the specific decision needed** so you can confirm or override in seconds, not re-debate from scratch.
 
-**Confidence:** HIGH that these are real open decisions; MEDIUM-LOW on which way to resolve them — operator's call.
+### ✅ Resolved this session (May 18, wave-181)
+
+| # | Question | Resolution |
+|---|---|---|
+| 1 | Should the Repair Haiku appear on `/contact`? | **Yes — shipped wave-181.48.** Yellow-accent block below existing subhead. SEO description also updated. |
+| 2 | Should the kill list be enforced via CI lint? | **Yes — shipped wave-181.49.** Pre-commit hook scans only ADDED lines in `git diff --cached` (pre-existing 241 violations don't block; only new ones do). Audit mode (`--audit`) surfaces full count. |
+
+### 🟡 Still open · with recommendations
+
+**#3 — Tone for Spanish-language copy (if/when launched)**
+- **What's known:** No Spanish copy ships today. Cleveland Latino working-class population is real and growing in Euclid/Slavic Village neighborhoods. A literal translation of the current voice would land as overly formal in Spanish ("you don't pay until you say yes" → "usted no paga hasta que usted diga sí" reads as a legal contract, not a shop guy).
+- **Recommendation:** Re-localize, don't translate. Hire a native Cleveland-area Spanish speaker (one of your customers, or someone at the shop) to listen to a sample of English VAPI calls and re-cast Brian's lines in natural conversational Spanish. Target: tú-form (informal), shop-floor cadence, mirror local Spanglish where natural ("free check" stays in English because Cleveland Latinos use it). Same haiku structure, native phrasing.
+- **Need from you:** (a) is multilingual on the roadmap in the next 6 months? If no → defer the question. If yes → green-light a $200-400 budget to record 4-6 sample re-casts with a local Spanish speaker, then I can synthesize a Spanish §6 row.
+
+**#4 — Cadence for refreshing §4 (Customer Language mirror) from new VAPI transcripts**
+- **What's known:** New customer phrases surface in transcripts every week. The VAPI prompt itself evolves (we audit weekly). This doc was distilled once, on May 18, from 82 calls.
+- **Recommendation:** Monthly refresh, automated. Set up a `/loop` or scheduled task that on the 1st of each month: pulls the last 30 days of VAPI transcripts, runs `/brand-voice:guideline-generation` against them, diffs the §4 (Customer Language) table, and Telegrams you the proposed adds/removes. You approve or skip — no auto-merge. ~15 min to wire, then runs forever.
+- **Need from you:** Green-light a monthly automated refresh (vs ad-hoc as-needed). I'll wire it as wave-181.52 if you say go.
+
+**#5 — Tone for legal / compliance copy (privacy policy, terms, disclaimers)**
+- **What's known:** Currently formal. Privacy policy reads like a privacy policy. No customer complaints about it.
+- **Recommendation:** Keep formal — don't flip-brand the legal copy. Two reasons: (a) legal language IS a trust signal in this context; a "hey friend, here's what we do with your phone number lol" privacy policy would look unprofessional + reduce conversion + risk regulator side-eye. (b) The customer who reads the privacy policy at all is already in a different mode than the one calling about brakes. Match their mode.
+- **Need from you:** Confirm "keep formal" so we close this question. (Or: identify the SPECIFIC piece of legal copy that bothers you — sometimes a SMS opt-out line or a payment disclosure could ladder up to brand voice without the full legal copy flipping.)
+
+**Confidence:** HIGH that these are real open decisions. Recommendations are MEDIUM-confidence — they're informed guesses, your call to confirm or override.
 
 ---
 
