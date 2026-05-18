@@ -56,13 +56,13 @@ const MIGRATIONS: Migration[] = [
     name: "AGENT_V1 → AGENT_V2 (prompt builder)",
     startedAt: "2026-05-07",
     strategy: "Strangler fig with env flag (AGENT_V2=true)",
-    // Phase V + W (2026-05-18 PM) · Phase 0 prereqs fully shipped
+    // Phase V + W + X (2026-05-18 PM) · Phase 0 prereqs COMPLETE
     // V · judge-eval comparator + parity dashboard
-    // W · sampler (candidate queue) + X-Force-Agent header override
-    //     so operator (or future cron) can fire same prompt through
-    //     both paths to build matched pairs
+    // W · sampler + X-Force-Agent header override
+    // X · auto-corpus-builder cron (judge-eval-shadow in EVENING_JOBS)
+    //     fills the corpus overnight · no operator action required
     status: "in-progress",
-    nextMilestone: "Build 30-day baseline corpus via /system/judge-eval candidate queue · then flip to Phase 1 canary (10% of turns) when verdict reads 'safe'",
+    nextMilestone: "Wait ~10 evenings for cron to accumulate 50 comparison runs · then flip to Phase 1 canary (10% of turns) when /system/judge-eval verdict reads 'safe' for 7+ consecutive days",
   },
   {
     slug: "m2-persona-wiring",

@@ -47,11 +47,18 @@ V2 rebuilt the section composer with a canonical contract:
       without flipping the deploy-wide `AGENT_V2` env flag. This is the
       mechanism the Phase V+ shadow-execute cron will use.
 - [ ] **At least 30 days of V1 trace data captured for baseline** ·
-      time-dependent · operator can now run pairs via:
-      `curl /api/ai/chat -H "x-force-agent: v1"` + `... -H "x-force-agent: v2"`,
-      then `POST /api/judge-eval/run` with the two outputs.
-- [ ] **Daily cron to sample & judge** · Phase V+ scope · automate the
-      manual loop above via a scheduled job · ~10 turns/day sampled.
+      time-dependent · the auto-corpus-builder cron (below) now fills
+      this without operator action · expected ~5 pairs/day = ~150
+      samples after 30 days · enough for the verdict to flip from
+      "insufficient-data" once the threshold (50 runs/7d) is crossed.
+- [x] **Daily cron to sample & judge** · Phase X (2026-05-18 PM) ·
+      `/api/cron/judge-eval-shadow` registered in EVENING_JOBS · runs
+      nightly via mega-evening fan-out · picks N fresh candidates
+      (default 5 · capped at 25 via JUDGE_EVAL_SHADOW_MAX_PER_RUN
+      env) · replays each through V1 + V2 prompt builders in
+      parallel via `lib/ai/judge-eval/replay.ts` · judges + persists
+      with sourceMessageId so the next run picks fresh samples.
+      Budget · ~$0.025/run · trivial.
 
 ### Phase 1 · canary (pending Phase 0)
 - 10% of turns routed to V2 · 90% V1
@@ -71,19 +78,19 @@ V2 rebuilt the section composer with a canonical contract:
 - Archive V1 section files under `lib/ai/prompt/_archive/`
 - Update tests to V2-only
 
-## Current state (as of Phase W ship)
+## Current state (as of Phase X ship)
 
 - `AGENT_V2=true` env flag is the ACTIVE default
 - V1 code path still reachable when env flag is false (back-compat)
-- Phase 0 prerequisites: judge-eval + dashboard (V) + sampler +
-  force-override (W) ALL SHIPPED · the manual + scriptable workflow
-  to build the corpus is complete end-to-end
-- Safety net WIRED · `/system/judge-eval` shows the verdict chip
-  + per-intent breakdown · sampler shows the fresh candidate queue
-- Still pending · 30-day baseline corpus capture (time-dependent;
-  the gating mechanism + dashboard + sampling + V1/V2 force-fire
-  all exist · the corpus just needs to fill up via the manual loop
-  the operator can now run from `/system/judge-eval` or curl)
+- Phase 0 prerequisites: COMPLETE END-TO-END
+  - V · judge-eval comparator + dashboard
+  - W · sampler + ad-hoc form + X-Force-Agent header
+  - X · auto-corpus-builder cron + replay helper
+- Safety net WIRED + AUTOMATED · the corpus fills itself overnight
+  via the mega-evening fan-out · no operator action required
+- Still time-dependent · the cron needs ~10 evenings to accumulate
+  50 runs (the threshold for the dashboard verdict to flip from
+  "insufficient-data" to safe/watch/regressing)
 
 ## Risk
 
@@ -112,17 +119,22 @@ Per MEMORY: 3 rollback levels defined.
 
 ## Next milestone
 
-~~Ship Phase 0 prerequisites~~ **DONE in Phase V (2026-05-18 PM).**
+~~Ship Phase 0 prerequisites~~ **DONE in Phase V + W + X (2026-05-18 PM).**
 
-Next steps to unblock Phase 1 canary:
+Now waiting on ELAPSED TIME, not engineering:
 
-1. **Build the 30-day baseline corpus** · either backfill via
-   `POST /api/judge-eval/run` with historical V1 replies the
-   operator pastes in, OR design the shadow-execute cron that
-   re-runs a small sample of V2 turns through V1 in parallel
-2. **Watch the `/system/judge-eval` verdict** as the corpus fills ·
-   it auto-flips from `insufficient-data` → `safe` / `watch` /
-   `regressing` once 50+ runs accumulate
-3. **Only then** flip to Phase 1 canary (10% of turns routed to V2
-   while V1 is the default · or vice-versa depending on what the
-   verdict says)
+1. **Wait ~10 evenings** while the shadow-execute cron accumulates
+   ~50 comparison runs (the threshold for a confident verdict).
+   No operator action required · happens automatically via
+   mega-evening fan-out.
+2. **Watch the `/system/judge-eval` verdict** chip:
+   - "insufficient-data" → corpus still growing · just wait
+   - "safe" → v2 win rate ≥50% → green-light Phase 1 canary
+   - "watch" → 40-49% → investigate which intent class is dragging
+   - "regressing" → <40% → DO NOT promote · diagnose first
+3. **Flip to Phase 1 canary** once verdict reads "safe" for 7+ days:
+   - Phase 1 canary semantics live further down in this doc
+   - The flip itself is a 1-line env change (10% v2 routing)
+4. **Optional · operator-driven sampling for specific intent classes**
+   via `/system/judge-eval` candidate queue + ad-hoc form ·
+   useful for targeted investigations between the daily auto-runs.

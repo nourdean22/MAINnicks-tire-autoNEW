@@ -411,7 +411,11 @@ export async function buildSystemPrompt(
   return v1Prompt;
 }
 
-async function buildSystemPromptUncached(
+// Phase X (2026-05-18 PM) · exported so the judge-eval shadow-execute
+// cron (`lib/ai/judge-eval/replay.ts`) can fire V1 explicitly without
+// going through the env-flag conditional in `buildSystemPrompt`. The
+// cron runs once per day so the uncached path is fine.
+export async function buildSystemPromptUncached(
   tier: TopicTier = "full",
   userMessage: string | null = null,
 ): Promise<string> {
