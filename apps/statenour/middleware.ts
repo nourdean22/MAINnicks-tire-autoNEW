@@ -22,6 +22,13 @@ const PUBLIC_PREFIXES = [
   // probe gets through. The 503+hint wrapper in the route handles
   // the unconfigured case.
   "/api/inngest",
+  // 2026-05-17 · WAVE-200 Phase 4 follow-up · Mastra agent endpoint.
+  // The /api/agent route handles its own auth via resolveOperator():
+  // either VOICE_BRIDGE_TOKEN Bearer (for the apps/voice Python worker)
+  // OR requireSession() (browser useChat() callers). Both gates work
+  // regardless of middleware. Whitelisting here lets the Bearer-only
+  // bridge path through.
+  "/api/agent",
   "/auth",            // Sign-in/sign-out pages
   "/_next",           // Next.js internals
   "/favicon",
