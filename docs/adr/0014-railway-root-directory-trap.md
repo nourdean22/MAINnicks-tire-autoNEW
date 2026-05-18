@@ -127,14 +127,64 @@ If we hit this trap a second time, ship the `railway.toml` approach
 - The 9 failed deploys produced harmless build noise · no data loss ·
   no impact on running Phase A.2 deployment serving traffic
 
+## The second layer · masked-bug discovery (added 2026-05-18 after rootDirectory fix)
+
+When Railway's rootDirectory was cleared and the build progressed past
+the Docker COPY phase, it failed at Next.js static page generation
+with:
+
+```
+Error occurred prerender · useSearchParams() should be wrapped in a
+Suspense boundary · Next.js build worker exited · ELIFECYCLE
+```
+
+**Phase B introduced this bug** (commit `c7604fc`) by adding
+`useSearchParams()` to `/tasks/page.tsx` for the `?goalId=` filter
+WITHOUT a Suspense wrapper or `force-dynamic` opt-out. Next.js 16's
+App Router requires one of those for static-prerender to work.
+
+This was the *actual* root cause of 9 hours of failed deploys. The
+rootDirectory misconfig was a SECOND simultaneous bug that masked
+the useSearchParams error by failing the build earlier (at the Docker
+COPY phase) before it ever reached Next.js. Once rootDirectory cleared,
+the real error surfaced.
+
+**Lesson · two simultaneous bugs hide each other.** The cascade was:
+
+1. Phase B shipped useSearchParams without Suspense (`c7604fc`)
+2. Railway also had rootDirectory misconfigured (separately)
+3. The rootDirectory misconfig failed the build at Docker COPY,
+   BEFORE the Next.js build ever ran
+4. We diagnosed and fixed rootDirectory (~40 min · ADR-0014 §1)
+5. With Docker COPY now working, the useSearchParams error surfaced
+6. ~10 more min to fix with `export const dynamic = "force-dynamic"`
+
+When debugging stuck deploys, **assume there may be a chain of
+issues, not just one**. Fix the most visible blocker, then re-run
+to see if the next layer reveals itself.
+
+**Prevention:** every page that uses `useSearchParams()` MUST either
+wrap it in `<Suspense>` or set `export const dynamic = "force-dynamic"`.
+Verified all other mastery pages with useSearchParams already follow
+this rule (system/prompt · social · brain/health · brain · brain/wisdom
+· chat · system/quality · system/history · mastery root all use
+Suspense). Phase B's addition was the lone outlier.
+
 ## Operator action items
 
 1. ~~Fix rootDirectory~~ — DONE 2026-05-18 (cleared the field)
-2. Next time a "failed to calculate checksum of ref" error appears
+2. ~~Fix /tasks useSearchParams~~ — DONE 2026-05-18 (commit `3eb5cbe`
+   added `force-dynamic`)
+3. Next time a "failed to calculate checksum of ref" error appears
    with the same hash across rebuilds, **check Settings → Root
    Directory FIRST** before doing anything else
-3. *(optional · only if this recurs)* implement `railway.toml`
-   override in repo root
+4. Next time a "useSearchParams should be wrapped in Suspense" error
+   appears, the fix is one line: `export const dynamic = "force-dynamic"`
+   on the page module (or wrap in `<Suspense>` if you want to keep
+   static-prerender of the shell)
+5. *(optional · only if these recur)* implement `railway.toml`
+   override + add a CI check that asserts every `useSearchParams`
+   call site has Suspense or force-dynamic
 
 ## References
 
