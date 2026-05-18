@@ -395,9 +395,25 @@ export function NickReasoner({
               <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
                 {result.trace.answer}
               </div>
-              <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
-                confidence {(result.trace.confidence * 100).toFixed(0)}%
-              </p>
+              <div className="flex items-baseline justify-between gap-3 pt-1">
+                <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] italic">
+                  confidence {(result.trace.confidence * 100).toFixed(0)}%
+                </p>
+                {/* H.4.5 · continue-in-chat handoff. Routes to /chat
+                    with the question + answer prefixed as a system
+                    seed so the chat picks up where the reasoning
+                    left off · operator can ask follow-ups, drill
+                    in, or pivot without losing the thread. */}
+                <a
+                  href={`/chat?seed=${encodeURIComponent(
+                    `Earlier in /reason I asked: ${question.trim().slice(0, 240)}\n\nNick (${result.tier} tier) answered:\n${result.trace.answer.slice(0, 800)}\n\nLet's continue.`,
+                  )}`}
+                  className="text-[10px] font-mono uppercase tracking-[0.14em] text-[var(--text-secondary)] hover:text-[var(--gold)] transition"
+                  title="open in /chat with question + answer pre-seeded"
+                >
+                  continue in chat →
+                </a>
+              </div>
             </div>
           ) : null}
         </div>

@@ -978,6 +978,48 @@ export interface AiResponse {
    *  Populated even on success (when earlier providers failed before a
    *  later one succeeded). Consumed by tracedAiChat for /system/agent-traces. */
   failures?: ProviderFailure[];
+  /** H.4.7 · real token usage when the SDK reports it · undefined when
+   *  the provider doesn't surface it (some local providers don't). */
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheCreationInputTokens?: number;
+    cacheReadInputTokens?: number;
+  };
+  /** H.4.7 · estimated USD cost for this single call, computed from the
+   *  per-provider rate table below. Undefined when usage is missing or
+   *  the provider isn't in the rate table. The reasoning engine uses
+   *  this when present and falls back to per-tier estimates otherwise. */
+  costUsd?: number;
+}
+
+/** H.4.7 · per-provider per-1M-token rates (USD). Conservative numbers
+ *  · we'd rather over-attribute cost than miss spend. Venice + Ollama
+ *  are local/cheap so set near-zero; OpenAI + Anthropic use rough
+ *  averages of their flagship models since we don't know which sub-
+ *  model the call actually routed to. */
+const PROVIDER_RATES_PER_1M_TOKENS: Record<
+  string,
+  { input: number; output: number }
+> = {
+  venice: { input: 0.5, output: 1.5 }, // Venice flagship-ish pricing
+  ollama: { input: 0.0, output: 0.0 }, // local · zero marginal
+  openai: { input: 2.5, output: 10.0 }, // gpt-4o-mini-ish average
+  anthropic: { input: 3.0, output: 15.0 }, // Claude Sonnet-ish average
+  none: { input: 0.0, output: 0.0 },
+};
+
+function estimateCostUsd(
+  provider: string,
+  inputTokens?: number,
+  outputTokens?: number,
+): number | undefined {
+  if (inputTokens == null && outputTokens == null) return undefined;
+  const rate = PROVIDER_RATES_PER_1M_TOKENS[provider];
+  if (!rate) return undefined;
+  const inUsd = ((inputTokens ?? 0) / 1_000_000) * rate.input;
+  const outUsd = ((outputTokens ?? 0) / 1_000_000) * rate.output;
+  return Math.round((inUsd + outUsd) * 10000) / 10000; // round to $0.0001
 }
 
 /**
@@ -1170,6 +1212,26 @@ export async function aiChat(messages: AiMessage[], taskType: TaskType = "reason
       }
 
       log.info("provider.success", { provider: entry.name, model: resolvedModelId, chars: cleaned.length });
+      // H.4.7 · pluck usage + compute cost · was extracted above for
+      // cache telemetry, now also returned for callers (reasoning
+      // engine accumulates real cost from this).
+      const usageOut = (result as unknown as {
+        usage?: { inputTokens?: number; outputTokens?: number };
+        providerMetadata?: { anthropic?: { cacheCreationInputTokens?: number; cacheReadInputTokens?: number } };
+      });
+      const usage = usageOut.usage
+        ? {
+            inputTokens: usageOut.usage.inputTokens,
+            outputTokens: usageOut.usage.outputTokens,
+            cacheCreationInputTokens: usageOut.providerMetadata?.anthropic?.cacheCreationInputTokens,
+            cacheReadInputTokens: usageOut.providerMetadata?.anthropic?.cacheReadInputTokens,
+          }
+        : undefined;
+      const costUsd = estimateCostUsd(
+        entry.name,
+        usage?.inputTokens,
+        usage?.outputTokens,
+      );
       return {
         content: cleaned,
         provider: entry.name,
@@ -1181,6 +1243,8 @@ export async function aiChat(messages: AiMessage[], taskType: TaskType = "reason
         // every Venice success — analytics drift.
         model: resolvedModelId,
         failures: failures.length > 0 ? failures : undefined,
+        usage,
+        costUsd,
       };
     } catch (err) {
       clearTimeout(timeout);
