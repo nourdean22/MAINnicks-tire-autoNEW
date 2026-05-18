@@ -1,5 +1,16 @@
 "use client";
 
+// Phase B follow-up · 2026-05-18 · `useSearchParams()` (introduced
+// for the ?goalId=X filter) requires the page to opt out of static
+// prerender. Without this, `pnpm run build` fails with:
+//   Error occurred prerender · useSearchParams() should be wrapped
+//   in a Suspense boundary
+// Diagnosed via Railway Agent after 1 deploy failed at static-gen.
+// force-dynamic is simpler than refactoring the whole 1,181-LOC page
+// into a Suspense-wrapped inner component · the page is operator-
+// only + already authenticated + always SSR'd anyway.
+export const dynamic = "force-dynamic";
+
 /**
  * Actions page · /tasks
  *
