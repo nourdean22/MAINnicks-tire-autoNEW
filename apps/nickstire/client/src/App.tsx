@@ -98,7 +98,10 @@ const CostEstimator = lazy(() => import("./pages/CostEstimator"));
 const LandingPage = lazy(() => import("./pages/LandingPage"));
 const SharePage = lazy(() => import("./pages/SharePage"));
 const NeighborhoodPage = lazy(() => import("./pages/NeighborhoodPage"));
-const IntersectionPage = lazy(() => import("./pages/IntersectionPage"));
+// 2026-05-19 · IntersectionPage DELETED · 154 orphan SEO pages with 0
+// schema, 1 inbound link, and 3-way keyword cannibalization with the
+// City + Neighborhood templates. Audit-confirmed structural dead weight.
+// Restore from git history at wave-181.97 if rankings drop signal real value.
 const Careers = lazy(() => import("./pages/Careers"));
 const BookingPage = lazy(() => import("./pages/BookingPage"));
 const GuidesIndex = lazy(() => import("./pages/GuidesIndex"));
@@ -377,8 +380,9 @@ function Router() {
                 component={NeighborhoodPage}
               />
             ))}
-            {/* Intersection pages (hyper-local SEO — /near/:slug) */}
-            <Route path={"/near/:slug"} component={IntersectionPage} />
+            {/* 2026-05-19 · /near/:slug route DELETED · see lazy-import
+                comment above. AreasServed page no longer renders the
+                intersection grid. */}
             {/* Careers */}
             <Route path={"/careers"} component={Careers} />
             {/* Women's Safety & Pit Stop Experience */}
