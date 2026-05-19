@@ -139,13 +139,13 @@ describe("parseJudgeResponse · Phase V judge-eval parser", () => {
     expect(result.summary).toContain("parse failed");
   });
 
-  it("Phase CC regression · handles response with multiple top-level braces (greedy-regex bug)", () => {
-    // Pre-CC the parser used a greedy `{ ... }` regex that matched
-    // from first `{` to last `}` · a response with multiple top-level
-    // objects (LLM emits an explanation example before the answer)
-    // would JSON.parse-fail because the captured span had both.
-    // CC fix tries cleaned-text parse first · falls back to regex only
-    // when direct parse fails. This case never hits the regex path.
+  it("Phase CC happy-path · clean JSON parses on the first pass (no regex fallback)", () => {
+    // CC fix · two-pass extraction · try JSON.parse(cleaned) first ·
+    // fall back to greedy regex only on direct-parse failure. This test
+    // exercises the happy path · valid JSON should never hit the regex.
+    // (Phase FF rename · pre-FF the test name claimed it covered the
+    // multi-brace bug · it doesn't · the multi-brace case still falls
+    // through to defaultJudgment · see the follow-up test below.)
     const raw = JSON.stringify({
       winner: "v2",
       v2Score: 75,
@@ -161,6 +161,31 @@ describe("parseJudgeResponse · Phase V judge-eval parser", () => {
     expect(result.parsed).toBe(true);
     expect(result.winner).toBe("v2");
     expect(result.v2Score).toBe(75);
+  });
+
+  it("Phase FF · multi-brace LLM responses still fall through to defaultJudgment (documented gap)", () => {
+    // The CC fix doesn't ACTUALLY solve the multi-brace case · just
+    // sidesteps it on the happy path. When the LLM emits an explanation
+    // object before the real verdict, the cleaned-text direct parse
+    // fails (mixed text + objects isn't valid JSON), then the greedy
+    // regex `/\{[\s\S]*\}/` grabs the entire span first-`{`-to-last-`}`
+    // and JSON.parse fails again · we return defaultJudgment. Locking
+    // in the current behavior so we know if a future change breaks it
+    // (in either direction · stricter fail OR cleverer extraction).
+    const raw =
+      "Here's an example I considered: " +
+      JSON.stringify({ note: "draft" }) +
+      " · and the real verdict: " +
+      JSON.stringify({
+        winner: "v2",
+        v2Score: 80,
+        dimensions: [],
+        summary: "real",
+      });
+    const result = parseJudgeResponse(raw);
+    expect(result.parsed).toBe(false);
+    expect(result.winner).toBe("tie"); // default
+    expect(result.v2Score).toBe(50); // default
   });
 
   it("ignores unknown dimensions (whitelist)", () => {
