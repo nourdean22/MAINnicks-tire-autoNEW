@@ -129,8 +129,33 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // the chat page can hydrate input + transportBodyRef anchors on
   // mount via the existing useChatDeepLink hook. Same chip strip
   // works on /brain · /journal · anywhere without a composer.
+  //
+  // v10.0.529.97 · suggestion-loop · fire the "acted" supervised
+  // signal to /api/brain/suggestion-loop before seeding the input.
+  // Fire-and-forget · don't block the UI on the POST. This closes
+  // the Ilya feedback loop · every chip tap becomes a training
+  // example for improve-agent + future DPO data.
+  const recordTap = useCallback(
+    (meta: { kind: string; id: string }) => {
+      void authedFetch("/api/brain/suggestion-loop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "action",
+          suggestionId: meta.id,
+          suggestionKind: meta.kind,
+          event: "acted",
+        }),
+      }).catch(() => {
+        // Best-effort · never let signal capture break the seed flow.
+      });
+    },
+    [],
+  );
+
   const handleSeed = useCallback(
     (prompt: string, meta?: { kind: string; id: string }) => {
+      if (meta) recordTap(meta);
       if (onSeed) {
         onSeed(prompt, meta);
         return;
@@ -142,7 +167,7 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
       }
       router.push(`/chat?${params.toString()}`);
     },
-    [onSeed, router],
+    [onSeed, router, recordTap],
   );
 
   const load = useCallback(async () => {
