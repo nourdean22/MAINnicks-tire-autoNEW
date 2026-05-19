@@ -17,9 +17,12 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
+import { ServiceError } from "@/lib/utils/service-error";
 import { searchChat } from "@/lib/services/chat-search";
 import { readChatBranches } from "@/lib/services/chat-branches";
+import { readMessageProvenance } from "@/lib/services/brain-provenance";
 
 export const chatRouter = router({
   /**
@@ -55,4 +58,33 @@ export const chatRouter = router({
     .query(async ({ input }) =>
       readChatBranches({ parentMessageId: input.parentMessageId }),
     ),
+
+  /**
+   * Phase EE (2026-05-18 PM) · owner-only · reverse-search what
+   * brain memories shaped a specific assistant message. Powers
+   * the "brain context" section of MessageInfoCard ("3 memories
+   * shaped this reply" disclosure).
+   *
+   * Delegates to `lib/services/brain-provenance.ts` shared service
+   * · legacy REST endpoint at /api/brain/provenance/[messageId]
+   * calls the same function · drift impossible.
+   *
+   * Edge cases · message not found surfaces as NOT_FOUND tRPC error
+   * via ServiceError translation · caller decides how to render.
+   */
+  messageProvenance: operatorProcedure
+    .input(z.object({ messageId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      try {
+        return await readMessageProvenance({ messageId: input.messageId });
+      } catch (err) {
+        if (err instanceof ServiceError && err.status === 404) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });

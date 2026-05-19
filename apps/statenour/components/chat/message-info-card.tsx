@@ -31,44 +31,34 @@
  * is fire-and-forget so failed feedback never breaks the UI.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Info, ThumbsUp, ThumbsDown, Copy, Check, Cpu, Clock, Coins, Hash, GitBranch, Activity, Brain, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 /**
  * v10.0.98 — Slice B · "what your brain knew about this reply".
  *
- * On first card-open, lazy-fetches GET /api/brain/provenance/[messageId].
- * Surfaces the top-3 hybrid-recall hits that most likely shaped this
- * reply — same KNN+FTS+recency stack the chat route uses to inject
- * recall context into the system prompt at generation time.
+ * On first card-open, lazy-fetches the message's provenance via the
+ * chat.messageProvenance tRPC procedure. Surfaces the top-3 hybrid-
+ * recall hits that most likely shaped this reply — same KNN+FTS+
+ * recency stack the chat route uses to inject recall context into
+ * the system prompt at generation time.
  *
  * Why surface it: the recall is already happening (96ms parallel pipe)
  * but is invisible. Visible recall = trust + debugging + power. User
  * sees what the brain remembered without leaving the chat thread.
  *
- * Cached per-message: once fetched, the hits stay in component state
- * for the life of the card render. Re-mounts re-fetch (acceptable —
- * provenance is cheap relative to a chat turn).
+ * Phase EE (2026-05-18 PM) · migrated from `authedFetch` + useEffect
+ * + cancelled-flag dance to `trpc.chat.messageProvenance.useQuery`
+ * with `enabled: open` for the lazy-on-open semantics React Query
+ * provides natively. The pre-EE manual `ProvenanceResponse` interface
+ * is gone · types now flow from the procedure.
  */
-interface ProvenanceHit {
-  memoryId: string;
-  category: string;
-  key: string;
-  content: string;
-  confidence: number;
-  ageDays: number;
-  finalScore: number;
-}
-interface ProvenanceResponse {
-  recall?: {
-    hits?: ProvenanceHit[];
-    selfMatchExcluded?: number;
-    durationMs?: number;
-  };
-}
+// ProvenanceHit type now inferred from the trpc procedure (see usage
+// in the brainHits derivation below).
 export interface MessageInfoCardData {
   messageId: string;
   provider?: string | null;
@@ -127,42 +117,22 @@ export function MessageInfoCard({ data, className }: { data: MessageInfoCardData
   const [feedbackBusy, setFeedbackBusy] = useState(false);
 
   // v10.0.98 · Slice B — brain-context state. Lazy-loaded on first open.
-  const [brainHits, setBrainHits] = useState<ProvenanceHit[] | null>(null);
-  const [brainBusy, setBrainBusy] = useState(false);
-  const [brainErr, setBrainErr] = useState<string | null>(null);
+  // Phase EE · React Query handles the lazy-fetch + cleanup. The pre-EE
+  // useEffect + setState + cancelled-flag dance + manual dedup guard
+  // is gone. `enabled: open` mirrors "only fire after first card open".
+  // 60s staleTime means closing + reopening within a minute doesn't
+  // re-fetch · matches the prior cached-per-card-render behavior.
   const [brainExpanded, setBrainExpanded] = useState(false);
-
-  // Fire provenance fetch the first time the card opens. Self-cancels
-  // if the component unmounts before the response lands.
-  //
-  // v10.0.103 audit fix · brainBusy + brainErr were in deps but are
-  // SET inside the effect — that creates a fragile re-run cycle that
-  // only works because of React batching. Rely on brainHits as the
-  // dedup signal: once it's non-null, the guard short-circuits.
-  useEffect(() => {
-    if (!open || brainHits !== null) return;
-    let cancelled = false;
-    setBrainBusy(true);
-    setBrainErr(null);
-    authedFetch(`/api/brain/provenance/${encodeURIComponent(data.messageId)}`)
-      .then((r) => (r.ok ? (r.json() as Promise<ProvenanceResponse>) : null))
-      .then((j) => {
-        if (cancelled) return;
-        const hits = j?.recall?.hits ?? [];
-        setBrainHits(hits.slice(0, 3));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setBrainErr("recall failed");
-        setBrainHits([]); // mark fetched-but-empty so we don't refire
-      })
-      .finally(() => {
-        if (!cancelled) setBrainBusy(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, data.messageId, brainHits]);
+  const provenanceQ = trpc.chat.messageProvenance.useQuery(
+    { messageId: data.messageId },
+    { enabled: open, staleTime: 60_000 },
+  );
+  const brainBusy = provenanceQ.isFetching;
+  const brainErr = provenanceQ.error ? "recall failed" : null;
+  // Slice to top-3 here (same as pre-EE) · the procedure returns up to 10
+  const brainHits = provenanceQ.data
+    ? provenanceQ.data.recall.hits.slice(0, 3)
+    : null;
 
   const copy = async (field: string, value: string) => {
     if (typeof navigator === "undefined" || !navigator.clipboard) return;
