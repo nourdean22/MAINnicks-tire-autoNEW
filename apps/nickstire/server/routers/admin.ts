@@ -930,10 +930,27 @@ export const adminDashboardRouter = router({
               const cnt = Number(wa?.count || 0);
               const total = Math.round(Number(wa?.total || 0) / 100);
               if (cnt > 0) {
+                // wave-181.72 (highest-leverage move) · the recovery cron
+                // has been DRY-RUNNING for months because FEATURE_DECLINED_
+                // RECOVERY env flag was never set. With wave-181.60 (at-
+                // most-once) + wave-181.68 (durable rate-limit) + wave-181.69
+                // (alert dedup), the cron is now production-safe. Single
+                // env flag flip on Railway unleashes the entire pipeline.
+                const featureOn = process.env.FEATURE_DECLINED_RECOVERY === "1";
+                if (!featureOn && total >= 50_000) {
+                  return {
+                    variant: "danger" as const,
+                    message: `$${total.toLocaleString()} in walked-away estimates sitting IDLE. SMS recovery cron is in DRY-RUN mode — set FEATURE_DECLINED_RECOVERY=1 on Railway to unleash auto-send (at-most-once protected · TCPA opt-out enforced · 20 sends/run cap). 30 seconds of operator time → live pipeline.`,
+                    metric: `$${total.toLocaleString()} idle · ${cnt} estimates · 1 env flag`,
+                    cta: { label: "See Status", section: "settings", settingsTab: "shopdriver" },
+                  };
+                }
                 return {
-                  variant: "primary" as const,
-                  message: `Walked-away estimates from last 60 days. SMS recovery cron targets these — set FEATURE_DECLINED_RECOVERY=1 to activate.`,
-                  metric: `$${total.toLocaleString()} recoverable`,
+                  variant: featureOn ? "primary" as const : "warning" as const,
+                  message: featureOn
+                    ? `Walked-away estimates from last 60 days · recovery cron actively processing.`
+                    : `Walked-away estimates from last 60 days. SMS recovery cron targets these — set FEATURE_DECLINED_RECOVERY=1 to activate.`,
+                  metric: `$${total.toLocaleString()} ${featureOn ? "in flight" : "recoverable"}`,
                   cta: { label: "See Status", section: "settings", settingsTab: "shopdriver" },
                 };
               }
