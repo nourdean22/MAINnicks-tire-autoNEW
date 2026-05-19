@@ -62,7 +62,8 @@ export async function process24hFollowUps() {
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
-        const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service)).catch(() => ({ success: false }));
+        // wave-181.58 · route through F25e gateway (Twilio dead per operator).
+        const smsResult = await sendSms(booking.phone, thankYouSms(booking.name, booking.service), { via: "shop" }).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
@@ -113,7 +114,8 @@ export async function process7dReviewRequests() {
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
-        const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name)).catch(() => ({ success: false }));
+        // wave-181.58 · route through F25e gateway (Twilio dead per operator).
+        const smsResult = await sendSms(booking.phone, reviewRequestSms(booking.name), { via: "shop" }).catch(() => ({ success: false }));
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }

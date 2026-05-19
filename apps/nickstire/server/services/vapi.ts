@@ -1605,13 +1605,38 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
   };
 }
 
+/**
+ * wave-181.58 · inject VAPI_WEBHOOK_SECRET into config.server.secret
+ * before any PATCH/POST to /assistant. VAPI's nested `server` PATCH
+ * replaces the WHOLE object; without injecting the secret here, every
+ * server-initiated assistant update would clear it and silently break
+ * webhook signature validation (same root cause as wave-181.50, but
+ * for the tRPC-triggered update path that the standalone script fix
+ * didn't cover).
+ *
+ * Mutates the passed config in place + returns it. Logs a warning if
+ * the env var is missing — does NOT abort, because the previous secret
+ * stays set on VAPI's side if we send the field as null/undefined
+ * (verified empirically). Aborting here would block legitimate
+ * non-secret updates on misconfigured deploys.
+ */
+function injectWebhookSecret(config: VapiAssistantConfig): VapiAssistantConfig {
+  const secret = process.env.VAPI_WEBHOOK_SECRET;
+  if (config.server && secret) {
+    config.server.secret = secret;
+  } else if (config.server && !secret) {
+    log.warn("VAPI assistant PATCH/POST · VAPI_WEBHOOK_SECRET missing from env — server.secret left unset (preserves prior value on VAPI if any).");
+  }
+  return config;
+}
+
 export async function createFollowUpAssistant(serverUrl?: string): Promise<{
   success: boolean;
   assistantId?: string;
   error?: string;
 }> {
   try {
-    const config = buildFollowUpAssistantConfig(serverUrl);
+    const config = injectWebhookSecret(buildFollowUpAssistantConfig(serverUrl));
     const res = await vapiFetch("/assistant", {
       method: "POST",
       body: JSON.stringify(config),
@@ -1634,7 +1659,7 @@ export async function updateFollowUpAssistant(assistantId: string, serverUrl?: s
   error?: string;
 }> {
   try {
-    const config = buildFollowUpAssistantConfig(serverUrl);
+    const config = injectWebhookSecret(buildFollowUpAssistantConfig(serverUrl));
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
       body: JSON.stringify(config),
@@ -1656,7 +1681,7 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
   error?: string;
 }> {
   try {
-    const config = buildAssistantConfig(serverUrl);
+    const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
     const res = await vapiFetch("/assistant", {
       method: "POST",
       body: JSON.stringify(config),
@@ -1680,7 +1705,7 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
   error?: string;
 }> {
   try {
-    const config = buildAssistantConfig(serverUrl);
+    const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
       body: JSON.stringify(config),
