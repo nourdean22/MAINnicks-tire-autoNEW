@@ -558,6 +558,44 @@ async function startServer() {
     }
   });
 
+  // ─── VAPI Call State (admin · Phase 4 · wave-181.63) ────────
+  // Real-time view of in-flight VAPI calls + their current state in
+  // the 4-state agent flow (greeted → intent_captured → tool_called →
+  // confirmed). Backed by voice_latency_events with `state_<name>`
+  // stage namespacing · zero migration cost. Drill in to a single
+  // call's full state trail via ?callId=<vapi-uuid>.
+  app.get("/api/admin/voice-call-states", requireAdminApiKey, async (req, res) => {
+    try {
+      const callId = typeof req.query.callId === "string" ? req.query.callId : null;
+      const maxAgeMinutes = Math.max(
+        1,
+        Math.min(120, parseInt(String(req.query.maxAgeMin || "10"), 10) || 10),
+      );
+      const { getActiveCallStates, getCallStateHistory } = await import(
+        "../services/voice-call-state"
+      );
+      if (callId) {
+        // Single-call drill-in · full state trail oldest → newest.
+        const history = await getCallStateHistory(callId);
+        res.json({ callId, history });
+        return;
+      }
+      // Roster view · all in-flight calls within the lookback window.
+      const active = await getActiveCallStates({ maxAgeMinutes });
+      res.json({
+        windowMinutes: maxAgeMinutes,
+        count: active.length,
+        states: active,
+        byState: active.reduce<Record<string, number>>((acc, s) => {
+          acc[s.latestState] = (acc[s.latestState] ?? 0) + 1;
+          return acc;
+        }, {}),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // ─── VAPI Call Analytics (admin) ─────────────────
   // wave-181.4 · proxies VAPI's /call list endpoint with aggregations.
   // Migrated from statenour-os v10.0.269 (/api/system/vapi-calls).

@@ -277,6 +277,26 @@ router.post("/vapi", async (req: Request, res: Response) => {
               metadata: { source: "vapi-webhook", toolCalls: calls.length },
             })
           ).catch(() => { /* intentionally swallowed */ });
+
+          // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+          // Classify each tool call into a state transition (read tool =
+          // intent_captured · write tool = tool_called · confirmation
+          // tool = confirmed). Append-only · multiple events per call
+          // are correct (the trail tells you the agent re-engaged after
+          // a tool call). Fire-and-forget · NEVER blocks webhook.
+          import("../../services/voice-call-state").then(({ classifyToolToState, recordCallState }) => {
+            for (const c of calls) {
+              const state = classifyToolToState(c.function?.name ?? "");
+              if (state) {
+                void recordCallState({
+                  callId,
+                  assistantId,
+                  state,
+                  metadata: { tool: c.function?.name, toolCallId: c.id },
+                });
+              }
+            }
+          }).catch(() => { /* intentionally swallowed */ });
         }
         return;
       }
@@ -284,6 +304,21 @@ router.post("/vapi", async (req: Request, res: Response) => {
       case "status-update":
       case "call-start": {
         log.info("Vapi call started", { callId: event.call?.id });
+        // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+        // Record `greeted` on call start. Fire-and-forget · the existing
+        // ack path stays untouched.
+        const callId = event.call?.id;
+        const assistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (callId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId,
+              assistantId,
+              state: "greeted",
+              metadata: { eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
+        }
         // Acknowledge — no work needed for V1
         res.json({ ack: true });
         return;
@@ -344,6 +379,21 @@ router.post("/vapi", async (req: Request, res: Response) => {
           log.warn("[vapi webhook] call-end persist failed (non-blocking)", {
             error: persistErr instanceof Error ? persistErr.message : String(persistErr),
           });
+        }
+        // wave-181.63 (Phase 4 · 2026-05-18 PM) · state-tracker hook.
+        // Record `ended` on call-end with reason metadata so the active-
+        // calls view can drop this call out of the in-flight list.
+        const endCallId = event.call?.id;
+        const endAssistantId = (event.call as { assistantId?: string } | undefined)?.assistantId;
+        if (endCallId) {
+          import("../../services/voice-call-state").then(({ recordCallState }) =>
+            recordCallState({
+              callId: endCallId,
+              assistantId: endAssistantId,
+              state: "ended",
+              metadata: { reason: event.call?.endedReason, eventType: event.type },
+            })
+          ).catch(() => { /* intentionally swallowed */ });
         }
         res.json({ ack: true });
         return;

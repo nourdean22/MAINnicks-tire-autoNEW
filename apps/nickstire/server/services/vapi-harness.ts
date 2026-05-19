@@ -209,11 +209,15 @@ async function checkToolDispatch(
   webhookUrl: string,
   secret: string,
   tool: SyntheticToolCall,
-): Promise<HarnessCheck> {
-  const toolCallId = `harness-${tool.name}-${Date.now()}`;
+): Promise<{ dispatch: HarnessCheck; state?: HarnessCheck }> {
+  // Use a synthetic callId that the state-tracker stamps · the second
+  // sub-check reads it back to prove the Phase 4 hook fired.
+  const syntheticCallId = `harness-call-${tool.name}-${Date.now()}`;
+  const toolCallId = `harness-tc-${tool.name}-${Date.now()}`;
   const payload = {
     message: {
       type: "tool-calls",
+      call: { id: syntheticCallId, assistantId: "harness" },
       toolCalls: [
         {
           id: toolCallId,
@@ -229,6 +233,7 @@ async function checkToolDispatch(
   const body = JSON.stringify(payload);
   const signature = hmacSign(body, secret);
 
+  let dispatchCheck: HarnessCheck;
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
@@ -240,44 +245,85 @@ async function checkToolDispatch(
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
-      return {
+      dispatchCheck = {
         name: `tool dispatch: ${tool.name}`,
         pass: false,
         details: `${res.status} ${res.statusText}`,
       };
+      return { dispatch: dispatchCheck };
     }
     const json = (await res.json()) as { results?: Array<{ toolCallId: string; result: string }> };
     const result = json.results?.find((r) => r.toolCallId === toolCallId);
     if (!result) {
-      return {
+      dispatchCheck = {
         name: `tool dispatch: ${tool.name}`,
         pass: false,
         details: `200 but no toolCallId in response`,
       };
+      return { dispatch: dispatchCheck };
     }
-    // Smoke check: result.result must be valid JSON (the dispatcher
-    // wraps tool output in JSON.stringify · empty/invalid means broken).
     try {
       JSON.parse(result.result);
     } catch {
-      return {
+      dispatchCheck = {
         name: `tool dispatch: ${tool.name}`,
         pass: false,
         details: `200 but result.result is not JSON`,
       };
+      return { dispatch: dispatchCheck };
     }
-    return {
+    dispatchCheck = {
       name: `tool dispatch: ${tool.name}`,
       pass: true,
       details: `200 · result length ${result.result.length}`,
     };
   } catch (err) {
     return {
-      name: `tool dispatch: ${tool.name}`,
+      dispatch: {
+        name: `tool dispatch: ${tool.name}`,
+        pass: false,
+        err: err instanceof Error ? err.message : String(err),
+      },
+    };
+  }
+
+  // Phase 4 wave-181.63 · verify the state-tracker hook fired. The
+  // recordCallState call is fire-and-forget, so give it a short
+  // window to land before reading back. Read directly from the
+  // service (same process · no HTTP round-trip needed).
+  await new Promise((r) => setTimeout(r, 750));
+  let stateCheck: HarnessCheck;
+  try {
+    const { getCallStateHistory, classifyToolToState } = await import(
+      "./voice-call-state"
+    );
+    const history = await getCallStateHistory(syntheticCallId);
+    const expectedState = classifyToolToState(tool.name);
+    if (!expectedState) {
+      // Tool isn't classified · skip with pass=true (legitimate skip).
+      stateCheck = {
+        name: `state hook: ${tool.name}`,
+        pass: true,
+        details: `tool not classified · no state expected`,
+      };
+    } else {
+      const matched = history.find((h) => h.state === expectedState);
+      stateCheck = {
+        name: `state hook: ${tool.name} → ${expectedState}`,
+        pass: !!matched,
+        details: matched
+          ? `recorded at ${matched.at.toISOString()}`
+          : `expected ${expectedState} · found ${history.map((h) => h.state).join(",") || "(none)"}`,
+      };
+    }
+  } catch (err) {
+    stateCheck = {
+      name: `state hook: ${tool.name}`,
       pass: false,
       err: err instanceof Error ? err.message : String(err),
     };
   }
+  return { dispatch: dispatchCheck, state: stateCheck };
 }
 
 // ─── Orchestrator ────────────────────────────────────────
@@ -326,14 +372,24 @@ export async function runVapiHarness(): Promise<HarnessResult> {
   // Check 2 · webhook reachability
   allChecks.push(await checkWebhookReachability(EXPECTED_WEBHOOK_URL, webhookSecret));
 
-  // Check 3 · tool dispatcher smoke (read-only tools · no DB writes)
+  // Check 3 + 4 · tool dispatcher smoke + state-tracker hook
+  // verification (read-only tools · no DB writes besides the harness's
+  // own state-tracker rows which are isolated by `harness-` callId
+  // prefix). The state-hook sub-check proves the Phase 4 wiring fires
+  // end-to-end · webhook → dispatcher → state-tracker → DB.
   const syntheticCalls: SyntheticToolCall[] = [
     { name: "shopInfo", arguments: {} },
     { name: "capacityCheck", arguments: {} },
     { name: "lookupCustomer", arguments: { phone: SENTINEL_PHONE } },
   ];
   for (const call of syntheticCalls) {
-    allChecks.push(await checkToolDispatch(EXPECTED_WEBHOOK_URL, webhookSecret, call));
+    const { dispatch, state } = await checkToolDispatch(
+      EXPECTED_WEBHOOK_URL,
+      webhookSecret,
+      call,
+    );
+    allChecks.push(dispatch);
+    if (state) allChecks.push(state);
   }
 
   const failed = allChecks.filter((c) => !c.pass);
