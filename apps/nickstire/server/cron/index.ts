@@ -389,6 +389,15 @@ export function registerAllJobs(): void {
   // registerAllJobs() function — meaning `/api/admin/cron/run` couldn't
   // trigger them manually + getJobStatuses() didn't report them. Now
   // wired alongside their D30/D90/D180/D365 siblings.
+  // wave-181.84 · AgentPhone Confirmation Bot · runs daily at the
+  // tier interval · cron itself short-circuits when AGENTPHONE_* env
+  // vars + FEATURE_CONFIRMATION_CALLS=1 aren't all set (gate check
+  // inside the cron · no harm if env is half-configured).
+  registerJob("confirmation-calls", 24 * 60 * 60 * 1000, async () => {
+    const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
+    return runConfirmationCalls();
+  });
+
   registerJob("retention-7day", 24 * 60 * 60 * 1000, async () => {
     const { processRetention7Day } = await import("./jobs/retentionSequences");
     return processRetention7Day();
