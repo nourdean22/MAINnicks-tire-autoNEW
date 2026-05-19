@@ -53,7 +53,9 @@ import {
 } from "@/components/journal/types";
 import { JournalEntryRow } from "@/components/journal/entry-row";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase TT (2026-05-19 AM) · authedFetch replaced by trpc · 2 reads
+// (feed · metacognition) now flow through typed procedures.
+import { trpc } from "@/lib/trpc/client";
 // ─── Types ─────────────────────────────────────────────
 // v10.0.284 · FeedEntry · SourceKey · TypeKey · TYPE_META · SOURCE_ICON
 // + JournalEntryRow extracted to components/journal/{types,entry-row}.
@@ -153,6 +155,12 @@ function JournalPageInner() {
   // re-pulls and shows the new thread above the feed.
   const [threadRefresh, setThreadRefresh] = useState(0);
 
+  // Phase TT · tRPC migration · imperative-fetch-via-utils inside the
+  // existing load() function so the page's AbortController/inflightRef
+  // scheduling stays intact. Same JJ/MM/PP pattern · pure data-source
+  // swap · no UX behavior change.
+  const utils = trpc.useUtils();
+
   const load = useCallback(async () => {
     // Abort any in-flight load so the latest filter wins on resolve.
     if (inflightRef.current) inflightRef.current.abort();
@@ -160,20 +168,15 @@ function JournalPageInner() {
     inflightRef.current = ctrl;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (source !== "all") params.set("source", source);
-      if (type !== "all") params.set("type", type);
-      params.set("limit", "100");
-      params.set("days", "60");
-      const res = await authedFetch(`/api/journal?${params.toString()}`, {
-        signal: ctrl.signal,
+      const view = await utils.journal.feed.fetch({
+        source: source !== "all" ? source : undefined,
+        type: type !== "all" ? type : null,
+        limit: 100,
+        days: 60,
       });
-      if (!res.ok) {
-        throw new Error(`journal fetch ${res.status} ${res.statusText}`);
-      }
-      const raw = (await res.json()) as FeedResponse;
-      setEntries(raw.data.entries);
-      setCounts(raw.data.counts);
+      if (ctrl.signal.aborted) return;
+      setEntries(view.entries as typeof entries);
+      setCounts(view.counts as typeof counts);
       setError(null);
     } catch (err) {
       // Aborted requests are expected — don't surface as user-facing errors.
@@ -194,7 +197,7 @@ function JournalPageInner() {
     } finally {
       setLoading(false);
     }
-  }, [source, type]);
+  }, [source, type, utils]);
 
   useEffect(() => {
     load();
@@ -203,19 +206,20 @@ function JournalPageInner() {
   // v10.0.529.24 · fetch metacognition once on mount. Fire-and-forget ·
   // failures degrade silently to "card hidden" rather than breaking the
   // feed below · this is supplemental context, not load-critical data.
+  // Phase TT · migrated to utils.journal.metacognition.fetch() · same
+  // mount-only fire-and-forget shape.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await authedFetch("/api/journal/metacognition");
-        if (!res.ok) return;
-        const json = (await res.json()) as { data: MetacognitionEntry | null };
-        if (!cancelled) setMeta(json.data);
+        const entry = await utils.journal.metacognition.fetch();
+        if (!cancelled) setMeta(entry as MetacognitionEntry | null);
       } catch (err) {
         if (!cancelled) log.warn("metacognition_fetch_failed", { error: sanitizeError(err) });
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // v10.0.30 — flip the stagger gate AFTER the first render that

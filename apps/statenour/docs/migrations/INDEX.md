@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + …/SS.3 + **SS.4** | 2026-05-19 AM | **29/50+ surfaces · ~58%** · /tasks bulk backfill migrated · **/tasks page is now 100% on tRPC** · authedFetch import removed · 11 endpoints across 6 service files all delegating cleanly · `lib/services/backfill-tasks.ts` extracted (260 LOC from inline route) | `/journal` (3 components · medium leverage) · then `/brain` (~8 sites) · final big surface is `/chat` (streaming endpoints excluded · subscriptions need WebSocket infra) |
+| **tRPC migration** (REST → tRPC) | Phase J + …/SS.4 + **TT** | 2026-05-19 AM | **30/50+ surfaces · ~60%** · /journal page migrated · 7th domain router (`journal`) · `lib/services/journal-feed.ts` extracted (220 LOC merging 4 thought-capture tables · BrainDump · Reflection · SituationLog · DecisionReplay) | `/brain` (~8 sites · larger payloads) · then `/chat` (streaming endpoints excluded · subscriptions need WebSocket infra) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 

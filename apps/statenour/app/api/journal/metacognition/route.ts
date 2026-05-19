@@ -8,28 +8,21 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
  *
  * Returns the most-recent learning-journal entry — Nick's nightly
  * self-assessment of his own brain. Powers the small metacognition
- * card at the top of /journal so the operator can see learningRate
- * + trend + calibrationScore + weakSpots without re-running the
- * 16-query Promise.all that the cron does.
+ * card at the top of /journal.
  *
- * Response shape: `{ data: JournalEntry | null }`. Null when no
- * cron run has landed yet, or the legacy rows have no structured
- * metadata. The page renders nothing in that case.
- *
- * v10.0.529.24 · /journal audit deferred item · the latent
- * operator-leverage gap (cron computes metacognition but nothing
- * surfaces it on the page) closed.
+ * Phase TT (2026-05-19 AM) · also exposed as `trpc.journal.metacognition`.
+ * Both call the same `getLatestLearningJournalEntry()` helper · drift
+ * impossible.
  */
 export async function GET(req: Request) {
   await requireSession(req);
-
   try {
     const entry = await getLatestLearningJournalEntry();
     return NextResponse.json({ data: entry });
   } catch (err) {
     return NextResponse.json(
-      { error: sanitizeError(err) },
-      { status: 500 }
+      { data: null, error: sanitizeError(err) },
+      { status: 500 },
     );
   }
 }
