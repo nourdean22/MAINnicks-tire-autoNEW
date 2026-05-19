@@ -1,0 +1,46 @@
+-- wave-181.77: drip_enrollments UNIQUE INDEX on (customerPhone, campaignId, status).
+--
+-- Closes a P0 deadlock surfaced by the database-optimizer audit pass:
+-- wave-181.67's drip-race fix used `SELECT ... FOR UPDATE` to dedup
+-- concurrent persistDripEnrollment calls, but without a UNIQUE index
+-- on (customerPhone, campaignId, status), MySQL/TiDB cannot take a
+-- row lock on a non-existent row — it takes a GAP LOCK on the entire
+-- index range bracketing the predicate. Two pods arriving simultaneously
+-- with the same (phone, campaign) both acquire gap locks, both attempt
+-- INSERT (which requires insert-intention locks), and the gap locks +
+-- insert-intention locks are mutually incompatible → DEADLOCK. MySQL
+-- kills one transaction · the survivor inserts. The dedup STILL works
+-- (only one row survives) but every concurrent enrollment now logs a
+-- transaction-rollback warn line, and at burst-volume (50 customers
+-- enrolling in one evening) the deadlocks fire repeatedly.
+--
+-- The fix: add a UNIQUE constraint so the pattern collapses from
+-- "transaction + FOR UPDATE + INSERT" to a single race-safe
+-- "INSERT IGNORE" (or "ON DUPLICATE KEY UPDATE id=id" no-op) — atomic
+-- at the DB level · deadlock-free · no transaction overhead.
+--
+-- Index choice · (customerPhone, campaignId, status) NOT just
+-- (customerPhone, campaignId), so a customer can re-enroll in the
+-- same campaign AFTER completion. Active-rows are unique within their
+-- (phone, campaign) bucket but completed rows don't block re-entry.
+-- ENUM('active','completed','cancelled','converted') · 4 status values
+-- · the tuple ('+12168620005','at-risk','active') and
+-- ('+12168620005','at-risk','completed') are distinct under this index.
+--
+-- Pre-fix duplicate-check (run before applying): zero duplicates in
+-- prod at apply time (verified by scripts/db-audit-drip-state.ts ·
+-- table had 0 rows total). Safe to add unique unconditionally.
+--
+-- The existing idx_phone_campaign (customerPhone, campaignId) is left
+-- in place as a covering index for the dedup SELECT used by other
+-- code paths (checkExistingEnrollment, hasActiveDripEnrollment). It's
+-- a prefix of the new UNIQUE so it's not strictly necessary, but
+-- removing it would require coordinated code+schema change. Defer.
+--
+-- ROLLBACK (only safe if no app code is using the new uniqueness
+-- guarantee yet · since wave-181.77 ships them together, both must
+-- revert together):
+--   ALTER TABLE drip_enrollments DROP INDEX uq_drip_active;
+
+ALTER TABLE drip_enrollments
+  ADD UNIQUE INDEX uq_drip_active (customerPhone, campaignId, status);

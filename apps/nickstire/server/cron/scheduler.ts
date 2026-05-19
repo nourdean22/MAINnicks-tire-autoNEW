@@ -1017,8 +1017,14 @@ export function startTieredScheduler(): void {
             const { sql: sqlFn, and, gte, inArray } = await import("drizzle-orm");
             const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
             const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-            // Find work orders created in last 7 days where customer had a completed WO in prior 30 days
-            const recentWOs = await d.select().from(workOrders)
+            // Find work orders created in last 7 days where customer had a completed WO in prior 30 days.
+            // wave-181.77 (db-optimizer audit) · was `d.select()` which is
+            // SELECT * — fetched 40+ columns including text blobs
+            // (diagnosis, customerComplaint, internalNotes, techNotes,
+            // serviceDescription, declinedWorkJson) just to read id +
+            // customerId. Project only what we actually use.
+            const recentWOs = await d.select({ id: workOrders.id, customerId: workOrders.customerId })
+              .from(workOrders)
               .where(sqlFn`${workOrders.createdAt} >= ${weekAgo}`)
               .limit(50);
 
