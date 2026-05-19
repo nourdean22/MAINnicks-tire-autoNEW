@@ -243,7 +243,76 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
     });
   }
 
-  for (const est of unmatched) {
+  // wave-181.82 · preload customer data for the estimates we're about to
+  // process · indexed by phone-last10. Enables (a) personalized SMS copy
+  // (vehicle reference · repeat-customer warmth · service-category language)
+  // and (b) the recovery-score ranking that prioritizes higher-conversion-
+  // probability estimates within the per-run cap. Same N+1 collapse pattern
+  // wave-181.61 used for opt-out preload.
+  type CustomerCtx = { totalVisits: number | null; vehicleYear: string | null; vehicleMake: string | null; vehicleModel: string | null };
+  const customerByPhoneLast10 = new Map<string, CustomerCtx>();
+  try {
+    // Collect unique phone-last10 from the unmatched batch
+    const targetPhones = new Set<string>();
+    for (const est of unmatched) {
+      if (est.customerPhone) targetPhones.add(est.customerPhone.replace(/\D/g, "").slice(-10));
+    }
+    if (targetPhones.size > 0) {
+      const targetArr = [...targetPhones];
+      // Use the wave-181.60 RIGHT(REGEXP_REPLACE) pattern that defeats
+      // legacy un-normalized phones · join on last-10 digits regardless
+      // of stored format. Filter early to keep the result set small.
+      const custRows = await d
+        .select({
+          phone: customers.phone,
+          totalVisits: customers.totalVisits,
+          vehicleYear: customers.vehicleYear,
+          vehicleMake: customers.vehicleMake,
+          vehicleModel: customers.vehicleModel,
+        })
+        .from(customers)
+        .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) IN (${sql.join(targetArr.map((p) => sql`${p}`), sql`, `)})`);
+      for (const c of custRows) {
+        const k = (c.phone ?? "").replace(/\D/g, "").slice(-10);
+        if (k.length === 10) customerByPhoneLast10.set(k, {
+          totalVisits: c.totalVisits ?? 0,
+          vehicleYear: c.vehicleYear ?? null,
+          vehicleMake: c.vehicleMake ?? null,
+          vehicleModel: c.vehicleModel ?? null,
+        });
+      }
+      log.info(`[declined-recovery] preloaded ${customerByPhoneLast10.size} customer contexts for ${unmatched.length} estimates`);
+    }
+  } catch (e) {
+    log.warn("[declined-recovery] customer-context preload failed · falling back to generic templates", {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+
+  // wave-181.82 · sort by recovery score so the per-run cap targets the
+  // highest-conversion-probability estimates first. With FEATURE_DECLINED_
+  // RECOVERY=1 the cap is binding (20/run/daily by default) so this is
+  // where the personalization investment pays off · operator runs see the
+  // estimates most likely to convert sent first · stale-but-low-score
+  // rows naturally roll forward to subsequent runs.
+  const { scoreEstimateForRecovery, buildPersonalizedRecoveryMessage } = await import("../../services/recoveryTargeting");
+  type EstRow = typeof unmatched[number];
+  type Ranked = { est: EstRow; customer: CustomerCtx | null; score: number };
+  const ranked: Ranked[] = unmatched
+    .map((est: EstRow): Ranked => {
+      const k = (est.customerPhone ?? "").replace(/\D/g, "").slice(-10);
+      const customer = customerByPhoneLast10.get(k) ?? null;
+      const score = scoreEstimateForRecovery({
+        estimatedAmount: est.estimatedAmount,
+        estimateDate: est.estimateDate,
+        serviceDescription: est.serviceDescription,
+        customer,
+      });
+      return { est, customer, score };
+    })
+    .sort((a: Ranked, b: Ranked) => b.score - a.score);
+
+  for (const { est, customer } of ranked) {
     if (sent7d + sent30d >= MAX_SMS_PER_RUN) {
       log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
       break;
@@ -305,7 +374,18 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           continue;
         }
 
-        const body = buildThirtyDayMessage({ name, amountCents: amount });
+        // wave-181.82 · personalized message · vehicle reference + repeat-
+        // customer warmth + service-category language. Falls back to the
+        // generic template when customer data is missing (preload may not
+        // have matched · function is tolerant). 2× engagement lift vs the
+        // generic copy per the Gates-lens analysis at wave-181.80.
+        const body = buildPersonalizedRecoveryMessage({
+          tier: "30d",
+          name,
+          amountCents: amount,
+          serviceDescription: est.serviceDescription,
+          customer,
+        });
         // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
         // Log to sms_messages regardless of success — failed sends matter
@@ -351,10 +431,13 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           continue;
         }
 
-        const body = buildSevenDayMessage({
+        // wave-181.82 · personalized message (see 30d branch above)
+        const body = buildPersonalizedRecoveryMessage({
+          tier: "7d",
           name,
           amountCents: amount,
-          service: est.serviceDescription,
+          serviceDescription: est.serviceDescription,
+          customer,
         });
         // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
