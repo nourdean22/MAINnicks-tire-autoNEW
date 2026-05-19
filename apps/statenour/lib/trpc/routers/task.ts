@@ -37,6 +37,7 @@ import {
   scoreTaskWithAI,
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
+import { generateAiTasks } from "@/lib/services/ai-tasks";
 import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
@@ -401,5 +402,36 @@ export const taskRouter = router({
     )
     .mutation(async ({ input }) =>
       scoreTaskWithAI({ id: input.id, force: input.force }),
+    ),
+
+  /**
+   * Phase SS.3 (2026-05-19 AM) · owner-only · Nick generates 3-5
+   * grounded daily tasks. Uses tracedAiChat with the "extract"
+   * profile for deterministic JSON output · validates each result
+   * against the Zod taskShape · drops invalid rows + reports
+   * droppedInvalid count for partial-success surfaces.
+   *
+   * Delegates to `lib/services/ai-tasks.generateAiTasks` shared
+   * service · legacy POST /api/ai/tasks calls the same function ·
+   * drift impossible.
+   *
+   * The service returns a discriminated union:
+   *   - ok: true            · tasks generated
+   *   - providers_failed    · all AI providers exhausted (503-class)
+   *   - parse_failed        · model returned non-JSON (502-class)
+   *
+   * Rate-limiting · the REST route checks via checkAiRateLimit(req)
+   * before delegating · the tRPC path is owner-only + single-operator
+   * so request-level rate-limiting is deferred (essentially zero
+   * abuse surface).
+   */
+  aiGenerate: operatorProcedure
+    .input(
+      z.object({
+        existingTasks: z.array(z.string().min(1).max(500)).max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      generateAiTasks({ existingTasks: input.existingTasks }),
     ),
 });

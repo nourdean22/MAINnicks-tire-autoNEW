@@ -306,6 +306,12 @@ function TasksPageInner() {
   // service so REST + tRPC can't drift on the model output shape.
   const scoreMutation = trpc.task.score.useMutation();
 
+  // Phase SS.3 (2026-05-19 AM) · AI task generation mutation · the
+  // service returns a discriminated union (ok/providers_failed/parse_failed)
+  // typed across both transports so the page can show structured
+  // failure toasts without HTTP-status sniffing.
+  const aiGenerateMutation = trpc.task.aiGenerate.useMutation();
+
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
   // work can short-circuit setState calls if user navigates away
@@ -598,52 +604,42 @@ function TasksPageInner() {
       const existingTitles = tasks
         .filter((t) => ["INBOX", "READY", "DOING"].includes(t.status))
         .map((t) => t.title);
-      const r = await authedFetch("/api/ai/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "generate", existingTasks: existingTitles }),
-        signal: controller.signal,
+      // Phase SS.3 · tRPC migration · typed mutation returns a
+      // discriminated union (ok/providers_failed/parse_failed) so
+      // the page reads result.kind instead of HTTP status sniffing.
+      // AbortController · tRPC v11 mutations don't accept a signal
+      // in mutateAsync options · we rely on the existing mounted-
+      // ref + aborted check pattern to bail out post-resolve if the
+      // user navigated away. Underlying httpBatchLink does propagate
+      // cancellation when the React tree unmounts.
+      const d = await aiGenerateMutation.mutateAsync({
+        existingTasks: existingTitles,
       });
       if (!mountedRef.current || controller.signal.aborted) return;
 
-      if (!r.ok) {
-        // v10.0.226 · server now returns structured errors. Read them.
-        let detail = `HTTP ${r.status}`;
-        try {
-          const body = await r.json();
-          if (r.status === 429) {
-            const wait = Math.ceil((body.retryAfterMs ?? 60_000) / 1000);
-            toast.error(`AI rate limit · retry in ${wait}s`);
-            return;
-          }
-          if (r.status === 503 && body.providerFailures?.length) {
-            const tiers = body.providerFailures
-              .map((f: { provider: string; failureClass?: string }) => `${f.provider}/${f.failureClass ?? "?"}`)
-              .join(", ");
-            toast.error(`All AI providers failed · ${tiers}`);
-            log.warn("ai_tasks_all_failed", { providerFailures: body.providerFailures });
-            return;
-          }
-          if (r.status === 502) {
-            toast.error("AI returned malformed output · retry");
-            log.warn("ai_tasks_parse_fail", { rawSnippet: body.rawSnippet });
-            return;
-          }
-          if (body.error) detail = body.error;
-        } catch { /* keep HTTP fallback */ }
-        toast.error(`AI failed · ${detail}`);
+      if (!d.ok) {
+        if (d.kind === "providers_failed") {
+          const tiers = d.failures
+            .map((f) => `${f.provider}/${f.failureClass ?? "?"}`)
+            .join(", ");
+          toast.error(`All AI providers failed · ${tiers}`);
+          log.warn("ai_tasks_all_failed", { providerFailures: d.failures });
+          return;
+        }
+        if (d.kind === "parse_failed") {
+          toast.error("AI returned malformed output · retry");
+          log.warn("ai_tasks_parse_fail", { rawSnippet: d.rawSnippet });
+          return;
+        }
+        toast.error("AI failed");
         return;
       }
 
-      const d = await r.json();
-      if (!mountedRef.current || controller.signal.aborted) return;
-
-      // v10.0.226 · partial-validity reporting · server validates
-      // each task against a Zod shape and drops invalid rows. Surface
-      // the count so the operator knows the model wobbled if it did.
+      // Partial-validity reporting · server validates each task and
+      // drops invalid rows · log the count if the model wobbled.
       if (d.droppedInvalid > 0) {
         log.info("ai_tasks_partial", {
-          kept: d.tasks?.length ?? 0,
+          kept: d.tasks.length,
           dropped: d.droppedInvalid,
           parseVia: d.parseVia,
         });
@@ -652,15 +648,24 @@ function TasksPageInner() {
       if (d.tasks?.length > 0) {
         const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
         const existingNorm = new Set(existingTitles.map(norm));
-        const fresh = d.tasks.filter((t: AiTask) => !existingNorm.has(norm(t.title)));
+        // Normalize the service's `missionId?: string | null | undefined`
+        // to the page's `missionId: string | null` shape · the Zod
+        // `.optional().nullable()` adds undefined which the local
+        // AiTask type doesn't allow. Coerce missing → null at the
+        // boundary so downstream filter/map calls stay typed.
+        const taskList: AiTask[] = d.tasks.map((t) => ({
+          ...t,
+          missionId: t.missionId ?? null,
+        }));
+        const fresh = taskList.filter((t) => !existingNorm.has(norm(t.title)));
         if (fresh.length === 0) {
           toast("AI has no new suggestions");
           return;
         }
-        const critical = fresh.filter((t: AiTask) => t.priority === "critical").slice(0, 2);
+        const critical = fresh.filter((t) => t.priority === "critical").slice(0, 2);
         for (const t of critical) await adoptAi(t);
         if (!mountedRef.current) return;
-        setAiTasks(fresh.filter((t: AiTask) => !critical.includes(t)));
+        setAiTasks(fresh.filter((t) => !critical.includes(t)));
         const baseMsg =
           critical.length > 0
             ? `${critical.length} critical added, ${fresh.length - critical.length} suggestions`
