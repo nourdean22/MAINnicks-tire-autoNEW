@@ -34,6 +34,7 @@
         "client/dist/**",
         "node_modules/.prisma/**"
       ],
+      "passThroughEnv": [],
       "env": [
         "NEXT_DIST_DIR",
         "ANALYZE",
