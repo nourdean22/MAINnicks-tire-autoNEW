@@ -1,31 +1,30 @@
 /**
- * Voice Recovery Cron · wave-181.85
+ * Voice Recovery Cron · wave-181.87 (VAPI implementation · same operator
+ * preference as confirmation-calls: keep VAPI · don't add a second vendor)
  *
- * Fires for declined estimates that have ALREADY received their 30d SMS
- * (wave-181.46/82) but STILL haven't converted to an invoice. Voice
- * call is the escalation · different channel = different conversion
- * rate. Industry data: voice converts ~3× SMS for stale leads.
+ * Fires for declined estimates that received D7 + D30 SMS (waves 181.46/
+ * 82) but didn't convert. Places a VAPI outbound call with the recovery-
+ * prompt assistantOverride · brand-voice "no pressure" closer.
  *
  * Eligibility (AND):
- *   - followUp30dSent = 1 (D30 SMS already went out)
- *   - matched_invoice_id IS NULL (still no conversion)
- *   - voice_recovery_attempted_at IS NULL (never voice-called)
- *   - follow_up_30d_sent_at < NOW() - 7 days (give SMS time to land)
+ *   - followUp30dSent = 1
+ *   - matched_invoice_id IS NULL
+ *   - voice_recovery_attempted_at IS NULL
+ *   - follow_up_30d_sent_at < NOW() - 7 days
  *   - customer_phone IS NOT NULL
  *   - customer not opted out
  *
- * Gates · same 3 env vars as confirmation-calls plus a separate agent ID
- * (operator may want a different persona for recovery vs confirmation):
- *   - AGENTPHONE_API_KEY
+ * Gates (same as confirmation-calls plus a feature flag):
+ *   - VAPI_API_KEY
+ *   - VAPI_PHONE_NUMBER_ID
+ *   - VAPI_FOLLOW_UP_ASSISTANT_ID (already set if wave-181.50 done)
  *   - FEATURE_VOICE_RECOVERY=1
- *   - AGENTPHONE_RECOVERY_AGENT_ID (separate from CONFIRMATION_AGENT_ID)
  *
- * Per-run cap · default 5 (lower than confirmation · these are stale
- * cold leads · lower conversion · don't burn dial-rate budget on them).
- * AGENTPHONE_RECOVERY_BATCH_SIZE env override · max 20.
+ * Per-run cap default 5 (stale cold leads · conserve cost). Override via
+ * VAPI_RECOVERY_BATCH_SIZE env (max 20).
  */
 import { createLogger } from "../../lib/logger";
-import { and, eq, gte, lte, isNull, isNotNull, sql } from "drizzle-orm";
+import { and, eq, lte, isNull, isNotNull } from "drizzle-orm";
 
 const log = createLogger("cron:voice-recovery");
 
@@ -35,26 +34,24 @@ interface RunResult {
 }
 
 export async function runVoiceRecovery(): Promise<RunResult> {
-  const apiKey = process.env.AGENTPHONE_API_KEY;
-  const flagOn = process.env.FEATURE_VOICE_RECOVERY === "1";
-  const agentId = process.env.AGENTPHONE_RECOVERY_AGENT_ID;
-
-  if (!apiKey || !flagOn) {
-    return { recordsProcessed: 0, details: "Skipped · AGENTPHONE_API_KEY or FEATURE_VOICE_RECOVERY not set" };
+  if (!process.env.VAPI_API_KEY) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_API_KEY missing" };
   }
-  if (!agentId) {
-    log.warn("[voice-recovery] AGENTPHONE_RECOVERY_AGENT_ID missing · cannot place calls");
-    return { recordsProcessed: 0, details: "Skipped · AGENTPHONE_RECOVERY_AGENT_ID env missing" };
+  if (process.env.FEATURE_VOICE_RECOVERY !== "1") {
+    return { recordsProcessed: 0, details: "Skipped · FEATURE_VOICE_RECOVERY != '1'" };
+  }
+  if (!process.env.VAPI_PHONE_NUMBER_ID) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_PHONE_NUMBER_ID missing" };
   }
 
-  const maxCalls = Math.min(Number(process.env.AGENTPHONE_RECOVERY_BATCH_SIZE) || 5, 20);
+  const maxCalls = Math.min(Number(process.env.VAPI_RECOVERY_BATCH_SIZE) || 5, 20);
 
   const { getDb } = await import("../../db");
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
   const { algEstimates, customers } = await import("../../../drizzle/schema");
-  const { placeCall } = await import("../../services/agentphone");
+  const { placeVapiOutboundCall, buildOutboundRecoveryPrompt } = await import("../../services/vapi");
 
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
@@ -94,7 +91,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     return { recordsProcessed: 0, details: "No estimates eligible for voice recovery" };
   }
 
-  // Preload opt-outs (same wave-181.61 pattern)
+  // Preload opt-outs (wave-181.61 pattern)
   const optOutSet = new Set<string>();
   try {
     const rows = await d.select({ phone: customers.phone }).from(customers).where(eq(customers.smsOptOut, 1));
@@ -109,22 +106,16 @@ export async function runVoiceRecovery(): Promise<RunResult> {
 
   for (const est of candidates) {
     if (placed >= maxCalls) break;
-    if (!est.customerPhone) {
-      skipped++;
-      continue;
-    }
+    if (!est.customerPhone) { skipped++; continue; }
     const normalized = est.customerPhone.replace(/\D/g, "").slice(-10);
-    if (optOutSet.has(normalized)) {
-      skipped++;
-      continue;
-    }
-    // E.164 normalize
+    if (optOutSet.has(normalized)) { skipped++; continue; }
+
     const digits = est.customerPhone.replace(/\D/g, "");
     const e164 = digits.length === 10 ? `+1${digits}` :
       digits.length === 11 && digits.startsWith("1") ? `+${digits}` :
       est.customerPhone.startsWith("+") ? est.customerPhone : `+1${digits.slice(-10)}`;
 
-    // At-most-once claim · UPDATE WHERE voice_recovery_attempted_at IS NULL
+    // At-most-once claim
     const claimResult = await d
       .update(algEstimates)
       .set({ voiceRecoveryAttemptedAt: new Date(), voiceRecoveryOutcome: "pending" })
@@ -141,28 +132,18 @@ export async function runVoiceRecovery(): Promise<RunResult> {
     const dollars = Math.round((est.estimatedAmount ?? 0) / 100);
     const service = (est.serviceDescription || "the work we quoted").slice(0, 80);
 
-    const systemPrompt = [
-      `You are calling on behalf of Nick's Tire & Auto in Cleveland, OH.`,
-      `Customer ${firstName} got a $${dollars} quote for ${service} about 5-6 weeks ago.`,
-      `They didn't book. The SMS follow-ups haven't gotten a response.`,
-      ``,
-      `RULES:`,
-      `1. Be warm + brief · 60-90 seconds total · operator's time matters.`,
-      `2. Open: "Hi ${firstName}, this is Nick's Tire & Auto · just checking in on that ${service} quote from a few weeks back."`,
-      `3. Re-offer: free re-check · we honor the original quote · you don't pay until you say yes.`,
-      `4. Ask: "Anything we can do to help you decide?"`,
-      `5. If they're interested: tell them to drop off any day · we're at 17625 Euclid Ave · end the call.`,
-      `6. If not interested: thank them · "no pressure · we're here when you need us" · end the call.`,
-      `7. If voicemail: leave brief message · "Hi ${firstName}, Nick's Tire calling about that ${service} quote · still good · call us at 216-862-0005 anytime." End the call.`,
-      `8. Natural human language · NEVER say "I am an AI" unless asked directly.`,
-      `9. NEVER pressure · NEVER push back if they decline · just end the call gracefully.`,
-    ].join("\n");
+    const systemPrompt = buildOutboundRecoveryPrompt({
+      customerName: firstName,
+      service,
+      amountDollars: dollars,
+    });
+    const firstMessage = `Hi ${firstName}, this is Nick's Tire & Auto · just checking in on that ${service} quote from a few weeks back. Do you have a sec?`;
 
-    const call = await placeCall({
-      agentId,
-      toNumber: e164,
-      initialGreeting: `Hi ${firstName}, this is Nick's Tire & Auto · do you have 30 seconds?`,
-      systemPrompt,
+    const call = await placeVapiOutboundCall({
+      customerNumber: e164,
+      firstMessageOverride: firstMessage,
+      systemPromptOverride: systemPrompt,
+      maxDurationSeconds: 90,
     });
 
     if (call.success && call.callId) {
@@ -171,7 +152,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
         .set({ voiceRecoveryCallId: call.callId, voiceRecoveryOutcome: "dialing" })
         .where(eq(algEstimates.id, est.id));
       placed++;
-      log.info(`[voice-recovery] placed call ${call.callId} for est ${est.id} (${firstName} · $${dollars})`);
+      log.info(`[voice-recovery] placed VAPI call ${call.callId} for est ${est.id} (${firstName} · $${dollars})`);
     } else {
       await d
         .update(algEstimates)
@@ -181,7 +162,7 @@ export async function runVoiceRecovery(): Promise<RunResult> {
       log.warn(`[voice-recovery] place failed for est ${est.id}`, { error: call.error });
     }
 
-    await new Promise((r) => setTimeout(r, 1500)); // 1.5s throttle (slightly slower than confirmation calls · less urgency)
+    await new Promise((r) => setTimeout(r, 1500));
   }
 
   return {

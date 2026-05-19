@@ -1729,6 +1729,152 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
   }
 }
 
+/**
+ * Place an outbound call via VAPI · wave-181.87 (operator preference ·
+ * keep VAPI · don't add AgentPhone or Twilio as a second voice vendor).
+ *
+ * Uses the wave-181.50 FOLLOW-UP assistant (`pickFollowUpAssistantId`)
+ * which is already wired with the brand-voice prompt + transferCall +
+ * 3 tools (scheduleDropoff · lookupCustomer · submitCallback). For
+ * confirmation + voice-recovery use cases we override the systemPrompt
+ * + firstMessage at call-time so the same assistant handles both
+ * outbound contexts without needing 2 separate VAPI agents.
+ *
+ * VAPI requires a registered phoneNumberId for outbound calls · operator
+ * sets VAPI_PHONE_NUMBER_ID after buying / importing a number to VAPI
+ * (typically the same 216-424-9249 number used for inbound, or a separate
+ * outbound number if the operator wants caller ID to differ).
+ *
+ * Returns VAPI's call id on success · used as the join key in the
+ * confirmation_calls + alg_estimates.voice_recovery_call_id columns.
+ */
+export interface VapiPlaceCallParams {
+  /** Customer phone in E.164 format · e.g. "+12168620005" */
+  customerNumber: string;
+  /** Override the assistant's default firstMessage · "Hi <name>, ..." */
+  firstMessageOverride: string;
+  /** Override the assistant's default systemPrompt · per-call context */
+  systemPromptOverride: string;
+  /** Optional · max 90s default · keeps cost predictable */
+  maxDurationSeconds?: number;
+}
+
+export interface VapiPlaceCallResult {
+  success: boolean;
+  callId?: string;
+  error?: string;
+}
+
+export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promise<VapiPlaceCallResult> {
+  if (!process.env.VAPI_API_KEY) {
+    return { success: false, error: "VAPI_API_KEY not configured" };
+  }
+  const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+  if (!phoneNumberId) {
+    return { success: false, error: "VAPI_PHONE_NUMBER_ID not configured (operator must register outbound number)" };
+  }
+  // Env-direct lookup · the pickFollowUpAssistantId() helper requires
+  // the full assistants array which we don't fetch at call time · just
+  // read the pinned env var (operator sets VAPI_FOLLOWUP_ASSISTANT_ID).
+  const assistantId = process.env.VAPI_FOLLOWUP_ASSISTANT_ID;
+  if (!assistantId) {
+    return { success: false, error: "VAPI_FOLLOWUP_ASSISTANT_ID env not set" };
+  }
+  if (!/^\+\d{10,15}$/.test(params.customerNumber)) {
+    return { success: false, error: `Invalid customerNumber: ${params.customerNumber}` };
+  }
+
+  try {
+    const res = await vapiFetch("/call", {
+      method: "POST",
+      body: JSON.stringify({
+        assistantId,
+        phoneNumberId,
+        customer: { number: params.customerNumber },
+        // VAPI assistantOverrides · per-call prompt override · same
+        // pattern operators use to A/B different scripts without
+        // creating multiple assistants.
+        assistantOverrides: {
+          firstMessage: params.firstMessageOverride,
+          model: { messages: [{ role: "system", content: params.systemPromptOverride }] },
+          maxDurationSeconds: params.maxDurationSeconds ?? 90,
+        },
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      return { success: false, error: `VAPI /call returned ${res.status}: ${errText.slice(0, 150)}` };
+    }
+    const data = (await res.json()) as { id?: string };
+    if (!data.id) return { success: false, error: "VAPI response missing call id" };
+    return { success: true, callId: data.id };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/**
+ * Brand-voice system prompts for outbound use cases · separate from the
+ * inbound FOLLOW_UP_SYSTEM_PROMPT (which targets returning-callback flows).
+ *
+ * Operator-tunable via the assistantOverrides at call time so they can
+ * iterate per-cohort without creating new VAPI assistants.
+ */
+export function buildOutboundConfirmationPrompt(params: {
+  customerName: string;
+  service: string;
+  preferredDay: string;
+  vehicleRef?: string;
+}): string {
+  const vehicleClause = params.vehicleRef ? `your ${params.vehicleRef}` : "your vehicle";
+  return [
+    `# IDENTITY`,
+    `You are Nick from Nick's Tire & Auto in Cleveland, calling to confirm an appointment.`,
+    ``,
+    `# CONTEXT`,
+    `Customer · ${params.customerName}`,
+    `Service · ${params.service}`,
+    `Scheduled · ${params.preferredDay}`,
+    `Vehicle · ${vehicleClause}`,
+    ``,
+    `# RULES`,
+    `1. Be warm but BRIEF · 60-90 seconds total · operator's time is valuable.`,
+    `2. Open by confirming you reached ${params.customerName} · state the appointment details.`,
+    `3. ASK · "Does that still work for you?"`,
+    `4. If YES · thank them · remind them we're at 17625 Euclid Ave · END the call with endCall tool.`,
+    `5. If NO or reschedule · ask what day works · acknowledge · tell them operator will call back · END.`,
+    `6. If confused · tell them to call 216-862-0005 · END.`,
+    `7. Natural human language · NEVER say "I am an AI" unless asked directly.`,
+    `8. Voicemail · leave brief specific message ("Hi ${params.customerName}, Nick's Tire calling to confirm`,
+    `   ${params.service} ${params.preferredDay} · call 216-862-0005 if anything changes · see you then") · END.`,
+  ].join("\n");
+}
+
+export function buildOutboundRecoveryPrompt(params: {
+  customerName: string;
+  service: string;
+  amountDollars: number;
+}): string {
+  return [
+    `# IDENTITY`,
+    `You are Nick from Nick's Tire & Auto in Cleveland, calling to check in on a quote.`,
+    ``,
+    `# CONTEXT`,
+    `Customer ${params.customerName} got a $${params.amountDollars} quote for ${params.service} about 5-6 weeks ago.`,
+    `They didn't book. SMS follow-ups didn't get a response.`,
+    ``,
+    `# RULES (NO PRESSURE EVER · this is a relationship call)`,
+    `1. Warm + brief · 60-90 sec total.`,
+    `2. Open · "Hi ${params.customerName}, this is Nick's Tire · just checking in on that ${params.service} quote from a few weeks back."`,
+    `3. Re-offer · free re-check · we honor the original quote · you don't pay until you say yes.`,
+    `4. ASK · "Anything we can do to help you decide?"`,
+    `5. If INTERESTED · drop off any day · 17625 Euclid Ave · END with endCall.`,
+    `6. If NOT INTERESTED · "no pressure · we're here when you need us" · END.`,
+    `7. NEVER push back if they decline · just end gracefully.`,
+    `8. Voicemail · brief · "Hi ${params.customerName}, Nick's Tire calling about that ${params.service} quote · still good · 216-862-0005 anytime." · END.`,
+  ].join("\n");
+}
+
 export async function getRecentCalls(limit = 20): Promise<{
   success: boolean;
   calls: Array<{

@@ -1,27 +1,28 @@
 /**
- * Confirmation Call Cron · wave-181.84
+ * Confirmation Call Cron · wave-181.87 (VAPI implementation · operator
+ * preference: keep VAPI · don't add AgentPhone or Twilio as second vendor)
  *
- * Fires daily (configurable via scheduler tier). For every booking
- * happening tomorrow that hasn't been called yet, places an AgentPhone
- * outbound call to confirm/reschedule. Uses the hosted-mode LLM with
- * the brand-voice-compliant system prompt at services/agentphone.ts.
+ * Daily cron · for every booking happening tomorrow that hasn't been
+ * called yet, places a VAPI outbound call (via the wave-181.50 follow-up
+ * assistant + per-call assistantOverrides). Captures confirmation /
+ * reschedule / no-answer state in the confirmation_calls table.
  *
- * Safety gates · this cron does NOT fire unless:
- *   1. AGENTPHONE_API_KEY env is set (Railway dashboard)
- *   2. FEATURE_CONFIRMATION_CALLS=1 env is set (Railway dashboard)
- *   3. AGENTPHONE_CONFIRMATION_AGENT_ID env is set (operator creates
- *      the agent via dashboard or one-shot script · gets the ID back)
+ * Safety gates · this cron does NOT fire unless ALL of:
+ *   1. VAPI_API_KEY env set (already present from inbound flow)
+ *   2. VAPI_PHONE_NUMBER_ID env set (operator must register outbound
+ *      number with VAPI · same UI as inbound · 216-424-9249 works or
+ *      operator can register a separate outbound number)
+ *   3. VAPI_FOLLOW_UP_ASSISTANT_ID env set (already exists from wave-181.50)
+ *   4. FEATURE_CONFIRMATION_CALLS=1 env set
  *
- * Without all three, the cron logs "skipped (not configured)" and exits.
- * Same pattern as wave-181.46 declined-recovery FEATURE flag · operator
- * stays in control until ready.
+ * Without all four, cron logs "skipped (not configured)" and exits.
+ * Same conservative-default pattern as wave-181.46 declined-recovery.
  *
- * Per-run cap · 20 calls/run (matches declined-recovery cap). At ~30-40
- * bookings/day historically, this covers the full daily slate. Operator
- * can raise via AGENTPHONE_CONFIRMATION_BATCH_SIZE env if needed.
+ * Per-run cap · 20 calls/run (matches declined-recovery). Override via
+ * VAPI_CONFIRMATION_BATCH_SIZE env (max 50).
  */
 import { createLogger } from "../../lib/logger";
-import { and, gte, lte, eq, isNull, or } from "drizzle-orm";
+import { and, gte, eq, or } from "drizzle-orm";
 
 const log = createLogger("cron:confirmation-calls");
 
@@ -31,26 +32,17 @@ interface RunResult {
 }
 
 export async function runConfirmationCalls(): Promise<RunResult> {
-  const { isAgentPhoneEnabled, placeCall, buildConfirmationSystemPrompt } =
-    await import("../../services/agentphone");
-
-  if (!isAgentPhoneEnabled()) {
-    return {
-      recordsProcessed: 0,
-      details: "Skipped · AGENTPHONE_API_KEY missing or FEATURE_CONFIRMATION_CALLS != '1'",
-    };
+  if (!process.env.VAPI_API_KEY) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_API_KEY missing" };
+  }
+  if (process.env.FEATURE_CONFIRMATION_CALLS !== "1") {
+    return { recordsProcessed: 0, details: "Skipped · FEATURE_CONFIRMATION_CALLS != '1'" };
+  }
+  if (!process.env.VAPI_PHONE_NUMBER_ID) {
+    return { recordsProcessed: 0, details: "Skipped · VAPI_PHONE_NUMBER_ID missing (operator must register outbound number with VAPI)" };
   }
 
-  const agentId = process.env.AGENTPHONE_CONFIRMATION_AGENT_ID;
-  if (!agentId) {
-    log.warn("[confirmation-calls] AGENTPHONE_CONFIRMATION_AGENT_ID missing · cannot place calls");
-    return {
-      recordsProcessed: 0,
-      details: "Skipped · AGENTPHONE_CONFIRMATION_AGENT_ID env missing (operator must create agent first)",
-    };
-  }
-
-  const maxCalls = Math.min(Number(process.env.AGENTPHONE_CONFIRMATION_BATCH_SIZE) || 20, 50);
+  const maxCalls = Math.min(Number(process.env.VAPI_CONFIRMATION_BATCH_SIZE) || 20, 50);
 
   const { getDb } = await import("../../db");
   const d = await getDb();
@@ -58,13 +50,9 @@ export async function runConfirmationCalls(): Promise<RunResult> {
 
   const { bookings, confirmationCalls } = await import("../../../drizzle/schema");
 
-  // Tomorrow's bookings · stage in active flow (not cancelled / completed)
-  // and that haven't already been called for this attempt.
-  // Match preferredDate against tomorrow's calendar date (string match · the
-  // bookings table stores preferredDate as a varchar like "2026-05-20").
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
 
   let candidates: Array<{
     id: number;
@@ -103,8 +91,7 @@ export async function runConfirmationCalls(): Promise<RunResult> {
     return { recordsProcessed: 0, details: `No bookings for ${tomorrowStr}` };
   }
 
-  // Filter out bookings already called for tomorrow's slot (any non-failed
-  // attempt in the last 24h is treated as "already called").
+  // Skip bookings already called for tomorrow's slot (last 24h, non-failed).
   const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const previousCalls = await d
     .select({ bookingId: confirmationCalls.bookingId, status: confirmationCalls.status })
@@ -115,6 +102,8 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       .filter((c: { status: string }) => c.status !== "failed")
       .map((c: { bookingId: number }) => c.bookingId),
   );
+
+  const { placeVapiOutboundCall, buildOutboundConfirmationPrompt } = await import("../../services/vapi");
 
   let placed = 0;
   let skipped = 0;
@@ -134,46 +123,44 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       continue;
     }
 
-    // Normalize to E.164. The booking form usually stores +1XXXXXXXXXX
-    // already, but some legacy rows are unformatted.
     const digits = b.phone.replace(/\D/g, "");
-    const e164 = digits.length === 10 ? `+1${digits}` : digits.startsWith("1") && digits.length === 11 ? `+${digits}` : b.phone.startsWith("+") ? b.phone : `+1${digits.slice(-10)}`;
+    const e164 = digits.length === 10 ? `+1${digits}` :
+      digits.length === 11 && digits.startsWith("1") ? `+${digits}` :
+      b.phone.startsWith("+") ? b.phone : `+1${digits.slice(-10)}`;
 
     const vehicleRef = [b.vehicleYear, b.vehicleMake, b.vehicleModel]
       .filter(Boolean)
       .join(" ")
       .toLowerCase() || undefined;
-
     const firstName = b.name.split(" ")[0] || b.name;
 
-    // Insert pending row BEFORE placing the call (at-most-once claim ·
-    // same wave-181.59 pattern as declined-recovery).
+    // At-most-once claim · INSERT before placing call (same wave-181.59 pattern)
     let attemptId: number | null = null;
     try {
       const [insertResult] = await d
         .insert(confirmationCalls)
-        .values({
-          bookingId: b.id,
-          status: "pending",
-        })
+        .values({ bookingId: b.id, status: "pending" })
         .$returningId();
       attemptId = insertResult?.id ?? null;
     } catch (err) {
-      log.warn(`[confirmation-calls] failed to claim attempt for booking ${b.id}`, { error: err instanceof Error ? err.message : String(err) });
+      log.warn(`[confirmation-calls] claim failed for booking ${b.id}`, { error: err instanceof Error ? err.message : String(err) });
       failed++;
       continue;
     }
 
-    const call = await placeCall({
-      agentId,
-      toNumber: e164,
-      initialGreeting: `Hi, this is Nick's Tire & Auto calling to confirm tomorrow's appointment for ${firstName}.`,
-      systemPrompt: buildConfirmationSystemPrompt({
-        customerName: firstName,
-        service: b.service,
-        preferredDay: "tomorrow",
-        vehicleRef,
-      }),
+    const systemPrompt = buildOutboundConfirmationPrompt({
+      customerName: firstName,
+      service: b.service,
+      preferredDay: "tomorrow",
+      vehicleRef,
+    });
+    const firstMessage = `Hi ${firstName}, this is Nick's Tire & Auto · just confirming your ${b.service} appointment tomorrow. Does that still work for you?`;
+
+    const call = await placeVapiOutboundCall({
+      customerNumber: e164,
+      firstMessageOverride: firstMessage,
+      systemPromptOverride: systemPrompt,
+      maxDurationSeconds: 90,
     });
 
     if (call.success && call.callId && attemptId !== null) {
@@ -182,7 +169,7 @@ export async function runConfirmationCalls(): Promise<RunResult> {
         .set({ agentphoneCallId: call.callId, status: "dialing" })
         .where(eq(confirmationCalls.id, attemptId));
       placed++;
-      log.info(`[confirmation-calls] placed call ${call.callId} for booking ${b.id} (${firstName})`);
+      log.info(`[confirmation-calls] placed VAPI call ${call.callId} for booking ${b.id} (${firstName})`);
     } else {
       if (attemptId !== null) {
         await d
@@ -194,7 +181,7 @@ export async function runConfirmationCalls(): Promise<RunResult> {
       log.warn(`[confirmation-calls] place failed for booking ${b.id}`, { error: call.error });
     }
 
-    // Throttle · 1s between dial requests · avoids burst-rate limits
+    // 1s throttle · keeps under VAPI burst limits
     await new Promise((r) => setTimeout(r, 1000));
   }
 
