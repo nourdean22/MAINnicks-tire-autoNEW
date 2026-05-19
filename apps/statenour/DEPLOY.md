@@ -39,6 +39,36 @@ pnpm build:stn          # builds statenour only via Turbo
 pnpm verify:affected    # check + lint + test for changed apps
 ```
 
+## Post-deploy smoke test (Tier-2-G follow-up · 2026-05-19)
+
+After Railway finishes deploying (~3-5 min after push), run:
+
+```bash
+pnpm --filter @statenour/web smoke:prod
+```
+
+This hits the live URL and verifies:
+1. `GET /` returns 200 (or auth redirect · either is healthy)
+2. `GET /api/system/heartbeat` returns 200 (Railway healthcheck)
+3. `GET /auth/sign-in` returns 200 (auth wall accessible)
+4. No 5xx server errors
+
+Zero deps · runs in ~1.2s · can be aliased to a different URL for staging:
+
+```bash
+pnpm --filter @statenour/web smoke:prod --url=http://localhost:3001
+```
+
+For full UI smoke (authenticated chat layout · Wave 40 assertions etc.) use
+the standalone Playwright script at `~/.claude/skills/playwright-skill/`:
+
+```bash
+node ~/.claude/skills/playwright-skill/run.js /tmp/playwright-test-statenour-smoke.js
+```
+
+That requires operator credentials in the browser context · out of scope
+for the lightweight `smoke:prod` check.
+
 ## Build pipeline
 
 ```
