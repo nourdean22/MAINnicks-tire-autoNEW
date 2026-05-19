@@ -2100,6 +2100,36 @@ export const otpAttempts = mysqlTable("otp_attempts", {
 });
 
 /**
+ * SMS Daily Rate Limit — wave-181.66 · durable replacement for the prior
+ * in-memory smsCountMap in server/sms.ts. Sister bug to [[otpAttempts]] —
+ * the in-memory Map reset on every Railway redeploy (customers could
+ * receive 8 → restart → 8 more) and split counts across pods (effective
+ * cap was N× the intended ceiling).
+ *
+ * One row per phone, atomic INSERT ... ON DUPLICATE KEY UPDATE keeps the
+ * counter race-safe across multiple Railway pods and Node restarts.
+ *
+ * Semantics: MAX_SMS_PER_PHONE_PER_DAY sends per rolling 24h window
+ * (constant lives in sms.ts so ops can tweak it without a migration).
+ * Rows >25h old are pruned by the cleanup cron (server/cron/jobs/cleanup.ts).
+ *
+ * Mirror of drizzle/0043_wave181_sms_rate_limit_durable.sql — schema
+ * MUST match the migration so drizzle-kit doesn't try to drop the table.
+ */
+export const smsRateLimit = mysqlTable("sms_rate_limit", {
+  /** Last-10 digits of the phone (E.164 stripped). Primary key. */
+  phone: varchar("phone", { length: 30 }).primaryKey(),
+  /** Sends counted in the current rolling 24h window */
+  count24h: int("count_24h").default(0).notNull(),
+  /** Start of the current 24h window — rolls forward when stale */
+  windowStartedAt: timestamp("window_started_at").defaultNow().notNull(),
+  /** Wall-clock time of the most recent send (operationally useful for diagnostics) */
+  lastSentAt: timestamp("last_sent_at").defaultNow().notNull(),
+  /** Row touched timestamp — used by cleanup cron for stale pruning */
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
  * Webhook Deliveries — retry queue for failed external API calls
  */
 export const webhookDeliveries = mysqlTable("webhook_deliveries", {
