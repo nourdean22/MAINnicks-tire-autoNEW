@@ -28,8 +28,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Pencil, History, Check, X, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface EditHistoryEntry {
   at: string;
   prevContent: string;
@@ -71,6 +71,12 @@ export function MessageEditControls({
   const [history, setHistory] = useState<EditHistoryEntry[] | null>(null);
   const ref = useRef<HTMLTextAreaElement | null>(null);
 
+  // Phase JJ (2026-05-18 PM) · tRPC migration · `utils.chat.editHistory.fetch()`
+  // for the lazy history drawer (fires on click) + `trpc.chat.editMessage`
+  // mutation for the Save button. Coexists with legacy REST endpoint.
+  const utils = trpc.useUtils();
+  const editMessageMutation = trpc.chat.editMessage.useMutation();
+
   // Reset draft when entering edit mode
   useEffect(() => {
     if (editing) {
@@ -101,21 +107,33 @@ export function MessageEditControls({
     setSaving(true);
     setError(null);
     try {
-      const res = await authedFetch(`/api/ai/chat/edit/${encodeURIComponent(message.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: trimmed }),
+      const result = await editMessageMutation.mutateAsync({
+        messageId: message.id,
+        content: trimmed,
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        setError(typeof j?.error === "string" ? j.error : `edit failed (${res.status})`);
-        setSaving(false);
-        return;
+      // Server may report unchanged when the content matches what's
+      // already stored (idempotent no-op). Don't fire onSaved in that
+      // case — the parent's local state already matches.
+      if (!result.unchanged) {
+        // editedAt is serialized as string over the wire (Date round-trip
+        // via superjson preserves Date · raw JSON sends string · be safe
+        // either way).
+        const editedAtIso =
+          typeof result.editedAt === "string"
+            ? result.editedAt
+            : new Date(result.editedAt as unknown as string | number | Date).toISOString();
+        onSaved(result.content, editedAtIso);
+        // Invalidate the cached history so a re-open shows the new
+        // prior-content entry without needing to refetch eagerly.
+        void utils.chat.editHistory.invalidate({ messageId: message.id });
+        // Drop the cached history list locally so the next drawer
+        // open re-fetches via loadHistory().
+        setHistory(null);
+      } else {
+        onCancel();
       }
-      const j = (await res.json()) as { content: string; editedAt: string };
-      onSaved(j.content, j.editedAt);
-    } catch {
-      setError("network error");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "edit failed");
     } finally {
       setSaving(false);
     }
@@ -137,13 +155,15 @@ export function MessageEditControls({
       return;
     }
     try {
-      const res = await authedFetch(`/api/ai/chat/edit/${encodeURIComponent(message.id)}`);
-      if (!res.ok) return;
-      const j = (await res.json()) as { editHistory?: EditHistoryEntry[] };
-      setHistory(Array.isArray(j.editHistory) ? j.editHistory : []);
+      // Phase JJ · imperative-fetch-via-utils pattern · fires only on
+      // history-button click · `utils.chat.editHistory.fetch()` returns
+      // a one-shot promise with the typed view + caches the result for
+      // future renders (invalidated after each editMessage mutation).
+      const view = await utils.chat.editHistory.fetch({ messageId: message.id });
+      setHistory(view.editHistory);
       setHistoryOpen(true);
     } catch {
-      // silent
+      // silent · drawer just won't open if the fetch fails
     }
   };
 
