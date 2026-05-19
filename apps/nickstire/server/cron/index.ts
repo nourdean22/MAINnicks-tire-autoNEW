@@ -383,7 +383,22 @@ export function registerAllJobs(): void {
     return processCustomerSegmentation();
   });
 
-  // Retention sequences (every 24 hours)
+  // Retention sequences (every 24 hours).
+  // wave-181.78 (week-audit · agent finding) · D7 + D14 tiers were
+  // added to the tiered scheduler in wave-181.58 but never to this
+  // registerAllJobs() function — meaning `/api/admin/cron/run` couldn't
+  // trigger them manually + getJobStatuses() didn't report them. Now
+  // wired alongside their D30/D90/D180/D365 siblings.
+  registerJob("retention-7day", 24 * 60 * 60 * 1000, async () => {
+    const { processRetention7Day } = await import("./jobs/retentionSequences");
+    return processRetention7Day();
+  });
+
+  registerJob("retention-14day", 24 * 60 * 60 * 1000, async () => {
+    const { processRetention14Day } = await import("./jobs/retentionSequences");
+    return processRetention14Day();
+  });
+
   registerJob("retention-90day", 24 * 60 * 60 * 1000, async () => {
     const { processRetention90Day } = await import("./jobs/retentionSequences");
     return processRetention90Day();
