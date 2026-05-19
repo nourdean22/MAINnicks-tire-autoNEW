@@ -30,9 +30,11 @@ function useDebounce(value: string, delay: number) {
 // bookmarks.
 const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; group: string }[] = [
   // Core Operations
+  // 2026-05-19 · Walk-In Quote removed from section shortcuts — it's a
+  // drawer (event-bus opened), not a destination. Use the Quick Action
+  // below (or click "Walk-In Quote" button on Leads page).
   { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"], group: "Operations" },
   { id: "trafficFunnel", label: "Traffic → Revenue", keywords: ["funnel", "traffic", "seo", "conversion", "clicks"], group: "Operations" },
-  { id: "walkInCalc", label: "Walk-In Quote", keywords: ["quote", "estimate", "walk-in", "labor"], group: "Operations" },
   { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "command"], group: "Operations" },
 
   // Sales Pipeline
@@ -189,19 +191,20 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       group: "Action",
       run: () => onNavigate("overview"),
     },
-    // 2026-05-06 Elon-deeper-cut · walkInCalc was removed from the
-    // sidebar to declutter daily nav. Surfacing it as a Cmd+K quick
-    // action keeps it 3-keystrokes-away without the visual tax.
-    // 2026-05-19 Elon-cut · removed action-no-show-risk + action-
-    // conversion-preview + action-re-engagement (zombie sections
-    // fully deleted; their quick-actions had nowhere to navigate).
+    // 2026-05-19 · Walk-In Quote · was a top-level route, now an event-
+    // bus drawer (WalkInQuoteDrawer mounted globally in Admin.tsx). This
+    // Quick Action fires openWalkInQuote() instead of navigating.
     {
       id: "action-walkin-quote",
-      label: "Walk-In Quote",
-      keywords: ["walkin", "walk-in", "quote", "estimate", "calculator", "labor"],
+      label: "Walk-In Quote · pricing tool",
+      keywords: ["walkin", "walk-in", "quote", "estimate", "calculator", "labor", "price"],
       icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
       group: "Action",
-      run: () => onNavigate("walkInCalc"),
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("admin:open-walkin-quote"));
+        }
+      },
     },
     {
       id: "action-winback",

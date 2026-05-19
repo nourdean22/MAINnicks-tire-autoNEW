@@ -13,9 +13,10 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List
+  AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
 } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 
 // ── Lead type ──
 interface LeadItem {
@@ -416,6 +417,17 @@ export default function LeadsSection() {
         title="Leads & Estimates"
         subtitle="Inbound leads · estimate forms · phone-call captures · Vapi tire inquiries · golden 4-hour response window"
         icon={<Users className="w-5 h-5" />}
+        actions={
+          <button
+            type="button"
+            onClick={() => openWalkInQuote()}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] tracking-wider uppercase font-medium bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/15 transition-colors rounded"
+            title="Open Walk-In Quote pricing tool"
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            Walk-In Quote
+          </button>
+        }
       />
       <SectionInsightStrip section="leads" />
       {/* 2026-05-06 — Active filter chips with one-click clear */}
