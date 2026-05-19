@@ -44,7 +44,6 @@ import {
   AlertTriangle,
   Target,
   RotateCcw,
-  Loader2,
   TrendingDown,
   GitBranch,
   Tag,
@@ -53,6 +52,7 @@ import {
   NotebookPen,
   HandshakeIcon,
   Pin,
+  ChevronDown,
 } from "lucide-react";
 
 interface NickSuggestion {
@@ -117,6 +117,11 @@ const SEVERITY_RING: Record<NickSuggestion["severity"], string> = {
 export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   const [suggestions, setSuggestions] = useState<NickSuggestion[] | null>(null);
   const [error, setError] = useState(false);
+  // v10.0.529.96 · Wave 40 · slim mode · show ONE chip by default + "+ N more"
+  // pill that expands the rest. Operator feedback: "obnoxiously big · don't
+  // even think it's that smart." We keep the smart aggregator but surface
+  // only the top-priority chip · the rest are 1 tap away.
+  const [expanded, setExpanded] = useState(false);
   const router = useRouter();
 
   // v10.0.529.92 · Wave 36 · standalone fallback when no onSeed
@@ -176,36 +181,31 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
     };
   }, [load]);
 
-  // Initial · before first fetch resolves, render nothing
+  // Initial · before first fetch resolves, render nothing (silent · no shimmer
+  // strip · the chip itself is the affordance). v10.0.529.96 · Wave 40 ·
+  // slim mode · the proactive layer should NOT announce its own loading.
   if (suggestions === null) {
-    return (
-      <div className="flex items-center gap-2 px-3 py-2">
-        <Loader2 size={12} className="animate-spin text-[var(--text-tertiary)]" />
-        <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
-          nick is reading the signal
-        </span>
-      </div>
-    );
+    return null;
   }
 
   if (error || suggestions.length === 0) return null;
 
+  // v10.0.529.96 · Wave 40 · slim mode · ONE chip + tap-to-expand.
+  // The aggregator already returns severity-sorted suggestions · the
+  // first chip IS the top-priority one. Operator opens the rest with
+  // a single tap on "+ N more" · most days they'll never need to.
+  const [top, ...rest] = suggestions;
+  const visible = expanded ? suggestions : [top];
+
   return (
     <section
       aria-label="Nick's suggestions"
-      // v10.0.529.95 · Wave 39 · M3 · sm:flex-wrap so desktop keeps 2-row
-      // wrap · mobile uses horizontal scroll so 5 chips don't push the
-      // composer off a 667px iPhone SE viewport before keyboard opens.
-      // overflow-x-auto + scrollbar-thin for the scroll affordance.
       className="flex items-center gap-1.5 flex-nowrap overflow-x-auto sm:flex-wrap sm:overflow-visible px-3 py-2 max-w-3xl mx-auto"
     >
       <div className="inline-flex items-center gap-1 shrink-0">
         <Sparkles size={11} className="text-[var(--gold)]" />
-        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
-          nick suggests
-        </span>
       </div>
-      {suggestions.map((s) => {
+      {visible.map((s) => {
         const meta = KIND_META[s.kind] ?? KIND_META["pattern"];
         const Icon = meta.icon;
         return (
@@ -215,12 +215,8 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
             onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id })}
             aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
             title={s.seedPrompt}
-            // v10.0.529.95 · Wave 39 · C1 · 44px min tap target (iOS HIG).
-            // Pre-Wave-39 chips were 24-26px tall · ~40% of sweaty-thumb
-            // taps missed. This is the operator's primary chat entry
-            // point · unreliable taps = unusable proactive layer.
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-2 min-h-[44px] transition-colors shrink-0",
+              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 min-h-[32px] transition-colors shrink-0",
               "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]",
               SEVERITY_RING[s.severity],
             )}
@@ -236,12 +232,37 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
                 meta.tone === "violet" && "text-violet-400",
               )}
             />
-            <span className="text-[10px] font-mono text-[var(--text-primary)] max-w-[280px] truncate">
+            <span className="text-[10px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
               {s.label}
             </span>
           </button>
         );
       })}
+      {rest.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-label={expanded ? "Collapse suggestions" : `Show ${rest.length} more suggestions`}
+          aria-expanded={expanded}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border border-[var(--border-default)]/60",
+            "bg-transparent hover:border-[var(--gold)]/30 hover:bg-[var(--gold)]/[0.04]",
+            "px-2 py-1 min-h-[32px] transition-colors shrink-0",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]",
+          )}
+        >
+          <ChevronDown
+            size={11}
+            className={cn(
+              "text-[var(--text-tertiary)] transition-transform",
+              expanded && "rotate-180",
+            )}
+          />
+          <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+            {expanded ? "less" : `+${rest.length}`}
+          </span>
+        </button>
+      )}
     </section>
   );
 }

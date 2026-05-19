@@ -30,7 +30,16 @@ export function ChatEmptyState({ onPick: _onPick }: { onPick: (ask: string) => v
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-full px-4 sm:px-6 pt-12 sm:pt-16 pb-10 space-y-5 text-center">
+    // v10.0.529.96 · Wave 40 · sized-to-content empty state. Pre-Wave-40
+    // had `min-h-full` which stretched the empty state to consume the
+    // entire flex-1 scroll area, parking the composer pinned at the
+    // bottom of the viewport. Operator feedback: "let's not have the
+    // chat take up the whole page · put the composer in the middle."
+    // Dropping min-h-full + tightening top padding lets the empty state
+    // size to its greeting · the scroll container's flex-1 is also
+    // conditionally removed in chat/page.tsx · composer rises naturally
+    // into the upper-middle band right below the greeting.
+    <div className="flex flex-col items-center justify-start px-4 sm:px-6 pt-4 sm:pt-6 pb-2 space-y-3 text-center">
       {/* Quiet orb — concentric rings, no severity tinting */}
       <div className="relative w-12 h-12 sm:w-14 sm:h-14 flex items-center justify-center">
         <div className="absolute inset-0 rounded-full border border-[var(--gold)]/30 nick-ring-slow" />

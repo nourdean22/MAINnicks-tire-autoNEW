@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Paperclip, Mic, Square, FileAudio, Phone, Image as ImageIcon } from "lucide-react";
+import { Paperclip, Mic, Square, FileAudio, Phone, Image as ImageIcon, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModePersonaChip, type PersonaMode } from "@/components/chat/mode-persona-chip";
 
@@ -68,6 +68,15 @@ export function ComposerToolbar({
   onOpenAudio: () => void;
   onOpenVoiceMode: () => void;
 }) {
+  // v10.0.529.96 · Wave 40 · overflow consolidation. Operator feedback:
+  // "way too many buttons down there. Fix that shit." Pre-Wave-40 had
+  // 5 visible buttons on desktop (Mic · Paperclip · Persona · Audio ·
+  // Phone) + Camera on tablet · all crowding the textarea. Wave-40 keeps
+  // Mic + Paperclip as primary (the 90%-case for input) and tucks
+  // Persona/Audio/Phone/Camera behind a + overflow. Slash commands
+  // (/battle /reflect /execute) still work for explicit persona override
+  // without touching the chip.
+  const [overflowOpen, setOverflowOpen] = React.useState(false);
   return (
     <>
       {/* Mic — tap to toggle, long-press to record + release to send */}
@@ -163,63 +172,72 @@ export function ComposerToolbar({
         <Paperclip size={14} />
       </button>
 
-      {/* v10.0.413 · mode-persona chip · cycles default/battle/reflect/execute · auto-prepends prefix on send */}
-      {/* v10.0.478 · hidden on mobile — chip was crushing the textarea
-          to ~0px on 375px viewport. Slash-prefix (/battle, /reflect,
-          /execute) still works for explicit mode override on phone. */}
-      <div className="hidden sm:contents">
-        <ModePersonaChip mode={personaMode} onChange={onPersonaModeChange} />
-      </div>
-
+      {/* v10.0.529.96 · Wave 40 · overflow toggle.
+          Tap to reveal persona/audio/voice/camera · tap again to collapse.
+          Default closed · the 90%-case operator path is mic+paperclip+type. */}
       <button
-        onClick={onOpenAudio}
-        disabled={audioTranscribing}
+        type="button"
+        onClick={() => setOverflowOpen((v) => !v)}
         className={cn(
-          // v10.0.478 · `hidden sm:flex` — audio attach hidden on
-          // mobile to free composer width. Operator can still drag
-          // an audio file into the chat (handled by the same
-          // audioInputRef via OS-native file picker · or upload from
-          // desktop where the button is visible).
-          "hidden sm:flex shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg items-center justify-center transition-all active:scale-90",
-          audioTranscribing
-            ? "bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-wait"
+          "shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center transition-all active:scale-90",
+          overflowOpen
+            ? "bg-[var(--bg-elevated)] text-[var(--gold)]"
             : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]",
         )}
-        title="Drop audio · transcribe to text (mp3/wav/m4a/webm/ogg, ≤50MB)"
-        aria-label={audioTranscribing ? "Transcribing audio" : "Attach audio file for transcription"}
+        title={overflowOpen ? "Collapse extras" : "More · persona · voice · audio"}
+        aria-label={overflowOpen ? "Collapse extras" : "Show more composer actions"}
+        aria-expanded={overflowOpen}
       >
-        {audioTranscribing ? (
-          <div className="w-3 h-3 border-[1.5px] border-[var(--text-tertiary)] border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <FileAudio size={14} />
-        )}
+        {overflowOpen ? <X size={14} /> : <Plus size={14} />}
       </button>
 
-      {/* v10.0.359 · speech-to-speech mode · phone icon opens
-          full voice overlay, OpenAI Realtime API, sub-500ms target */}
-      <button
-        onClick={onOpenVoiceMode}
-        // v10.0.528 · a11y A2 · mobile w-10 → w-11 (40 → 44px Apple HIG).
-        className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
-        title="Talk to Nick (voice mode · OpenAI Realtime)"
-        aria-label="Open voice mode to talk to Nick"
-      >
-        <Phone size={14} />
-      </button>
+      {/* Overflow extras · revealed only when overflowOpen. Slash commands
+          (/battle /reflect /execute) keep working without touching the
+          persona chip · most days the operator never needs to open this. */}
+      {overflowOpen && (
+        <>
+          <div className="hidden sm:contents">
+            <ModePersonaChip mode={personaMode} onChange={onPersonaModeChange} />
+          </div>
 
-      <button
-        onClick={onOpenCamera}
-        // v10.0.478 · was `md:hidden` (mobile-only) but on mobile the
-        // button row was crushing the textarea. Hidden on phones too
-        // now · paperclip's accept includes image/* so the OS-native
-        // file picker on mobile already lets you take a photo. The
-        // tablet (sm-md range) keeps it for one-tap camera access.
-        className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90 hidden sm:flex md:hidden"
-        title="Take photo"
-        aria-label="Take photo"
-      >
-        <ImageIcon size={14} />
-      </button>
+          <button
+            onClick={onOpenVoiceMode}
+            className="shrink-0 w-11 h-11 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90"
+            title="Talk to Nick (voice mode · OpenAI Realtime)"
+            aria-label="Open voice mode to talk to Nick"
+          >
+            <Phone size={14} />
+          </button>
+
+          <button
+            onClick={onOpenAudio}
+            disabled={audioTranscribing}
+            className={cn(
+              "hidden sm:flex shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg items-center justify-center transition-all active:scale-90",
+              audioTranscribing
+                ? "bg-[var(--bg-elevated)] text-[var(--text-tertiary)] cursor-wait"
+                : "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)]",
+            )}
+            title="Drop audio · transcribe to text (mp3/wav/m4a/webm/ogg, ≤50MB)"
+            aria-label={audioTranscribing ? "Transcribing audio" : "Attach audio file for transcription"}
+          >
+            {audioTranscribing ? (
+              <div className="w-3 h-3 border-[1.5px] border-[var(--text-tertiary)] border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <FileAudio size={14} />
+            )}
+          </button>
+
+          <button
+            onClick={onOpenCamera}
+            className="shrink-0 w-10 h-10 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-elevated)] transition-all active:scale-90 hidden sm:flex md:hidden"
+            title="Take photo"
+            aria-label="Take photo"
+          >
+            <ImageIcon size={14} />
+          </button>
+        </>
+      )}
     </>
   );
 }
