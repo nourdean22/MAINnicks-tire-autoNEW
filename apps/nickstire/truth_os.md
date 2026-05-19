@@ -39,6 +39,16 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 - **`0040_wave181_otp_attempts_durable.sql`** — APPLIED 2026-05-18. Creates `otp_attempts` table backing the durable OTP brute-force counter (server/middleware/bruteForce.ts).
 - **`0041_wave181_sms_sending_status.sql`** — APPLIED 2026-05-18. Appends `"sending"` to `sms_messages.status` enum for the rehydrate state machine.
 - **`0042_wave181_declined_recovery_attempted_at.sql`** — APPLIED 2026-05-18. Adds `follow_up_{7,30}d_attempted_at` to `alg_estimates` for at-most-once declined-recovery sends.
+- **`0043_wave181_sms_rate_limit_durable.sql`** — APPLIED 2026-05-19. Creates `sms_rate_limit` table backing the durable 8/24h per-phone counter (server/sms.ts checkDailyLimit · single-atomic via LAST_INSERT_ID after wave-181.83).
+- **`0044_wave181_cron_alerts_fired.sql`** — APPLIED 2026-05-19. Creates `cron_alerts_fired` table for durable Telegram-alert dedup (vapiLatencySync.ts).
+- **`0045_wave181_drip_enrollments_unique.sql`** — APPLIED 2026-05-19. Adds `uq_drip_active` UNIQUE INDEX on `drip_enrollments` (customerPhone, campaignId, status) · closes the gap-lock deadlock in persistDripEnrollment.
+- **`0047_wave181_cron_tier_skip_state.sql`** — APPLIED 2026-05-19. Creates `cron_tier_skip_state` table backing the durable scheduler tier-skip counter (server/cron/scheduler.ts · was in-memory Map · pre-fix lost state on every pod restart).
+- **`0048_wave181_confirmation_calls.sql`** — APPLIED 2026-05-19. Creates `confirmation_calls` table for AgentPhone confirmation-bot per-attempt tracking.
+- **`0049_wave181_voice_recovery.sql`** — APPLIED 2026-05-19. Adds `voice_recovery_attempted_at` / `voice_recovery_call_id` / `voice_recovery_outcome` columns to `alg_estimates` for voice-recovery escalation tracking.
+
+## Migrations pending awareness (continued)
+
+- **`0046_wave181_sms_conv_phone_normalized.sql`** — DEFERRED 2026-05-19. Expression index on `sms_conversations` to kill the function-on-left-side WHERE full scan in smsInstrumentation.ts. Blocked by TiDB's expression-index function safety list. Requires `SET GLOBAL tidb_allow_function_in_expression_index = 'RIGHT,REPLACE';` (SUPER privilege via TiDB Cloud console). Apply with: `pnpm exec tsx apps/nickstire/scripts/apply-wave-181-83-phone-normalized.ts` once the config flag is set. Current cost is bounded at <100 inbound SMS/day · self-decays via wave-181.61 at-write normalization.
 
 ## SMS routing (post wave-103, updated wave-181.60)
 
@@ -50,6 +60,20 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 - **Manager-on-duty alerts:** `eventBus` destination `manager-on-duty-sms` texts the VAPI transferCall destination (current on-duty manager) on every booking_created / lead_captured / callback_requested / emergency_request event. Self-loop guard skips if the on-duty number == 216-862-0005.
 - **Operator runbook:** `docs/SHOP_SMS_GATEWAY_SETUP.md` and `docs/OPERATOR_RUNBOOK_WAVE_181_60.md` (migration apply procedure).
 
+## Outbound voice (wave-181.84 + 181.85 · AgentPhone)
+
+- **Confirmation Bot** · daily cron `confirmation-calls` fires AgentPhone outbound calls to confirm next-day appointments. Hosted-LLM mode · brand-voice system prompt (60-90s target · voicemail handling · single confirm/reschedule round-trip).
+- **Voice Recovery** · daily cron `voice-recovery` fires AgentPhone outbound calls to declined estimates that received D7 + D30 SMS but didn't convert. Hosted-LLM mode · "no pressure · we're here when you need us" closer if customer declines.
+- **Webhook:** `POST /api/webhooks/agentphone` · HMAC-SHA256 via `AGENTPHONE_WEBHOOK_SECRET` · production refuses unsigned. Dispatches by callId lookup across confirmation_calls AND alg_estimates voice_recovery columns.
+- **Gates** (3 env vars · 2 feature flags · operator-controlled):
+  - `AGENTPHONE_API_KEY` (Railway env) · shared by both crons
+  - `AGENTPHONE_WEBHOOK_SECRET` (Railway env) · shared
+  - `AGENTPHONE_CONFIRMATION_AGENT_ID` (Railway env) · per-purpose agent
+  - `AGENTPHONE_RECOVERY_AGENT_ID` (Railway env) · can be the same value
+  - `FEATURE_CONFIRMATION_CALLS=1` (Railway env) · enables confirmation cron
+  - `FEATURE_VOICE_RECOVERY=1` (Railway env) · enables recovery cron
+- **Operator runbook:** `docs/OPERATOR_AGENTPHONE_SETUP.md`.
+
 ## Invariants (do not break)
 
 - **ShopDriver / ALG** integration is load-bearing for shop operations — do not remove without explicit owner decision.
@@ -58,3 +82,8 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 - **Webhook signature scheme** for the SMS Gateway is HMAC-SHA256 over `body + X-Timestamp`. Don't change this without updating the Capevace app's signing key OR re-signing scheme on both sides.
 - **OTP brute-force counter is DB-backed (wave-181.60).** Don't revert to an in-memory Map — counters need to survive Railway restarts and aggregate across pods.
 - **Declined-recovery is at-most-once (wave-181.60).** The `followUp{N}dAttemptedAt` claim must be stamped BEFORE `sendSms`, not after. Reversing the order reintroduces double-send-on-restart.
+- **SMS rate-limit is single-atomic (wave-181.83).** checkDailyLimit uses the LAST_INSERT_ID() pattern · don't revert to the 2-query SELECT-after-UPDATE form (race between increment + read).
+- **Scheduler tier-skip counter is DB-backed (wave-181.83).** Don't revert to the in-memory Map · alert needs to survive restarts under chronic overrun.
+- **Recovery cron uses personalized message + scored ranking (wave-181.82).** Customer vehicle + repeat-customer + service category drive a 2× engagement lift. Don't revert to generic-template-only.
+- **AgentPhone API key NEVER goes to any URL other than api.agentphone.to.** Skill rule.
+- **AgentPhone crons are env-gated · safe to ship code without operator flipping flags.** When operator's ready, 5 env vars unlock everything (see Operator runbook above).
