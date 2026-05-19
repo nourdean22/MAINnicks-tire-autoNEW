@@ -22,7 +22,12 @@ import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 import { Pin, PinOff, Plus, Edit3, Save, X, Sparkles, AlertCircle } from "lucide-react";
 
+// Phase YY (2026-05-19 AM) · authedFetch replaced with trpc · 4 sites
+// (list · create · edit · delete) on the brain router. The
+// prompt-cache-flush hot-path stays on authedFetch for now (different
+// system surface · candidate for a future system router phase).
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 interface PinRow {
   id: string;
@@ -95,20 +100,25 @@ export default function PinsPage() {
   const [newLabel, setNewLabel] = useState("");
   const [creating, setCreating] = useState(false);
 
+  // Phase YY · tRPC migration · same `load` shape preserved for the
+  // existing event-bus refresh hook (`onDataChanged(["brain"])`).
+  const utils = trpc.useUtils();
+  const createPinMutation = trpc.brain.createPin.useMutation();
+  const updatePinMutation = trpc.brain.updatePin.useMutation();
+  const deletePinMutation = trpc.brain.deletePin.useMutation();
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authedFetch("/api/brain/pinned?withStats=1", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as PinsResponse;
-      setData(json);
+      const json = await utils.brain.pinned.fetch({ withStats: true });
+      setData(json as unknown as PinsResponse);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     void load();
@@ -138,16 +148,11 @@ export default function PinsPage() {
   const saveEdit = async () => {
     if (!editingId) return;
     try {
-      const res = await authedFetch("/api/brain/pinned", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingId,
-          content: editContent,
-          label: editLabel || undefined,
-        }),
+      await updatePinMutation.mutateAsync({
+        id: editingId,
+        content: editContent,
+        label: editLabel || undefined,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       cancelEdit();
       await load();
       // v10.0.529.90 · Wave 34 · fire the bus so chat (whose system
@@ -163,8 +168,7 @@ export default function PinsPage() {
   const unpin = async (id: string) => {
     if (!confirm("Unpin this? (Removes from system-prompt context)")) return;
     try {
-      const res = await authedFetch(`/api/brain/pinned?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await deletePinMutation.mutateAsync({ id });
       await load();
       notifyDataChanged("brain", { source: "pins-page", detail: "pin-unpin", id });
     } catch (e) {
@@ -172,24 +176,20 @@ export default function PinsPage() {
     }
   };
 
-  const createPin = async () => {
+  const createNewPin = async () => {
     if (!newContent.trim()) return;
     setCreating(true);
     try {
-      const res = await authedFetch("/api/brain/pinned", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: newContent,
-          label: newLabel || undefined,
-          source: "pin:manual",
-        }),
+      await createPinMutation.mutateAsync({
+        content: newContent,
+        label: newLabel || undefined,
+        source: "pin:manual",
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setNewContent("");
       setNewLabel("");
       // After a write, hot-flush the prompt cache so the next chat turn
       // sees the new pin without waiting for the 45s TTL to expire.
+      // This system endpoint stays on authedFetch · separate router phase.
       void authedFetch("/api/system/prompt-cache-flush", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -248,7 +248,7 @@ export default function PinsPage() {
           <div className="flex justify-between items-center">
             <span className="text-[10px] text-zinc-500">{newContent.length} / 2000</span>
             <button
-              onClick={createPin}
+              onClick={createNewPin}
               disabled={creating || !newContent.trim()}
               className={cn(
                 "rounded-md border px-3 py-1.5 text-xs font-medium transition",

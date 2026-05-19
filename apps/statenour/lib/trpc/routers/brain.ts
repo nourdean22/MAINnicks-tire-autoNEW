@@ -27,6 +27,15 @@ import {
   decideLinkCandidate,
   ReviewRowNotFoundError,
 } from "@/lib/services/link-review";
+import {
+  listPins,
+  createPin,
+  updatePin,
+  deletePin,
+  PinNotFoundError,
+  PinContentRequiredError,
+  PinContentTooLongError,
+} from "@/lib/services/pins";
 
 export const brainRouter = router({
   /**
@@ -125,4 +134,93 @@ export const brainRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * Phase YY (2026-05-19 AM) · owner-only · pinned-memory roster ·
+   * top-50 active pins sorted by updatedAt desc + optional stats
+   * envelope (freshPins · stalePins · estimatedPromptTokens · etc.)
+   * for the /pins page header.
+   *
+   * Indexed via `@@index([category, updatedAt])` + `@@index([category,
+   * deletedAt])` on BrainMemory (both explicitly added Apr 18/20 for
+   * this query · prisma-expert + neon-postgres lens confirm zero
+   * findings).
+   */
+  pinned: operatorProcedure
+    .input(
+      z
+        .object({ withStats: z.boolean().optional() })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listPins({ withStats: input?.withStats ?? false }),
+    ),
+
+  /**
+   * Phase YY · owner-only · create or re-pin a memory by content-hash
+   * key. Idempotent · re-pinning the same slugified key bumps
+   * seenCount + reasserts confidence=1.0 instead of duplicating.
+   * Fires `storeMemoryEmbedding` fire-and-forget so semantic search
+   * stays in sync.
+   */
+  createPin: operatorProcedure
+    .input(
+      z.object({
+        content: z.string().min(1).max(2000),
+        source: z.string().max(40).optional(),
+        label: z.string().max(80).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await createPin(input);
+      } catch (err) {
+        if (err instanceof PinContentRequiredError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        if (err instanceof PinContentTooLongError) {
+          throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase YY · owner-only · edit a pin's content / label / source.
+   * Content >1200 chars truncates server-side (system prompt is
+   * already paying for top-5 × 260-char preview · longer is wasted).
+   * Re-embeds on content change.
+   */
+  updatePin: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        content: z.string().max(2000).optional(),
+        label: z.string().max(80).optional(),
+        source: z.string().max(40).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await updatePin(input);
+      } catch (err) {
+        if (err instanceof PinNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        if (err instanceof PinContentRequiredError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase YY · owner-only · soft-delete a pin · restorable from the
+   * trash view via the existing soft-delete helpers. Uses the
+   * `softDelete` lib so the audit trail is consistent with other
+   * BrainMemory deletions.
+   */
+  deletePin: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => deletePin(input)),
 });
