@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 16 / 50+ surfaces · ~32% complete · 4 domain routers (nick · operator · system · chat with 7 procedures · 3 mutations) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE uses `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II)
+**Status:** 17 / 50+ surfaces · ~34% complete · 4 domain routers (nick · operator · system · chat with 9 procedures · 4 mutations) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE uses `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ) · imperative-fetch-via-utils pattern (JJ uses `utils.x.y.fetch()` for on-click lazy fetch)
 
 ## Why
 
@@ -37,8 +37,9 @@ End-to-end types flow from server → client · no manual mirrors.
 | MessageInfoCard (brain context section, lazy-on-open) | `authedFetch` → `/api/brain/provenance/[messageId]` | `trpc.chat.messageProvenance.useQuery({messageId}, {enabled: open})` | EE.3 |
 | LaneCorrectionChip (proactive blind-spot alert) | `authedFetch` POST → `/api/ai/chat/lane-check` | `trpc.chat.laneCheck.useQuery({userMessage, assistantMessage}, {enabled: tokensReady})` | GG.3 |
 | EmailDraftCard (Send button · first true `.mutation()`) | `authedFetch` POST → `/api/email/send` | `trpc.chat.sendEmail.useMutation().mutateAsync(...)` | HH.3 |
-| NickMessage image upscale (2x/4x hover button) | `authedFetch` POST → `/api/images/upscale` | `trpc.chat.upscaleImage.useMutation().mutateAsync(...)` | **II.3** |
-| NickMessage image vary ("vary" button · N variants) | `authedFetch` POST → `/api/images/variations` | `trpc.chat.varyImage.useMutation().mutateAsync(...)` | **II.3** |
+| NickMessage image upscale (2x/4x hover button) | `authedFetch` POST → `/api/images/upscale` | `trpc.chat.upscaleImage.useMutation().mutateAsync(...)` | II.3 |
+| NickMessage image vary ("vary" button · N variants) | `authedFetch` POST → `/api/images/variations` | `trpc.chat.varyImage.useMutation().mutateAsync(...)` | II.3 |
+| MessageEditControls (edit + history drawer · 1 query + 1 mutation) | `authedFetch` PATCH/GET → `/api/ai/chat/edit/[id]` | `trpc.chat.editMessage.useMutation()` + `utils.chat.editHistory.fetch()` on click | **JJ.3** |
 
 ## Architectural notes
 
@@ -66,6 +67,17 @@ End-to-end types flow from server → client · no manual mirrors.
 - **Z.2** added the **4th domain router** (`chat`) for chat-domain
   procedures. Streaming endpoints (POST /api/ai/chat) stay excluded
   from tRPC migration · subscription support needs WebSocket infra.
+- **JJ.2** introduced the **imperative-fetch-via-utils** pattern · the
+  MessageEditControls history drawer fires on a button click (not on
+  mount or on a known boolean), so `useQuery({enabled: open})` doesn't
+  fit. The component calls `utils.chat.editHistory.fetch({messageId})`
+  imperatively inside the click handler, then sets the result to local
+  state. After a Save mutation succeeds, the cached query is invalidated
+  via `utils.chat.editHistory.invalidate({messageId})` AND local cache
+  is dropped via `setHistory(null)` so the next drawer open re-fetches
+  fresh. Three transports for the same query: useQuery (auto-refetch),
+  useQuery+enabled (deferred), `utils.fetch()` (imperative). JJ picks
+  the right one per call shape.
 
 ## Pending surfaces (~46)
 

@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD/EE/GG/HH + **II** | 2026-05-18 PM | **16/50+ surfaces** · NickMessage image upscale + vary migrated · chat router at 7 procedures (3 mutations) | Continue chat sub-surfaces (sandboxes · message-edit) · then `/system/*` (policies · repos) |
+| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD/EE/GG/HH/II + **JJ** | 2026-05-18 PM | **17/50+ surfaces** · MessageEditControls edit + history migrated · chat router at 9 procedures (4 mutations) | Continue chat sub-surfaces (builder/browser sandboxes · action-claim-warning) · then `/system/*` (policies · repos) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 

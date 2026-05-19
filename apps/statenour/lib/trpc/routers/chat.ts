@@ -30,6 +30,15 @@ import {
   varyImage,
   SourceImageNotFoundError,
 } from "@/lib/services/image-actions";
+import {
+  readMessageEditView,
+  editChatMessage,
+  MessageNotFoundError,
+  ConcurrentEditError,
+  EmptyContentError,
+  ContentTooLongError,
+  MAX_CONTENT_CHARS,
+} from "@/lib/services/chat-edit";
 
 export const chatRouter = router({
   /**
@@ -204,6 +213,82 @@ export const chatRouter = router({
             code: "NOT_FOUND",
             message: err.message,
           });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase JJ (2026-05-18 PM) · owner-only · read a chat message's
+   * current content + full edit history (most-recent-first, capped to
+   * last 10 versions). Powers the "edited" badge drawer in
+   * MessageEditControls · lazy-fetched via `utils.chat.editHistory.fetch()`
+   * on history-button click (no auto-refetch needed).
+   *
+   * Delegates to `lib/services/chat-edit.readMessageEditView` shared
+   * service · legacy GET /api/ai/chat/edit/[messageId] calls the same
+   * function · drift impossible.
+   *
+   * Edge cases · MessageNotFoundError surfaces as NOT_FOUND tRPC error.
+   */
+  editHistory: operatorProcedure
+    .input(z.object({ messageId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      try {
+        return await readMessageEditView({ messageId: input.messageId });
+      } catch (err) {
+        if (err instanceof MessageNotFoundError) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase JJ (2026-05-18 PM) · owner-only · in-place edit of an existing
+   * chat message · prepends prior content to editHistory[], synthesizes
+   * new parts tree (text + surviving file attachments), refreshes
+   * searchableContent, sets new editedAt. Optimistic-concurrency via
+   * updateMany count=0 surfaces as CONFLICT (two devices editing same
+   * message · second writer must retry).
+   *
+   * Delegates to `lib/services/chat-edit.editChatMessage` shared service
+   * · legacy PATCH /api/ai/chat/edit/[messageId] calls the same
+   * function · drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change. Caller's
+   * onSuccess handler should call
+   * `utils.chat.editHistory.invalidate({messageId})` to refresh any
+   * open history drawer.
+   *
+   * Edge cases · empty/too-long content → BAD_REQUEST · not found →
+   * NOT_FOUND · concurrent write → CONFLICT (retry · UI shows toast).
+   */
+  editMessage: operatorProcedure
+    .input(
+      z.object({
+        messageId: z.string().min(1).max(64),
+        content: z.string().min(1).max(MAX_CONTENT_CHARS),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await editChatMessage({
+          messageId: input.messageId,
+          content: input.content,
+        });
+      } catch (err) {
+        if (err instanceof MessageNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        if (err instanceof ConcurrentEditError) {
+          throw new TRPCError({ code: "CONFLICT", message: err.message });
+        }
+        if (err instanceof EmptyContentError || err instanceof ContentTooLongError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
         }
         throw err;
       }

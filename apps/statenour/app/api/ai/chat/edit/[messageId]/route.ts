@@ -1,7 +1,14 @@
 /**
- * Message edit API — PATCH (rewrite) + GET (history view).
+ * Message edit API — PATCH (rewrite) + GET (history view) + DELETE (truncate).
  *
  * v7.6 · C9 · Apr 29 · ChatMessage Batch A.
+ *
+ * Phase JJ (2026-05-18 PM) · heavy lifting moved to
+ * `lib/services/chat-edit.ts` (`readMessageEditView` + `editChatMessage`)
+ * so both this REST endpoint AND the new `trpc.chat.editHistory` query +
+ * `trpc.chat.editMessage` mutation call the same functions · drift
+ * between the two consumers is structurally impossible. Stays mounted
+ * for back-compat with any non-tRPC consumer.
  *
  * PATCH /api/ai/chat/edit/[messageId]
  *   Body: { content: string }
@@ -13,38 +20,33 @@
  *   Returns: { content, editedAt, editHistory: [{at, prevContent}] }
  *   For the "see prior versions" drawer.
  *
- * Auth: session (each chat is private to Nour).
+ * DELETE /api/ai/chat/edit/[messageId] · v10.0.28
+ *   Hard-deletes the target message AND every subsequent message in
+ *   the same conversation. Kept on REST (separate concern · not migrated
+ *   in Phase JJ).
  *
- * Edge cases:
- *   · empty content       → 400
- *   · content > 10K chars → 400 (sanity ceiling — long messages are unusual)
- *   · content unchanged   → 200 no-op (idempotent)
- *   · message not found   → 404
+ * Auth: session (each chat is private to Nour).
  */
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
-import {
-  extractParts,
-  buildSearchableContent,
-} from "@/lib/ai/chat/message-fields";
 import { logUpdate } from "@/lib/db/entity-audit";
+import {
+  readMessageEditView,
+  editChatMessage,
+  MessageNotFoundError,
+  ConcurrentEditError,
+  EmptyContentError,
+  ContentTooLongError,
+} from "@/lib/services/chat-edit";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const maxDuration = 10;
 
-const MAX_HISTORY_ENTRIES = 10;
-const MAX_CONTENT_CHARS = 10_000;
-
 interface EditBody {
   content?: string;
-}
-
-interface EditHistoryEntry {
-  at: string;
-  prevContent: string;
 }
 
 export async function GET(
@@ -63,27 +65,11 @@ export async function GET(
   }
 
   try {
-    const msg = await prisma.chatMessage.findUnique({
-      where: { id: messageId },
-      select: {
-        id: true,
-        content: true,
-        editedAt: true,
-        editHistory: true,
-        role: true,
-      },
-    });
-    if (!msg) {
+    return NextResponse.json(await readMessageEditView({ messageId }));
+  } catch (err) {
+    if (err instanceof MessageNotFoundError) {
       return NextResponse.json({ error: "message not found" }, { status: 404 });
     }
-    return NextResponse.json({
-      messageId: msg.id,
-      role: msg.role,
-      content: msg.content,
-      editedAt: msg.editedAt,
-      editHistory: Array.isArray(msg.editHistory) ? (msg.editHistory as unknown as EditHistoryEntry[]) : [],
-    });
-  } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "fetch failed" },
       { status: 500 },
@@ -113,128 +99,34 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const newContent = (body.content ?? "").trim();
-  if (!newContent) {
-    return NextResponse.json({ error: "content required" }, { status: 400 });
-  }
-  if (newContent.length > MAX_CONTENT_CHARS) {
-    return NextResponse.json(
-      { error: `content too long (max ${MAX_CONTENT_CHARS} chars)` },
-      { status: 400 },
-    );
-  }
-
   try {
-    // v10.0.111 audit fix · optimistic-concurrency check via updateMany.
-    // Pre-fix, two simultaneous edits from two devices would last-write-
-    // win with neither write seeing the other's editHistory snapshot —
-    // one version silently dropped. The fix scopes updateMany on the
-    // editedAt value we just read, so a concurrent edit causes count=0
-    // (not P2025 — that's an update-only error) and the client sees 409.
-    const existing = await prisma.chatMessage.findUnique({
-      where: { id: messageId },
-      select: {
-        id: true,
-        content: true,
-        editHistory: true,
-        attachments: true,
-        editedAt: true,
-      },
+    const result = await editChatMessage({
+      messageId,
+      content: body.content ?? "",
     });
-    if (!existing) {
-      return NextResponse.json({ error: "message not found" }, { status: 404 });
-    }
-
-    // No-op when content didn't actually change. Don't pollute the
-    // history with empty edits.
-    if (existing.content === newContent) {
+    if (result.unchanged) {
       return NextResponse.json({ ok: true, unchanged: true, messageId });
     }
-
-    // Append the prior content to history (most recent first).
-    const priorHistory = Array.isArray(existing.editHistory)
-      ? (existing.editHistory as unknown as EditHistoryEntry[])
-      : [];
-    const nextHistory: EditHistoryEntry[] = [
-      { at: new Date().toISOString(), prevContent: existing.content },
-      ...priorHistory,
-    ].slice(0, MAX_HISTORY_ENTRIES);
-
-    // Synthesize new parts tree from the new content + existing
-    // attachments (file parts survive an edit).
-    const synthParts: Array<Record<string, unknown>> = [
-      { type: "text", text: newContent },
-    ];
-    const legacyAtts = Array.isArray(existing.attachments)
-      ? (existing.attachments as Array<Record<string, unknown>>)
-      : [];
-    for (const a of legacyAtts) {
-      if (!a || typeof a !== "object") continue;
-      const ao = a as Record<string, unknown>;
-      if (ao.type === "file" && typeof ao.url === "string") {
-        synthParts.push({
-          type: "file",
-          url: ao.url,
-          mediaType: typeof ao.mediaType === "string" ? ao.mediaType : undefined,
-          filename: typeof ao.filename === "string" ? ao.filename : undefined,
-        });
-      }
-    }
-    const parts = extractParts(synthParts, newContent);
-    const searchableContent = buildSearchableContent(parts, newContent);
-
-    // updateMany returns count=0 when the where-clause filters all rows.
-    // We use that as the optimistic-concurrency check: scope on
-    // editedAt being the value we read so a concurrent edit causes
-    // count=0, NOT a P2025 thrown error.
-    const updateResult = await prisma.chatMessage.updateMany({
-      where: { id: messageId, editedAt: existing.editedAt },
-      data: {
-        content: newContent,
-        parts: parts as unknown as Parameters<typeof prisma.chatMessage.updateMany>[0]["data"]["parts"],
-        searchableContent: searchableContent ?? undefined,
-        editedAt: new Date(),
-        editHistory: nextHistory as unknown as Parameters<typeof prisma.chatMessage.updateMany>[0]["data"]["editHistory"],
-      },
-    });
-    if (updateResult.count === 0) {
-      return NextResponse.json(
-        { error: "message changed concurrently — please retry" },
-        { status: 409 },
-      );
-    }
-    const updated = await prisma.chatMessage.findUnique({
-      where: { id: messageId },
-      select: {
-        id: true,
-        content: true,
-        editedAt: true,
-        editHistory: true,
-      },
-    });
-    if (!updated) {
-      return NextResponse.json({ error: "message not found" }, { status: 404 });
-    }
-
-    // v8.0 — content edit is a high-signal audit event. before/after
-    // capture is just the content field — the parts blob is huge and
-    // editHistory already preserves prior versions inline.
-    void logUpdate(
-      "chatMessage",
-      updated.id,
-      { content: existing.content },
-      { content: updated.content },
-      { source: "api:ai/chat/edit.PATCH", reason: "user edited message" },
-    );
-
     return NextResponse.json({
       ok: true,
-      messageId: updated.id,
-      content: updated.content,
-      editedAt: updated.editedAt,
-      editHistoryCount: Array.isArray(updated.editHistory) ? updated.editHistory.length : 0,
+      messageId: result.messageId,
+      content: result.content,
+      editedAt: result.editedAt,
+      editHistoryCount: result.editHistoryCount,
     });
   } catch (err) {
+    if (err instanceof EmptyContentError) {
+      return NextResponse.json({ error: "content required" }, { status: 400 });
+    }
+    if (err instanceof ContentTooLongError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof MessageNotFoundError) {
+      return NextResponse.json({ error: "message not found" }, { status: 404 });
+    }
+    if (err instanceof ConcurrentEditError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
     const code = (err as { code?: string }).code;
     if (code === "P2025") {
       return NextResponse.json({ error: "message not found" }, { status: 404 });
@@ -258,6 +150,9 @@ export async function PATCH(
  * Why "and subsequent": the user is removing a turn from history.
  * Keeping later messages without their context creates an
  * orphan reply chain that doesn't make sense on reload.
+ *
+ * Phase JJ · NOT migrated to tRPC · separate concern (not used by
+ * MessageEditControls · used by chat page). Stays on REST.
  */
 export async function DELETE(
   req: Request,
