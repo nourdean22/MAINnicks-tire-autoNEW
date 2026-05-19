@@ -1,5 +1,6 @@
 import { COOKIE_NAME, THIRTY_DAYS_MS } from "@shared/const";
 import type { Express, Request, Response } from "express";
+import { randomBytes, timingSafeEqual } from "crypto";
 import * as db from "../db";
 import { getSessionCookieOptions } from "./cookies";
 import { sdk } from "./sdk";
@@ -7,6 +8,31 @@ import { sdk } from "./sdk";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("_core:oauth");
+
+// wave-181.71 (chip #1) · OAuth state CSRF protection.
+//
+// Pre-fix · the Google OAuth callback at /api/oauth/callback validated
+// the authorization code but NOT the `state` parameter. Classic OAuth
+// CSRF attack: attacker initiates OAuth with their Google account,
+// captures the callback URL with their code, tricks victim into
+// clicking it. Victim's browser hits /api/oauth/callback?code=... ·
+// server exchanges code for ATTACKER's user info · sets session
+// cookie binding victim to attacker's account. Victim does work
+// believing they're themselves but operating as the attacker.
+//
+// Fix · /api/oauth/initiate mints a 32-byte random state, sets it in
+// a short-lived HTTP-only cookie, redirects to Google with the state
+// param. /api/oauth/callback extracts state from query + from the
+// cookie, validates via timingSafeEqual, clears the cookie after.
+//
+// Cookie TTL: 10 minutes (Google's OAuth flow typically completes in
+// under a minute · 10min covers slow networks + 2FA prompts).
+const OAUTH_STATE_COOKIE = "oauth_state";
+const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
+
+function generateOAuthState(): string {
+  return randomBytes(32).toString("hex");
+}
 function getQueryParam(req: Request, key: string): string | undefined {
   const value = req.query[key];
   return typeof value === "string" ? value : undefined;
@@ -86,12 +112,73 @@ function registerDevSigninRoute(app: Express) {
 export function registerOAuthRoutes(app: Express) {
   registerDevSigninRoute(app);
 
+  // wave-181.71 · OAuth INITIATION endpoint. Mints a fresh state token,
+  // sets it in an HTTP-only short-TTL cookie, redirects to Google with
+  // state attached. The callback at /api/oauth/callback validates both
+  // the query-string state and the cookie state match. This is the
+  // standard OAuth 2.0 CSRF protection per RFC 6749 §10.12.
+  app.get("/api/oauth/initiate", (req: Request, res: Response) => {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+    if (!clientId) {
+      res.status(500).json({ error: "GOOGLE_OAUTH_CLIENT_ID not configured" });
+      return;
+    }
+
+    const state = generateOAuthState();
+    const cookieOptions = getSessionCookieOptions(req);
+    res.cookie(OAUTH_STATE_COOKIE, state, {
+      ...cookieOptions,
+      maxAge: OAUTH_STATE_TTL_MS,
+    });
+
+    const proto = (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() || req.protocol;
+    const redirectUri = `${proto}://${req.get("host")}/api/oauth/callback`;
+
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", clientId);
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("access_type", "offline");
+    url.searchParams.set("prompt", "consent");
+    url.searchParams.set("state", state);
+
+    res.redirect(302, url.toString());
+  });
+
   // Google OAuth callback
   app.get("/api/oauth/callback", async (req: Request, res: Response) => {
     const code = getQueryParam(req, "code");
 
     if (!code) {
       res.status(400).json({ error: "Authorization code is required" });
+      return;
+    }
+
+    // wave-181.71 · validate CSRF state · query state must match the
+    // cookie we set during /api/oauth/initiate. Both must be present;
+    // both must be equal under timingSafeEqual. Mismatch indicates a
+    // forged callback URL (CSRF attack) and we reject before exchanging
+    // the auth code.
+    const queryState = getQueryParam(req, "state");
+    const cookieState = typeof req.headers.cookie === "string"
+      ? req.headers.cookie.split(/;\s*/).find((c) => c.startsWith(`${OAUTH_STATE_COOKIE}=`))?.slice(OAUTH_STATE_COOKIE.length + 1)
+      : undefined;
+    // Clear the cookie immediately — it's single-use, regardless of validation outcome
+    res.clearCookie(OAUTH_STATE_COOKIE, getSessionCookieOptions(req));
+
+    if (!queryState || !cookieState) {
+      log.warn("[OAuth] state parameter missing — rejecting callback", {
+        hasQueryState: !!queryState,
+        hasCookieState: !!cookieState,
+      });
+      res.status(400).json({ error: "state parameter required" });
+      return;
+    }
+    if (queryState.length !== cookieState.length ||
+        !timingSafeEqual(Buffer.from(queryState), Buffer.from(cookieState))) {
+      log.warn("[OAuth] state mismatch — possible CSRF · rejecting callback");
+      res.status(400).json({ error: "state mismatch" });
       return;
     }
 
