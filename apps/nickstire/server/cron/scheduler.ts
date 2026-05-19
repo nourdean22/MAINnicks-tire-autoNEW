@@ -519,14 +519,34 @@ export function startTieredScheduler(): void {
         name: "intelligence-engines-live", // Cross-sell, LTV, lead scoring, attribution — runs BEFORE autopilot so it has fresh data
         businessHoursOnly: true,
         handler: async () => {
+          // wave-181.65 (bug-hunter deeper pass) · the four .catch handlers
+          // below previously swallowed errors silently — DB outages or
+          // bad data would return defaults with no log line, making the
+          // cron write status='completed' with "Scored 0 leads" even
+          // during real failures. Now: log each failure with errorId so
+          // the operator can see it in Railway logs without losing the
+          // best-effort aggregation behavior (cron still completes).
           const { scoreLeads, predictCustomerLTV, trackCampaignAttribution, analyzeDeclinedWork } = await import("../services/intelligenceEngines");
-          const [leads, ltv, attr, declined] = await Promise.all([
-            scoreLeads().catch(() => []),
-            predictCustomerLTV().catch(() => ({ segments: {} })),
-            trackCampaignAttribution().catch(() => ({})),
-            analyzeDeclinedWork().catch(() => ({ totalDeclinedValue: 0 })),
+          // Generic `unknown` fallback type lets each promise keep its
+          // own narrow result type while sharing one error-logging helper.
+          // We only consume `leads` below; the others are intentionally
+          // fired for side-effects (DB writes inside each engine).
+          const safe = (name: string, p: Promise<unknown>): Promise<unknown> =>
+            p.catch((err: unknown) => {
+              log.warn(`[cron:intelligence-engines-live] ${name} failed — continuing with partial results`, {
+                errorId: `INTEL_ENGINE_${name.toUpperCase()}_THREW`,
+                error: err instanceof Error ? err.message : String(err),
+              });
+              return null;
+            });
+          const [leads] = await Promise.all([
+            safe("scoreLeads", scoreLeads()),
+            safe("predictCustomerLTV", predictCustomerLTV()),
+            safe("trackCampaignAttribution", trackCampaignAttribution()),
+            safe("analyzeDeclinedWork", analyzeDeclinedWork()),
           ]);
-          return { recordsProcessed: (leads as unknown[]).length, details: `Scored ${(leads as unknown[]).length} leads, LTV+attribution+declined updated` };
+          const leadCount = Array.isArray(leads) ? leads.length : 0;
+          return { recordsProcessed: leadCount, details: `Scored ${leadCount} leads, LTV+attribution+declined updated` };
         },
       },
       {
