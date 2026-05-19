@@ -14,7 +14,7 @@
  * chat, just without the visual panel.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -31,7 +31,7 @@ import {
   RotateCcw,
   ExternalLink as ExternalIcon,
 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface BuilderSandboxProps {
   open: boolean;
@@ -39,10 +39,14 @@ interface BuilderSandboxProps {
 }
 
 interface DeployStatus {
-  state: string;
+  /** Visual treatment · GitHub commits don't have a Vercel state field
+   *  · we render the deploy branch's most-recent commit as the active
+   *  pointer, color-coded by recency rather than Vercel status. */
+  state: "READY" | "ERROR" | "PENDING";
   url?: string;
   commit?: string;
   at?: string;
+  subject?: string;
 }
 
 // v11.1 · Repo roots — used to compute vscode:// URLs + git-checkout
@@ -81,35 +85,37 @@ function openInVsCode(repo: keyof typeof REPO_ROOTS, relPath: string): void {
 }
 
 export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
-  const [deployStatus, setDeployStatus] = useState<DeployStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [rollingBack, setRollingBack] = useState(false);
+  // Phase KK (2026-05-18 PM) · tRPC migration · lazy-on-open query
+  // (enabled: open) keeps the GitHub API call from firing until the
+  // panel actually shows. React Query inherits the 30-second stale
+  // window so re-opens within that window skip the fetch entirely.
+  const deploysQuery = trpc.system.deploys.useQuery(
+    { limit: 1 },
+    { enabled: open, staleTime: 30_000 },
+  );
+  const rollbackMutation = trpc.system.rollbackDeploy.useMutation();
 
-  // Fetch deploy status when panel opens
-  useEffect(() => {
-    if (!open) return;
-    setLoading(true);
-    authedFetch("/api/system/deploys?limit=1")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.deploys?.[0]) {
-          const dep = d.deploys[0];
-          setDeployStatus({
-            state: dep.state || dep.status || "unknown",
-            url: dep.url,
-            commit: dep.commit?.slice(0, 8),
-            at: dep.createdAt
-              ? new Date(dep.createdAt).toLocaleTimeString("en-US", {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })
-              : undefined,
-          });
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [open]);
+  // Pre-fix bug · the component read `d.deploys?.[0]` but the route
+  // returned `{commits: [...]}` · setDeployStatus was NEVER called and
+  // the rollback button was permanently disabled. tRPC's typed output
+  // caught the field-name drift the moment the migration touched the
+  // component. Now reading the actual `commits[0]` shape.
+  const latestCommit = deploysQuery.data?.commits?.[0];
+  const deployStatus: DeployStatus | null = latestCommit
+    ? {
+        state: "READY",
+        commit: latestCommit.shortSha,
+        subject: latestCommit.subject,
+        at: latestCommit.date
+          ? new Date(latestCommit.date).toLocaleTimeString("en-US", {
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : undefined,
+      }
+    : null;
+  const loading = deploysQuery.isLoading && deploysQuery.isFetching;
+  const rollingBack = rollbackMutation.isPending;
 
   async function handleRollback() {
     if (!deployStatus?.commit) {
@@ -120,19 +126,12 @@ export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
       `Roll back production to the PREVIOUS ready deploy? Current commit ${deployStatus.commit} will be deprecated. This is immediate and reversible only by pushing a new deploy.`
     );
     if (!confirmed) return;
-    setRollingBack(true);
     try {
-      const res = await authedFetch("/api/system/deploys/rollback", { method: "POST" });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        toast.error(`rollback failed · ${res.status} ${body.slice(0, 80)}`);
-      } else {
-        toast.success("rollback initiated — watch /system/deploys");
-      }
+      await rollbackMutation.mutateAsync();
+      toast.success("rollback initiated — watch /system/deploys");
     } catch (e) {
-      toast.error(`rollback error · ${e instanceof Error ? e.message : String(e)}`);
-    } finally {
-      setRollingBack(false);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`rollback failed · ${msg.slice(0, 80)}`);
     }
   }
 
