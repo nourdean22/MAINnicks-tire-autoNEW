@@ -156,15 +156,28 @@ export function parseJudgeResponse(raw: string): Judgment {
     .replace(/```\s*$/i, "")
     .trim();
 
-  // Find the first { ... } block · tolerant of leading commentary
-  const match = cleaned.match(/\{[\s\S]*\}/);
-  if (!match) return defaultJudgment("no JSON object in response");
-
+  // Phase CC bug-fix · two-pass JSON extraction:
+  //   1. Try parsing the cleaned text directly · the LLM is instructed
+  //      to emit JSON only · this is the happy path
+  //   2. Fall back to greedy `{ ... }` regex extraction for cases where
+  //      the model emits leading commentary before the object
+  //
+  // Pre-fix the regex `/\{[\s\S]*\}/` was always tried first · greedy ·
+  // matched from first `{` to last `}` · so a response like
+  // `{ valid } extra { trailing }` would capture the entire span as
+  // one string and JSON.parse would fail. The cleaned-first path
+  // sidesteps that case entirely when the LLM behaves.
   let parsed: unknown;
   try {
-    parsed = JSON.parse(match[0]);
+    parsed = JSON.parse(cleaned);
   } catch {
-    return defaultJudgment("JSON parse failed");
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return defaultJudgment("no JSON object in response");
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      return defaultJudgment("JSON parse failed");
+    }
   }
 
   if (!parsed || typeof parsed !== "object") {

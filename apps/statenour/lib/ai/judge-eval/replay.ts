@@ -56,22 +56,28 @@ export async function replayPair(args: { prompt: string }): Promise<ReplayPair> 
   const startedAt = Date.now();
   const { aiChat } = await import("@/lib/ai/provider");
 
+  // Phase CC bug-fix · use AbortSignal.timeout instead of Promise.race +
+  // setTimeout. The pre-fix pattern created a setTimeout per call that
+  // NEVER cleared when aiChat() won the race · the timer fired later
+  // with a rejected promise that no one listened to · TIMER LEAK held
+  // memory for up to REPLAY_TIMEOUT_MS after each successful call.
+  // The cron fires 5 pairs/run = 10 leaks per tick. AbortSignal.timeout
+  // is cleaned up by V8 automatically when the parent promise settles.
+  // aiChat() already honors the signal (L.1 wiring · merged with its
+  // internal per-attempt timeout via AbortSignal.any).
+
   const v1 = (async () => {
     try {
       const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
       const sys = await buildSystemPromptUncached("full", args.prompt);
-      const reply = await Promise.race([
-        aiChat(
-          [
-            { role: "system", content: sys },
-            { role: "user", content: args.prompt },
-          ],
-          "reason",
-        ),
-        new Promise<{ content: string } | null>((_, reject) =>
-          setTimeout(() => reject(new Error("v1_replay_timeout")), REPLAY_TIMEOUT_MS),
-        ),
-      ]);
+      const reply = await aiChat(
+        [
+          { role: "system", content: sys },
+          { role: "user", content: args.prompt },
+        ],
+        "reason",
+        { signal: AbortSignal.timeout(REPLAY_TIMEOUT_MS) },
+      );
       return (reply?.content ?? "").trim();
     } catch (e) {
       log.warn("v1_replay_failed", { err: (e as Error).message?.slice(0, 200) });
@@ -83,18 +89,14 @@ export async function replayPair(args: { prompt: string }): Promise<ReplayPair> 
     try {
       const { buildSystemPromptV2 } = await import("@/lib/ai/prompt/v2");
       const out = await buildSystemPromptV2();
-      const reply = await Promise.race([
-        aiChat(
-          [
-            { role: "system", content: out.prompt },
-            { role: "user", content: args.prompt },
-          ],
-          "reason",
-        ),
-        new Promise<{ content: string } | null>((_, reject) =>
-          setTimeout(() => reject(new Error("v2_replay_timeout")), REPLAY_TIMEOUT_MS),
-        ),
-      ]);
+      const reply = await aiChat(
+        [
+          { role: "system", content: out.prompt },
+          { role: "user", content: args.prompt },
+        ],
+        "reason",
+        { signal: AbortSignal.timeout(REPLAY_TIMEOUT_MS) },
+      );
       return (reply?.content ?? "").trim();
     } catch (e) {
       log.warn("v2_replay_failed", { err: (e as Error).message?.slice(0, 200) });

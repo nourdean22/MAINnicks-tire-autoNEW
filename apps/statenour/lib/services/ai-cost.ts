@@ -46,6 +46,15 @@ function midnightUTC(daysAgo: number): Date {
   return d;
 }
 
+// Phase CC bug-fix · hard cap on the per-window query. Pre-fix the
+// findMany had no `take` · a 30-day window on a busy AiGeneration
+// table could return tens of thousands of rows + OOM the dashboard
+// load. 50k samples is enough to keep aggregate ratios statistically
+// meaningful while bounding memory. The cap is high enough that
+// realistic traffic (~1-5k/day) on the operator's actual table won't
+// hit it · trip is logged so we know if it ever fires.
+const PER_WINDOW_ROW_CAP = 50_000;
+
 async function windowAggregate(since: Date): Promise<CostWindow> {
   const rows = await prisma.aiGeneration.findMany({
     where: { createdAt: { gte: since } },
@@ -56,7 +65,17 @@ async function windowAggregate(since: Date): Promise<CostWindow> {
       durationMs: true,
       status: true,
     },
+    orderBy: { createdAt: "desc" },
+    take: PER_WINDOW_ROW_CAP,
   });
+  if (rows.length === PER_WINDOW_ROW_CAP) {
+    // Cap hit · aggregates are based on the most recent PER_WINDOW
+    // rows only. Log once so the operator notices when the table
+    // grows past the bound and aggregates become non-exhaustive.
+    console.warn(
+      `[ai-cost] window cap hit · returning aggregates over the most recent ${PER_WINDOW_ROW_CAP} AiGeneration rows in window (since ${since.toISOString()})`,
+    );
+  }
   const totalCalls = rows.length;
   const totalCostCents = rows.reduce((s, r) => s + (r.costCents ?? 0), 0);
   const totalLatency = rows.reduce((s, r) => s + (r.durationMs ?? 0), 0);
