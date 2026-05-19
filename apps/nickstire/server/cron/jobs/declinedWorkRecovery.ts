@@ -249,9 +249,14 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
           .update(algEstimates)
           .set({ followUp30dAttemptedAt: new Date() })
           .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp30dAttemptedAt)));
-        const claimed = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
-          ? (claimResult[0] as { affectedRows?: number }).affectedRows
-          : (claimResult as { affectedRows?: number }).affectedRows) ?? 0;
+        // wave-181.64 (bug-hunter) · check BOTH `affectedRows` (mysql2)
+        // and `rowsAffected` (planetscale/d1/serverless) so a future
+        // driver swap doesn't silently turn every claim into a no-op.
+        // Mirror the pattern used in server/sms.ts rehydrate.
+        const claimRaw = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
+          ? claimResult[0]
+          : claimResult) as { affectedRows?: number; rowsAffected?: number };
+        const claimed = claimRaw.affectedRows ?? claimRaw.rowsAffected ?? 0;
         if (claimed === 0) {
           log.info(`[declined-recovery] 30d claim lost for estimate ${est.id} (peer or prior attempt)`);
           continue;
@@ -290,9 +295,14 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
           .update(algEstimates)
           .set({ followUp7dAttemptedAt: new Date() })
           .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp7dAttemptedAt)));
-        const claimed = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
-          ? (claimResult[0] as { affectedRows?: number }).affectedRows
-          : (claimResult as { affectedRows?: number }).affectedRows) ?? 0;
+        // wave-181.64 (bug-hunter) · check BOTH `affectedRows` (mysql2)
+        // and `rowsAffected` (planetscale/d1/serverless) so a future
+        // driver swap doesn't silently turn every claim into a no-op.
+        // Mirror the pattern used in server/sms.ts rehydrate.
+        const claimRaw = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
+          ? claimResult[0]
+          : claimResult) as { affectedRows?: number; rowsAffected?: number };
+        const claimed = claimRaw.affectedRows ?? claimRaw.rowsAffected ?? 0;
         if (claimed === 0) {
           log.info(`[declined-recovery] 7d claim lost for estimate ${est.id} (peer or prior attempt)`);
           continue;

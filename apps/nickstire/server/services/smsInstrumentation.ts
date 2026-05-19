@@ -232,8 +232,22 @@ export async function logOutboundSms(
     // agree. Pre-fix, callers passing "+12168620005" would create a
     // distinct conversation row from callers passing "2168620005",
     // breaking attribution and double-counting replies.
+    //
+    // wave-181.64 (bug-hunter) · skip the row entirely on normalization
+    // failure instead of falling back to the raw phone. The fallback was
+    // defeating the fix — un-normalized inputs (rare in practice since
+    // callers come through sendSms which validates) would still create
+    // distinct rows. Better to drop the instrumentation than poison the
+    // attribution data.
     const normalized = normalizePhone(phone);
-    const lookupPhone = normalized || phone;
+    if (!normalized) {
+      log.warn("logOutboundSms · refusing to instrument un-normalizable phone", {
+        errorId: "SMS_INSTRUMENTATION_BAD_PHONE",
+        phoneSuffix: phone.slice(-4),
+      });
+      return;
+    }
+    const lookupPhone = normalized;
 
     let [conv] = await db
       .select({ id: smsConversations.id })

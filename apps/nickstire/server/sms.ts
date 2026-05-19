@@ -736,6 +736,23 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     }
   }
 
+  // wave-181.64 (bug-hunter audit) · TCPA-good-practice 8AM-8PM ET
+  // sending window MUST also run BEFORE gateway routing, for the same
+  // reason as the opt-out + rate-limit checks above. Pre-fix the shop-
+  // gateway path bypassed the window → customers could receive marketing
+  // SMS at midnight via F25e because the check sat below the shop block.
+  // Transactional sends + _forceImmediate (drained from delayed queue)
+  // still bypass. queueForLater persists to DB so messages survive
+  // restarts and rehydrate in the next window.
+  if (!opts?.transactional && !opts?._forceImmediate && !isWithinSendingHours()) {
+    queueForLater(normalizedEarly, body, opts);
+    return {
+      success: true,
+      queued: true,
+      error: "Outside sending hours (8AM-8PM ET), queued for next window",
+    };
+  }
+
   // ─── Wave-181.60: shop gateway is now the DEFAULT route ───
   // Wave-103/106 made shop-routing opt-in (opts.via === "shop"). The
   // wave-181.58 audit found 5 customer-facing call sites that forgot
@@ -789,28 +806,16 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     return { success: false, error: "Twilio not configured" };
   }
 
-  // Normalize phone to E.164 (US numbers)
-  const normalized = normalizePhone(to);
-  if (!normalized) {
-    return { success: false, error: `Invalid phone number: ${to}` };
-  }
+  // wave-181.64 · drop the redundant second normalizePhone(to) — already
+  // computed as `normalizedEarly` at line 708. Re-use the existing value
+  // so future refactors that modify `to` between the two calls can't
+  // create a divergence bug.
+  const normalized = normalizedEarly;
 
-  // Smart timing: check if within sending hours
-  // Transactional messages and forced-immediate skip this check
-  if (!opts?.transactional && !opts?._forceImmediate && !isWithinSendingHours()) {
-    queueForLater(normalized, body, opts);
-    return {
-      success: true,
-      queued: true,
-      error: "Outside sending hours (8AM-8PM ET), queued for next window",
-    };
-  }
-
-  // Rate-limit + opt-out checks were moved to the top of sendSms() in
-  // wave-181.60-followup so they cover BOTH the shop-gateway and the
-  // Twilio paths. Pre-fix the shop-first branch bypassed both checks,
-  // creating a TCPA compliance gap on opt-out and unbounded per-phone
-  // 24h send volume.
+  // Sending-hours check was hoisted to the top of sendSms() in wave-181.64
+  // so the shop-gateway path also respects 8AM-8PM ET. Rate-limit + opt-out
+  // checks were hoisted similarly in wave-181.60-followup. All three TCPA-
+  // adjacent guards now run before any gateway routing decision.
 
   // Send via circuit breaker
   try {
