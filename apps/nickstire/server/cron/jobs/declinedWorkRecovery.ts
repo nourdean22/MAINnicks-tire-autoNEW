@@ -238,6 +238,25 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
 
       // 30-day follow-up takes precedence (more urgent)
       if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
+        // wave-181.59 · at-most-once claim. Stamp AttemptedAt BEFORE
+        // sending — if this UPDATE wins (affectedRows=1) we own the
+        // attempt; a crash mid-send leaves AttemptedAt set so the next
+        // cron run will not re-send. affectedRows=0 means a peer
+        // process (multi-instance) or a prior crashed attempt already
+        // claimed the row; either way we skip. Pattern mirrors
+        // routers/campaigns.ts send() draft→active claim.
+        const claimResult = await d
+          .update(algEstimates)
+          .set({ followUp30dAttemptedAt: new Date() })
+          .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp30dAttemptedAt)));
+        const claimed = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
+          ? (claimResult[0] as { affectedRows?: number }).affectedRows
+          : (claimResult as { affectedRows?: number }).affectedRows) ?? 0;
+        if (claimed === 0) {
+          log.info(`[declined-recovery] 30d claim lost for estimate ${est.id} (peer or prior attempt)`);
+          continue;
+        }
+
         const body = buildThirtyDayMessage({ name, amountCents: amount });
         // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
@@ -252,12 +271,33 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
             .where(eq(algEstimates.id, est.id));
           sent30d++;
           log.info(`30d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+        } else {
+          log.error(`[declined-recovery] 30d send failed after claim for estimate ${est.id}`, {
+            error: res.error ?? "unknown",
+          });
+          // AttemptedAt is set; row will not re-send. Manual review:
+          //   SELECT id, customer_phone, follow_up_30d_attempted_at
+          //   FROM alg_estimates
+          //   WHERE follow_up_30d_attempted_at IS NOT NULL AND follow_up_30d_sent = 0;
         }
         continue;
       }
 
       // 7-day follow-up
       if (ageMs >= 7 * 24 * 60 * 60 * 1000 && !est.followUp7dSent) {
+        // wave-181.59 · at-most-once claim (see 30d branch above)
+        const claimResult = await d
+          .update(algEstimates)
+          .set({ followUp7dAttemptedAt: new Date() })
+          .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp7dAttemptedAt)));
+        const claimed = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
+          ? (claimResult[0] as { affectedRows?: number }).affectedRows
+          : (claimResult as { affectedRows?: number }).affectedRows) ?? 0;
+        if (claimed === 0) {
+          log.info(`[declined-recovery] 7d claim lost for estimate ${est.id} (peer or prior attempt)`);
+          continue;
+        }
+
         const body = buildSevenDayMessage({
           name,
           amountCents: amount,
@@ -273,6 +313,14 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
             .where(eq(algEstimates.id, est.id));
           sent7d++;
           log.info(`7d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+        } else {
+          log.error(`[declined-recovery] 7d send failed after claim for estimate ${est.id}`, {
+            error: res.error ?? "unknown",
+          });
+          // AttemptedAt is set; row will not re-send. Manual review:
+          //   SELECT id, customer_phone, follow_up_7d_attempted_at
+          //   FROM alg_estimates
+          //   WHERE follow_up_7d_attempted_at IS NOT NULL AND follow_up_7d_sent = 0;
         }
       }
     } catch (rowErr) {

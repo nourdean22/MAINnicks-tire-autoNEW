@@ -217,7 +217,7 @@ export function startDelayedQueueProcessor(): void {
     try {
       const { getDb } = await import("./db");
       const { smsMessages, smsConversations } = await import("../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
+      const { eq, and } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) return;
       const pending = await db.select({
@@ -230,17 +230,34 @@ export function startDelayedQueueProcessor(): void {
         .where(eq(smsMessages.status, "queued"))
         .limit(100);
 
-      if (pending.length > 0) {
-        for (const msg of pending) {
-          // Only add if not already in the in-memory queue
-          const alreadyQueued = delayedQueue.some(q => q.to === msg.phone && q.body === msg.body);
-          if (!alreadyQueued) {
-            delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow() });
-          }
-          // Mark DB row as sent so it won't be rehydrated again
-          await db.update(smsMessages).set({ status: "sent" }).where(eq(smsMessages.id, msg.id));
+      let rehydrated = 0;
+      for (const msg of pending) {
+        // wave-181.59 · atomic queued -> sending claim. Walks the enum
+        // forward correctly — the row stays accurately "in-flight" until
+        // the gateway actually responds via processDelayedQueue ->
+        // sendSms, instead of being stamped "sent" the moment we pulled
+        // it off disk (the prior bug · false-positive every restart).
+        // The WHERE status='queued' guard makes the claim race-safe — if
+        // a parallel worker already grabbed this row we silently skip
+        // and don't re-enqueue it.
+        const claim = await db
+          .update(smsMessages)
+          .set({ status: "sending" })
+          .where(and(eq(smsMessages.id, msg.id), eq(smsMessages.status, "queued")));
+        const claimedRows = (claim as unknown as { rowsAffected?: number; affectedRows?: number })?.rowsAffected
+          ?? (claim as unknown as { rowsAffected?: number; affectedRows?: number })?.affectedRows
+          ?? 0;
+        if (claimedRows < 1) continue;
+
+        // Only add if not already in the in-memory queue
+        const alreadyQueued = delayedQueue.some(q => q.to === msg.phone && q.body === msg.body);
+        if (!alreadyQueued) {
+          delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow() });
         }
-        log.info(`Rehydrated ${pending.length} pending SMS from DB`);
+        rehydrated++;
+      }
+      if (rehydrated > 0) {
+        log.info(`Rehydrated ${rehydrated} pending SMS from DB`);
       }
     } catch (err) {
       log.warn("Failed to rehydrate SMS queue from DB", { error: err instanceof Error ? err.message : String(err) });
@@ -516,12 +533,22 @@ interface SendSmsOptions {
   /** Transactional SMS (booking confirmations, status updates) bypass timing restrictions */
   transactional?: boolean;
   /**
-   * Wave-103 — routing override.
-   * - "twilio" (default): send via Twilio API (current behavior)
-   * - "shop": send via the shop's Verizon line through SMS Gateway app on
-   *   the Samsung F25e. Customer sees the text from 216-862-0005.
-   *   Requires SHOP_SMS_GATEWAY_* env vars + the SMS Gateway app running.
-   *   Falls back to Twilio + Telegram alert if shop gateway is offline.
+   * Routing override.
+   * - undefined (default · wave-181.60): shop-first — tries the F25e
+   *   Capevace gateway, falls back to Twilio on failure. This is the
+   *   safe default because Twilio has been dead since wave-103 and
+   *   callers that forgot to specify `via` were silently failing into
+   *   it (the wave-181.58 bug cluster).
+   * - "shop" (explicit): same as default. Kept for clarity at call
+   *   sites where the routing decision is intentional.
+   * - "twilio": opt OUT of shop-first. Use ONLY for the rare case where
+   *   you specifically want the Twilio path (test scripts, legacy
+   *   Twilio-only webhooks). No production customer-facing path should
+   *   pass this.
+   *
+   * The shop gateway requires SHOP_SMS_GATEWAY_* env vars + the SMS
+   * Gateway app running on the F25e. Customer sees the text from
+   * 216-862-0005.
    */
   via?: "twilio" | "shop";
 }
@@ -683,12 +710,20 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     return { success: false, error: `Invalid phone number: ${to}` };
   }
 
-  // ─── Wave-103/106: shop gateway routing (NOT blocked by kill switch) ───
-  // Caller explicitly opted in via opts.via === "shop" → try Capevace
-  // gateway first, fall back to Twilio + Telegram alert on failure.
-  // Kill switch is checked AFTER this so an active kill switch still
-  // allows shop-gateway sends to flow through the F25e.
-  if (opts?.via === "shop") {
+  // ─── Wave-181.60: shop gateway is now the DEFAULT route ───
+  // Wave-103/106 made shop-routing opt-in (opts.via === "shop"). The
+  // wave-181.58 audit found 5 customer-facing call sites that forgot
+  // to pass `{ via: "shop" }` and were silently routing to dead Twilio
+  // (booking confirmations, 24h/1h reminders, thank-you, review-request,
+  // maintenance reminders). All of them WANTED the shop gateway — they
+  // just missed an opt-in flag.
+  //
+  // Flip: default to shop-first unless the caller explicitly opts OUT
+  // with via: "twilio". The Twilio fallback below still runs if the
+  // shop gateway is offline, so capability is preserved. Kill switch
+  // is checked AFTER this so an active kill switch still allows
+  // shop-gateway sends to flow through the F25e.
+  if (opts?.via !== "twilio") {
     const gw = await sendSmsViaShopGateway(normalizedEarly, body);
     if (gw.success) {
       smsStats.totalSent++;
@@ -697,9 +732,15 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       addToThread(normalizedEarly, "outbound", body, gw.gatewayMessageId);
       return { success: true, sid: gw.gatewayMessageId };
     }
-    // Fallback path
-    log.warn(`Shop gateway failed (${gw.error}) — falling back to Twilio for ${normalizedEarly.slice(-4)}`);
-    await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
+    // Fallback path — shop gateway unreachable or unconfigured. Only
+    // alert on REAL failures (configured gateway returned non-OK),
+    // not on the "credentials not configured" path which fires
+    // constantly in test/dev environments.
+    const configured = !!process.env.SHOP_SMS_GATEWAY_USERNAME && !!process.env.SHOP_SMS_GATEWAY_PASSWORD;
+    if (configured) {
+      log.warn(`Shop gateway failed (${gw.error}) — falling back to Twilio for ${normalizedEarly.slice(-4)}`);
+      await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
+    }
     // Drop through to normal Twilio flow below
   }
 

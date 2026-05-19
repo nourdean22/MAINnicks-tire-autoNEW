@@ -267,6 +267,20 @@
 			"when": 1778900000000,
 			"tag": "0037_wave168_cron_locks",
 			"breakpoints": true
+		},
+		{
+			"idx": 41,
+			"version": "5",
+			"when": 1779152083079,
+			"tag": "0041_wave181_sms_sending_status",
+			"breakpoints": true
+		},
+		{
+			"idx": 42,
+			"version": "5",
+			"when": 1779200000000,
+			"tag": "0042_wave181_declined_recovery_attempted_at",
+			"breakpoints": true
 		}
 	]
 }

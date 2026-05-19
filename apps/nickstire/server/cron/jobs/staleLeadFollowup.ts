@@ -42,19 +42,23 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
 
     const { sendSms } = await import("../../sms");
     const { customers } = await import("../../../drizzle/schema");
-    const { like } = await import("drizzle-orm");
+    const { normalizePhone } = await import("../../lib/phone");
+
+    const optedOutRows = await db.select({ phone: customers.phone })
+      .from(customers)
+      .where(eq(customers.smsOptOut, 1));
+    const optOuts = new Set(
+      optedOutRows
+        .map((r: { phone: string | null }) => normalizePhone(r.phone))
+        .filter((p: string | null): p is string => p !== null)
+    );
     let processed = 0;
 
     for (const lead of staleLeads) {
       if (!lead.phone) continue;
 
-      // Respect SMS opt-out
-      const normalized = lead.phone.replace(/\D/g, "").slice(-10);
-      const [customer] = await db.select({ smsOptOut: customers.smsOptOut })
-        .from(customers)
-        .where(like(customers.phone, `%${normalized}`))
-        .limit(1);
-      if (customer?.smsOptOut) continue;
+      const normalizedLead = normalizePhone(lead.phone);
+      if (normalizedLead && optOuts.has(normalizedLead)) continue;
 
       const firstName = lead.name?.split(" ")[0] || "there";
       const service = lead.recommendedService || lead.problem || "your vehicle";
