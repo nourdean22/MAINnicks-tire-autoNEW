@@ -115,17 +115,18 @@ export async function persistDripEnrollment(params: {
 
     await ensureTable(db);
 
-    // Check for existing active enrollment in same campaign
-    const [existing] = await db.execute(sql`
-      SELECT id FROM drip_enrollments
-      WHERE customerPhone = ${params.customerPhone}
-        AND campaignId = ${params.campaignId}
-        AND status = 'active'
-      LIMIT 1
-    `);
-
-    if ((existing as any[])?.length > 0) return; // Already enrolled
-
+    // wave-181.67 (bug-hunter chip #2 · P0) · Wrap dedup-then-insert in
+    // a transaction with FOR UPDATE so two concurrent pods can't both
+    // pass the SELECT check and double-enroll the same customer. Pre-
+    // fix: pod A SELECT → 0 rows · pod B SELECT → 0 rows · both INSERT
+    // → customer received every drip-campaign message twice (TCPA risk
+    // + brand damage). With FOR UPDATE, pod B's SELECT blocks until
+    // pod A commits; pod B then sees pod A's insert and bails cleanly.
+    //
+    // Note · MySQL's gap-lock semantics: FOR UPDATE on a no-match
+    // query takes a gap lock on the (customerPhone, campaignId,
+    // status='active') predicate range. Pod B's INSERT competes for
+    // the same gap, blocks until pod A commits, then re-evaluates.
     const { CAMPAIGNS } = await import("./dripCampaigns");
     const campaign = CAMPAIGNS.find(c => c.id === params.campaignId);
     if (!campaign) return;
@@ -138,12 +139,32 @@ export async function persistDripEnrollment(params: {
     nextStepAt.setDate(nextStepAt.getDate() + nextStep.delayDays);
 
     const { randomUUID } = await import("crypto");
-    await db.execute(sql`
-      INSERT INTO drip_enrollments (id, campaignId, customerPhone, customerName, currentStep, status, enrolledAt, nextStepAt, metadata)
-      VALUES (${randomUUID()}, ${params.campaignId}, ${params.customerPhone}, ${params.customerName}, ${1}, 'active', NOW(), ${nextStepAt}, ${JSON.stringify(params.metadata || {})})
-    `);
 
-    log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
+    // `tx` is the drizzle MySqlTransaction handle · same `.execute()` API
+    // as the outer db, but all queries share a single transaction. Type
+    // inferred from the awaited handle would require importing the
+    // generic MySqlTransaction type which is overkill for a 2-query tx.
+    await db.transaction(async (tx: { execute: typeof db.execute }) => {
+      const [existing] = await tx.execute(sql`
+        SELECT id FROM drip_enrollments
+        WHERE customerPhone = ${params.customerPhone}
+          AND campaignId = ${params.campaignId}
+          AND status = 'active'
+        LIMIT 1
+        FOR UPDATE
+      `);
+
+      if (Array.isArray(existing) && existing.length > 0) {
+        return; // Peer-pod won the race · skip silently
+      }
+
+      await tx.execute(sql`
+        INSERT INTO drip_enrollments (id, campaignId, customerPhone, customerName, currentStep, status, enrolledAt, nextStepAt, metadata)
+        VALUES (${randomUUID()}, ${params.campaignId}, ${params.customerPhone}, ${params.customerName}, ${1}, 'active', NOW(), ${nextStepAt}, ${JSON.stringify(params.metadata || {})})
+      `);
+
+      log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
+    });
   } catch (err: unknown) {
     log.warn(`Drip enrollment persist failed: ${(err as Error).message}`);
   }
