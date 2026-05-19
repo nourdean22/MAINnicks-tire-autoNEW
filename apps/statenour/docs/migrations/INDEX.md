@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + …/SS.4 + **TT** | 2026-05-19 AM | **30/50+ surfaces · ~60%** · /journal page migrated · 7th domain router (`journal`) · `lib/services/journal-feed.ts` extracted (220 LOC merging 4 thought-capture tables · BrainDump · Reflection · SituationLog · DecisionReplay) | `/brain` (~8 sites · larger payloads) · then `/chat` (streaming endpoints excluded · subscriptions need WebSocket infra) |
+| **tRPC migration** (REST → tRPC) | Phase J + …/TT + **UU** | 2026-05-19 AM | **31/50+ surfaces · ~62%** · /brain/wisdom dashboard migrated · 8th domain router (`brain`) · 3 procedures (1 read + 2 mutations for curation) · `lib/services/brain-wisdom.ts` extracted (180 LOC service + 3 typed error classes) | `/brain/link-review` (3 sites · convergence-candidate review · medium leverage) · then `/chat` (last big page · streaming endpoints excluded · subscriptions need WebSocket) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 

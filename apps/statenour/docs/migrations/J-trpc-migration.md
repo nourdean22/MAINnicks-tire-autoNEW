@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 30 / 50+ surfaces · **~60% complete** · **7 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · task with 16 · **journal with 2** · total **19 mutations**) · T.4 closed (NN) · /goals (OO) · /tasks reads (PP) · TaskEvent surface (QQ) · /tasks mutations (RR + SS.1-SS.4) · **/journal page (TT · feed + metacognition · 7th domain router)**
+**Status:** 31 / 50+ surfaces · **~62% complete** · **8 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · task with 16 · journal with 2 · **brain with 3** · total **21 mutations**) · /goals (OO) · /tasks reads (PP) · /tasks mutations (RR + SS.1-SS.4) · /journal (TT) · **/brain/wisdom (UU · 8th domain router)**
 
 ### sql-pro findings (Phase RR follow-up)
 
@@ -64,7 +64,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | /tasks AI task generation (3-5 daily suggestions · `genAi()` button) | `authedFetch` POST `/api/ai/tasks` · HTTP status sniffing (429/502/503) for structured-error UX | `trpc.task.aiGenerate.useMutation()` · `lib/services/ai-tasks.generateAiTasks` returns a discriminated union (`ok` / `providers_failed` / `parse_failed`) · client branches on `result.kind` instead of HTTP statuses · rate-limit check stays on REST path (request-scoped) | SS.3.3 |
 | /tasks bulk backfill (once-per-session auto-spawn from project plans) | `authedFetch` POST `/api/projects/backfill-tasks` · Envelope/unwrap dance for totalTasksSpawned | `trpc.task.backfill.useMutation()` · `lib/services/backfill-tasks.backfillProjectTasks` extracted (260 LOC service from inline route body) · staleness gates preserved (90d plan age · all-goals-stale) · idempotent via planData.steps[].taskId flag | SS.4.3 |
 | **/tasks page is now 100% on tRPC** · authedFetch import removed (load() keeps scheduling discipline · fetch sites flow through trpc utils/mutations) | — | — | post-SS.4 |
-| /journal page 2 reads (unified feed + metacognition card) | `authedFetch` GET × 2 inside `load()` + mount-effect | `utils.journal.feed.fetch({source, type, limit, days})` + `utils.journal.metacognition.fetch()` · 7th domain router added (`journal`) · `lib/services/journal-feed.ts` extracted (220 LOC service merging 4 thought-capture tables) | **TT.3** |
+| /journal page 2 reads (unified feed + metacognition card) | `authedFetch` GET × 2 inside `load()` + mount-effect | `utils.journal.feed.fetch({source, type, limit, days})` + `utils.journal.metacognition.fetch()` · 7th domain router added (`journal`) · `lib/services/journal-feed.ts` extracted (220 LOC service merging 4 thought-capture tables) | TT.3 |
+| /brain/wisdom page 3 sites (feed read · saveEdit PATCH · curation action POST) | `authedFetch` × 3 (GET feed · PATCH content/confidence · POST deprecate) | `trpc.brain.wisdom.useQuery` (via `utils.brain.wisdom.fetch`) + `updateWisdom.useMutation()` + `actOnWisdom.useMutation({id, action})` · 8th domain router added (`brain`) · `lib/services/brain-wisdom.ts` extracted (180 LOC service + 3 custom error classes) | **UU.3** |
 
 ## Architectural notes
 

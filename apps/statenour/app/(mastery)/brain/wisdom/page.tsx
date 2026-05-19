@@ -22,7 +22,10 @@
 import { useEffect, useState, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { StandardPage } from "@/components/layout/standard-page";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase UU (2026-05-19 AM) · authedFetch replaced by trpc · 3 calls
+// (wisdom feed · update · curation actions) flow through typed
+// procedures · `brain` is the 8th domain router.
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Pencil, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
@@ -171,16 +174,21 @@ function WisdomPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<string>("");
 
+  // Phase UU · tRPC migration · imperative-fetch via utils preserves
+  // the existing useCallback shape so the page's invalidate-then-
+  // reload pattern stays clean.
+  const utils = trpc.useUtils();
+  const updateMutation = trpc.brain.updateWisdom.useMutation();
+  const actionMutation = trpc.brain.actOnWisdom.useMutation();
+
   const reload = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/brain/wisdom");
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as WisdomPayload;
-      setData(json);
+      const view = await utils.brain.wisdom.fetch();
+      setData(view as WisdomPayload);
     } catch (err) {
       setError((err as Error).message);
     }
-  }, []);
+  }, [utils]);
 
   const saveEdit = useCallback(
     async (id: string) => {
@@ -190,15 +198,11 @@ function WisdomPageInner() {
       }
       const tid = toast.loading("Saving…");
       try {
-        const res = await authedFetch(`/api/brain/wisdom/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: editDraft, confidence: 1.0 }),
+        await updateMutation.mutateAsync({
+          id,
+          content: editDraft,
+          confidence: 1.0,
         });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(j.error ?? `HTTP ${res.status}`);
-        }
         toast.success("Saved", { id: tid });
         setEditingId(null);
         setEditDraft("");
@@ -209,7 +213,7 @@ function WisdomPageInner() {
         toast.error("Save failed", { id: tid, description: (err as Error).message });
       }
     },
-    [editDraft, reload],
+    [editDraft, reload, updateMutation],
   );
 
   const deprecateWisdom = useCallback(
@@ -217,15 +221,7 @@ function WisdomPageInner() {
       if (!confirm("Soft-delete this wisdom · stops appearing in recall · can be restored?")) return;
       const tid = toast.loading("Deprecating…");
       try {
-        const res = await authedFetch(`/api/brain/wisdom/${id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "deprecate" }),
-        });
-        if (!res.ok) {
-          const j = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(j.error ?? `HTTP ${res.status}`);
-        }
+        await actionMutation.mutateAsync({ id, action: "deprecate" });
         toast.success("Deprecated", { id: tid });
         void reload();
         notifyDataChanged("brain", { source: "wisdom-page", detail: "wisdom-deprecate", id });
@@ -233,7 +229,7 @@ function WisdomPageInner() {
         toast.error("Failed", { id: tid, description: (err as Error).message });
       }
     },
-    [reload],
+    [reload, actionMutation],
   );
 
   useEffect(() => {
