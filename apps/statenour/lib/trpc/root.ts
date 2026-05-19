@@ -15,6 +15,7 @@ import { systemRouter } from "./routers/system";
 import { chatRouter } from "./routers/chat";
 import { browserRouter } from "./routers/browser";
 import { taskRouter } from "./routers/task";
+import { journalRouter } from "./routers/journal";
 
 export const appRouter = router({
   nick: nickRouter,
@@ -23,6 +24,7 @@ export const appRouter = router({
   chat: chatRouter,
   browser: browserRouter,
   task: taskRouter,
+  journal: journalRouter,
 });
 
 /** Type-only export for the client · NEVER import appRouter on the
