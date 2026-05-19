@@ -789,14 +789,18 @@ export function startTieredScheduler(): void {
       {
         name: "retention-all",
         handler: async () => {
-          const { processRetention45Day, processRetention90Day, processRetention180Day, processRetention365Day } = await import("./jobs/retentionSequences");
+          // wave-181.58 · added D7 + D14 to the dispatch list (wave-181.47
+          // shipped the tier definitions but never wired the processors).
+          const { processRetention7Day, processRetention14Day, processRetention45Day, processRetention90Day, processRetention180Day, processRetention365Day } = await import("./jobs/retentionSequences");
+          const r7 = await processRetention7Day();
+          const r14 = await processRetention14Day();
           const r45 = await processRetention45Day();
           const r90 = await processRetention90Day();
           const r180 = await processRetention180Day();
           const r365 = await processRetention365Day();
           return {
-            recordsProcessed: (r45.recordsProcessed || 0) + (r90.recordsProcessed || 0) + (r180.recordsProcessed || 0) + (r365.recordsProcessed || 0),
-            details: `45d: ${(r45 as Record<string, unknown>).details || "done"}, 90d: ${(r90 as Record<string, unknown>).details || "done"}, 180d: ${(r180 as Record<string, unknown>).details || "done"}, 365d: ${(r365 as Record<string, unknown>).details || "done"}`,
+            recordsProcessed: (r7.recordsProcessed || 0) + (r14.recordsProcessed || 0) + (r45.recordsProcessed || 0) + (r90.recordsProcessed || 0) + (r180.recordsProcessed || 0) + (r365.recordsProcessed || 0),
+            details: `7d: ${r7.details || "done"}, 14d: ${r14.details || "done"}, 45d: ${r45.details || "done"}, 90d: ${r90.details || "done"}, 180d: ${r180.details || "done"}, 365d: ${r365.details || "done"}`,
           };
         },
       },

@@ -313,6 +313,21 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
 // ─── EXPORTED PROCESSORS ─────────────────────────────
 // Individual tier exports (used by both index.ts registerAllJobs and scheduler.ts)
 
+// wave-181.58 · D7 + D14 added in wave-181.47 but the processor functions were
+// never exported and the scheduler never called them — code-review audit
+// caught this. Zero D7/D14 messages were sent. Wiring them now.
+export async function processRetention7Day(): Promise<{ recordsProcessed: number; details?: string }> {
+  const tier = RETENTION_TIERS.find((t) => t.days === 7)!;
+  const processed = await processRetentionTier(tier);
+  return { recordsProcessed: processed, details: `${processed} customers contacted (7d check-in)` };
+}
+
+export async function processRetention14Day(): Promise<{ recordsProcessed: number; details?: string }> {
+  const tier = RETENTION_TIERS.find((t) => t.days === 14)!;
+  const processed = await processRetentionTier(tier);
+  return { recordsProcessed: processed, details: `${processed} customers contacted (14d reactivation)` };
+}
+
 export async function processRetention45Day(): Promise<{ recordsProcessed: number; details?: string }> {
   const tier = RETENTION_TIERS.find((t) => t.days === 45)!;
   const processed = await processRetentionTier(tier);

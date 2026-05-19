@@ -278,7 +278,11 @@ export async function processScheduledSms() {
         message = `Hi ${booking.name.split(" ")[0]}, reminder from Nick's Tire & Auto about your ${booking.service}. Call (216) 862-0005.`;
     }
 
-    const result = await sendSms(booking.phone, message);
+    // wave-181.58 · route through F25e gateway (operator decision: Twilio dead).
+    // Was missing from wave-181.46's batch — booking confirmations + 24h/1h
+    // reminders + thank-you + maintenance-reminder all flow through this path.
+    // Without { via: "shop" } they hit the kill switch.
+    const result = await sendSms(booking.phone, message, { via: "shop" });
 
     if (result.success) {
       await db.update(appointmentReminders)

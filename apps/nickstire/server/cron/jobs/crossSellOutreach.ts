@@ -89,13 +89,19 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
         .limit(1);
 
       if (conv) {
+        // wave-181.58 · cooldown match was checking for "might be time for" — the
+        // wave-181.46 brand-voice rewrite removed that text ("based on your last
+        // check-up, you're due for" is the new copy). Cooldown was permanently
+        // broken → every eligible customer would receive a cross-sell SMS on
+        // every daily run with NO 30-day guard. Switching to variantKey="cross_sell"
+        // which logOutboundSms tags reliably.
         const recentOutbound = await db.select({ id: smsMessages.id })
           .from(smsMessages)
           .where(and(
             eq(smsMessages.conversationId, conv.id),
             eq(smsMessages.direction, "outbound"),
             gte(smsMessages.createdAt, cooldownDate),
-            sql`${smsMessages.body} LIKE '%might be time for%'`
+            eq(smsMessages.variantKey, "cross_sell")
           ))
           .limit(1);
 

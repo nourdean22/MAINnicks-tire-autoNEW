@@ -486,11 +486,17 @@ export const controlCenterRouter = router({
 
     if (d) {
       try {
-        // Batch ensure rows exist (1 write for execution + 1 for all habits instead of 6)
-        const habitValues = NON_NEGOTIABLES.map(h => `('${today}', '${h.key}', 0)`).join(", ");
+        // wave-181.58 · was sql.raw() with string interpolation. Currently safe
+        // because NON_NEGOTIABLES is a hard-coded const (line 26), not user
+        // input — so no live CVE. But the pattern is a footgun: if anyone
+        // ever sources NON_NEGOTIABLES from DB or operator config, the
+        // interpolation becomes an injection vector. Replacing with the
+        // parameterized Drizzle insert that the rest of the codebase uses.
         await Promise.all([
           d.execute(sql`INSERT IGNORE INTO daily_execution (date, status) VALUES (${today}, 'on_track')`),
-          d.execute(sql.raw(`INSERT IGNORE INTO daily_habits (date, habit_key, completed) VALUES ${habitValues}`)),
+          d.insert(dailyHabits)
+            .ignore()
+            .values(NON_NEGOTIABLES.map((h) => ({ date: today, habitKey: h.key, completed: 0 }))),
         ]);
 
         // Parallel reads: execution + habits + streak (was 3 sequential)
