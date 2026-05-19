@@ -7,6 +7,10 @@ dist/
 build/
 *.dist
 
+# Turborepo (local cache + daemon logs)
+.turbo/
+**/.turbo/
+
 # Environment variables
 .env
 .env.*

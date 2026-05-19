@@ -75,6 +75,7 @@
     "@types/pg": "8.20.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
+    "@nour/utils": "workspace:*",
     "ai": "6.0.162",
     "braintrust": "3.10.0",
     "class-variance-authority": "^0.7.1",

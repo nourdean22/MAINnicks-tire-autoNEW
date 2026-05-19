@@ -1,0 +1,97 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalDependencies": [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    ".env",
+    ".env.local",
+    ".env.production"
+  ],
+  "globalEnv": [
+    "NODE_ENV",
+    "CI",
+    "VERCEL",
+    "RAILWAY_ENVIRONMENT"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!**/*.test.ts",
+        "!**/*.test.tsx",
+        "!**/*.spec.ts",
+        "!docs/**",
+        "!*.md"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        ".next-prod/**",
+        "!.next-prod/cache/**",
+        "dist/**",
+        "client/dist/**",
+        "node_modules/.prisma/**"
+      ],
+      "env": [
+        "NEXT_DIST_DIR",
+        "ANALYZE",
+        "DATABASE_URL",
+        "DIRECT_URL",
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "VENICE_API_KEY",
+        "OLLAMA_API_KEY",
+        "BUILD_COMMIT",
+        "BUILD_BRANCH"
+      ]
+    },
+    "check": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "tsconfig*.json",
+        "../../tsconfig*.json"
+      ],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "**/*.ts",
+        "**/*.tsx",
+        "tsconfig*.json"
+      ],
+      "outputs": []
+    },
+    "lint": {
+      "inputs": [
+        "**/*.{ts,tsx,js,jsx,cjs,mjs}",
+        ".eslintrc*",
+        "eslint.config.*",
+        "package.json"
+      ],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "!docs/**",
+        "!*.md"
+      ],
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "start": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["build"]
+    }
+  }
+}
