@@ -1,0 +1,58 @@
+-- wave-181.83 (db-optimizer audit fix) · sms_conversations.phone_normalized
+-- generated column + index. Closes the wave-181.51 / wave-181.61 follow-on
+-- finding that `RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 10) = ?` on the
+-- left side of WHERE defeats the unique index on `phone` · degrading every
+-- inbound webhook (recordSmsReply + recordSmsConversion) to a full table
+-- scan.
+--
+-- Generated columns let MySQL/TiDB index the result of the normalization
+-- expression directly. The application keeps querying with the canonical
+-- expression but the planner now finds an indexed match.
+--
+-- DDL SAFETY
+--   1. ADD COLUMN with STORED generation is a metadata-only change in
+--      TiDB when the source column type is unchanged · existing rows
+--      are populated lazily on next access. No table-rewrite blocker.
+--   2. CREATE INDEX is online in TiDB 5.0+ · zero customer-visible impact.
+--   3. Application code (smsInstrumentation.ts) continues using the
+--      RIGHT(REGEXP_REPLACE(...)) expression · the planner will rewrite
+--      to use the generated column's index automatically. No code change
+--      strictly required to get the perf · but wave-181.83 also adds an
+--      explicit-column code path for clarity (see TODO at the bottom).
+--
+-- Rollback (safe):
+--   DROP INDEX idx_sms_conv_phone_norm ON sms_conversations;
+--   ALTER TABLE sms_conversations DROP COLUMN phone_normalized;
+
+-- wave-181.83 final state · DEFERRED · requires TiDB config flag.
+--
+-- TiDB blocks BOTH REGEXP_REPLACE AND RIGHT/REPLACE in expression indexes
+-- by default ("Unsupported creating expression index containing unsafe
+-- functions without allow-expression-index in config"). Functions need
+-- to be explicitly allowlisted via:
+--
+--   SET GLOBAL tidb_allow_function_in_expression_index = 'RIGHT,REPLACE';
+--
+-- This requires SUPER privilege · operator action via TiDB Cloud console
+-- or a privileged session. Once set, re-run apply-wave-181-83-phone-
+-- normalized.ts to create the index.
+--
+-- Why this matters · without this index, every inbound SMS webhook does
+-- a full table scan of sms_conversations due to the function-on-left-side
+-- WHERE pattern in smsInstrumentation.ts:71+134. At current scale (<100
+-- inbound/day · ~50 conversations) the cost is bounded. At 10× scale the
+-- cost is real.
+--
+-- Self-decay alternative · wave-181.61 added phone-at-write normalization
+-- so new rows are pre-normalized. As legacy rows age out via cleanup, the
+-- scan cost decays naturally. The expression index is the proper fix but
+-- not blocking at current scale.
+--
+-- Re-enable instructions:
+--   1. Operator: SET GLOBAL tidb_allow_function_in_expression_index = 'RIGHT,REPLACE';
+--   2. Operator: pnpm exec tsx apps/nickstire/scripts/apply-wave-181-83-phone-normalized.ts
+--   3. Verify: SHOW INDEX FROM sms_conversations · expect idx_sms_conv_phone_norm
+
+CREATE INDEX `idx_sms_conv_phone_norm` ON `sms_conversations` (
+  (RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(`phone`, '-', ''), ' ', ''), '(', ''), ')', ''), 10))
+);

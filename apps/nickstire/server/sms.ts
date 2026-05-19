@@ -718,15 +718,25 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
       return true;
     }
 
-    await db.execute(sql`
+    // wave-181.83 (db-optimizer audit fix) · MySQL LAST_INSERT_ID() trick
+    // collapses the prior 2-query pattern (UPSERT + SELECT) into a single
+    // atomic operation. Pre-fix · pod A increments to 8 · pod B increments
+    // to 9 concurrently · pod A's follow-up SELECT could read 9 instead of
+    // 8 → false-block on a phone that was legitimately under the cap.
+    //
+    // The trick · LAST_INSERT_ID(expr) stores `expr` as the session-level
+    // last-insert-id AND returns it. The mysql2 driver exposes that as
+    // `insertId` on the ResultSetHeader. So one query · one network
+    // roundtrip · no race window between increment and read.
+    const [result] = await db.execute(sql`
       INSERT INTO sms_rate_limit (phone, count_24h, window_started_at, last_sent_at, updated_at)
-      VALUES (${phone}, 1, NOW(), NOW(), NOW())
+      VALUES (${phone}, LAST_INSERT_ID(1), NOW(), NOW(), NOW())
       ON DUPLICATE KEY UPDATE
-        count_24h = IF(
+        count_24h = LAST_INSERT_ID(IF(
           window_started_at < (NOW() - INTERVAL 24 HOUR),
           1,
           count_24h + 1
-        ),
+        )),
         window_started_at = IF(
           window_started_at < (NOW() - INTERVAL 24 HOUR),
           NOW(),
@@ -735,12 +745,10 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
         last_sent_at = NOW(),
         updated_at = NOW()
     `);
-
-    const [rows] = await db.execute(sql`
-      SELECT count_24h FROM sms_rate_limit WHERE phone = ${phone} LIMIT 1
-    `);
-    const arr = rows as Array<{ count_24h: number }>;
-    const newCount = arr[0]?.count_24h ?? 1;
+    const resultRaw = (Array.isArray(result) && result[0] && typeof result[0] === "object"
+      ? result[0]
+      : result) as { insertId?: number };
+    const newCount = resultRaw.insertId ?? 1;
 
     if (newCount > MAX_SMS_PER_PHONE_PER_DAY) {
       log.warn("SMS daily limit reached", {

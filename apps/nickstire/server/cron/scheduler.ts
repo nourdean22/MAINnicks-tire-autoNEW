@@ -60,17 +60,60 @@ function isBusinessHours(): boolean {
  * Sequential prevents DB connection stampedes on small servers.
  */
 // v1.7 audit follow-up · track consecutive skip counts per tier so
-// we can fire a Telegram alert when a tier degrades silently. Tier 3
-// (hourly, 22 jobs × 4min worst-case = 88min sequential) can creep
-// past its 2-hour cadence and skip silently if any job runs slow
-// repeatedly. Without this, the only visible signal is gaps in
-// cron_log — which nobody watches in real time.
-const tierSkipCounts = new Map<string, number>();
+// we can fire a Telegram alert when a tier degrades silently.
+//
+// wave-181.83 (db-optimizer audit fix) · the prior in-memory Map was
+// cleared on every pod restart. Under a CHRONIC overrun (the worst
+// case · the one we most want to alert on), the underlying slow job
+// keeps the tier running long enough that the scheduler skips · pod
+// restarts mid-overrun · counter resets · alert never fires. Now
+// backed by cron_tier_skip_state (migration 0047) · the counter
+// survives restarts AND aggregates across multi-pod Railway.
+
+async function bumpSkipCount(tierName: string): Promise<number> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return 1; // DB unavailable · fail-open with conservative count
+    // LAST_INSERT_ID trick · atomic UPSERT + read in one round-trip
+    const [result] = await d.execute(sql`
+      INSERT INTO cron_tier_skip_state (tier_name, consecutive_skips, last_skip_at, updated_at)
+      VALUES (${tierName}, LAST_INSERT_ID(1), NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        consecutive_skips = LAST_INSERT_ID(consecutive_skips + 1),
+        last_skip_at = NOW(),
+        updated_at = NOW()
+    `);
+    const raw = (Array.isArray(result) && result[0] && typeof result[0] === "object" ? result[0] : result) as { insertId?: number };
+    return raw.insertId ?? 1;
+  } catch {
+    return 1;
+  }
+}
+
+async function resetSkipCount(tierName: string): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return;
+    await d.execute(sql`
+      INSERT INTO cron_tier_skip_state (tier_name, consecutive_skips, last_run_at, updated_at)
+      VALUES (${tierName}, 0, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        consecutive_skips = 0,
+        last_run_at = NOW(),
+        updated_at = NOW()
+    `);
+  } catch {
+    // fail-silent · cron continues
+  }
+}
 
 async function runTier(tier: Tier): Promise<void> {
   if (tier.running) {
-    const skips = (tierSkipCounts.get(tier.name) ?? 0) + 1;
-    tierSkipCounts.set(tier.name, skips);
+    const skips = await bumpSkipCount(tier.name);
     log.info(`Tier ${tier.name} still running, skipping`, { consecutiveSkips: skips });
     // Alert at 2 consecutive skips on hourly+ tiers — that means the
     // tier has been overrunning its interval for 2 firings in a row.
@@ -89,7 +132,7 @@ async function runTier(tier: Tier): Promise<void> {
     }
     return;
   }
-  tierSkipCounts.set(tier.name, 0);
+  await resetSkipCount(tier.name);
 
   tier.running = true;
   const start = Date.now();
