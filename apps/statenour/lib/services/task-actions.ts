@@ -36,6 +36,9 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { auditUpdate } from "@/lib/db/actor";
 import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
+import { createTask as createTaskService } from "@/lib/services/tasks";
+import { resolveInboxMissionId } from "@/lib/services/missions";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 const log = rootLogger.withSurface("services/task-actions");
 
@@ -488,4 +491,70 @@ export async function breakPromise(args: {
   ]);
 
   return { ok: true, task: updated, log: logRow };
+}
+
+// ─── createTaskFromAPI (Phase SS · 2026-05-19 AM) ────────────
+
+interface CreateTaskAPIPayload {
+  title?: string;
+  missionId?: string;
+  priority?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * Phase SS · the API-level task-creation wrapper. Encapsulates the
+ * inbox-default-on-missing-missionId logic, the createTask service
+ * call, AND the post-create Telegram notification so both the legacy
+ * POST /api/tasks REST route and the new `trpc.task.create` mutation
+ * call the same function · drift impossible.
+ *
+ * The route-handler version was just an inline body; this lifts it
+ * to the service layer so the tRPC mutation gets the same behavior.
+ *
+ * Telegram failures are logged-not-thrown · creating a task must
+ * NEVER block on the notification path.
+ */
+export async function createTaskFromAPI(
+  payload: CreateTaskAPIPayload,
+): Promise<unknown> {
+  // Inbox-default · pre-Wave-43 the chat long-press onCreateTask +
+  // omni-capture /task fast-path POSTed without missionId and silently
+  // failed the taskCreateSchema validation (required field). Operator
+  // saw a haptic error toast and lost the capture. Now we backfill
+  // server-side so every caller that omits missionId still lands in
+  // the Inbox cleanly.
+  if (!payload.missionId || typeof payload.missionId !== "string") {
+    try {
+      payload.missionId = await resolveInboxMissionId();
+    } catch (err) {
+      log.warn("missionId_default_failed", {
+        title: payload.title?.slice(0, 60),
+        error: sanitizeError(err),
+      });
+    }
+  }
+
+  const result = await createTaskService(payload);
+
+  // Telegram notification · fire-and-forget · errors surfaced via
+  // structured logger so /system/errors picks them up if the token
+  // rotated / chat deleted / network blip.
+  try {
+    const { sendTelegram } = await import("@/lib/services/telegram");
+    await sendTelegram(
+      `📋 NEW TASK CREATED\n\n` +
+        `${payload.title || "Untitled"}\n` +
+        `Mission: ${payload.missionId || "Inbox"}\n` +
+        `Priority: ${payload.priority || "normal"}`,
+    );
+  } catch (err) {
+    log.warn("telegram_notify_failed", {
+      action: "task_created",
+      title: payload.title?.slice(0, 60),
+      error: sanitizeError(err),
+    });
+  }
+
+  return result;
 }

@@ -26,13 +26,14 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { listTasks, deleteTask } from "@/lib/services/tasks";
-import { listMissions } from "@/lib/services/missions";
+import { listMissions, createMission } from "@/lib/services/missions";
 import { getGoals } from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
 import {
   checkTask,
   startTask,
   breakPromise,
+  createTaskFromAPI,
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
 import { ServiceError } from "@/lib/utils/service-error";
@@ -345,4 +346,34 @@ export const taskRouter = router({
   delete: operatorProcedure
     .input(z.object({ id: z.string().min(1).max(64) }))
     .mutation(async ({ input }) => deleteTask(input.id)),
+
+  /**
+   * Phase SS (2026-05-19 AM) · owner-only · create a task with the
+   * full API-level wrapper (inbox-default on missing missionId ·
+   * post-create Telegram notify · the auto-priority scoring is
+   * still triggered separately via the score mutation on the
+   * client side).
+   *
+   * Delegates to `lib/services/task-actions.createTaskFromAPI` ·
+   * legacy POST /api/tasks calls the same function · drift
+   * impossible. The createTask service it wraps does its own zod
+   * validation · we use a permissive z.record here to forward the
+   * client's payload without duplicating the schema.
+   */
+  create: operatorProcedure
+    .input(z.record(z.string(), z.unknown()))
+    .mutation(async ({ input }) => createTaskFromAPI(input)),
+
+  /**
+   * Phase SS · owner-only · create a mission (the Inbox auto-create
+   * path uses this when no mission exists yet). Delegates to
+   * `lib/services/missions.createMission` · legacy POST /api/missions
+   * calls the same function · drift impossible.
+   *
+   * The createMission service does its own zod validation on the
+   * input shape.
+   */
+  createMission: operatorProcedure
+    .input(z.record(z.string(), z.unknown()))
+    .mutation(async ({ input }) => createMission(input)),
 });

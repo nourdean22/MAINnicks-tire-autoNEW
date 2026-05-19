@@ -103,7 +103,11 @@ import { parseQuickAdd } from "@/lib/loops/quick-add-parser";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
-import { createTask } from "@/lib/services/client/tasks";
+// Phase SS.1 (2026-05-19 AM) · createTask helper replaced by
+// trpc.task.create mutation · the legacy `@/lib/services/client/tasks`
+// helper stays in place for other pages (project-detail, plan-spawn)
+// that haven't migrated yet. This page now uses the typed mutation
+// directly.
 // v10.0.424 · debounced reload · coalesces 5 reload triggers into 1.
 import { useDebouncedReload } from "@/hooks/use-debounced-reload";
 type KindFilter = "all" | LoopKind;
@@ -290,6 +294,12 @@ function TasksPageInner() {
   const startMutation = trpc.task.start.useMutation();
   const breakPromiseMutation = trpc.task.breakPromise.useMutation();
   const deleteMutation = trpc.task.delete.useMutation();
+
+  // Phase SS.1 (2026-05-19 AM) · tRPC migration · 2 create mutations.
+  // create wraps createTaskFromAPI (inbox-default + service +
+  // Telegram-notify) · createMission wraps the missions service.
+  const createTaskMutation = trpc.task.create.useMutation();
+  const createMissionMutation = trpc.task.createMission.useMutation();
 
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
@@ -544,27 +554,21 @@ function TasksPageInner() {
   const inboxRef = useRef("");
   async function getInbox(): Promise<string> {
     if (inboxRef.current) return inboxRef.current;
-    const r = await authedFetch("/api/missions")
-      .then((r): Promise<unknown> => r.json())
-      .catch((): unknown[] => []);
-    const maybeWrapped = r as { data?: unknown } | unknown;
-    const raw =
-      maybeWrapped && typeof maybeWrapped === "object" && "data" in (maybeWrapped as object)
-        ? (maybeWrapped as { data?: unknown }).data
-        : maybeWrapped;
+    // Phase SS.1 · tRPC migration · GET migrated to utils.task.missions
+    // (was Phase PP) · POST migrated to createMissionMutation. Same
+    // shape coverage (envelope/raw fallback gone · typed result).
+    const raw = await utils.task.missions.fetch().catch((): unknown => []);
     const ms: Project[] = Array.isArray(raw) ? (raw as Project[]) : [];
     let m: Project | undefined = ms.find((x) => x.title === "Inbox") ?? ms[0];
     if (!m) {
-      const c = await authedFetch("/api/missions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const created = await createMissionMutation
+        .mutateAsync({
           title: "Inbox",
           description: "Quick tasks",
           status: "ACTIVE",
-        }),
-      }).then((r) => r.json());
-      m = (c?.data ?? c) as Project | undefined;
+        })
+        .catch((): unknown => null);
+      m = (created as Project | null) ?? undefined;
     }
     inboxRef.current = m?.id || "";
     return inboxRef.current;
@@ -698,7 +702,11 @@ function TasksPageInner() {
     }
     try {
       const mId = await getInbox();
-      const r = await createTask({
+      // Phase SS.1 · tRPC migration · typed mutation returns the
+      // created task envelope directly · no r.ok / r.clone() dance.
+      // The createTaskFromAPI service handles inbox-default-on-missing
+      // + Telegram notify · same effects as before.
+      const created = (await createTaskMutation.mutateAsync({
         title: parsed.title,
         missionId: mId,
         effort: parsed.effort || "M15",
@@ -706,35 +714,22 @@ function TasksPageInner() {
         loopKind: parsed.loopKind,
         promiseTo: parsed.promiseTo || null,
         dueDate: parsed.dueDate ? parsed.dueDate.toISOString() : null,
-      });
-      if (!r.ok) {
-        toast.error("Failed to add");
-        return;
-      }
+      })) as { id?: string; task?: { id?: string } } | null;
       setNewTask("");
-      // v10.0.529.82 · Wave 26 · C3 · fire-and-forget AI-fill of
-      // roiScore. Quick-add hardcodes 50 (default) · this asks Nick
-      // to read the task + grade urgency 0-100 in the background.
-      // Auto-priority sort + the "next move" surface get meaningful
-      // signal from the moment the task lands. Skipped when the
-      // task was explicitly set to 80 (PROMISE default · already
-      // graded as high-leverage).
+      // Phase SS.2 will migrate this to scoreMutation · for now keep
+      // the authedFetch shim · the score endpoint stays on REST in
+      // this phase.
       if (parsed.loopKind !== "PROMISE") {
-        void (async () => {
-          try {
-            const body = await r.clone().json().catch(() => null);
-            const newId = body?.data?.id ?? body?.id ?? null;
-            if (newId) {
-              await authedFetch(`/api/tasks/${newId}/score`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-              });
-            }
-          } catch {
+        const newId = created?.task?.id ?? created?.id ?? null;
+        if (newId) {
+          void authedFetch(`/api/tasks/${newId}/score`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          }).catch(() => {
             /* non-fatal · AI grading is best-effort */
-          }
-        })();
+          });
+        }
       }
       const kindLabel =
         parsed.loopKind === "DAILY"
@@ -924,7 +919,10 @@ function TasksPageInner() {
     }
     try {
       const mId = t.missionId || (await getInbox());
-      const r = await createTask({
+      // Phase SS.1 · adoptAi migrated to createTaskMutation alongside
+      // the quick-add path. Same defaults (effort/roiScore/finishCondition)
+      // ride through `createTaskFromAPI` server-side.
+      await createTaskMutation.mutateAsync({
         title: t.title,
         missionId: mId,
         nextPhysicalAction: t.nextAction || t.title,
@@ -932,7 +930,6 @@ function TasksPageInner() {
         roiScore: t.priority === "critical" ? 90 : 50,
         finishCondition: t.title,
       });
-      if (!r.ok) throw new Error(`${r.status}`);
       setAiTasks((p) => p.filter((x) => x.title !== t.title));
       toast.success("Added");
       load();
@@ -1229,19 +1226,18 @@ function TasksPageInner() {
         onCreateTaskForGoal={async ({ goalId, title }) => {
           try {
             const mId = await getInbox();
-            const r = await createTask({
+            // Phase SS.1 · pace-chip goal-task creation migrated to
+            // createTaskMutation · keeps the same goalId tagging which
+            // auto-lifts the goal on completion via the S3 server hook.
+            await createTaskMutation.mutateAsync({
               title,
               missionId: mId,
               goalId,
               roiScore: 70,
               finishCondition: "Increment logged",
             });
-            if (r.ok) {
-              toast.success("Added to NOW · tagged with this goal");
-              await load();
-            } else {
-              toast.error("Failed to add task");
-            }
+            toast.success("Added to NOW · tagged with this goal");
+            await load();
           } catch {
             toast.error("Failed to add task");
           }

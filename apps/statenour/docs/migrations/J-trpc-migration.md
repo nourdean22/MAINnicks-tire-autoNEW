@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 25 / 50+ surfaces · **~50% complete** · **6 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · **task with 11** · total **14 mutations**) · T.4 carve-out CLOSED (NN) · /goals fully migrated (OO) · /tasks reads (PP) · TaskEvent surface (QQ) · **/tasks 4 task-write mutations (RR · check/start/breakPromise/delete)** · the J series crosses the 50% threshold
+**Status:** 26 / 50+ surfaces · **~52% complete** · **6 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · **task with 13** · total **16 mutations**) · T.4 carve-out CLOSED (NN) · /goals fully migrated (OO) · /tasks reads (PP) · TaskEvent surface (QQ) · /tasks 4 task-write mutations (RR) · **/tasks 2 task-create mutations (SS.1 · createTask + createMission · 3 page call sites migrated)**
 
 ### sql-pro findings (Phase RR follow-up)
 
@@ -58,7 +58,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | /goals page (`<GoalsPage>`) snapshot composite (ladder · missions · axes · prune-count) | `useAuthedFetch<Snapshot>("/api/goals/snapshot")` | `trpc.operator.goalsSnapshot.useQuery({staleTime: 30s})` · 30s cache matches the route's prior Cache-Control | OO.3 |
 | /tasks page · 4 reads (tasks · missions · goals · actions-brain) | `authedFetch` × 4 inside `load()` Promise.all | `utils.task.list({goalId, missionId}).fetch()` + `utils.task.missions.fetch()` + `utils.task.goals.fetch()` + `utils.task.actionsBrain.fetch()` · imperative inside existing scheduling discipline · 6th domain router added (`task`) | PP.3 |
 | TaskEvent read surface (`events`, `eventsByKind`, `emitEvent`) | `authedFetch` POST `/api/tasks/[id]/event` (write-only) | `trpc.task.events({taskId})` + `eventsByKind({kind, sinceDays})` + `emitEvent({taskId, kind, payload})` · brain pattern-detection now has typed read surface · client-emit allowlist preserved verbatim | QQ.3 |
-| /tasks 4 task-write mutations (check · start · breakPromise · delete) | `authedFetch` POST × 4 · per-mutation `r.ok` / `r.json()` dances | `trpc.task.{check,start,breakPromise,delete}.useMutation().mutateAsync(...)` · all 4 delegate to new `lib/services/task-actions.ts` (extracted from 350-LOC check route + 70-LOC start + 95-LOC break-promise) · TRPCError translation for NOT_FOUND + BAD_REQUEST (wrong loop kind) | **RR.3** |
+| /tasks 4 task-write mutations (check · start · breakPromise · delete) | `authedFetch` POST × 4 · per-mutation `r.ok` / `r.json()` dances | `trpc.task.{check,start,breakPromise,delete}.useMutation().mutateAsync(...)` · all 4 delegate to new `lib/services/task-actions.ts` (extracted from 350-LOC check route + 70-LOC start + 95-LOC break-promise) · TRPCError translation for NOT_FOUND + BAD_REQUEST (wrong loop kind) | RR.3 |
+| /tasks 2 create mutations (createTask · createMission · 3 call sites for createTask: quick-add · adoptAi · goal-pace-chip) | `authedFetch` POST × 4 sites via the `lib/services/client/tasks.createTask` helper · raw `Response` returns + `r.ok` checks | `trpc.task.{create,createMission}.useMutation().mutateAsync(...)` · `createTaskFromAPI` service in task-actions.ts encapsulates inbox-default + service + Telegram-notify so REST + tRPC don't drift · the legacy `client/tasks` helper stays mounted for the other 3 pages that consume it (project-detail · plan-spawn · etc) | **SS.1.3** |
 
 ## Architectural notes
 
