@@ -22,6 +22,11 @@ import {
   WrongCategoryError,
   NoValidFieldsError,
 } from "@/lib/services/brain-wisdom";
+import {
+  listLinkCandidates,
+  decideLinkCandidate,
+  ReviewRowNotFoundError,
+} from "@/lib/services/link-review";
 
 export const brainRouter = router({
   /**
@@ -82,6 +87,40 @@ export const brainRouter = router({
         }
         if (err instanceof WrongCategoryError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase VV (2026-05-19 AM) · owner-only · pending conversation→
+   * mission link review candidates. The cosine-0.45-0.55 borderline
+   * matches queue here for operator approval before being committed
+   * to ChatConversation.missionId.
+   */
+  linkReview: operatorProcedure.query(async () => listLinkCandidates()),
+
+  /**
+   * Phase VV · owner-only · approve/reject/snooze a single review
+   * candidate. Approve writes ChatConversation.missionId in a
+   * transaction + soft-deletes the review row (audit trail). Reject
+   * soft-deletes only. Snooze bumps lastSeen so the row sinks to the
+   * bottom of the queue.
+   */
+  decideLinkReview: operatorProcedure
+    .input(
+      z.object({
+        conversationId: z.string().min(1).max(64),
+        missionId: z.string().min(1).max(64),
+        decision: z.enum(["approve", "reject", "snooze"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await decideLinkCandidate(input);
+      } catch (err) {
+        if (err instanceof ReviewRowNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
         }
         throw err;
       }

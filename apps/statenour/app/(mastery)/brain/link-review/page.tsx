@@ -19,7 +19,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PageHeader } from "@/components/layout/ui";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase VV (2026-05-19 AM) · authedFetch replaced by trpc · 2 sites
+// (list + decide) on the `brain` router.
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Check, X, Clock } from "lucide-react";
 import { toast } from "sonner";
@@ -46,18 +48,24 @@ export default function LinkReviewPage() {
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [departing, setDeparting] = useState<Map<string, Decision>>(new Map());
 
+  // Phase VV · tRPC migration · typed result has `{candidates, count}`
+  // shape (no envelope dance · no `data.candidates ?? data.data.candidates`
+  // fallback). Same useCallback shape preserved for the existing
+  // event-bus refresh hook below.
+  const utils = trpc.useUtils();
+  const decideMutation = trpc.brain.decideLinkReview.useMutation();
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await authedFetch("/api/system/conversation-link-review");
-      const data = await res.json();
-      setCandidates(data?.candidates ?? data?.data?.candidates ?? []);
+      const view = await utils.brain.linkReview.fetch();
+      setCandidates(view.candidates as Candidate[]);
     } catch (e) {
       toast.error(`Failed to load: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     load();
@@ -80,19 +88,11 @@ export default function LinkReviewPage() {
       setPending((p) => new Set(p).add(c.id));
       setDeparting((d) => new Map(d).set(c.id, decision));
       try {
-        const res = await authedFetch("/api/system/conversation-link-review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            conversationId: c.conversationId,
-            missionId: c.missionId,
-            decision,
-          }),
+        await decideMutation.mutateAsync({
+          conversationId: c.conversationId,
+          missionId: c.missionId,
+          decision,
         });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data?.error ?? `${res.status} ${res.statusText}`);
-        }
         const verb = decision === "approve" ? "linked" : decision === "reject" ? "rejected" : "snoozed";
         toast.success(`${verb}: ${c.conversationTitle?.slice(0, 40) ?? "(untitled)"}`);
         // v10.0.529.90 · Wave 34 · approving a link mutates Mission ·
