@@ -747,4 +747,54 @@ export const vapiRouter = router({
         status: data.status || "queued",
       };
     }),
+
+  // ─── wave-181.67 · Phase 4 admin tile (2026-05-19 AM) ──────
+  // Real-time in-flight call state roster + per-call drill-in. Backed
+  // by the state-tracker shipped in wave-181.63 (voice-call-state.ts
+  // service writes to voice_latency_events with `state_*` stage
+  // namespacing). Powers the VoiceReceptionistSection "Live calls"
+  // tile · operator monitors calls at the bay from their phone.
+
+  /**
+   * Roster of in-flight calls within a lookback window. Default 10
+   * min covers a typical 3-min call plus 7-min buffer. `ended` calls
+   * are excluded (they're done). React Query polls this every 5s for
+   * a live feel without hammering the DB.
+   */
+  activeCallStates: adminProcedure
+    .input(
+      z
+        .object({ maxAgeMinutes: z.number().int().min(1).max(120).default(10) })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const { getActiveCallStates } = await import("../services/voice-call-state");
+      const states = await getActiveCallStates({
+        maxAgeMinutes: input?.maxAgeMinutes ?? 10,
+      });
+      const byState: Record<string, number> = {};
+      for (const s of states) {
+        byState[s.latestState] = (byState[s.latestState] ?? 0) + 1;
+      }
+      return {
+        windowMinutes: input?.maxAgeMinutes ?? 10,
+        count: states.length,
+        states,
+        byState,
+      };
+    }),
+
+  /**
+   * Full state trail for one call · oldest → newest with metadata.
+   * Powers the "drill in" view when operator taps a call in the
+   * roster. Used post-hoc as well (e.g. "why did this call end
+   * without confirmation?").
+   */
+  callStateHistory: adminProcedure
+    .input(z.object({ callId: z.string().min(1).max(128) }))
+    .query(async ({ input }) => {
+      const { getCallStateHistory } = await import("../services/voice-call-state");
+      const history = await getCallStateHistory(input.callId);
+      return { callId: input.callId, history };
+    }),
 });
