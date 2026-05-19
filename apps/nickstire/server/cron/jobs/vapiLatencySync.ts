@@ -17,7 +17,7 @@
 
 import { getDb } from "../../db";
 import { voiceLatencyEvents } from "../../../drizzle/schema";
-import { and, gte, eq, inArray } from "drizzle-orm";
+import { and, gte, eq, inArray, sql } from "drizzle-orm";
 import { createLogger } from "../../lib/logger";
 import {
   captureVoiceLatency,
@@ -143,34 +143,75 @@ export async function processVapiLatencySync(): Promise<{ recordsProcessed: numb
 
   let alertPushed = false;
   if (breach.alertReady) {
+    // wave-181.69 (chip #3) · DB-backed dedup via cron_alerts_fired table.
+    // Pre-fix: `lastAlertDate` module-level variable re-fired today's
+    // alert after any pod restart, and multi-pod (Railway N>1) sent one
+    // copy per pod. Now: atomic INSERT IGNORE on (alert_key, fired_for)
+    // PK · affectedRows=1 means we won the claim, fire the alert ·
+    // affectedRows=0 means another pod (or earlier on this pod) already
+    // claimed today's slot, skip silently. The `lastAlertDate` variable
+    // is kept as a process-local fast-path to skip the DB roundtrip
+    // entirely once we know we fired today on this pod.
     const todayIso = new Date().toISOString().slice(0, 10);
     if (lastAlertDate !== todayIso) {
+      let claimed = false;
       try {
-        const { sendTelegramMessage } = await import("../../services/telegram");
-        const e2e = stages.find((s) => s.stage === "end_to_end");
-        const lines = [
-          "🔴 <b>Voice latency · breach streak</b>",
-          "",
-          `Consecutive call-days over ${VOICE_LATENCY_TARGET_MS}ms · ${breach.streak}`,
-          e2e
-            ? `7d end_to_end · p50 ${e2e.p50}ms · p95 ${e2e.p95}ms · ${e2e.count} calls`
-            : "7d end_to_end · no data",
-          "",
-          "Recent p50s · " +
-            breach.recentP50s
-              .slice(0, 5)
-              .map((d) => `${d.date.slice(5)} ${d.p50}ms`)
-              .join(" · "),
-          "",
-          "Source · /api/admin/voice-latency",
-        ];
-        const sent = await sendTelegramMessage(lines.join("\n"), "critical");
-        alertPushed = sent;
-        lastAlertDate = todayIso;
+        const d = await getDb();
+        if (d) {
+          const [claimResult] = await d.execute(sql`
+            INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at, payload)
+            VALUES ('vapi_latency_breach', CURDATE(), NOW(), ${JSON.stringify({ streak: breach.streak })})
+          `);
+          const affected = (claimResult as { affectedRows?: number })?.affectedRows ?? 0;
+          claimed = affected === 1;
+          if (!claimed) {
+            // Peer-pod (or earlier on this pod) already fired today —
+            // still update the local fast-path so we skip the DB
+            // roundtrip on subsequent ticks today.
+            lastAlertDate = todayIso;
+          }
+        } else {
+          // DB unreachable · fall through to in-memory dedup so we
+          // don't spam, but accept the risk of a duplicate alert if
+          // the DB comes back online later.
+          claimed = true;
+        }
       } catch (err) {
-        log.warn("telegram_send_failed", {
+        log.warn("vapi_alert_dedup_failed_using_inmem_fallback", {
+          errorId: "VAPI_ALERT_DEDUP_QUERY_ERROR",
           error: err instanceof Error ? err.message : String(err),
         });
+        claimed = true;
+      }
+
+      if (claimed) {
+        try {
+          const { sendTelegramMessage } = await import("../../services/telegram");
+          const e2e = stages.find((s) => s.stage === "end_to_end");
+          const lines = [
+            "🔴 <b>Voice latency · breach streak</b>",
+            "",
+            `Consecutive call-days over ${VOICE_LATENCY_TARGET_MS}ms · ${breach.streak}`,
+            e2e
+              ? `7d end_to_end · p50 ${e2e.p50}ms · p95 ${e2e.p95}ms · ${e2e.count} calls`
+              : "7d end_to_end · no data",
+            "",
+            "Recent p50s · " +
+              breach.recentP50s
+                .slice(0, 5)
+                .map((d) => `${d.date.slice(5)} ${d.p50}ms`)
+                .join(" · "),
+            "",
+            "Source · /api/admin/voice-latency",
+          ];
+          const sent = await sendTelegramMessage(lines.join("\n"), "critical");
+          alertPushed = sent;
+          lastAlertDate = todayIso;
+        } catch (err) {
+          log.warn("telegram_send_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
     }
   }

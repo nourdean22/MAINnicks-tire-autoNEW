@@ -2130,6 +2130,31 @@ export const smsRateLimit = mysqlTable("sms_rate_limit", {
 });
 
 /**
+ * Cron Alerts Fired — wave-181.69 · durable replacement for the
+ * `let lastAlertDate: string | null` module-level dedup variable in
+ * cron jobs that fire daily Telegram alerts (vapiLatencySync.ts and
+ * any others added later). Pre-fix: pod restart cleared the variable
+ * so today's alert could re-fire; multi-pod sent one copy per pod.
+ *
+ * Pattern: `INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for)
+ * VALUES (?, CURDATE())`. affectedRows=1 means we won the claim (fire
+ * the alert). affectedRows=0 means another pod (or this pod earlier)
+ * already fired today — skip silently.
+ *
+ * Mirror of drizzle/0044_wave181_cron_alerts_fired.sql.
+ */
+export const cronAlertsFired = mysqlTable("cron_alerts_fired", {
+  /** Logical alert identifier · e.g. "vapi_latency_breach" */
+  alertKey: varchar("alert_key", { length: 100 }).notNull(),
+  /** Date the alert was claimed for · part of the composite PK */
+  firedFor: timestamp("fired_for").notNull(),
+  /** Wall-clock time of the actual claim */
+  firedAt: timestamp("fired_at").defaultNow().notNull(),
+  /** Optional metadata · for debugging the alert content later */
+  payload: text("payload"),
+});
+
+/**
  * Webhook Deliveries — retry queue for failed external API calls
  */
 export const webhookDeliveries = mysqlTable("webhook_deliveries", {
