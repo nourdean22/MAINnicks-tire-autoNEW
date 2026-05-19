@@ -51,87 +51,24 @@ interface WeatherFeed {
   };
 }
 
-const FEED_URL = "https://statenour-os.vercel.app/api/weather";
+// 2026-05-19 · was https://statenour-os.vercel.app/api/weather but
+// that Vercel deploy is RETIRED (statenour now runs on Railway at
+// statenour-web-production.up.railway.app). The hardcoded Vercel URL
+// was firing on every page load and getting CSP-blocked · noisy in
+// the browser console. Disabling the fetch entirely until the
+// statenour cleanup session re-wires this. The hook returns null
+// (graceful degradation — no weather-conditional CTAs surface).
+//
+// Env-driven option for the new statenour URL is wired in
+// `STATENOUR_SYNC_URL` on the server crons — when the operator wants
+// this re-enabled, point a client-side fetch at the new Railway URL
+// (will require adding Railway origin to CSP connect-src).
 
 export function useWeatherCTA(): WeatherCTA | null {
-  const [feed, setFeed] = useState<WeatherFeed | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(FEED_URL)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (!cancelled) setFeed(data); })
-      .catch(() => { /* offline / blocked — fall through to null */ });
-    return () => { cancelled = true; };
-  }, []);
-
-  if (!feed) return null;
-
-  const desc = (feed.current?.description || "").toLowerCase();
-  const tempHigh = feed.current?.tempHigh;
-  const demand = feed.businessImpact?.demandForecast;
-
-  // Snow / ice — winter tire urgency
-  if (/snow|ice|sleet|blizzard|freezing rain/.test(desc)) {
-    return {
-      message: "Snow on the road right now",
-      sub: "Worn tires fail in 2-3 stopping distances. Tires from $40 installed today.",
-      urgency: "high",
-      ctaLabel: "GET WINTER-RATED TIRES",
-      ctaHref: "/tires",
-      context: { tempHigh, description: feed.current?.description, demandForecast: demand },
-    };
-  }
-
-  // Snow forecast in next 3 days
-  const snowForecast = feed.forecast?.find((d) => /snow|ice|sleet/.test((d.description || "").toLowerCase()));
-  if (snowForecast) {
-    const daysUntil = feed.forecast?.indexOf(snowForecast) ?? 1;
-    return {
-      message: `Lake-effect snow forecast in ${daysUntil + 1} day${daysUntil === 0 ? "" : "s"}`,
-      sub: "Get winter-rated tires before the rush. From $40 installed.",
-      urgency: daysUntil <= 1 ? "high" : "medium",
-      ctaLabel: "BEAT THE STORM",
-      ctaHref: "/tires",
-      context: { tempHigh, description: feed.current?.description, demandForecast: demand },
-    };
-  }
-
-  // Heat — AC urgency
-  if (typeof tempHigh === "number" && tempHigh >= 85) {
-    return {
-      message: `${tempHigh}°F today`,
-      sub: "If your AC is iffy now, it'll fail tomorrow. Free AC inspection.",
-      urgency: tempHigh >= 90 ? "high" : "medium",
-      ctaLabel: "FREE AC CHECK",
-      ctaHref: "/ac-repair",
-      context: { tempHigh, description: feed.current?.description, demandForecast: demand },
-    };
-  }
-
-  // Rain — brake/tire urgency
-  if (/rain|storm|thunderstorm/.test(desc)) {
-    return {
-      message: "Wet roads right now",
-      sub: "Stopping distance doubles with worn tires. Free tire-tread + brake check.",
-      urgency: "medium",
-      ctaLabel: "FREE INSPECTION",
-      ctaHref: "/booking",
-      context: { tempHigh, description: feed.current?.description, demandForecast: demand },
-    };
-  }
-
-  // Surge demand from the demand-forecast model
-  if (demand === "surge" || demand === "high") {
-    return {
-      message: "Shop is slammed today",
-      sub: "Pull up early — first-come, first-served.",
-      urgency: "low",
-      ctaLabel: "GET DIRECTIONS",
-      ctaHref: "/booking",
-      context: { tempHigh, description: feed.current?.description, demandForecast: demand },
-    };
-  }
-
+  // 2026-05-19 · disabled at the source · old FEED_URL pointed at the
+  // retired Vercel statenour deploy and was getting CSP-blocked on
+  // every page load. Re-enable by restoring the fetch (see git history
+  // at wave-181.96) and pointing FEED_URL at the current statenour
+  // Railway URL · need to add that origin to the site's CSP connect-src.
   return null;
 }

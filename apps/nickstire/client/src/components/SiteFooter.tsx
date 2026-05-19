@@ -6,7 +6,7 @@ import { Star } from "lucide-react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import BrandMark from "@/components/BrandMark";
-import EmailNewsletterCapture from "@/components/conversion/EmailNewsletterCapture";
+// 2026-05-19 · EmailNewsletterCapture import removed · band killed (see render).
 
 const LINK_CLASS = "block text-[13px] text-foreground/60 hover:text-foreground/90 transition-colors duration-200";
 const HEADING_CLASS = "text-[11px] font-semibold uppercase tracking-[0.1em] text-foreground/70 mb-5";
@@ -85,14 +85,10 @@ export default function SiteFooter() {
         </div>
       </div>
 
-      {/* ─── NEWSLETTER BAND — soft email capture ─── */}
-      <div className="bg-[#0B0B0B] border-t border-[#1F1F1F]">
-        <div className="container py-10">
-          <div className="max-w-3xl mx-auto">
-            <EmailNewsletterCapture />
-          </div>
-        </div>
-      </div>
+      {/* 2026-05-19 · Elon move #3 · EmailNewsletterCapture band removed.
+          Low-conversion email capture (no measurable campaign volume) ·
+          the gold CTA strip above + sticky mobile bar carry the actual
+          conversion signal. The component file stays for restore-ability. */}
 
       {/* ─── MAIN FOOTER ─── */}
       <div className="bg-[#080808] border-t border-[#2A2A2A]">
