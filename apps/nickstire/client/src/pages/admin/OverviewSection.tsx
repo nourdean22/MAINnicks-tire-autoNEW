@@ -181,14 +181,16 @@ const NBA_TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; bg
   hot_lead: { icon: <Users className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10", label: "LEAD" },
   pending_invoice: { icon: <FileText className="w-3.5 h-3.5" />, color: "text-emerald-400", bgColor: "bg-emerald-500/10", label: "INVOICE" },
   callback: { icon: <PhoneCall className="w-3.5 h-3.5" />, color: "text-blue-400", bgColor: "bg-blue-500/10", label: "CALLBACK" },
-  vip_winback: { icon: <Star className="w-3.5 h-3.5" />, color: "text-purple-400", bgColor: "bg-purple-500/10", label: "VIP" },
+  vip_winback: { icon: <Star className="w-3.5 h-3.5" />, color: "text-amber-400", bgColor: "bg-amber-500/10", label: "VIP" },
 };
 
+// 2026-05-19 · canonical palette · was bg-yellow-500 for urgency 3 ·
+// folded into amber (the only warning color in the palette).
 const URGENCY_DOTS: Record<number, string> = {
   5: "bg-red-500",
   4: "bg-amber-500",
-  3: "bg-yellow-500",
-  2: "bg-blue-500",
+  3: "bg-amber-400",
+  2: "bg-foreground/40",
   1: "bg-foreground/30",
 };
 

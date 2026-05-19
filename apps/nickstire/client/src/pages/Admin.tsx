@@ -23,6 +23,7 @@ import WeatherAwareBanner from "@/components/admin/WeatherAwareBanner";
 import { CustomerDrawer } from "@/components/admin/CustomerDrawer";
 import DrilldownDrawer from "@/components/admin/DrilldownDrawer";
 import ConfirmDialog from "@/components/admin/ConfirmDialog";
+import WalkInQuoteDrawer from "@/components/admin/WalkInQuoteDrawer";
 import { AdminSSEProvider, useAdminSSE } from "@/components/admin/AdminSSEContext";
 import AdminSectionBoundary from "@/components/admin/AdminSectionBoundary";
 
@@ -43,7 +44,8 @@ const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
 // SnapDashboardSection are now tabs inside RevenueSection (the "Money"
 // page). Lazy imports moved into RevenueSection.tsx. Old URLs redirect
 // via COMPOUND_REDIRECTS in resolveInitialSection below.
-const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
+// 2026-05-19 · WalkInCalculatorSection is now opened via WalkInQuoteDrawer
+// (mounted globally). Lazy import lives in that drawer.
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
@@ -79,7 +81,6 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "revenue" && <RevenueSection />}
         {section === "callTrackingView" && <CallTrackingSection />}
         {section === "intelligence" && <IntelligenceSection />}
-        {section === "walkInCalc" && <WalkInCalculatorSection />}
         {section === "trafficFunnel" && <TrafficFunnelSection />}
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
       </Suspense>
@@ -109,10 +110,12 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   // 2026-05-06 Elon-deeper-cut · these sections were removed from the
   // sidebar but kept reachable via URL.
   // 2026-05-19 Elon-cut · noShowRisk + conversionPreview fully deleted.
-  // Aliases below redirect old bookmarks to closest live section.
-  walkincalc: "walkInCalc",
-  walkin: "walkInCalc",
-  quote: "walkInCalc",
+  // 2026-05-19 · walkInCalc converted to event-bus drawer (no longer a
+  // route). Aliases redirect to Leads where the "Walk-In Quote" button
+  // is wired to openWalkInQuote() · operator can fire from there or Cmd+K.
+  walkincalc: "leads",
+  walkin: "leads",
+  quote: "leads",
   noshowrisk: "leads", // no-show risk = filter on Leads, not a destination
   noshow: "leads",
   // Re-engagement fully merged · all aliases now land on OutreachHub.
@@ -196,7 +199,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "commandCenter", "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView", "intelligence",
-  "walkInCalc", "trafficFunnel", "voiceReceptionist",
+  "trafficFunnel", "voiceReceptionist",
 ]);
 
 // 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.
@@ -573,6 +576,11 @@ export default function Admin() {
       {/* wave-139 — Global brand-consistent confirm dialog (replaces
           window.confirm() which looks broken on mobile) */}
       <ConfirmDialog />
+
+      {/* 2026-05-19 · Walk-In Quote drawer (event-bus triggered).
+          WalkInCalc was a top-level route; per audit it's a tool not a
+          destination. Triggered by openWalkInQuote() from anywhere. */}
+      <WalkInQuoteDrawer />
 
       {/* Live activity pulse — toast stream from SSE */}
       <ActivityPulse />

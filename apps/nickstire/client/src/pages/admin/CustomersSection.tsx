@@ -252,13 +252,10 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                 </a>
               </div>
             )}
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Type</span>
-              <span className="text-sm text-foreground flex items-center gap-1.5">
-                {customer.customerType === "commercial" ? <Building2 className="w-3.5 h-3.5 text-primary" /> : <UserCheck className="w-3.5 h-3.5 text-foreground/30" />}
-                {customer.customerType === "commercial" ? "Commercial" : "Individual"}
-              </span>
-            </div>
+            {/* 2026-05-19 · "Type" field removed from card trim · 95%+ of
+                customers are Individual · low-signal field consuming a slot.
+                Commercial customers still get the Building2 icon next to
+                their name in the row view (line 1562). */}
           </div>
 
           {(customer.address || customer.city) && (
@@ -289,12 +286,9 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
                 {customer.lastVisitDate ? formatDate(customer.lastVisitDate) : "Unknown"}
               </span>
             </div>
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">First Visit</span>
-              <span className="text-sm text-foreground/60">
-                {formatDate(customer.firstVisitDate)}
-              </span>
-            </div>
+            {/* 2026-05-19 · "First Visit" removed from card trim · the
+                customer journey timeline (further down) shows their first
+                event with full context · this isolated date adds noise. */}
           </div>
 
           {/* Vehicle Info */}
@@ -307,25 +301,10 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             </div>
           )}
 
-          {/* SMS Campaign Status */}
-          <div className="pt-2 border-t border-border/20">
-            <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Campaign Status</span>
-            {customer.smsCampaignSent ? (
-              <span className="text-xs text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                Texted {customer.smsCampaignDate ? formatDate(customer.smsCampaignDate) : ""}
-              </span>
-            ) : (
-              <span className="text-xs text-foreground/40">Not yet texted</span>
-            )}
-          </div>
-
-          {customer.alsCustomerId && (
-            <div className="pt-2 border-t border-border/20">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">ALS Customer ID</span>
-              <span className="text-sm text-foreground/60">{customer.alsCustomerId}</span>
-            </div>
-          )}
+          {/* 2026-05-19 · "Campaign Status" + "ALS Customer ID" both
+              removed from card trim. SMS-sent flag is operational telemetry
+              (not actionable from this view) · ALG ID is already reachable
+              via the external-link button in the row's action group. */}
 
           {/* Notes Section */}
           <div className="pt-2 border-t border-border/20">

@@ -16,16 +16,16 @@ import CountUpNumber from "@/components/CountUpNumber";
 // ─── TYPES ──────────────────────────────────────────────
 // 2026-04-24 admin audit: down from 45 sections to 16 active routes.
 // Deleted 27 dead/redundant sections. See commit log for rationale.
-// 2026-05-19 Elon-cut · noShowRisk + conversionPreview removed
-// (URL-aliased-only zombies).
+// 2026-05-19 Elon-cut · noShowRisk + conversionPreview removed.
 // 2026-05-19 MONEY consolidation · declinedEstimates + snapDashboard
 // removed from union — they're tabs inside Money now, not destinations.
-// Old URLs (?tab=declinedEstimates / ?tab=snapDashboard) redirect to
-// `revenue` with the right inner moneyTab via COMPOUND_REDIRECTS.
+// 2026-05-19 · walkInCalc removed from union — converted to event-bus
+// drawer (WalkInQuoteDrawer · openWalkInQuote() fires it from anywhere).
+// Old URLs redirect via COMPOUND_REDIRECTS in Admin.tsx.
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
-  | "walkInCalc" | "trafficFunnel" | "voiceReceptionist";
+  | "trafficFunnel" | "voiceReceptionist";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
@@ -55,13 +55,25 @@ export const TIME_LABELS: Record<string, string> = {
   "no-preference": "No Preference",
 };
 
-// wave-181.26 · brand-yellow reconciliation. CHART_COLORS[0] and
-// CHART_THEME.primary were #F5A623 (slightly orange) — close to but
-// 2% off the canonical brand yellow #FDB913 used on CTAs everywhere
-// else. Result: every Recharts bar/area in the admin rendered
-// orangish while action buttons stayed golden — two yellows on the
-// same screen, breaking the ONE-aesthetic principle. Realigned to
-// brand #FDB913 so chart series visually match the rest of the UI.
+// ─── CANONICAL SIGNAL PALETTE ───────────────────────────
+// 2026-05-19 · audit-aligned. The admin uses 3 semantic signal colors
+// plus the brand primary. Anything outside this set is decorative.
+//
+//   emerald  →  good / done / safe / connected / clear
+//   amber    →  warning / at-risk / VIP-gold / wait-time / blocked
+//   red      →  danger / urgent / overdue / churn / lost
+//   primary  →  brand action / value-in-flow / interactive accent
+//   foreground/{40,50,60,70} → neutral text (subtle → strong)
+//
+// AVOID: text-purple-* · text-cyan-* · text-pink-* · text-yellow-* ·
+// text-orange-* (these were decorative leftovers from the wall-of-info
+// era). For VIP use amber. For info/action use primary. For neutral
+// content use foreground/* shades.
+//
+// wave-181.26 · brand-yellow reconciliation: CHART_COLORS[0] +
+// CHART_THEME.primary were #F5A623 (slightly orange) — 2% off the
+// canonical brand yellow #FDB913 used on CTAs. Realigned so Recharts
+// series visually match the rest of the UI.
 export const CHART_COLORS = ["#FDB913", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
 
 /** Shared chart styling — single source of truth for all Recharts components */
@@ -136,7 +148,6 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
   intelligence: "Intelligence",
-  walkInCalc: "Walk-In Quote",
   trafficFunnel: "Traffic → Revenue",
 };
 
