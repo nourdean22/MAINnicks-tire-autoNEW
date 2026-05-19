@@ -33,12 +33,12 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 ## Migrations pending awareness
 
 - **`0026_work_order_items_decline_recovery.sql`** — adds `decline_outreach_*` and `decline_recovered_at` on `work_order_items` for declined-work recovery tracking. Apply to prod DB before relying on outreach/recovered fields.
-- **`0040_wave181_otp_attempts_durable.sql`** (wave-181.60) — creates `otp_attempts` table backing the durable OTP brute-force counter in `server/middleware/bruteForce.ts`. Until applied, brute-force protection fails open (logged, doesn't block).
-  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-otp-attempts.ts`
-- **`0041_wave181_sms_sending_status.sql`** (wave-181.60) — appends `"sending"` to `sms_messages.status` enum. Until applied, the rehydrate path's atomic queued→sending claim fails and false-positive "sent" stamps on restart return.
-  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-sms-sending.ts`
-- **`0042_wave181_declined_recovery_attempted_at.sql`** (wave-181.60) — adds `follow_up_{7,30}d_attempted_at` to `alg_estimates` for at-most-once declined-recovery sends. Until applied, the at-most-once claim degrades to the prior double-send-on-restart behavior.
-  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-declined-recovery-attempted.ts`
+
+## Migrations applied (recent · for reference)
+
+- **`0040_wave181_otp_attempts_durable.sql`** — APPLIED 2026-05-18. Creates `otp_attempts` table backing the durable OTP brute-force counter (server/middleware/bruteForce.ts).
+- **`0041_wave181_sms_sending_status.sql`** — APPLIED 2026-05-18. Appends `"sending"` to `sms_messages.status` enum for the rehydrate state machine.
+- **`0042_wave181_declined_recovery_attempted_at.sql`** — APPLIED 2026-05-18. Adds `follow_up_{7,30}d_attempted_at` to `alg_estimates` for at-most-once declined-recovery sends.
 
 ## SMS routing (post wave-103, updated wave-181.60)
 
