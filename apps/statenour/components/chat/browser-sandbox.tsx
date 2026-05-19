@@ -18,7 +18,7 @@
  * DELETE?id=… closes. All owner-authed.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
@@ -30,7 +30,7 @@ import {
   ExternalLink,
   AlertTriangle,
 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface BrowserSession {
   id: string;
@@ -49,71 +49,72 @@ type PanelState =
   | { kind: "active"; session: BrowserSession; sessions: BrowserSession[] };
 
 export function BrowserSandbox({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [state, setState] = useState<PanelState>({ kind: "loading" });
-  const [busy, setBusy] = useState(false);
+  // Phase LL (2026-05-18 PM) · tRPC migration · lazy-on-open with
+  // refetchOnMount so re-opening the panel always reflects current
+  // session state. PRECONDITION_FAILED from the not-configured guard
+  // surfaces as an error.data.code we branch on instead of HTTP 501.
+  const utils = trpc.useUtils();
+  const sessionsQuery = trpc.browser.sessions.useQuery(undefined, {
+    enabled: open,
+    refetchOnMount: true,
+  });
+  const createMutation = trpc.browser.createSession.useMutation({
+    onSuccess: () => {
+      toast.success("session created — loading live view");
+      void utils.browser.sessions.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`new session failed: ${err.message.slice(0, 80)}`);
+    },
+  });
+  const closeMutation = trpc.browser.closeSession.useMutation({
+    onSuccess: () => {
+      toast.success("session closed");
+      void utils.browser.sessions.invalidate();
+    },
+    onError: (err) => {
+      toast.error(`close failed: ${err.message.slice(0, 80)}`);
+    },
+  });
 
-  const load = useCallback(async () => {
-    if (!open) return;
-    setState({ kind: "loading" });
-    try {
-      const res = await authedFetch("/api/browser/session");
-      if (res.status === 501) {
-        setState({ kind: "not_configured" });
-        return;
+  const busy =
+    sessionsQuery.isFetching ||
+    createMutation.isPending ||
+    closeMutation.isPending;
+
+  // Derive PanelState from the tRPC query · keeps the JSX render path
+  // unchanged so the diff is purely the data-source swap.
+  const state: PanelState = useMemo(() => {
+    if (sessionsQuery.isLoading) return { kind: "loading" };
+    if (sessionsQuery.error) {
+      // PRECONDITION_FAILED is the not-configured branch · everything
+      // else is a real error worth surfacing.
+      if (sessionsQuery.error.data?.code === "PRECONDITION_FAILED") {
+        return { kind: "not_configured" };
       }
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        setState({ kind: "error", message: `${res.status} · ${body.slice(0, 140)}` });
-        return;
-      }
-      const raw = (await res.json().catch(() => ({}))) as {
-        data?: { sessions?: BrowserSession[] };
-      };
-      const sessions = raw.data?.sessions ?? [];
-      const active = sessions.find((s) => s.status !== "COMPLETED" && s.status !== "RELEASED" && s.liveViewUrl);
-      if (active) {
-        setState({ kind: "active", session: active, sessions });
-      } else {
-        setState({ kind: "idle", sessions });
-      }
-    } catch (e) {
-      setState({ kind: "error", message: e instanceof Error ? e.message : String(e) });
+      return { kind: "error", message: sessionsQuery.error.message };
     }
-  }, [open]);
+    const sessions = (sessionsQuery.data?.sessions ?? []) as BrowserSession[];
+    const active = sessions.find(
+      (s) =>
+        s.status !== "COMPLETED" &&
+        s.status !== "RELEASED" &&
+        s.liveViewUrl,
+    );
+    if (active) return { kind: "active", session: active, sessions };
+    return { kind: "idle", sessions };
+  }, [sessionsQuery.isLoading, sessionsQuery.data, sessionsQuery.error]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  async function load() {
+    await sessionsQuery.refetch();
+  }
 
   async function createNew() {
-    setBusy(true);
-    try {
-      const res = await authedFetch("/api/browser/session", { method: "POST" });
-      if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        toast.error(`new session failed: ${res.status} ${body.slice(0, 80)}`);
-        return;
-      }
-      toast.success("session created — loading live view");
-      await load();
-    } finally {
-      setBusy(false);
-    }
+    await createMutation.mutateAsync().catch(() => {});
   }
 
   async function closeSession(id: string) {
-    setBusy(true);
-    try {
-      const res = await authedFetch(`/api/browser/session?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      if (!res.ok) {
-        toast.error(`close failed: ${res.status}`);
-        return;
-      }
-      toast.success("session closed");
-      await load();
-    } finally {
-      setBusy(false);
-    }
+    await closeMutation.mutateAsync({ id }).catch(() => {});
   }
 
   if (!open) return null;

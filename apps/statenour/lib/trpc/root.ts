@@ -13,12 +13,14 @@ import { nickRouter } from "./routers/nick";
 import { operatorRouter } from "./routers/operator";
 import { systemRouter } from "./routers/system";
 import { chatRouter } from "./routers/chat";
+import { browserRouter } from "./routers/browser";
 
 export const appRouter = router({
   nick: nickRouter,
   operator: operatorRouter,
   system: systemRouter,
   chat: chatRouter,
+  browser: browserRouter,
 });
 
 /** Type-only export for the client · NEVER import appRouter on the
