@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 17 / 50+ surfaces · ~34% complete · 4 domain routers (nick · operator · system · chat with 9 procedures · 4 mutations) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE uses `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ) · imperative-fetch-via-utils pattern (JJ uses `utils.x.y.fetch()` for on-click lazy fetch)
+**Status:** 20 / 50+ surfaces · **~40% complete** · 5 domain routers (nick · operator · system with 9 procedures · chat with 10 procedures · browser with 4 procedures · total 7 mutations) · invalidate-after-mutation pattern (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE/KK/LL use `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ/KK/LL) · imperative-fetch-via-utils pattern (JJ + MM use `utils.x.y.fetch()` · MM combines with setTimeout delay for post-stream BrainMemory polling) · drift-detection-via-typed-output (KK caught 9-month-old field bug) · error-code-branching (LL uses `error.data.code === "PRECONDITION_FAILED"` to distinguish not-configured from real errors)
 
 ## Why
 
@@ -39,7 +39,10 @@ End-to-end types flow from server → client · no manual mirrors.
 | EmailDraftCard (Send button · first true `.mutation()`) | `authedFetch` POST → `/api/email/send` | `trpc.chat.sendEmail.useMutation().mutateAsync(...)` | HH.3 |
 | NickMessage image upscale (2x/4x hover button) | `authedFetch` POST → `/api/images/upscale` | `trpc.chat.upscaleImage.useMutation().mutateAsync(...)` | II.3 |
 | NickMessage image vary ("vary" button · N variants) | `authedFetch` POST → `/api/images/variations` | `trpc.chat.varyImage.useMutation().mutateAsync(...)` | II.3 |
-| MessageEditControls (edit + history drawer · 1 query + 1 mutation) | `authedFetch` PATCH/GET → `/api/ai/chat/edit/[id]` | `trpc.chat.editMessage.useMutation()` + `utils.chat.editHistory.fetch()` on click | **JJ.3** |
+| MessageEditControls (edit + history drawer · 1 query + 1 mutation) | `authedFetch` PATCH/GET → `/api/ai/chat/edit/[id]` | `trpc.chat.editMessage.useMutation()` + `utils.chat.editHistory.fetch()` on click | JJ.3 |
+| BuilderSandbox (chat slide-out · deploy panel · 1 query + 1 mutation) | `authedFetch` GET/POST → `/api/system/deploys` + `/api/system/deploys/rollback` | `trpc.system.deploys.useQuery({limit, enabled: open})` + `trpc.system.rollbackDeploy.useMutation()` | KK.3 |
+| BrowserSandbox (chat slide-out · Browserbase live view · 1 query + 2 mutations) | `authedFetch` GET/POST/DELETE → `/api/browser/session` | `trpc.browser.sessions.useQuery({enabled: open})` + `createSession.useMutation()` + `closeSession.useMutation({id})` | LL.3 |
+| ActionClaimWarning (chat chip · poka-yoke for fabricated tool calls) | `authedFetch` GET → `/api/ai/chat/claim-warnings?conversationId=X` (600ms delayed) | `utils.chat.claimWarnings.fetch()` in delayed setTimeout (imperative-fetch-via-utils · JJ pattern) | **MM.3** |
 
 ## Architectural notes
 

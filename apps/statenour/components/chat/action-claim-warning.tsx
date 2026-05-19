@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { AlertTriangle, X } from "lucide-react";
 
 interface ClaimWarning {
@@ -55,28 +55,34 @@ export function ActionClaimWarning({
   const [warning, setWarning] = useState<ClaimWarning | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
+  // Phase MM (2026-05-18 PM) · tRPC migration · imperative-fetch-via-
+  // utils (the JJ pattern) because the fetch is delayed 600ms post-
+  // stream-finalize to let the BrainMemory write land. Can't use
+  // useQuery directly since enabled-flag flipping wouldn't add the
+  // delay. utils.fetch() respects React Query's staleTime + dedup if
+  // multiple bubbles in the same conversation race the call.
+  const utils = trpc.useUtils();
+
   useEffect(() => {
     let cancelled = false;
     setDismissed(false);
     setWarning(null);
-    // 600ms delay so the post-stream BrainMemory write lands before
-    // we poll. Fire-and-forget — failures silently render nothing.
     const t = setTimeout(async () => {
       try {
-        const r = await authedFetch(
-          `/api/ai/chat/claim-warnings?conversationId=${encodeURIComponent(conversationId)}&limit=1`,
-        );
-        if (!r.ok) return;
-        const data = (await r.json()) as { data: { warnings: ClaimWarning[] } };
+        const data = await utils.chat.claimWarnings.fetch({
+          conversationId,
+          limit: 1,
+        });
         if (cancelled) return;
-        const w = data.data.warnings[0];
+        const w = data.warnings[0];
         // Only show the warning when the most recent one was created
         // AFTER the message we're rendering against. Without this
         // gate a fresh claim-warn from one turn ago could attach to
         // the next bubble.
         if (w) setWarning(w);
       } catch {
-        // silent
+        // silent · failures render nothing (no chip is the right UX
+        // for a flaky observability surface · we never block UX on it)
       }
     }, 600);
     return () => {

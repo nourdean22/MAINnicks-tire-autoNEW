@@ -39,6 +39,7 @@ import {
   ContentTooLongError,
   MAX_CONTENT_CHARS,
 } from "@/lib/services/chat-edit";
+import { readClaimWarnings } from "@/lib/services/claim-warnings";
 
 export const chatRouter = router({
   /**
@@ -293,4 +294,33 @@ export const chatRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * Phase MM (2026-05-18 PM) · owner-only · read action-claim warnings
+   * for a conversation · powers the ActionClaimWarning chip that shows
+   * when Nick claimed an action ("added the tasks") but no tool fired.
+   *
+   * Delegates to `lib/services/claim-warnings.readClaimWarnings` shared
+   * service · legacy GET /api/ai/chat/claim-warnings calls the same
+   * function · drift impossible.
+   *
+   * Lazy + delayed · the component fires this 600ms after stream end
+   * via setTimeout (gives the BrainMemory write time to land). With
+   * tRPC the wait still happens client-side but the query benefits
+   * from React Query's staleTime + dedup if multiple bubbles in the
+   * same conversation race the call.
+   */
+  claimWarnings: operatorProcedure
+    .input(
+      z.object({
+        conversationId: z.string().min(1).max(64),
+        limit: z.number().int().min(1).max(10).default(1),
+      }),
+    )
+    .query(async ({ input }) =>
+      readClaimWarnings({
+        conversationId: input.conversationId,
+        limit: input.limit,
+      }),
+    ),
 });
