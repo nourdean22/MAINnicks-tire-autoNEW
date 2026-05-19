@@ -128,8 +128,15 @@ async function main(): Promise<void> {
 
   const start = Date.now();
   if (dryRun) {
-    // DRY-RUN path · use the existing gate to surface what WOULD send
-    delete process.env.FEATURE_DECLINED_RECOVERY;
+    // DRY-RUN path · use the existing gate to surface what WOULD send.
+    // wave-181.76 (self-audit · agent finding #2) · pre-fix, this branch
+    // did `delete process.env.FEATURE_DECLINED_RECOVERY` to force the
+    // dry-run report. That was redundant AND hazardous · the gate is
+    // already off when `skipDryRunGate` isn't passed, AND mutating
+    // process.env persists for the entire process lifetime (would
+    // affect any future code in the same Node session). Just omit
+    // skipDryRunGate · the cron defaults to dry-run when the env flag
+    // is "1"-less.
     const result = await runDeclinedWorkRecovery({
       maxSends: max,
       bypassBusinessHoursCheck: true,

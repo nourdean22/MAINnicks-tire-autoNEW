@@ -23,14 +23,21 @@ const orderClients = new Map<string, Set<Response>>();
 export function registerSSERoutes(router: Router): void {
   // Admin real-time feed (auth required)
   router.get("/api/v1/sse/admin-feed", (req: Request, res: Response) => {
-    // Verify admin auth — require API key or valid session cookie
+    // wave-181.76 (self-audit · agent finding #1 + my finding) ·
+    // FIXED two bugs in the auth check:
+    //   1. `req.cookies` was always `undefined` because the app has
+    //      no cookie-parser middleware mounted. Manual header parse.
+    //   2. `if (expected && auth !== ...)` short-circuited to NO auth
+    //      check when ADMIN_API_KEY env was unset → SSE was wide-open.
+    //      Now: fail-closed in either case (mirrors realtimePush.ts).
     const auth = req.headers.authorization;
     const expected = process.env.ADMIN_API_KEY;
-    if (expected && auth !== `Bearer ${expected}`) {
-      if (!req.cookies?.admin_token) {
-        res.status(401).json({ error: "Unauthorized" });
-        return;
-      }
+    const adminTokenCookie = req.headers.cookie?.match(/(?:^|;\s*)admin_token=([^;]+)/)?.[1];
+    const hasValidBearer = !!expected && auth === `Bearer ${expected}`;
+    const hasValidCookie = !!adminTokenCookie && adminTokenCookie.length > 10;
+    if (!hasValidBearer && !hasValidCookie) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
     }
 
     // Cap max SSE connections to prevent resource exhaustion

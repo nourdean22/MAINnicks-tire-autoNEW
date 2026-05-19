@@ -31,6 +31,10 @@ import { SMS_TEMPLATES, renderSmsTemplate, type SmsTemplate } from "@shared/sms-
 // wave-181.75 · operator preset SMS templates rendered as chips above
 // the composers. One tap inserts the rendered body into the textarea
 // (with {{name}} + {{vehicle}} substituted from conversation context).
+//
+// wave-181.76 (self-audit) · removed dead openTip state · title attr
+// provides the tooltip natively on desktop, screen-reader pulls
+// aria-label, no manual hover state needed.
 function TemplateChipRow({
   onInsert,
   ctx,
@@ -38,7 +42,6 @@ function TemplateChipRow({
   onInsert: (body: string) => void;
   ctx: { name?: string | null; vehicle?: string | null };
 }) {
-  const [openTip, setOpenTip] = useState<string | null>(null);
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto -mx-3 px-3 py-2 scrollbar-none">
       <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/40 font-medium shrink-0 flex items-center gap-1">
@@ -49,16 +52,11 @@ function TemplateChipRow({
           key={t.key}
           type="button"
           onClick={() => onInsert(renderSmsTemplate(t.body, ctx))}
-          onMouseEnter={() => setOpenTip(t.key)}
-          onMouseLeave={() => setOpenTip(null)}
           title={t.description}
           className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-foreground/[0.04] hover:bg-foreground/[0.08] border border-border/30 text-foreground/80 hover:text-foreground transition-colors min-h-[28px]"
-          aria-label={`Insert template: ${t.label}`}
+          aria-label={`Insert template: ${t.label} — ${t.description}`}
         >
           {t.label}
-          {openTip === t.key && (
-            <span className="sr-only">{t.description}</span>
-          )}
         </button>
       ))}
     </div>
@@ -302,10 +300,15 @@ function ThreadView({
 
       {/* Composer */}
       <div className="px-3 py-3 border-t border-border/20 bg-card">
-        {/* wave-181.75 · template chips · one-tap preset insert */}
+        {/* wave-181.75 · template chips · one-tap preset insert.
+            wave-181.76 (self-audit · agent finding #4) · append behavior
+            instead of unconditional replace · pre-fix, tapping a chip
+            silently nuked any in-progress typing. Now: if textarea is
+            empty/whitespace, REPLACE (clean start) · else APPEND with a
+            space separator (preserve operator's typing). */}
         <TemplateChipRow
           ctx={{ name: conversation.customerName, vehicle: null }}
-          onInsert={(body) => setReply(body)}
+          onInsert={(body) => setReply((prev) => (prev.trim() ? `${prev.trimEnd()} ${body}` : body))}
         />
         <div className="flex items-end gap-2">
           <textarea
@@ -413,12 +416,18 @@ function NewConversationDialog({
               className="w-full bg-foreground/5 border border-border/30 rounded-md px-3 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 text-[14px]"
             />
           </label>
-          <label className="block">
-            <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Message</span>
-            {/* wave-181.75 · preset chip row above textarea */}
+          {/* wave-181.76 (self-audit) · restructured · the chip row was
+              INSIDE the <label> which is invalid HTML (label can't contain
+              other interactive controls). Moved the chips into a sibling
+              div · label now only wraps the textarea + its descriptive
+              span as required by HTML semantics. */}
+          <div className="block">
+            <label className="block">
+              <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Message</span>
+            </label>
             <TemplateChipRow
               ctx={{ name, vehicle: null }}
-              onInsert={(body) => setMessage(body)}
+              onInsert={(body) => setMessage((prev) => (prev.trim() ? `${prev.trimEnd()} ${body}` : body))}
             />
             <textarea
               placeholder="Hey, this is Nick from Nick's Tire…"
@@ -426,9 +435,10 @@ function NewConversationDialog({
               onChange={(e) => setMessage(e.target.value)}
               rows={4}
               maxLength={1600}
+              aria-label="Message"
               className="w-full bg-foreground/5 border border-border/30 rounded-md px-3 py-2.5 text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none text-[14px]"
             />
-          </label>
+          </div>
           <div className="text-[10px] text-foreground/40 flex items-center justify-between pt-1">
             <span>{message.length}/1600</span>
             <span>via {BUSINESS.phone.dashed}</span>

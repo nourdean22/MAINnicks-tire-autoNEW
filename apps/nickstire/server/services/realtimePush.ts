@@ -53,11 +53,15 @@ export function pushToAdminDashboards(event: {
  * Mount at: app.get("/api/admin/events", sseHandler)
  */
 export function sseHandler(req: any, res: any): void {
-  // Verify admin auth — always require valid credentials
+  // Verify admin auth — always require valid credentials.
+  // wave-181.76 (self-audit) · `req.cookies` was undefined because the
+  // app has no cookie-parser middleware. Manual header parse (matches
+  // the realtime.ts + oauth.ts inline parse pattern · no new dep).
   const auth = req.headers.authorization;
   const expected = process.env.ADMIN_API_KEY;
+  const adminTokenCookie = (req.headers.cookie as string | undefined)?.match(/(?:^|;\s*)admin_token=([^;]+)/)?.[1];
   const hasValidBearer = expected && auth === `Bearer ${expected}`;
-  const hasValidCookie = req.cookies?.admin_token && req.cookies.admin_token.length > 10;
+  const hasValidCookie = adminTokenCookie && adminTokenCookie.length > 10;
 
   if (!hasValidBearer && !hasValidCookie) {
     res.status(401).json({ error: "Unauthorized" });

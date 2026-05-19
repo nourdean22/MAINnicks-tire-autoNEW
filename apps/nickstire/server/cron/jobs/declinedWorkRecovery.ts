@@ -131,7 +131,15 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-  // All unmatched estimates in the recovery window
+  // All unmatched estimates in the recovery window.
+  //
+  // wave-181.76 (self-audit) · query .limit() now scales with the per-run
+  // cap. Pre-fix the query was hardcoded at .limit(100) while the script
+  // advertised --max=500 — operator running fire-declined-recovery
+  // --max=500 would see only 100 estimates considered. Now: pull cap+50
+  // (small headroom for opt-outs / no-phone skips that filter the loop)
+  // up to a hard 500 ceiling matching the script's documented max.
+  const fetchLimit = Math.min((opts?.maxSends ?? 20) + 50, 500);
   const unmatched = await d
     .select({
       id: algEstimates.id,
@@ -151,7 +159,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
         lte(algEstimates.estimateDate, sevenDaysAgo),
       ),
     )
-    .limit(100);
+    .limit(fetchLimit);
 
   if (unmatched.length === 0) {
     return { recordsProcessed: 0, details: "No declined estimates eligible for follow-up" };
