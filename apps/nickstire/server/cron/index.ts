@@ -278,6 +278,12 @@ async function logCronRun(jobName: string, status: string, durationMs: number, r
       durationMs,
       recordsProcessed: recordsProcessed || 0,
       details: details || null,
+      // wave-181.59 · errorMessage column existed in schema but was never
+      // written — observer.ts reads it to surface failure details in
+      // Telegram alerts. Without this, every alert said "no error message
+      // logged" even for real failures. Truncate to 500 to fit any
+      // schema-defined length cap on the column.
+      errorMessage: status === "failed" ? (details ?? "").slice(0, 500) || null : null,
       startedAt: new Date(Date.now() - durationMs),
       completedAt: new Date(),
     });

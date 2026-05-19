@@ -476,7 +476,17 @@ function ConversationList({
         {list.isLoading && (
           <div className="text-foreground/40 text-sm text-center py-12">Loading…</div>
         )}
-        {!list.isLoading && filtered.length === 0 && !searchQ && (
+        {/* wave-181.59 · error state added (Agent C #5) — previously the
+            SMS inbox rendered "no conversations yet" identically whether
+            the list query succeeded with zero rows OR failed entirely.
+            On gateway/DB outage operator couldn't tell — this is the
+            highest-frequency admin surface so silent failure mattered. */}
+        {list.isError && (
+          <div className="text-red-300 text-sm text-center py-12 px-4">
+            Couldn't load conversations. Retrying every 30s — check the SMS gateway / Railway logs if this persists.
+          </div>
+        )}
+        {!list.isLoading && !list.isError && filtered.length === 0 && !searchQ && (
           <div className="text-center py-12 px-4">
             <MessageSquare className="w-8 h-8 text-foreground/20 mx-auto mb-3" />
             <p className="text-foreground/50 text-sm">No conversations yet</p>

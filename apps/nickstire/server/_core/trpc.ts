@@ -114,7 +114,13 @@ export const voiceAgentInternalProcedure = t.procedure.use(loggerMiddleware).use
     const secret = process.env.VOICE_AGENT_INTERNAL_SECRET;
     if (secret) {
       const headerSecret = ctx.req?.headers?.["x-voice-agent-secret"];
-      if (typeof headerSecret === "string" && headerSecret === secret) return next();
+      // wave-181.59 · was `headerSecret === secret` — short-circuit string
+      // comparison is timing-attack-vulnerable. Match the timingSafeEqual
+      // pattern requireAdminApiKey uses in _core/index.ts.
+      if (typeof headerSecret === "string" && headerSecret.length === secret.length) {
+        const { timingSafeEqual } = await import("crypto");
+        if (timingSafeEqual(Buffer.from(headerSecret), Buffer.from(secret))) return next();
+      }
     }
     throw new TRPCError({
       code: "UNAUTHORIZED",
