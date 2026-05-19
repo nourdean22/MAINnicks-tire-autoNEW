@@ -100,6 +100,27 @@ export default function DeclinedEstimatesSection() {
     onError: (err) => toast.error(err.message),
   });
 
+  // wave-181.79 · "FIRE ALL ELIGIBLE NOW" trigger.
+  // Calls runDeclinedWorkRecovery() server-side with operator-driven
+  // opts (bypasses business-hours + dry-run-flag gates · the per-message
+  // sending-hours guard in sms.ts still queues out-of-window). Pre-fix
+  // the operator had to either SSH into Railway to run the script or
+  // flip FEATURE_DECLINED_RECOVERY=1 and wait for the daily cron.
+  // Now: one click + confirm modal · 60-90s to drain.
+  const runRecoveryNow = trpc.invoices.runDeclinedRecoveryNow.useMutation({
+    onSuccess: (result) => {
+      if (result.killSwitchOn) {
+        toast.error("SMS_KILL_SWITCH=true — aborted before any sends. Flip it on Railway to enable.");
+      } else if (result.recordsProcessed > 0) {
+        toast.success(`Recovery fired · ${result.recordsProcessed} attempted · ${result.details || "see admin logs"}`);
+      } else {
+        toast.info(`Recovery ran · 0 sent · ${result.details || "nothing eligible right now"}`);
+      }
+      utils.invoices.declined.invalidate();
+    },
+    onError: (err) => toast.error(`Recovery trigger failed: ${err.message}`),
+  });
+
   // wave-115b — permanent dismiss for declined estimates the operator
   // has worked through (customer said no for good, vehicle sold, etc.).
   // Stored in shop_settings JSON so it persists across syncs without
@@ -262,9 +283,33 @@ export default function DeclinedEstimatesSection() {
         </div>
       )}
 
-      {/* Wave-101: bulk action toolbar */}
+      {/* Wave-101: bulk action toolbar
+          wave-181.79 · added FIRE ALL ELIGIBLE NOW button (left of
+          BULK SELECT) · operator one-click trigger for the cron flow */}
       <div className="flex items-center justify-between flex-wrap gap-2 bg-card border border-border/30 px-4 py-2.5">
         <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={async () => {
+              const ok = await confirmDialog({
+                title: "Fire declined-recovery NOW?",
+                message:
+                  "Runs the same logic as the daily cron · attempts up to 100 sends · " +
+                  "at-most-once protected · TCPA opt-out enforced · 8AM-8PM ET window guard " +
+                  "queues out-of-window sends. Typically completes in 60-90 seconds. " +
+                  "Skips the FEATURE_DECLINED_RECOVERY env flag (operator click = explicit consent).",
+                confirmLabel: "Fire recovery",
+                tone: "danger",
+              });
+              if (!ok) return;
+              runRecoveryNow.mutate({ maxSends: 100 });
+            }}
+            disabled={runRecoveryNow.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider font-bold bg-red-500/20 text-red-400 border border-red-500/40 hover:bg-red-500/30 disabled:opacity-50 transition-colors"
+            title="One-click: fire the daily cron's recovery flow right now (skips the env gate)"
+          >
+            {runRecoveryNow.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Flame className="w-3 h-3" />}
+            {runRecoveryNow.isPending ? "FIRING..." : "🔥 FIRE ALL ELIGIBLE NOW"}
+          </button>
           <button
             onClick={() => {
               setBulkMode(!bulkMode);
