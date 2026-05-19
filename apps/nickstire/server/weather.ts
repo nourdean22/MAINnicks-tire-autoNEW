@@ -75,7 +75,12 @@ export async function getWeather(): Promise<WeatherData | null> {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${CLEVELAND_LAT}&longitude=${CLEVELAND_LON}&current=temperature_2m,wind_speed_10m,weather_code,is_day,precipitation&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America/New_York`;
 
-    const response = await fetch(url);
+    // wave-181.90 (vibe-code-auditor finding) · AbortSignal.timeout caps
+    // wall-clock at 5s. Pre-fix · open-meteo hang would block any cron
+    // tick or request that hit this path indefinitely. The catch below
+    // already falls back to cached data + null · so a timeout just degrades
+    // gracefully to the same path as a non-200 response.
+    const response = await fetch(url, { signal: AbortSignal.timeout(5_000) });
     if (!response.ok) {
       log.warn("[Weather] API returned status:", response.status);
       return cachedWeather?.data || null;

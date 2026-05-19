@@ -87,10 +87,18 @@ export async function transcribeAudio(
     }
 
     // Step 2: Download audio from URL
+    // wave-181.90 (vibe-code-auditor finding) · 15s wall-clock cap on audio
+    // download. Pre-fix · a slow-loris audio host (or a hung CDN) would
+    // block the transcription request indefinitely, holding the worker
+    // and exhausting connection pools. The 16MB size check at line 107
+    // only kicks in AFTER download completes · which is why bytes-per-sec
+    // attacks would still defeat it. Timeout closes that gap.
     let audioBuffer: Buffer;
     let mimeType: string;
     try {
-      const response = await fetch(options.audioUrl);
+      const response = await fetch(options.audioUrl, {
+        signal: AbortSignal.timeout(15_000),
+      });
       if (!response.ok) {
         return {
           error: "Failed to download audio file",
@@ -139,6 +147,10 @@ export async function transcribeAudio(
     formData.append("prompt", prompt);
 
     // Step 4: Call OpenAI Whisper API directly
+    // wave-181.90 (vibe-code-auditor finding) · 30s wall-clock cap on
+    // Whisper. OpenAI typically responds in <10s for audio under 16MB
+    // but the API has occasional 5xx hangs · without a timeout the
+    // transcription endpoint would be a back-pressure source.
     const baseUrl = process.env.OPENAI_BASE_URL?.replace(/\/$/, "") || "https://api.openai.com";
     const fullUrl = `${baseUrl}/v1/audio/transcriptions`;
 
@@ -149,6 +161,7 @@ export async function transcribeAudio(
         "Accept-Encoding": "identity",
       },
       body: formData,
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!response.ok) {
