@@ -39,13 +39,11 @@ const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
-const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
-// 2026-05-09 — ReEngagementSection no longer rendered as top-level route.
-// File still exists; consumed by OutreachHubSection as the 6th tab.
-// 2026-05-19 Elon-cut · NoShowRiskSection + ConversionPreviewSection
-// deleted (URL-aliased-only zombies — not in sidebar, no operator value).
+// 2026-05-19 MONEY consolidation · DeclinedEstimatesSection +
+// SnapDashboardSection are now tabs inside RevenueSection (the "Money"
+// page). Lazy imports moved into RevenueSection.tsx. Old URLs redirect
+// via COMPOUND_REDIRECTS in resolveInitialSection below.
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
-const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
 const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
@@ -81,9 +79,7 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "revenue" && <RevenueSection />}
         {section === "callTrackingView" && <CallTrackingSection />}
         {section === "intelligence" && <IntelligenceSection />}
-        {section === "declinedEstimates" && <DeclinedEstimatesSection />}
         {section === "walkInCalc" && <WalkInCalculatorSection />}
-        {section === "snapDashboard" && <SnapDashboardSection />}
         {section === "trafficFunnel" && <TrafficFunnelSection />}
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
       </Suspense>
@@ -94,6 +90,12 @@ function SectionContent({ section }: { section: AdminSection }) {
 // Deep-link aliases — human-typed URL params map to real AdminSection names.
 // Nour reaches for `?tab=callbacks` but the section is `callTrackingView`;
 // rather than rename internals, accept both.
+//
+// 2026-05-19 MONEY consolidation · `declined` / `estimates` / `financing` /
+// `snap-finance` / etc. all redirect to `revenue` (the Money page). The
+// inner tab (moneyTab=declined / =financing) is set by COMPOUND_REDIRECTS
+// in resolveInitialSection so old bookmarks land on the right tab inside
+// Money, not just at Money's default Revenue tab.
 const TAB_ALIASES: Record<string, AdminSection> = {
   // Active aliases
   callbacks: "callTrackingView",
@@ -101,7 +103,6 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   calltracking: "callTrackingView",
   dashboard: "overview",
   home: "overview",
-  declined: "declinedEstimates",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
 
@@ -147,8 +148,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   "outreach-hub": "campaigns",
   "outreach": "campaigns",
   "revenue-and-shop": "revenue",
-  "declined-work": "declinedEstimates",
-  "snap-finance": "snapDashboard",
+  "money": "revenue",
   "traffic-revenue": "trafficFunnel",
   "content-and-ai": "content",
   "nour-os-bridge": "settings",
@@ -161,13 +161,11 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   wo: "overview",
   "work-orders": "overview",
   dispatch: "overview",
-  estimates: "declinedEstimates",
   activity: "overview",
   analytics: "trafficFunnel",
   analyticsview: "trafficFunnel",
   exports: "overview",
   exportview: "overview",
-  financing: "snapDashboard",
   // 2026-05-09 — All Outreach-style aliases redirect to OutreachHub (`campaigns`)
   // instead of the now-deleted reEngagement standalone route.
   autofollowup: "campaigns",
@@ -198,15 +196,44 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "commandCenter", "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView", "intelligence",
-  "declinedEstimates", "walkInCalc",
-  "snapDashboard", "trafficFunnel", "voiceReceptionist",
+  "walkInCalc", "trafficFunnel", "voiceReceptionist",
 ]);
+
+// 2026-05-19 MONEY consolidation · compound redirects for old bookmarks.
+// When an operator hits `?tab=declinedEstimates` we want them to land
+// on the Money page WITH the Declined tab pre-selected, not Money's
+// default Revenue tab. These rewrite the URL params at boot so the
+// inner-tab state is correct AND the URL stays clean for bookmarking.
+const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKey: string; innerValue: string }> = {
+  declinedestimates: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
+  declined: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
+  estimates: { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
+  "declined-work": { section: "revenue", innerKey: "moneyTab", innerValue: "declined" },
+  snapdashboard: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
+  "snap-finance": { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
+  financing: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
+  snap: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
+};
 
 function resolveInitialSection(): AdminSection {
   if (typeof window === "undefined") return "overview";
   const params = new URLSearchParams(window.location.search);
   const raw = (params.get("tab") || params.get("section") || "").toLowerCase().trim();
   if (!raw) return "overview";
+
+  // Compound redirect: rewrite URL with the inner tab BEFORE returning the
+  // outer section. RevenueSection's useUrlFilter on `moneyTab` picks it up
+  // on first render.
+  if (raw in COMPOUND_REDIRECTS) {
+    const r = COMPOUND_REDIRECTS[raw];
+    params.set("tab", r.section);
+    params.set(r.innerKey, r.innerValue);
+    const url = new URL(window.location.href);
+    url.search = params.toString();
+    window.history.replaceState({}, "", url.toString());
+    return r.section;
+  }
+
   if (raw in TAB_ALIASES) return TAB_ALIASES[raw];
   // Accept exact AdminSection names (case-insensitive so ?tab=Overview works).
   for (const valid of VALID_SECTIONS) {
@@ -392,24 +419,26 @@ export default function Admin() {
         {/* Nav — Grouped */}
         <nav className="flex-1 py-4 px-2 space-y-5 overflow-y-auto">
           {NAV_GROUPS.map(group => (
-            <div key={group.label}>
-              <div className="admin-sidebar-group-label">{group.label}</div>
+            <div key={group.label || "_flat"}>
+              {/* 2026-05-19 · empty-label groups render flat (no header).
+                  After the 12→5 sidebar reset, there's only one group and
+                  the items are their own context. */}
+              {group.label && <div className="admin-sidebar-group-label">{group.label}</div>}
               <div className="space-y-0.5 mt-0.5">
                 {group.items.map(item => {
                   const isActive = section === item.id;
                   let badge = 0;
-                  // `bookings` is no longer a sidebar entry; urgent + new leads
-                  // surface on the `leads` row. Bookings count still appears
-                  // on the Overview page itself.
-                  if (item.id === "leads") badge = urgentLeads + newLeads + newBookings;
-                  if (item.id === "callTrackingView") badge = pendingCallbacks;
+                  // 2026-05-19 · Today absorbs the action queue badge (was
+                  // split across Leads + Calls). Surfaces total items
+                  // needing attention right now.
+                  if (item.id === "overview") badge = urgentLeads + newLeads + newBookings + pendingCallbacks;
                   if (item.id === "revenue") badge = woStats?.active ?? 0;
 
                   // wave-129b — badge tone semantics:
-                  //   leads (red dot)     — urgent / new — high priority
+                  //   today (red dot)     — urgent / new — high priority
                   //   revenue (red/amber) — overdue/blocked work
                   //   default (subtle)    — work-in-progress count
-                  const isAlert = item.id === "leads" || (item.id === "revenue" && (woStats?.overdue || woStats?.blocked));
+                  const isAlert = (item.id === "overview" && badge > 0) || (item.id === "revenue" && Boolean(woStats?.overdue || woStats?.blocked));
                   return (
                     <button
                       key={item.id}
