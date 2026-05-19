@@ -94,8 +94,30 @@ export function buildThirtyDayMessage(params: {
 
 export { firstName as parseFirstName };
 
-export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
-  if (!isBusinessHours()) {
+/**
+ * wave-181.73 (architect-review · highest-leverage one-shot)
+ *
+ * Two consumers · daily cron (calls with no opts · uses safe default
+ * cap of 20) AND the operator-driven one-shot script at
+ * scripts/fire-declined-recovery.ts (passes a higher maxSends for a
+ * bulk-clear of the backlog). Same code path, same safety guards —
+ * just different volume budgets.
+ *
+ * Opts:
+ *   maxSends  · override the per-run cap (default 20 · max 500)
+ *   bypassBusinessHoursCheck · script-only · operator runs at 9 PM
+ *     etc, but still respects the per-message sending-hours guard
+ *     in sms.ts which queues out-of-hours messages for the morning
+ *   skipDryRunGate · script-only · trust the operator's intent
+ */
+export interface RecoveryOptions {
+  maxSends?: number;
+  bypassBusinessHoursCheck?: boolean;
+  skipDryRunGate?: boolean;
+}
+
+export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<RecoveryResult> {
+  if (!opts?.bypassBusinessHoursCheck && !isBusinessHours()) {
     return { recordsProcessed: 0, details: "skipped (outside business hours)" };
   }
 
@@ -141,7 +163,7 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
     0,
   );
 
-  const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1";
+  const featureEnabled = process.env.FEATURE_DECLINED_RECOVERY === "1" || opts?.skipDryRunGate === true;
 
   // DRY RUN path — report but don't send
   if (!featureEnabled) {
@@ -182,10 +204,14 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
   let skippedNoPhone = 0;
   let perRowErrors = 0;
 
-  // wave-117 — per-run cap. Even with .limit(100) on the query above,
-  // an unbounded send loop is a Twilio cost runaway risk if the filter
-  // ever widens (e.g. a date math bug). Cap mirrors crossSellOutreach.
-  const MAX_SMS_PER_RUN = 20;
+  // wave-117 · per-run cap. Even with .limit(100) on the query above,
+  // an unbounded send loop is a cost-runaway + reputation risk if the
+  // filter ever widens (e.g. a date math bug). 20 is the safe daily
+  // default for cron. wave-181.73 made it overridable via opts so a
+  // one-shot operator script can clear a backlog in a single run
+  // (capped at 500 hard ceiling to keep us under the F25e Verizon
+  // daily-throughput safe zone for an SMS Gateway phone number).
+  const MAX_SMS_PER_RUN = Math.min(opts?.maxSends ?? 20, 500);
 
   // wave-121 — bulk-load opt-out phones BEFORE the loop. Was: a SELECT
   // against customers per estimate (up to 100 round-trips per run), with
