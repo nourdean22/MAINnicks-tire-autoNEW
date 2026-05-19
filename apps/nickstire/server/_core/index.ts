@@ -1076,6 +1076,14 @@ ${urls.join("\n")}
   const { smsGatewayWebhookRouter } = await import("../routes/webhooks/smsGateway");
   app.use("/api/webhooks", smsGatewayWebhookRouter);
 
+  // ─── AgentPhone Webhook (wave-181.84 · Confirmation Bot) ────
+  // AgentPhone POSTs call.ended events here · we parse the transcript +
+  // update the confirmation_calls row · admin tile surfaces no-answer
+  // and reschedule rows for operator triage. HMAC validated inside the
+  // router itself via AGENTPHONE_WEBHOOK_SECRET.
+  const { agentphoneWebhookRouter } = await import("../routes/webhooks/agentphone");
+  app.use("/api/webhooks", agentphoneWebhookRouter);
+
   // ─── Stripe Webhook ─────────────────────────────────────
   // Receives payment_intent.succeeded events to confirm invoice payments
   // even if the client drops before calling confirmPayment

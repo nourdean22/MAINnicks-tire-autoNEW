@@ -2137,6 +2137,36 @@ export const smsRateLimit = mysqlTable("sms_rate_limit", {
  * 2nd consecutive skip never fired. Multi-pod safe · all pods read
  * + write the same row. Mirror of drizzle/0047.
  */
+/**
+ * Confirmation Calls — wave-181.84 · per-booking AgentPhone call tracking.
+ *
+ * One row per attempt. The cron creates a row on each call · the webhook
+ * handler at /api/webhooks/agentphone updates it when the call ends.
+ * Admin UI shows no_answer + rescheduled rows for operator triage.
+ *
+ * Mirror of drizzle/0048.
+ */
+export const confirmationCalls = mysqlTable("confirmation_calls", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Foreign key to bookings.id (no FK constraint · soft join) */
+  bookingId: int("booking_id").notNull(),
+  /** When the cron initiated the call (NOT when answered) */
+  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+  /** When the call finished · NULL if still in-progress or pending */
+  completedAt: timestamp("completed_at"),
+  /** AgentPhone's call ID · joined back via webhook events */
+  agentphoneCallId: varchar("agentphone_call_id", { length: 64 }),
+  /** Lifecycle status */
+  status: mysqlEnum("status", ["pending", "dialing", "confirmed", "rescheduled", "no_answer", "failed"]).default("pending").notNull(),
+  /** First 500 chars of the transcript · operator skim · NULL on no_answer */
+  transcriptSnippet: text("transcript_snippet"),
+  /** If customer asked to reschedule · their request text */
+  rescheduleRequest: text("reschedule_request"),
+  /** Failure reason · NULL on success */
+  errorMessage: text("error_message"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull().onUpdateNow(),
+});
+
 export const cronTierSkipState = mysqlTable("cron_tier_skip_state", {
   /** Tier name from server/cron/scheduler.ts (e.g. "heartbeat", "pulse") */
   tierName: varchar("tier_name", { length: 50 }).primaryKey(),
