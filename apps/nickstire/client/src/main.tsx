@@ -109,12 +109,31 @@ if ("serviceWorker" in navigator && import.meta.env.PROD) {
 // automatically and gets the working version.
 if (typeof window !== "undefined") {
   window.addEventListener("vite:preloadError", (event) => {
+    // wave-181.57 · self-audit: wrapped sessionStorage in try/catch.
+    // Original code crashed in private/incognito mode or when storage
+    // was full → listener never reached reload → safety net defeated.
+    // Fallback: if storage is unavailable, still reload ONCE per page
+    // load (use a window-level flag) so we don't infinite-loop.
     const reloadedKey = "vite-preload-error-reload";
-    if (sessionStorage.getItem(reloadedKey)) {
-      console.error("[preloadError] Already reloaded once this session — likely a real bug, not stale-bundle. Letting ErrorBoundary handle.", event);
+    type WindowWithReloadGuard = Window & { __viteReloadAttempted__?: boolean };
+    const w = window as WindowWithReloadGuard;
+    let alreadyReloaded = false;
+    try {
+      alreadyReloaded = !!sessionStorage.getItem(reloadedKey);
+    } catch {
+      alreadyReloaded = w.__viteReloadAttempted__ === true;
+    }
+    if (alreadyReloaded) {
+      console.error("[preloadError] Already reloaded once — likely a real bug, not stale-bundle. Letting ErrorBoundary handle.", event);
       return;
     }
-    sessionStorage.setItem(reloadedKey, String(Date.now()));
+    try {
+      sessionStorage.setItem(reloadedKey, String(Date.now()));
+    } catch {
+      // Storage blocked (incognito) or full; fall back to a window flag
+      // so an in-tab loop still gets caught even without persistence.
+      w.__viteReloadAttempted__ = true;
+    }
     event.preventDefault();
     console.warn("[preloadError] Stale lazy chunk detected. Hard-reloading once to fetch fresh manifest.");
     window.location.reload();
