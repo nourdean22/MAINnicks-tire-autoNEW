@@ -101,7 +101,11 @@ import {
 } from "@/components/actions/shared";
 import { parseQuickAdd } from "@/lib/loops/quick-add-parser";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase SS.4 (2026-05-19 AM) · authedFetch removed · /tasks page is
+// now 100% on tRPC across all reads + mutations. The page-local
+// load() function keeps its scheduling logic (debounced reload ·
+// visibility-change · interval · event-bus · AbortSignal) but the
+// fetch sites all flow through trpc utils/mutations.
 import { trpc } from "@/lib/trpc/client";
 // Phase SS.1 (2026-05-19 AM) · createTask helper replaced by
 // trpc.task.create mutation · the legacy `@/lib/services/client/tasks`
@@ -312,6 +316,13 @@ function TasksPageInner() {
   // failure toasts without HTTP-status sniffing.
   const aiGenerateMutation = trpc.task.aiGenerate.useMutation();
 
+  // Phase SS.4 (2026-05-19 AM) · bulk-spawn NOW tasks from project
+  // plans · once-per-session fire-and-forget on mount when the
+  // operator has no active tasks but does have projects with un-
+  // spawned phases. Typed result includes totalTasksSpawned which
+  // drives the soft toast surface.
+  const backfillMutation = trpc.task.backfill.useMutation();
+
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
   // work can short-circuit setState calls if user navigates away
@@ -478,20 +489,14 @@ function TasksPageInner() {
     },
     async () => {
       try {
-        const r = await authedFetch("/api/projects/backfill-tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ firstPhaseOnly: true }),
+        // Phase SS.4 · tRPC migration · typed result · no Envelope/
+        // unwrap dance · totalTasksSpawned reads directly off the
+        // mutation response.
+        const result = await backfillMutation.mutateAsync({
+          firstPhaseOnly: true,
         });
-        if (!r.ok) return;
-        const d = await r.json();
-        // v10.0.423 · use the hoisted unwrap() helper instead of manual fallback chains.
-        const unwrapped = unwrap<{ totalTasksSpawned?: number } | undefined>(
-          d as Envelope<{ totalTasksSpawned?: number } | undefined>,
-        );
-        const spawned = (unwrapped?.totalTasksSpawned ?? 0) as number;
+        const spawned = result.totalTasksSpawned ?? 0;
         if (spawned > 0) {
-          // Soft toast so Nour sees what happened, then refresh.
           toast.success(
             `Backfilled ${spawned} task${spawned === 1 ? "" : "s"} from your plans`,
           );

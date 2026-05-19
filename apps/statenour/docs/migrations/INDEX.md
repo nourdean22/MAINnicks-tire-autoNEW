@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + …/SS.1 + **SS.2 + SS.3** | 2026-05-19 AM | **28/50+ surfaces · ~56%** · /tasks AI score grading + AI task generation migrated · discriminated-union error envelope for AI failures (`providers_failed` / `parse_failed`) replaces HTTP-status sniffing · /tasks page has 1 authedFetch site remaining (backfill-tasks · SS.4) | Phase SS.4 · backfill-tasks (largest remaining · /api/projects/backfill-tasks · operator-triggered bulk-spawn) · then `/journal` / `/brain` |
+| **tRPC migration** (REST → tRPC) | Phase J + …/SS.3 + **SS.4** | 2026-05-19 AM | **29/50+ surfaces · ~58%** · /tasks bulk backfill migrated · **/tasks page is now 100% on tRPC** · authedFetch import removed · 11 endpoints across 6 service files all delegating cleanly · `lib/services/backfill-tasks.ts` extracted (260 LOC from inline route) | `/journal` (3 components · medium leverage) · then `/brain` (~8 sites) · final big surface is `/chat` (streaming endpoints excluded · subscriptions need WebSocket infra) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 
