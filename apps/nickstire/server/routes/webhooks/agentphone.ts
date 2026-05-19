@@ -126,7 +126,7 @@ router.post("/agentphone", async (req: Request, res: Response) => {
 
   try {
     const { getDb } = await import("../../db");
-    const { confirmationCalls } = await import("../../../drizzle/schema");
+    const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
     if (!db) {
@@ -134,42 +134,70 @@ router.post("/agentphone", async (req: Request, res: Response) => {
       return;
     }
 
-    // Find the confirmation_calls row by AgentPhone call id
-    const [row] = await db
+    const classification = classifyTranscript(event.data?.transcripts);
+
+    // wave-181.85 · dispatch by table lookup · same webhook URL handles
+    // both confirmation_calls AND voice_recovery_calls (which live as
+    // columns on alg_estimates). Try the confirmation table first
+    // (higher volume) · fall back to alg_estimates voice_recovery.
+
+    // Try 1 · confirmation_calls
+    const [confRow] = await db
       .select()
       .from(confirmationCalls)
       .where(eq(confirmationCalls.agentphoneCallId, callId))
       .limit(1);
 
-    if (!row) {
-      log.warn(`[agentphone-webhook] no confirmation_calls row found for callId=${callId.slice(0, 16)}`);
-      // Still 200 · AgentPhone will keep retrying otherwise
-      res.status(200).json({ received: true, no_match: true });
+    if (confRow) {
+      await db
+        .update(confirmationCalls)
+        .set({
+          status: classification.status,
+          transcriptSnippet: classification.snippet,
+          rescheduleRequest: classification.rescheduleRequest,
+          completedAt: new Date(),
+        })
+        .where(eq(confirmationCalls.id, confRow.id));
+      log.info(`[agentphone-webhook] confirmation_calls #${confRow.id} → ${classification.status}`, {
+        callId: callId.slice(0, 16),
+        hasReschedule: !!classification.rescheduleRequest,
+      });
+      res.status(200).json({ received: true, kind: "confirmation", status: classification.status });
       return;
     }
 
-    const classification = classifyTranscript(event.data?.transcripts);
-    await db
-      .update(confirmationCalls)
-      .set({
-        status: classification.status,
-        transcriptSnippet: classification.snippet,
-        rescheduleRequest: classification.rescheduleRequest,
-        completedAt: new Date(),
-      })
-      .where(eq(confirmationCalls.id, row.id));
+    // Try 2 · alg_estimates voice_recovery
+    const [estRow] = await db
+      .select({ id: algEstimates.id })
+      .from(algEstimates)
+      .where(eq(algEstimates.voiceRecoveryCallId, callId))
+      .limit(1);
 
-    log.info(`[agentphone-webhook] confirmation_calls #${row.id} → ${classification.status}`, {
-      callId: callId.slice(0, 16),
-      hasReschedule: !!classification.rescheduleRequest,
-    });
+    if (estRow) {
+      // Map classification → voice_recovery_outcome enum
+      const outcomeMap: Record<typeof classification.status, "interested" | "not_interested" | "no_answer"> = {
+        confirmed: "interested",
+        rescheduled: "interested", // they engaged · operator can follow up
+        no_answer: "no_answer",
+      };
+      await db
+        .update(algEstimates)
+        .set({ voiceRecoveryOutcome: outcomeMap[classification.status] })
+        .where(eq(algEstimates.id, estRow.id));
+      log.info(`[agentphone-webhook] alg_estimates #${estRow.id} voice_recovery → ${outcomeMap[classification.status]}`, {
+        callId: callId.slice(0, 16),
+      });
+      res.status(200).json({ received: true, kind: "voice_recovery", status: outcomeMap[classification.status] });
+      return;
+    }
 
-    res.status(200).json({ received: true, status: classification.status });
+    // No match in either table
+    log.warn(`[agentphone-webhook] no row found in confirmation_calls OR alg_estimates voice_recovery for callId=${callId.slice(0, 16)}`);
+    res.status(200).json({ received: true, no_match: true });
   } catch (err) {
     log.warn("[agentphone-webhook] processing failed", {
       error: err instanceof Error ? err.message : String(err),
     });
-    // Return 500 so AgentPhone retries
     res.status(500).json({ error: "processing_failed" });
   }
 });

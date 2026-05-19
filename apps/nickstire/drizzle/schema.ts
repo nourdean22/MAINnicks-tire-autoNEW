@@ -1304,6 +1304,10 @@ export const algEstimates = mysqlTable("alg_estimates", {
   followUp30dSent: int("follow_up_30d_sent").default(0).notNull(),
   followUp30dAttemptedAt: timestamp("follow_up_30d_attempted_at"),
   followUp30dSentAt: timestamp("follow_up_30d_sent_at"),
+  /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
+  voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
+  voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),
+  voiceRecoveryOutcome: mysqlEnum("voice_recovery_outcome", ["pending", "dialing", "interested", "not_interested", "no_answer", "failed"]),
   recoveryNote: text("recovery_note"),
   /** Source of the record (alg, manual, ...) */
   source: varchar("source", { length: 32 }).default("alg").notNull(),
