@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + …/UU + **VV** | 2026-05-19 AM | **32/50+ surfaces · ~64%** · /brain/link-review migrated · `lib/services/link-review.ts` extracted (110 LOC service · preserves `$executeRaw` UPDATE chat_conversations in a `$transaction` block) · `brain` router at 5 procedures (1 wisdom + 1 wisdom-update + 1 wisdom-action + 1 link-review + 1 decide) | `/brain/galaxy` + `/brain/health` + `/brain/identity-trajectory` (smaller surfaces · 1-2 sites each) · then `/chat` (last big page · streaming endpoints excluded · subscriptions need WebSocket) |
+| **tRPC migration** (REST → tRPC) | Phase J + …/VV + **WW** | 2026-05-19 AM | **33/50+ surfaces · ~66%** · /scoreboard migrated (quick win · `buildMetaScoreboard` service already extracted · single useQuery swap) · operator router at 4 procedures · cluster of high-leverage surfaces remain: /pins · /knowledge · /content/drafts · /content/history · /financial · /settings · /social · /chat | Batch the smaller pages next (each 1-5 sites) · then `/chat` (biggest remaining · streaming endpoints excluded · subscriptions need WebSocket) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 

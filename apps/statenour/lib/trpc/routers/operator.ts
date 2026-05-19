@@ -21,6 +21,7 @@ import {
   type CompoundSurface,
 } from "@/lib/services/compound-chain";
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
+import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
 
 const PulseSurfaceSchema = z.enum([
   "tasks",
@@ -63,4 +64,17 @@ export const operatorRouter = router({
   goalsSnapshot: operatorProcedure.query(async () => {
     return buildGoalsSnapshot();
   }),
+
+  /**
+   * Phase WW (2026-05-19 AM) · owner-only · meta-scoreboard snapshot
+   * for the /scoreboard page · 5-10 anchor numbers + anomalies
+   * surfaced dynamically · composedAt + lastBriefAt + state ("calm"
+   * vs "alive"). Delegates to `lib/services/meta-scoreboard` which
+   * the legacy REST endpoint also calls · drift impossible.
+   *
+   * 30s cache matches the route's prior Cache-Control.
+   */
+  scoreboardSnapshot: operatorProcedure.query(async () =>
+    buildMetaScoreboard(),
+  ),
 });

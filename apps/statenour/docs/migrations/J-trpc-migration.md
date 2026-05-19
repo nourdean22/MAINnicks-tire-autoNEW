@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 32 / 50+ surfaces · **~64% complete** · **8 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · task with 16 · journal with 2 · **brain with 5** · total **22 mutations**) · /goals (OO) · /tasks (PP-SS.4) · /journal (TT) · /brain/wisdom (UU) · **/brain/link-review (VV · `decideLinkReview` mutation uses preserved `$executeRaw` transaction)**
+**Status:** 33 / 50+ surfaces · **~66% complete** · **8 domain routers** (nick · operator with 4 · system with 11 · chat with 10 · browser with 4 · task with 16 · journal with 2 · brain with 5 · total **22 mutations**) · /goals + /scoreboard + /journal + /brain · /tasks 100% · /chat last big surface remaining
 
 ### sql-pro findings (Phase RR follow-up)
 
@@ -66,7 +66,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | **/tasks page is now 100% on tRPC** · authedFetch import removed (load() keeps scheduling discipline · fetch sites flow through trpc utils/mutations) | — | — | post-SS.4 |
 | /journal page 2 reads (unified feed + metacognition card) | `authedFetch` GET × 2 inside `load()` + mount-effect | `utils.journal.feed.fetch({source, type, limit, days})` + `utils.journal.metacognition.fetch()` · 7th domain router added (`journal`) · `lib/services/journal-feed.ts` extracted (220 LOC service merging 4 thought-capture tables) | TT.3 |
 | /brain/wisdom page 3 sites (feed read · saveEdit PATCH · curation action POST) | `authedFetch` × 3 (GET feed · PATCH content/confidence · POST deprecate) | `trpc.brain.wisdom.useQuery` (via `utils.brain.wisdom.fetch`) + `updateWisdom.useMutation()` + `actOnWisdom.useMutation({id, action})` · 8th domain router added (`brain`) · `lib/services/brain-wisdom.ts` extracted (180 LOC service + 3 custom error classes) | UU.3 |
-| /brain/link-review page 2 sites (candidate list + decide) | `authedFetch` GET + POST `/api/system/conversation-link-review` | `utils.brain.linkReview.fetch()` + `decideLinkReview.useMutation({conversationId, missionId, decision})` · `lib/services/link-review.ts` extracted (110 LOC service + 1 typed error class · approve uses Prisma `$transaction` with `$executeRaw` SQL preserved verbatim) | **VV.3** |
+| /brain/link-review page 2 sites (candidate list + decide) | `authedFetch` GET + POST `/api/system/conversation-link-review` | `utils.brain.linkReview.fetch()` + `decideLinkReview.useMutation({conversationId, missionId, decision})` · `lib/services/link-review.ts` extracted (110 LOC service + 1 typed error class · approve uses Prisma `$transaction` with `$executeRaw` SQL preserved verbatim) | VV.3 |
+| /scoreboard page snapshot (numbers + anomalies + state) | `useAuthedFetch<Snapshot>("/api/scoreboard/snapshot")` | `trpc.operator.scoreboardSnapshot.useQuery({staleTime: 30s})` · `buildMetaScoreboard` service was already extracted | **WW.3** |
 
 ## Architectural notes
 
