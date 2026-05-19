@@ -786,6 +786,21 @@ export function startTieredScheduler(): void {
           return processVapiLatencySync();
         },
       },
+      // wave-181.62 (2026-05-18 PM) · synthetic-call harness · catches
+      // the wave-181.50 class of bug (config drift · webhook silent
+      // dropout · dispatcher break) in <24h instead of 5 days. Runs
+      // both config-drift check + signed webhook roundtrip + 3 read-
+      // only tool dispatch smokes. Throws on any failure so cron_log
+      // marks 'failed' + cronSkipWatchdog catches it · also fires its
+      // own Telegram alert inline (belt + suspenders).
+      {
+        name: "vapi-harness",
+        requiresEnv: "VAPI_WEBHOOK_SECRET",
+        handler: async () => {
+          const { processVapiHarness } = await import("./jobs/vapiHarness");
+          return processVapiHarness();
+        },
+      },
       {
         name: "retention-all",
         handler: async () => {
