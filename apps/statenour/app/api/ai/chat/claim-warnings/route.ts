@@ -5,30 +5,19 @@
  * the chat client after each assistant turn to render an inline
  * correction chip when Nick claimed an action without firing a tool.
  *
- * The warning is logged at stream-finalize time (lib/services/chat/
- * persist-assistant-turn.ts) and persisted as a BrainMemory row with
- * category="chat_claim_warn". This route reads the most recent one
- * per conversation. Owner-gated.
+ * Phase MM (2026-05-18 PM) · heavy lifting moved to
+ * `lib/services/claim-warnings.readClaimWarnings` so this REST handler
+ * AND the new `trpc.chat.claimWarnings` procedure call the same
+ * function · drift impossible. Stays mounted for back-compat with any
+ * non-tRPC consumer.
  *
  * Query: ?conversationId=<id>&limit=1 (default 1, max 10)
+ * Owner-gated.
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
 import { ServiceError } from "@/lib/utils/service-error";
-
-interface ClaimWarningPayload {
-  id: string;
-  traceId: string | null;
-  createdAt: string;
-  claims: Array<{
-    verb: string;
-    snippet: string;
-    expectedTool: string;
-  }>;
-  toolsActuallyFired: string[];
-  textPreview: string;
-}
+import { readClaimWarnings } from "@/lib/services/claim-warnings";
 
 export const GET = apiHandler(
   async (req) => {
@@ -38,43 +27,8 @@ export const GET = apiHandler(
       throw new ServiceError("conversationId required", 400);
     }
     const limitParam = parseInt(url.searchParams.get("limit") ?? "1", 10);
-    const limit = Number.isFinite(limitParam)
-      ? Math.max(1, Math.min(limitParam, 10))
-      : 1;
-
-    const rows = await prisma.brainMemory.findMany({
-      where: {
-        category: "chat_claim_warn",
-        deletedAt: null,
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50, // pull more then filter — `metadata.conversationId` isn't indexed
-    });
-
-    const matches: ClaimWarningPayload[] = [];
-    for (const r of rows) {
-      const md = r.metadata as
-        | {
-            conversationId?: string;
-            traceId?: string;
-            claims?: Array<{ verb: string; snippet: string; expectedTool: string }>;
-            toolsActuallyFired?: string[];
-            textPreview?: string;
-          }
-        | null;
-      if (md?.conversationId !== conversationId) continue;
-      matches.push({
-        id: r.id,
-        traceId: md?.traceId ?? null,
-        createdAt: r.createdAt.toISOString(),
-        claims: md?.claims ?? [],
-        toolsActuallyFired: md?.toolsActuallyFired ?? [],
-        textPreview: md?.textPreview ?? "",
-      });
-      if (matches.length >= limit) break;
-    }
-
-    return { warnings: matches };
+    const limit = Number.isFinite(limitParam) ? limitParam : 1;
+    return readClaimWarnings({ conversationId, limit });
   },
   { auth: "owner" },
 );
