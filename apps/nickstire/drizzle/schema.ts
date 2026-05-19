@@ -2130,6 +2130,27 @@ export const smsRateLimit = mysqlTable("sms_rate_limit", {
 });
 
 /**
+ * Cron Tier Skip State — wave-181.83 · durable replacement for the
+ * `tierSkipCounts = new Map<string, number>()` module-level state in
+ * server/cron/scheduler.ts. Pre-fix · pod restart during a chronic
+ * overrun cleared the counter so the alert that should fire on the
+ * 2nd consecutive skip never fired. Multi-pod safe · all pods read
+ * + write the same row. Mirror of drizzle/0047.
+ */
+export const cronTierSkipState = mysqlTable("cron_tier_skip_state", {
+  /** Tier name from server/cron/scheduler.ts (e.g. "heartbeat", "pulse") */
+  tierName: varchar("tier_name", { length: 50 }).primaryKey(),
+  /** Consecutive skip count · resets to 0 on successful run */
+  consecutiveSkips: int("consecutive_skips").default(0).notNull(),
+  /** Timestamp of last skip · NULL if never skipped */
+  lastSkipAt: timestamp("last_skip_at"),
+  /** Timestamp of last successful run · NULL on cold start */
+  lastRunAt: timestamp("last_run_at"),
+  /** Row touched timestamp · informational only */
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
  * Cron Alerts Fired — wave-181.69 · durable replacement for the
  * `let lastAlertDate: string | null` module-level dedup variable in
  * cron jobs that fire daily Telegram alerts (vapiLatencySync.ts and
