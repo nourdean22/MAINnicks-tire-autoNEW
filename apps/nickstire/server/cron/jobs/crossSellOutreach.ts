@@ -38,10 +38,12 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
   const { isEnabled } = await import("../../services/featureFlags");
   if (!(await isEnabled("sms_cross_sell_outreach"))) return { recordsProcessed: 0, details: "Feature disabled" };
 
-  // Check Twilio is configured
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
-    return { recordsProcessed: 0, details: "Twilio not configured" };
-  }
+  // wave-181.60-followup (audit-181.58 finding · 2026-05-18 PM) · the
+  // legacy Twilio env guard was blocking the entire cross-sell job in
+  // prod because Twilio is dead per operator and the env vars are
+  // intentionally unset on Railway. Every actual send below uses
+  // `{ via: "shop" }` so it flows through F25e directly · no Twilio
+  // credentials needed. Guard removed.
 
   try {
     const { generateCrossSellRecommendations } = await import("../../services/intelligenceEngines");

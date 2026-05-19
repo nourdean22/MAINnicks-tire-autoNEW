@@ -53,10 +53,25 @@ describe("cron rethrow contract · wave-181.3 + .15 silent-failure fixes", () =>
       vi.unstubAllEnvs();
     });
 
+    // wave-181.60 · switched from `rejects.toThrow(/regex/)` to manual
+    // try/catch + .message inspection. Vitest 2.1.4 has a quirk where
+    // `rejects.toThrow(regex)` reports "Received: ''" against a rejection
+    // whose .message clearly contains the pattern (confirmed via log
+    // output showing the right error landed in the catch block). The
+    // bare `rejects.toThrow()` form works (see warrantyAlerts above), so
+    // we use a manual catch which inspects .message directly and is
+    // immune to the matcher quirk.
     it("REJECTS when VAPI_API_KEY is unset (wave-181.15 contract)", async () => {
       vi.stubEnv("VAPI_API_KEY", "");
       const { processVapiLatencySync } = await import("./vapiLatencySync");
-      await expect(processVapiLatencySync()).rejects.toThrow(/VAPI_API_KEY/);
+      let caught: unknown;
+      try {
+        await processVapiLatencySync();
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toMatch(/VAPI_API_KEY/);
     });
 
     it("REJECTS when VAPI /call upstream returns 5xx (wave-181.15 contract)", async () => {
@@ -70,7 +85,14 @@ describe("cron rethrow contract · wave-181.3 + .15 silent-failure fixes", () =>
       vi.stubGlobal("fetch", fetchStub);
 
       const { processVapiLatencySync } = await import("./vapiLatencySync");
-      await expect(processVapiLatencySync()).rejects.toThrow(/VAPI \/call returned 503/);
+      let caught: unknown;
+      try {
+        await processVapiLatencySync();
+      } catch (err) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as Error).message).toMatch(/VAPI \/call returned 503/);
     });
   });
 });

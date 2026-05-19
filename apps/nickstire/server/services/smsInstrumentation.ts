@@ -227,16 +227,24 @@ export async function logOutboundSms(
     const db = await getDb();
     if (!db) return;
 
+    // wave-181.60-followup (audit · 2026-05-18 PM) · normalize the
+    // phone before lookup/insert so both ends of the attribution lookup
+    // agree. Pre-fix, callers passing "+12168620005" would create a
+    // distinct conversation row from callers passing "2168620005",
+    // breaking attribution and double-counting replies.
+    const normalized = normalizePhone(phone);
+    const lookupPhone = normalized || phone;
+
     let [conv] = await db
       .select({ id: smsConversations.id })
       .from(smsConversations)
-      .where(eq(smsConversations.phone, phone))
+      .where(eq(smsConversations.phone, lookupPhone))
       .limit(1);
 
     if (!conv) {
       const [inserted] = await db
         .insert(smsConversations)
-        .values({ phone })
+        .values({ phone: lookupPhone })
         .$returningId();
       conv = { id: inserted.id };
     }

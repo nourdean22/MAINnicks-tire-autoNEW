@@ -979,19 +979,51 @@ export function startTieredScheduler(): void {
             const d = await getDb();
             if (!d) return { details: "No DB" };
             const { workOrders } = await import("../../drizzle/schema");
-            const { sql: sqlFn } = await import("drizzle-orm");
+            const { sql: sqlFn, and, gte, inArray } = await import("drizzle-orm");
             const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
             // Find work orders created in last 7 days where customer had a completed WO in prior 30 days
             const recentWOs = await d.select().from(workOrders)
               .where(sqlFn`${workOrders.createdAt} >= ${weekAgo}`)
               .limit(50);
+
+            // Wave-181.61: collapse N+1 — preload prior WOs into a Map keyed by customerId
+            // (was: per-row lookup → 1 + N queries; now: 2 queries total).
+            const customerIds: string[] = Array.from(new Set(
+              recentWOs
+                .map((wo: { customerId: string | null }) => wo.customerId)
+                .filter((id: string | null): id is string => !!id)
+            ));
+            const priorByCustomer = new Map<string, Set<string>>();
+            if (customerIds.length > 0) {
+              const priorRows = await d.select({ id: workOrders.id, customerId: workOrders.customerId })
+                .from(workOrders)
+                .where(and(
+                  inArray(workOrders.customerId, customerIds),
+                  sqlFn`${workOrders.status} IN ('closed','invoiced','picked_up')`,
+                  gte(workOrders.createdAt, thirtyDaysAgo),
+                )) as Array<{ id: string; customerId: string | null }>;
+              for (const row of priorRows) {
+                if (!row.customerId) continue;
+                const existing = priorByCustomer.get(row.customerId);
+                if (existing) existing.add(row.id);
+                else priorByCustomer.set(row.customerId, new Set([row.id]));
+              }
+            }
+
             let comebacks = 0;
             for (const wo of recentWOs) {
               if (!wo.customerId) continue;
-              const prior = await d.select().from(workOrders)
-                .where(sqlFn`${workOrders.customerId} = ${wo.customerId} AND ${workOrders.id} != ${wo.id} AND ${workOrders.status} IN ('closed','invoiced','picked_up') AND ${workOrders.createdAt} >= ${new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)}`)
-                .limit(1);
-              if (prior.length > 0) comebacks++;
+              const priorIds = priorByCustomer.get(wo.customerId);
+              if (!priorIds) continue;
+              // Comeback iff a qualifying prior WO exists that isn't this row itself
+              for (const id of priorIds) {
+                if (id !== wo.id) { comebacks++; break; }
+              }
+            }
+
+            if (recentWOs.length > 0) {
+              log.info(`QC comeback scan: ${recentWOs.length} recent WOs · ${customerIds.length} customers · ${comebacks} comebacks · 2 queries (was ${1 + recentWOs.length})`);
             }
             if (comebacks > 0) {
               const { remember } = await import("../services/nickMemory");

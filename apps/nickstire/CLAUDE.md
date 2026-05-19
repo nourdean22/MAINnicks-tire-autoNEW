@@ -59,6 +59,8 @@ pnpm run lint:hooks        # catch useState etc. used after early-return
 
 | Wave | What landed |
 |---|---|
+| 181.60 (May 18) | SMS routing default flipped Twilio→shop (forgotten `via` now safe) · MEDIUM cluster: durable OTP brute-force counter (new `otp_attempts` table + middleware/bruteForce.ts) · portal.verifyCode cleanup scoped to phone · voiceAgent PII projection trimmed · staleLeadFollowup N+1 collapsed · `sms_messages.status` += "sending" for honest rehydrate state machine · `alg_estimates.follow_up_{7,30}d_attempted_at` for at-most-once declined-recovery · vitest matcher quirk worked around in cron-rethrow.test.ts |
+| 181.58-.59 (May 18) | 5 CRITICAL + 6 HIGH audit fixes (F25e routing on 5 missed sites · VAPI webhook secret on admin push · retention D7/D14 dead-code wired · cross-sell cooldown LIKE regression · SQL injection in NON_NEGOTIABLES insert · timing-safe admin auth · smsPerformance "untagged" LIKE-on-NULL · DeclinedEstimates native confirm · cron errorMessage write · SmsSection/SmsPerformanceSection isError banners) |
 | 103-109 (May 8 EVE) | F25e SMS gateway live · 216-862-0005 primary SMS sender · admin chat UI · manager-on-duty alerts · dual-gateway monitoring |
 | 95-101 (May 7) | ALG declined-work pipeline surfaced ($321K visible · was $0) · estimate-as-invoice leak killed (-$36,909 fake revenue) · cron consolidation · materialized aggregates · bulk-SMS recovery UI |
 
