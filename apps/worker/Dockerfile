@@ -48,8 +48,12 @@ COPY apps/nickstire/package.json ./apps/nickstire/
 COPY apps/statenour/package.json ./apps/statenour/
 COPY apps/nickstire/patches ./apps/nickstire/patches
 COPY apps/statenour/patches ./apps/statenour/patches
-# Tier-2-E: packages/utils source for worker (declared dep transitively).
+# Tier-2-E + Tier-3: packages/utils source · build dist/ before worker
+# compile so that if worker ever imports @nour/utils, the symlink-free
+# `pnpm deploy --prod` artifact at /deploy will include the built JS.
 COPY packages/utils ./packages/utils
+WORKDIR /repo/packages/utils
+RUN pnpm run build
 
 # pnpm install in deps copied the .pnpm/ store + symlinked to it.
 # Now compile TS → dist/, then use `pnpm deploy` to produce a self-

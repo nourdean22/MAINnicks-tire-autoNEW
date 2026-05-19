@@ -79,16 +79,10 @@ const nextConfig: NextConfig = {
   // through the runtime/loader chain. Per spline-3d-integration
   // COMMON_PROBLEMS guide.
   //
-  // Tier-2-E (2026-05-19): @nour/utils is a workspace package that ships
-  // raw .ts source (no pre-built dist). Without it in transpilePackages,
-  // Next's compile step throws "Module parse failed" because the default
-  // webpack loader chain doesn't transform .ts inside node_modules even
-  // when it's a symlinked workspace package.
-  transpilePackages: [
-    "@splinetool/react-spline",
-    "@splinetool/runtime",
-    "@nour/utils",
-  ],
+  // Tier-3 (2026-05-19): @nour/utils now ships pre-built dist/ via tsc,
+  // so it no longer requires transpilePackages. Kept the entry for
+  // Spline runtime packages only.
+  transpilePackages: ["@splinetool/react-spline", "@splinetool/runtime"],
 
   // ── Security + performance headers ───────────────────────────────────
   headers: async () => [

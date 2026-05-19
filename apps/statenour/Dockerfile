@@ -70,10 +70,16 @@ COPY --from=deps /repo/apps/statenour/node_modules ./apps/statenour/node_modules
 COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/statenour ./apps/statenour
-# Tier-2-E: packages/utils source must be present for the bundler to
-# resolve @nour/utils at build time (since it's a workspace package
-# pointing at src/index.ts · no pre-built dist).
+# Tier-3 follow-up (2026-05-19): @nour/utils now ships pre-built dist/
+# (tsc-emitted .js + .d.ts + sourcemaps) instead of raw .ts source. The
+# build step below emits packages/utils/dist/ which the Next.js bundler
+# then resolves cleanly under both Bundler and Node16 module resolution.
 COPY packages/utils ./packages/utils
+
+# Build @nour/utils first · emits dist/ so statenour's next build can
+# resolve the package via its proper exports map (./dist/index.js).
+WORKDIR /repo/packages/utils
+RUN pnpm run build
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
 # (Cache-mount for .next/cache disabled · Railway BuildKit constraint ·
