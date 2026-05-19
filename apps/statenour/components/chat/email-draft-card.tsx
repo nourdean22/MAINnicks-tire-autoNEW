@@ -25,7 +25,7 @@
 import * as React from "react";
 import { useState } from "react";
 import { Send, Pencil, Check, X, Loader2 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 export interface EmailDraft {
@@ -66,24 +66,24 @@ export function EmailDraftCard({ draft: initial }: { draft: EmailDraft }) {
   const [editing, setEditing] = useState(false);
   const [state, setState] = useState<SendState>({ kind: "idle" });
 
+  // Phase HH (2026-05-18 PM) · first true `.mutation()` migration ·
+  // chat.sendEmail wraps the Resend sendEmail() service + audit trail.
+  // The component's SendState machine still drives the UI · the
+  // mutation just replaces the manual authedFetch + JSON-parse +
+  // status-check ladder. mutateAsync returns the typed result so
+  // we get `id` directly without an unsafe `as` cast on json.
+  const sendEmailMutation = trpc.chat.sendEmail.useMutation();
+
   const send = async () => {
     if (state.kind === "sending" || state.kind === "sent") return;
     setState({ kind: "sending" });
     try {
-      const res = await authedFetch("/api/email/send", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to: draft.to,
-          subject: draft.subject,
-          body: draft.body,
-        }),
+      const result = await sendEmailMutation.mutateAsync({
+        to: draft.to,
+        subject: draft.subject,
+        body: draft.body,
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(json?.error || `HTTP ${res.status}`);
-      }
-      setState({ kind: "sent", id: json?.id ?? null });
+      setState({ kind: "sent", id: result.id });
     } catch (err) {
       setState({
         kind: "error",

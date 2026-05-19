@@ -24,6 +24,7 @@ import { searchChat } from "@/lib/services/chat-search";
 import { readChatBranches } from "@/lib/services/chat-branches";
 import { readMessageProvenance } from "@/lib/services/brain-provenance";
 import { checkLane } from "@/lib/services/chat-lane-check";
+import { sendEmailWithAudit } from "@/lib/services/email-send";
 
 export const chatRouter = router({
   /**
@@ -118,4 +119,34 @@ export const chatRouter = router({
         assistantMessage: input.assistantMessage,
       }),
     ),
+
+  /**
+   * Phase HH (2026-05-18 PM) · owner-only · email send for the
+   * EmailDraftCard "Send" button. First true `.mutation()` procedure
+   * in the chat router · establishes the 6th J playbook pattern.
+   *
+   * Delegates to `lib/services/email-send.ts` which wraps the Resend
+   * `sendEmail()` service + writes an audit trail. Legacy POST
+   * /api/email/send calls the same function · drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change (Resend API call
+   * + AuditEvent row insert). The pre-HH legacy POST returned
+   * `{ok: true, id: string|null}` on success and `{ok: false, error}`
+   * on failure · the tRPC mutation throws TRPCError on failure (the
+   * client uses isError + error.message to surface state) which the
+   * pre-HH consumer's try/catch+toast pattern handles cleanly.
+   *
+   * Auth · operatorProcedure · same gate as the legacy requireSession.
+   * Zod bounds match the legacy SendSchema verbatim.
+   */
+  sendEmail: operatorProcedure
+    .input(
+      z.object({
+        to: z.string().email().max(254),
+        subject: z.string().min(1).max(998),
+        body: z.string().min(1).max(50_000),
+        html: z.string().max(120_000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => sendEmailWithAudit(input)),
 });
