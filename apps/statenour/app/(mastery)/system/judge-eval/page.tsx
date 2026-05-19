@@ -53,6 +53,19 @@ const VERDICT_TONE: Record<Verdict, string> = {
     "border-[var(--border-default)] bg-[var(--bg-base)]/40 text-[var(--text-secondary)]",
 };
 
+// Phase FF · explicit per-verdict icon-circle background colors.
+// Pre-FF the verdict chip used `bg-current/10` which depends on
+// currentColor + alpha-modifier support in Tailwind v4 · not verified
+// on this stack + no precedent in the codebase. Explicit per-verdict
+// classes are reliable regardless of Tailwind version + match the
+// per-verdict palette established in VERDICT_TONE above.
+const VERDICT_ICON_BG: Record<Verdict, string> = {
+  safe: "bg-emerald-500/10",
+  watch: "bg-amber-500/10",
+  regressing: "bg-rose-500/10",
+  "insufficient-data": "bg-[var(--bg-base)]/60",
+};
+
 const WINNER_TONE: Record<Winner, string> = {
   v2: "bg-emerald-500/15 text-emerald-300",
   v1: "bg-rose-500/15 text-rose-300",
@@ -124,7 +137,12 @@ export default function JudgeEvalPage() {
               percentage hint when verdict has signal. */}
           <GlassCard className={cn("border", VERDICT_TONE[data.verdict as Verdict])}>
             <div className="flex items-center gap-4">
-              <span className="shrink-0 flex h-10 w-10 items-center justify-center rounded-full bg-current/10">
+              <span
+                className={cn(
+                  "shrink-0 flex h-10 w-10 items-center justify-center rounded-full",
+                  VERDICT_ICON_BG[data.verdict as Verdict],
+                )}
+              >
                 {data.verdict === "safe" ? (
                   <CheckCircle2 size={22} className="text-emerald-400" />
                 ) : data.verdict === "regressing" ? (
@@ -306,7 +324,15 @@ function CandidatePromptsSection({
             <code className="text-[var(--gold)]">/chat</code> is silent
             or every reply already has a comparison run on file.
           </p>
-          <div className="space-y-1.5 opacity-40 pointer-events-none select-none">
+          {/* Phase FF · aria-hidden on the placeholder container ·
+              pre-FF screen readers (VoiceOver, NVDA) would read the 3
+              sketched prompts aloud as if they were real candidates ·
+              the visual dimming + pointer-events-none didn't carry
+              over to assistive tech. */}
+          <div
+            className="space-y-1.5 opacity-40 pointer-events-none select-none"
+            aria-hidden="true"
+          >
             {[
               { intent: "decide", prompt: "should we swap suppliers for the Q3 buy" },
               { intent: "compose", prompt: "draft a follow-up text for declined work" },

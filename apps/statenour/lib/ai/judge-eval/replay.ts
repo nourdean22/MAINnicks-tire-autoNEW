@@ -59,10 +59,21 @@ export async function replayPair(args: { prompt: string }): Promise<ReplayPair> 
   // Phase CC bug-fix · use AbortSignal.timeout instead of Promise.race +
   // setTimeout. The pre-fix pattern created a setTimeout per call that
   // NEVER cleared when aiChat() won the race · the timer fired later
-  // with a rejected promise that no one listened to · TIMER LEAK held
+  // with a rejected promise no one listened to · TIMER LEAK held
   // memory for up to REPLAY_TIMEOUT_MS after each successful call.
-  // The cron fires 5 pairs/run = 10 leaks per tick. AbortSignal.timeout
-  // is cleaned up by V8 automatically when the parent promise settles.
+  // The cron fires 5 pairs/run = 10 leaks per tick.
+  //
+  // Phase FF precision · the previous comment said "V8 auto-cleans on
+  // settle" · imprecise. AbortSignal.timeout schedules an internal
+  // setTimeout that fires regardless of whether anyone listens. Node's
+  // GC reclaims the underlying timer when the signal becomes
+  // unreferenced (e.g. when nothing holds it after aiChat resolves).
+  // So the practical outcome IS no leak in our usage pattern · we
+  // create + hand off the signal · don't retain a reference after
+  // aiChat resolves · GC takes care of the timer. Still an
+  // improvement over Promise.race + bare setTimeout which holds a
+  // closure reference until the timer fires.
+  //
   // aiChat() already honors the signal (L.1 wiring · merged with its
   // internal per-attempt timeout via AbortSignal.any).
 

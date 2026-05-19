@@ -13,6 +13,9 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("services/ai-cost");
 
 export interface CostBreakdown {
   key: string;
@@ -70,11 +73,13 @@ async function windowAggregate(since: Date): Promise<CostWindow> {
   });
   if (rows.length === PER_WINDOW_ROW_CAP) {
     // Cap hit · aggregates are based on the most recent PER_WINDOW
-    // rows only. Log once so the operator notices when the table
-    // grows past the bound and aggregates become non-exhaustive.
-    console.warn(
-      `[ai-cost] window cap hit · returning aggregates over the most recent ${PER_WINDOW_ROW_CAP} AiGeneration rows in window (since ${since.toISOString()})`,
-    );
+    // rows only. Phase FF · use structured logger so the operator can
+    // grep `/system/logs` for `window_cap_hit` instead of stderr-
+    // scraping · matches the rest of lib/services/* + lib/ai/judge-eval/*.
+    log.warn("window_cap_hit", {
+      cap: PER_WINDOW_ROW_CAP,
+      windowSince: since.toISOString(),
+    });
   }
   const totalCalls = rows.length;
   const totalCostCents = rows.reduce((s, r) => s + (r.costCents ?? 0), 0);

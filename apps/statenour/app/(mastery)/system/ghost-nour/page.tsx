@@ -90,14 +90,21 @@ export default function GhostNourPage() {
 
   // Phase Y.4 · React Query handles the candidate-list fetch · types
   // flow from the tRPC procedure · no manual `Candidate` interface
-  // drift (the page-local one had `id: number` but Prisma returns
-  // string · this migration fixes that silently).
-  const utils = trpc.useUtils();
+  // mirror. (Phase FF correction · the page-local Candidate previously
+  // had `id: number` which DID match the Prisma shape · the migration
+  // kept that contract correctly · the prior comment claiming the
+  // migration "silently fixed a drift" was inverted.)
+  //
+  // Phase FF cleanup · removed the dead `loadCandidates` invalidate
+  // helper · pre-Y.4 it was used in a useEffect to refresh on mount
+  // AND after runGhost · the useEffect is gone (React Query handles
+  // it) AND the POST runGhost runs analysis on existing decisions
+  // without writing anything · so no invalidate is needed afterward ·
+  // `loadCandidates` was unreachable dead code.
   const { data: candidates = [] } = trpc.system.ghostNourCandidates.useQuery(
     { take: 20 },
     { staleTime: 30_000 },
   );
-  const loadCandidates = () => void utils.system.ghostNourCandidates.invalidate();
 
   async function runGhost(situationText?: string) {
     const text = (situationText ?? situation).trim();
