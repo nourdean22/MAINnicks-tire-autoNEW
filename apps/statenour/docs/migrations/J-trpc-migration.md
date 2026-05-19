@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 12 / 50+ surfaces · ~24% complete · 4 domain routers (nick · operator · system · chat with 3 procedures) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE uses `enabled: open`)
+**Status:** 13 / 50+ surfaces · ~26% complete · 4 domain routers (nick · operator · system · chat with 4 procedures) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE uses `enabled: open`) · read-shaped POST modeled as `.query()` (GG)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (12)
+## Migrated surfaces (13)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -34,7 +34,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | `/system/ghost-nour` (candidates list) | `authedFetch` → `/api/system/ghost-nour?list=recent` | `trpc.system.ghostNourCandidates.useQuery()` | Y.4 |
 | ChatHistorySearch (Cmd+F overlay) | `authedFetch` → `/api/chat/search?q=X&limit=25` (debounced × 2 sites) | `trpc.chat.search.useQuery({q, limit})` + `setData()` optimistic drop | Z.3 |
 | MessageBranchSwitcher (alt 2 of 3 controls) | `authedFetch` → `/api/ai/chat/branches/[parentMessageId]` | `trpc.chat.branches.useQuery({parentMessageId})` | DD.3 |
-| MessageInfoCard (brain context section, lazy-on-open) | `authedFetch` → `/api/brain/provenance/[messageId]` | `trpc.chat.messageProvenance.useQuery({messageId}, {enabled: open})` | **EE.3** |
+| MessageInfoCard (brain context section, lazy-on-open) | `authedFetch` → `/api/brain/provenance/[messageId]` | `trpc.chat.messageProvenance.useQuery({messageId}, {enabled: open})` | EE.3 |
+| LaneCorrectionChip (proactive blind-spot alert) | `authedFetch` POST → `/api/ai/chat/lane-check` | `trpc.chat.laneCheck.useQuery({userMessage, assistantMessage}, {enabled: tokensReady})` | **GG.3** |
 
 ## Architectural notes
 

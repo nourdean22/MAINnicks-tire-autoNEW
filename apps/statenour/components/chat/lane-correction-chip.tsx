@@ -17,19 +17,23 @@
  * doesn't see the same chip twice in one hour.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Eye, AlertTriangle, ArrowUpRight, X } from "lucide-react";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
-interface LaneChip {
-  domain: string;
-  text: string;
-  action: string;
-  href: string;
-  severity: "critical" | "high" | "medium" | "low";
-}
+import { trpc } from "@/lib/trpc/client";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "@/lib/trpc/root";
+
+// Phase GG (2026-05-18 PM) · LaneChip type now flows from the
+// chat.laneCheck procedure's return shape via inferRouterOutputs ·
+// pre-GG the manual mirror could drift from the service. Same
+// typed-output inference pattern Y.2 established.
+type LaneChip = NonNullable<
+  inferRouterOutputs<AppRouter>["chat"]["laneCheck"]["chip"]
+>;
 
 const SEV_RING: Record<LaneChip["severity"], string> = {
   critical: "border-red-500/40 bg-red-500/[0.05] text-red-300",
@@ -48,35 +52,30 @@ interface Props {
 }
 
 export function LaneCorrectionChip({ userMessage, assistantMessage, messageId, hidden }: Props) {
-  const [chip, setChip] = useState<LaneChip | null>(null);
   const [dismissed, setDismissed] = useState(false);
-
-  useEffect(() => {
-    if (!assistantMessage || assistantMessage.length < 40) return;
-    let cancelled = false;
+  // Reset dismissed state when message changes · matches pre-GG
+  // useEffect's `setDismissed(false)` on messageId change.
+  const [lastSeenMessageId, setLastSeenMessageId] = useState(messageId);
+  if (messageId !== lastSeenMessageId) {
     setDismissed(false);
-    // Tiny delay so we don't fight the last tokens of the stream
-    const t = setTimeout(async () => {
-      try {
-        const res = await authedFetch("/api/ai/chat/lane-check", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userMessage, assistantMessage }),
-          keepalive: true,
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as { chip?: LaneChip | null };
-        if (!cancelled && data.chip) setChip(data.chip);
-      } catch {
-        // silent
-      }
-    }, 400);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messageId]);
+    setLastSeenMessageId(messageId);
+  }
+
+  // Phase GG · React Query handles fetch + cleanup · enabled gates the
+  // call until the assistant message crosses the 40-char threshold.
+  // staleTime 30 min matches the legacy in-memory session-dedupe
+  // window so the operator doesn't re-fire identical checks while
+  // scrolling back through the conversation.
+  const enoughTokens = !!assistantMessage && assistantMessage.length >= 40;
+  const { data } = trpc.chat.laneCheck.useQuery(
+    { userMessage, assistantMessage },
+    {
+      enabled: enoughTokens && !hidden,
+      staleTime: 30 * 60_000,
+      retry: false, // chip is decoration · no retry storm if it fails
+    },
+  );
+  const chip = data?.chip ?? null;
 
   if (hidden || dismissed || !chip) return null;
 

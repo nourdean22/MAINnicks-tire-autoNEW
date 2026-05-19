@@ -23,6 +23,7 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { searchChat } from "@/lib/services/chat-search";
 import { readChatBranches } from "@/lib/services/chat-branches";
 import { readMessageProvenance } from "@/lib/services/brain-provenance";
+import { checkLane } from "@/lib/services/chat-lane-check";
 
 export const chatRouter = router({
   /**
@@ -87,4 +88,34 @@ export const chatRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * Phase GG (2026-05-18 PM) · owner-only · proactive lane-correction
+   * chip for an assistant reply. Reads cached blind-spot detector +
+   * Dania silence signal · session-dedupes per domain · returns at
+   * most one chip per call (or null when nothing's worth surfacing).
+   *
+   * Delegates to `lib/services/chat-lane-check.ts` shared service ·
+   * legacy POST /api/ai/chat/lane-check calls the same function ·
+   * drift impossible. Modeled as a `query` despite the legacy POST
+   * because it's read-shaped from the client's perspective (no DB
+   * writes · the only state mutation is an in-memory dedupe Map that
+   * persists across both call paths).
+   *
+   * Input caps mirror the legacy route's slice() behavior · long
+   * messages get truncated to the most-recent tail.
+   */
+  laneCheck: operatorProcedure
+    .input(
+      z.object({
+        userMessage: z.string().max(8000),
+        assistantMessage: z.string().max(16000),
+      }),
+    )
+    .query(async ({ input }) =>
+      checkLane({
+        userMessage: input.userMessage,
+        assistantMessage: input.assistantMessage,
+      }),
+    ),
 });
