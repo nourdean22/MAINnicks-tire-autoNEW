@@ -69,6 +69,50 @@ async function main(): Promise<void> {
   console.log(`  Dry-run gate: BYPASSED (operator-driven · explicit consent)`);
   console.log(`  Window gate : BYPASSED (per-message guard still in sms.ts)`);
 
+  // wave-181.74 (operator-driven preflight) · the FIRST time this script
+  // was run from a developer laptop, the local .env had stale Capevace
+  // credentials. All 49 sends failed at the gateway (401 Unauthorized
+  // on the shop path · Twilio dead on fallback). The at-most-once
+  // claim stamped BEFORE the failure was known · locking those 49
+  // customers out of future cron retries (recovered via scripts/
+  // reset-stale-claims.ts). Adding a preflight probe so this script
+  // refuses to run if it can't reach the gateway.
+  if (!dryRun) {
+    const url = process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
+    const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
+    const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+    if (!username || !password) {
+      console.error("\n  ❌ ABORT · SHOP_SMS_GATEWAY_USERNAME or PASSWORD missing in .env.");
+      console.error(`  This script must be run from the prod environment (Railway)`);
+      console.error(`  where the F25e gateway credentials are configured.`);
+      process.exit(2);
+    }
+    const auth = Buffer.from(`${username}:${password}`).toString("base64");
+    try {
+      const probe = await fetch(`${url}/device`, {
+        headers: { Authorization: `Basic ${auth}` },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (probe.status === 401) {
+        console.error(`\n  ❌ ABORT · gateway returned 401 Unauthorized.`);
+        console.error(`  The SHOP_SMS_GATEWAY_USERNAME/PASSWORD in .env are stale or invalid.`);
+        console.error(`  Run this script from the prod env (Railway) where creds are current.`);
+        console.error(`  Alternative · flip FEATURE_DECLINED_RECOVERY=1 on Railway env and let`);
+        console.error(`  the daily cron drain the backlog at 20/run cap.`);
+        process.exit(3);
+      }
+      if (!probe.ok) {
+        console.error(`\n  ❌ ABORT · gateway preflight returned status ${probe.status}.`);
+        console.error(`  Check Capevace dashboard for the F25e device state.`);
+        process.exit(4);
+      }
+      console.log(`  Gateway probe: ✓ ${probe.status} OK`);
+    } catch (err) {
+      console.error(`\n  ❌ ABORT · gateway probe network error: ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(5);
+    }
+  }
+
   if (!confirm && !dryRun) {
     console.log(`\n  Starting in 10 seconds · Ctrl-C to abort...`);
     for (let i = 10; i >= 1; i--) {
