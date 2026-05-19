@@ -9,12 +9,16 @@ import SiteMobileCTA from "@/components/SiteMobileCTA";
 import StickyTrustBar from "@/components/StickyTrustBar";
 import FomoTicker from "@/components/FomoTicker";
 import ChatWidget from "@/components/ChatWidget";
-import CallbackModal from "@/components/CallbackModal";
 import NotificationBar from "@/components/NotificationBar";
 import ReviewCTA from "@/components/ReviewCTA";
 import ScrollProgressBar from "@/components/ScrollProgressBar";
 import UrgencyWidget from "@/components/conversion/UrgencyWidget";
-import ExitIntentModal from "@/components/conversion/ExitIntentModal";
+// 2026-05-19 · Elon move #3 · removed conversion-friction popups:
+//   - CallbackModal (form for callback request · replaced by mobile-CTA
+//     TEXT button which uses the F25e SMS gateway)
+//   - ExitIntentModal (annoying popup that fires when mouse leaves
+//     viewport · the unified mobile CTA bar is the persistent rescue)
+//   - UrgencyWidget kept · surfaces live wait-time signal (not a form)
 
 interface PageLayoutProps {
   children: React.ReactNode;
@@ -58,12 +62,9 @@ export default function PageLayout({
       <SiteFooter />
       <SiteMobileCTA />
       <FomoTicker />
-      <CallbackModal />
-      {/* Conversion-architecture wiring (Batch 1 of v1.1 spec).
-          Both components self-suppress on /admin /booking /contact and
-          have their own localStorage TTLs so they don't double-prompt. */}
+      {/* UrgencyWidget surfaces wait-time signal · not a form, so it
+          stays. CallbackModal + ExitIntentModal killed (see imports). */}
       <UrgencyWidget />
-      <ExitIntentModal />
       {showChat && <ChatWidget />}
     </div>
   );
