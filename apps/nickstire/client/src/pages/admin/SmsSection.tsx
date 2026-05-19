@@ -23,9 +23,47 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { BUSINESS } from "@shared/business";
 import {
-  ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X,
+  ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X, Sparkles,
 } from "lucide-react";
 import { PageHeader } from "./shared";
+import { SMS_TEMPLATES, renderSmsTemplate, type SmsTemplate } from "@shared/sms-templates";
+
+// wave-181.75 · operator preset SMS templates rendered as chips above
+// the composers. One tap inserts the rendered body into the textarea
+// (with {{name}} + {{vehicle}} substituted from conversation context).
+function TemplateChipRow({
+  onInsert,
+  ctx,
+}: {
+  onInsert: (body: string) => void;
+  ctx: { name?: string | null; vehicle?: string | null };
+}) {
+  const [openTip, setOpenTip] = useState<string | null>(null);
+  return (
+    <div className="flex items-center gap-1.5 overflow-x-auto -mx-3 px-3 py-2 scrollbar-none">
+      <span className="text-[10px] uppercase tracking-[0.15em] text-foreground/40 font-medium shrink-0 flex items-center gap-1">
+        <Sparkles className="w-3 h-3" /> presets
+      </span>
+      {SMS_TEMPLATES.map((t: SmsTemplate) => (
+        <button
+          key={t.key}
+          type="button"
+          onClick={() => onInsert(renderSmsTemplate(t.body, ctx))}
+          onMouseEnter={() => setOpenTip(t.key)}
+          onMouseLeave={() => setOpenTip(null)}
+          title={t.description}
+          className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-foreground/[0.04] hover:bg-foreground/[0.08] border border-border/30 text-foreground/80 hover:text-foreground transition-colors min-h-[28px]"
+          aria-label={`Insert template: ${t.label}`}
+        >
+          {t.label}
+          {openTip === t.key && (
+            <span className="sr-only">{t.description}</span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 // ─── Types ──────────────────────────────────────────────
 interface ConversationRow {
@@ -264,6 +302,11 @@ function ThreadView({
 
       {/* Composer */}
       <div className="px-3 py-3 border-t border-border/20 bg-card">
+        {/* wave-181.75 · template chips · one-tap preset insert */}
+        <TemplateChipRow
+          ctx={{ name: conversation.customerName, vehicle: null }}
+          onInsert={(body) => setReply(body)}
+        />
         <div className="flex items-end gap-2">
           <textarea
             value={reply}
@@ -372,6 +415,11 @@ function NewConversationDialog({
           </label>
           <label className="block">
             <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Message</span>
+            {/* wave-181.75 · preset chip row above textarea */}
+            <TemplateChipRow
+              ctx={{ name, vehicle: null }}
+              onInsert={(body) => setMessage(body)}
+            />
             <textarea
               placeholder="Hey, this is Nick from Nick's Tire…"
               value={message}
