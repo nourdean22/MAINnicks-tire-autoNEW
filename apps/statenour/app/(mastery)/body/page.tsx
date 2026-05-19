@@ -27,7 +27,9 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
+// (timeline read + check-in mutation) on the operator router.
+import { trpc } from "@/lib/trpc/client";
 interface BodyEntry {
   date: string;
   weight: number;
@@ -75,20 +77,30 @@ export default function BodyPage() {
   // v10.0.31 — abort signal so a slow initial load doesn't get
   // overwritten by an interval-fired load that resolves first.
   const inflightRef = useRef<AbortController | null>(null);
+  const utils = trpc.useUtils();
+  const logEntryMutation = trpc.operator.logBodyEntry.useMutation();
+
   const load = useCallback(async () => {
     if (inflightRef.current) inflightRef.current.abort();
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     try {
-      const res = await authedFetch("/api/body?range=90d", { signal: ctrl.signal });
-      if (!res.ok) {
-        log.error("body_load_http_error", { status: res.status });
-        return;
-      }
-      const raw = await res.json();
-      const data = raw.data ?? raw;
-      setEntries(data.entries ?? []);
-      setProgress(data.progress ?? null);
+      const view = await utils.operator.bodyTracking.fetch({ range: "90d" });
+      if (ctrl.signal.aborted) return;
+      // Phase XX · normalize Prisma camelCase → page's snake_case
+      // local BodyEntry shape. Pre-migration the REST route returned
+      // Prisma data verbatim but the page's local type lied about
+      // the field names · tRPC surfaces the truth · normalize here.
+      const rawEntries = (view.entries ?? []) as Array<Record<string, unknown>>;
+      const normalized = rawEntries.map((e) => ({
+        ...e,
+        body_fat_pct: e.bodyFatPct ?? null,
+        waist_inches: e.waistInches ?? null,
+        sleep_hours: e.sleepHours ?? null,
+        workout_done: e.workoutDone ?? null,
+      }));
+      setEntries(normalized as unknown as typeof entries);
+      setProgress(view.progress ?? null);
       setFetchedAt(new Date().toISOString());
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return;
@@ -98,7 +110,7 @@ export default function BodyPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [utils]);
 
   async function logWeight() {
     // v10.0.529.106 · Wave 63b · weight is no longer mandatory ·
@@ -111,20 +123,17 @@ export default function BodyPage() {
     if (submitting) return; // v10 B.1 FIND-09 · double-tap guard
     setSubmitting(true);
     try {
-      const res = await authedFetch("/api/body", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          weight: weight ? parseFloat(weight) : null,
-          body_fat_pct: bodyFat ? parseFloat(bodyFat) : null,
-          waist_inches: waist ? parseFloat(waist) : null,
-          sleep_hours: sleepHours ? parseFloat(sleepHours) : null,
-          workout_done: workoutDone,
-          energy,
-          notes: notes || null,
-        }),
+      // Phase XX · tRPC migration · typed Zod input · same partial-
+      // upsert semantics server-side.
+      await logEntryMutation.mutateAsync({
+        weight: weight ? parseFloat(weight) : null,
+        body_fat_pct: bodyFat ? parseFloat(bodyFat) : null,
+        waist_inches: waist ? parseFloat(waist) : null,
+        sleep_hours: sleepHours ? parseFloat(sleepHours) : null,
+        workout_done: workoutDone,
+        energy,
+        notes: notes || null,
       });
-      if (!res.ok) { toast.error("Failed to log entry"); return; }
       setWeight("");
       setBodyFat("");
       setWaist("");

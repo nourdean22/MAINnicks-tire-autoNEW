@@ -22,6 +22,11 @@ import {
 } from "@/lib/services/compound-chain";
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
+import {
+  getBodyTracking,
+  logBodyEntry,
+  bodyEntrySchema,
+} from "@/lib/services/body-tracking";
 
 const PulseSurfaceSchema = z.enum([
   "tasks",
@@ -77,4 +82,26 @@ export const operatorRouter = router({
   scoreboardSnapshot: operatorProcedure.query(async () =>
     buildMetaScoreboard(),
   ),
+
+  /**
+   * Phase XX (2026-05-19 AM) · owner-only · body tracking timeline +
+   * progress to TARGET_WEIGHT (186 lbs). Range filter: "30d" · "90d"
+   * (default) · "365d". Returns entries + progress envelope when a
+   * latest weight exists.
+   */
+  bodyTracking: operatorProcedure
+    .input(
+      z.object({ range: z.enum(["30d", "90d", "365d"]).optional() }).optional(),
+    )
+    .query(async ({ input }) => getBodyTracking({ range: input?.range })),
+
+  /**
+   * Phase XX · owner-only · log a partial body-tracking entry · all
+   * fields optional · upsert-by-date so re-submission for the same
+   * day updates without duplicating. Operator hits this multiple
+   * times per day with different slices (sleep AM · weight PM).
+   */
+  logBodyEntry: operatorProcedure
+    .input(bodyEntrySchema)
+    .mutation(async ({ input }) => logBodyEntry(input)),
 });
