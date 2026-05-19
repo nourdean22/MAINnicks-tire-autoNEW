@@ -41,7 +41,7 @@ jobs:
       # Node 22 in CI vs Node 20 in prod was a latent false-green risk · caught by
       # the Tier-2-G code-review pass.
       - name: Setup Node 20 (matches Railway runtime)
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
