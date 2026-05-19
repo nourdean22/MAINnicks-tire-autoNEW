@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 35 / 50+ surfaces · **~70% complete** · **8 domain routers** (nick · operator with 6 · system with 11 · chat with 10 · browser with 4 · task with 16 · journal with 2 · **brain with 9** · total **26 mutations**) · /goals + /scoreboard + /journal + /brain + /body + **/pins** · /tasks 100% · type-system bug catches **3** (KK · NN · XX) · prisma-expert + neon-postgres skills now part of the migration tool-belt
+**Status:** 36 / 50+ surfaces · **~72% complete** · **8 domain routers** (nick · operator with 9 · system with 11 · chat with 10 · browser with 4 · task with 16 · journal with 2 · brain with 9 · total **26 mutations**) · /goals + /scoreboard + /journal + /brain + /body + /pins + **/knowledge (reads)** · /tasks 100% · type-system bug catches **3** (KK · NN · XX) · prisma-expert + neon-postgres skills part of the migration tool-belt
 
 ### sql-pro findings (Phase RR follow-up)
 
@@ -69,7 +69,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | /brain/link-review page 2 sites (candidate list + decide) | `authedFetch` GET + POST `/api/system/conversation-link-review` | `utils.brain.linkReview.fetch()` + `decideLinkReview.useMutation({conversationId, missionId, decision})` · `lib/services/link-review.ts` extracted (110 LOC service + 1 typed error class · approve uses Prisma `$transaction` with `$executeRaw` SQL preserved verbatim) | VV.3 |
 | /scoreboard page snapshot (numbers + anomalies + state) | `useAuthedFetch<Snapshot>("/api/scoreboard/snapshot")` | `trpc.operator.scoreboardSnapshot.useQuery({staleTime: 30s})` · `buildMetaScoreboard` service was already extracted | WW.3 |
 | /body page daily check-in (timeline read + partial-upsert mutation) | `authedFetch` × 2 (GET ?range=90d · POST partial-fields) | `utils.operator.bodyTracking.fetch({range})` + `logBodyEntry.useMutation(input)` · `lib/services/body-tracking.ts` extracted (95 LOC service + zod schema) · caught snake_case/camelCase shape drift between Prisma + local types · normalized at the boundary | XX.3 |
-| /pins page 4 sites (list · create · edit · soft-delete · `prompt-cache-flush` stays on REST) | `authedFetch` × 4 (GET ?withStats=1 · POST · PATCH · DELETE) | `utils.brain.pinned.fetch({withStats})` + `createPin/updatePin/deletePin.useMutation()` · `lib/services/pins.ts` extracted (250 LOC service + 3 typed error classes) · prisma-expert + neon-postgres lens confirmed BrainMemory indexes (`@@index([category, updatedAt])` + `@@index([category, deletedAt])`) already cover this access pattern · zero findings | **YY.3** |
+| /pins page 4 sites (list · create · edit · soft-delete · `prompt-cache-flush` stays on REST) | `authedFetch` × 4 (GET ?withStats=1 · POST · PATCH · DELETE) | `utils.brain.pinned.fetch({withStats})` + `createPin/updatePin/deletePin.useMutation()` · `lib/services/pins.ts` extracted (250 LOC service + 3 typed error classes) · prisma-expert + neon-postgres lens confirmed BrainMemory indexes (`@@index([category, updatedAt])` + `@@index([category, deletedAt])`) already cover this access pattern · zero findings | YY.3 |
+| /knowledge page 3 reads (list · open · search · `knowledge-refresh` mutation stays on REST) | `authedFetch` × 3 (GET / GET?file= / GET?q=) | `utils.operator.knowledgeFiles.fetch()` + `knowledgeFile.fetch({path})` + `knowledgeSearch.fetch({q})` · `lib/mastery/knowledge` service was already extracted · NOT_FOUND TRPCError translation on missing file path | **ZZ.3** |
 
 ## Architectural notes
 
