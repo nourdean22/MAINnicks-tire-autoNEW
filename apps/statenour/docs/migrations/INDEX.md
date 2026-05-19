@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD/EE/GG/HH/II/JJ/KK/LL + **MM** | 2026-05-18 PM | **20/50+ surfaces · ~40%** · ActionClaimWarning poka-yoke chip migrated · all 3 chat-sub-surfaces from JJ-MM landing pad now on tRPC · chat router at 10 procedures | Pick next HIGH-churn surface · candidates: `/system/policies`, `/system/repos`, `/tasks` sub-panels (≈10 useAuthedFetch sites) |
+| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD/EE/GG/HH/II/JJ/KK/LL/MM + **NN** | 2026-05-19 AM | **21/50+ surfaces · ~42%** · T.4 cron-diagnostics mutations carve-out closed · caught a 9-month-old runNow `{jobName}` vs `{path}` mismatch bug via typed mutation · system router at 11 procedures (4 mutations) | `/tasks` sub-panels (~10 useAuthedFetch sites · biggest single-day % jump) · then `/goals` / `/scoreboard` |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 

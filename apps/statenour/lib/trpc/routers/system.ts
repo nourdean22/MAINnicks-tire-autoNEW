@@ -29,6 +29,10 @@ import {
   VercelTokenMissingError,
   NoPreviousDeployError,
 } from "@/lib/services/deploys";
+import {
+  triggerCronByName,
+  setCronEnabled as setCronEnabledService,
+} from "@/lib/services/cron-control";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -182,4 +186,48 @@ export const systemRouter = router({
       throw err;
     }
   }),
+
+  /**
+   * Phase NN (2026-05-19 AM) · owner-only · manually fire a cron by
+   * its jobName. Closes the T.4 coexistence carve-out where the
+   * cron-diagnostics page's `runNow` + `enableCron` actions stayed
+   * on REST after the read-side was migrated.
+   *
+   * Pre-fix the page was sending `{jobName}` to a route that
+   * expected `{path}` · button was silently broken since wave-181.4.
+   * New tRPC takes the operator-natural `{jobName}` and derives the
+   * path internally via `triggerCronByName` · drift-proof against
+   * the catalog logic.
+   *
+   * Caller invalidates `system.cronDiagnostics` after success to
+   * refresh the per-job stats table.
+   */
+  runCron: operatorProcedure
+    .input(z.object({ jobName: z.string().min(1).max(80) }))
+    .mutation(async ({ input }) => triggerCronByName(input.jobName)),
+
+  /**
+   * Phase NN · owner-only · toggle a cron's enabled flag (kill-switch
+   * + re-enable from the diagnostics page). `enabled: false` means
+   * the kill-switch is engaged · the cron router skips fanout for
+   * that job until re-enabled.
+   *
+   * Caller invalidates `system.cronDiagnostics` after success.
+   */
+  setCronEnabled: operatorProcedure
+    .input(
+      z.object({
+        jobName: z.string().min(1).max(80),
+        enabled: z.boolean(),
+        note: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const next = await setCronEnabledService(
+        input.jobName,
+        input.enabled,
+        input.note,
+      );
+      return { jobName: input.jobName, enabled: next };
+    }),
 });
