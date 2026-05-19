@@ -38,6 +38,7 @@ import {
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
 import { generateAiTasks } from "@/lib/services/ai-tasks";
+import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
 import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
@@ -433,5 +434,29 @@ export const taskRouter = router({
     )
     .mutation(async ({ input }) =>
       generateAiTasks({ existingTasks: input.existingTasks }),
+    ),
+
+  /**
+   * Phase SS.4 (2026-05-19 AM) · owner-only · bulk-spawn NOW tasks
+   * from every active project plan that has un-spawned phases.
+   *
+   * Walks every ACTIVE mission · for each phase step lacking a
+   * taskId, calls the canonical createTask service · idempotent via
+   * planData.steps[].taskId flag. Default firstPhaseOnly=true so
+   * NOW doesn't get flooded with 50 tasks.
+   *
+   * Staleness gates preserved: plan>90d skipped · all-goals-stale
+   * skipped · orphan-no-goal still allowed.
+   *
+   * Delegates to `lib/services/backfill-tasks.backfillProjectTasks`
+   * shared service · legacy POST /api/projects/backfill-tasks calls
+   * the same function · drift impossible.
+   */
+  backfill: operatorProcedure
+    .input(
+      z.object({ firstPhaseOnly: z.boolean().optional() }).optional(),
+    )
+    .mutation(async ({ input }) =>
+      backfillProjectTasks({ firstPhaseOnly: input?.firstPhaseOnly }),
     ),
 });
