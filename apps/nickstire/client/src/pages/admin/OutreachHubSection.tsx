@@ -5,7 +5,7 @@
  * Tesla-style: one clean surface, tabs to navigate, all tools in one place.
  */
 import { lazy, Suspense } from "react";
-import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, Phone, BarChart3 } from "lucide-react";
+import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3 } from "lucide-react";
 import { PageHeader, TabBar, useUrlFilter } from "./shared";
 
 const SmsSection = lazy(() => import("./SmsSection"));
@@ -13,16 +13,15 @@ const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
 const CampaignsSection = lazy(() => import("./CampaignsSection"));
 const ReviewRequestsSection = lazy(() => import("./ReviewRequestsSection"));
 const WinBackSection = lazy(() => import("./WinBackSection"));
-// Wave-2026-05-09 — ReEngagement absorbed as 6th tab (was a zombie top-level
-// route per audit). Section file deleted; the page is now reachable only via
-// /admin?tab=campaigns&outreachTab=reengage.
-const ReEngagementSection = lazy(() => import("./ReEngagementSection"));
 // wave-181.51 — SMS Performance read-out (reply + conversion attribution
 // per outbound send, rolled up per tier). Lives in OutreachHub because
 // it's the analytic counterpart to Messages/Campaigns/Follow-Ups.
 const SmsPerformanceSection = lazy(() => import("./SmsPerformanceSection"));
 
-type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "reengage" | "performance";
+// 2026-05-19 Elon-cut · `reengage` tab deleted. Win-Back covers the same
+// cohort (lapsed customers receiving SMS); two surfaces was cognitive
+// overhead. Aliases `reengage`/`reengagement` still resolve to this hub.
+type OutreachTab = "sms" | "campaigns" | "followups" | "reviews" | "winback" | "performance";
 
 // Wave-129 — SMS (1-on-1 texting) is the most-used customer-touch surface,
 // so it leads. Campaigns/Follow-ups/etc. are scheduled/bulk tooling — they
@@ -35,7 +34,6 @@ const TABS: { id: OutreachTab; label: string; icon: React.ReactNode }[] = [
   { id: "followups", label: "Follow-Ups", icon: <Timer className="w-3.5 h-3.5" /> },
   { id: "reviews", label: "Reviews", icon: <Star className="w-3.5 h-3.5" /> },
   { id: "winback", label: "Win-Back", icon: <RotateCcw className="w-3.5 h-3.5" /> },
-  { id: "reengage", label: "Re-Engage", icon: <Phone className="w-3.5 h-3.5" /> },
   { id: "performance", label: "Performance", icon: <BarChart3 className="w-3.5 h-3.5" /> },
 ];
 
@@ -47,7 +45,7 @@ function TabSpinner() {
   );
 }
 
-const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "reengage", "performance"];
+const VALID_OUTREACH_TABS: OutreachTab[] = ["sms", "campaigns", "followups", "reviews", "winback", "performance"];
 
 export default function OutreachHubSection() {
   // wave-129 — default tab moved from "campaigns" → "sms". Operator
@@ -89,7 +87,6 @@ export default function OutreachHubSection() {
         {tab === "followups" && <FollowUpsSection />}
         {tab === "reviews" && <ReviewRequestsSection />}
         {tab === "winback" && <WinBackSection />}
-        {tab === "reengage" && <ReEngagementSection />}
         {tab === "performance" && <SmsPerformanceSection />}
       </Suspense>
     </div>

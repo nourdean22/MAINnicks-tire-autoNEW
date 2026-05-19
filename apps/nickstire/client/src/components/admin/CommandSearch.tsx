@@ -36,9 +36,8 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "command"], group: "Operations" },
 
   // Sales Pipeline
-  { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect", "new customer"], group: "Sales" },
+  { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"], group: "Sales" },
   { id: "declinedEstimates", label: "Declined Work", keywords: ["declined", "walked", "lost", "recovery"], group: "Sales" },
-  { id: "noShowRisk", label: "No-Show Risk", keywords: ["no-show", "risk", "missing"], group: "Sales" },
   { id: "snapDashboard", label: "Snap Finance", keywords: ["snap", "financing", "acima", "koalafi", "payment"], group: "Sales" },
 
   // Revenue & Customers
@@ -189,10 +188,12 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       group: "Action",
       run: () => onNavigate("overview"),
     },
-    // 2026-05-06 Elon-deeper-cut · these sections were removed from the
-    // sidebar to declutter daily nav. Surfacing them as Cmd+K quick
-    // actions keeps them 3-keystrokes-away without the visual tax of
-    // a permanent sidebar slot.
+    // 2026-05-06 Elon-deeper-cut · walkInCalc was removed from the
+    // sidebar to declutter daily nav. Surfacing it as a Cmd+K quick
+    // action keeps it 3-keystrokes-away without the visual tax.
+    // 2026-05-19 Elon-cut · removed action-no-show-risk + action-
+    // conversion-preview + action-re-engagement (zombie sections
+    // fully deleted; their quick-actions had nowhere to navigate).
     {
       id: "action-walkin-quote",
       label: "Walk-In Quote",
@@ -202,31 +203,15 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
       run: () => onNavigate("walkInCalc"),
     },
     {
-      id: "action-no-show-risk",
-      label: "No-Show Risk",
-      keywords: ["noshow", "no-show", "risk", "missing", "ghost", "appointments"],
-      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
-      group: "Action",
-      run: () => onNavigate("noShowRisk"),
-    },
-    {
-      id: "action-conversion-preview",
-      label: "Conversion Preview",
-      keywords: ["preview", "conversion", "test", "verify", "deploy"],
-      icon: <Sparkles className="w-4 h-4 text-purple-500" />,
-      group: "Action",
-      run: () => onNavigate("conversionPreview"),
-    },
-    {
-      id: "action-re-engagement",
-      label: "Re-engagement",
-      keywords: ["reengage", "re-engage", "winback", "win-back", "dormant"],
+      id: "action-winback",
+      label: "Win-Back lapsed customers",
+      keywords: ["winback", "win-back", "lapsed", "reengage", "re-engage", "dormant"],
       icon: <RefreshCw className="w-4 h-4 text-blue-500" />,
       group: "Action",
-      // wave-110 — reEngagement now lives at /admin?tab=campaigns&outreachTab=reengage
+      // 2026-05-19 — re-engage tab killed; the winback tab covers the same cohort.
       run: () => {
         if (typeof window !== "undefined") {
-          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=reengage");
+          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=winback");
         }
         onNavigate("campaigns");
       },

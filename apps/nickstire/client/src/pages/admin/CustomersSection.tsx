@@ -34,21 +34,11 @@ type Segment = "all" | "recent" | "lapsed" | "unknown";
 type SortBy = "name" | "visits" | "lastVisit" | "totalSpent";
 type SortDir = "asc" | "desc";
 
-const SEGMENT_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
-  recent: { label: "Recent", color: "text-emerald-400", bgColor: "bg-emerald-500/10" },
-  lapsed: { label: "Lapsed", color: "text-amber-400", bgColor: "bg-amber-500/10" },
-  unknown: { label: "Unknown", color: "text-foreground/50", bgColor: "bg-foreground/5" },
-  new: { label: "New", color: "text-blue-400", bgColor: "bg-blue-500/10" },
-};
-
-function SegmentBadge({ segment }: { segment: string }) {
-  const cfg = SEGMENT_CONFIG[segment] || SEGMENT_CONFIG.unknown;
-  return (
-    <span className={`inline-flex items-center px-2 py-0.5 text-[10px] tracking-wider ${cfg.color} ${cfg.bgColor}`}>
-      {cfg.label.toUpperCase()}
-    </span>
-  );
-}
+// 2026-05-19 Elon-cut · SegmentBadge component + SEGMENT_CONFIG removed.
+// StatusBadge (below) is the canonical badge — VIP / LOST / AT RISK.
+// SegmentBadge added a 2nd badge per card with duplicate information
+// (Recent/Lapsed/Unknown/New maps cleanly to the same axes StatusBadge
+// already covers). Segment filtering still works via the `Segment` type.
 
 /** VIP / At-Risk / Lost badge based on metrics */
 function StatusBadge({ isVip, churnRisk, daysSinceLastVisit, totalVisits }: {
@@ -229,9 +219,6 @@ function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: 
             <h3 id="customer-detail-title" className="font-bold text-xl text-foreground tracking-tight">
               {customer.firstName} {customer.lastName || ""}
             </h3>
-            <div className="flex items-center gap-2 mt-1">
-              <SegmentBadge segment={customer.segment} />
-            </div>
           </div>
           <button onClick={onClose} aria-label="Close customer detail" className="text-foreground/30 hover:text-foreground/60 transition-colors">
             <X className="w-5 h-5" aria-hidden="true" />
@@ -634,16 +621,10 @@ function Customer360Panel({ customer, onSmsClick }: {
   };
   const risk = getRiskAssessment();
 
-  // Segment badge for header
-  const getSegmentLabel = () => {
-    if (customer.totalVisits >= 3 && customer.totalSpent > 200000) return { label: "VIP", color: "text-amber-400", bg: "bg-amber-500/10" };
-    if (customer.totalVisits >= 3) return { label: "LOYAL", color: "text-emerald-400", bg: "bg-emerald-500/10" };
-    if (daysAgo && daysAgo > 60) return { label: "AT-RISK", color: "text-red-400", bg: "bg-red-500/10" };
-    if (customer.totalVisits === 1) return { label: "NEW", color: "text-blue-400", bg: "bg-blue-500/10" };
-    if (daysAgo && daysAgo > 365) return { label: "LAPSED", color: "text-amber-400", bg: "bg-amber-500/10" };
-    return { label: customer.segment?.toUpperCase() || "UNKNOWN", color: "text-foreground/50", bg: "bg-foreground/5" };
-  };
-  const seg = getSegmentLabel();
+  // 2026-05-19 Elon-cut · getSegmentLabel removed (parallel badge system
+  // to StatusBadge). Header now uses StatusBadge as the single source of
+  // truth. Customers who don't fit VIP / LOST / AT-RISK render no badge —
+  // cleaner than rendering a generic "UNKNOWN" badge on every other card.
 
   return (
     <tr>
@@ -657,9 +638,12 @@ function Customer360Panel({ customer, onSmsClick }: {
                   <span className="text-lg font-bold text-foreground tracking-tight">
                     {customer.firstName} {customer.lastName || ""}
                   </span>
-                  <span className={`inline-flex items-center px-2 py-0.5 text-[9px] tracking-wider font-bold ${seg.color} ${seg.bg}`}>
-                    {seg.label}
-                  </span>
+                  <StatusBadge
+                    isVip={customer.isVip}
+                    churnRisk={customer.churnRisk}
+                    daysSinceLastVisit={daysAgo}
+                    totalVisits={customer.totalVisits}
+                  />
                 </div>
                 <span className="text-[10px] text-foreground/40 tracking-wider">
                   Member since {memberSince}
@@ -1563,7 +1547,6 @@ function CustomersList() {
                         {c.notes && <span title="Has notes"><StickyNote className="w-3 h-3 text-amber-400/60" /></span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 ml-5">
-                        <SegmentBadge segment={c.segment} />
                         <StatusBadge isVip={c.isVip} churnRisk={c.churnRisk} daysSinceLastVisit={daysAgo} totalVisits={c.totalVisits} />
                       </div>
                     </td>
