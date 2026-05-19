@@ -126,13 +126,18 @@ export const smsPerformanceRouter = router({
       };
     } catch (err) {
       log.warn("summary30d failed", { error: err instanceof Error ? err.message : String(err) });
-      // Fail-open: empty result rather than 500 the admin page.
-      // This typically means the 0039 migration hasn't applied yet.
+      // wave-181.65 (audit-181.51 deferred · 2026-05-18 PM)
+      // Fail-open with an `error: true` discriminant so the admin UI
+      // can distinguish "DB outage / migration pending" from genuine
+      // empty results. Pre-fix both states returned identical empty
+      // tiers · operator couldn't tell at-a-glance.
       return {
         windowDays: 30,
         replyWindowDays: REPLY_WINDOW_DAYS,
         conversionWindowDays: CONVERSION_WINDOW_DAYS,
         tiers: [] as { key: string; tier: string; sent: number; replied: number; converted: number; optedOut: number }[],
+        error: true as const,
+        errorMessage: err instanceof Error ? err.message : "Query failed (likely missing 0039 migration)",
       };
     }
   }),
@@ -145,7 +150,13 @@ export const smsPerformanceRouter = router({
   recentSends: adminProcedure
     .input(z.object({
       limit: z.number().int().min(1).max(200).default(50),
-      tier: z.string().optional(),
+      // wave-181.65 (audit-181.51 deferred · 2026-05-18 PM)
+      // Pre-fix the tier input was unbounded z.string() · an admin
+      // could inject `%` / `_` wildcards into the LIKE pattern below
+      // and force full-table scans on sms_messages.variantKey. Now
+      // restricted to safe chars (alphanumeric + underscore) and
+      // capped at 50 chars to match the VARCHAR(50) column.
+      tier: z.string().regex(/^[a-z0-9_]{1,50}$/i).optional(),
     }).optional())
     .query(async ({ input }): Promise<Array<{
       id: number;

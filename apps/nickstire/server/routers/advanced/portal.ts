@@ -4,6 +4,7 @@
  */
 import { adminProcedure, publicProcedure, router } from "../../_core/trpc";
 import { z } from "zod";
+import { createHash } from "crypto";
 import { BUSINESS } from "../../../shared/business";
 
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
@@ -18,6 +19,33 @@ import { db } from "../../lib/db-helper";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("routers:advanced");
+
+/**
+ * wave-181.65 (audit-181.59 deferred · 2026-05-18 PM)
+ *
+ * OTP hash · pre-fix the 6-digit code was stored in plaintext in
+ * portal_sessions.verificationCode · a DB read by a compromised
+ * credential exposed every live OTP during its 10-min window.
+ *
+ * Fix · hash the OTP at INSERT time and again at VERIFY time, never
+ * store or compare plaintext. Salt with the normalized phone so two
+ * customers receiving the same random code (1-in-1M collision)
+ * produce different DB rows.
+ *
+ * Truncated to 10 hex chars to fit the existing varchar(10) column ·
+ * NO schema migration required. Safety budget: brute-force is gated
+ * to 5 attempts per phone per hour by bruteForce middleware, so
+ * 10-hex collision-resistance (~1 trillion buckets) within the 10-min
+ * OTP window is overkill for the threat model.
+ *
+ * Transition · existing pre-deploy sessions hold plaintext codes
+ * that won't match the new hashed verify. Those expire in 10 min;
+ * affected customers see "Invalid code" and re-request. Acceptable
+ * for a security fix · no rollback needed.
+ */
+function hashOtp(code: string, phone: string): string {
+  return createHash("sha256").update(`${code}:${phone}`).digest("hex").slice(0, 10);
+}
 // ─── JOB ASSIGNMENTS ────────────────────────────────────
 
 // ─── CUSTOMER PORTAL ────────────────────────────────────
@@ -55,7 +83,8 @@ export const portalRouter = router({
       await d.insert(portalSessions).values({
         phone: normalized,
         customerId: customer?.id || null,
-        verificationCode: code,
+        // wave-181.65 · store hash, never plaintext (audit-181.59 deferred)
+        verificationCode: hashOtp(code, normalized),
         codeExpiresAt,
       });
 
@@ -109,7 +138,9 @@ export const portalRouter = router({
       const [session] = await d.select().from(portalSessions)
         .where(and(
           eq(portalSessions.phone, normalized),
-          eq(portalSessions.verificationCode, input.code),
+          // wave-181.65 · hash input then compare · NEVER store/compare
+          // plaintext OTPs (audit-181.59 deferred · DB-compromise hardening)
+          eq(portalSessions.verificationCode, hashOtp(input.code, normalized)),
           eq(portalSessions.verified, 0),
           gte(portalSessions.codeExpiresAt, now),
         ))
