@@ -121,7 +121,18 @@ function rewriteFile(
   // case where unrelated `category: "ai"` (integration registry)
   // or `category: "asc"` (prisma orderBy) lives in a file that
   // would otherwise match the literal regex.
-  if (requireBrainMemoryContext && !/prisma\.brainMemory/.test(content)) {
+  //
+  // EE refinement · also match `<alias>.brainMemory` for files that
+  // re-import prisma under a different name (e.g.
+  // `import { prisma as db } from ...`). Pre-EE the check was strict
+  // `/prisma\.brainMemory/` and missed `db.brainMemory` aliases in
+  // app/api/brain/provenance/[messageId]/route.ts · 2 inline
+  // category strings stayed un-migrated through BB. Broadened to
+  // `/\b\w+\.brainMemory\b/` which catches any single-identifier
+  // alias before the dot. Still doesn't match destructured
+  // `{ brainMemory } = prisma` forms · those are rare and would
+  // need an AST pass to be safe.
+  if (requireBrainMemoryContext && !/\b\w+\.brainMemory\b/.test(content)) {
     return null;
   }
 

@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z + **DD** | 2026-05-18 PM | **11/50+ surfaces** · MessageBranchSwitcher migrated · chat router now at 2 procedures (search + branches) | Continue chat sub-surfaces (message-info-card · lane-correction-chip) · then `/system/*` (policies · repos) |
+| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD + **EE** | 2026-05-18 PM | **12/50+ surfaces** · MessageInfoCard provenance migrated · chat router at 3 procedures · lazy-on-open pattern adopted (`enabled: open`) | Continue chat sub-surfaces (lane-correction-chip · email-draft-card) · then `/system/*` (policies · repos) |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 
