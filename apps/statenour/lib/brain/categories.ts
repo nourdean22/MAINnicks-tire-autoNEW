@@ -73,6 +73,7 @@ export const BRAIN_CATEGORIES = {
   ADVERSARIAL_OBJECTION: "adversarial_objection", // v10.0.369 · counter-arguments to recommendations
   EVAL_RUN: "eval_run", // v10.0.370 · daily quality benchmark run results
   DOMAIN_KNOWLEDGE: "domain_knowledge", // v10.0.371 · extracted facts (semantic-kind in CoALA)
+  SUGGESTION_LOOP: "suggestion_loop", // v10.0.529.97 · operator action + outcome on Nick suggestions · supervised signal for DPO
   NUDGE_ACK: "nudge_ack",
   NUDGE_PIN_HYGIENE: "nudge_pin_hygiene",
 
