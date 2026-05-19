@@ -62,6 +62,12 @@ RUN corepack enable
 # Copy resolved node_modules + workspace manifests from deps stage
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/statenour/node_modules ./apps/statenour/node_modules
+# Tier-2-E hotfix · packages/utils/node_modules contains the pnpm symlinks
+# for clsx + tailwind-merge that @nour/utils depends on. Without this COPY,
+# Turbopack/webpack resolving @nour/utils → packages/utils/src/cn.ts then
+# fails to find clsx (the resolution starts from packages/utils, not from
+# apps/statenour). Found by Railway build f88c3359.
+COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/statenour ./apps/statenour
 # Tier-2-E: packages/utils source must be present for the bundler to
