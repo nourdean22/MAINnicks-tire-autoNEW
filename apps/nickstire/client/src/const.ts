@@ -25,16 +25,13 @@ export const getLoginUrl = () => {
     return `/api/dev/signin?next=${next}`;
   }
 
-  const clientId = import.meta.env.VITE_GOOGLE_OAUTH_CLIENT_ID;
-  const redirectUri = `${window.location.origin}/api/oauth/callback`;
-
-  const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
-  url.searchParams.set("client_id", clientId);
-  url.searchParams.set("redirect_uri", redirectUri);
-  url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "openid email profile");
-  url.searchParams.set("access_type", "offline");
-  url.searchParams.set("prompt", "consent");
-
-  return url.toString();
+  // wave-181.71 (chip #1 · OAuth state CSRF protection)
+  // The Google auth URL is now built SERVER-SIDE at /api/oauth/initiate
+  // so the server can mint a fresh `state` parameter, store it in an
+  // HTTP-only cookie, and validate it on the callback. Pre-fix the
+  // client built the URL inline with NO state parameter — an attacker
+  // could trick an admin into clicking a callback URL with a stolen
+  // auth code, binding the admin's session to the attacker's Google
+  // account. With state validation the callback rejects mismatches.
+  return "/api/oauth/initiate";
 };
