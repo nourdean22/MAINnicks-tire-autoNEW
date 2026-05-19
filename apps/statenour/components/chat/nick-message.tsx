@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { alreadyHasGeneratedImage, looksLikeMarketingContent } from "@/lib/chat/marketing-detection";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { InlineChart, parseChartSpec } from "@/components/chat/inline-chart";
 import { EmailDraftCard, parseEmailDraft } from "@/components/chat/email-draft-card";
 import { ReasoningTrace } from "@/components/chat/reasoning-trace";
@@ -50,21 +51,25 @@ function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps) {
   const [variants, setVariants] = useState<Array<{ imageUrl: string; imageId: string }>>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Phase II · 2 mutation procedures replace the legacy authedFetch
+  // POSTs · same useMutation().mutateAsync() pattern HH established.
+  // The local upscaling/varying flags stay because the UI tracks
+  // WHICH scale is in flight (mutation.isPending alone can't tell
+  // "2x vs 4x").
+  const upscaleMutation = trpc.chat.upscaleImage.useMutation();
+  const varyMutation = trpc.chat.varyImage.useMutation();
+
   const handleUpscale = async (scale: 2 | 4) => {
     if (!imageId || upscaling) return;
     setUpscaling(scale);
     setError(null);
     try {
-      const res = await authedFetch("/api/images/upscale", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceImageId: imageId, scale, enhance: true }),
+      const result = await upscaleMutation.mutateAsync({
+        sourceImageId: imageId,
+        scale,
+        enhance: true,
       });
-      const json = await res.json();
-      if (!res.ok || !json.imageUrl) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
-      setCurrentSrc(json.imageUrl);
+      setCurrentSrc(result.imageUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -73,28 +78,24 @@ function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps) {
   };
 
   // v6 · BATCH 3 · Apr 28 — Variation button.
-  // POSTs to /api/images/variations to get N variants of the same prompt
-  // with a different seed. Variants render below the source as a strip.
+  // Generates N variants of the same prompt with a different seed.
+  // Variants render below the source as a strip.
   const handleVary = async () => {
     if (!imageId || varying) return;
     setVarying(true);
     setError(null);
     try {
-      const res = await authedFetch("/api/images/variations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sourceImageId: imageId, count: 2, speed: "fast" }),
+      const result = await varyMutation.mutateAsync({
+        sourceImageId: imageId,
+        count: 2,
+        speed: "fast",
       });
-      const json = await res.json();
-      if (!res.ok || !json.images) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
-      setVariants(json.images);
+      setVariants(result.images);
       // Notification toast — reuses native browser notification API when
       // the page isn't focused. Falls back to silent when permission isn't granted.
       if (typeof Notification !== "undefined" && Notification.permission === "granted" && document.hidden) {
         new Notification("Image variations ready", {
-          body: `${json.count} variants generated · tap to view`,
+          body: `${result.count} variants generated · tap to view`,
           icon: currentSrc,
         });
       }

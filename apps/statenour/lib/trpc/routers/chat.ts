@@ -25,6 +25,11 @@ import { readChatBranches } from "@/lib/services/chat-branches";
 import { readMessageProvenance } from "@/lib/services/brain-provenance";
 import { checkLane } from "@/lib/services/chat-lane-check";
 import { sendEmailWithAudit } from "@/lib/services/email-send";
+import {
+  upscaleImage,
+  varyImage,
+  SourceImageNotFoundError,
+} from "@/lib/services/image-actions";
 
 export const chatRouter = router({
   /**
@@ -149,4 +154,58 @@ export const chatRouter = router({
       }),
     )
     .mutation(async ({ input }) => sendEmailWithAudit(input)),
+
+  /**
+   * Phase II (2026-05-18 PM) · owner-only · upscale a generated image
+   * via Venice. Powers the hover overlay's 2x/4x buttons on rendered
+   * chat images. Delegates to `lib/services/image-actions.upscaleImage`.
+   */
+  upscaleImage: operatorProcedure
+    .input(
+      z.object({
+        sourceImageId: z.string().min(1).max(64),
+        scale: z.union([z.literal(2), z.literal(4)]),
+        enhance: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      upscaleImage({
+        sourceImageId: input.sourceImageId,
+        scale: input.scale,
+        enhance: input.enhance,
+      }),
+    ),
+
+  /**
+   * Phase II (2026-05-18 PM) · owner-only · re-generate an image with
+   * the same prompt + different seeds for A/B variants. Powers the
+   * "vary" button on rendered chat images. Delegates to
+   * `lib/services/image-actions.varyImage`. SourceImageNotFoundError
+   * surfaces as NOT_FOUND tRPC error · client renders inline.
+   */
+  varyImage: operatorProcedure
+    .input(
+      z.object({
+        sourceImageId: z.string().min(1).max(64),
+        count: z.number().int().min(1).max(4).optional(),
+        speed: z.enum(["fast", "balanced", "quality"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await varyImage({
+          sourceImageId: input.sourceImageId,
+          count: input.count,
+          speed: input.speed,
+        });
+      } catch (err) {
+        if (err instanceof SourceImageNotFoundError) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });
