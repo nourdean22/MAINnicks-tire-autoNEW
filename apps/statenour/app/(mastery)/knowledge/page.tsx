@@ -22,7 +22,12 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
+// Phase ZZ (2026-05-19 AM) · authedFetch reads migrated to trpc · 3
+// sites (list · open · search). The /api/admin/knowledge-refresh
+// mutation stays on REST for now (different system surface · admin
+// fan-out cron · candidate for a future system-router phase).
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 interface KFile {
   name: string;
@@ -79,15 +84,14 @@ export default function KnowledgePage() {
   // v10.0.31 — wrapped in useCallback so the setInterval below
   // captures a stable reference (prior plain function form was a
   // latent correctness risk: each render created a fresh closure).
+  // Phase ZZ · tRPC migration · same useCallback shape preserves the
+  // setInterval + event-bus refresh hooks below.
+  const utils = trpc.useUtils();
   const loadFiles = useCallback(() => {
-    authedFetch("/api/knowledge")
-      .then((r) => {
-        if (!r.ok) throw new Error(`status ${r.status}`);
-        return r.json();
-      })
-      .then((raw) => {
-        const d = raw?.data ?? raw;
-        setFiles(d.files ?? []);
+    utils.operator.knowledgeFiles
+      .fetch()
+      .then((d) => {
+        setFiles((d.files ?? []) as typeof files);
         setCategories(d.categories ?? []);
         setFetchedAt(new Date().toISOString());
       })
@@ -99,7 +103,7 @@ export default function KnowledgePage() {
       .finally(() => {
         setLoading(false);
       });
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     loadFiles();
@@ -126,13 +130,8 @@ export default function KnowledgePage() {
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     try {
-      const r = await authedFetch(
-        `/api/knowledge?file=${encodeURIComponent(path)}`,
-        { signal: ctrl.signal },
-      );
-      if (!r.ok) throw new Error(`status ${r.status}`);
-      const raw = await r.json();
-      const data = raw?.data ?? raw;
+      const data = await utils.operator.knowledgeFile.fetch({ path });
+      if (ctrl.signal.aborted) return;
       setContent(data.content ?? "");
       setSelectedFile(path);
       setResults([]);
@@ -151,14 +150,9 @@ export default function KnowledgePage() {
     const ctrl = new AbortController();
     inflightRef.current = ctrl;
     try {
-      const r = await authedFetch(
-        `/api/knowledge?q=${encodeURIComponent(query)}`,
-        { signal: ctrl.signal },
-      );
-      if (!r.ok) throw new Error(`status ${r.status}`);
-      const raw = await r.json();
-      const data = raw?.data ?? raw;
-      setResults(data.results ?? []);
+      const data = await utils.operator.knowledgeSearch.fetch({ q: query });
+      if (ctrl.signal.aborted) return;
+      setResults((data.results ?? []) as typeof results);
       setSelectedFile(null);
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return;
