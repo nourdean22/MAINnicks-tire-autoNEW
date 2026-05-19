@@ -407,6 +407,49 @@ router.post("/vapi", async (req: Request, res: Response) => {
         res.json({ ack: true });
         return;
 
+      // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // VAPI fires `assistant-request` BEFORE the call connects. The
+      // response shape is `{ assistantOverrides?: {...} }` which VAPI
+      // merges with the assistant's configured fields for THIS call
+      // only (no PATCH to the global assistant). We look up the caller
+      // by phone and, when known, override `firstMessage` so the agent
+      // greets them by name + vehicle. Unknown callers get the
+      // default first message.
+      case "assistant-request": {
+        const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
+        const phone = customer?.number?.trim();
+        if (!phone) {
+          // No phone in the request · can't personalize · fall through
+          // to default assistant.
+          res.json({});
+          return;
+        }
+        try {
+          const { buildPersonalizedFirstMessage } = await import(
+            "../../services/vapi-personalization"
+          );
+          const result = await buildPersonalizedFirstMessage(phone);
+          log.info("assistant-request personalization", {
+            phoneSuffix: phone.replace(/\D/g, "").slice(-4),
+            matched: result.matched,
+            reason: result.reason,
+          });
+          if (result.firstMessage) {
+            res.json({
+              assistantOverrides: { firstMessage: result.firstMessage },
+            });
+            return;
+          }
+        } catch (err) {
+          log.warn("assistant-request personalization threw", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Default · use assistant's configured first message.
+        res.json({});
+        return;
+      }
+
       default:
         log.info("Vapi unknown event type", { type: event.type });
         res.json({ ack: true });
