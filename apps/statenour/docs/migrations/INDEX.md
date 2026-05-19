@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + S/T/U/Y/Z/DD/EE/GG/HH/II/JJ/KK/LL/MM/NN/OO/PP + **QQ** | 2026-05-19 AM | **24/50+ surfaces · ~48%** · TaskEvent log already wired across mutation paths (past Nour) · QQ added typed `task.events`/`eventsByKind`/`emitEvent` read+write surface · 9 task mutations still on REST but already audited via the existing emit hooks · brain can now read history with type safety | Phase RR-SS · migrate 9 task mutations to tRPC one-at-a-time (each one gets event-audit for free via the existing service hooks) · then `/journal` / `/brain` |
+| **tRPC migration** (REST → tRPC) | Phase J + …/PP/QQ + **RR** | 2026-05-19 AM | **25/50+ surfaces · ~50%** · /tasks 4 task-write mutations migrated (check · start · breakPromise · delete) · `lib/services/task-actions.ts` extracted (515 LOC service, formerly inline route bodies) · sql-pro flagged composite-index follow-up for reality-gap writeback · J series crosses the 50% threshold | Phase SS · 5 task-create paths (createTask · createMission · AI-tasks · backfill-tasks · score) · then `/journal` / `/brain` |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 
