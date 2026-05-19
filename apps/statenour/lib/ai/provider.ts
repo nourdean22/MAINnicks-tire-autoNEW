@@ -1343,6 +1343,11 @@ export async function getEmbedding(text: string): Promise<number[]> {
           "Authorization": `Bearer ${VENICE_API_KEY}`,
         },
         body: JSON.stringify({ model: "text-embedding-bge-m3", input }),
+        // wave-181.90 follow-up · 5s cap. Embedding paths run on every
+        // RAG retrieval · without bounds a Venice stall blocks every
+        // chat turn. Graceful fallback to Ollama / Cohere / OpenAI
+        // already exists below · timeout just hits that path faster.
+        signal: AbortSignal.timeout(5_000),
       });
       if (res.ok) {
         const data = await res.json();
@@ -1390,6 +1395,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
             "Authorization": `Bearer ${OLLAMA_API_KEY}`,
           },
           body: JSON.stringify(body),
+          signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
         });
         if (!res.ok) {
           const errBody = await res.text().catch(() => "");
@@ -1414,6 +1420,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
           "Authorization": `Bearer ${OLLAMA_API_KEY}`,
         },
         body: JSON.stringify({ model, input }),
+        signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
       });
       if (res.ok) {
         const data = await res.json();
@@ -1458,6 +1465,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
           input_type: "search_document",
           embedding_types: ["float"],
         }),
+        signal: AbortSignal.timeout(10_000), // wave-181.90 follow-up
       });
       if (res.ok) {
         const data = await res.json();
@@ -1490,6 +1498,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${OPENAI_API_KEY}` },
         body: JSON.stringify({ model: "text-embedding-3-small", input }),
+        signal: AbortSignal.timeout(15_000), // wave-181.90 follow-up · final fallback · give it more room
       });
       if (res.ok) {
         const data = await res.json();

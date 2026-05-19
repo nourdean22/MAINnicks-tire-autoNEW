@@ -187,6 +187,11 @@ async function callSynthesizer(args: {
       temperature: 0.3,
       max_tokens: 1500,
     }),
+    // wave-181.90 follow-up · 30s cap on multi-agent fanout synthesizer.
+    // Runs at the END of a fanout chain so a stall here blocks the entire
+    // composed turn (sub-agents already finished waiting). Catch below
+    // wraps the throw in a structured error.
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {
