@@ -513,11 +513,19 @@ export default function DeclinedEstimatesSection() {
                       visually subordinate to MARK FOLLOW-UP).
                   */}
                   <button
-                    onClick={() => {
-                      if (confirm(
-                        `Permanently dismiss this estimate?\n\n${est.customerName} · $${Math.round((est.totalAmount ?? 0) / 100)}\n\n` +
-                        `It will be removed from the recovery queue and won't reappear. Use this when the customer has said no for good, the vehicle was sold, or it's a duplicate.`
-                      )) {
+                    onClick={async () => {
+                      // wave-181.59 · was native confirm() — broken on iOS
+                      // (synchronous-modal freezes React); the rest of this
+                      // file already uses confirmDialog (wave-139). This
+                      // button was missed in that sweep.
+                      const ok = await confirmDialog({
+                        title: "Dismiss this estimate?",
+                        message: `${est.customerName} · $${Math.round((est.totalAmount ?? 0) / 100)}\n\nIt will be removed from the recovery queue and won't reappear. Use this when the customer has said no for good, the vehicle was sold, or it's a duplicate.`,
+                        confirmLabel: "Dismiss permanently",
+                        cancelLabel: "Cancel",
+                        tone: "danger",
+                      });
+                      if (ok) {
                         dismissEstimate.mutate({ id: est.id });
                       }
                     }}

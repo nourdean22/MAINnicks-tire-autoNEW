@@ -20,7 +20,7 @@
  * the operator can spot a running A/B test.
  */
 import { adminProcedure, router } from "../_core/trpc";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, sql, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { smsMessages, smsConversations } from "../../drizzle/schema";
 import { db } from "../lib/db-helper";
@@ -202,7 +202,14 @@ export const smsPerformanceRouter = router({
           .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
           .where(and(
             eq(smsMessages.direction, "outbound"),
-            input?.tier ? sql`${smsMessages.variantKey} LIKE ${input.tier + '%'}` : sql`1=1`,
+            // wave-181.59 · "untagged" tier filter returned 0 rows because
+            // NULL never matches a LIKE expression in SQL. Branch the
+            // predicate: "untagged" → IS NULL, any other tier → LIKE prefix.
+            !input?.tier
+              ? sql`1=1`
+              : input.tier === "untagged"
+                ? isNull(smsMessages.variantKey)
+                : sql`${smsMessages.variantKey} LIKE ${input.tier + '%'}`,
           ))
           .orderBy(desc(smsMessages.createdAt))
           .limit(limit);

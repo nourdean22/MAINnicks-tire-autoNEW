@@ -29,13 +29,17 @@ function pct(num: number, denom: number): string {
 }
 
 export default function SmsPerformanceSection() {
-  const { data: summary, isLoading: sumLoading } = trpc.smsPerformance.summary30d.useQuery(
+  // wave-181.59 · added isError destructure for both queries (Agent C #3 + #7).
+  // Server router fail-opens to empty results on DB error, which previously
+  // rendered identical UI to "no data yet" — operator couldn't tell outage
+  // from genuine empty state. Banner below now distinguishes them.
+  const { data: summary, isLoading: sumLoading, isError: sumError } = trpc.smsPerformance.summary30d.useQuery(
     undefined,
     { refetchInterval: 60_000 },
   );
 
   const [tierFilter, setTierFilter] = useState<string | undefined>(undefined);
-  const { data: recent, isLoading: recentLoading } = trpc.smsPerformance.recentSends.useQuery(
+  const { data: recent, isLoading: recentLoading, isError: recentError } = trpc.smsPerformance.recentSends.useQuery(
     { limit: 50, tier: tierFilter },
     { refetchInterval: 60_000 },
   );
@@ -55,6 +59,17 @@ export default function SmsPerformanceSection() {
         }
         icon={<BarChart3 className="w-5 h-5" />}
       />
+
+      {/* wave-181.59 · error banner — surfaces server-side failures that
+          would otherwise present as a misleading "no data" empty state. */}
+      {(sumError || recentError) && (
+        <div className="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+          <span className="font-medium">SMS Performance data couldn't load.</span>{" "}
+          <span className="text-red-200/70">
+            The server returned an error (DB connection issue, schema migration not applied, or auth failure). Numbers below may be stale or zero — refresh in a moment or check Railway logs.
+          </span>
+        </div>
+      )}
 
       {/* Totals row */}
       <div className="grid grid-cols-4 gap-4">
