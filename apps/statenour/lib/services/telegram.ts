@@ -33,6 +33,7 @@ export async function sendTelegram(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(5_000), // wave-181.92 · alerts are best-effort
         body: JSON.stringify({
           chat_id: target,
           text,
@@ -108,6 +109,7 @@ export async function sendTelegramWithButtons(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(5_000), // wave-181.92
         body: JSON.stringify({
           chat_id: target,
           text,
@@ -148,6 +150,7 @@ export async function answerCallbackQuery(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(5_000), // wave-181.92
         body: JSON.stringify({
           callback_query_id: callbackQueryId,
           text: text ?? "Done",
@@ -180,6 +183,7 @@ export async function editTelegramMessage(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(5_000), // wave-181.92
         body: JSON.stringify({
           chat_id: target,
           message_id: messageId,

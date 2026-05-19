@@ -33,6 +33,7 @@ async function clickupRequest(endpoint: string, method: "GET" | "POST" | "PUT" =
       Authorization: getApiKey(),
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(15_000), // wave-181.92
     body: body ? JSON.stringify(body) : undefined,
   });
 

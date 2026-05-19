@@ -73,6 +73,7 @@ async function _refreshAccessToken(): Promise<string> {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(8_000), // wave-181.92 · matches withGuardian timeoutMs · cancels socket
     body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,
@@ -121,6 +122,7 @@ async function gmailFetch(path: string, init: RequestInit = {}): Promise<Respons
   const res = await fetch(`${GMAIL_API_BASE}${path}`, {
     ...init,
     headers,
+    signal: init.signal ?? AbortSignal.timeout(15_000), // wave-181.92
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");

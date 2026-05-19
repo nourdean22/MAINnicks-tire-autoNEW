@@ -96,6 +96,7 @@ export async function publishToInstagram(args: {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(30_000), // wave-181.92 · image upload can be slow
         body: JSON.stringify({
           image_url: imageUrl,
           caption,
@@ -120,6 +121,7 @@ export async function publishToInstagram(args: {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: AbortSignal.timeout(15_000), // wave-181.92
         body: JSON.stringify({
           creation_id: containerId,
           access_token: creds.pageAccessToken,
@@ -140,6 +142,7 @@ export async function publishToInstagram(args: {
     // Optional: fetch permalink for confirmation
     const permalinkRes = await fetch(
       `${GRAPH_BASE}/${postId}?fields=permalink&access_token=${creds.pageAccessToken}`,
+      { signal: AbortSignal.timeout(10_000) }, // wave-181.92
     );
     let permalink: string | undefined;
     if (permalinkRes.ok) {
@@ -201,6 +204,7 @@ export async function publishToFacebook(args: {
     const res = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(args.imageUrl ? 30_000 : 15_000), // wave-181.92 · image post slower
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -252,6 +256,7 @@ export async function checkMetaConnection(): Promise<{
     const creds = getCreds();
     const res = await fetch(
       `${GRAPH_BASE}/me?fields=id,name&access_token=${creds.pageAccessToken}`,
+      { signal: AbortSignal.timeout(10_000) }, // wave-181.92
     );
     if (!res.ok) {
       const errText = await res.text();

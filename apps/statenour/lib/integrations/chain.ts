@@ -74,6 +74,7 @@ async function notifyMake(hookPath: string, payload: unknown): Promise<void> {
   await fetch(url, {
     method: "POST",
     headers,
+    signal: AbortSignal.timeout(10_000), // wave-181.92 · Make webhook
     body: JSON.stringify(payload),
   });
 }

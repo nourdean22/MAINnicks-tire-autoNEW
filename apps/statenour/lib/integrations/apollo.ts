@@ -36,6 +36,7 @@ async function apolloRequest(endpoint: string, body: Record<string, unknown>): P
       "Content-Type": "application/json",
       "Cache-Control": "no-cache",
     },
+    signal: AbortSignal.timeout(15_000), // wave-181.92
     body: JSON.stringify({ ...body, api_key: getApiKey() }),
   });
 

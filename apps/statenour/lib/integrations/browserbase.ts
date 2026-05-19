@@ -71,6 +71,7 @@ async function bbFetch<T>(path: string, init?: RequestInit): Promise<BrowserResu
         "Content-Type": "application/json",
         ...(init?.headers ?? {}),
       },
+      signal: init?.signal ?? AbortSignal.timeout(30_000), // wave-181.92 · browser session ops
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
