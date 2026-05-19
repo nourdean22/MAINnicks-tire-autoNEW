@@ -24,9 +24,29 @@
  * See: ADR-0010 · lib/services/goals-snapshot.ts · app/api/goals/snapshot
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { trpc } from "@/lib/trpc/client";
+
+// Phase AAA (2026-05-19 AM) · Mastery Polyhedron · 8-axis self-model
+// as a deformable octahedron · vertex distance from center = score.
+// Lazy-loaded so three.js + R3F + drei only ship in the /goals route
+// bundle. `ssr: false` avoids hydration mismatch on Canvas mount
+// (WebGL context is client-only).
+const MasteryPolyhedron = dynamic(
+  () => import("@/components/goals/mastery-polyhedron"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="w-full rounded-lg border border-[var(--border-default)]"
+        style={{ height: 280, background: "#0A0A0A" }}
+        aria-hidden="true"
+      />
+    ),
+  },
+);
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
@@ -131,11 +151,30 @@ export default function GoalsPage() {
   if (error) return <MasteryErrorView label="Goals" error={error.message} onRetry={reload} />;
   if (!data) return null;
 
+  // Phase AAA · scroll to an axis section on Sidebar tap-through ·
+  // the polyhedron vertex emits `domain` · Sidebar renders axis rows
+  // with `id={`axis-${domain}`}` so the scroll target lines up.
+  const onAxisClick = useCallback((domain: string) => {
+    if (typeof window === "undefined") return;
+    const el = document.getElementById(`axis-${domain}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   return (
     <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
         <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />
+
+        {/* Phase AAA (2026-05-19 AM) · Mastery Polyhedron · 8 vertices
+            extending from center proportional to each axis score. Tap a
+            vertex to focus that axis. A perfectly-balanced operator
+            produces a symmetric octahedron · imbalance dents the shape.
+            Identity moment for /goals · the first non-generic UI surface
+            in NOUR OS that says "this is Nour's OS, not anyone's." */}
+        <div className="mt-8">
+          <MasteryPolyhedron axes={data.axes} onAxisClick={onAxisClick} />
+        </div>
 
         {/* Phase E (2026-05-18 PM) · OperatorPulse · surface-aware pulse
             line · trailing-axis insight + 7d pace breakdown + oldest
@@ -383,7 +422,11 @@ function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[]
         ) : (
           <ul className="space-y-2">
             {axes.map((a) => (
-              <li key={a.domain} className="flex items-center justify-between text-xs">
+              <li
+                key={a.domain}
+                id={`axis-${a.domain}`}
+                className="flex items-center justify-between text-xs scroll-mt-20"
+              >
                 <span className="text-[var(--text-secondary)]">{a.domain}</span>
                 <span className="tabular-nums text-[var(--text-primary)]">
                   {a.score.toFixed(1)}
