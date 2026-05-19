@@ -99,6 +99,26 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("SMS rate-limit cleanup failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // wave-181.77 (db-optimizer audit) · prune cron_alerts_fired.
+  // Migration 0044 (wave-181.69) shipped the table + idx_cron_alerts_fired_fired_at
+  // specifically for cleanup scans, but I forgot to add the cleanup
+  // block — audit caught it. 90-day retention keeps recent history for
+  // operator debugging without unbounded growth.
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (db) {
+      const [result] = await db.execute(sql`
+        DELETE FROM cron_alerts_fired WHERE fired_at < (NOW() - INTERVAL 90 DAY)
+      `);
+      const cronAlertsCleaned = (result as { affectedRows?: number })?.affectedRows ?? 0;
+      cleaned += cronAlertsCleaned;
+    }
+  } catch (err) {
+    log.warn("cron_alerts_fired cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
   return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
 }

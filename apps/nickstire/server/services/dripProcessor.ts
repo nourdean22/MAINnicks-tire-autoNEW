@@ -18,6 +18,13 @@ const log = createLogger("drip-processor");
 async function ensureTable(db: any): Promise<boolean> {
   try {
     const { sql } = await import("drizzle-orm");
+    // wave-181.77 (db-optimizer audit) · UNIQUE INDEX uq_drip_active is
+    // the actual P0 fix — see drizzle/0045_wave181_drip_enrollments_unique.sql.
+    // Without it, the SELECT-FOR-UPDATE-then-INSERT pattern deadlocked
+    // under concurrent enrollment bursts (gap-lock + insert-intention
+    // lock incompatibility). With it, INSERT IGNORE is atomic + race-safe.
+    // Baked into ensureTable so a fresh deploy creates the table with
+    // the right shape on first call · matches migration 0045.
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS drip_enrollments (
         id VARCHAR(36) PRIMARY KEY,
@@ -30,7 +37,8 @@ async function ensureTable(db: any): Promise<boolean> {
         nextStepAt DATETIME,
         metadata JSON,
         INDEX idx_status_next (status, nextStepAt),
-        INDEX idx_phone_campaign (customerPhone, campaignId)
+        INDEX idx_phone_campaign (customerPhone, campaignId),
+        UNIQUE INDEX uq_drip_active (customerPhone, campaignId, status)
       )
     `);
     return true;
@@ -115,18 +123,19 @@ export async function persistDripEnrollment(params: {
 
     await ensureTable(db);
 
-    // wave-181.67 (bug-hunter chip #2 · P0) · Wrap dedup-then-insert in
-    // a transaction with FOR UPDATE so two concurrent pods can't both
-    // pass the SELECT check and double-enroll the same customer. Pre-
-    // fix: pod A SELECT → 0 rows · pod B SELECT → 0 rows · both INSERT
-    // → customer received every drip-campaign message twice (TCPA risk
-    // + brand damage). With FOR UPDATE, pod B's SELECT blocks until
-    // pod A commits; pod B then sees pod A's insert and bails cleanly.
+    // wave-181.77 (db-optimizer audit P0 fix) · replaces the wave-181.67
+    // transaction + SELECT-FOR-UPDATE pattern. The prior approach was
+    // race-safe (the gap lock blocked the duplicate INSERT) but caused
+    // gap-lock + insert-intention-lock deadlocks under concurrent bursts
+    // — every 2 pods racing for the same enrollment fired a transaction
+    // rollback. With the new UNIQUE INDEX uq_drip_active on
+    // (customerPhone, campaignId, status), INSERT IGNORE is atomic at
+    // the DB level · zero transaction overhead · zero deadlocks.
     //
-    // Note · MySQL's gap-lock semantics: FOR UPDATE on a no-match
-    // query takes a gap lock on the (customerPhone, campaignId,
-    // status='active') predicate range. Pod B's INSERT competes for
-    // the same gap, blocks until pod A commits, then re-evaluates.
+    // Migration 0045 added the unique constraint. INSERT IGNORE returns
+    // affectedRows=0 on the duplicate-key collision (silently skips
+    // without raising). Pre-fix on a deadlock the survivor logged
+    // SUCCESS · now we explicitly log the skip via affectedRows=0.
     const { CAMPAIGNS } = await import("./dripCampaigns");
     const campaign = CAMPAIGNS.find(c => c.id === params.campaignId);
     if (!campaign) return;
@@ -140,31 +149,22 @@ export async function persistDripEnrollment(params: {
 
     const { randomUUID } = await import("crypto");
 
-    // `tx` is the drizzle MySqlTransaction handle · same `.execute()` API
-    // as the outer db, but all queries share a single transaction. Type
-    // inferred from the awaited handle would require importing the
-    // generic MySqlTransaction type which is overkill for a 2-query tx.
-    await db.transaction(async (tx: { execute: typeof db.execute }) => {
-      const [existing] = await tx.execute(sql`
-        SELECT id FROM drip_enrollments
-        WHERE customerPhone = ${params.customerPhone}
-          AND campaignId = ${params.campaignId}
-          AND status = 'active'
-        LIMIT 1
-        FOR UPDATE
-      `);
+    const result = await db.execute(sql`
+      INSERT IGNORE INTO drip_enrollments (id, campaignId, customerPhone, customerName, currentStep, status, enrolledAt, nextStepAt, metadata)
+      VALUES (${randomUUID()}, ${params.campaignId}, ${params.customerPhone}, ${params.customerName}, ${1}, 'active', NOW(), ${nextStepAt}, ${JSON.stringify(params.metadata || {})})
+    `);
+    // Check both result-shape conventions · matches the wave-181.59
+    // pattern used in declinedWorkRecovery.ts for at-most-once claims.
+    const resultObj = (Array.isArray(result) && result[0] && typeof result[0] === "object"
+      ? result[0]
+      : result) as { affectedRows?: number; rowsAffected?: number };
+    const inserted = resultObj.affectedRows ?? resultObj.rowsAffected ?? 0;
 
-      if (Array.isArray(existing) && existing.length > 0) {
-        return; // Peer-pod won the race · skip silently
-      }
-
-      await tx.execute(sql`
-        INSERT INTO drip_enrollments (id, campaignId, customerPhone, customerName, currentStep, status, enrolledAt, nextStepAt, metadata)
-        VALUES (${randomUUID()}, ${params.campaignId}, ${params.customerPhone}, ${params.customerName}, ${1}, 'active', NOW(), ${nextStepAt}, ${JSON.stringify(params.metadata || {})})
-      `);
-
+    if (inserted === 1) {
       log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
-    });
+    } else {
+      log.info(`Drip enrollment skipped (already enrolled): ${params.customerName} → ${params.campaignId}`);
+    }
   } catch (err: unknown) {
     log.warn(`Drip enrollment persist failed: ${(err as Error).message}`);
   }

@@ -47,8 +47,15 @@ export async function getDb() {
     try {
       _pool = mysql.createPool({
         uri: process.env.DATABASE_URL,
-        connectionLimit: 5,
-        maxIdle: 2,
+        // wave-181.77 (db-optimizer audit) · bumped from 5 to 10. The
+        // bulk-SMS fire path (scripts/fire-declined-recovery.ts) and
+        // checkDailyLimit's two-query upsert+select on EVERY sendSms
+        // can monopolize 5 connections during peak load. With concurrent
+        // portal verifyCode + admin SMS chat polls, we were close to the
+        // queueLimit threshold. 10 covers expected concurrent traffic
+        // with headroom · TiDB Cloud serverless handles 100+ easily.
+        connectionLimit: 10,
+        maxIdle: 4,
         waitForConnections: true,
         // Bounded queue — spike protection. Under burst load, rather than
         // letting the queue grow unbounded (→ OOM), we fail fast once 50
