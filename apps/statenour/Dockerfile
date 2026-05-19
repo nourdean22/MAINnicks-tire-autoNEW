@@ -43,13 +43,14 @@ COPY apps/statenour/patches ./apps/statenour/patches
 COPY apps/nickstire/patches ./apps/nickstire/patches
 
 # Install ONLY the @statenour/web app and its deps · skips nickstire + worker.
-# `--mount=type=cache` keeps the pnpm content-addressable store between
-# builds · most deploys touch <5% of deps so cache hits are huge.
-# Railway BuildKit requires a cacheKey-prefixed `id=` field, OR no id at all.
-# We use the latter · cache is still keyed by target path · works identically
-# on Docker Hub BuildKit + Railway. (Earlier id="pnpm-store" failed validation.)
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @statenour/web...
+#
+# NOTE on cache mounts: Railway's BuildKit variant rejects both `--mount=type=
+# cache,id=<name>,...` (requires undocumented cacheKey prefix) and `--mount=
+# type=cache,target=...` without an id (requires id). Standard BuildKit accepts
+# either. Until Railway documents the expected format, ship without the cache
+# mount · costs ~30s per deploy in pnpm install time but the build is green.
+# Track as Tier-3 optimization · revisit when Railway docs surface the format.
+RUN pnpm install --frozen-lockfile --filter @statenour/web...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
@@ -69,12 +70,11 @@ COPY apps/statenour ./apps/statenour
 COPY packages/utils ./packages/utils
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
-# Cache the Next.js build cache between deploys · cuts Next type-check
-# and compile from ~90s to ~25s when little changed.
+# (Cache-mount for .next/cache disabled · Railway BuildKit constraint ·
+# see note in deps stage. Tier-3 optimization · revisit later.)
 ENV NODE_ENV=production
 WORKDIR /repo/apps/statenour
-RUN --mount=type=cache,target=/repo/apps/statenour/.next/cache \
-    pnpm run build
+RUN pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────
 FROM node:20-alpine AS runtime

@@ -27,13 +27,11 @@ COPY packages/utils/package.json ./packages/utils/
 COPY apps/nickstire/patches ./apps/nickstire/patches
 COPY apps/statenour/patches ./apps/statenour/patches
 
-# Railway BuildKit requires a cacheKey-prefixed `id=` field, OR no id at all.
-# We use the latter · cache is still keyed by target path.
-RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter @statenour/worker...
-# Note · the `...` ellipsis pulls transitive workspace deps. Worker doesn't
-# currently import @nour/utils but this future-proofs against silent drops
-# in `pnpm deploy --prod` if a future commit adds a workspace dep.
+# NOTE · cache-mount disabled (Railway BuildKit rejects both id-less and
+# unprefixed-id forms · see apps/statenour/Dockerfile comment for context).
+# The `...` ellipsis pulls transitive workspace deps · future-proofs against
+# silent drops in `pnpm deploy --prod` if a future commit adds a workspace dep.
+RUN pnpm install --frozen-lockfile --filter @statenour/worker...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
