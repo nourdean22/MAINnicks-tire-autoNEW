@@ -48,12 +48,19 @@ COPY apps/nickstire/package.json ./apps/nickstire/
 COPY apps/statenour/package.json ./apps/statenour/
 COPY apps/nickstire/patches ./apps/nickstire/patches
 COPY apps/statenour/patches ./apps/statenour/patches
-# Tier-2-E + Tier-3: packages/utils source · build dist/ before worker
-# compile so that if worker ever imports @nour/utils, the symlink-free
-# `pnpm deploy --prod` artifact at /deploy will include the built JS.
+# Tier-2-E: packages/utils source present for pnpm workspace symlink
+# resolution. We do NOT run the tsc build here because:
+#   1. Worker does not import @nour/utils today (verified · no code
+#      reference). The `...` filter pulls it as a transitive workspace
+#      dep but the dist/ artifact is unused at worker runtime.
+#   2. Running `pnpm run build` in this stage fails with `tsc: not found`
+#      because packages/utils/node_modules wasn't copied from deps · we
+#      don't need it for the worker so don't pay the cost.
+# If worker ever imports @nour/utils in the future, add:
+#   COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
+#   WORKDIR /repo/packages/utils
+#   RUN pnpm run build
 COPY packages/utils ./packages/utils
-WORKDIR /repo/packages/utils
-RUN pnpm run build
 
 # pnpm install in deps copied the .pnpm/ store + symlinked to it.
 # Now compile TS → dist/, then use `pnpm deploy` to produce a self-
