@@ -143,10 +143,11 @@ async function logRetentionSms(
  * Returns count of customers contacted.
  */
 async function processRetentionTier(tier: RetentionTier): Promise<number> {
-  // 1. Check Twilio config
-  if (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN || !process.env.TWILIO_PHONE_NUMBER) {
-    return 0;
-  }
+  // wave-181.60-followup (audit-181.58 finding · 2026-05-18 PM) · the
+  // legacy Twilio env guard was blocking all 6 retention tiers in prod
+  // because Twilio is dead per operator and env vars are intentionally
+  // unset on Railway. All actual sends below use `{ via: "shop" }` →
+  // F25e directly · no Twilio creds needed. Guard removed.
 
   // 2. Check feature flags
   const { isEnabled } = await import("../../services/featureFlags");

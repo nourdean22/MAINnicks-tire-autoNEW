@@ -33,20 +33,28 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 ## Migrations pending awareness
 
 - **`0026_work_order_items_decline_recovery.sql`** — adds `decline_outreach_*` and `decline_recovered_at` on `work_order_items` for declined-work recovery tracking. Apply to prod DB before relying on outreach/recovered fields.
+- **`0040_wave181_otp_attempts_durable.sql`** (wave-181.60) — creates `otp_attempts` table backing the durable OTP brute-force counter in `server/middleware/bruteForce.ts`. Until applied, brute-force protection fails open (logged, doesn't block).
+  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-otp-attempts.ts`
+- **`0041_wave181_sms_sending_status.sql`** (wave-181.60) — appends `"sending"` to `sms_messages.status` enum. Until applied, the rehydrate path's atomic queued→sending claim fails and false-positive "sent" stamps on restart return.
+  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-sms-sending.ts`
+- **`0042_wave181_declined_recovery_attempted_at.sql`** (wave-181.60) — adds `follow_up_{7,30}d_attempted_at` to `alg_estimates` for at-most-once declined-recovery sends. Until applied, the at-most-once claim degrades to the prior double-send-on-restart behavior.
+  - Apply: `pnpm exec tsx scripts/apply-wave-181-59-declined-recovery-attempted.ts`
 
-## SMS routing (post wave-103, May 2026)
+## SMS routing (post wave-103, updated wave-181.60)
 
-- **Primary path:** Shop SMS Gateway = Capevace `me.capcom.smsgateway` v1.60.0 running on the F25e (Samsung S25 FE) at `216-862-0005` (Verizon line). All customer-facing transactional SMS routes here via `sendSms(phone, body, { via: "shop" })`.
-- **Fallback path:** Twilio (`+1 216-769-9977`). Used for bulk/marketing campaigns + drip sequences + daily owner report. Also auto-falls-back when the shop gateway returns failure (with Telegram alert).
+- **Default path:** Shop SMS Gateway = Capevace `me.capcom.smsgateway` v1.60.0 running on the F25e (Samsung S25 FE) at `216-862-0005` (Verizon line). Wave-181.60 made this the DEFAULT — any `sendSms(phone, body)` call with no explicit `via` routes through the shop gateway first. Forgetting `{ via: "shop" }` no longer silently routes to dead Twilio (the wave-181.58 bug class).
+- **Fallback path:** Twilio (`+1 216-769-9977`). Only fires when shop gateway returns failure (with Telegram alert), or when caller explicitly opts out via `{ via: "twilio" }` (rare — test scripts, legacy Twilio-only webhooks).
 - **Inbound webhook:** `POST /api/webhooks/sms-gateway` — HMAC-SHA256 over `rawBody + X-Timestamp` header value, ±5min replay window. Verified via `SHOP_SMS_GATEWAY_WEBHOOK_SECRET`.
 - **Health monitor:** Cron `sms-gateway-health` (pulse tier, 15min) pings Capevace `/device`, Telegram alert if F25e last-seen > 30min.
-- **Kill switch:** `SMS_KILL_SWITCH=true` only blocks the Twilio path. Shop gateway sends keep working when the switch is on.
+- **Kill switch:** `SMS_KILL_SWITCH=true` only blocks the Twilio fallback. Shop gateway sends keep working when the switch is on. With wave-181.60's default flip, the kill switch is effectively cosmetic for customer-facing traffic — shop path is reached before the kill switch check.
 - **Manager-on-duty alerts:** `eventBus` destination `manager-on-duty-sms` texts the VAPI transferCall destination (current on-duty manager) on every booking_created / lead_captured / callback_requested / emergency_request event. Self-loop guard skips if the on-duty number == 216-862-0005.
-- **Operator runbook:** `docs/SHOP_SMS_GATEWAY_SETUP.md`.
+- **Operator runbook:** `docs/SHOP_SMS_GATEWAY_SETUP.md` and `docs/OPERATOR_RUNBOOK_WAVE_181_60.md` (migration apply procedure).
 
 ## Invariants (do not break)
 
 - **ShopDriver / ALG** integration is load-bearing for shop operations — do not remove without explicit owner decision.
 - **Feature flags:** risky features should default off at the code path until explicitly enabled in DB.
-- **Shop SMS Gateway is load-bearing.** ~80% of customer-facing transactional SMS routes through the F25e. Don't remove `via:"shop"` from existing senders without confirming Twilio is healthy + opt-in compliance.
+- **Shop SMS Gateway is load-bearing.** ~80% of customer-facing transactional SMS routes through the F25e. Don't change the `sendSms` default-route logic (`opts?.via !== "twilio"`) without confirming Twilio is healthy + opt-in compliance.
 - **Webhook signature scheme** for the SMS Gateway is HMAC-SHA256 over `body + X-Timestamp`. Don't change this without updating the Capevace app's signing key OR re-signing scheme on both sides.
+- **OTP brute-force counter is DB-backed (wave-181.60).** Don't revert to an in-memory Map — counters need to survive Railway restarts and aggregate across pods.
+- **Declined-recovery is at-most-once (wave-181.60).** The `followUp{N}dAttemptedAt` claim must be stamped BEFORE `sendSms`, not after. Reversing the order reintroduces double-send-on-restart.

@@ -1556,6 +1556,13 @@ function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
       emotionRecognitionEnabled: true,
     },
     serverUrl,
+    // wave-181.60-followup (audit · 2026-05-18 PM) · the inbound
+    // assistant was fixed in wave-181.50 to set BOTH `serverUrl` (legacy)
+    // AND nested `server.url` (which VAPI prefers for new traffic). The
+    // follow-up assistant was missed · same root cause would silently
+    // drop follow-up call webhooks on the next `updateFollowUpAssistant()`
+    // PATCH. Adding the nested field now to prevent regression.
+    server: serverUrl ? { url: serverUrl, timeoutSeconds: 20 } : undefined,
     serverMessages: [
       "function-call",
       "tool-calls",

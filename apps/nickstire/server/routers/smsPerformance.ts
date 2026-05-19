@@ -151,7 +151,6 @@ export const smsPerformanceRouter = router({
       id: number;
       createdAt: Date;
       body: string;
-      phone: string;
       variantKey: string | null;
       status: string;
       replyCount: number;
@@ -214,12 +213,19 @@ export const smsPerformanceRouter = router({
           .orderBy(desc(smsMessages.createdAt))
           .limit(limit);
 
-        return rows.map((r: Row) => ({
-          ...r,
-          // Mask phone to last-4 for display (PII hygiene).
-          phoneSuffix: (r.phone || "").replace(/\D/g, "").slice(-4),
-          tier: prettyTier(rollupKey(r.variantKey)),
-        }));
+        return rows.map((r: Row) => {
+          // wave-181.60-followup (audit · 2026-05-18 PM) · PII fix.
+          // Pre-fix the full phone was returned in the spread alongside
+          // phoneSuffix · admin client never rendered it but it was on
+          // the wire. Now: destructure phone out so only the masked
+          // suffix is serialized.
+          const { phone, ...rest } = r;
+          return {
+            ...rest,
+            phoneSuffix: (phone || "").replace(/\D/g, "").slice(-4),
+            tier: prettyTier(rollupKey(r.variantKey)),
+          };
+        });
       } catch (err) {
         log.warn("recentSends failed", { error: err instanceof Error ? err.message : String(err) });
         return [];

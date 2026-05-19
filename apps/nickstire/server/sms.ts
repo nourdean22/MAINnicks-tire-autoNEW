@@ -710,6 +710,32 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     return { success: false, error: `Invalid phone number: ${to}` };
   }
 
+  // wave-181.60-followup (audit · 2026-05-18 PM) · TCPA opt-out check
+  // and daily rate-limit MUST run BEFORE the gateway-routing branch ·
+  // both Twilio and shop-gateway paths must respect them. Pre-fix the
+  // shop-first path skipped both checks → opted-out customers were
+  // receiving SMS until the opt-out cache caught up (TCPA risk) and a
+  // single phone could receive unlimited SMS in 24h.
+  if (!opts?.transactional && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
+    if (!checkDailyLimit(normalizedEarly)) {
+      return { success: false, error: "Daily SMS limit reached for this number" };
+    }
+  }
+  if (!opts?.skipOptOutCheck) {
+    try {
+      const last10 = normalizedEarly.slice(-10);
+      const optOuts = await ensureOptOutCache();
+      if (optOuts.has(last10)) {
+        smsStats.totalOptedOut++;
+        return { success: false, error: "Customer opted out of SMS" };
+      }
+    } catch (err) {
+      log.warn("Opt-out check failed, proceeding with send", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
   // ─── Wave-181.60: shop gateway is now the DEFAULT route ───
   // Wave-103/106 made shop-routing opt-in (opts.via === "shop"). The
   // wave-181.58 audit found 5 customer-facing call sites that forgot
@@ -780,35 +806,11 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
     };
   }
 
-  // Rate limit: max 8 SMS per phone per 24h
-  if (!opts?.skipOptOutCheck && !checkDailyLimit(normalized)) {
-    return { success: false, error: "Daily SMS limit reached for this number" };
-  }
-
-  // TCPA compliance: check SMS opt-out before sending.
-  // wave-142a — was `like(customers.phone, '%${last10}')` which is a
-  // leading-wildcard that MySQL/TiDB cannot index, meaning every single
-  // outbound SMS did a full sequential scan of the customers table.
-  // At bulk-campaign volume (thousands of sends/min) this was the dominant
-  // cost. Now: in-memory Set<string> of opted-out normalized phones,
-  // refreshed lazily (5 min TTL) + invalidated on opt-out write via
-  // markPhoneOptedOut/markPhoneOptedIn (called from smsBot + responseParser).
-  // First send after process boot pays for the scan once; every subsequent
-  // send is O(1).
-  if (!opts?.skipOptOutCheck) {
-    try {
-      const last10 = normalized.slice(-10);
-      const optOuts = await ensureOptOutCache();
-      if (optOuts.has(last10)) {
-        smsStats.totalOptedOut++;
-        return { success: false, error: "Customer opted out of SMS" };
-      }
-    } catch (err) {
-      log.warn("Opt-out check failed, proceeding with send", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
+  // Rate-limit + opt-out checks were moved to the top of sendSms() in
+  // wave-181.60-followup so they cover BOTH the shop-gateway and the
+  // Twilio paths. Pre-fix the shop-first branch bypassed both checks,
+  // creating a TCPA compliance gap on opt-out and unbounded per-phone
+  // 24h send volume.
 
   // Send via circuit breaker
   try {

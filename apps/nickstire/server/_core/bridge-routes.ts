@@ -24,6 +24,24 @@ const SmsCampaignInput = z.object({
   daysSince: z.number().int().min(0).max(365).default(30),
 });
 
+// wave-181.61 MEDIUM (DoS): deferred from 181.59 spawn cluster. quick-note
+// accepted arbitrary-length strings; a 100MB note would eat memory + flood
+// stdout. 2000 chars is operator-realistic (the longest legit notes from
+// NOUR OS are short sentences).
+const QuickNoteInput = z.object({
+  note: z.string().min(1).max(2000),
+  context: z.string().max(200).optional(),
+});
+
+// wave-181.61 MEDIUM (DoS): ingest-reports accepted an unbounded invoices
+// array. ShopDriver exports rarely exceed a few thousand rows per call;
+// 10000 is a comfortable ceiling above any real-world batch. Analytics is
+// already truncated at 2000 chars by the memory store; loose object here.
+const IngestReportsInput = z.object({
+  invoices: z.array(z.unknown()).min(1).max(10000),
+  analytics: z.record(z.string(), z.unknown()).optional(),
+});
+
 const log = createLogger("_core:bridge-routes");
 function safeCompare(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -237,8 +255,12 @@ export function registerBridgeRoutes(app: Express): void {
   // Add a quick note to a customer or work order
   app.post("/api/bridge/actions/quick-note", bridgeAuth, async (req, res) => {
     try {
-      const { note, context } = req.body;
-      if (!note) { res.status(400).json({ error: "note required" }); return; }
+      const parsed = QuickNoteInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid input", issues: parsed.error.issues });
+        return;
+      }
+      const { note, context } = parsed.data;
       console.info(`[bridge:note] ${context || "general"}: ${note}`);
       res.json({ success: true, logged: true });
     } catch (err: unknown) {
@@ -250,28 +272,41 @@ export function registerBridgeRoutes(app: Express): void {
   // Ingest parsed report data (invoices + analytics) from local machine
   app.post("/api/bridge/ingest-reports", bridgeAuth, async (req, res) => {
     try {
-      const { invoices, analytics } = req.body;
-      if (!invoices || !Array.isArray(invoices)) {
-        res.status(400).json({ error: "invoices array required" });
+      const parsed = IngestReportsInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid input", issues: parsed.error.issues });
         return;
       }
+      const { invoices, analytics } = parsed.data;
 
-      // Store analytics as a memory for the brain
+      // Store analytics as a memory for the brain. Zod gives us a bounded
+      // shape; downstream code expects ShopDriver's analytics fields, which
+      // we read through a structural alias rather than re-validating.
       if (analytics) {
+        const a = analytics as {
+          totalRevenue?: number;
+          invoiceCount?: number;
+          operatingDays?: number;
+          avgTicketSize?: number;
+          repeatRate?: number;
+          growthRate?: number;
+          serviceCategories?: unknown[];
+          projectedAnnualRevenue?: number;
+        };
         try {
           const { remember } = await import("../services/nickMemory");
           await remember({
             type: "insight",
             content: JSON.stringify({
               source: "shopdriver_reports",
-              totalRevenue: analytics.totalRevenue,
-              invoiceCount: analytics.invoiceCount,
-              operatingDays: analytics.operatingDays,
-              avgTicketSize: analytics.avgTicketSize,
-              repeatRate: analytics.repeatRate,
-              growthRate: analytics.growthRate,
-              topCategories: analytics.serviceCategories?.slice(0, 5),
-              projectedAnnual: analytics.projectedAnnualRevenue,
+              totalRevenue: a.totalRevenue,
+              invoiceCount: a.invoiceCount,
+              operatingDays: a.operatingDays,
+              avgTicketSize: a.avgTicketSize,
+              repeatRate: a.repeatRate,
+              growthRate: a.growthRate,
+              topCategories: a.serviceCategories?.slice(0, 5),
+              projectedAnnual: a.projectedAnnualRevenue,
             }).slice(0, 2000),
             source: "report_ingestion",
             confidence: 0.95,
@@ -279,9 +314,15 @@ export function registerBridgeRoutes(app: Express): void {
         } catch (e) { log.warn("[bridge] operation failed:", e); }
       }
 
-      // Ingest invoices
+      // Ingest invoices — Zod enforces array + bounds; field shape is
+      // validated downstream by ingestInvoices itself.
+      // wave-181.61 · destructured import so the typeof cast is on a
+      // bare identifier (TS rejects `typeof ns.member` inside generic
+      // type arguments — TS1005 parser error).
       const { ingestInvoices } = await import("../services/reportIngestion");
-      const result = await ingestInvoices(invoices);
+      const result = await ingestInvoices(
+        invoices as Parameters<typeof ingestInvoices>[0],
+      );
 
       // Run enrichment after ingestion
       try {
