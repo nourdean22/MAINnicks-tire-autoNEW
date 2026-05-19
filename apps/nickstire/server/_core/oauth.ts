@@ -55,10 +55,22 @@ function registerDevSigninRoute(app: Express) {
       const cookieOptions = getSessionCookieOptions(req);
       res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: THIRTY_DAYS_MS });
 
-      // Redirect to where they wanted to go, defaulting to /admin
-      const dest = typeof req.query.next === "string" && req.query.next.startsWith("/")
-        ? req.query.next
-        : "/admin";
+      // Redirect to where they wanted to go, defaulting to /admin.
+      // wave-181.66 (bug-hunter pass 3) · `startsWith("/")` alone allowed
+      // protocol-relative URLs like `//evil.com` which browsers treat as
+      // origin-changing redirects. This route is DEV-ONLY (gated by
+      // NODE_ENV !== "production" above) so the prod risk is zero, but
+      // defense-in-depth is cheap: reject anything starting with `//`
+      // or containing `\\` (Windows-style traversal that some Node
+      // versions normalize). Also bound length to prevent log-flooding.
+      const next = typeof req.query.next === "string" ? req.query.next : "";
+      const isSafeRelativePath =
+        next.length > 0 &&
+        next.length < 500 &&
+        next.startsWith("/") &&
+        !next.startsWith("//") &&
+        !next.includes("\\");
+      const dest = isSafeRelativePath ? next : "/admin";
       res.redirect(302, dest);
     } catch (err) {
       log.error("[DevSignin] Failed:", err);
