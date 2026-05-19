@@ -19,6 +19,7 @@
 import { z } from "zod";
 import { router, operatorProcedure } from "../trpc";
 import { searchChat } from "@/lib/services/chat-search";
+import { readChatBranches } from "@/lib/services/chat-branches";
 
 export const chatRouter = router({
   /**
@@ -36,4 +37,22 @@ export const chatRouter = router({
       }),
     )
     .query(async ({ input }) => searchChat({ q: input.q, limit: input.limit })),
+
+  /**
+   * Phase DD (2026-05-18 PM) · owner-only · per-message sibling
+   * cycle reader. Powers the MessageBranchSwitcher "‹ alt 2 of 3 ›"
+   * controls on regenerated assistant messages.
+   *
+   * Delegates to `lib/services/chat-branches.ts` shared service ·
+   * legacy REST endpoint at /api/ai/chat/branches/[parentMessageId]
+   * calls the same function · drift impossible.
+   *
+   * Edge cases · parentMessageId not found returns empty siblings
+   * array (NOT a tRPC error · caller might race the regen write).
+   */
+  branches: operatorProcedure
+    .input(z.object({ parentMessageId: z.string().min(1).max(64) }))
+    .query(async ({ input }) =>
+      readChatBranches({ parentMessageId: input.parentMessageId }),
+    ),
 });

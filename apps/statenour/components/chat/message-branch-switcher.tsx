@@ -27,16 +27,14 @@
  *     can SEE which alternate was rated highest before clicking.
  */
 
-import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface SiblingPreview {
-  id: string;
-  feedbackScore: number | null;
-  latencyMs: number | null;
-}
+// Phase DD (2026-05-18 PM) · types now flow from the chat.branches
+// procedure · the manual SiblingPreview mirror is gone. The full
+// sibling shape comes back · the rendering below cherry-picks
+// {id, feedbackScore, latencyMs} only.
 
 export interface MessageBranchSwitcherProps {
   parentMessageId: string;
@@ -53,32 +51,16 @@ export function MessageBranchSwitcher({
   onSelect,
   className,
 }: MessageBranchSwitcherProps) {
-  const [siblings, setSiblings] = useState<SiblingPreview[] | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authedFetch(`/api/ai/chat/branches/${encodeURIComponent(parentMessageId)}`);
-        if (!res.ok) return;
-        const json = (await res.json()) as { siblings?: SiblingPreview[] };
-        if (!cancelled && Array.isArray(json.siblings)) {
-          setSiblings(
-            json.siblings.map((s) => ({
-              id: s.id,
-              feedbackScore: typeof s.feedbackScore === "number" ? s.feedbackScore : null,
-              latencyMs: typeof s.latencyMs === "number" ? s.latencyMs : null,
-            })),
-          );
-        }
-      } catch {
-        // silent — switcher is decoration
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [parentMessageId]);
+  // Phase DD · React Query handles fetch + cache + cleanup. The pre-DD
+  // useEffect + cancelled flag dance is gone · React Query's per-input
+  // dedupe + auto-cleanup-on-unmount covers the same concerns with
+  // less ceremony. 30s staleTime keeps repeat parent re-mounts from
+  // re-fetching unnecessarily as the operator cycles between branches.
+  const { data } = trpc.chat.branches.useQuery(
+    { parentMessageId },
+    { staleTime: 30_000 },
+  );
+  const siblings = data?.siblings ?? null;
 
   if (!siblings || siblings.length <= 1) return null;
 
