@@ -906,4 +906,43 @@ export const invoicesRouter = router({
         results,
       };
     }),
+
+  /**
+   * wave-181.79 (highest-leverage operator UX) · fire the full cron
+   * recovery flow on whatever's eligible RIGHT NOW · no selection
+   * needed. Reuses runDeclinedWorkRecovery() with the same opts the
+   * scripts/fire-declined-recovery.ts CLI passes:
+   *   maxSends · per-run cap (clamped 1-200 here · the cron's own
+   *     500 hard ceiling still applies inside)
+   *   bypassBusinessHoursCheck · operator-driven · sms.ts per-message
+   *     window guard still queues out-of-hours sends for next 8AM ET
+   *   skipDryRunGate · operator's explicit click IS consent ·
+   *     FEATURE_DECLINED_RECOVERY env stays in effect for unattended
+   *     daily cron runs
+   *
+   * Pre-flight · refuses to fire if SMS_KILL_SWITCH=true so accidental
+   * clicks during a Twilio outage don't burn through the eligibility
+   * pool with no actual sends. Returns the cron's RecoveryResult so
+   * the admin UI can show sent/skipped counts.
+   */
+  runDeclinedRecoveryNow: adminProcedure
+    .input(z.object({
+      maxSends: z.number().int().min(1).max(200).default(100),
+    }).optional())
+    .mutation(async ({ input }) => {
+      if (process.env.SMS_KILL_SWITCH === "true") {
+        return {
+          recordsProcessed: 0,
+          details: "SMS_KILL_SWITCH=true — aborted before any sends. Flip the kill switch off on Railway to enable this trigger.",
+          killSwitchOn: true,
+        };
+      }
+      const { runDeclinedWorkRecovery } = await import("../../cron/jobs/declinedWorkRecovery");
+      const result = await runDeclinedWorkRecovery({
+        maxSends: input?.maxSends ?? 100,
+        bypassBusinessHoursCheck: true,
+        skipDryRunGate: true,
+      });
+      return { ...result, killSwitchOn: false };
+    }),
 });
