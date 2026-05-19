@@ -398,6 +398,15 @@ export function registerAllJobs(): void {
     return runConfirmationCalls();
   });
 
+  // wave-181.85 · AgentPhone Voice Recovery escalation · runs daily ·
+  // gated by FEATURE_VOICE_RECOVERY + AGENTPHONE_RECOVERY_AGENT_ID. For
+  // declined estimates that already received D7 + D30 SMS but didn't
+  // convert · voice call as escalation channel.
+  registerJob("voice-recovery", 24 * 60 * 60 * 1000, async () => {
+    const { runVoiceRecovery } = await import("./jobs/voiceRecovery");
+    return runVoiceRecovery();
+  });
+
   registerJob("retention-7day", 24 * 60 * 60 * 1000, async () => {
     const { processRetention7Day } = await import("./jobs/retentionSequences");
     return processRetention7Day();
