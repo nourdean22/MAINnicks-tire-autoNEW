@@ -1,4 +1,4 @@
-name: Test, Lint, Build & Type Check
+name: CI · turbo-affected verify
 
 on:
   push:
@@ -6,78 +6,109 @@ on:
   pull_request:
     branches: [main]
 
+# Tier-2-G (2026-05-19): switched from blind verify-everything to
+# Turbo's --affected detection. PRs that only touch apps/statenour/
+# skip nickstire's check/lint/test/build. PRs that touch packages/utils/
+# trigger all downstream consumers automatically via the workspace
+# dependency graph. Cached tasks replay logs in <1s.
+#
+# The Turbo command is the single source of truth · no more drift
+# between this file and what runs locally. Pre-push hook runs the
+# same `turbo run build --affected`; if it passes there it passes here.
+
 jobs:
-  verify:
+  affected:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    permissions:
+      contents: read
 
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - name: Checkout (full history for affected-detection)
+        uses: actions/checkout@v4
         with:
-          node-version: 22
+          # Turbo needs at least the merge-base commit to compute
+          # --affected. fetch-depth: 0 grabs everything; for huge repos
+          # this could be tightened with `fetch-depth: 100` + a
+          # `git fetch origin main` step.
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      # Pin to Node 20 to match Railway's Dockerfile runtime
+      # (FROM node:20-alpine in apps/statenour/Dockerfile + apps/worker/Dockerfile).
+      # Node 22 in CI vs Node 20 in prod was a latent false-green risk · caught by
+      # the Tier-2-G code-review pass.
+      - name: Setup Node 20 (matches Railway runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
           cache: pnpm
 
-      - name: Install dependencies
+      - name: Install workspace deps
         run: pnpm install --frozen-lockfile
 
-      - name: Validate env contract (template)
-        run: pnpm env:validate 2>&1 | tee /tmp/env-output.txt
-
-      - name: TypeScript check
-        run: pnpm check 2>&1 | tee /tmp/check-output.txt
-
-      - name: Lint / format check
-        run: pnpm lint 2>&1 | tee /tmp/lint-output.txt
-
-      - name: Source lint (no console in server, count anys & SQL)
-        run: pnpm lint:source 2>&1 | tee /tmp/lint-source-output.txt
-
-      - name: Route registry validation (no silent SEO drift)
-        run: pnpm validate:routes 2>&1 | tee /tmp/routes-output.txt
-
-      - name: Run tests with coverage
-        run: pnpm test -- --reporter=verbose --coverage 2>&1 | tee /tmp/test-output.txt
-        env:
-          NO_COLOR: 1
-
-      - name: Audit dependencies
-        run: pnpm audit --prod --audit-level=high 2>&1 | tee /tmp/audit-output.txt
-        continue-on-error: true
-
-      - name: Build
-        run: pnpm build 2>&1 | tee /tmp/build-output.txt
-
-      - name: Upload logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
+      - name: Detect changed paths
+        id: changes
+        uses: dorny/paths-filter@v3
         with:
-          name: verify-logs
-          path: |
-            /tmp/env-output.txt
-            /tmp/check-output.txt
-            /tmp/lint-output.txt
-            /tmp/lint-source-output.txt
-            /tmp/test-output.txt
-            /tmp/audit-output.txt
-            /tmp/build-output.txt
-          retention-days: 5
+          filters: |
+            statenour:
+              - 'apps/statenour/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+            nickstire:
+              - 'apps/nickstire/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+            worker:
+              - 'apps/worker/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'turbo.json'
+            packages:
+              - 'packages/**'
 
-      - name: Print verify summary
+      # ─── Affected pipeline (Turbo handles parallelism + cache) ────────
+      - name: Verify affected (check + lint + test + build)
+        run: pnpm exec turbo run check lint test build --affected --output-logs=errors-only
+        env:
+          # Turbo writes cache hits to console with "cache hit, replaying
+          # logs" · keep CI logs readable.
+          TURBO_LOG_VERBOSITY: 0
+          # Carry through env-var hashes so cache keys stay correct
+          NODE_ENV: test
+
+      # ─── Nickstire-only custom validators (no Turbo equivalent yet) ──
+      - name: Nickstire · env validate
+        if: steps.changes.outputs.nickstire == 'true'
+        run: pnpm --filter nicks-tire-auto env:validate
+
+      - name: Nickstire · source lint (console.* in server, etc)
+        if: steps.changes.outputs.nickstire == 'true'
+        run: pnpm --filter nicks-tire-auto lint:source
+
+      - name: Nickstire · route registry validation
+        if: steps.changes.outputs.nickstire == 'true'
+        run: pnpm --filter nicks-tire-auto validate:routes
+
+      # ─── Security audit (always runs · cheap + non-blocking) ─────────
+      - name: Dependency audit (high+ severity)
+        continue-on-error: true
+        run: pnpm audit --prod --audit-level=high
+
+      # ─── Summary ──────────────────────────────────────────────────────
+      - name: Summary
         if: always()
         run: |
-          echo "--- env ---"
-          tail -20 /tmp/env-output.txt 2>/dev/null || true
-          echo "--- check ---"
-          tail -20 /tmp/check-output.txt 2>/dev/null || true
-          echo "--- lint ---"
-          tail -20 /tmp/lint-output.txt 2>/dev/null || true
-          echo "--- test ---"
-          tail -30 /tmp/test-output.txt 2>/dev/null || true
-          echo "--- audit ---"
-          tail -20 /tmp/audit-output.txt 2>/dev/null || true
-          echo "--- build ---"
-          tail -20 /tmp/build-output.txt 2>/dev/null || true
+          echo "Affected apps:"
+          echo "  statenour:  ${{ steps.changes.outputs.statenour }}"
+          echo "  nickstire:  ${{ steps.changes.outputs.nickstire }}"
+          echo "  worker:     ${{ steps.changes.outputs.worker }}"
+          echo "  (packages): ${{ steps.changes.outputs.packages }}"

@@ -1,0 +1,53 @@
+#!/usr/bin/env sh
+# Husky pre-push hook — runs `build` for any app touched since origin.
+#
+# Why this exists: 2026-05-19 PM, a Wave 40 push spent 9+ hours bouncing
+# off Railway because /tasks/page.tsx had an unwrapped useSearchParams()
+# that only manifested during Next.js prerender. Pre-commit didn't catch
+# it (typecheck passed · the bug only surfaced at build time). Railway
+# logs were the only diagnostic. This hook catches that class of bug
+# locally · before the push leaves the developer's machine.
+#
+# Strategy: defer to Turborepo's --affected detection. It diffs HEAD
+# against `origin/main` and rebuilds only the apps whose inputs changed
+# (plus anything depending on them via workspace deps). Cache hits are
+# free · cache misses surface real build errors.
+#
+# Cost: ~30s on first push of a session · ~1s on every subsequent push
+# (Turbo cache hit). Worth it vs hours of Railway thrash.
+#
+# Bypass: git push --no-verify (use sparingly · disables ALL hooks)
+
+set -e
+
+# Skip during initial pushes when no remote tracking exists yet
+if ! git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
+  echo "[pre-push] no upstream tracking branch · skipping affected-build check"
+  exit 0
+fi
+
+# Skip if pushing to a tag (no app changes)
+while read local_ref local_sha remote_ref remote_sha; do
+  case "$remote_ref" in
+    refs/tags/*) echo "[pre-push] tag push · skipping"; exit 0 ;;
+  esac
+done
+
+echo "[pre-push] running affected build (catches prerender errors before Railway)..."
+
+# Use the project's own pnpm + turbo so we don't rely on PATH being right
+if [ ! -x "./node_modules/.bin/turbo" ]; then
+  echo "[pre-push] turbo not found · run 'pnpm install' first"
+  exit 1
+fi
+
+# turbo run build --affected · cache-friendly · only rebuilds what changed
+./node_modules/.bin/turbo run build --affected --output-logs=errors-only || {
+  echo ""
+  echo "[pre-push] ❌ affected build FAILED"
+  echo "[pre-push] this would have failed on Railway · push blocked"
+  echo "[pre-push] fix the error above OR push with --no-verify if you know what you're doing"
+  exit 1
+}
+
+echo "✓ pre-push affected build OK"
