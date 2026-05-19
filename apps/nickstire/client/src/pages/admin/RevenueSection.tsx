@@ -19,18 +19,24 @@ import {
 } from "lucide-react";
 
 // 2026-05-19 Elon-cut · Specials moved to ContentSection (it's content
-// management, not invoice data). Financing tab killed — snapDashboard
-// at the sidebar level is the canonical Snap Finance surface.
+// management, not invoice data).
+// 2026-05-19 MONEY consolidation · Declined Work + Snap Finance pulled
+// IN as tabs (they were sidebar destinations; all three answer
+// "where's the money?" so one screen, three tabs).
 const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
 // wave-110 — CustomersSection removed; reachable as top-level /admin?tab=customers
 const DispatchSection = lazy(() => import("./DispatchSection"));
+const DeclinedEstimatesSection = lazy(() => import("./DeclinedEstimatesSection"));
+const SnapDashboardSection = lazy(() => import("./SnapDashboardSection"));
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip,
   ResponsiveContainer, LineChart, Line, PieChart as RPieChart, Pie, Cell, Legend,
   AreaChart, Area, CartesianGrid,
 } from "recharts";
 
-import { CHART_COLORS, CHART_THEME, PageHeader, LoadingState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
+// 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
+// reclaims ~80px of mobile viewport · topbar already shows "Money").
+import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 
 function formatCents(cents: number): string {
@@ -41,33 +47,59 @@ function formatDollars(dollars: number): string {
   return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-// 2026-05-19 Elon-cut · specials + financing tabs removed (see header).
-type SectionTab = "revenue" | "shopPulse" | "shopStatus";
+// 2026-05-19 MONEY consolidation · 5 tabs (Revenue · Declined · Financing
+// · Shop Pulse · Shop Status). Ordering: money-flow first (where's it
+// in / where's it walked away / how do we close), operational state after.
+// The 5-tab cap is at the edge of mobile-acceptable but each tab earns
+// its slot. Shop Pulse + Status remain because Dispatch + WorkOrders are
+// distinct operational surfaces (verified Phase 3) — they don't fold
+// cleanly elsewhere yet.
+type SectionTab = "revenue" | "declined" | "financing" | "shopPulse" | "shopStatus";
 
-const REVENUE_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
+const MONEY_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
   { id: "revenue", label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
+  { id: "declined", label: "Declined", icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
   { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
   { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
 ];
 
+const VALID_MONEY_TABS: SectionTab[] = ["revenue", "declined", "financing", "shopPulse", "shopStatus"];
+
 export default function RevenueSection() {
-  const [section, setSection] = useState<SectionTab>("revenue");
+  // URL-persistent so deep-links + back-button + sidebar refresh land on
+  // the right inner tab. Replaces useState that bounced operator back to
+  // Revenue every refresh.
+  const [section, setSection] = useUrlFilter<SectionTab>(
+    "moneyTab",
+    "revenue",
+    {
+      validate: (raw) => (VALID_MONEY_TABS.includes(raw as SectionTab) ? (raw as SectionTab) : null),
+    },
+  );
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Revenue & Shop"
-        subtitle="Daily flow · invoices · work orders · tier breakdown · forecasting · ALG mirror is the source of truth"
-        icon={<TrendingUp className="w-5 h-5" />}
-      />
+      {/* 2026-05-19 · PageHeader killed · topbar already says "Money".
+          Lead with content (insight strip + tabs), not a redundant title. */}
       <SectionInsightStrip section="revenue" />
       <TabBar
-        tabs={REVENUE_TABS}
+        tabs={MONEY_TABS}
         activeTab={section}
         onChange={setSection}
       />
 
       {section === "revenue" && <RevenueContent />}
+      {section === "declined" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <DeclinedEstimatesSection />
+        </Suspense>
+      )}
+      {section === "financing" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <SnapDashboardSection />
+        </Suspense>
+      )}
       {section === "shopPulse" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <WorkOrdersSection />

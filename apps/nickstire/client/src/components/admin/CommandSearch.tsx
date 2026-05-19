@@ -36,13 +36,14 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "command"], group: "Operations" },
 
   // Sales Pipeline
+  // 2026-05-19 MONEY consolidation · Declined + Snap are now inner tabs
+  // of the unified Money page. Their Cmd+K shortcuts use Quick Actions
+  // (below) that navigate to `revenue` with `moneyTab` rewritten.
   { id: "leads", label: "Leads / CRM", keywords: ["lead", "crm", "prospect", "new customer", "no-show", "risk"], group: "Sales" },
-  { id: "declinedEstimates", label: "Declined Work", keywords: ["declined", "walked", "lost", "recovery"], group: "Sales" },
-  { id: "snapDashboard", label: "Snap Finance", keywords: ["snap", "financing", "acima", "koalafi", "payment"], group: "Sales" },
 
-  // Revenue & Customers
-  { id: "revenue", label: "Revenue & Shop", keywords: ["revenue", "money", "income", "sales"], group: "Revenue" },
-  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed", "callback"], group: "Revenue" },
+  // Money & Customers
+  { id: "revenue", label: "Money", keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"], group: "Money" },
+  { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed", "callback"], group: "Money" },
   { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"], group: "Revenue" },
 
   // Outreach + Intelligence
@@ -214,6 +215,34 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
           window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=winback");
         }
         onNavigate("campaigns");
+      },
+    },
+    // 2026-05-19 MONEY consolidation · Declined + Snap are inner tabs
+    // of Money. These actions land Cmd+K users on the right tab.
+    {
+      id: "action-declined-work",
+      label: "Declined Work · $321K pipeline",
+      keywords: ["declined", "walked", "lost", "recovery", "pipeline", "estimates"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=declined");
+        }
+        onNavigate("revenue");
+      },
+    },
+    {
+      id: "action-snap-finance",
+      label: "Snap Finance dashboard",
+      keywords: ["snap", "financing", "finance", "acima", "koalafi", "payment", "loan"],
+      icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=financing");
+        }
+        onNavigate("revenue");
       },
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);

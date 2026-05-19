@@ -17,12 +17,15 @@ import CountUpNumber from "@/components/CountUpNumber";
 // 2026-04-24 admin audit: down from 45 sections to 16 active routes.
 // Deleted 27 dead/redundant sections. See commit log for rationale.
 // 2026-05-19 Elon-cut · noShowRisk + conversionPreview removed
-// (URL-aliased-only zombies; not in sidebar, not earning their keep).
+// (URL-aliased-only zombies).
+// 2026-05-19 MONEY consolidation · declinedEstimates + snapDashboard
+// removed from union — they're tabs inside Money now, not destinations.
+// Old URLs (?tab=declinedEstimates / ?tab=snapDashboard) redirect to
+// `revenue` with the right inner moneyTab via COMPOUND_REDIRECTS.
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
-  | "declinedEstimates" | "walkInCalc"
-  | "snapDashboard" | "trafficFunnel" | "voiceReceptionist";
+  | "walkInCalc" | "trafficFunnel" | "voiceReceptionist";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
@@ -75,90 +78,44 @@ export const CHART_THEME = {
 export type NavGroup = { label: string; items: { id: AdminSection; label: string; icon: React.ReactNode; badge?: string }[] };
 
 /**
- * NAV STRUCTURE — 2026-05-06 Elon-style first-principles pass.
+ * NAV STRUCTURE — 2026-05-19 Elon+Jobs first-principles reset.
  *
- * Process applied:
- *   1. QUESTION every requirement (why is THIS in THIS group?)
- *   2. DELETE what's not earning its keep (none — all 17 sections kept)
- *   3. SIMPLIFY the grouping (4 groups by ORG → 3 groups by USE-CASE)
- *   4. ACCELERATE (most-used at top of each group, badges visible)
- *   5. AUTOMATE (utility tools bottom-pinned, out of daily-use flow)
+ * Prior iterations (4 → 4 → 5 groups, 17 → 12 items) optimized inside
+ * the wrong frame: organizing destinations by category. Operator at a
+ * Cleveland tire shop running this from his phone asks ONE question:
+ * "what needs me right now and what's making me money?"
  *
- * Old groups (4): COMMAND · PIPELINE · OUTREACH · SYSTEM
- * Wave-122 (4): TODAY · REVENUE · GROW · TOOLS
- * Wave-129c (5): TODAY · CUSTOMERS · MONEY · GROW · SYSTEM
+ * That maps to 4 verbs, not 5 categories:
+ *   TODAY      — Dashboard surfaces the action queue (leads + bookings +
+ *                callbacks + voice metrics all surfaced as priority items).
+ *                Leads / Calls / Voice Receptionist remain reachable via
+ *                Cmd+K or ?tab=leads / ?tab=callTrackingView / ?tab=voiceReceptionist
+ *                — they just aren't first-class sidebar slots.
+ *   CUSTOMERS  — the ledger + 1:1 SMS surface
+ *   OUTREACH   — bulk campaigns, win-back, reviews, performance
+ *   MONEY      — revenue + declined + financing + shop floor (5 tabs in one screen)
+ *   SETTINGS   — config (ShopDriver / Health / Compliance / Integrations)
  *
- *   TODAY      — action queue: what needs me right now
- *   CUSTOMERS  — the relationships (ledger + how I talk to them)
- *   MONEY      — dollars: in-flow + recovery + financing
- *   GROW       — long-horizon levers: traffic, content, intelligence
- *   SYSTEM     — utility (NOUR OS Bridge + Settings)
+ * Killed from sidebar in this pass (still URL-reachable):
+ *   - Leads & Estimates       → priority queue on Dashboard
+ *   - Call Tracking           → priority queue on Dashboard
+ *   - Voice Receptionist      → call surface accessible via Cmd+K
+ *   - GROW group entirely     → trafficFunnel / content / intelligence
+ *                                are monthly review tools, not shift work
+ *   - NOUR OS Bridge          → 433 lines for 2 hyperlinks + a status dot;
+ *                                links live in the sidebar footer already
  *
- * Why two moves from wave-122:
- *
- *   1. Customers leaves TODAY → joins CUSTOMERS group.
- *      "Customers" is a ledger lookup, not an action-queue item.
- *      The operator opens TODAY items every shift; Customers is
- *      occasional ("look up John's history"). Wrong group.
- *
- *   2. Outreach Hub leaves GROW → joins CUSTOMERS group.
- *      Wave-129 made SMS the default Outreach tab — it's now the
- *      daily texting surface. That's a customer-relationship tool,
- *      not a long-horizon growth lever like SEO/content.
- *
- * Rename rationale: REVENUE → MONEY (broader; Snap Finance is a
- * financing tool, not revenue). TOOLS → SYSTEM (config + bridge
- * are system-level, not marketing tools).
+ * Group labels removed: 5 items in a flat list don't need category
+ * headers. The items ARE their own context.
  */
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "TODAY",
+    label: "", // No group label · flat list per Jobs "one screen one question"
     items: [
-      { id: "overview", label: "Dashboard", icon: <LayoutDashboard className="w-4 h-4" /> },
-      { id: "leads", label: "Leads & Estimates", icon: <Users className="w-4 h-4" />, badge: "leads" },
-      { id: "callTrackingView", label: "Call Tracking", icon: <PhoneCall className="w-4 h-4" />, badge: "callbacks" },
-      { id: "voiceReceptionist", label: "Voice Receptionist", icon: <Phone className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "CUSTOMERS",
-    items: [
+      { id: "overview", label: "Today", icon: <LayoutDashboard className="w-4 h-4" />, badge: "leads" },
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
-      { id: "campaigns", label: "Outreach Hub", icon: <Send className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "MONEY",
-    items: [
-      // 2026-05-06 Elon-deeper-cut · removed from sidebar (still URL-
-      // accessible via TAB_ALIASES):
-      //   - noShowRisk     → folded conceptually into Leads (it's a
-      //                       filter on the same lead pool)
-      //   - walkInCalc     → promoted to a Cmd+K quick action (it's a
-      //                       tool, not a destination)
-      { id: "revenue", label: "Revenue & Shop", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "declinedEstimates", label: "Declined Work", icon: <AlertTriangle className="w-4 h-4" /> },
-      { id: "snapDashboard", label: "Snap Finance", icon: <CreditCard className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "GROW",
-    items: [
-      // 2026-05-06 Elon-deeper-cut · removed from sidebar:
-      //   - reEngagement     → consolidated into Outreach Hub as a tab
-      //   - conversionPreview→ tucked under Settings (verification tool)
-      { id: "trafficFunnel", label: "Traffic → Revenue", icon: <TrendingUp className="w-4 h-4" /> },
-      { id: "content", label: "Content & AI", icon: <FileText className="w-4 h-4" /> },
-      { id: "intelligence", label: "Intelligence", icon: <Brain className="w-4 h-4" /> },
-    ],
-  },
-  {
-    label: "SYSTEM",
-    items: [
-      // Bottom-pinned utility: NOUR OS Bridge is a sync widget, not a
-      // daily destination. Settings holds ShopDriver, System Health,
-      // Compliance, Integrations, and Conversion Preview as tabs.
-      { id: "commandCenter", label: "NOUR OS Bridge", icon: <Zap className="w-4 h-4" /> },
+      { id: "campaigns", label: "Outreach", icon: <Send className="w-4 h-4" /> },
+      { id: "revenue", label: "Money", icon: <DollarSign className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },
@@ -169,19 +126,17 @@ export const NAV_ITEMS = NAV_GROUPS.flatMap(g => g.items);
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
   commandCenter: "NOUR OS Bridge",
-  overview: "Shop Dashboard",
+  overview: "Today",
   leads: "Leads & Estimates",
   content: "Content & AI",
   customers: "Customers",
-  campaigns: "Outreach Hub",
-  settings: "Settings & System",
-  revenue: "Revenue & Shop",
+  campaigns: "Outreach",
+  settings: "Settings",
+  revenue: "Money",
   callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
   intelligence: "Intelligence",
-  declinedEstimates: "Declined Work",
   walkInCalc: "Walk-In Quote",
-  snapDashboard: "Snap Finance",
   trafficFunnel: "Traffic → Revenue",
 };
 
