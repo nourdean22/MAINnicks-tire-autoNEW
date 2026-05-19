@@ -76,6 +76,41 @@ export function classifyIntent(prompt: string): string | null {
 }
 
 /**
+ * Phase CC bug-fix helper · returns a Set of ChatMessage.ids that
+ * already have a comparison row recorded. Extracted from the inline
+ * cross-reference path so the sampler can check membership BEFORE
+ * the candidate cap is applied (fixes the stuck-cron bug · see
+ * inline comment in readRecentV2Samples).
+ */
+async function loadAlreadyComparedIds(
+  prisma: import("@prisma/client").PrismaClient,
+  since: Date,
+): Promise<Set<string>> {
+  try {
+    const rows = await prisma.brainMemory.findMany({
+      where: {
+        category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN,
+        deletedAt: null,
+        createdAt: { gte: since },
+      },
+      select: { metadata: true },
+      take: 1000,
+    });
+    const ids = new Set<string>();
+    for (const row of rows) {
+      const m = (row.metadata ?? {}) as Record<string, unknown>;
+      if (typeof m.sourceMessageId === "string") {
+        ids.add(m.sourceMessageId);
+      }
+    }
+    return ids;
+  } catch (e) {
+    log.warn("already_compared_load_failed", { err: (e as Error).message?.slice(0, 200) });
+    return new Set<string>();
+  }
+}
+
+/**
  * Read recent V2 assistant replies + paired user prompts. Returns
  * newest-first. Best-effort · returns [] on persistence failure.
  */
@@ -90,8 +125,25 @@ export async function readRecentV2Samples(
   try {
     const { prisma } = await import("@/lib/prisma");
 
+    // Phase CC bug-fix · pre-load already-compared messageIds BEFORE
+    // iterating + capping. Pre-fix the filter ran AFTER the candidates
+    // list was capped at `take` · so if the first N raw assistant
+    // rows happened to all be already-compared, the candidates list
+    // hit `length >= take` with N already-compared entries, then the
+    // post-filter dropped them all and returned [] · the shadow-execute
+    // cron got STUCK · once a run captured the recent N, the next
+    // tick returned zero candidates instead of the next N fresh ones.
+    // Fix · check the already-compared set INSIDE the loop so the cap
+    // counts only fresh candidates. Also avoids N pairing queries for
+    // rows we'd just drop anyway.
+    const alreadyCompared = excludeAlreadyCompared
+      ? await loadAlreadyComparedIds(prisma, since)
+      : new Set<string>();
+
     // Pull a bigger batch than `take` so the pairing step has room to
-    // filter out unpairable assistant replies and already-compared ones.
+    // filter out unpairable assistant replies. With the bug fix above
+    // the multiplier can stay modest (4x) because pre-filtering by
+    // alreadyCompared keeps the candidates count climbing fast.
     const RAW_FETCH_MULTIPLIER = 4;
     const assistantRows = await prisma.chatMessage.findMany({
       where: {
@@ -111,13 +163,15 @@ export async function readRecentV2Samples(
 
     if (assistantRows.length === 0) return [];
 
-    // For each assistant reply, look up the immediately-preceding user
-    // message in the same conversation. Single pass · O(N) prisma calls
-    // · cap at the raw fetch size so worst-case is ~80 queries per
-    // dashboard load. Fine for an operator-grade page.
+    // For each FRESH assistant reply (skipped if already-compared),
+    // look up the immediately-preceding user message in the same
+    // conversation. Single pass · O(N) prisma calls bounded by
+    // `take * 4` · alreadyCompared shortcut means we skip the
+    // pairing query for already-handled rows.
     const candidates: CandidateSample[] = [];
     for (const reply of assistantRows) {
       if (candidates.length >= take) break;
+      if (alreadyCompared.has(reply.id)) continue;
 
       const precedingUser = await prisma.chatMessage.findFirst({
         where: {
@@ -140,33 +194,7 @@ export async function readRecentV2Samples(
       });
     }
 
-    if (!excludeAlreadyCompared || candidates.length === 0) {
-      return candidates;
-    }
-
-    // Cross-reference against PROMPT_COMPARISON_RUN BrainMemory rows ·
-    // any sample whose messageId already appears in metadata is dropped.
-    // We pull the recent comparison heads (same window as samples) and
-    // build a set for O(1) lookup.
-    const comparisonRows = await prisma.brainMemory.findMany({
-      where: {
-        category: BRAIN_CATEGORIES.PROMPT_COMPARISON_RUN,
-        deletedAt: null,
-        createdAt: { gte: since },
-      },
-      select: { metadata: true },
-      take: 1000,
-    });
-
-    const alreadyCompared = new Set<string>();
-    for (const row of comparisonRows) {
-      const m = (row.metadata ?? {}) as Record<string, unknown>;
-      if (typeof m.sourceMessageId === "string") {
-        alreadyCompared.add(m.sourceMessageId);
-      }
-    }
-
-    return candidates.filter((c) => !alreadyCompared.has(c.messageId));
+    return candidates;
   } catch (e) {
     log.warn("sampler_failed", { err: (e as Error).message?.slice(0, 200) });
     return [];

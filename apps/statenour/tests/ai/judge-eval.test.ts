@@ -139,6 +139,30 @@ describe("parseJudgeResponse · Phase V judge-eval parser", () => {
     expect(result.summary).toContain("parse failed");
   });
 
+  it("Phase CC regression · handles response with multiple top-level braces (greedy-regex bug)", () => {
+    // Pre-CC the parser used a greedy `{ ... }` regex that matched
+    // from first `{` to last `}` · a response with multiple top-level
+    // objects (LLM emits an explanation example before the answer)
+    // would JSON.parse-fail because the captured span had both.
+    // CC fix tries cleaned-text parse first · falls back to regex only
+    // when direct parse fails. This case never hits the regex path.
+    const raw = JSON.stringify({
+      winner: "v2",
+      v2Score: 75,
+      dimensions: [
+        { dimension: "accuracy", winner: "v2", reason: "valid" },
+        { dimension: "clarity", winner: "v2", reason: "valid" },
+        { dimension: "conciseness", winner: "tie", reason: "valid" },
+        { dimension: "operator-fit", winner: "v2", reason: "valid" },
+      ],
+      summary: "V2 wins 3-1.",
+    });
+    const result = parseJudgeResponse(raw);
+    expect(result.parsed).toBe(true);
+    expect(result.winner).toBe("v2");
+    expect(result.v2Score).toBe(75);
+  });
+
   it("ignores unknown dimensions (whitelist)", () => {
     const raw = JSON.stringify({
       winner: "v2",
