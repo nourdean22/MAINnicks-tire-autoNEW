@@ -8,7 +8,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./cn": "./src/cn.ts"
+    "./cn": "./src/cn.ts",
+    "./with-timeout": "./src/with-timeout.ts"
   },
   "scripts": {
     "check": "tsc --noEmit",

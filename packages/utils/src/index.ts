@@ -10,3 +10,8 @@
  * carry framework + env coupling that doesn't compose cleanly.
  */
 export { cn } from "./cn";
+export {
+  withTimeout,
+  withTimeoutOrFallback,
+  fetchWithTimeout,
+} from "./with-timeout";

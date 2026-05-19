@@ -87,6 +87,9 @@ async function _askPerplexity(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    // wave-181.90 follow-up · 30s · perplexity's online search can be slow
+    // when it pulls many sources · give it more room than exa/tavily.
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {

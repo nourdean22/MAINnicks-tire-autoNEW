@@ -104,6 +104,7 @@ async function _askTavily(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000), // wave-181.90 follow-up
   });
 
   if (!res.ok) {
