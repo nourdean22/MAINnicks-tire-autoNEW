@@ -77,6 +77,28 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("OTP attempts cleanup failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // Wave-181.66: prune stale SMS daily rate-limit counters.
+  // Rows older than 25 hours are safe to delete — the rolling 24h window
+  // has rolled over, so a fresh send would start a new window anyway.
+  // The extra hour of slack avoids deleting a row that's about to roll
+  // over naturally on its next send (avoids a brief gap where an at-cap
+  // phone could send one extra message because the row was just pruned).
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (db) {
+      const [result] = await db.execute(sql`
+        DELETE FROM sms_rate_limit
+        WHERE updated_at < (NOW() - INTERVAL 25 HOUR)
+      `);
+      const smsRateLimitCleaned = (result as { affectedRows?: number })?.affectedRows ?? 0;
+      cleaned += smsRateLimitCleaned;
+    }
+  } catch (err) {
+    log.warn("SMS rate-limit cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
   return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
 }

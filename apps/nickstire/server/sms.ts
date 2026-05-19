@@ -637,34 +637,66 @@ async function alertShopGatewayFallback(reason: string, to: string): Promise<voi
   }
 }
 
-// Per-phone daily rate limit (capped at 2000 entries, cleaned hourly)
-const smsCountMap = new Map<string, { count: number; resetAt: number }>();
 const MAX_SMS_PER_PHONE_PER_DAY = 8;
 
-// Per-phone short-term cooldown (5 min between messages, capped)
+// Per-phone short-term cooldown (5 min between messages, capped).
+// Stays in-memory per-instance — the window is tight enough that
+// restart loss isn't operationally meaningful, and avoiding a DB
+// roundtrip on the cooldown check keeps the hot path lean. The
+// per-pod split is also fine here: worst case under N pods is a
+// 5-min cooldown effectively becoming 5/N min, which is still
+// nowhere near the daily cap. The DAILY counter is the one that
+// genuinely needs durability — see checkDailyLimit below.
 const smsLastSentMap = new Map<string, number>();
 const SMS_COOLDOWN_MS = 5 * 60 * 1000;
 
-// Periodic cleanup to prevent unbounded growth
+// Periodic cleanup to prevent unbounded growth of the in-memory cooldown map.
 setInterval(() => {
   const now = Date.now();
-  // Clean expired rate limits
-  for (const [phone, data] of smsCountMap) {
-    if (now > data.resetAt) smsCountMap.delete(phone);
-  }
-  // Clean stale cooldowns (older than 1 hour)
   for (const [phone, ts] of smsLastSentMap) {
     if (now - ts > 3600_000) smsLastSentMap.delete(phone);
   }
-  // Hard cap — if still too big, clear oldest
-  if (smsCountMap.size > 2000) smsCountMap.clear();
   if (smsLastSentMap.size > 2000) smsLastSentMap.clear();
 }, 60 * 60 * 1000); // Every hour
 
-function checkDailyLimit(phone: string): boolean {
+/**
+ * Daily SMS rate-limit check + atomic increment.
+ *
+ * wave-181.66: counter moved from an in-memory Map (smsCountMap) to the
+ * `sms_rate_limit` table (drizzle/0043_wave181_sms_rate_limit_durable.sql).
+ * Sister bug to wave-181.59's OTP fix — the map worked for a single
+ * long-running process but had two prod-realistic holes:
+ *
+ *   1. Process restart wiped the counter. Railway redeploys reset every
+ *      customer's daily count to 0 — a customer who already received 8
+ *      messages today could immediately receive 8 more after a deploy.
+ *
+ *   2. Railway runs N>1 instances — counts split across pods, so the
+ *      effective cap was N× higher than intended.
+ *
+ * Implementation uses MySQL's atomic INSERT ... ON DUPLICATE KEY UPDATE
+ * (same pattern as recordFailedAttempt in middleware/bruteForce.ts) plus
+ * a follow-up SELECT to read the post-update count. One row per phone,
+ * race-safe across concurrent sends from any pod.
+ *
+ * The short-term 5-min cooldown still uses smsLastSentMap (in-memory) —
+ * its window is too tight for restart loss to matter, and skipping a DB
+ * roundtrip on every cooldown check keeps the hot path fast.
+ *
+ * Fail-open on DB error: if the table is unreachable, allow the send and
+ * log a warn. Same policy as middleware/bruteForce.ts — locking real
+ * customers out during a DB outage is worse than the rare overcount.
+ *
+ * The atomic upsert ALWAYS increments (or resets to 1 when the 24h
+ * window has rolled). Count can briefly exceed the cap during contention
+ * (e.g. 10 parallel sends with count=7 and cap=8 land 10 increments to
+ * count=17), but that just means subsequent attempts see count > cap and
+ * get blocked. Cleanup cron prunes stale rows after 25h.
+ */
+async function checkDailyLimit(phone: string): Promise<boolean> {
   const now = Date.now();
 
-  // Short-term cooldown
+  // Short-term cooldown (in-memory)
   const lastSent = smsLastSentMap.get(phone);
   if (lastSent && now - lastSent < SMS_COOLDOWN_MS) {
     log.warn("SMS cooldown active", {
@@ -674,16 +706,61 @@ function checkDailyLimit(phone: string): boolean {
     return false;
   }
 
-  const entry = smsCountMap.get(phone);
-  if (!entry || now > entry.resetAt) {
-    smsCountMap.set(phone, { count: 1, resetAt: now + 24 * 60 * 60 * 1000 });
+  try {
+    const { getDb } = await import("./db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (!db) {
+      // DB unavailable — fail-open, log, still record the cooldown so
+      // we don't spam the same number multiple times per minute even
+      // when the durable counter is offline.
+      smsLastSentMap.set(phone, now);
+      return true;
+    }
+
+    await db.execute(sql`
+      INSERT INTO sms_rate_limit (phone, count_24h, window_started_at, last_sent_at, updated_at)
+      VALUES (${phone}, 1, NOW(), NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        count_24h = IF(
+          window_started_at < (NOW() - INTERVAL 24 HOUR),
+          1,
+          count_24h + 1
+        ),
+        window_started_at = IF(
+          window_started_at < (NOW() - INTERVAL 24 HOUR),
+          NOW(),
+          window_started_at
+        ),
+        last_sent_at = NOW(),
+        updated_at = NOW()
+    `);
+
+    const [rows] = await db.execute(sql`
+      SELECT count_24h FROM sms_rate_limit WHERE phone = ${phone} LIMIT 1
+    `);
+    const arr = rows as Array<{ count_24h: number }>;
+    const newCount = arr[0]?.count_24h ?? 1;
+
+    if (newCount > MAX_SMS_PER_PHONE_PER_DAY) {
+      log.warn("SMS daily limit reached", {
+        phone: phone.slice(-4),
+        count: newCount,
+        cap: MAX_SMS_PER_PHONE_PER_DAY,
+      });
+      return false;
+    }
+
+    smsLastSentMap.set(phone, now);
+    return true;
+  } catch (err) {
+    log.warn("checkDailyLimit DB error — allowing send (fail-open)", {
+      errorId: "SMS_DAILY_LIMIT_QUERY_ERROR",
+      error: err instanceof Error ? err.message : String(err),
+    });
     smsLastSentMap.set(phone, now);
     return true;
   }
-  if (entry.count >= MAX_SMS_PER_PHONE_PER_DAY) return false;
-  entry.count++;
-  smsLastSentMap.set(phone, now);
-  return true;
 }
 
 /**
@@ -717,7 +794,7 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
   // receiving SMS until the opt-out cache caught up (TCPA risk) and a
   // single phone could receive unlimited SMS in 24h.
   if (!opts?.transactional && !opts?._forceImmediate && !opts?.skipOptOutCheck) {
-    if (!checkDailyLimit(normalizedEarly)) {
+    if (!(await checkDailyLimit(normalizedEarly))) {
       return { success: false, error: "Daily SMS limit reached for this number" };
     }
   }

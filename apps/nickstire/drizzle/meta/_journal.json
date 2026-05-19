@@ -281,6 +281,20 @@
 			"when": 1779200000000,
 			"tag": "0042_wave181_declined_recovery_attempted_at",
 			"breakpoints": true
+		},
+		{
+			"idx": 43,
+			"version": "5",
+			"when": 1779153346502,
+			"tag": "0040_wave181_otp_attempts_durable",
+			"breakpoints": true
+		},
+		{
+			"idx": 44,
+			"version": "5",
+			"when": 1779191988806,
+			"tag": "0043_wave181_sms_rate_limit_durable",
+			"breakpoints": true
 		}
 	]
 }
