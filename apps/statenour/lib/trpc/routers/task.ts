@@ -34,6 +34,7 @@ import {
   startTask,
   breakPromise,
   createTaskFromAPI,
+  scoreTaskWithAI,
   WrongLoopKindError,
 } from "@/lib/services/task-actions";
 import { ServiceError } from "@/lib/utils/service-error";
@@ -376,4 +377,29 @@ export const taskRouter = router({
   createMission: operatorProcedure
     .input(z.record(z.string(), z.unknown()))
     .mutation(async ({ input }) => createMission(input)),
+
+  /**
+   * Phase SS.2 (2026-05-19 AM) · owner-only · AI-grade a task's
+   * roiScore. The quick-add path hardcodes roiScore=50 · this
+   * fire-and-forget mutation asks Nick to read the task and grade
+   * 0-100 in the background so the auto-priority sort gets
+   * meaningful signal from the moment the task lands.
+   *
+   * Idempotent · skips when operator has already graded (roiScore
+   * != 50) unless force=true.
+   *
+   * Delegates to `lib/services/task-actions.scoreTaskWithAI` · legacy
+   * POST /api/tasks/[id]/score calls the same function · drift
+   * impossible. Returns `{ok, roiScore?, reasoning?, skipped?}` shape.
+   */
+  score: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        force: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      scoreTaskWithAI({ id: input.id, force: input.force }),
+    ),
 });

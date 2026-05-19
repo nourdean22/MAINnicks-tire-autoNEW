@@ -493,6 +493,129 @@ export async function breakPromise(args: {
   return { ok: true, task: updated, log: logRow };
 }
 
+// ─── scoreTaskWithAI (Phase SS.2 · 2026-05-19 AM) ────────────
+
+const SCORE_SCHEMA = {
+  type: "object",
+  properties: {
+    roiScore: {
+      type: "number",
+      minimum: 0,
+      maximum: 100,
+      description:
+        "0-100 estimate of return-on-investment for this task. " +
+        "Higher = more leverage per minute spent. Anchor at 50 = average. " +
+        "Reserve 80+ for clear high-leverage moves, 20- for chores.",
+    },
+    reasoning: {
+      type: "string",
+      description: "1 sentence · why this score · plain English · lowercase.",
+    },
+  },
+  required: ["roiScore"],
+};
+
+export interface ScoreTaskResult {
+  ok: boolean;
+  skipped?: boolean;
+  reason?: string;
+  roiScore?: number;
+  reasoning?: string | null;
+  error?: string;
+}
+
+/**
+ * Phase SS.2 · AI-grade a task's roiScore. The quick-add path
+ * hardcodes roiScore=50 · this asks Nick to read the task title +
+ * finish condition + mission domain and return a 0-100 score.
+ *
+ * Idempotent: only updates when current roiScore is the default 50
+ * (i.e. operator hasn't manually graded yet) or when explicitly
+ * overridden via `force=true`.
+ *
+ * Called by BOTH the legacy POST /api/tasks/[id]/score AND the new
+ * `trpc.task.score` mutation · drift impossible.
+ */
+export async function scoreTaskWithAI(args: {
+  id: string;
+  force?: boolean;
+}): Promise<ScoreTaskResult> {
+  // Lazy-import the AI module · keeps cold-start fast for callers
+  // that never invoke this path.
+  const { createStructuredAiResponse, AiUnavailableError } = await import(
+    "@/lib/ai/structured"
+  );
+
+  const task = await prisma.task.findUnique({
+    where: { id: args.id },
+    select: {
+      id: true,
+      title: true,
+      finishCondition: true,
+      roiScore: true,
+      mission: { select: { title: true, domain: true } },
+    },
+  });
+  if (!task) return { ok: false, error: "task not found" };
+
+  if (task.roiScore !== 50 && !args.force) {
+    return { ok: true, skipped: true, reason: "operator-graded" };
+  }
+
+  const systemPrompt =
+    `You score tasks for an operator who runs a tire shop + builds his own personal OS. ` +
+    `Return a roiScore 0-100 where higher = more leverage per minute. ` +
+    `Anchor: 50 = average. Reserve 80+ for clear leverage moves. ` +
+    `Lowercase reasoning · plain English · no AI clichés.`;
+
+  const userPrompt = `Task title: ${task.title}
+Finish condition: ${task.finishCondition ?? "(none)"}
+Mission: ${task.mission?.title ?? "(none)"}
+Mission domain: ${task.mission?.domain ?? "(none)"}`;
+
+  try {
+    const result = await createStructuredAiResponse<{
+      roiScore: number;
+      reasoning?: string;
+    }>({
+      systemPrompt,
+      userPrompt,
+      schemaName: "task_roi_score",
+      schema: SCORE_SCHEMA,
+    });
+
+    const next = Math.max(
+      0,
+      Math.min(100, Math.round(Number(result.roiScore) || 50)),
+    );
+    await prisma.task.update({
+      where: { id: args.id },
+      data: {
+        roiScore: next,
+        autoPriorityExplanation: result.reasoning
+          ? `roi · ${result.reasoning}`.slice(0, 240)
+          : undefined,
+      },
+    });
+
+    return {
+      ok: true,
+      roiScore: next,
+      reasoning: result.reasoning ?? null,
+    };
+  } catch (err) {
+    if (err instanceof AiUnavailableError) {
+      log.warn("ai_unavailable", { taskId: args.id, code: err.code });
+      return { ok: false, error: "ai_unavailable" };
+    }
+    log.warn("score_failed", {
+      taskId: args.id,
+      err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+    });
+    return { ok: false, error: "internal" };
+  }
+}
+
 // ─── createTaskFromAPI (Phase SS · 2026-05-19 AM) ────────────
 
 interface CreateTaskAPIPayload {
