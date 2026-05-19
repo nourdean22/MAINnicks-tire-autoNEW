@@ -12,7 +12,10 @@ import { NEIGHBORHOODS } from "@shared/neighborhoods";
 import { TIRE_SIZE_PAGES } from "@shared/tireSizes";
 // VEHICLE_SERVICE_PAGES removed 2026-04-24 per T5 audit
 import { SkipToContent } from "@/components/SEO";
-import QuickAccessDock from "@/components/QuickAccessDock";
+// 2026-05-19 · QuickAccessDock deleted · superseded by the unified
+// SiteMobileCTA bar (mounted via PageLayout) which now carries CALL ·
+// TEXT · DIRECTIONS at thumb height. The dock was floating pills that
+// competed with the bar.
 // @vercel/analytics removed — this runs on Railway, not Vercel
 
 // ─── LOADING FALLBACK ─────────────────────────────────
@@ -425,7 +428,6 @@ function App() {
           <SkipToContent />
           <Toaster />
           <Router />
-          <QuickAccessDock />
           <EmergencyMode />
           {/* Analytics removed — runs on Railway, not Vercel */}
         </TooltipProvider>
