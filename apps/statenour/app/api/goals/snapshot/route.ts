@@ -1,11 +1,17 @@
 /**
- * GET /api/goals/snapshot · Phase A.1 (2026-05-17)
+ * GET /api/goals/snapshot · Phase A.1 (2026-05-17) · Phase OO (2026-05-19 AM)
  *
  * Owner-only · returns the composite payload for /goals page:
  *   · ladder (LifeGoal grouped by horizon)
  *   · missions (active · sorted by priority+ROI)
  *   · axes (latest MasteryScore per domain + 7d delta)
  *   · pruneCandidates count
+ *
+ * Phase OO · heavy lifting still in `lib/services/goals-snapshot.ts` ·
+ * BOTH this REST endpoint AND the new `trpc.operator.goalsSnapshot`
+ * query call the same `buildGoalsSnapshot` function · drift between
+ * the two consumers structurally impossible. Stays mounted for
+ * back-compat with any non-tRPC consumer.
  *
  * Single round-trip · no AI calls · no bridge hits · ~200-400ms typical.
  *

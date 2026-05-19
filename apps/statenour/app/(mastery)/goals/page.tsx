@@ -26,7 +26,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
@@ -112,19 +112,23 @@ const HORIZON_STYLE: Record<Horizon, { titleSize: string; opacity: string; paddi
 };
 
 export default function GoalsPage() {
-  // Phase D follow-up audit (2026-05-18) · collapsed 23 LOC of
-  // bespoke fetch+state mgmt to the shared useAuthedFetch hook ·
-  // pairs with MasteryErrorView + MasterySkeleton primitives ·
-  // matches the convention now used by /scoreboard + the 3
-  // /journal thread components.
-  const { data, error, loading, reload } = useAuthedFetch<Snapshot>(
-    "/api/goals/snapshot",
-  );
+  // Phase OO (2026-05-19 AM) · tRPC migration · types flow from
+  // `lib/services/goals-snapshot.ts` via `trpc.operator.goalsSnapshot`
+  // · the manual `Snapshot` interface stays for component-level
+  // composition (lots of child components reference it) but the
+  // server boundary is now type-safe end-to-end.
+  const goalsQuery = trpc.operator.goalsSnapshot.useQuery(undefined, {
+    staleTime: 30_000, // matches the prior route's Cache-Control: max-age=30
+  });
+  const data = goalsQuery.data as Snapshot | undefined;
+  const loading = goalsQuery.isLoading;
+  const error = goalsQuery.error;
+  const reload = () => void goalsQuery.refetch();
 
   if (loading && !data) {
     return <MasterySkeleton cards={3} maxWidth="max-w-6xl" />;
   }
-  if (error) return <MasteryErrorView label="Goals" error={error} onRetry={reload} />;
+  if (error) return <MasteryErrorView label="Goals" error={error.message} onRetry={reload} />;
   if (!data) return null;
 
   return (

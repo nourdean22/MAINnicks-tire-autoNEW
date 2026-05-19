@@ -20,6 +20,7 @@ import {
   buildCompoundChain,
   type CompoundSurface,
 } from "@/lib/services/compound-chain";
+import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 
 const PulseSurfaceSchema = z.enum([
   "tasks",
@@ -47,4 +48,19 @@ export const operatorRouter = router({
     .query(async ({ input }) => {
       return buildCompoundChain(input.surface);
     }),
+
+  /**
+   * Phase OO (2026-05-19 AM) · owner-only · composite payload for the
+   * /goals page (LifeGoal ladder + active missions + 8-axis mastery
+   * scores + prune-candidates count). Delegates to
+   * `lib/services/goals-snapshot.buildGoalsSnapshot` shared service ·
+   * legacy GET /api/goals/snapshot calls the same function · drift
+   * impossible.
+   *
+   * No input · snapshot is operator-scoped (single user surface).
+   * React Query inherits the existing 30s cache + auto-refetch.
+   */
+  goalsSnapshot: operatorProcedure.query(async () => {
+    return buildGoalsSnapshot();
+  }),
 });
