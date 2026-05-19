@@ -15,7 +15,8 @@
     "test:stn": "pnpm --filter @statenour/web test",
     "test:all": "pnpm -r --parallel test",
     "check:all": "pnpm -r --parallel check",
-    "verify:nick": "pnpm --filter nicks-tire-auto verify"
+    "verify:nick": "pnpm --filter nicks-tire-auto verify",
+    "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
   },
   "engines": {
     "node": ">=20.0.0"
