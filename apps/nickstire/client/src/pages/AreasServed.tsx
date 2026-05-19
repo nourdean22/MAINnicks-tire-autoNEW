@@ -9,7 +9,9 @@ import { Link } from "wouter";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { CITIES } from "@shared/cities";
 import { NEIGHBORHOODS } from "@shared/neighborhoods";
-import { INTERSECTIONS } from "@shared/intersections";
+// 2026-05-19 · INTERSECTIONS import removed · 154-page intersection
+// silo was an SEO dead-weight (orphans, 0 schema, cannibalization).
+// AreasServed page no longer shows the intersection grid.
 import { BUSINESS } from "@shared/business";
 import { MapPin, ChevronRight, Navigation } from "lucide-react";
 import InternalLinks from "@/components/InternalLinks";
@@ -25,16 +27,6 @@ export default function AreasServed() {
   const landmarkNeighborhoods = NEIGHBORHOODS.filter(n => n.type === "landmark");
   const areaNeighborhoods = NEIGHBORHOODS.filter(n => n.type === "neighborhood");
 
-  // Group intersections by neighborhood for organized display
-  const intersectionsByArea = INTERSECTIONS.reduce<Record<string, typeof INTERSECTIONS>>((acc, i) => {
-    const area = i.neighborhood || "Other";
-    if (!acc[area]) acc[area] = [];
-    acc[area].push(i);
-    return acc;
-  }, {});
-
-  const intersectionAreas = Object.keys(intersectionsByArea).sort();
-
   return (
     <PageLayout activeHref="/areas-served" showChat={true}>
       {/* wave-154 — was "150+ neighborhoods" — actual count from data
@@ -42,7 +34,7 @@ export default function AreasServed() {
           matches reality and Google's quality-content signals stay aligned. */}
       <SEOHead
         title="Areas We Serve · Cleveland & Northeast Ohio | Nick's Tire & Auto"
-        description="Nick's Tire & Auto serves 120+ neighborhoods across Cleveland, Euclid, Parma, Parma Heights, Lakewood, Mentor, and the whole northeast Ohio. We've also been known to help drivers from as far as Erie — find your neighborhood and we'll tell you what street to take."
+        description="Nick's Tire & Auto serves the cities and neighborhoods across Cleveland, Euclid, Parma, Parma Heights, Lakewood, Mentor, and the whole northeast Ohio. We've also been known to help drivers from as far as Erie — find your area and we'll tell you what street to take."
         canonicalPath="/areas-served"
       />
 
@@ -56,7 +48,7 @@ export default function AreasServed() {
             </h1>
             <p className="text-foreground/60 mt-4 text-base leading-relaxed">
               Nick's Tire & Auto at {BUSINESS.address.street}, Cleveland, OH {BUSINESS.address.zip} serves
-              drivers from over 120 neighborhoods, cities, and intersections across Northeast Ohio. Whether
+              drivers from cities and neighborhoods across Northeast Ohio. Whether
               you're in Euclid, Parma, Lakewood, Mentor, or anywhere in between — we're the corner of
               Euclid Ave that fixes it. Find your area below.
             </p>
@@ -175,41 +167,10 @@ export default function AreasServed() {
         </div>
       </section>
 
-      {/* ─── INTERSECTION PAGES ─── */}
-      <section className="bg-[#0D0D0D] py-16 border-t border-border/20">
-        <div className="container">
-          <div className="flex items-center gap-3 stagger-in mb-8">
-            <MapPin className="w-5 h-5 text-[#FDB913]" />
-            <h2 className="text-xl font-bold text-white">Intersections & Local Areas</h2>
-            <span className="text-xs text-foreground/40 bg-foreground/5 px-2 py-0.5 rounded">
-              {INTERSECTIONS.length} locations
-            </span>
-          </div>
-
-          <div className="space-y-8">
-            {intersectionAreas.map((area) => (
-              <div key={area}>
-                <h3 className="text-sm font-semibold text-[#FDB913]/70 uppercase tracking-wider mb-3">
-                  {area}
-                </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 stagger-in">
-                  {intersectionsByArea[area].map((intersection) => (
-                    <Link
-                      key={intersection.slug}
-                      href={`/near/${intersection.slug}`}
-                      className="group flex items-center gap-2 stagger-in p-2.5 border border-border/10 hover:border-[#FDB913]/30 transition-colors"
-                    >
-                      <span className="text-xs text-foreground/60 group-hover:text-[#FDB913] transition-colors truncate">
-                        {intersection.name}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* 2026-05-19 · Intersection grid section DELETED · 154 orphan
+          pages with 0 schema and 1 inbound link were SEO dead-weight.
+          Cities + Neighborhoods sections above already cover the
+          location-based intent without the cannibalization. */}
 
       {/* ─── CTA ─── */}
       <section className="bg-[#0A0A0A] py-16 border-t border-border/20">
