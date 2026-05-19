@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 10 / 50+ surfaces · ~20% complete · **4 domain routers (nick · operator · system · chat)** · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`)
+**Status:** 11 / 50+ surfaces · ~22% complete · 4 domain routers (nick · operator · system · chat with 2 procedures) · invalidate-after-mutation pattern adopted (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`)
 
 ## Why
 
@@ -19,7 +19,7 @@ J introduced tRPC v11 + `@tanstack/react-query` v5 with:
 
 End-to-end types flow from server → client · no manual mirrors.
 
-## Migrated surfaces (10)
+## Migrated surfaces (11)
 
 | Surface | From | To | Commit |
 |---|---|---|---|
@@ -32,7 +32,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | `/system/lens-stats` | `authedFetch` → `/api/system/lens-stats?days=N` | `trpc.system.lensStats.useQuery({days})` | U.4 |
 | `/system/ai-cost` | `authedFetch` → `/api/system/ai-cost` | `trpc.system.aiCost.useQuery()` | **Y.2** |
 | `/system/ghost-nour` (candidates list) | `authedFetch` → `/api/system/ghost-nour?list=recent` | `trpc.system.ghostNourCandidates.useQuery()` | Y.4 |
-| ChatHistorySearch (Cmd+F overlay) | `authedFetch` → `/api/chat/search?q=X&limit=25` (debounced × 2 sites) | `trpc.chat.search.useQuery({q, limit})` + `setData()` optimistic drop | **Z.3** |
+| ChatHistorySearch (Cmd+F overlay) | `authedFetch` → `/api/chat/search?q=X&limit=25` (debounced × 2 sites) | `trpc.chat.search.useQuery({q, limit})` + `setData()` optimistic drop | Z.3 |
+| MessageBranchSwitcher (alt 2 of 3 controls) | `authedFetch` → `/api/ai/chat/branches/[parentMessageId]` | `trpc.chat.branches.useQuery({parentMessageId})` | **DD.3** |
 
 ## Architectural notes
 
