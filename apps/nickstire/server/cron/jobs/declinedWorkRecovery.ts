@@ -150,18 +150,27 @@ export async function runDeclinedWorkRecovery(): Promise<RecoveryResult> {
         `Set FEATURE_DECLINED_RECOVERY=1 to enable sends.`,
     );
     try {
-      const { sendTelegram } = await import("../../services/telegram");
-      await sendTelegram(
-        `💰 DECLINED WORK (DRY RUN)\n\n` +
-          `${unmatched.length} ALG estimates with no matching invoice, ${formatMoney(totalRecoverableCents)} recoverable.\n` +
-          `Set FEATURE_DECLINED_RECOVERY=1 to start 7d/30d SMS follow-ups.`,
+      // wave-181.72 (highest-leverage move) · LOUD Telegram alert with
+      // the actual dollar amount + explicit Railway instruction. The
+      // prior message was generic and easy to dismiss · this version
+      // hits with money-on-the-table framing so the operator sees the
+      // pipeline value at a glance from their phone.
+      const { sendTelegramMessage } = await import("../../services/telegram");
+      await sendTelegramMessage(
+        `🔴 <b>${formatMoney(totalRecoverableCents)} IDLE — recovery cron is DRY-RUN</b>\n\n` +
+          `${unmatched.length} walked-away estimates have NEVER received a follow-up.\n\n` +
+          `<b>1 click on Railway to unleash:</b>\n` +
+          `<code>FEATURE_DECLINED_RECOVERY=1</code>\n\n` +
+          `Once set: 7d + 30d SMS auto-fires daily at 20/run cap.\n` +
+          `Safety: at-most-once claim (wave-181.59) · TCPA opt-out (wave-181.60) · durable rate-limit (wave-181.68).`,
+        "critical",
       );
     } catch (e) {
       log.warn("[declined-recovery] telegram notify failed:", e);
     }
     return {
       recordsProcessed: unmatched.length,
-      details: `DRY RUN: ${unmatched.length} eligible, ${formatMoney(totalRecoverableCents)} recoverable`,
+      details: `DRY RUN: ${unmatched.length} eligible, ${formatMoney(totalRecoverableCents)} recoverable — flip FEATURE_DECLINED_RECOVERY=1`,
     };
   }
 
