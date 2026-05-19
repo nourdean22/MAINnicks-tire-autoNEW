@@ -1194,12 +1194,25 @@ ${urls.join("\n")}
       return res.sendStatus(403);
     }
 
-    const body = JSON.parse(req.body.toString());
+    // wave-181.65 (bug-hunter deeper pass) · JSON.parse was unguarded.
+    // A valid-HMAC-signed body that's malformed JSON (transit corruption,
+    // Facebook API misbehavior, or a sufficiently-motivated attacker with
+    // app secret) would throw an unhandled rejection inside this async
+    // Express handler. Wrap + validate shape before iterating so the
+    // for-of loops below can't crash on unexpected types.
+    let body: { object?: string; entry?: Array<{ messaging?: Array<{ message?: { text?: string }; sender?: { id?: string } }> }> };
+    try {
+      body = JSON.parse(req.body.toString());
+    } catch (err) {
+      console.warn("[Messenger] Webhook body was not valid JSON", { err: err instanceof Error ? err.message : String(err) });
+      return res.status(400).json({ error: "invalid json body" });
+    }
 
-    if (body.object === "page") {
-      for (const entry of body.entry || []) {
-        for (const event of entry.messaging || []) {
-          if (event.message?.text) {
+    if (body && body.object === "page" && Array.isArray(body.entry)) {
+      for (const entry of body.entry) {
+        if (!entry || !Array.isArray(entry.messaging)) continue;
+        for (const event of entry.messaging) {
+          if (event?.message?.text && event.sender?.id) {
             const { handleMessengerMessage } = await import(
               "../routers/messengerBot"
             );
