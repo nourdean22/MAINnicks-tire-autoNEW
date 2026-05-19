@@ -278,10 +278,18 @@ function TasksPageInner() {
   // page already has its own scheduling discipline (debounced reload ·
   // visibility-change · interval · event-bus · AbortSignal) so we
   // KEEP load() intact and only swap the 4 authedFetch sites for
-  // typed `utils.task.X.fetch()` calls. Future Phase (RR+) can
-  // replace load() with useQuery + invalidate-after-mutation once
-  // the mutations also land on tRPC.
+  // typed `utils.task.X.fetch()` calls.
   const utils = trpc.useUtils();
+
+  // Phase RR (2026-05-19 AM) · tRPC migration · 4 task-write mutations
+  // (check · start · breakPromise · delete). Each carries the same
+  // server-side effects (TaskEvent emit · brain-bus · auto-learn ·
+  // skill-reinforce · reality-gap writeback) since they delegate to
+  // the same lib/services/task-actions.ts module the REST routes do.
+  const checkMutation = trpc.task.check.useMutation();
+  const startMutation = trpc.task.start.useMutation();
+  const breakPromiseMutation = trpc.task.breakPromise.useMutation();
+  const deleteMutation = trpc.task.delete.useMutation();
 
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
@@ -769,14 +777,11 @@ function TasksPageInner() {
       setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: "DONE" } : x)));
     }
     try {
-      const r = await authedFetch(`/api/tasks/${id}/check`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "complete" }),
-      });
-      if (!r.ok) throw new Error("check failed");
-      const body = await r.json().catch(() => ({}));
-      const autoLearn = body?.data?.autoLearn ?? body?.autoLearn ?? null;
+      // Phase RR · tRPC migration · typed result envelope means we
+      // can read autoLearn directly off the response without the
+      // `body?.data?.autoLearn ?? body?.autoLearn` fallback dance.
+      const result = await checkMutation.mutateAsync({ id, action: "complete" });
+      const autoLearn = result?.autoLearn ?? null;
       // v10.0.529.77 · Wave 22 · adaptive mastery bump + wisdom
       // citation. The /check endpoint now returns enriched cross-
       // engine wins · the operator sees their work compounding in
@@ -858,14 +863,10 @@ function TasksPageInner() {
 
   async function startTask(id: string) {
     try {
-      // New start endpoint sets status=DOING AND startedAt=now so
-      // actualMinutes can be diffed on completion. Replaces the
-      // old PATCH {status: DOING} which didn't track time.
-      const r = await authedFetch(`/api/tasks/${id}/start`, { method: "POST" });
-      if (!r.ok) {
-        toast.error("Start failed");
-        return;
-      }
+      // Phase RR · tRPC migration · same idempotent start semantics ·
+      // typed mutation result · failure throws with TRPCError shape
+      // that our catch handles uniformly.
+      await startMutation.mutateAsync({ id });
       toast.success("Started ⏱");
       notifyDataChanged("tasks", { source: "tasks-page", detail: "start", id });
     } catch {
@@ -885,12 +886,10 @@ function TasksPageInner() {
     // server rejected.
     setTasks((p) => p.filter((t) => t.id !== id));
     try {
-      const r = await authedFetch(`/api/tasks/${id}/break-promise`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      if (!r.ok) throw new Error("break failed");
+      // Phase RR · tRPC migration · pattern detection still happens
+      // server-side · typed return + TRPCError shape replaces the
+      // ad-hoc r.ok / r.json() dance.
+      await breakPromiseMutation.mutateAsync({ id, reason });
       toast("Noted. Nick will remember.");
       notifyDataChanged("tasks", { source: "tasks-page", detail: "break-promise", id });
     } catch {
@@ -902,8 +901,9 @@ function TasksPageInner() {
   async function deleteTask(id: string) {
     setTasks((p) => p.filter((t) => t.id !== id));
     try {
-      const r = await authedFetch(`/api/tasks/${id}`, { method: "DELETE" });
-      if (!r.ok) throw new Error("delete failed");
+      // Phase RR · tRPC migration · same soft-delete behavior
+      // server-side · typed mutation eliminates the manual r.ok check.
+      await deleteMutation.mutateAsync({ id });
       notifyDataChanged("tasks", { source: "tasks-page", detail: "delete", id });
     } catch {
       toast.error("Delete failed");

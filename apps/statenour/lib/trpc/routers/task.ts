@@ -23,11 +23,19 @@
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
-import { listTasks } from "@/lib/services/tasks";
+import { listTasks, deleteTask } from "@/lib/services/tasks";
 import { listMissions } from "@/lib/services/missions";
 import { getGoals } from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
+import {
+  checkTask,
+  startTask,
+  breakPromise,
+  WrongLoopKindError,
+} from "@/lib/services/task-actions";
+import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
 
@@ -245,4 +253,96 @@ export const taskRouter = router({
       });
       return { ok: true };
     }),
+
+  /**
+   * Phase RR (2026-05-19 AM) · owner-only · unified loop completion
+   * mutation · ONCE/PROMISE → DONE · DAILY → streak+lastCompletedAt
+   * · PROMISE+action=break → ARCHIVED + skill reinforcement.
+   *
+   * Delegates to `lib/services/task-actions.checkTask` shared service ·
+   * legacy POST /api/tasks/[id]/check calls the same function ·
+   * drift impossible. Returns the full result envelope including
+   * `autoLearn` cross-engine report so the UI can toast wins.
+   */
+  check: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        action: z.enum(["complete", "break"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await checkTask({ id: input.id, action: input.action });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase RR · owner-only · start the DOING timer on a task ·
+   * idempotent (re-start of an already-running timer doesn't reset
+   * startedAt). Emits TaskEvent.started when transitioning into
+   * DOING so the history view + drift detector see the start.
+   */
+  start: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await startTask(input.id);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase RR · owner-only · mark a PROMISE loop as broken with
+   * optional reason. Pattern-tags via cheap keyword match + writes
+   * a BrainMemory promise_break row for the decision-pattern loop.
+   * Throws BAD_REQUEST on non-PROMISE tasks.
+   */
+  breakPromise: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        reason: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await breakPromise({ id: input.id, reason: input.reason });
+      } catch (err) {
+        if (err instanceof WrongLoopKindError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase RR · owner-only · soft-delete a task. Delegates to the
+   * existing `deleteTask` service in `lib/services/tasks.ts` which
+   * handles the soft-delete flag + emits the audit event.
+   */
+  delete: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => deleteTask(input.id)),
 });

@@ -2,7 +2,18 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 24 / 50+ surfaces · **~48% complete** · **6 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · **task with 7** · total 10 mutations) · T.4 carve-out CLOSED (NN) · /goals page fully migrated (OO) · /tasks page reads migrated (PP) · **TaskEvent read+write tRPC surface live (QQ)** · the shadow-event-log substrate is already wired across all task mutation paths in `lib/services/tasks.ts` from past Nour · QQ added the typed read surface so brain + UI can consume it without mirroring Prisma shapes · invalidate-after-mutation pattern (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE/KK/LL use `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ/KK/LL) · imperative-fetch-via-utils pattern (JJ + MM use `utils.x.y.fetch()` · MM combines with setTimeout delay for post-stream BrainMemory polling) · drift-detection-via-typed-output (KK caught 9-month-old field bug) · error-code-branching (LL uses `error.data.code === "PRECONDITION_FAILED"` to distinguish not-configured from real errors)
+**Status:** 25 / 50+ surfaces · **~50% complete** · **6 domain routers** (nick · operator with 3 · system with 11 · chat with 10 · browser with 4 · **task with 11** · total **14 mutations**) · T.4 carve-out CLOSED (NN) · /goals fully migrated (OO) · /tasks reads (PP) · TaskEvent surface (QQ) · **/tasks 4 task-write mutations (RR · check/start/breakPromise/delete)** · the J series crosses the 50% threshold
+
+### sql-pro findings (Phase RR follow-up)
+
+- `lib/services/task-actions.checkTask` reality-gap writeback runs
+  `findMany WHERE status='DONE' AND effort=X AND actualMinutes>0 AND updatedAt>=30d`
+  on every ONCE/PROMISE completion. Current Task indexes are
+  `(status)` + `(updatedAt)` separately · Postgres picks one and
+  filters the rest in memory. At >5k DONE tasks this is the dominant
+  cost of a completion. **Add composite `@@index([status, effort, updatedAt])`**
+  as a Prisma migration when convenient · operator approves before
+  applying. Documented inline in the service file. · invalidate-after-mutation pattern (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE/KK/LL use `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ/KK/LL) · imperative-fetch-via-utils pattern (JJ + MM use `utils.x.y.fetch()` · MM combines with setTimeout delay for post-stream BrainMemory polling) · drift-detection-via-typed-output (KK caught 9-month-old field bug) · error-code-branching (LL uses `error.data.code === "PRECONDITION_FAILED"` to distinguish not-configured from real errors)
 
 ## Why
 
@@ -46,7 +57,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | /system/cron-diagnostics runNow + enableCron (closes T.4 carve-out · 2 mutations) | `authedFetch` POST `/api/settings/crons/trigger` + PATCH `/api/settings/crons` | `trpc.system.runCron({jobName}).useMutation()` + `setCronEnabled({jobName, enabled}).useMutation()` · caught + fixed 9-month-old `{jobName}` vs `{path}` mismatch bug | NN.3 |
 | /goals page (`<GoalsPage>`) snapshot composite (ladder · missions · axes · prune-count) | `useAuthedFetch<Snapshot>("/api/goals/snapshot")` | `trpc.operator.goalsSnapshot.useQuery({staleTime: 30s})` · 30s cache matches the route's prior Cache-Control | OO.3 |
 | /tasks page · 4 reads (tasks · missions · goals · actions-brain) | `authedFetch` × 4 inside `load()` Promise.all | `utils.task.list({goalId, missionId}).fetch()` + `utils.task.missions.fetch()` + `utils.task.goals.fetch()` + `utils.task.actionsBrain.fetch()` · imperative inside existing scheduling discipline · 6th domain router added (`task`) | PP.3 |
-| TaskEvent read surface (`events`, `eventsByKind`, `emitEvent`) | `authedFetch` POST `/api/tasks/[id]/event` (write-only) | `trpc.task.events({taskId})` + `eventsByKind({kind, sinceDays})` + `emitEvent({taskId, kind, payload})` · brain pattern-detection now has typed read surface · client-emit allowlist preserved verbatim | **QQ.3** |
+| TaskEvent read surface (`events`, `eventsByKind`, `emitEvent`) | `authedFetch` POST `/api/tasks/[id]/event` (write-only) | `trpc.task.events({taskId})` + `eventsByKind({kind, sinceDays})` + `emitEvent({taskId, kind, payload})` · brain pattern-detection now has typed read surface · client-emit allowlist preserved verbatim | QQ.3 |
+| /tasks 4 task-write mutations (check · start · breakPromise · delete) | `authedFetch` POST × 4 · per-mutation `r.ok` / `r.json()` dances | `trpc.task.{check,start,breakPromise,delete}.useMutation().mutateAsync(...)` · all 4 delegate to new `lib/services/task-actions.ts` (extracted from 350-LOC check route + 70-LOC start + 95-LOC break-promise) · TRPCError translation for NOT_FOUND + BAD_REQUEST (wrong loop kind) | **RR.3** |
 
 ## Architectural notes
 
