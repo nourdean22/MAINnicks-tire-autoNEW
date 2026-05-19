@@ -112,8 +112,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "16.2.4",
-    "@playwright/test": "1.59.1",
+    "@next/bundle-analyzer": "16.2.6",
+    "@playwright/test": "1.60.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^24.3.0",
     "@types/qrcode": "^1.5.6",
@@ -127,10 +127,10 @@
     "eslint-config-next": "^16.2.6",
     "glob": "^13.0.6",
     "inngest-cli": "1.19.4",
-    "postcss": "^8.5.3",
+    "postcss": "^8.5.15",
     "prisma": "^7.5.0",
     "tailwindcss": "^4.2.2",
-    "tsx": "^4.19.3",
+    "tsx": "^4.22.3",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }
