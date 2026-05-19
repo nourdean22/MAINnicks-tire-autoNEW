@@ -73,6 +73,14 @@ import { TodaysCompound } from "@/components/actions/todays-compound";
 // shared with /goals + /scoreboard + / home · the intelligence overlay
 // the three surfaces were missing post-Phase-D.
 import { OperatorPulse } from "@/components/operator/operator-pulse";
+// v10.0.529.99 · Tasks-page Elon+Ilya move · mount the existing
+// NickSuggestions chip strip at the top of /tasks so Nick's curated
+// next-action chip surfaces in the same context as the task list.
+// Tap navigates to /chat?q=... (the standalone fallback path) ·
+// dismiss-X + tap both fire the supervised-signal loop captured by
+// the e9fe26b3 + 0dda5695 + b41022a9 chain. Second-surface coverage
+// of the same Nick aggregator.
+import { NickSuggestions } from "@/components/chat/nick-suggestions";
 // Phase G (2026-05-18 PM) · CompoundChain · the see-your-work-compound
 // visualization. task → goal → axis → scoreboard chain · grouped by
 // axis · reads like prose ("Today · 3 tasks compounded · Business
@@ -1192,6 +1200,16 @@ function TasksPageInner() {
           </button>
         </div>
       ) : null}
+      {/* v10.0.529.99 · Nick's curated next-action chip · same component
+          mounted on /chat (Wave 40) · puts the supervised-signal capture
+          (action/dismiss → /api/brain/suggestion-loop) on the /tasks
+          surface so operator can act on Nick's pick directly in the task
+          context. Without onSeed, taps navigate to /chat?q=...&suggKind=...
+          which is the right behavior here · operator wants to discuss
+          this task with Nick before working on it. Silent when no
+          suggestions are available (clean morning). */}
+      <NickSuggestions />
+
       {/* Phase E (2026-05-18 PM) · OperatorPulse · the forward-looking
           intelligence layer · ABOVE TodaysCompound because pulse =
           "what's the move RIGHT NOW" trumps "what happened today" in
