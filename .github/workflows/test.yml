@@ -34,7 +34,7 @@ jobs:
           fetch-depth: 0
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       # Pin to Node 20 to match Railway's Dockerfile runtime
       # (FROM node:20-alpine in apps/statenour/Dockerfile + apps/worker/Dockerfile).
