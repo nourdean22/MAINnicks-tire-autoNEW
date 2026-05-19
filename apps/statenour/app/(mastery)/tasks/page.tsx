@@ -301,6 +301,11 @@ function TasksPageInner() {
   const createTaskMutation = trpc.task.create.useMutation();
   const createMissionMutation = trpc.task.createMission.useMutation();
 
+  // Phase SS.2 (2026-05-19 AM) · AI grading mutation · fire-and-forget
+  // after createTask · structured AI response delegates to a shared
+  // service so REST + tRPC can't drift on the model output shape.
+  const scoreMutation = trpc.task.score.useMutation();
+
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
   // work can short-circuit setState calls if user navigates away
@@ -716,17 +721,12 @@ function TasksPageInner() {
         dueDate: parsed.dueDate ? parsed.dueDate.toISOString() : null,
       })) as { id?: string; task?: { id?: string } } | null;
       setNewTask("");
-      // Phase SS.2 will migrate this to scoreMutation · for now keep
-      // the authedFetch shim · the score endpoint stays on REST in
-      // this phase.
+      // Phase SS.2 · AI grading via tRPC · fire-and-forget · typed
+      // return shape (no more `body?.data?.id ?? body?.id` dance).
       if (parsed.loopKind !== "PROMISE") {
         const newId = created?.task?.id ?? created?.id ?? null;
         if (newId) {
-          void authedFetch(`/api/tasks/${newId}/score`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }).catch(() => {
+          void scoreMutation.mutateAsync({ id: newId }).catch(() => {
             /* non-fatal · AI grading is best-effort */
           });
         }
