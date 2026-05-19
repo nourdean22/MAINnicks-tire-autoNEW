@@ -22,7 +22,8 @@
  */
 
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase WW (2026-05-19 AM) · useAuthedFetch swapped for trpc.
+import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
@@ -59,13 +60,17 @@ interface Snapshot {
 }
 
 export default function ScoreboardPage() {
-  // Phase D follow-up audit (2026-05-18) · collapsed bespoke
-  // fetch+state mgmt to the shared useAuthedFetch hook · pairs
-  // with MasteryErrorView + MasterySkeleton. Same primitives now
-  // used by /goals and the 3 /journal thread components.
-  const { data, error, loading, reload } = useAuthedFetch<Snapshot>(
-    "/api/scoreboard/snapshot",
-  );
+  // Phase WW (2026-05-19 AM) · tRPC migration · same Snapshot shape
+  // via the buildMetaScoreboard service · 30s staleTime matches the
+  // route's prior Cache-Control: max-age=30. Same MasteryErrorView +
+  // MasterySkeleton primitives so the visual contract is unchanged.
+  const snapshotQuery = trpc.operator.scoreboardSnapshot.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const data = snapshotQuery.data as Snapshot | undefined;
+  const loading = snapshotQuery.isLoading;
+  const error = snapshotQuery.error;
+  const reload = () => void snapshotQuery.refetch();
 
   if (loading && !data) {
     return (
@@ -77,7 +82,7 @@ export default function ScoreboardPage() {
     );
   }
   if (error)
-    return <MasteryErrorView label="Scoreboard" error={error} onRetry={reload} />;
+    return <MasteryErrorView label="Scoreboard" error={error.message} onRetry={reload} />;
   if (!data) return null;
 
   const anomalies = data.numbers.filter((n) => n.anomalous);
