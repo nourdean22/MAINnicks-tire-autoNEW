@@ -102,6 +102,7 @@ import {
 import { parseQuickAdd } from "@/lib/loops/quick-add-parser";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { createTask } from "@/lib/services/client/tasks";
 // v10.0.424 · debounced reload · coalesces 5 reload triggers into 1.
 import { useDebouncedReload } from "@/hooks/use-debounced-reload";
@@ -272,6 +273,16 @@ function TasksPageInner() {
     router.push(pathname ?? "/tasks");
   }, [router, pathname]);
 
+  // Phase PP (2026-05-19 AM) · tRPC migration · imperative-fetch via
+  // utils inside the existing load() function (JJ/MM pattern). The
+  // page already has its own scheduling discipline (debounced reload ·
+  // visibility-change · interval · event-bus · AbortSignal) so we
+  // KEEP load() intact and only swap the 4 authedFetch sites for
+  // typed `utils.task.X.fetch()` calls. Future Phase (RR+) can
+  // replace load() with useQuery + invalidate-after-mutation once
+  // the mutations also land on tRPC.
+  const utils = trpc.useUtils();
+
   const loadingRef = useRef(false);
   // v10.0.118 audit fix · mounted-ref so genAi() and other async
   // work can short-circuit setState calls if user navigates away
@@ -288,27 +299,46 @@ function TasksPageInner() {
     if (loadingRef.current) return;
     loadingRef.current = true;
     try {
-      // v10.0.252 · Envelope/unwrap hoisted to module scope above ·
-      // see the type+function declarations near the top of the file.
-      type TasksRaw = Envelope<Task[]> | Task[] | unknown;
-      type MissionsRaw = Envelope<Project[]> | Project[] | { missions?: Project[] } | unknown;
-      type GoalsRaw = Envelope<{ goals: GoalCacheEntry[] }> | { goals: GoalCacheEntry[] } | GoalCacheEntry[] | unknown;
-      const [tRaw, mRaw, gRaw] = await Promise.all([
-        // Phase B · honor URL filter (goalId/missionId from /goals cross-link)
-        authedFetch(taskFetchUrl).then((r): Promise<TasksRaw> | Task[] => (r.ok ? r.json() : [])).catch((): Task[] => []),
-        authedFetch("/api/missions").then((r): Promise<MissionsRaw> | Project[] => (r.ok ? r.json() : [])).catch((): Project[] => []),
-        authedFetch("/api/goals").then((r): Promise<GoalsRaw> | { goals: GoalCacheEntry[] } => (r.ok ? r.json() : { goals: [] })).catch((): { goals: GoalCacheEntry[] } => ({ goals: [] })),
+      // Phase PP (2026-05-19 AM) · tRPC migration · the 3 Promise.all
+      // reads (tasks/missions/goals) move to typed `utils.task.X.fetch()`
+      // imperative calls. Same Promise.all shape · same parallel
+      // dispatch · same abort-signal semantics. The type-safe shapes
+      // eliminate the Envelope<unknown> dance that pre-fix required
+      // because the routes returned different envelope styles.
+      // Break-up the chained promise types · TypeScript's deep inference
+      // on `utils.task.list.fetch().catch()` was hitting the
+      // "instantiation excessively deep" guard. Splitting the calls
+      // out + widening the catch fallback to `unknown` lets us shape-
+      // narrow at the consumer site.
+      const tasksPromise: Promise<unknown> = utils.task.list
+        .fetch({
+          goalId: filterGoalId ?? undefined,
+          missionId: filterMissionId ?? undefined,
+        })
+        .catch(() => [] as Task[]);
+      const missionsPromise: Promise<unknown> = utils.task.missions
+        .fetch()
+        .catch(() => [] as Project[]);
+      const goalsPromise: Promise<unknown> = utils.task.goals
+        .fetch()
+        .catch(() => ({ goals: [] as GoalCacheEntry[] }));
+      const [tasksRaw, missionsRaw, goalsRaw] = await Promise.all([
+        tasksPromise,
+        missionsPromise,
+        goalsPromise,
       ]);
 
       // v10.0.424 · honor abort · don't overwrite state if caller bailed.
       if (signal?.aborted) return;
-      const tasksRaw = unwrap<Task[] | undefined>(tRaw as Envelope<Task[] | undefined>);
-      setTasks(Array.isArray(tasksRaw) ? tasksRaw : []);
+      setTasks(Array.isArray(tasksRaw) ? (tasksRaw as Task[]) : []);
 
-      const missionsRaw = unwrap<Project[] | { missions?: Project[] } | undefined>(mRaw as Envelope<Project[] | { missions?: Project[] } | undefined>);
-      const missions = Array.isArray(missionsRaw)
-        ? missionsRaw
-        : missionsRaw?.missions ?? [];
+      // Mission list shape: tRPC procedure returns Project[] directly.
+      // Old REST returned either Project[] OR {missions: Project[]}.
+      // Handle both for safety (the route currently returns array).
+      const missionsList: Project[] = Array.isArray(missionsRaw)
+        ? (missionsRaw as Project[])
+        : ((missionsRaw as { missions?: Project[] })?.missions ?? []);
+
       // v10.0.154 · use the unified inbox helper instead of a string
       // !== "Inbox" check. Pre-fix, the bare "Inbox" was filtered but
       // auto-created per-domain inboxes ("Inbox - business", "Inbox -
@@ -317,20 +347,14 @@ function TasksPageInner() {
       // too) and with Track/Stats (which didn't filter at all).
       const { isUserProject } = await import("@/lib/services/mission-helpers");
       setProjects(
-        missions.filter((p) => p.status === "ACTIVE" && isUserProject(p)),
+        missionsList.filter((p) => p.status === "ACTIVE" && isUserProject(p)),
       );
 
-      // v10.0.423 · single goalsCache populate · merges what loadGoalsCache
-      // used to do separately. List shape varies (raw array, {goals:[]},
-      // {data:{goals:[]}}) so unwrap to a Goal[]+ shape, then reshape into
-      // the cache entry. Pace fields (targetValue, deadline) are now part
-      // of the cache so goalLineage can compute paceKind from one source.
-      const goalsRaw = unwrap<{ goals?: GoalCacheEntry[] } | GoalCacheEntry[] | undefined>(
-        gRaw as Envelope<{ goals?: GoalCacheEntry[] } | GoalCacheEntry[] | undefined>,
-      );
-      const goalList = Array.isArray(goalsRaw)
-        ? goalsRaw
-        : (goalsRaw?.goals ?? []);
+      // Phase PP · goals come back already-shaped from the tRPC procedure
+      // (`{goals: GoalCacheEntry[]}`) · no envelope unwrap needed. Type-
+      // safe shape means the prior 5-way union (raw array, {goals:[]},
+      // {data:{goals:[]}}, envelope, undefined) is gone.
+      const goalList = (goalsRaw as { goals?: GoalCacheEntry[] })?.goals ?? [];
       setGoalsCache(
         goalList
           .filter((g): g is GoalCacheEntry => Boolean(g?.id && g?.title))
@@ -351,12 +375,12 @@ function TasksPageInner() {
             loopsThisWeek: g.loopsThisWeek,
           })),
       );
-      // Brain focus line (non-blocking)
-      authedFetch("/api/actions-brain")
-        .then((r): Promise<unknown> | null => (r.ok ? r.json() : null))
-        .then((d: unknown) => {
-          const data = d as { data?: { insights?: Array<{ text?: string }>; dailyFocus?: string } } | null;
-          if (data?.data) setBrain(data.data);
+      // Brain focus line (non-blocking) · Phase PP migrates to
+      // utils.task.actionsBrain.fetch() · same fire-and-forget shape.
+      utils.task.actionsBrain
+        .fetch()
+        .then((d) => {
+          if (d?.data) setBrain(d.data);
         })
         .catch((): void => {});
     } catch (err) {
