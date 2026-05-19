@@ -91,7 +91,8 @@ export type OutcomeObservationPayload = z.infer<typeof OutcomeObservationInput>;
 
 // ─── Constants ──────────────────────────────────────────────────────
 
-const CATEGORY = "suggestion_loop";
+import { BRAIN_CATEGORIES } from "./categories";
+const CATEGORY = BRAIN_CATEGORIES.SUGGESTION_LOOP;
 
 /**
  * Confidence reflects how strong the signal is for downstream training.
