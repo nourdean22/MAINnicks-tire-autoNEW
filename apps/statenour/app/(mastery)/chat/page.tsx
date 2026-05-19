@@ -1952,7 +1952,16 @@ function Chat() {
         aria-label="Conversation with Nick"
         aria-live="polite"
         aria-relevant="additions text"
-        className="flex-1 overflow-y-auto relative overscroll-contain"
+        // v10.0.529.96 · Wave 40 · conditional flex-1.
+        // When empty: scroll-area sizes to ChatEmptyState content (small
+        // orb + greeting) so the composer rises into the upper-middle
+        // band right below the greeting. When messages exist: flex-1
+        // restores full-height scrolling with composer pinned at bottom.
+        // Operator wanted ChatGPT-style empty-state composer placement.
+        className={cn(
+          "overflow-y-auto relative overscroll-contain",
+          isEmpty ? "shrink-0" : "flex-1",
+        )}
         style={{ touchAction: "pan-y", overscrollBehaviorY: "contain" }}
       >
         <div ref={stb.contentRef}>
