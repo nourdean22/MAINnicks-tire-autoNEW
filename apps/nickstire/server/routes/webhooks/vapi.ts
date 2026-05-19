@@ -395,6 +395,99 @@ router.post("/vapi", async (req: Request, res: Response) => {
             })
           ).catch(() => { /* intentionally swallowed */ });
         }
+
+        // wave-181.87 · dispatch outbound call.ended to confirmation_calls
+        // OR alg_estimates voice_recovery_call_id by callId lookup. Same
+        // pattern as the dropped AgentPhone webhook (wave-181.85) · this
+        // handler now serves BOTH inbound flows (above) AND outbound
+        // confirmation + recovery flows via the wave-181.87 VAPI
+        // placeOutboundCall path.
+        if (endCallId) {
+          try {
+            const { getDb } = await import("../../db");
+            const { confirmationCalls, algEstimates } = await import("../../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            const db = await getDb();
+            if (db) {
+              const transcriptText = ((event as { transcript?: string }).transcript ?? "")
+                + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
+                  ?? (event as { analysis?: { summary?: string } }).analysis?.summary
+                  ?? "");
+              const lower = transcriptText.toLowerCase();
+              const snippet = transcriptText.slice(0, 500);
+
+              // Classification · same regex pattern as the dropped
+              // agentphone classifyTranscript helper.
+              let confirmStatus: "confirmed" | "rescheduled" | "no_answer" = "no_answer";
+              let rescheduleRequest: string | null = null;
+              if (transcriptText.trim().length > 0) {
+                if (/\b(reschedule|move it|change the time|different day|can we do|push it|next week|earlier|later in the day|cancel)\b/i.test(lower)) {
+                  confirmStatus = "rescheduled";
+                  const sentences = lower.split(/[.!?]/);
+                  const rs = sentences.find((s) => /\b(reschedule|move|change|different day|push|earlier|later)\b/i.test(s));
+                  rescheduleRequest = (rs || "").trim().slice(0, 200) || null;
+                } else if (/\b(yes|yeah|yep|confirm|still on|see you|i.?ll be there|sounds good|works for me|all set)\b/i.test(lower)) {
+                  confirmStatus = "confirmed";
+                } else {
+                  // Default · ambiguous transcript with content → confirmed
+                  confirmStatus = "confirmed";
+                }
+              } else {
+                confirmStatus = "no_answer";
+              }
+
+              // Try 1 · confirmation_calls
+              const [confRow] = await db
+                .select()
+                .from(confirmationCalls)
+                .where(eq(confirmationCalls.agentphoneCallId, endCallId))
+                .limit(1);
+
+              if (confRow) {
+                await db
+                  .update(confirmationCalls)
+                  .set({
+                    status: confirmStatus,
+                    transcriptSnippet: snippet,
+                    rescheduleRequest,
+                    completedAt: new Date(),
+                  })
+                  .where(eq(confirmationCalls.id, confRow.id));
+                log.info(`[vapi outbound] confirmation_calls #${confRow.id} → ${confirmStatus}`, {
+                  callId: String(endCallId).slice(0, 16),
+                });
+              } else {
+                // Try 2 · alg_estimates voice_recovery
+                const [estRow] = await db
+                  .select({ id: algEstimates.id })
+                  .from(algEstimates)
+                  .where(eq(algEstimates.voiceRecoveryCallId, endCallId))
+                  .limit(1);
+                if (estRow) {
+                  // Map confirmation classification → recovery enum
+                  const recoveryOutcome: "interested" | "not_interested" | "no_answer" =
+                    confirmStatus === "no_answer" ? "no_answer" :
+                    // For recovery · check for explicit not-interested signals
+                    /\b(not interested|no thanks|already|fixed it|sold the car|don't need|not now)\b/i.test(lower) ? "not_interested" :
+                    "interested";
+                  await db
+                    .update(algEstimates)
+                    .set({ voiceRecoveryOutcome: recoveryOutcome })
+                    .where(eq(algEstimates.id, estRow.id));
+                  log.info(`[vapi outbound] alg_estimates #${estRow.id} voice_recovery → ${recoveryOutcome}`, {
+                    callId: String(endCallId).slice(0, 16),
+                  });
+                }
+                // No match in either table · inbound call · already handled above
+              }
+            }
+          } catch (dispatchErr) {
+            log.warn("[vapi outbound] dispatch failed (non-blocking)", {
+              error: dispatchErr instanceof Error ? dispatchErr.message : String(dispatchErr),
+            });
+          }
+        }
+
         res.json({ ack: true });
         return;
       }
