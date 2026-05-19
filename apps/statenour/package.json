@@ -14,6 +14,7 @@
     "release:app": "prisma generate && next build",
     "release:full": "pnpm verify:hard && pnpm release:db && pnpm release:app",
     "smoke:prod": "node scripts/smoke-prod.mjs",
+    "audit:surfaces": "node scripts/audit-system-surfaces.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
