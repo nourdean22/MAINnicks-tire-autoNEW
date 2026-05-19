@@ -10,8 +10,19 @@
 
 import type { Express, Request, Response, NextFunction } from "express";
 import { timingSafeEqual } from "crypto";
+import { z } from "zod";
 
 import { createLogger } from "../lib/logger";
+
+// wave-181.59 MEDIUM (DoS): unbounded daysSince walked the whole customers
+// table via INTERVAL arithmetic; unbounded limit returned megabytes of JSON.
+// 365 / 500 are the operator-realistic ceilings — NOUR OS callers send the
+// defaults; no admin view passes larger values.
+const SmsCampaignInput = z.object({
+  dryRun: z.boolean().default(true),
+  limit: z.number().int().min(1).max(500).default(50),
+  daysSince: z.number().int().min(0).max(365).default(30),
+});
 
 const log = createLogger("_core:bridge-routes");
 function safeCompare(a: string, b: string): boolean {
@@ -375,7 +386,12 @@ export function registerBridgeRoutes(app: Express): void {
       const db = await getDb();
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
 
-      const { dryRun = true, limit = 50, daysSince = 30 } = req.body;
+      const parsed = SmsCampaignInput.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid input", issues: parsed.error.issues });
+        return;
+      }
+      const { dryRun, limit, daysSince } = parsed.data;
 
       // Find recent customers with phone numbers who visited in the last N days
       const [targets] = await db.execute(sql`
