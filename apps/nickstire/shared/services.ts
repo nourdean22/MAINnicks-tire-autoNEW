@@ -498,8 +498,14 @@ export const SERVICES: ServiceData[] = [
     num: "05",
     title: "OIL CHANGE",
     shortDesc: "Conventional and synthetic oil changes with filter replacement. Done before your coffee's cold.",
-    metaTitle: "Oil Change Cleveland · Done Before Your Coffee | Nick's",
-    metaDescription: "Cleveland oil change faster than your barista finishes your name. Conventional + synthetic, free 27-point inspection every time. Walk-ins 7 days. (216) 862-0005.",
+    // wave-181.99 · GSC: /oil-change at pos 47.7 / 563 imp / 0 clicks.
+    // Previous title was voice-led ("Done Before Your Coffee") with no
+    // price anchor. SERP click rate at position 47 is ~0.1% even with
+    // perfect title — the leak is mostly ranking, but we can squeeze
+    // clicks with a price + speed promise no Cleveland chain lists in
+    // their snippet.
+    metaTitle: "Oil Change Cleveland · From $39 · Same-Day Walk-In | Nick's",
+    metaDescription: "Cleveland oil change from $39 (conventional) · synthetic available · free 27-point inspection every time · in and out before your coffee's cold · just pull up to 25425 Euclid Ave. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic, with filter replacement and a free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome — no appointment needed.",
     heroCTA: "SCHEDULE OIL CHANGE",

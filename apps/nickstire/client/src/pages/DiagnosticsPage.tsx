@@ -15,14 +15,13 @@ const CONFIG: ServicePageConfig = {
   // PLACEMENT_GUIDE.md — interior service bay with car on lift
   heroImage: "/photos/interior-service-bay-car-lift.webp",
   // 2026-05-07 GSC tune: was "Check Engine Light Cleveland — Free Code
-  // Pull, Plain English" — 430 imps / 0 clicks in 90 days. Title was
-  // too narrow (check-engine-only) for the broader "car diagnostic /
-  // OBD scan" queries Google was matching, AND it competes with the
-  // dedicated /check-engine-light-diagnostic page. Broadening to cover
-  // the full diagnostic-intent space, anchored on the brand-voice
-  // differentiator (real cause, not parts-cannon repair).
-  title: "Car Diagnostic Cleveland · Code Pull + Real Cause | Nick's",
-  description: "Cleveland car diagnostic at Nick's Tire & Auto — free OBD code pull, real diagnosis (not parts cannon). ★4.9 · 1,700+ reviews. Walk-ins 7 days. (216) 862-0005",
+  // Pull, Plain English" — 430 imps / 0 clicks in 90 days.
+  // wave-181.99 GSC re-check: pos 38.5 / 598 imp / 0 clicks. Position
+  // improved from 51.8 but CTR is still 0% — title isn't differentiated
+  // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
+  // (no competitor leads with FREE), price anchor for the full diag.
+  title: "Car Diagnostic Cleveland · FREE Code Pull · From $89",
+  description: "Cleveland car diagnostic from $89 (free OBD code pull) · plain-English explanation · credited back if we fix it · 4.9★ from 1,700+ reviews · just pull up to 25425 Euclid Ave. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
   // H1 had ZERO keyword target ("THE LIGHT'S ON. WE FIND OUT *WHY*").
