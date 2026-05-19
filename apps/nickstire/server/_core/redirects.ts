@@ -101,6 +101,36 @@ const REDIRECTS: RedirectRule[] = [
     to:   "/guides/auto-repair-payment-programs-no-credit-check",
     reason: "wave-14 slug rename; same content + intent, FCFS-aligned voice",
   },
+
+  // ─── 2026-05-19 · SOFT-404 CLEANUP ──────────────────────
+  // GSC Page-Indexing flagged these as Soft 404 / Crawled-not-indexed.
+  // Root cause: routes were removed but Google still crawls the old
+  // URLs and the React SPA returns HTTP 200 for everything → Google
+  // reads the "not found" render as a soft 404. 301 to a live page
+  // tells Google the page moved + consolidates any link equity.
+
+  // The 10 vehicle-make repair pages — routes removed 2026-04-24 per
+  // the T5 audit (0 imps / 0 clicks · brand queries == base service
+  // intent). seo-pages.ts still has their content as dead data. All
+  // 10 redirect to the canonical Cleveland auto-repair page.
+  { from: "/toyota-repair-cleveland",    to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/honda-repair-cleveland",     to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/ford-repair-cleveland",      to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/chevy-repair-cleveland",     to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/nissan-repair-cleveland",    to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/hyundai-repair-cleveland",   to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/kia-repair-cleveland",       to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/jeep-repair-cleveland",      to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/bmw-repair-cleveland",       to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+  { from: "/dodge-ram-repair-cleveland", to: "/cleveland-auto-repair", reason: "vehicle-make page route removed 2026-04-24; 301 kills the soft-404" },
+
+  // 3 dead blog posts — slugs no longer in shared/blog.ts. GSC flagged
+  // them Soft 404 / Crawled-not-indexed. Stale prerendered HTML for two
+  // of them was deleted in the same commit. 301 to the closest live
+  // page so any residual link equity + Google's index entry resolves.
+  { from: "/blog/winter-tires-vs-all-season-cleveland", to: "/tires",     reason: "deleted blog post; soft-404. /tires is the canonical winter-tire intent page" },
+  { from: "/blog/car-ac-not-blowing-cold",              to: "/ac-repair", reason: "deleted blog post; soft-404. /ac-repair is the canonical AC service page" },
+  { from: "/blog/tire-maintenance-guide",               to: "/tires",     reason: "deleted blog post; soft-404. /tires covers tire-maintenance intent" },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.
@@ -110,6 +140,16 @@ export function installRedirects(app: Express): void {
       res.redirect(301, rule.to);
     });
   }
+
+  // 2026-05-19 · wildcard 301 for the 154 killed /near/[slug] intersection
+  // pages (deleted wave-181.98). Google still has all 154 URLs indexed and
+  // will re-crawl them — without this they each return a SPA soft-404.
+  // One wildcard rule catches the whole orphan silo → /areas-served (the
+  // location hub that survived). Kept out of the REDIRECTS array because
+  // the array is also consumed by the sitemap/audit as literal paths.
+  app.get("/near/*", (_req: Request, res: Response) => {
+    res.redirect(301, "/areas-served");
+  });
 }
 
 // Export the list so other code (sitemap, audit) can see what's redirected.
