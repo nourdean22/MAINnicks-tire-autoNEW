@@ -7,7 +7,7 @@ import { sendNotification, getDeliveryLog } from "../email-notify";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
-import { eq, desc, gte, sql } from "drizzle-orm";
+import { eq, desc, gte, sql, inArray, and, isNull } from "drizzle-orm";
 import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, csvSafe } from "../sanitize";
 import { saveReviewStatsToDb } from "../google-reviews";
@@ -983,15 +983,45 @@ export const adminDashboardRouter = router({
             return null;
           }
           case "settings": {
-            // ALG mirror health + env-flag status
+            // wave-181.80 (week-audit revenue-flag sweep) · consolidated
+            // check across all 3 revenue-cron gates that have been silently
+            // OFF in prod:
+            //   1. FEATURE_DECLINED_RECOVERY env flag · declined-recovery cron
+            //   2. retention_7day DB flag · D7 post-visit check-in (wave-181.47)
+            //   3. retention_14day DB flag · D14 reactivation (wave-181.47)
+            // cron_log audit showed 112+ runs in 7 days producing 0 records
+            // for each. Production-safe to flip thanks to the wave-181.59
+            // at-most-once claim + wave-181.60 TCPA opt-out + wave-181.68
+            // durable rate-limit + wave-181.64 sending-hours guard.
             const featureRecovery = process.env.FEATURE_DECLINED_RECOVERY === "1";
-            const vapiKey = !!process.env.VAPI_API_KEY;
-            if (!featureRecovery && vapiKey) {
+
+            // Read DB flag state · read-only, fail-soft (return null if the
+            // table query errors so the dashboard never breaks on a flag bug).
+            let retention7dOn = true;
+            let retention14dOn = true;
+            try {
+              const { featureFlags } = await import("../../drizzle/schema");
+              const flags = await d
+                .select({ key: featureFlags.key, value: featureFlags.value })
+                .from(featureFlags)
+                .where(inArray(featureFlags.key, ["retention_7day", "retention_14day"]));
+              for (const f of flags) {
+                if (f.key === "retention_7day") retention7dOn = Number(f.value) === 1;
+                if (f.key === "retention_14day") retention14dOn = Number(f.value) === 1;
+              }
+            } catch { /* fail-soft · assume on so we don't false-alarm */ }
+
+            const blockers: string[] = [];
+            if (!featureRecovery) blockers.push("FEATURE_DECLINED_RECOVERY (Railway env)");
+            if (!retention7dOn) blockers.push("retention_7day (DB flag)");
+            if (!retention14dOn) blockers.push("retention_14day (DB flag)");
+
+            if (blockers.length > 0) {
               return {
-                variant: "info" as const,
-                message: `Vapi receptionist is connected. FEATURE_DECLINED_RECOVERY is still off — flip it to activate the SMS recovery cron for walk-away estimates.`,
-                metric: "1 env flag pending",
-                cta: { label: "ShopDriver HQ", section: "settings", settingsTab: "shopdriver" },
+                variant: blockers.length >= 2 ? "danger" as const : "warning" as const,
+                message: `${blockers.length} revenue-cron gate${blockers.length === 1 ? "" : "s"} OFF · pipelines running but producing 0 sends. Blockers: ${blockers.join(" · ")}. All gates are production-safe to flip (at-most-once + TCPA + rate-limit guards verified wave-181.58 → wave-181.79).`,
+                metric: `${blockers.length} of 3 gates OFF`,
+                cta: { label: "Operator runbook", section: "settings", settingsTab: "flags" },
               };
             }
             return null;
