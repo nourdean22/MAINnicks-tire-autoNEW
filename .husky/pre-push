@@ -41,8 +41,17 @@ if [ ! -x "./node_modules/.bin/turbo" ]; then
   exit 1
 fi
 
-# turbo run build --affected · cache-friendly · only rebuilds what changed
-./node_modules/.bin/turbo run build --affected --output-logs=errors-only || {
+# wave-181.91 hardening · was `--affected` which silently missed
+# committed-but-not-pushed changes when the working tree also had
+# unstaged changes (Turbo's affected detection got confused). Now we
+# explicitly compute the changed package set from `git diff @{u}..HEAD`
+# and pass `--filter=...[upstream]` so Turbo includes both directly
+# changed packages AND their workspace dependents.
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null)
+
+# turbo run build --filter=...[upstream] · cache-friendly · only
+# rebuilds what changed (or depends on what changed) since upstream HEAD.
+./node_modules/.bin/turbo run build --filter="...[$UPSTREAM]" --output-logs=errors-only || {
   echo ""
   echo "[pre-push] ❌ affected build FAILED"
   echo "[pre-push] this would have failed on Railway · push blocked"
