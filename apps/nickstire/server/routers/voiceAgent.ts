@@ -220,11 +220,11 @@ export const voiceAgentRouter = router({
           utmCampaign: "vapi-receptionist",
         });
         log.info("Voice agent booked slot", { refCode, name: input.name, service: input.service });
+        // PII projection — never echo caller name/service in returned text; AI has them in context.
         return {
           success: true,
           reference: refCode,
           windowStart: input.preferredDay || "next available",
-          message: `Booked ${input.name} for ${input.service}. Reference: ${refCode}.`,
         };
       } catch (err) {
         log.error("Voice agent book failed", { err: err instanceof Error ? err.message : String(err) });
@@ -604,21 +604,19 @@ export const voiceAgentRouter = router({
           .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = RIGHT(${phoneDigits}, 10)`)
           .limit(1);
         if (!c) return { found: false };
-        const daysSinceLastVisit = c.lastVisitDate
-          ? Math.floor((Date.now() - new Date(c.lastVisitDate).getTime()) / 86_400_000)
+        const monthsSinceLastVisit = c.lastVisitDate
+          ? Math.round((Date.now() - new Date(c.lastVisitDate).getTime()) / (30 * 86_400_000))
           : null;
+        // PII projection — never expand this without security review.
         return {
           found: true,
           firstName: c.firstName,
-          lastName: c.lastName || null,
+          lastNameInitial: c.lastName ? c.lastName.charAt(0).toUpperCase() : null,
           totalVisits: c.totalVisits,
-          lastVisitDays: daysSinceLastVisit,
-          segment: c.segment, // "recent" | "lapsed" | "new" | "unknown"
-          // primary vehicle on file — AI can confirm "still driving the X?"
+          lastVisitMonthsAgo: monthsSinceLastVisit,
+          segment: c.segment,
           vehicle: [c.vehicleYear, c.vehicleMake, c.vehicleModel].filter(Boolean).join(" ") || null,
           hasOutstandingBalance: c.balanceDue > 0,
-          // No raw $ amount returned — the AI shouldn't quote balance
-          // over the phone; the operator handles that on the floor.
         };
       } catch (err) {
         log.error("Voice agent lookupCustomer failed", { err: err instanceof Error ? err.message : String(err) });
@@ -850,10 +848,8 @@ export const voiceAgentRouter = router({
           status: "new",
         });
         log.info("Voice agent scheduleCallback captured", { name: input.name });
-        return {
-          success: true,
-          message: `Got it, ${input.name}. ${input.preferredTime ? `We'll call you back ${input.preferredTime}.` : "We'll call you back first thing during business hours."}`,
-        };
+        // PII projection — AI constructs the spoken confirmation from its own context.
+        return { success: true };
       } catch (err) {
         log.error("Voice agent scheduleCallback failed", { err: err instanceof Error ? err.message : String(err) });
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: err instanceof Error ? err.message : "Callback scheduling failed" });

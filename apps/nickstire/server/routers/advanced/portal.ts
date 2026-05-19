@@ -88,9 +88,11 @@ export const portalRouter = router({
       const normalized = input.phone.replace(/\D/g, "").slice(-10);
       const now = new Date();
 
-      // Brute force protection — block after 5 failed attempts (1 hour cooldown)
+      // Brute force protection — block after 5 failed attempts (1 hour cooldown).
+      // Wave-181.59: now DB-backed via otp_attempts table so the counter
+      // survives Railway restarts and aggregates across multiple pods.
       const { checkBruteForce, recordFailedAttempt, clearAttempts } = await import("../../middleware/bruteForce");
-      const bruteCheck = checkBruteForce(normalized);
+      const bruteCheck = await checkBruteForce(normalized);
       if (!bruteCheck.allowed) {
         throw new Error(`Too many attempts. Try again in ${Math.ceil((bruteCheck.retryAfter || 3600) / 60)} minutes.`);
       }
@@ -115,12 +117,12 @@ export const portalRouter = router({
         .limit(1);
 
       if (!session) {
-        recordFailedAttempt(normalized);
+        await recordFailedAttempt(normalized);
         throw new Error("Invalid or expired code");
       }
 
       // Valid code — clear brute force counter
-      clearAttempts(normalized);
+      await clearAttempts(normalized);
 
       // Generate session token
       const { randomInt } = await import("crypto");

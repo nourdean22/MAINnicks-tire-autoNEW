@@ -55,6 +55,28 @@ export async function cleanupOldData(): Promise<{ recordsProcessed: number; deta
     log.warn("Cron log cleanup failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
+  // Wave-181.59: prune stale OTP brute-force counters.
+  // Rows older than 2 hours with no active block are safe to delete —
+  // the 15-min attempt window has long since rolled over, and any
+  // 1-hour lockout has expired. Live blocks (blocked_until > now) are
+  // left untouched so we never accidentally clear an active lockout.
+  try {
+    const { getDb } = await import("../../db");
+    const { sql } = await import("drizzle-orm");
+    const db = await getDb();
+    if (db) {
+      const [result] = await db.execute(sql`
+        DELETE FROM otp_attempts
+        WHERE updated_at < (NOW() - INTERVAL 2 HOUR)
+          AND (blocked_until IS NULL OR blocked_until < NOW())
+      `);
+      const otpAttemptsCleaned = (result as { affectedRows?: number })?.affectedRows ?? 0;
+      cleaned += otpAttemptsCleaned;
+    }
+  } catch (err) {
+    log.warn("OTP attempts cleanup failed", { error: err instanceof Error ? err.message : String(err) });
+  }
+
   log.info("Cleanup completed", { cleaned });
   return { recordsProcessed: cleaned, details: `Cleaned ${cleaned} stale entries` };
 }

@@ -776,8 +776,13 @@ export const smsMessages = mysqlTable("sms_messages", {
   body: text("body").notNull(),
   /** Twilio message SID */
   twilioSid: varchar("twilioSid", { length: 64 }),
-  /** Delivery status */
-  status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received"]).default("queued").notNull(),
+  /** Delivery status — "sending" is the in-flight state used by the
+   *  rehydrate path in server/sms.ts to atomically claim a queued row
+   *  without falsely flagging it as "sent" before the gateway responds.
+   *  Order matches drizzle/0041_wave181_sms_sending_status.sql — "sending"
+   *  is APPENDED at the end so the MySQL ALTER is metadata-only (storage
+   *  index remap would be required if inserted in the middle). */
+  status: mysqlEnum("status", ["queued", "sent", "delivered", "failed", "received", "sending"]).default("queued").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   // ─── wave-181.51 · SMS INSTRUMENTATION ──────────────
   // Persisted per-send metrics so attribution doesn't require keyword-
@@ -1283,10 +1288,21 @@ export const algEstimates = mysqlTable("alg_estimates", {
   /** Link to invoice if converted (matched during sync) */
   matchedInvoiceId: int("matched_invoice_id"),
   matchedAt: timestamp("matched_at"),
-  /** Recovery follow-up tracking */
+  /** Recovery follow-up tracking.
+   *
+   * wave-181.59 — `*AttemptedAt` columns added for at-most-once delivery.
+   * The cron claims a row by stamping AttemptedAt inside a conditional
+   * UPDATE BEFORE calling sendSms. If the process crashes between send
+   * and the success commit, the next cron run sees AttemptedAt set and
+   * skips — at most one send, never duplicates. Missed sends (claimed
+   * but never confirmed) land in the manual review queue (Sent=0 +
+   * AttemptedAt IS NOT NULL). Per-tier columns so a failed 7d attempt
+   * does not block the 30d send. Migration 0042. */
   followUp7dSent: int("follow_up_7d_sent").default(0).notNull(),
+  followUp7dAttemptedAt: timestamp("follow_up_7d_attempted_at"),
   followUp7dSentAt: timestamp("follow_up_7d_sent_at"),
   followUp30dSent: int("follow_up_30d_sent").default(0).notNull(),
+  followUp30dAttemptedAt: timestamp("follow_up_30d_attempted_at"),
   followUp30dSentAt: timestamp("follow_up_30d_sent_at"),
   recoveryNote: text("recovery_note"),
   /** Source of the record (alg, manual, ...) */
@@ -2055,6 +2071,32 @@ export const cronLocks = mysqlTable("cron_locks", {
   lockedAt: timestamp("locked_at").defaultNow().notNull(),
   /** When this lock auto-expires (typically lockedAt + 2 * job max duration) */
   lockedUntil: timestamp("locked_until").notNull(),
+});
+
+/**
+ * OTP Brute-Force Attempts — wave-181.59 · durable replacement for the
+ * prior in-memory Map in server/middleware/bruteForce.ts. One row per
+ * phone, atomic INSERT ... ON DUPLICATE KEY UPDATE keeps the counter
+ * race-safe across multiple Railway pods and Node restarts.
+ *
+ * Semantics: 5 failed attempts inside a 15-minute window triggers a
+ * 1-hour lockout. Rows >2h old with no active block are pruned by the
+ * cleanup cron (server/cron/jobs/cleanup.ts).
+ *
+ * Mirror of drizzle/0040_wave181_otp_attempts_durable.sql — schema
+ * MUST match the migration so drizzle-kit doesn't try to drop the table.
+ */
+export const otpAttempts = mysqlTable("otp_attempts", {
+  /** Last-10 digits of the phone (E.164 stripped). Primary key. */
+  phone: varchar("phone", { length: 30 }).primaryKey(),
+  /** Failed-attempt count in the current rolling window */
+  attemptCount: int("attempt_count").default(0).notNull(),
+  /** Start of the current 15-minute attempt window */
+  windowStartedAt: timestamp("window_started_at").defaultNow().notNull(),
+  /** If set + in the future, all attempts are denied until this time */
+  blockedUntil: timestamp("blocked_until"),
+  /** Row touched timestamp — used by cleanup cron for stale pruning */
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 /**
