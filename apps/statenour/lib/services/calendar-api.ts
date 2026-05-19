@@ -69,7 +69,10 @@ export async function listEvents(options: {
 
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000), // wave-181.92
+    }
   );
 
   if (!res.ok) {

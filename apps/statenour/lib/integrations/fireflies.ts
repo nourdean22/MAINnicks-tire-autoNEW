@@ -28,6 +28,7 @@ async function firefliesQuery(query: string, variables?: Record<string, unknown>
       Authorization: `Bearer ${getApiKey()}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(15_000), // wave-181.92
     body: JSON.stringify({ query, variables }),
   });
 

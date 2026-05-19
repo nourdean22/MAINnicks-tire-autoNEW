@@ -34,6 +34,7 @@ export async function chatWithGrok(
       Authorization: `Bearer ${getApiKey()}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(30_000), // wave-181.92 · AI completion
     body: JSON.stringify({
       model: params?.model || "grok-3-mini",
       messages,

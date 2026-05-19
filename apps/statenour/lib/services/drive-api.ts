@@ -33,7 +33,10 @@ export async function getFileMetadata(fileId: string): Promise<{
   const fields = "id,name,mimeType,modifiedTime,webViewLink";
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files/${fileId}?fields=${fields}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000), // wave-181.92
+    }
   );
   if (!res.ok) return null;
   return (await res.json()) as {
@@ -60,6 +63,7 @@ export async function getFileContent(fileId: string, mimeType: string): Promise<
 
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(30_000), // wave-181.92 · larger files may be slow
   });
   if (!res.ok) return "";
   return await res.text();
@@ -78,7 +82,10 @@ export async function listRecentFiles(limit: number = 20): Promise<DriveDoc[]> {
   });
   const res = await fetch(
     `https://www.googleapis.com/drive/v3/files?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000), // wave-181.92
+    }
   );
   if (!res.ok) return [];
   const data = (await res.json()) as {

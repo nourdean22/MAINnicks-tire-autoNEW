@@ -113,6 +113,7 @@ export async function exchangeCodeForToken(code: string): Promise<{
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(10_000), // wave-181.92 · OAuth token endpoint
     body: new URLSearchParams({
       code,
       client_id: clientId,
@@ -220,6 +221,7 @@ export async function getAccessToken(): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    signal: AbortSignal.timeout(10_000), // wave-181.92 · OAuth token endpoint
     body: new URLSearchParams({
       client_id: clientId,
       client_secret: clientSecret,

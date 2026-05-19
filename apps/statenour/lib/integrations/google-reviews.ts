@@ -67,7 +67,7 @@ export async function fetchAndStoreReviews(): Promise<{ fetched: number; newCoun
   }
 
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${PLACE_ID}&fields=reviews&key=${API_KEY}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) }); // wave-181.92
   const data = await res.json();
 
   const reviews: PlaceReview[] = data.result?.reviews ?? [];

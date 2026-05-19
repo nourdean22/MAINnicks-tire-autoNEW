@@ -62,6 +62,7 @@ export async function listBufferProfiles(): Promise<BufferProfile[]> {
   const key = getKey();
   const res = await fetch(`${BUFFER_API}/profiles.json`, {
     headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(10_000), // wave-181.92
   });
   if (!res.ok) {
     const errText = await res.text();
@@ -137,6 +138,7 @@ export async function scheduleBufferPost(args: {
         Authorization: `Bearer ${key}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
+      signal: AbortSignal.timeout(15_000), // wave-181.92
       body: params.toString(),
     });
     if (!res.ok) {
