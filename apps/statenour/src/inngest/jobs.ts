@@ -91,6 +91,13 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/agent-eval",
   "/api/cron/extract-knowledge",
   "/api/cron/brain-feedback-loop",
+  // v10.0.529.98 · suggestion-loop close · pairs operator action signals
+  // (from /api/brain/suggestion-loop) with downstream Task completions
+  // within 24h · writes neutral outcome rows back to brain_memory ·
+  // operator manually upgrades to positive/negative via chat. Grouped
+  // with brain-feedback-loop since both consume the same supervised-
+  // signal data.
+  "/api/cron/suggestion-outcome-rollup",
   "/api/cron/eval-regression",
   "/api/cron/cost-slo-check",
   "/api/cron/vapi-latency-sync",
