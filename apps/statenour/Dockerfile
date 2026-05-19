@@ -45,7 +45,10 @@ COPY apps/nickstire/patches ./apps/nickstire/patches
 # Install ONLY the @statenour/web app and its deps · skips nickstire + worker.
 # `--mount=type=cache` keeps the pnpm content-addressable store between
 # builds · most deploys touch <5% of deps so cache hits are huge.
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+# Railway BuildKit requires a cacheKey-prefixed `id=` field, OR no id at all.
+# We use the latter · cache is still keyed by target path · works identically
+# on Docker Hub BuildKit + Railway. (Earlier id="pnpm-store" failed validation.)
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter @statenour/web...
 
 # ── 2 · build ──────────────────────────────────────────────────────────
@@ -70,7 +73,7 @@ COPY packages/utils ./packages/utils
 # and compile from ~90s to ~25s when little changed.
 ENV NODE_ENV=production
 WORKDIR /repo/apps/statenour
-RUN --mount=type=cache,id=next-statenour-cache,target=/repo/apps/statenour/.next/cache \
+RUN --mount=type=cache,target=/repo/apps/statenour/.next/cache \
     pnpm run build
 
 # ── 3 · runtime ────────────────────────────────────────────────────────

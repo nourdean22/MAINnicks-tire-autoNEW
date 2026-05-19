@@ -1,9 +1,11 @@
 /**
- * ContentSection — Content Manager + AI Ideas Engine
+ * ContentSection — Content Manager + AI Ideas Engine + Specials.
  * Tab 1: Content Manager (articles, notifications, gen log)
  * Tab 2: AI Ideas Engine (trending topics, SEO opportunities, seasonal, competitor gaps)
+ * Tab 3: Specials (2026-05-19 Elon-cut · moved from RevenueSection · it's
+ *        content management, not invoice/revenue data)
  */
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -13,10 +15,12 @@ import {
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
   Sparkles, XCircle, TrendingUp, Search, Calendar, Target, Zap,
-  ArrowUpRight, Lightbulb,
+  ArrowUpRight, Lightbulb, Tag,
 } from "lucide-react";
 
-type ContentTab = "manager" | "ideas";
+const SpecialsSection = lazy(() => import("./SpecialsSection"));
+
+type ContentTab = "manager" | "ideas" | "specials";
 
 // Inferred from the tRPC AppRouter — replaces 10 `any` annotations
 // (admin audit §3 follow-up; same pattern as DispatchSection cleanup).
@@ -33,13 +37,14 @@ export default function ContentSection() {
     <div className="space-y-6">
       <PageHeader
         title="Content & AI"
-        subtitle="Articles, notifications, GBP posts, AI ideas engine — everything customer-facing copy + automation"
+        subtitle="Articles, notifications, GBP posts, AI ideas engine, specials — everything customer-facing copy + automation"
         icon={<FileText className="w-5 h-5" />}
       />
       <TabBar
         tabs={[
           { id: "manager", label: "Content Manager", icon: <FileText className="w-3.5 h-3.5" /> },
           { id: "ideas", label: "AI Ideas Engine", icon: <Lightbulb className="w-3.5 h-3.5" /> },
+          { id: "specials", label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
         ]}
         activeTab={tab}
         onChange={setTab}
@@ -47,6 +52,11 @@ export default function ContentSection() {
 
       {tab === "manager" && <ContentManager />}
       {tab === "ideas" && <AIIdeasEngine />}
+      {tab === "specials" && (
+        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
+          <SpecialsSection />
+        </Suspense>
+      )}
     </div>
   );
 }

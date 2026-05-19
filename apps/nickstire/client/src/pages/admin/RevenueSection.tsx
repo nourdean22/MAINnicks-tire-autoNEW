@@ -18,8 +18,9 @@ import {
   Car, Phone, Mail, ExternalLink, Hash,
 } from "lucide-react";
 
-const SpecialsSection = lazy(() => import("./SpecialsSection"));
-const FinancingSection = lazy(() => import("./FinancingSection"));
+// 2026-05-19 Elon-cut · Specials moved to ContentSection (it's content
+// management, not invoice data). Financing tab killed — snapDashboard
+// at the sidebar level is the canonical Snap Finance surface.
 const WorkOrdersSection = lazy(() => import("./WorkOrdersSection"));
 // wave-110 — CustomersSection removed; reachable as top-level /admin?tab=customers
 const DispatchSection = lazy(() => import("./DispatchSection"));
@@ -40,13 +41,11 @@ function formatDollars(dollars: number): string {
   return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-// wave-110 — "customers" sub-tab removed (double-render w/ top-level Customers section)
-type SectionTab = "revenue" | "specials" | "financing" | "shopPulse" | "shopStatus";
+// 2026-05-19 Elon-cut · specials + financing tabs removed (see header).
+type SectionTab = "revenue" | "shopPulse" | "shopStatus";
 
 const REVENUE_TABS: { id: SectionTab; label: string; icon: React.ReactNode }[] = [
   { id: "revenue", label: "Revenue", icon: <DollarSign className="w-3.5 h-3.5" /> },
-  { id: "specials", label: "Specials", icon: <Tag className="w-3.5 h-3.5" /> },
-  { id: "financing", label: "Financing", icon: <CreditCard className="w-3.5 h-3.5" /> },
   { id: "shopPulse", label: "Shop Pulse", icon: <Wrench className="w-3.5 h-3.5" /> },
   { id: "shopStatus", label: "Shop Status", icon: <Activity className="w-3.5 h-3.5" /> },
 ];
@@ -69,16 +68,6 @@ export default function RevenueSection() {
       />
 
       {section === "revenue" && <RevenueContent />}
-      {section === "specials" && (
-        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-          <SpecialsSection />
-        </Suspense>
-      )}
-      {section === "financing" && (
-        <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
-          <FinancingSection />
-        </Suspense>
-      )}
       {section === "shopPulse" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <WorkOrdersSection />

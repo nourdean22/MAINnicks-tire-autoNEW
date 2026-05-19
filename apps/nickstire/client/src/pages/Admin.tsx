@@ -42,11 +42,11 @@ const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
 const DeclinedEstimatesSection = lazy(() => import("./admin/DeclinedEstimatesSection"));
 // 2026-05-09 — ReEngagementSection no longer rendered as top-level route.
 // File still exists; consumed by OutreachHubSection as the 6th tab.
-const NoShowRiskSection = lazy(() => import("./admin/NoShowRiskSection"));
+// 2026-05-19 Elon-cut · NoShowRiskSection + ConversionPreviewSection
+// deleted (URL-aliased-only zombies — not in sidebar, no operator value).
 const WalkInCalculatorSection = lazy(() => import("./admin/WalkInCalculatorSection"));
 const SnapDashboardSection = lazy(() => import("./admin/SnapDashboardSection"));
 const TrafficFunnelSection = lazy(() => import("./admin/TrafficFunnelSection"));
-const ConversionPreviewSection = lazy(() => import("./admin/ConversionPreviewSection"));
 const VoiceReceptionistSection = lazy(() => import("./admin/VoiceReceptionistSection"));
 // Settings tab sub-sections — kept because they're consumed INSIDE SettingsSection,
 // but not rendered as top-level routes anymore (Settings page handles them).
@@ -82,11 +82,9 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "callTrackingView" && <CallTrackingSection />}
         {section === "intelligence" && <IntelligenceSection />}
         {section === "declinedEstimates" && <DeclinedEstimatesSection />}
-        {section === "noShowRisk" && <NoShowRiskSection />}
         {section === "walkInCalc" && <WalkInCalculatorSection />}
         {section === "snapDashboard" && <SnapDashboardSection />}
         {section === "trafficFunnel" && <TrafficFunnelSection />}
-        {section === "conversionPreview" && <ConversionPreviewSection />}
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
       </Suspense>
     </AdminSectionBoundary>
@@ -107,22 +105,20 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
 
-  // 2026-05-06 Elon-deeper-cut · these 4 sections were removed from the
-  // sidebar (TODAY/REVENUE/GROW/TOOLS) but kept reachable via URL.
-  // resolveInitialSection() lowercases the param, so the lowercase
-  // aliases below ensure direct deep-links keep working.
+  // 2026-05-06 Elon-deeper-cut · these sections were removed from the
+  // sidebar but kept reachable via URL.
+  // 2026-05-19 Elon-cut · noShowRisk + conversionPreview fully deleted.
+  // Aliases below redirect old bookmarks to closest live section.
   walkincalc: "walkInCalc",
   walkin: "walkInCalc",
   quote: "walkInCalc",
-  noshowrisk: "noShowRisk",
-  noshow: "noShowRisk",
-  // 2026-05-09 — Re-engagement absorbed into OutreachHub as 6th tab. All
-  // legacy ReEngagement aliases now resolve to OutreachHub (`campaigns`).
-  // Operator can drill to the Re-Engage tab via outreachTab=reengage.
+  noshowrisk: "leads", // no-show risk = filter on Leads, not a destination
+  noshow: "leads",
+  // Re-engagement fully merged · all aliases now land on OutreachHub.
   reengagement: "campaigns",
   reengage: "campaigns",
-  conversionpreview: "conversionPreview",
-  preview: "conversionPreview",
+  conversionpreview: "settings", // was developer sandbox · landed on Settings
+  preview: "settings",
 
   // Voice Receptionist (VAPI) — wave-86
   voicereceptionist: "voiceReceptionist",
@@ -202,8 +198,8 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "commandCenter", "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView", "intelligence",
-  "declinedEstimates", "noShowRisk", "walkInCalc",
-  "snapDashboard", "trafficFunnel", "conversionPreview", "voiceReceptionist",
+  "declinedEstimates", "walkInCalc",
+  "snapDashboard", "trafficFunnel", "voiceReceptionist",
 ]);
 
 function resolveInitialSection(): AdminSection {

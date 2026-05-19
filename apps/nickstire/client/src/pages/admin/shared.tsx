@@ -16,11 +16,13 @@ import CountUpNumber from "@/components/CountUpNumber";
 // ─── TYPES ──────────────────────────────────────────────
 // 2026-04-24 admin audit: down from 45 sections to 16 active routes.
 // Deleted 27 dead/redundant sections. See commit log for rationale.
+// 2026-05-19 Elon-cut · noShowRisk + conversionPreview removed
+// (URL-aliased-only zombies; not in sidebar, not earning their keep).
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
-  | "declinedEstimates" | "noShowRisk" | "walkInCalc"
-  | "snapDashboard" | "trafficFunnel" | "conversionPreview" | "voiceReceptionist";
+  | "declinedEstimates" | "walkInCalc"
+  | "snapDashboard" | "trafficFunnel" | "voiceReceptionist";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
@@ -178,11 +180,9 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   voiceReceptionist: "Voice Receptionist",
   intelligence: "Intelligence",
   declinedEstimates: "Declined Work",
-  noShowRisk: "No-Show Risk",
   walkInCalc: "Walk-In Quote",
   snapDashboard: "Snap Finance",
   trafficFunnel: "Traffic → Revenue",
-  conversionPreview: "Conversion Preview",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────
