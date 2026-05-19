@@ -58,7 +58,14 @@ export async function process24hFollowUps() {
       message,
     });
 
-    // Send SMS thank-you (gated by feature flag)
+    // wave-181.65 (audit-181.58 deferred · 2026-05-18 PM)
+    // Pre-fix `followUp24hSent: 1` was set UNCONDITIONALLY even when
+    // the SMS send failed (F25e offline · invalid number) · booking
+    // was never retried on next cron run · customer silently received
+    // no thank-you. Now: stamp the flag ONLY when send succeeded OR
+    // wasn't attempted (no phone / feature disabled). Failed sends
+    // leave the flag clear so the next cron run retries.
+    let markFollowUp = true;
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
@@ -67,10 +74,13 @@ export async function process24hFollowUps() {
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
+        if (!smsResult.success) markFollowUp = false;
       }
     }
 
-    await db.update(bookings).set({ followUp24hSent: 1 }).where(eq(bookings.id, booking.id));
+    if (markFollowUp) {
+      await db.update(bookings).set({ followUp24hSent: 1 }).where(eq(bookings.id, booking.id));
+    }
     processed++;
   }
 
@@ -110,7 +120,10 @@ export async function process7dReviewRequests() {
       message,
     });
 
-    // Send SMS review request (gated by feature flag)
+    // wave-181.65 (audit-181.58 deferred · 2026-05-18 PM)
+    // Same retry-on-failure pattern as the 24h thank-you above ·
+    // failed sends leave the flag clear so next cron run retries.
+    let markFollowUp = true;
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
@@ -119,10 +132,13 @@ export async function process7dReviewRequests() {
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
+        if (!smsResult.success) markFollowUp = false;
       }
     }
 
-    await db.update(bookings).set({ followUp7dSent: 1 }).where(eq(bookings.id, booking.id));
+    if (markFollowUp) {
+      await db.update(bookings).set({ followUp7dSent: 1 }).where(eq(bookings.id, booking.id));
+    }
     processed++;
   }
 
