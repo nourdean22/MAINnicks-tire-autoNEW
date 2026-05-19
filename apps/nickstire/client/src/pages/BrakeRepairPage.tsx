@@ -18,15 +18,16 @@ const CONFIG: ServicePageConfig = {
   heroImage: "/photos/undercar-brake-repair-action.webp",
   // wave-176 · GSC data: /brakes ranks position 34.8 with 0% CTR over
   // 544 imp/28d. Diagnosis: title buried "Brake Repair Cleveland" behind
-  // brand-voice tagline; H1 contained ZERO keyword target. Google can't
-  // confidently classify the page for "brake repair" queries.
+  // brand-voice tagline; H1 contained ZERO keyword target.
   //
-  // Fix: title leads with the literal search-intent phrase, H1 leads
-  // with "Cleveland Brake Repair" + keeps the flashlight imagery as the
-  // second line. Sub adds explicit service-area mentions (Cleveland,
-  // Euclid, Cleveland Heights, Parma) for local relevance signal.
-  title: "Brake Repair Cleveland · Free Inspection · Same-Day | Nick's Tire & Auto",
-  description: "Cleveland brake repair on Euclid Ave. Free inspection, written estimate before any wrench moves, same-day on most jobs. 4.9★ from 1,700+ reviews. (216) 862-0005",
+  // wave-181.99 · GSC re-check shows 1,678 imp / 0 clicks at pos 30.6.
+  // Position improved, CTR still 0%. Title is correctly keyword-fronted
+  // but lacks a click-differentiator vs. the 100+ "Brake Repair
+  // Cleveland" competitors. Adding the $149/axle price anchor — no
+  // local competitor lists a price in their SERP snippet, so this is
+  // the cheapest way to get the click without ranking improvements.
+  title: "Brake Repair Cleveland · From $149/Axle · Same-Day | Nick's",
+  description: "Brake repair in Cleveland from $149/axle. Free check · written estimate before any wrench moves · same-day on most jobs · 4.9★ from 1,700+ reviews. Call (216) 862-0005 or just pull up.",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",
   h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
   sub: "Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest brake shop — serving Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and every neighborhood between. We lift the car, hand you the flashlight, and walk you under it so you SEE what's worn. We don't replace what doesn't need replacing. Most brake jobs out the door before lunch. Cheaper than the dealer. More honest than the chain. Free written estimate before any wrench moves. 4.9★ from 1,700+ Cleveland drivers who came in skeptical and left with a car that stops.",
