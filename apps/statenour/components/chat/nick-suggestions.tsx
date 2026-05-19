@@ -53,6 +53,7 @@ import {
   HandshakeIcon,
   Pin,
   ChevronDown,
+  X,
 } from "lucide-react";
 
 interface NickSuggestion {
@@ -122,6 +123,12 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // even think it's that smart." We keep the smart aggregator but surface
   // only the top-priority chip · the rest are 1 tap away.
   const [expanded, setExpanded] = useState(false);
+  // v10.0.529.98 · suggestion-loop · client-side dismiss state. When the
+  // operator clicks the X on a chip, we fire `event=dismissed` to the
+  // suggestion-loop API and hide the chip locally. Server-side filtering
+  // happens on next /api/nick/suggest fetch · a future improve-agent pass
+  // can read these dismissal signals to surface less-noisy suggestions.
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   // v10.0.529.92 · Wave 36 · standalone fallback when no onSeed
@@ -149,6 +156,22 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
       }).catch(() => {
         // Best-effort · never let signal capture break the seed flow.
       });
+    },
+    [],
+  );
+
+  const recordDismiss = useCallback(
+    (meta: { kind: string; id: string }) => {
+      void authedFetch("/api/brain/suggestion-loop", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "action",
+          suggestionId: meta.id,
+          suggestionKind: meta.kind,
+          event: "dismissed",
+        }),
+      }).catch(() => {});
     },
     [],
   );
@@ -219,8 +242,16 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // The aggregator already returns severity-sorted suggestions · the
   // first chip IS the top-priority one. Operator opens the rest with
   // a single tap on "+ N more" · most days they'll never need to.
-  const [top, ...rest] = suggestions;
-  const visible = expanded ? suggestions : [top];
+  //
+  // v10.0.529.98 · filter dismissed chips locally so the operator
+  // doesn't keep seeing what they just X'd. Server-side persistence
+  // happens via the suggestion-loop API · the next /api/nick/suggest
+  // fetch (60s interval) may still return them until the aggregator
+  // also reads dismissal signals.
+  const live = suggestions.filter((s) => !dismissedIds.has(s.id));
+  if (live.length === 0) return null;
+  const [top, ...rest] = live;
+  const visible = expanded ? live : [top];
 
   return (
     <section
@@ -233,34 +264,57 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
       {visible.map((s) => {
         const meta = KIND_META[s.kind] ?? KIND_META["pattern"];
         const Icon = meta.icon;
+        // v10.0.529.98 · two-button group · the chip body taps to seed +
+        // record acted · the X dismisses + records dismissed. Wrapped in
+        // a non-button div so HTML doesn't nest interactive elements.
         return (
-          <button
+          <div
             key={s.id}
-            type="button"
-            onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id })}
-            aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
-            title={s.seedPrompt}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 min-h-[32px] transition-colors shrink-0",
-              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]",
+              "inline-flex items-center rounded-full border transition-colors shrink-0",
+              "focus-within:outline-none focus-within:ring-1 focus-within:ring-[var(--gold)]",
               SEVERITY_RING[s.severity],
             )}
           >
-            <Icon
-              size={11}
-              className={cn(
-                "shrink-0",
-                meta.tone === "amber" && "text-amber-400",
-                meta.tone === "rose" && "text-rose-400",
-                meta.tone === "sky" && "text-sky-400",
-                meta.tone === "zinc" && "text-zinc-400",
-                meta.tone === "violet" && "text-violet-400",
-              )}
-            />
-            <span className="text-[10px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
-              {s.label}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => handleSeed(s.seedPrompt, { kind: s.kind, id: s.id })}
+              aria-label={`${s.label} · tap to ${s.actionHint ?? "ask"}`}
+              title={s.seedPrompt}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] focus:outline-none"
+            >
+              <Icon
+                size={11}
+                className={cn(
+                  "shrink-0",
+                  meta.tone === "amber" && "text-amber-400",
+                  meta.tone === "rose" && "text-rose-400",
+                  meta.tone === "sky" && "text-sky-400",
+                  meta.tone === "zinc" && "text-zinc-400",
+                  meta.tone === "violet" && "text-violet-400",
+                )}
+              />
+              <span className="text-[10px] font-mono text-[var(--text-primary)] max-w-[240px] truncate">
+                {s.label}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                recordDismiss({ kind: s.kind, id: s.id });
+                setDismissedIds((prev) => {
+                  const next = new Set(prev);
+                  next.add(s.id);
+                  return next;
+                });
+              }}
+              aria-label={`Dismiss · ${s.label}`}
+              title="Dismiss · captured as supervised signal"
+              className="inline-flex items-center justify-center px-1.5 py-1.5 min-h-[32px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus:outline-none"
+            >
+              <X size={10} className="shrink-0" />
+            </button>
+          </div>
         );
       })}
       {rest.length > 0 && (
