@@ -2,7 +2,7 @@
 
 **Started:** Phase J (2026-05-18 PM · commit a37a4442)
 **Strategy:** Strangler fig · coexistence · gradual surface-by-surface
-**Status:** 20 / 50+ surfaces · **~40% complete** · 5 domain routers (nick · operator · system with 9 procedures · chat with 10 procedures · browser with 4 procedures · total 7 mutations) · invalidate-after-mutation pattern (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE/KK/LL use `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ/KK/LL) · imperative-fetch-via-utils pattern (JJ + MM use `utils.x.y.fetch()` · MM combines with setTimeout delay for post-stream BrainMemory polling) · drift-detection-via-typed-output (KK caught 9-month-old field bug) · error-code-branching (LL uses `error.data.code === "PRECONDITION_FAILED"` to distinguish not-configured from real errors)
+**Status:** 21 / 50+ surfaces · **~42% complete** · 5 domain routers (nick · operator · system with 11 procedures · chat with 10 procedures · browser with 4 procedures · total 9 mutations) · T.4 coexistence carve-out CLOSED (Phase NN) · invalidate-after-mutation pattern (T.4) · typed-output inference pattern (Y.2 uses `inferRouterOutputs`) · optimistic-cache-update pattern (Z.3 uses `utils.x.y.setData()`) · lazy-on-open pattern (EE/KK/LL use `enabled: open`) · read-shaped POST modeled as `.query()` (GG) · `.mutation()` pattern via `useMutation().mutateAsync()` (HH/II/JJ/KK/LL) · imperative-fetch-via-utils pattern (JJ + MM use `utils.x.y.fetch()` · MM combines with setTimeout delay for post-stream BrainMemory polling) · drift-detection-via-typed-output (KK caught 9-month-old field bug) · error-code-branching (LL uses `error.data.code === "PRECONDITION_FAILED"` to distinguish not-configured from real errors)
 
 ## Why
 
@@ -42,7 +42,8 @@ End-to-end types flow from server → client · no manual mirrors.
 | MessageEditControls (edit + history drawer · 1 query + 1 mutation) | `authedFetch` PATCH/GET → `/api/ai/chat/edit/[id]` | `trpc.chat.editMessage.useMutation()` + `utils.chat.editHistory.fetch()` on click | JJ.3 |
 | BuilderSandbox (chat slide-out · deploy panel · 1 query + 1 mutation) | `authedFetch` GET/POST → `/api/system/deploys` + `/api/system/deploys/rollback` | `trpc.system.deploys.useQuery({limit, enabled: open})` + `trpc.system.rollbackDeploy.useMutation()` | KK.3 |
 | BrowserSandbox (chat slide-out · Browserbase live view · 1 query + 2 mutations) | `authedFetch` GET/POST/DELETE → `/api/browser/session` | `trpc.browser.sessions.useQuery({enabled: open})` + `createSession.useMutation()` + `closeSession.useMutation({id})` | LL.3 |
-| ActionClaimWarning (chat chip · poka-yoke for fabricated tool calls) | `authedFetch` GET → `/api/ai/chat/claim-warnings?conversationId=X` (600ms delayed) | `utils.chat.claimWarnings.fetch()` in delayed setTimeout (imperative-fetch-via-utils · JJ pattern) | **MM.3** |
+| ActionClaimWarning (chat chip · poka-yoke for fabricated tool calls) | `authedFetch` GET → `/api/ai/chat/claim-warnings?conversationId=X` (600ms delayed) | `utils.chat.claimWarnings.fetch()` in delayed setTimeout (imperative-fetch-via-utils · JJ pattern) | MM.3 |
+| /system/cron-diagnostics runNow + enableCron (closes T.4 carve-out · 2 mutations) | `authedFetch` POST `/api/settings/crons/trigger` + PATCH `/api/settings/crons` | `trpc.system.runCron({jobName}).useMutation()` + `setCronEnabled({jobName, enabled}).useMutation()` · caught + fixed 9-month-old `{jobName}` vs `{path}` mismatch bug | **NN.3** |
 
 ## Architectural notes
 

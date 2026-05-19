@@ -28,7 +28,6 @@ import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { Settings } from "lucide-react";
 
@@ -75,25 +74,25 @@ export default function CronDiagnosticsPage() {
     [utils],
   );
 
-  /** Fire a cron manually via /api/settings/crons/trigger. */
+  // Phase NN (2026-05-19 AM) · close the T.4 coexistence carve-out.
+  // Pre-fix `runNow` sent `{jobName}` to a REST route that expected
+  // `{path}` · button was silently broken since wave-181.4. The new
+  // tRPC mutation `system.runCron({jobName})` derives the path
+  // server-side · same typed shape both transports + same drift-proof
+  // catalog lookup. `enableCron` migrated alongside for symmetry.
+  const runCronMutation = trpc.system.runCron.useMutation();
+  const setCronEnabledMutation = trpc.system.setCronEnabled.useMutation();
+
+  /** Fire a cron manually · derives path from jobName server-side. */
   const runNow = useCallback(
     async (jobName: string) => {
       setBusyJob(jobName);
       try {
-        const res = await authedFetch("/api/settings/crons/trigger", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ jobName }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        const result = json.data ?? json;
+        const result = await runCronMutation.mutateAsync({ jobName });
         if (result.ok === false) {
           toast.error(`${jobName} failed: ${result.error ?? result.status ?? "unknown"}`);
         } else {
-          toast.success(
-            `${jobName} ran · ${result.durationMs ?? result.duration_ms ?? "?"}ms`,
-          );
+          toast.success(`${jobName} ran · ${result.durationMs ?? "?"}ms`);
         }
         await invalidate();
       } catch (e) {
@@ -102,20 +101,15 @@ export default function CronDiagnosticsPage() {
         setBusyJob(null);
       }
     },
-    [invalidate],
+    [invalidate, runCronMutation],
   );
 
-  /** Flip a cron's enabled flag back to true via /api/settings/crons PATCH. */
+  /** Flip a cron's enabled flag back to true. */
   const enableCron = useCallback(
     async (jobName: string) => {
       setBusyJob(jobName);
       try {
-        const res = await authedFetch("/api/settings/crons", {
-          method: "PATCH",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ jobName, enabled: true }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await setCronEnabledMutation.mutateAsync({ jobName, enabled: true });
         toast.success(`${jobName} re-enabled`);
         await invalidate();
       } catch (e) {
@@ -124,7 +118,7 @@ export default function CronDiagnosticsPage() {
         setBusyJob(null);
       }
     },
-    [invalidate],
+    [invalidate, setCronEnabledMutation],
   );
 
   const criticalCount = report?.diagnoses.filter((d) => d.severity === "critical").length ?? 0;

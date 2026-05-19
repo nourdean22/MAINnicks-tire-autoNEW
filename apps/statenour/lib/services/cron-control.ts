@@ -109,6 +109,48 @@ function baseUrl(): string {
 }
 
 /**
+ * Phase NN (2026-05-19 AM) · derive path from jobName and trigger.
+ *
+ * The legacy `/api/settings/crons/trigger` REST endpoint takes `{path}`
+ * which was an operator-hostile shape — the UI knows `jobName`, not
+ * the path-with-query-string. The cron-diagnostics page was actually
+ * shipping the wrong body shape (sending `{jobName}` to a `{path}`-
+ * expecting handler) so the "run now" button was broken in prod
+ * since at least wave-181.4.
+ *
+ * The new tRPC mutation `system.runCron({jobName})` calls this
+ * helper · derives path from the scheduled-cron catalog · falls back
+ * to `/api/cron/${jobName}` for mega-fanout virtual crons (which
+ * don't have catalog rows). Drift-proof against the catalog logic
+ * already in `app/api/settings/crons/route.ts`.
+ */
+const MEGA_FANOUT_JOBS = new Set([
+  "device-sync", "learn", "stale-tasks", "device-health", "brain-cycle",
+  "notification-sender", "journal-checkin", "embed-backfill",
+  "reflect", "predict", "think", "consolidate", "drift-check",
+  "daily-report", "data-cleanup", "intelligence",
+]);
+
+export async function triggerCronByName(
+  jobName: string,
+): Promise<CronTriggerResult> {
+  const scheduled = await listScheduledCrons();
+  const found = scheduled.find((c) => c.jobName === jobName);
+  if (found) {
+    return triggerCronByPath(found.path);
+  }
+  if (MEGA_FANOUT_JOBS.has(jobName)) {
+    return triggerCronByPath(`/api/cron/${jobName}`);
+  }
+  return {
+    ok: false,
+    status: 0,
+    durationMs: 0,
+    body: `unknown jobName: ${jobName}`,
+  };
+}
+
+/**
  * Manually fire a cron by its path (e.g. "/api/cron/drift-check" or
  * "/api/cron/mega?slot=morning"). Passes CRON_SECRET so the target
  * route authorizes the call. Returns timing + status for UI feedback.
