@@ -9,7 +9,7 @@ and the next milestone.
 
 | Migration | Phase | Started | Status | Next milestone |
 |---|---|---|---|---|
-| **tRPC migration** (REST → tRPC) | Phase J + …/VV + **WW** | 2026-05-19 AM | **33/50+ surfaces · ~66%** · /scoreboard migrated (quick win · `buildMetaScoreboard` service already extracted · single useQuery swap) · operator router at 4 procedures · cluster of high-leverage surfaces remain: /pins · /knowledge · /content/drafts · /content/history · /financial · /settings · /social · /chat | Batch the smaller pages next (each 1-5 sites) · then `/chat` (biggest remaining · streaming endpoints excluded · subscriptions need WebSocket) |
+| **tRPC migration** (REST → tRPC) | Phase J + …/WW + **XX** | 2026-05-19 AM | **34/50+ surfaces · ~68%** · /body migrated · `body-tracking` service extracted (95 LOC + zod schema) · 3rd type-system bug catch (snake_case/camelCase drift between Prisma and page-local types · normalized at the boundary) · operator router at 6 procedures | /pins · /knowledge · /content/{drafts,history} · /financial · /settings · /social · /chat · ~20 /system/* admin pages |
 | **AGENT_V1 → AGENT_V2** (prompt builder) | v10.0.442-484 sprint + V + W + **X** | 2026-05-07 / 2026-05-18 PM | **AGENT_V2=true active in prod** · Phase 0 prereqs COMPLETE end-to-end (judge-eval + dashboard + sampler + force-override + auto-corpus cron) | Wait ~10 evenings for cron to accumulate 50 runs · then Phase 1 canary when verdict reads safe |
 ## Completed migrations
 
