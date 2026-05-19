@@ -95,9 +95,14 @@ export const portalRouter = router({
         throw new Error(`Too many attempts. Try again in ${Math.ceil((bruteCheck.retryAfter || 3600) / 60)} minutes.`);
       }
 
-      // Clean up expired sessions (older than 24 hours)
+      // Clean up this phone's expired sessions (older than 24 hours).
+      // Scoped to the caller so per-verify work doesn't scale with global OTP volume
+      // and concurrent verifies from different phones don't race on the same DELETE.
       const cleanupCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
-      await d.delete(portalSessions).where(lte(portalSessions.createdAt, cleanupCutoff));
+      await d.delete(portalSessions).where(and(
+        eq(portalSessions.phone, normalized),
+        lte(portalSessions.createdAt, cleanupCutoff),
+      ));
 
       const [session] = await d.select().from(portalSessions)
         .where(and(
