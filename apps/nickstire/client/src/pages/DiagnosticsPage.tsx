@@ -21,7 +21,7 @@ const CONFIG: ServicePageConfig = {
   // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
   // (no competitor leads with FREE), price anchor for the full diag.
   title: "Car Diagnostic Cleveland · FREE Code Pull · From $89",
-  description: "Cleveland car diagnostic from $89 (free OBD code pull) · plain-English explanation · credited back if we fix it · 4.9★ from 1,700+ reviews · just pull up to 25425 Euclid Ave. (216) 862-0005",
+  description: "Cleveland car diagnostic from $89 (free OBD code pull) · plain-English explanation · credited back if we fix it · 4.9★ from 1,700+ reviews · just pull up to 17625 Euclid Ave. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
   // H1 had ZERO keyword target ("THE LIGHT'S ON. WE FIND OUT *WHY*").

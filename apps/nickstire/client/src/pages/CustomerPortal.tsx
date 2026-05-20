@@ -471,10 +471,10 @@ function PortalDashboard({ token, onLogout }: { token: string; onLogout: () => v
       {/* CTA */}
       <div className="mt-8 bg-card border border-primary/30 p-6 text-center">
         <h3 className="font-bold text-foreground tracking-[-0.01em] mb-2">NEED SERVICE?</h3>
-        <p className="text-[12px] text-foreground/40 mb-4">Schedule your next visit online or call us directly.</p>
+        <p className="text-[12px] text-foreground/40 mb-4">Pull up first-come-first-served, or call us directly.</p>
         <div className="flex items-center justify-center gap-3">
           <Link href="/contact" className="px-6 py-2.5 bg-primary text-primary-foreground font-bold text-sm tracking-wider hover:bg-primary/90 transition-colors">
-            HOLD MY BAY
+            SCHEDULE DROP-OFF
           </Link>
           <a href="tel:+12168620005" onClick={() => trackPhoneClick("customer-portal")} className="px-6 py-2.5 border border-foreground/20 text-foreground font-bold text-sm tracking-wider hover:border-primary hover:text-primary transition-colors">
             CALL (216) 862-0005

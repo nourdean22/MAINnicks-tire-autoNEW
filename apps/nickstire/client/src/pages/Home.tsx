@@ -12,9 +12,7 @@ import ComparisonTable from "@/components/ComparisonTable";
 import PageLayout from "@/components/PageLayout";
 import { SEOHead, trackPhoneClick } from "@/components/SEO";
 import { Phone, MapPin, Clock, Star, ChevronDown, ArrowRight, Disc, Activity, Wrench, Zap, AlertTriangle, Snowflake } from "lucide-react";
-import { motion } from "framer-motion";
 import { trpc } from "@/lib/trpc";
-import React from "react";
 import { BUSINESS } from "@shared/business";
 import { GBP_REVIEW_URL } from "@shared/const";
 import TrustStrip from "@/components/TrustStrip";
@@ -78,7 +76,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
   const { rating, totalReviews } = reviewData;
 
   return (
-    <section className="relative h-[100svh] flex items-center overflow-hidden hero-stage">
+    <section className="relative min-h-[100svh] flex items-center overflow-hidden hero-stage">
       {/* Full-bleed background — <picture> element serves a 120KB mobile-optimized
           variant under 768px instead of the 577KB desktop file. 5x bandwidth
           win on mobile first-paint, identical visual on desktop.

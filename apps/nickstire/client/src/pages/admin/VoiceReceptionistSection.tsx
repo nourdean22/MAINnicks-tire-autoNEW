@@ -169,7 +169,12 @@ const REASON_PRETTY: Record<string, { label: string; color: string }> = {
   unknown:                    { label: "Unknown",      color: "text-foreground/40" },
 };
 
-function prettyReason(reason: string): { label: string; color: string } {
+function prettyReason(reason: string | null | undefined): { label: string; color: string } {
+  // Null-safe: a call still in progress — or one VAPI never reported an
+  // end reason for — has endedReason null/undefined. REASON_PRETTY[undefined]
+  // is falsy, so the old `|| reason.replace(...)` branch crashed the whole
+  // section with "Cannot read properties of undefined (reading 'replace')".
+  if (!reason) return REASON_PRETTY.unknown;
   return REASON_PRETTY[reason] || { label: reason.replace(/-/g, " "), color: "text-foreground/60" };
 }
 
@@ -1350,7 +1355,7 @@ function LiveCallsCard() {
               className="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)] border border-[var(--border-default)]"
             >
               <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${c.bg} ${c.text}`}>
-                {s.latestState.replace("_", " ")}
+                {(s.latestState || "").replace("_", " ")}
               </span>
               <span className="text-[10px] font-mono text-[var(--text-tertiary)] flex-1 truncate">
                 {s.callId.slice(0, 16)}…

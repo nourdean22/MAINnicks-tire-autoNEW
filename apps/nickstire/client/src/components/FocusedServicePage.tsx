@@ -249,7 +249,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
               href="#booking"
               className="inline-flex items-center justify-center gap-2 border-2 border-nick-blue/50 text-nick-blue-light px-7 py-4 rounded-md font-bold text-lg tracking-wide hover:bg-nick-blue/10 hover:border-nick-blue transition-colors"
             >
-              HOLD MY BAY
+              SCHEDULE DROP-OFF
             </a>
           </div>
         </FadeIn>
@@ -376,10 +376,10 @@ function BookingSection({ config }: { config: ServicePageConfig }) {
       <div className="container max-w-4xl">
         <FadeIn>
           <h2 className="font-bold text-3xl text-foreground tracking-tight">
-            {config.ctaHeadline || "BOOK YOUR SERVICE"}
+            {config.ctaHeadline || "PULL UP OR DROP OFF"}
           </h2>
           <p className="text-foreground/60 mt-2">
-            {config.ctaSub || "Fill out below, we'll confirm by text. Or walk in — 17625 Euclid Ave, Cleveland OH."}
+            {config.ctaSub || "Call, text, or just walk in — first come, first served, 7 days a week."}
           </p>
         </FadeIn>
         <FadeIn delay={0.1}>

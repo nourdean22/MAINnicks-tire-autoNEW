@@ -122,7 +122,7 @@ export default function SiteNavbar({ activeHref }: { activeHref?: string }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
-            className="lg:hidden fixed inset-0 top-[60px] bg-[oklch(0.06_0.004_260/0.98)] backdrop-blur-2xl z-40"
+            className={`lg:hidden fixed inset-0 ${hasEmergencyBanner ? "top-[116px] sm:top-[108px]" : "top-[60px]"} bg-[oklch(0.06_0.004_260/0.98)] backdrop-blur-2xl z-40`}
           >
             <div className="container py-10 flex flex-col gap-1">
               {NAV_LINKS.map((l, i) => (
