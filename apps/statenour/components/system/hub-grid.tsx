@@ -1,27 +1,30 @@
 "use client";
 
 /**
- * SystemHubGrid — the /system landing page's nav replacement.
+ * SystemHubGrid — the /system landing page's navigation surface.
  *
- * Before: a cramped row of pill-buttons, no liveness, 15+ chips
- * wrapping messily on mobile. You had to click to find out which
- * surface was broken.
+ * A grid of cards, one per subsurface, each with a live severity
+ * chip showing current state. Cards are grouped by domain (Health,
+ * Governance, Deploy, AI, Quality, Data) so a 30+ card list scans
+ * as six short sections instead of one undifferentiated wall.
  *
- * After: a grid of proper cards, one per subsurface, with a live
- * chip on each card showing the current state. Click the card to
- * deep-link.
+ * Any subsurface that is currently degraded (warning/critical) is
+ * lifted into a "Needs attention" strip above the groups, so
+ * problems hit your eye first without burying the healthy majority.
  *
- * All data from ONE rollup endpoint (/api/system/hub) — avoids
- * 15 parallel fetches. Auto-refreshes every 60s. Cards whose
- * subsurface is currently DEGRADED bubble to the top via sort order.
+ * All data from ONE rollup endpoint (/api/system/hub) — avoids 15
+ * parallel fetches. Auto-refreshes every 60s. Cards are <Link>
+ * anchors, Tab-navigable.
  *
- * Power + Control pillars:
- *   - Each card owns a severity chip (healthy / warning / critical /
- *     unknown). You can see at a glance which surface needs eyes.
- *   - Description field explains WHAT the surface is for — no more
- *     hunting through pill labels to remember if "gaps" is tasks
- *     or brain.
- *   - Keyboard: cards are <Link> anchors, Tab-navigable.
+ * Wave 52 (2026-05-20): de-duped three cards that each pointed at a
+ * route a sibling card already owned — which was also a duplicate
+ * <Link key={href}> React collision:
+ *   · "OS Health"  → merged into "Diagnostics" (same /system/health
+ *     route; Diagnostics adopted OS Health's live degraded chip).
+ *   · "Slow Queries" → merged into "Performance" (same
+ *     /system/performance route).
+ *   · "Command Center" → removed (it self-linked to /system).
+ * Added domain grouping + the attention strip.
  */
 
 import { useEffect, useState } from "react";
@@ -36,10 +39,8 @@ import {
   Bot,
   Brain,
   Camera,
-  CheckCircle2,
   Clock,
   Compass,
-  Cpu,
   Database,
   DollarSign,
   Eye,
@@ -56,11 +57,11 @@ import {
   TrendingDown,
   TrendingUp,
   Workflow,
-  Wrench,
   Zap,
 } from "lucide-react";
 
 type Severity = "healthy" | "warning" | "critical" | "info" | "unknown";
+type CardGroup = "health" | "governance" | "deploy" | "ai" | "quality" | "data";
 
 interface HubPayload {
   crons: {
@@ -83,9 +84,10 @@ interface HubCard {
   href: string;
   title: string;
   icon: React.ComponentType<{ className?: string }>;
+  group: CardGroup;
   description: string;
   chip: (d: HubPayload | null) => { label: string; severity: Severity };
-  featured?: boolean; // highlighted border + subtle glow
+  featured?: boolean; // gold ring + floats to the top of its group
 }
 
 const CARDS: HubCard[] = [
@@ -93,15 +95,11 @@ const CARDS: HubCard[] = [
     href: "/system/health",
     title: "Diagnostics",
     icon: Stethoscope,
-    description: "Unified probe hub — env, crons, settings, browser, stale, pulse",
+    group: "health",
+    description:
+      "Unified probe hub — env · crons · errors · backlog · vectors · pulse",
     featured: true,
-    chip: () => ({ label: "run all", severity: "info" }),
-  },
-  {
-    href: "/system/health",
-    title: "OS Health",
-    icon: Activity,
-    description: "5-tile signal rollup: cron · errors · backlog · freshness · vectors",
+    // Live chip merged in from the former "OS Health" card.
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
       const bad = d.errors.fatal24h > 0 || d.crons.silent > 2;
@@ -114,6 +112,7 @@ const CARDS: HubCard[] = [
     href: "/system/cron-diagnostics",
     title: "Cron Diagnostics",
     icon: Clock,
+    group: "health",
     description: "Per-job silent/slow detector with run-now + kill-switch",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
@@ -126,6 +125,7 @@ const CARDS: HubCard[] = [
     href: "/system/crons",
     title: "Cron Deck",
     icon: Clock,
+    group: "health",
     description: "Live cron control surface — enable/disable per job + run now",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
@@ -141,6 +141,7 @@ const CARDS: HubCard[] = [
     href: "/system/logs?view=errors",
     title: "Errors",
     icon: AlertTriangle,
+    group: "health",
     description: "Fingerprinted error log with frequency + stack grouping",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
@@ -155,40 +156,76 @@ const CARDS: HubCard[] = [
     href: "/system/alerts",
     title: "Alerts Inspector",
     icon: AlertCircle,
+    group: "health",
     description:
       "Cross-category alerts inspector · filter · drill into audit trail",
     chip: () => ({ label: "browse", severity: "info" }),
   },
   {
-    href: "/system/coverage?view=embedding",
-    title: "Embedding Coverage",
-    icon: Database,
+    href: "/system/performance",
+    title: "Performance",
+    icon: Timer,
+    group: "health",
+    // Wave 52 · the former "Slow Queries" card pointed at this same
+    // route — its slow-Prisma-shape view folded into the description.
     description:
-      "pgvector migration progress · dual-write coverage · dedup telemetry",
+      "Per-route p50/p95/p99 latency + error rate · slow Prisma query shapes",
+    chip: () => ({ label: "p95", severity: "info" }),
+  },
+  {
+    href: "/system/chat-health",
+    title: "Chat Health",
+    icon: MessageSquare,
+    group: "health",
+    description: "TTFT · cost · error rate · regen rate · problem tools",
     chip: () => ({ label: "live", severity: "info" }),
   },
   {
-    href: "/system",
-    title: "Command Center",
-    icon: Compass,
-    description:
-      "v9.0 Command Spine · single typed read of operating state · the same shape NICK consumes",
-    chip: () => ({ label: "v9.0", severity: "info" }),
+    href: "/system/actions",
+    title: "Autonomous Actions",
+    icon: Bot,
+    group: "governance",
+    description: "Nick's autonomous action audit — rules · approvals · history",
+    chip: () => ({ label: "audit", severity: "info" }),
   },
   {
-    // v10.0.307 · /system/prompt-comparison absorbed into /system/prompt
-    // as a COMPARE view-mode tab.
-    href: "/system/prompt?view=compare",
-    title: "Prompt v1 vs v2",
-    icon: Beaker,
+    href: "/system/policies",
+    title: "Automation Policies",
+    icon: Compass,
+    group: "governance",
     description:
-      "v9.1 shadow comparison · side-by-side prompts · section coverage · size delta · flip NICK_PRIME_PROMPT once parity holds",
-    chip: () => ({ label: "v9.1", severity: "info" }),
+      "Governance spine — every cron/tool/slash with objective + approval class + rollback path",
+    chip: () => ({ label: "registry", severity: "info" }),
+    featured: true,
+  },
+  {
+    href: "/system/approvals",
+    title: "Approval Queue",
+    icon: AlertCircle,
+    group: "governance",
+    description:
+      "Pending autonomous actions awaiting operator review · approve / reject / drill into policy",
+    chip: () => ({ label: "queue", severity: "info" }),
+    featured: true,
+  },
+  {
+    href: "/system/power",
+    title: "Power",
+    icon: Zap,
+    group: "governance",
+    description: "Kill switches · provider caps · shadow mode · emergency stop",
+    featured: true,
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      if (d.power.paused) return { label: "PAUSED", severity: "critical" };
+      return { label: "live", severity: "healthy" };
+    },
   },
   {
     href: "/system/deployment-truth",
     title: "Deployment Truth",
     icon: Server,
+    group: "deploy",
     description:
       "v10 single-pane fact sheet · build SHA · schema drift · env vars · cron 24h health · NICK Prime mode",
     featured: true,
@@ -198,6 +235,7 @@ const CARDS: HubCard[] = [
     href: "/system/repos",
     title: "Repository Ecosystem",
     icon: GitBranch,
+    group: "deploy",
     description:
       "v10 cross-repo health · 8 repos × ring × tier · last commit + ecosystem briefing · NICK has no write access",
     chip: () => ({ label: "v10 E.1", severity: "info" }),
@@ -206,6 +244,7 @@ const CARDS: HubCard[] = [
     href: "/system/schema-history",
     title: "Schema History",
     icon: History,
+    group: "deploy",
     description:
       "v10 migration audit · every db push · destructive flag + reason + rollback plan · planned/applied/failed",
     chip: () => ({ label: "v10 B.4", severity: "info" }),
@@ -217,86 +256,52 @@ const CARDS: HubCard[] = [
     href: "/system/migrations",
     title: "Migrations",
     icon: GitBranch,
+    group: "deploy",
     description:
       "Live tracker · strangler-fig progress · % surfaces migrated · feature flag board · Q.3",
     chip: () => ({ label: "tracker", severity: "info" }),
   },
   {
-    // Phase V · 2026-05-18 PM · AGENT_V1 → AGENT_V2 judge-eval
-    // dashboard · LLM-as-judge comparator · per-intent breakdown ·
-    // Phase 1 canary verdict (safe / watch / regressing).
-    href: "/system/judge-eval",
-    title: "Judge-eval V1↔V2",
-    icon: Beaker,
+    href: "/system/coverage?view=schema",
+    title: "Schema Coverage",
+    icon: Database,
+    group: "deploy",
     description:
-      "LLM-as-judge comparator · win rate per intent · canary verdict · Phase V unblocks AGENT_V2 cutover",
-    chip: () => ({ label: "verdict", severity: "info" }),
+      "v10 Horizon 5 · row count × index count audit · cross-refs slow queries · flags under-indexed hot tables",
+    chip: () => ({ label: "v10", severity: "info" }),
+  },
+  {
+    href: "/system/coverage?view=embedding",
+    title: "Embedding Coverage",
+    icon: Database,
+    group: "ai",
+    description:
+      "pgvector migration progress · dual-write coverage · dedup telemetry",
+    chip: () => ({ label: "live", severity: "info" }),
   },
   {
     href: "/system/agent-traces",
     title: "Agent Traces",
     icon: Workflow,
+    group: "ai",
     description:
       "v10 every AI call · root → child chain by traceId · provider · cost · outcome · 'Why did Nick do X?'",
     chip: () => ({ label: "v10 E.5", severity: "info" }),
   },
   {
-    href: "/system/performance",
-    title: "Slow Queries",
-    icon: Database,
-    description:
-      "v10 Horizon 5 · top slow Prisma shapes · in-memory rolling buffer · per-lambda cold reset",
-    chip: () => ({ label: "v10", severity: "info" }),
-  },
-  {
     href: "/system/brain-bus",
     title: "Brain-Bus Tail",
     icon: Radio,
+    group: "ai",
     description:
       "v10 live durable event stream · cursor-based 3s poll · 24h status counts · pause/resume",
     chip: () => ({ label: "v10 B.2", severity: "info" }),
   },
   {
-    href: "/system/coverage?view=schema",
-    title: "Schema Coverage",
-    icon: Database,
-    description:
-      "v10 Horizon 5 · row count × index count audit · cross-refs slow queries · flags under-indexed hot tables",
-    chip: () => ({ label: "v10", severity: "info" }),
-  },
-  // v10.0.305 · /system/cron-runs index removed · /system/crons (live
-  // control deck with sparklines + actions) covers the same data plus
-  // toggle/run controls. Detail drill-down /cron-runs/[jobName] still
-  // alive · /system/crons deep-links there. One fewer redundant entry.
-  {
-    href: "/system/logs",
-    title: "Logs",
-    icon: FileText,
-    description: "Recent request log + AI generation stream",
-    chip: () => ({ label: "view", severity: "info" }),
-  },
-  // v10.0.304 · /system/events removed · 3s real-time HUD UX was its
-  // only unique value over /system/logs (which already covers the same
-  // 4 sources + 1 more, just slower poll). Per elon: best part is no
-  // part. Operators who want live can manually refresh /system/logs.
-  {
-    href: "/system/performance",
-    title: "Performance",
-    icon: Timer,
-    description: "Per-route p50/p95/p99 latency + error rate",
-    chip: () => ({ label: "p95", severity: "info" }),
-  },
-  {
-    href: "/system/chat-health",
-    title: "Chat Health",
-    icon: MessageSquare,
-    description: "TTFT · cost · error rate · regen rate · problem tools",
-    chip: () => ({ label: "live", severity: "info" }),
-  },
-  {
     href: "/system/ai-cost",
     title: "AI Cost",
     icon: DollarSign,
+    group: "ai",
     description: "Per-model + per-feature burn rate with daily budget",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
@@ -308,6 +313,7 @@ const CARDS: HubCard[] = [
     href: "/system/tools",
     title: "Tool Inventory",
     icon: Beaker,
+    group: "ai",
     description: "Nick's 114 tools grouped by family, filterable + searchable",
     chip: () => ({ label: "114 tools", severity: "info" }),
   },
@@ -315,97 +321,16 @@ const CARDS: HubCard[] = [
     href: "/system/skills",
     title: "Skill Registry",
     icon: Beaker,
-    description: "1,423 Claude skills installed locally · search + filter by category, tag, source",
+    group: "ai",
+    description:
+      "1,423 Claude skills installed locally · search + filter by category, tag, source",
     chip: () => ({ label: "1,423 skills", severity: "info" }),
-  },
-  {
-    href: "/system/actions",
-    title: "Autonomous Actions",
-    icon: Bot,
-    description: "Nick's autonomous action audit — rules · approvals · history",
-    chip: () => ({ label: "audit", severity: "info" }),
-  },
-  {
-    href: "/system/policies",
-    title: "Automation Policies",
-    icon: Compass,
-    description: "Governance spine — every cron/tool/slash with objective + approval class + rollback path",
-    chip: () => ({ label: "registry", severity: "info" }),
-    featured: true,
-  },
-  {
-    href: "/system/approvals",
-    title: "Approval Queue",
-    icon: AlertCircle,
-    description: "Pending autonomous actions awaiting operator review · approve / reject / drill into policy",
-    chip: () => ({ label: "queue", severity: "info" }),
-    featured: true,
-  },
-  {
-    // v10.0.307 · /system/prompts absorbed into /system/prompt as a
-    // LIBRARY view-mode tab.
-    href: "/system/prompt?view=library",
-    title: "Prompt Library",
-    icon: FileText,
-    description: "Reusable prompt templates · system prompts, role primers, verifiers, suggesters · all in one inspectable registry",
-    chip: () => ({ label: "library", severity: "info" }),
-  },
-  {
-    href: "/system/quality",
-    title: "Nick Quality",
-    icon: TrendingUp,
-    description: "Critic scorecard — specificity, cliché, regeneration rate",
-    chip: () => ({ label: "trend", severity: "info" }),
-  },
-  {
-    href: "/system/quality?view=lessons",
-    title: "Anti-patterns",
-    icon: TrendingDown,
-    description: "Failure library — 'I tried X, it failed, reason Y'",
-    chip: () => ({ label: "library", severity: "info" }),
-  },
-  {
-    href: "/system/quality?view=decisions",
-    title: "Decision Drift",
-    icon: Activity,
-    description: "Rolling 3-week decision-grade delta",
-    chip: () => ({ label: "weekly", severity: "info" }),
-  },
-  {
-    href: "/system/ghost-nour",
-    title: "Ghost Nour",
-    icon: Ghost,
-    description: "Accuracy scoreboard — what Nick predicted vs what happened",
-    chip: () => ({ label: "predictions", severity: "info" }),
-  },
-  {
-    href: "/system/coverage?view=gaps",
-    title: "Gaps",
-    icon: Eye,
-    description: "Capability gaps — domains where Nick underperforms",
-    chip: () => ({ label: "scan", severity: "info" }),
-  },
-  {
-    href: "/system/coverage?view=stale",
-    title: "Stale Data",
-    icon: Scissors,
-    description: "Purge surface — orphan convos, stale drift, abandoned tasks",
-    chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
-      if (d.stale.totalRows > 100)
-        return {
-          label: `${d.stale.totalRows} rows`,
-          severity: "warning",
-        };
-      if (d.stale.totalRows > 0)
-        return { label: `${d.stale.totalRows} rows`, severity: "info" };
-      return { label: "clean", severity: "healthy" };
-    },
   },
   {
     href: "/brain/categories",
     title: "Brain Categories",
     icon: Brain,
+    group: "ai",
     description: "BrainMemory category heat-map + drift detector",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
@@ -416,31 +341,120 @@ const CARDS: HubCard[] = [
     },
   },
   {
+    // v10.0.307 · /system/prompt-comparison absorbed into /system/prompt
+    // as a COMPARE view-mode tab.
+    href: "/system/prompt?view=compare",
+    title: "Prompt v1 vs v2",
+    icon: Beaker,
+    group: "quality",
+    description:
+      "v9.1 shadow comparison · side-by-side prompts · section coverage · size delta · flip NICK_PRIME_PROMPT once parity holds",
+    chip: () => ({ label: "v9.1", severity: "info" }),
+  },
+  {
+    // Phase V · 2026-05-18 PM · AGENT_V1 → AGENT_V2 judge-eval
+    // dashboard · LLM-as-judge comparator · per-intent breakdown ·
+    // Phase 1 canary verdict (safe / watch / regressing).
+    href: "/system/judge-eval",
+    title: "Judge-eval V1↔V2",
+    icon: Beaker,
+    group: "quality",
+    description:
+      "LLM-as-judge comparator · win rate per intent · canary verdict · Phase V unblocks AGENT_V2 cutover",
+    chip: () => ({ label: "verdict", severity: "info" }),
+  },
+  {
+    // v10.0.307 · /system/prompts absorbed into /system/prompt as a
+    // LIBRARY view-mode tab.
+    href: "/system/prompt?view=library",
+    title: "Prompt Library",
+    icon: FileText,
+    group: "quality",
+    description:
+      "Reusable prompt templates · system prompts, role primers, verifiers, suggesters · all in one inspectable registry",
+    chip: () => ({ label: "library", severity: "info" }),
+  },
+  {
+    href: "/system/quality",
+    title: "Nick Quality",
+    icon: TrendingUp,
+    group: "quality",
+    description: "Critic scorecard — specificity, cliché, regeneration rate",
+    chip: () => ({ label: "trend", severity: "info" }),
+  },
+  {
+    href: "/system/quality?view=lessons",
+    title: "Anti-patterns",
+    icon: TrendingDown,
+    group: "quality",
+    description: "Failure library — 'I tried X, it failed, reason Y'",
+    chip: () => ({ label: "library", severity: "info" }),
+  },
+  {
+    href: "/system/quality?view=decisions",
+    title: "Decision Drift",
+    icon: Activity,
+    group: "quality",
+    description: "Rolling 3-week decision-grade delta",
+    chip: () => ({ label: "weekly", severity: "info" }),
+  },
+  {
+    href: "/system/ghost-nour",
+    title: "Ghost Nour",
+    icon: Ghost,
+    group: "quality",
+    description: "Accuracy scoreboard — what Nick predicted vs what happened",
+    chip: () => ({ label: "predictions", severity: "info" }),
+  },
+  {
+    href: "/system/coverage?view=gaps",
+    title: "Gaps",
+    icon: Eye,
+    group: "quality",
+    description: "Capability gaps — domains where Nick underperforms",
+    chip: () => ({ label: "scan", severity: "info" }),
+  },
+  // v10.0.305 · /system/cron-runs index removed · /system/crons (live
+  // control deck with sparklines + actions) covers the same data plus
+  // toggle/run controls. Detail drill-down /cron-runs/[jobName] still
+  // alive · /system/crons deep-links there. One fewer redundant entry.
+  {
+    href: "/system/logs",
+    title: "Logs",
+    icon: FileText,
+    group: "data",
+    description: "Recent request log + AI generation stream",
+    chip: () => ({ label: "view", severity: "info" }),
+  },
+  {
+    href: "/system/coverage?view=stale",
+    title: "Stale Data",
+    icon: Scissors,
+    group: "data",
+    description: "Purge surface — orphan convos, stale drift, abandoned tasks",
+    chip: (d) => {
+      if (!d) return { label: "—", severity: "unknown" };
+      if (d.stale.totalRows > 100)
+        return { label: `${d.stale.totalRows} rows`, severity: "warning" };
+      if (d.stale.totalRows > 0)
+        return { label: `${d.stale.totalRows} rows`, severity: "info" };
+      return { label: "clean", severity: "healthy" };
+    },
+  },
+  {
     href: "/system/devices",
     title: "Devices",
     icon: Camera,
+    group: "data",
     description: "Camera fleet — Ring, Eufy, Tuya, v380",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
       if (d.devices.offline > 0)
-        return {
-          label: `${d.devices.offline} offline`,
-          severity: "warning",
-        };
-      return { label: `${d.devices.online}/${d.devices.total}`, severity: "healthy" };
-    },
-  },
-  {
-    href: "/system/power",
-    title: "Power",
-    icon: Zap,
-    description: "Kill switches · provider caps · shadow mode · emergency stop",
-    featured: true,
-    chip: (d) => {
-      if (!d) return { label: "—", severity: "unknown" };
-      if (d.power.paused)
-        return { label: "PAUSED", severity: "critical" };
-      return { label: "live", severity: "healthy" };
+        return { label: `${d.devices.offline} offline`, severity: "warning" };
+      return {
+        label: `${d.devices.online}/${d.devices.total}`,
+        severity: "healthy",
+      };
     },
   },
 ];
@@ -489,6 +503,94 @@ const SEVERITY_ORDER: Record<Severity, number> = {
   unknown: 4,
 };
 
+// Display order of the domain groups. The attention strip always
+// renders above these regardless of order.
+const GROUP_ORDER: { id: CardGroup; label: string }[] = [
+  { id: "health", label: "Health & Jobs" },
+  { id: "governance", label: "Governance & Power" },
+  { id: "deploy", label: "Deploy & Schema" },
+  { id: "ai", label: "AI & Brain" },
+  { id: "quality", label: "Prompts & Quality" },
+  { id: "data", label: "Data & Devices" },
+];
+
+function GroupHeader({
+  label,
+  count,
+  tone,
+}: {
+  label: string;
+  count: number;
+  tone?: "alert";
+}) {
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      <h3
+        className={cn(
+          "text-[10px] font-semibold uppercase tracking-[0.14em]",
+          tone === "alert" ? "text-amber-300" : "text-[var(--text-tertiary)]",
+        )}
+      >
+        {label}
+      </h3>
+      <span className="text-[10px] tabular-nums text-[var(--text-muted)]">
+        {count}
+      </span>
+      <span className="h-px flex-1 bg-[var(--border-default)]" />
+    </div>
+  );
+}
+
+function HubCardLink({
+  card,
+  chip,
+}: {
+  card: HubCard;
+  chip: { label: string; severity: Severity };
+}) {
+  const pal = SEVERITY_PALETTE[chip.severity];
+  const Icon = card.icon;
+  return (
+    <Link
+      href={card.href}
+      className={cn(
+        "group relative rounded-xl border p-3 transition-colors hover:bg-white/[0.04]",
+        pal.bg,
+        pal.border,
+        card.featured && "ring-1 ring-[var(--gold)]/20",
+      )}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Icon
+            className={cn(
+              "h-4 w-4 shrink-0",
+              pal.text,
+              "group-hover:text-[var(--text-primary)]",
+            )}
+          />
+          <span className="text-sm font-semibold text-[var(--text-primary)]">
+            {card.title}
+          </span>
+        </div>
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
+            pal.border,
+            pal.text,
+          )}
+        >
+          <span className={cn("h-1.5 w-1.5 rounded-full", pal.dot)} />
+          {chip.label}
+        </span>
+      </div>
+      <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-secondary)]">
+        {card.description}
+      </p>
+    </Link>
+  );
+}
+
 export function SystemHubGrid() {
   const [data, setData] = useState<HubPayload | null>(null);
 
@@ -512,70 +614,71 @@ export function SystemHubGrid() {
     };
   }, []);
 
-  // Sort: degraded first so problem surfaces bubble up without burying
-  // the healthy majority. Featured cards hold their declared position
-  // within each severity tier so Diagnostics + Power stay visible.
-  const sorted = [...CARDS]
-    .map((c) => ({ c, chip: c.chip(data) }))
-    .sort((a, b) => {
-      const sa = SEVERITY_ORDER[a.chip.severity];
-      const sb = SEVERITY_ORDER[b.chip.severity];
-      if (sa !== sb) return sa - sb;
-      // Featured cards up within the same severity band.
-      if (a.c.featured && !b.c.featured) return -1;
-      if (!a.c.featured && b.c.featured) return 1;
-      return 0;
-    });
+  const decorated = CARDS.map((c) => ({ c, chip: c.chip(data) }));
+
+  // Degraded surfaces (warning/critical) lift into a "Needs attention"
+  // strip above the groups — problems hit the eye first. Critical
+  // sorts before warning within the strip.
+  const attention = decorated
+    .filter(
+      (x) => x.chip.severity === "critical" || x.chip.severity === "warning",
+    )
+    .sort(
+      (a, b) =>
+        SEVERITY_ORDER[a.chip.severity] - SEVERITY_ORDER[b.chip.severity],
+    );
+  const attentionHrefs = new Set(attention.map((x) => x.c.href));
+
+  // Remaining (healthy / info / unknown) cards bucket into their
+  // domain group. Featured cards float to the top of each group;
+  // the rest hold declared order (Array.prototype.sort is stable).
+  const grouped: Record<CardGroup, typeof decorated> = {
+    health: [],
+    governance: [],
+    deploy: [],
+    ai: [],
+    quality: [],
+    data: [],
+  };
+  for (const x of decorated) {
+    if (attentionHrefs.has(x.c.href)) continue;
+    grouped[x.c.group].push(x);
+  }
+  for (const list of Object.values(grouped)) {
+    list.sort((a, b) =>
+      a.c.featured === b.c.featured ? 0 : a.c.featured ? -1 : 1,
+    );
+  }
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {sorted.map(({ c, chip }) => {
-        const pal = SEVERITY_PALETTE[chip.severity];
-        const Icon = c.icon;
+    <div className="space-y-5">
+      {attention.length > 0 && (
+        <section>
+          <GroupHeader
+            label="Needs attention"
+            count={attention.length}
+            tone="alert"
+          />
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {attention.map(({ c, chip }) => (
+              <HubCardLink key={c.href} card={c} chip={chip} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {GROUP_ORDER.map(({ id, label }) => {
+        const members = grouped[id];
+        if (members.length === 0) return null;
         return (
-          <Link
-            key={c.href}
-            href={c.href}
-            className={cn(
-              "group relative rounded-xl border p-3 transition-colors hover:bg-white/[0.04]",
-              pal.bg,
-              pal.border,
-              c.featured && "ring-1 ring-[var(--gold)]/20",
-            )}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Icon
-                  className={cn(
-                    "h-4 w-4 shrink-0",
-                    pal.text,
-                    "group-hover:text-[var(--text-primary)]",
-                  )}
-                />
-                <span className="text-sm font-semibold text-[var(--text-primary)]">
-                  {c.title}
-                </span>
-                {c.featured && (
-                  <span className="text-[9px] uppercase tracking-wide text-[var(--gold)] opacity-80">
-                    featured
-                  </span>
-                )}
-              </div>
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
-                  pal.border,
-                  pal.text,
-                )}
-              >
-                <span className={cn("h-1.5 w-1.5 rounded-full", pal.dot)} />
-                {chip.label}
-              </span>
+          <section key={id}>
+            <GroupHeader label={label} count={members.length} />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {members.map(({ c, chip }) => (
+                <HubCardLink key={c.href} card={c} chip={chip} />
+              ))}
             </div>
-            <p className="mt-1.5 text-[11px] leading-snug text-[var(--text-secondary)]">
-              {c.description}
-            </p>
-          </Link>
+          </section>
         );
       })}
     </div>
