@@ -282,7 +282,7 @@ export async function navigate(opts: {
  *
  * Examples:
  *   · "click the Sign In button"
- *   · "type nour@autonicks.com into the email field"
+ *   · "type nour@bdnick.info into the email field"
  *   · "select 'Auto Repair' from the category dropdown"
  */
 export async function act(opts: {

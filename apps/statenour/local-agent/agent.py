@@ -29,7 +29,7 @@ POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "30"))
 RING_POLL_MULTIPLIER = 4
 EUFY_POLL_MULTIPLIER = 4
 V380_POLL_MULTIPLIER = 2
-SYNC_URL = os.getenv("SYNC_URL", "https://autonicks.com/api/sync/nour-os")
+SYNC_URL = os.getenv("SYNC_URL", "https://bdnick.info/api/sync/nour-os")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 HEALTH_PORT = int(os.getenv("HEALTH_PORT", "3600"))
 

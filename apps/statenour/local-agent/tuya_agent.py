@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / ".env")
 
 # Config
-API_URL = os.getenv("STATENOUR_API_URL", "https://autonicks.com")
+API_URL = os.getenv("STATENOUR_API_URL", "https://bdnick.info")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 TUYA_ACCESS_ID = os.getenv("TUYA_ACCESS_ID", "")
 TUYA_ACCESS_SECRET = os.getenv("TUYA_ACCESS_SECRET", "")

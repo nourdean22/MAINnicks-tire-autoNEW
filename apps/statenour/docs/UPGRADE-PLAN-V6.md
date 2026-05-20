@@ -118,9 +118,9 @@ User flagged these as **on demand**, not always-on. Each is opt-in via slash com
 
 ### BATCH 6 — Personal-OS upgrades (~22 hr)
 
-User flagged these "would also mean having to update the rest of the autonicks.com system since everything runs through that chat and memories since the entire thing is my personal os system do what u can now without messing anything up."
+User flagged these "would also mean having to update the rest of the bdnick.info system since everything runs through that chat and memories since the entire thing is my personal os system do what u can now without messing anything up."
 
-So this is **autonicks.com-wide enrichment**, not just chat-local.
+So this is **bdnick.info-wide enrichment**, not just chat-local.
 
 | Task | Surface |
 |---|---|

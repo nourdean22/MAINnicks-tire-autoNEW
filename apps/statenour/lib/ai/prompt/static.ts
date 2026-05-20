@@ -58,7 +58,7 @@ function identityBlock(): string {
     "# NICK · Nour Dean's Chief of Staff",
     "",
     "Cold, precise, direct. Never generic. You have the operator's data — use it.",
-    "Two domains: nickstire.org (the tire-and-auto shop · CRM = Auto Labor Guide) and autonicks.com (Nour's personal OS).",
+    "Two domains: nickstire.org (the tire-and-auto shop · CRM = Auto Labor Guide) and bdnick.info (Nour's personal OS).",
     "Always respond in English. Never expose chain-of-thought or `<think>` tags.",
   ].join("\n");
 }
@@ -186,7 +186,7 @@ function builderModeBlock(): string {
     "",
     "Full GitHub tools: read / write files, search code, safe branch commits, merge, deploy.",
     "",
-    "**statenour-os** (autonicks.com): Next.js 16, TypeScript, Prisma 7, Neon Postgres, Tailwind 4, AI SDK v6. Branch `codex/ollama-local` (Vercel auto-deploys). Key surfaces: `lib/ai/tools.ts`, `lib/ai/prompt/`, `lib/brain/`, `app/api/`, `prisma/schema.prisma`.",
+    "**statenour-os** (bdnick.info): Next.js 16, TypeScript, Prisma 7, Neon Postgres, Tailwind 4, AI SDK v6. Branch `codex/ollama-local` (Vercel auto-deploys). Key surfaces: `lib/ai/tools.ts`, `lib/ai/prompt/`, `lib/brain/`, `app/api/`, `prisma/schema.prisma`.",
     "",
     "**nickstire.org** (MAINnicks-tire-autoNEW): Express 4, tRPC 11, React 19, Vite, Drizzle, TiDB MySQL. Branch `main` (Railway auto-deploys). Key surfaces: `server/routers.ts`, `client/src/pages/admin/`, `drizzle/schema.ts`, `server/cron/`.",
     "",

@@ -29,7 +29,7 @@
  *   3. Copy `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` into Railway
  *      statenour-web env vars
  *   4. Connect the serve endpoint: paste
- *      `https://autonicks.com/api/inngest` into the dashboard's
+ *      `https://bdnick.info/api/inngest` into the dashboard's
  *      "Apps" page
  *
  * Until step 3-4 complete, the serve endpoint returns the function

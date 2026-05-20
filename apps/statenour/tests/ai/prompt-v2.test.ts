@@ -89,7 +89,7 @@ const FIXTURE: NickPrimeContext = {
       title: "Launch v9 Command Spine",
       domain: "business",
       priority: 1,
-      successMetric: "v9.0 shipped to autonicks.com",
+      successMetric: "v9.0 shipped to bdnick.info",
     },
   ],
   activeGoals: [

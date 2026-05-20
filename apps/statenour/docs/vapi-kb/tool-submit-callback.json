@@ -37,6 +37,6 @@
     }
   },
   "server": {
-    "url": "https://autonicks.com/api/vapi/submit-callback"
+    "url": "https://bdnick.info/api/vapi/submit-callback"
   }
 }

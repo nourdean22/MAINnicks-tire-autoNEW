@@ -7,7 +7,7 @@
 - **Dev server port**: 3001 (default 3000 was in use)
 - **Local URL**: http://localhost:3001/
 - **Network URL (Tailscale)**: http://100.118.151.61:3001/
-- **Production URL**: https://autonicks.com
+- **Production URL**: https://bdnick.info
 - **Vercel URL**: https://statenour-os.vercel.app
 - **Vercel Project ID**: prj_CFa6JVJblNXaS5bIOOoLwkxh7g72
 - **Vercel Project Name**: statenour-os

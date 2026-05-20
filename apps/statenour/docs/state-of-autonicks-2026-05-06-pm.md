@@ -5,7 +5,7 @@
 > current state see `docs/cohort-2026-05-16-consolidation-eod.md` +
 > `docs/NEXT-EVOLUTION-2026-05-16.md`. Kept for historical context.
 
-**Subject:** statenour-os (`autonicks.com`) · Nour's personal OS.
+**Subject:** statenour-os (`bdnick.info`) · Nour's personal OS.
 **Audience:** Nour.
 **Frame:** four axes Nour cares about · uniform / organized · intelligent · useful · interesting.
 **Method:** code-grounded · numbers from `find / grep / git` over the live tree · current commit `a84b9e7` (v10.0.284).

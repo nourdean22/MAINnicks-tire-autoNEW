@@ -20,7 +20,7 @@
  *     state: "expired",
  *     consecutiveFailures: 4,
  *     lastSyncAt: "2026-04-19T08:12:33.000Z",
- *     email: "nour@autonicks.com",
+ *     email: "nour@bdnick.info",
  *     reason: "Refresh failed 4× in a row — re-grant access",
  *     ctaLabel: "Re-grant access",
  *     ctaHref: "/api/oauth/google-data/start"

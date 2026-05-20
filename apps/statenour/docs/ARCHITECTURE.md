@@ -90,7 +90,7 @@ personal ring. Business ops live in the other repo.
 ```
 ┌───────────────────────────── PERSONAL RING ─────────────────────────────┐
 │                                                                         │
-│   statenour-os  (autonicks.com)                                         │
+│   statenour-os  (bdnick.info)                                         │
 │   Next.js 16 · Prisma 7 · Neon Postgres · Vercel                        │
 │                                                                         │
 │   Surfaces:  Ultron · Nick · Brain · Tasks · Journal · Knowledge        │
@@ -113,7 +113,7 @@ personal ring. Business ops live in the other repo.
 │   Express 4 · tRPC 11 · React 19 · Drizzle · TiDB · Railway             │
 │                                                                         │
 │   statenour bridge:                                                     │
-│     every 4h → POST autonicks.com/api/sync/...                          │
+│     every 4h → POST bdnick.info/api/sync/...                          │
 │     authenticates via STATENOUR_SYNC_KEY                                │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘

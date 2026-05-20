@@ -16,6 +16,6 @@
     }
   },
   "server": {
-    "url": "https://autonicks.com/api/vapi/lookup-customer"
+    "url": "https://bdnick.info/api/vapi/lookup-customer"
   }
 }

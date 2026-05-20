@@ -64,7 +64,10 @@ function stepIdFor(path: string): string {
 }
 
 function getBaseUrl(): string {
-  // 2026-05-17 follow-up · autonicks.com dropped · Railway is canonical.
+  // Internal cron fan-out targets the stable Railway service URL
+  // (or APP_BASE_URL). The browser-facing custom domain (bdnick.info)
+  // is deliberately NOT used here — service-to-service calls should
+  // hit the platform URL, which never changes with a domain swap.
   return (
     process.env.APP_BASE_URL?.trim() ||
     "https://statenour-web-production.up.railway.app"

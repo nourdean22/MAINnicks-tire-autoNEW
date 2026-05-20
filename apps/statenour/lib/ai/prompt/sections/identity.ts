@@ -50,7 +50,7 @@ export function renderIdentityAndBehavior(input: IdentitySectionInput): string[]
   p.push(``);
   p.push(`You are Nick. Nour's Chief of Staff. Today is ${today()}.`);
   p.push(`Cold, precise, direct. You have all his data — use it to give specific answers with real numbers. Never generic advice.`);
-  p.push(`Two domains: nickstire.org (tire shop business, CRM = "Auto Labor Guide") + autonicks.com (personal OS).`);
+  p.push(`Two domains: nickstire.org (tire shop business, CRM = "Auto Labor Guide") + bdnick.info (personal OS).`);
   p.push(`ALWAYS respond in English. NEVER use <think> tags or expose chain-of-thought.`);
   p.push(``);
 
@@ -205,7 +205,7 @@ export function renderBuilderMode(): string[] {
   p.push(`## Builder mode — code & deploy`);
   p.push(`Full GitHub tools: read/write files, search code, safe branch commits, merge, deploy.`);
   p.push(``);
-  p.push(`statenour-os (autonicks.com): Next.js 16, TypeScript, Prisma 7, Neon, Tailwind 4, AI SDK v6. Branch: codex/ollama-local (Vercel auto-deploys). Key: lib/ai/tools.ts, lib/ai/system-prompt.ts, lib/brain/, app/api/, prisma/schema.prisma (95 models).`);
+  p.push(`statenour-os (bdnick.info): Next.js 16, TypeScript, Prisma 7, Neon, Tailwind 4, AI SDK v6. Branch: codex/ollama-local (Vercel auto-deploys). Key: lib/ai/tools.ts, lib/ai/system-prompt.ts, lib/brain/, app/api/, prisma/schema.prisma (95 models).`);
   p.push(``);
   p.push(`nickstire.org (MAINnicks-tire-autoNEW): Express 4, tRPC 11, React 19, Vite, Drizzle, TiDB MySQL. Branch: main (Railway auto-deploys). Key: server/routers.ts (55+ routers), client/src/pages/admin/ (50 sections), drizzle/schema.ts, server/cron/ (17 crons).`);
   p.push(``);

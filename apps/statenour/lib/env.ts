@@ -168,7 +168,7 @@ export const env = {
   get DATABASE_URL() { return process.env.DATABASE_URL ?? ""; },
   get DIRECT_URL()   { return process.env.DIRECT_URL ?? ""; },
   get NEXT_PUBLIC_APP_URL() {
-    return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://autonicks.com";
+    return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://bdnick.info";
   },
   get NICKS_ADMIN_URL() { return process.env.NICKS_ADMIN_URL || "https://nickstire.org/admin"; },
   get IS_PROD() { return PROD; },

@@ -25,7 +25,7 @@ A single apex surface that:
 - Is **well built and organised** — nothing on it that belongs on a dedicated page
 - Is **not over-done** — delegates detail work to dedicated pages
 
-Ultron is explicitly **not** a business war room. Business ops stay at `nickstire.org/admin`. The `autonicks.com` personal OS gives business oversight only (one chip), not operational control.
+Ultron is explicitly **not** a business war room. Business ops stay at `nickstire.org/admin`. The `bdnick.info` personal OS gives business oversight only (one chip), not operational control.
 
 ## Voice / aesthetic
 

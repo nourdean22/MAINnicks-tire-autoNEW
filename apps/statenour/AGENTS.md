@@ -8,11 +8,11 @@
 
 ## 1 · Where we are right now
 
-**Project:** statenour-os (NOUR OS · personal mastery system for Nour Dean) deployed at autonicks.com via Vercel from `codex/ollama-local` branch. Companion business-ring repo lives at [`nickstire-dev`](https://github.com/nourdean22/nickstire-dev) on Railway (deploys to nickstire.org).
+**Project:** statenour-os (NOUR OS · personal mastery system for Nour Dean) deployed at bdnick.info via Vercel from `codex/ollama-local` branch. Companion business-ring repo lives at [`nickstire-dev`](https://github.com/nourdean22/nickstire-dev) on Railway (deploys to nickstire.org).
 
 **Stack:** Next.js 16 · React 19 · Prisma 7 · Neon Postgres (with raw-SQL pgvector + tsvector extras) · Tailwind 4 · AI SDK v6 · Vitest.
 
-**Current head:** v10.0.485 on `codex/ollama-local` (commit `6e342bf`) · 15/15 pre-push gates green · production build 46s · auto-deployed to autonicks.com.
+**Current head:** v10.0.485 on `codex/ollama-local` (commit `6e342bf`) · 15/15 pre-push gates green · production build 46s · auto-deployed to bdnick.info.
 
 **Sprint history (recent waves · most recent first):**
 

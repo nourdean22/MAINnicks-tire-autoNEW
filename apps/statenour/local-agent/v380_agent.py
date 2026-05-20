@@ -47,7 +47,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 log = logging.getLogger("v380-agent")
 
-API_URL = os.getenv("STATENOUR_API_URL", "https://autonicks.com")
+API_URL = os.getenv("STATENOUR_API_URL", "https://bdnick.info")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 
 # Override LAN IPs via env (e.g. V380_LAN_IPS=192.168.1.100,192.168.1.101)

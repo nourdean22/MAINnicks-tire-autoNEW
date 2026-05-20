@@ -25,7 +25,7 @@
 > 4. Power + control — every surface should give Nour a knob.
 > 5. Alive + dynamic UI — no static boring elements.
 > 6. Checkpoint after every wave; commit is the checkpoint.
-> 7. Single push to `codex/ollama-local` (deploys directly to autonicks.com).
+> 7. Single push to `codex/ollama-local` (deploys directly to bdnick.info).
 > 8. Fortune-500 quality minimum. "Good enough" is NOT good enough.
 
 ---
@@ -35,7 +35,7 @@
 | Fact | Value | Source |
 |---|---|---|
 | HEAD | `08237d9` on `codex/ollama-local` | `git rev-parse --short HEAD` |
-| Prod branch | `codex/ollama-local` (deploys directly to autonicks.com) | Vercel project config |
+| Prod branch | `codex/ollama-local` (deploys directly to bdnick.info) | Vercel project config |
 | Mirror to `statenour-master` | `.github/workflows/mirror-to-master.yml` on green CI | repo |
 | Commits last 7 days | 208 | `git log --since='7 days ago'` |
 | Typecheck | 0 errors | `pnpm typecheck` |
@@ -514,7 +514,7 @@ Ideas the user doesn't know to ask for. These differentiate from every other "pe
 - [ ] **W14.2** Run all tests.
 - [ ] **W14.3** Run endpoint smoke against local server.
 - [ ] **W14.4** Push to `codex/ollama-local` (CI mirrors to `statenour-master`).
-- [ ] **W14.5** Verify autonicks.com live; click-test every `/system/*` page.
+- [ ] **W14.5** Verify bdnick.info live; click-test every `/system/*` page.
 - [ ] **W14.6** Update `CHANGELOG.md` with v11.0 block.
 - [ ] **W14.7** Update `ROADMAP.md` moving all v11 items to shipped.
 - [ ] **W14.8** Memory snapshot: update `C:\Users\nourd\.claude\projects\C--\memory\truth_os.md` with new state.
@@ -542,7 +542,7 @@ Ideas the user doesn't know to ask for. These differentiate from every other "pe
 [x] 2026-04-22 10:05 CI hardening               → actions/checkout+setup-node v5→v4 · dropped fragile tsx inline · scripts/sync-master.sh · 6553bca
 [x] 2026-04-22 10:10 prod sync                   → manual sync advanced master by 323 commits · Vercel deploying v11 · divergence = 0
 [x] 2026-04-22 __:__ W1.8 lockfile fix            → deleted package-lock.json (−19,257 lines) · removed npm/pnpm auto-detect ambiguity that blocked preview deploys from applying the ai@6.0.162 patch · 48ac7d4
-[x] 2026-04-22 __:__ prod verification            → all 9 v11 routes respond 401 on autonicks.com (crons · errors · actions · ai-cost · quality · anti-patterns · devices · power · pulse)
+[x] 2026-04-22 __:__ prod verification            → all 9 v11 routes respond 401 on bdnick.info (crons · errors · actions · ai-cost · quality · anti-patterns · devices · power · pulse)
 [ ] 2026-04-21 __:__ W11 onboarding + power
 [ ] 2026-04-21 __:__ W12 meta-intelligence
 [ ] 2026-04-21 __:__ W13 perf
@@ -709,7 +709,7 @@ If you're picking this up mid-way, do this before editing:
   - New card component `<CarsTodayCard>`. Render at top of `/` (HQ) and in Settings → System Ops health group.
   - Source: `queryNick("cars_today")` returning `{ invoicesToday, walkInsToday, dropOffsToday, deltaVs7d, hourlyHeat: number[] }`.
   - Alive element: pulsing count that ticks up when a new invoice lands (data-change event).
-  - Verification: see a live number on autonicks.com/ when an invoice closes on nickstire.
+  - Verification: see a live number on bdnick.info/ when an invoice closes on nickstire.
 
 - [ ] **C3 · Estimate→Invoice conversion tracker (the critical gate)**
   - Per `BUSINESS-LANDSCAPE.md` rank #4.

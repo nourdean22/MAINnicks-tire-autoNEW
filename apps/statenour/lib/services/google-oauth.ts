@@ -65,7 +65,7 @@ function getClientCreds(): { clientId: string; clientSecret: string; redirectUri
     cleanEnv(process.env.GOOGLE_OAUTH_REDIRECT_URI) ||
     cleanEnv(process.env.NEXT_PUBLIC_APP_URL) ||
     cleanEnv(process.env.NEXTAUTH_URL) ||
-    "https://autonicks.com";
+    "https://bdnick.info";
   const redirectUri = origin.replace(/\/$/, "") + "/api/oauth/google-data/callback";
 
   if (!clientId || !clientSecret) {

@@ -29,7 +29,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 log = logging.getLogger("eufy-agent")
 
-API_URL = os.getenv("STATENOUR_API_URL", "https://autonicks.com")
+API_URL = os.getenv("STATENOUR_API_URL", "https://bdnick.info")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 EUFY_EMAIL = os.getenv("EUFY_EMAIL", "")
 EUFY_PASSWORD = os.getenv("EUFY_PASSWORD", "")

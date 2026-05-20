@@ -12,7 +12,7 @@ operator.
 
 | # | Item from honest-accounting | Status this session | Next step |
 |---|---|---|---|
-| 1 | No actual smoke test of high-spec gate firing | ⏳ awaits operator chat turn | Send a factual chat at autonicks.com/chat · check `vercel logs --since 5m \| grep "high_spec_gate_active\|customer_shape_detected"` |
+| 1 | No actual smoke test of high-spec gate firing | ⏳ awaits operator chat turn | Send a factual chat at bdnick.info/chat · check `vercel logs --since 5m \| grep "high_spec_gate_active\|customer_shape_detected"` |
 | 2 | 6 OTHER opacity-fade buttons (Edit/MoreVertical/etc.) | ✅ 4 migrated (done-drawer Trash2 · task-row · 2× builder-sandbox · v10.0.504) · others were already mobile-correct (loop-stream) or non-buttons (mit-slot) | None — audit closed |
 | 3 | Real Lighthouse mobile perf pass | ✅ Lighthouse-equivalent ran via Claude Preview · 2 new slow paths flagged (personal-pulse, health) · docs/audits/slow-paths-audit-2026-05-12.md addendum | Operator action: run `pnpm analyze` for production-bundle audit |
 | 4 | /api/ultron/signal 16.6s | ✅ audited · already cached at 300s · COLD MISS only · acceptable | Future: heartbeat cron every 3 min to keep cache warm |
@@ -26,7 +26,7 @@ operator.
 | 12 | Spline 3D placeholder | ⛔ operator must build scenes in Spline editor first · scaffold ready | Operator: build scenes per `docs/spline-scene-briefs.md` |
 | 13 | NICK_HIGH_SPEC_GATE=on activation unverified | ✅ verified · env var live · deployed in v10.0.499+ | None |
 | 14 | Brain corpus quality for findCustomer | ⛔ data sparsity · not a code issue | Operator: populate person profiles + brain memories for top-30 customers |
-| 15 | Customer-side autonicks.com pages | 🔀 **partial · autonicks.com is statenour personal OS** · operator clarified mid-session. Customer-side pages live in nickstire.org which is the OTHER session | Handed off to other session for nickstire.org audit |
+| 15 | Customer-side bdnick.info pages | 🔀 **partial · bdnick.info is statenour personal OS** · operator clarified mid-session. Customer-side pages live in nickstire.org which is the OTHER session | Handed off to other session for nickstire.org audit |
 
 ## Pushes shipped this session (statenour-os)
 
@@ -82,7 +82,7 @@ tests/ai/specificity-patterns.test.ts                       (13 tests)
 
 ## Operator action queue (priority order)
 
-1. **Send a factual chat at autonicks.com/chat** — verify high-spec gate
+1. **Send a factual chat at bdnick.info/chat** — verify high-spec gate
    fires on your next factual/decision question. Check `vercel logs --since 5m`
    for `high_spec_gate_active` log lines.
 2. **Wait 24-48h** then check `/api/system/quality` dashboard. Specificity

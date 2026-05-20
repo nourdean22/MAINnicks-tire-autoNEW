@@ -532,7 +532,7 @@ Watch `/system/prompt-comparison` for shadow-trend data. Once 24-48h shows no bu
 | Metric | Value | How verified |
 |---|---|---|
 | HEAD commit | `913ffd6` (v10.0.55) | `git rev-parse --short HEAD` |
-| Branch | `codex/ollama-local` (deploys directly to autonicks.com) | `git rev-parse --abbrev-ref HEAD` |
+| Branch | `codex/ollama-local` (deploys directly to bdnick.info) | `git rev-parse --abbrev-ref HEAD` |
 | Commits last 7d | 213 | `git log --since='7 days ago' --oneline \| wc -l` |
 | Prisma models | **69** (was 66 pre-v10; +3 from v10.0.1/2/8: BrainBusEvent, SchemaChangeLedger, AgentTrace) | `grep -c '^model ' prisma/schema.prisma` |
 | `@relation` declarations | 19 | `grep -c '@relation' prisma/schema.prisma` |

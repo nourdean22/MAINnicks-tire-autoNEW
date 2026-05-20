@@ -5,7 +5,7 @@
  * VAPI tool handlers and any future write-side flows go through here so
  * the canonical record lives where it belongs:
  *
- *   statenour-os (autonicks.com) · personal OS · brain memory + dashboards
+ *   statenour-os (bdnick.info) · personal OS · brain memory + dashboards
  *   nickstire.org/admin           · BUSINESS OPS · Auto Labor Guide CRM
  *
  * Pattern · "forward first, fall back to brainMemory" so a temporary

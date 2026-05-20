@@ -1,6 +1,6 @@
 # A11Y + Motion-Perf Audit · /chat · 2026-05-12
 
-> Read-only audit. No code modified. Production target `https://autonicks.com/chat` (v10.0.515-ish · reasoning-trace ships).
+> Read-only audit. No code modified. Production target `https://bdnick.info/chat` (v10.0.515-ish · reasoning-trace ships).
 >
 > **Skill stances applied:** `fixing-accessibility` (WCAG 2.1 AA · ARIA · keyboard · contrast) + `fixing-motion-performance` (compositor · scroll-jank · reduced-motion) + `production-code-audit` (line-by-line evidence).
 > **Measurement substrate:** Chrome MCP tab `1464165278` on production. Live computed-style readings, real DOM measurements, real CSS rule introspection.
@@ -61,7 +61,7 @@
 ### 1c · Window state
 
 ```
-url:            https://autonicks.com/chat
+url:            https://bdnick.info/chat
 viewport:       1090 × 572 (devicePixelRatio 2.115)
 prefers-reduced-motion:   reduce  (OS-level setting · respected)
 pointer:        fine (not coarse)
@@ -378,7 +378,7 @@ These could not be measured automatically through the Chrome MCP tab (because th
 
 ## 7 · Provenance & raw measurements
 
-- **Tab:** 1464165278 · `https://autonicks.com/chat` · auth state preserved.
+- **Tab:** 1464165278 · `https://bdnick.info/chat` · auth state preserved.
 - **Viewport at audit time:** 1090 × 572 · DPR 2.115 · pointer fine · prefers-reduced-motion reduce.
 - **Tools used:** `mcp__Claude_in_Chrome__javascript_tool` for contrast math + DOM measurement + ARIA tree + CSS rule introspection · `mcp__Claude_in_Chrome__get_page_text` for empty-state content verification · `mcp__Claude_in_Chrome__read_console_messages` (no warnings captured during window) · `mcp__Claude_in_Chrome__resize_window` (window pinned at 1090 minimum).
 - **Source code paths inspected:** `app/(mastery)/chat/page.tsx` · `app/(mastery)/layout.tsx` · `app/globals.css` · `components/chat/nick-message.tsx` · `components/chat/reasoning-trace.tsx` · `components/chat/prompt-suggestions-bar.tsx` · `components/chat/chat-history-search.tsx` · `components/chat/chat-empty-state.tsx` · `components/hud/neural-background.tsx` · `components/hud/ambient-aura.tsx`.

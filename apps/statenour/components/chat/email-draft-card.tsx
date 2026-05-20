@@ -14,7 +14,7 @@
  * sent / failed state inline.
  *
  * Ports the "Email Composer" plugin from open-webui-plugins (Python)
- * into the autonicks.com TypeScript stack — re-implemented in the
+ * into the bdnick.info TypeScript stack — re-implemented in the
  * existing Resend integration so the draft uses the project's own
  * sendEmail() service + AgentTrace lineage rather than an out-of-tree
  * plugin runtime.

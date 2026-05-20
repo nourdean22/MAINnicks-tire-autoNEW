@@ -6,7 +6,7 @@
  *   2. message — text commands from Nour (/status, /schedule, etc.)
  *
  * Register once:
- *   curl "https://api.telegram.org/bot$TOKEN/setWebhook?url=https://autonicks.com/api/telegram/webhook"
+ *   curl "https://api.telegram.org/bot$TOKEN/setWebhook?url=https://bdnick.info/api/telegram/webhook"
  *
  * Commands:
  *   /status    — Quick system snapshot (revenue, leads, loops, alerts)

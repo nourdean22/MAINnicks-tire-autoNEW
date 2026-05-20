@@ -22,7 +22,7 @@
  *   · Accessible: `<title>` element + aria-label.
  *
  * Ports the "Inline Visualizer" plugin from open-webui-plugins
- * (Python) into the autonicks.com TypeScript stack — instead of
+ * (Python) into the bdnick.info TypeScript stack — instead of
  * cloning the plugin, we re-implemented its surface in the existing
  * Vercel AI SDK + Streamdown architecture so it composes with
  * AgentTrace, the tool-catalog gate, and the message renderer.

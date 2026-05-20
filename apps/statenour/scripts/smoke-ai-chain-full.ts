@@ -2,7 +2,7 @@
  * scripts/smoke-ai-chain-full.ts · v10.0.435
  *
  * End-to-end AI-chain smoke across brain, chat, and the rest of
- * autonicks.com. Each test exercises ONE AI-consuming layer with a
+ * bdnick.info. Each test exercises ONE AI-consuming layer with a
  * known input + reports pass/fail with provider + latency.
  *
  * Layers covered:

@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to **statenour-os** (Nour's personal command center) —
-deployed to `autonicks.com` via Vercel from the `codex/ollama-local` branch.
+deployed to `bdnick.info` via Vercel from the `codex/ollama-local` branch.
 
 The project sits alongside the business repo `nickstire` but is intentionally
 separate: different stack (Next.js vs Express), different deploy target
@@ -722,7 +722,7 @@ decision drift, Ghost Nour), then compound loops.
 ## 2026-04-20 — v10.4 Bridge Layer + Signal Unification + Audit Follow-ups
 
 Major day. Three separate user callouts, 14 commits, 2 structural
-collapses, 16 unit tests, all live on autonicks.com.
+collapses, 16 unit tests, all live on bdnick.info.
 
 ### Structural: HQ 7-card stack → 1 Situation card
 - `lib/ultron/situation-synthesizer.ts` — pure logic that takes

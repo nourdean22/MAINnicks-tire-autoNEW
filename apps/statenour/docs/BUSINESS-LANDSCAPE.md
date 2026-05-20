@@ -14,7 +14,7 @@
 **CRM / shop-management:** Auto Labor Guide (ShopDriver Elite)
 **Payments:** Gateway (primary), Stripe (online), Snap Financing (BNPL)
 **Operator:** Nour Dean — sole owner, sole operator of every system
-**Sister OS:** `nickstire.org` = business side · `autonicks.com` = personal OS (statenour-os)
+**Sister OS:** `nickstire.org` = business side · `bdnick.info` = personal OS (statenour-os)
 
 ---
 

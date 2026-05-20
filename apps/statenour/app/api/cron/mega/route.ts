@@ -65,10 +65,10 @@ export async function GET(req: NextRequest) {
   }
 
   const slot = req.nextUrl.searchParams.get('slot') || 'morning';
-  // 2026-05-17 follow-up · autonicks.com domain dropped per operator ·
-  // Railway is the canonical host. Prefer APP_BASE_URL (set on Railway
-  // env), fall back to Railway-deploy default. Vercel env fallback
-  // removed because the Vercel deploy is being decommissioned.
+  // Internal cron fan-out targets the stable Railway service URL
+  // (or APP_BASE_URL). The browser-facing custom domain (bdnick.info)
+  // is deliberately NOT used here — service-to-service calls should
+  // hit the platform URL, which never changes with a domain swap.
   const baseUrl =
     process.env.APP_BASE_URL?.trim()
     || 'https://statenour-web-production.up.railway.app';

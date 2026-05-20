@@ -1,7 +1,7 @@
 # Architecture Decision Records · NOUR OS
 
 This directory captures the **why** behind major architectural choices in
-`statenour-os` (autonicks.com). After 449 versions, the *what* is in code,
+`statenour-os` (bdnick.info). After 449 versions, the *what* is in code,
 the *what changed* is in commits — but the *why* (alternatives weighed,
 trade-offs accepted, constraints that forced the decision) was scattered
 across ephemeral chats, memory files, and inline comments.
