@@ -85,16 +85,16 @@ describe("collectDiagnoses", () => {
     ).toBe("warning");
   });
 
-  it("flags declaredCount > 40 as critical (Vercel Pro cap)", () => {
+  it("flags a high active-cron count as a sprawl warning", () => {
     const d = collectDiagnoses(healthy({ declaredCount: 42 }));
-    const crit = d.find((x) => /42 crons/.test(x.headline));
-    expect(crit?.severity).toBe("critical");
-    expect(crit?.headline).toMatch(/Vercel Pro limit/);
+    const warn = d.find((x) => /heavy cron surface/.test(x.headline));
+    expect(warn?.severity).toBe("warning");
+    expect(warn?.headline).toMatch(/42 active crons/);
   });
 
   it("does NOT flag declaredCount at exactly 40", () => {
     const d = collectDiagnoses(healthy({ declaredCount: 40 }));
-    expect(d.find((x) => /Vercel Pro/.test(x.headline))).toBeUndefined();
+    expect(d.find((x) => /heavy cron surface/.test(x.headline))).toBeUndefined();
   });
 
   it("flags silent crons as warning with name preview", () => {

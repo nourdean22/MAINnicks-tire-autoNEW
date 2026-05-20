@@ -184,8 +184,8 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
       severity: "critical",
       headline: "CRON_SECRET not configured",
       detail:
-        "Every cron route uses requireCronAuth which expects Bearer <CRON_SECRET>. Without it, Vercel's cron runner hits every endpoint and gets 401 — they 'fire' but do nothing.",
-      fix: "Set CRON_SECRET in Vercel env and redeploy. Match it in Vercel's Cron Jobs config if customized.",
+        "Every cron route uses requireCronAuth which expects Bearer <CRON_SECRET>. Without it, every cron call gets 401 — the job 'fires' but does nothing.",
+      fix: "Set CRON_SECRET in the Railway service env. The Inngest fan-out and every cron route must share the same value.",
     });
   }
 
@@ -221,11 +221,11 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
 
   if (ctx.declaredCount > 40) {
     diagnoses.push({
-      severity: "critical",
-      headline: `${ctx.declaredCount} crons declared exceeds Vercel Pro limit (40)`,
+      severity: "warning",
+      headline: `${ctx.declaredCount} active crons — heavy cron surface`,
       detail:
-        "Vercel Pro caps cron jobs at 40 per project. Everything over that silently fails to register and never fires.",
-      fix: "Fold some crons into mega-slots (see config/crons.ts CronMode='folded') or consolidate related work.",
+        "Railway has no platform cron cap, so nothing breaks at this count — but a large cron surface is more load and more failure points to keep healthy.",
+      fix: "Fold related crons into the mega fan-out slots (config/crons.ts CronMode='folded') or consolidate overlapping work. `pnpm check:crons` ranks fold candidates.",
     });
   }
 
@@ -234,7 +234,7 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
       severity: "warning",
       headline: `${ctx.silent.length} declared crons have NOT logged in the last 48h`,
       detail: `These are scheduled but have zero CronJobLog rows under their manifest name. Either not firing at all OR firing and crashing before the log-write. Names: ${ctx.silent.slice(0, 10).join(", ")}${ctx.silent.length > 10 ? "…" : ""}`,
-      fix: "Check Vercel's Cron Jobs dashboard for each one. If the dashboard shows recent 'Success' but no local log, the failure is inside the cron handler (after auth passed, before logger fired). For slot-based crons (mega-morning etc), confirm vercel.json has the schedule you expect.",
+      fix: "Check the Inngest dashboard for each one. If Inngest shows a recent successful invocation but no local CronJobLog row, the failure is inside the cron handler — after auth passed, before the logger fired.",
     });
   }
 
@@ -244,7 +244,7 @@ export function collectDiagnoses(ctx: DiagnosisContext): CronDiagnosis[] {
       headline: "ZERO CronJobLog rows in the last 48h",
       detail:
         "Something is preventing every cron from writing to the log. Either (a) no crons fired, (b) they fire but requireCronAuth fails silently, or (c) the DB quota is exhausted.",
-      fix: "Check Vercel cron dashboard for recent run attempts. Verify CRON_SECRET in env. Check /api/system/env-check for db_quota_exhausted flag.",
+      fix: "Check the Inngest dashboard for recent run attempts. Verify CRON_SECRET in the Railway env. Check /api/system/env-check for db_quota_exhausted flag.",
     });
   }
 
