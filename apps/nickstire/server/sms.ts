@@ -666,11 +666,19 @@ async function sendSmsViaShopGateway(
     return { success: true, gatewayMessageId: data.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    // wave-181.101 (#3) — AbortSignal.timeout rejects with a TimeoutError
-    // (older runtimes: AbortError). Flag it so sendSms() does NOT fall
-    // back to Twilio — the request may have landed (double-send risk).
-    const timedOut =
-      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    // wave-181.103 (#3 review fix) — read the error name directly instead
+    // of gating on `instanceof Error`. AbortSignal.timeout() rejects with a
+    // DOMException, and whether DOMException subclasses Error varies by Node
+    // version — gating on instanceof would silently miss the timeout on a
+    // runtime where it doesn't, and the send would wrongly fall back to
+    // Twilio (double-send). Reading `.name` off the object is version-
+    // independent. A timeout means the request may have landed, so
+    // sendSms() must NOT fall back to Twilio.
+    const errName =
+      err && typeof err === "object" && "name" in err
+        ? String((err as { name?: unknown }).name)
+        : "";
+    const timedOut = errName === "TimeoutError" || errName === "AbortError";
     log.error("Shop SMS gateway threw", { error: msg, timedOut });
     return { success: false, error: msg, timedOut };
   }
