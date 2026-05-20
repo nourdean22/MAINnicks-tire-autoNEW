@@ -10,14 +10,14 @@
  * as a thin shim because Vapi's tool-call protocol is JSON-only and
  * our internal tRPC speaks structured input/output.
  *
- * SECURITY: Vapi signs each request with `x-vapi-signature` (HMAC-SHA256
- * over the body using VAPI_WEBHOOK_SECRET). We validate signature in
- * production. In dev, we skip + log a warning.
+ * SECURITY: Vapi sends VAPI_WEBHOOK_SECRET verbatim in the `x-vapi-secret`
+ * header (the assistant's `server.secret`). We compare it constant-time in
+ * production; in dev (no secret configured) we skip + log a warning.
  */
 
 import { Router, type Request, type Response } from "express";
 import express from "express";
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("webhooks:vapi");
@@ -38,7 +38,7 @@ router.use(
 
 function verifyVapiSignature(req: Request): boolean {
   const secret = process.env.VAPI_WEBHOOK_SECRET;
-  // Allow unsigned in dev
+  // No secret configured → allow in dev, reject in prod.
   if (!secret) {
     if (process.env.NODE_ENV === "production") {
       log.warn("VAPI_WEBHOOK_SECRET not configured — rejecting request in prod");
@@ -46,17 +46,19 @@ function verifyVapiSignature(req: Request): boolean {
     }
     return true;
   }
-  const signature = req.headers["x-vapi-signature"];
-  if (!signature || typeof signature !== "string") return false;
-  const rawBody = (req as Request & { rawBody?: Buffer }).rawBody;
-  if (!rawBody) return false;
-  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-  // Constant-time compare
+  // Vapi sends the assistant's `server.secret` VERBATIM in `x-vapi-secret`
+  // — it is NOT an HMAC of the body. The prior code did HMAC-SHA256 over an
+  // `x-vapi-signature` header Vapi never sends, so every tool call 401'd.
+  // Compare the plain secret constant-time. `x-vapi-signature` is accepted
+  // as a fallback for Vapi's custom-credential auth mode.
+  const headerVal = req.headers["x-vapi-secret"] ?? req.headers["x-vapi-signature"];
+  const presented = Array.isArray(headerVal) ? headerVal[0] : headerVal;
+  if (!presented || typeof presented !== "string") return false;
   try {
-    const expBuf = Buffer.from(expected);
-    const sigBuf = Buffer.from(signature);
-    if (expBuf.length !== sigBuf.length) return false;
-    return timingSafeEqual(expBuf, sigBuf);
+    const a = Buffer.from(presented);
+    const b = Buffer.from(secret);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   } catch {
     return false;
   }
