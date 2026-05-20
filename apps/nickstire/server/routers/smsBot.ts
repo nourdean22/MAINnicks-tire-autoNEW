@@ -108,6 +108,10 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
       // wave-142a — write-through invalidation so the opt-out cache
       // sees this immediately (TCPA: opt-outs must propagate instantly).
       markPhoneOptedOut(phone);
+      // TCPA-defensible audit row — every opt-out path must reach the
+      // compliance log (see services/complianceLog.ts).
+      const { logSmsOptOut } = await import("../services/complianceLog");
+      await logSmsOptOut({ phone, via: "keyword", keyword: message });
     } catch (err) {
       log.error("[SMSBot] Failed to persist opt-out to DB:", err instanceof Error ? err.message : err);
     }

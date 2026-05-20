@@ -1,6 +1,7 @@
 /**
  * SMS Response Parser — Auto-classifies inbound customer SMS
- * Pattern matching for common responses, Gemini fallback for complex ones.
+ * Pattern matching for common responses; anything ambiguous or long is
+ * flagged for human follow-up (no AI fallback in this path).
  * Auto-actions: confirm, cancel, approve estimate, unsubscribe.
  */
 
@@ -34,8 +35,12 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   { pattern: /^(decline|pass|too much|too expensive|no thanks|not right now|can'?t afford)$/i, intent: "decline-estimate", autoAction: "flag-for-followup", confidence: 85 },
   { pattern: /too (much|expensive|high)/i, intent: "decline-estimate", autoAction: "flag-for-followup", confidence: 80 },
 
-  // Unsubscribe
-  { pattern: /^(stop|unsubscribe|opt out|remove me)$/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
+  // Unsubscribe — STOP/END/QUIT/UNSUBSCRIBE are the CTIA standard opt-out
+  // keywords. CANCEL is intentionally excluded: for an auto shop a lone
+  // "cancel" means cancel-my-appointment (matched above), not opt-out-of-
+  // all-SMS. Inbound SMS over the F25e gateway gets no carrier-level
+  // opt-out handling, so this app must catch these keywords itself.
+  { pattern: /^(stop|unsubscribe|opt out|end|quit|remove me)$/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
 
   // Reschedule hints
   { pattern: /reschedule|different (time|day|date)|move (my|the) appointment|change (time|date)/i, intent: "reschedule", autoAction: "flag-for-followup", confidence: 85 },
@@ -59,8 +64,13 @@ export function parseSmsResponse(message: string): ParsedResponse {
         confidence: p.confidence,
         autoAction: p.autoAction,
         requiresHuman: p.confidence < 80,
-        // Include original message for price questions so auto-action can detect the service
-        ...(p.autoAction === "auto-price-response" ? { extractedData: { question: trimmed } } : {}),
+        // Carry the original message for auto-actions that need it:
+        // price questions (service detection) + opt-outs (compliance log).
+        ...(p.autoAction === "auto-price-response"
+          ? { extractedData: { question: trimmed } }
+          : p.autoAction === "unsubscribe-customer"
+            ? { extractedData: { message: trimmed } }
+            : {}),
       };
     }
   }
@@ -161,6 +171,11 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
           // wave-142a — write-through cache invalidation (TCPA: opt-out
           // must propagate immediately to the next sendSms call).
           markPhoneOptedOut(normalized);
+          // TCPA-defensible audit row. executeAutoAction is the live
+          // opt-out path for BOTH the Twilio and F25e inbound webhooks,
+          // so without this no opt-out ever reached the compliance log.
+          const { logSmsOptOut } = await import("./complianceLog");
+          await logSmsOptOut({ phone: normalized, via: "keyword", keyword: parsed.extractedData?.message });
           log.info("Customer opted out of SMS marketing", { phone: phone.slice(-4) });
         }
         return { executed: true, action: "unsubscribe-customer" };

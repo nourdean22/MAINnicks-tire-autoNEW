@@ -1,10 +1,15 @@
 /**
- * Twilio SMS Integration for Nick's Tire & Auto
+ * SMS Integration for Nick's Tire & Auto
  *
- * UPGRADED: Conversation threading, smart timing (8AM-8PM ET),
- * opt-out management, delivery status tracking, circuit breaker protection.
+ * Outbound SMS routes shop-first (wave-181.60): the F25e Capevace
+ * gateway at 216-862-0005 is the primary sender, with Twilio kept as a
+ * fallback for when the gateway is offline. Inbound replies arrive via
+ * the SMS Gateway webhook (routes/webhooks/sms-gateway.ts).
  *
- * Handles all outbound SMS messaging:
+ * Features: conversation threading, smart timing (8AM-8PM ET), opt-out
+ * management, delivery status tracking, circuit breaker protection.
+ *
+ * Handles outbound SMS messaging:
  * - Status update notifications (stage changes)
  * - 24-hour thank-you follow-ups
  * - 7-day review request follow-ups
