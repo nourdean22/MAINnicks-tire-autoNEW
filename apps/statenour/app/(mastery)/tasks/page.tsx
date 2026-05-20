@@ -124,18 +124,6 @@ import { trpc } from "@/lib/trpc/client";
 import { useDebouncedReload } from "@/hooks/use-debounced-reload";
 type KindFilter = "all" | LoopKind;
 
-// v10.0.252 · API responses are inconsistently wrapped — some routes
-// return the raw shape, others return `{ data: X }`. The unwrap helper
-// + Envelope type accept either and strip the wrapper if present so
-// downstream code never sees the envelope. Hoisted to module scope so
-// they aren't recreated on every load() call.
-type Envelope<T> = T | { data: T };
-function unwrap<T>(x: Envelope<T>): T {
-  return x && typeof x === "object" && "data" in x
-    ? (x as { data: T }).data
-    : (x as T);
-}
-
 // AiTask interface lives in @/components/actions/ai-suggestions-band so
 // the band can stay self-typed · imported above with a `type` modifier.
 
@@ -1184,17 +1172,18 @@ function TasksPageInner() {
           operator arrives from /goals or /scoreboard via ?goalId or
           ?missionId · X-to-clear returns to unfiltered view. */}
       {(filterGoalId || filterMissionId) ? (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-[#FDB913]/30 bg-[#FDB913]/[0.04] px-4 py-2.5 text-sm">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-4 py-2.5 text-sm">
           <span className="text-white/80 truncate">
             Filtered ·{" "}
-            <span className="font-medium text-[#FDB913]">
+            <span className="font-medium text-[var(--gold)]">
               {filterGoalId ? "goal" : "mission"} · {(filterGoalId ?? filterMissionId ?? "").slice(0, 24)}
             </span>
           </span>
           <button
             type="button"
             onClick={clearFilter}
-            className="shrink-0 text-xs uppercase tracking-wider text-white/60 hover:text-white/90 border border-white/15 rounded-full px-3 py-1"
+            aria-label={`Clear ${filterGoalId ? "goal" : "mission"} filter`}
+            className="inline-flex min-h-[44px] shrink-0 items-center rounded-full border border-white/15 px-3 text-xs uppercase tracking-wider text-white/60 hover:text-white/90"
           >
             clear
           </button>
