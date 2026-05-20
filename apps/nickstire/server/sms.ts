@@ -571,6 +571,14 @@ interface ShopGatewayResult {
   success: boolean;
   gatewayMessageId?: string;
   error?: string;
+  /**
+   * wave-181.101 (#3) — true when the failure was a request timeout
+   * (AbortSignal.timeout). A timeout is AMBIGUOUS: the Capevace relay may
+   * already have accepted the message. Callers must NOT fall back to
+   * Twilio on a timeout — that double-sends the customer. Definitive
+   * failures (non-OK HTTP, DNS/connection error) leave this undefined.
+   */
+  timedOut?: boolean;
 }
 
 async function sendSmsViaShopGateway(
@@ -594,6 +602,12 @@ async function sendSmsViaShopGateway(
     phoneNumbers: [to],
   };
 
+  // wave-181.101 (#3) — env-tunable timeout. The prior fixed 10s was tight
+  // enough that a slow Capevace relay round-trip would abort and (pre-fix)
+  // trigger a Twilio double-send. 15s default; operator can raise it via
+  // SHOP_SMS_GATEWAY_TIMEOUT_MS without a redeploy.
+  const timeoutMs = Number(process.env.SHOP_SMS_GATEWAY_TIMEOUT_MS) || 15_000;
+
   try {
     const res = await fetch(`${baseUrl}/message`, {
       method: "POST",
@@ -602,7 +616,7 @@ async function sendSmsViaShopGateway(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
 
     if (!res.ok) {
@@ -616,8 +630,13 @@ async function sendSmsViaShopGateway(
     return { success: true, gatewayMessageId: data.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    log.error("Shop SMS gateway threw", { error: msg });
-    return { success: false, error: msg };
+    // wave-181.101 (#3) — AbortSignal.timeout rejects with a TimeoutError
+    // (older runtimes: AbortError). Flag it so sendSms() does NOT fall
+    // back to Twilio — the request may have landed (double-send risk).
+    const timedOut =
+      err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError");
+    log.error("Shop SMS gateway threw", { error: msg, timedOut });
+    return { success: false, error: msg, timedOut };
   }
 }
 
@@ -634,6 +653,47 @@ async function alertShopGatewayFallback(reason: string, to: string): Promise<voi
     );
   } catch {
     // Don't break the SMS flow if Telegram is also down
+  }
+}
+
+/**
+ * wave-181.101 (#2) — persist an outbound shop-gateway send to the durable
+ * `smsMessages` table. Two reasons this is required:
+ *
+ *   1. /admin/sms reads `smsMessages` — without a row, shop sends were
+ *      invisible in the conversation thread (only the in-memory addToThread
+ *      Map had them, and that Map is wiped on every redeploy).
+ *   2. The sms:delivered / sms:failed webhook (routes/webhooks/smsGateway.ts)
+ *      updates status by `WHERE twilioSid = <gateway messageId>`. With no
+ *      row to match, every shop send sat permanently at "sent" — the
+ *      delivery receipts were silently dropped.
+ *
+ * `status` is "sent" for a confirmed gateway accept, "sending" for the
+ * ambiguous timeout path (#3) where we never got a messageId back.
+ *
+ * Fire-and-forget by contract: a failed DB write must never fail an SMS
+ * that already left the gateway. Errors are logged, not thrown.
+ */
+async function persistOutboundShopSms(
+  to: string,
+  body: string,
+  status: "sent" | "sending",
+  gatewayMessageId?: string,
+): Promise<void> {
+  try {
+    const { getOrCreateConversation, addSmsMessage } = await import("./db");
+    const conversation = await getOrCreateConversation(to);
+    await addSmsMessage({
+      conversationId: conversation.id,
+      direction: "outbound",
+      body,
+      twilioSid: gatewayMessageId || undefined,
+      status,
+    });
+  } catch (err) {
+    log.warn("Failed to persist outbound shop SMS to smsMessages", {
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 }
 
@@ -688,10 +748,11 @@ setInterval(() => {
  * customers out during a DB outage is worse than the rare overcount.
  *
  * The atomic upsert ALWAYS increments (or resets to 1 when the 24h
- * window has rolled). Count can briefly exceed the cap during contention
- * (e.g. 10 parallel sends with count=7 and cap=8 land 10 increments to
- * count=17), but that just means subsequent attempts see count > cap and
- * get blocked. Cleanup cron prunes stale rows after 25h.
+ * window has rolled). wave-181.101 (#5): the increment is bounded by
+ * LEAST(count + 1, cap + 1) so a blocked phone's counter cannot run away
+ * unboundedly under contention or repeated blocked attempts — it pins at
+ * cap+1, which still reads as "over the cap" and blocks. Cleanup cron
+ * prunes stale rows after 25h.
  */
 async function checkDailyLimit(phone: string): Promise<boolean> {
   const now = Date.now();
@@ -735,7 +796,7 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
         count_24h = LAST_INSERT_ID(IF(
           window_started_at < (NOW() - INTERVAL 24 HOUR),
           1,
-          count_24h + 1
+          LEAST(count_24h + 1, ${MAX_SMS_PER_PHONE_PER_DAY + 1})
         )),
         window_started_at = IF(
           window_started_at < (NOW() - INTERVAL 24 HOUR),
@@ -858,7 +919,25 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       smsStats.lastSentAt = new Date().toISOString();
       updateDeliveryRate();
       addToThread(normalizedEarly, "outbound", body, gw.gatewayMessageId);
+      // wave-181.101 (#2) — persist to durable smsMessages so the send
+      // shows in /admin/sms and the delivery webhook can match it.
+      persistOutboundShopSms(normalizedEarly, body, "sent", gw.gatewayMessageId)
+        .catch(() => undefined);
       return { success: true, sid: gw.gatewayMessageId };
+    }
+    // wave-181.101 (#3) — a TIMEOUT is ambiguous: the Capevace relay may
+    // have accepted and the F25e fired the text; we just didn't get the
+    // response in time. Falling back to Twilio here would double-send the
+    // customer. Stop here on timeout; only DEFINITIVE failures (non-OK
+    // HTTP, DNS/connection error) drop through to the Twilio fallback.
+    if (gw.timedOut) {
+      log.warn(
+        `Shop gateway timed out for ${normalizedEarly.slice(-4)} — NOT falling back (delivery uncertain, avoids double-send)`,
+      );
+      await alertShopGatewayFallback("timeout — delivery uncertain, not retried", normalizedEarly);
+      addToThread(normalizedEarly, "outbound", body);
+      persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
+      return { success: true };
     }
     // Fallback path — shop gateway unreachable or unconfigured. Only
     // alert on REAL failures (configured gateway returned non-OK),
