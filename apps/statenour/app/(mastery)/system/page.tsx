@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * /system — operator system surface.
+ *
+ * Layout contract (Wave 52 · 2026-05-20 redesign):
+ *   1. STATUS FIRST  — overall status + KPIs + ops telemetry. The
+ *      answer to "is everything OK?" renders ABOVE the nav grid.
+ *   2. NAVIGATION    — <SystemHubGrid />, the grouped card hub.
+ *   3. DETAIL        — devices · brain · integrations.
+ *
+ * Pre-Wave-52 the page led with the 37-card grid and buried status
+ * at section #4-5. Three debug-dump panels (raw Prisma row counts ·
+ * automation-rule list · recent-pattern list) were also deleted —
+ * each duplicates a dedicated hub surface (Schema Coverage ·
+ * Automation Policies · Brain Categories).
+ */
+
 import { useState, useEffect, useCallback } from "react";
 import { Panel } from "@/components/panel";
 import { MetricCard } from "@/components/metric-card";
@@ -8,13 +24,12 @@ import { usePullRefresh } from "@/lib/hooks/use-pull-refresh";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SystemHubGrid } from "@/components/system/hub-grid";
-// v10.0.529.48 · ObservabilityRow relocated from /ultron · the 4
-// cost/voice-latency/eval/drift tiles are ops-grade telemetry · they
-// belong here with the rest of the system surface, not on the daily-
-// driver home page.
+// ObservabilityRow · 4-tile ops telemetry (cost SLO · voice latency ·
+// eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
 import { ObservabilityRow } from "@/components/ultron/observability/observability-row";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+
 interface DiagnosticsData {
   db: { connected: boolean; latency_ms: number };
   kpis: {
@@ -23,7 +38,6 @@ interface DiagnosticsData {
     requests_24h: number;
     ai_cost_7d_cents: number;
   };
-  models: Record<string, number>;
   devices: { online: number; offline: number; error: number; total: number };
   integrations: { name: string; status: string; enabled: boolean; lastSync: string | null }[];
   queue: { pending: number; failed: number };
@@ -39,8 +53,7 @@ interface BrainStatus {
     avgConfidence: number;
     byCategory: { category: string; count: number }[];
   };
-  recentPatterns: { patternName: string; date: string }[];
-  automationRules: { active: number; rules: { name: string; fireCount: number; lastFired: string | null }[] };
+  automationRules: { active: number };
 }
 
 interface HealthData {
@@ -141,17 +154,9 @@ export default function SystemPage() {
         }
       />
 
-      {/* System hub grid — live-chip cards, one per subsurface.
-          Degraded surfaces bubble to the top via severity sort so
-          whatever needs attention hits your eye first. Replaces the
-          old pill-row nav (hub-grid.tsx). */}
-      <SystemHubGrid />
+      {/* ── STATUS FIRST ─────────────────────────────────────────── */}
 
-      {/* v10.0.529.48 · relocated from /ultron. 4-tile ops telemetry ·
-          cost SLO · voice latency · eval pass rate · OS drift. */}
-      <ObservabilityRow />
-
-      {/* Status bar */}
+      {/* Overall status bar */}
       <Panel className="flex items-center justify-between gap-4 border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02] p-4">
         <div className="flex items-center gap-3">
           <StatusDot status={overallStatus} />
@@ -194,9 +199,20 @@ export default function SystemPage() {
         />
       </div>
 
+      {/* Ops telemetry — cost SLO · voice latency · eval pass · drift */}
+      <ObservabilityRow />
+
+      {/* ── NAVIGATION ───────────────────────────────────────────── */}
+      {/* System hub — live-chip cards grouped by domain. Degraded
+          subsurfaces lift into a "needs attention" strip at the top
+          of the grid. */}
+      <SystemHubGrid />
+
+      {/* ── DETAIL ───────────────────────────────────────────────── */}
       {/* Two-column grid: Devices + Brain */}
       <div className="grid gap-4 md:grid-cols-2 stagger-in">
-        {/* Devices panel */}
+        {/* Devices panel — emerald/red/amber cells map to real
+            severity states (online good · offline bad · error warn). */}
         <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white">devices</h3>
@@ -224,7 +240,11 @@ export default function SystemPage() {
           )}
         </Panel>
 
-        {/* Brain panel */}
+        {/* Brain panel — Wave 52 · palette corrected. Permanent /
+            Temporary / Rules are inventory counts, NOT severity
+            states, so they no longer borrow decorative violet/blue/
+            cyan. Permanent (the headline brain stat) carries the gold
+            brand accent · the other two stay neutral. */}
         <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white">Nick brain</h3>
@@ -235,17 +255,17 @@ export default function SystemPage() {
           {brain ? (
             <>
               <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-violet-500/10 p-3">
-                  <div className="text-2xl font-bold text-violet-400">{brain.memories.permanent}</div>
-                  <div className="text-[10px] text-violet-400/60 uppercase">Permanent</div>
+                <div className="rounded-lg bg-[var(--gold)]/10 p-3">
+                  <div className="text-2xl font-bold text-[var(--gold)]">{brain.memories.permanent}</div>
+                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Permanent</div>
                 </div>
-                <div className="rounded-lg bg-blue-500/10 p-3">
-                  <div className="text-2xl font-bold text-blue-400">{brain.memories.temporary}</div>
-                  <div className="text-[10px] text-blue-400/60 uppercase">Temporary</div>
+                <div className="rounded-lg bg-white/5 p-3">
+                  <div className="text-2xl font-bold text-white">{brain.memories.temporary}</div>
+                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Temporary</div>
                 </div>
-                <div className="rounded-lg bg-cyan-500/10 p-3">
-                  <div className="text-2xl font-bold text-cyan-400">{brain.automationRules.active}</div>
-                  <div className="text-[10px] text-cyan-400/60 uppercase">Rules</div>
+                <div className="rounded-lg bg-white/5 p-3">
+                  <div className="text-2xl font-bold text-white">{brain.automationRules.active}</div>
+                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Rules</div>
                 </div>
               </div>
               <div className="mt-3 text-xs text-[var(--text-tertiary)]">
@@ -280,63 +300,6 @@ export default function SystemPage() {
                 <span className="text-xs text-[var(--text-tertiary)]">
                   {intg.lastSync ? timeAgo(intg.lastSync) : "never synced"}
                 </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {/* Model record counts */}
-      {d && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <h3 className="mb-3 text-sm font-semibold text-white">database models</h3>
-          {/* v10.0.529.106 · Wave 51 · mobile fix · 3-col with text-xs on
-              iPhone fits each model name (e.g. "AutonomousEvent" 16ch +
-              count) in only ~125px which crops on the narrowest devices.
-              Drop to 2 cols on mobile so each cell has ~180px of room. */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-3 md:grid-cols-4">
-            {Object.entries(d.models)
-              .sort(([, a], [, b]) => (b as number) - (a as number))
-              .map(([name, count]) => (
-                <div key={name} className="flex justify-between py-1">
-                  <span className="text-[var(--text-secondary)]">{name}</span>
-                  <span className="font-mono text-[var(--text-secondary)]">{String(count)}</span>
-                </div>
-              ))}
-          </div>
-        </Panel>
-      )}
-
-      {/* Automation rules */}
-      {brain && brain.automationRules.rules.length > 0 && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <h3 className="mb-3 text-sm font-semibold text-white">active automation rules</h3>
-          <div className="space-y-2">
-            {brain.automationRules.rules.map((rule) => (
-              <div
-                key={rule.name}
-                className="flex items-center justify-between rounded-lg bg-[var(--bg-raised)]/[0.02] px-3 py-2"
-              >
-                <span className="text-sm text-zinc-200">{rule.name}</span>
-                <div className="flex items-center gap-3 text-xs text-[var(--text-tertiary)]">
-                  <span>fired: {rule.fireCount}x</span>
-                  <span>{rule.lastFired ? timeAgo(rule.lastFired) : "never"}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
-
-      {/* Recent patterns */}
-      {brain && brain.recentPatterns.length > 0 && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <h3 className="mb-3 text-sm font-semibold text-white">recent patterns</h3>
-          <div className="space-y-1">
-            {brain.recentPatterns.map((p, i) => (
-              <div key={i} className="flex items-center justify-between py-1 text-xs">
-                <span className="text-[var(--text-secondary)]">{p.patternName}</span>
-                <span className="text-[var(--text-tertiary)]">{p.date}</span>
               </div>
             ))}
           </div>
