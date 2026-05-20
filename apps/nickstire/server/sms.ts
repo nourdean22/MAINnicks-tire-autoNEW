@@ -144,6 +144,12 @@ interface DelayedMessage {
   body: string;
   scheduledFor: Date;
   opts?: SendSmsOptions;
+  /**
+   * wave-181.102 (#3b) — smsMessages row id. processDelayedQueue() stamps
+   * the row "sent" after a successful send so a later process restart's
+   * rehydrate does NOT re-send this message (a customer double-text).
+   */
+  dbId?: number;
 }
 
 const delayedQueue: DelayedMessage[] = [];
@@ -151,7 +157,15 @@ let delayedTimer: ReturnType<typeof setInterval> | null = null;
 
 function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
   const scheduledFor = getNextSendWindow();
-  delayedQueue.push({ to, body, scheduledFor, opts });
+  // wave-181.102 (#3b) — keep a reference to the queued object so the
+  // DB-persist IIFE below can stamp its smsMessages row id back onto it.
+  // processDelayedQueue() needs dbId to mark the row "sent" after the
+  // send — without it the row stays "queued" and the next restart's
+  // rehydrate re-sends the message (a customer double-text). scheduledFor
+  // is always hours out (next 8AM window), so dbId is set long before
+  // the message becomes eligible to send.
+  const queued: DelayedMessage = { to, body, scheduledFor, opts };
+  delayedQueue.push(queued);
   smsStats.queued++;
   log.info("SMS queued for sending window", {
     to: to.slice(-4),
@@ -173,12 +187,13 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
         const [inserted] = await db.insert(smsConversations).values({ phone: to }).$returningId();
         conv = { id: inserted.id };
       }
-      await db.insert(smsMessages).values({
+      const [row] = await db.insert(smsMessages).values({
         conversationId: conv.id,
         direction: "outbound",
         body,
         status: "queued",
-      });
+      }).$returningId();
+      queued.dbId = row?.id;
     } catch (err) {
       log.warn("Failed to persist delayed SMS to DB", { error: err instanceof Error ? err.message : String(err) });
     }
@@ -205,7 +220,26 @@ async function processDelayedQueue(): Promise<void> {
 
   for (const msg of ready) {
     // Send with force flag to skip timing check
-    await sendSms(msg.to, msg.body, { ...msg.opts, _forceImmediate: true });
+    const result = await sendSms(msg.to, msg.body, { ...msg.opts, _forceImmediate: true });
+    // wave-181.102 (#3b) — mark the persisted row terminal on a real
+    // success so a later process restart's rehydrate does NOT re-send
+    // this message (the customer-double-text bug). A failure leaves the
+    // row claimable so a genuine send failure isn't silently dropped.
+    if (result.success && msg.dbId != null) {
+      try {
+        const { getDb } = await import("./db");
+        const { smsMessages } = await import("../drizzle/schema");
+        const { eq } = await import("drizzle-orm");
+        const db = await getDb();
+        if (db) {
+          await db.update(smsMessages)
+            .set({ status: "sent" })
+            .where(eq(smsMessages.id, msg.dbId));
+        }
+      } catch (err) {
+        log.warn("Failed to mark delayed SMS row sent", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
   }
 }
 
@@ -252,7 +286,9 @@ export function startDelayedQueueProcessor(): void {
         // Only add if not already in the in-memory queue
         const alreadyQueued = delayedQueue.some(q => q.to === msg.phone && q.body === msg.body);
         if (!alreadyQueued) {
-          delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow() });
+          // wave-181.102 (#3b) — carry the row id so the post-send update
+          // marks THIS row "sent" — else a later restart re-sends it.
+          delayedQueue.push({ to: msg.phone, body: msg.body, scheduledFor: getNextSendWindow(), dbId: msg.id });
         }
         rehydrated++;
       }
