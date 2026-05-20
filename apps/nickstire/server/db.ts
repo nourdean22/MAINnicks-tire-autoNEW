@@ -1218,6 +1218,26 @@ export async function addSmsMessage(data: InsertSmsMessage) {
   return { success: true, id: Number(result[0].insertId) };
 }
 
+/**
+ * True if an smsMessages row already exists for this gateway message id
+ * (the twilioSid column stores it for inbound + outbound alike). The
+ * inbound SMS webhook handlers call this to drop at-least-once
+ * redeliveries before processing — without it, a redelivered inbound
+ * text re-runs executeAutoAction, which for the auto-price-response
+ * intent sends the customer a second price text and creates a second
+ * leads row.
+ */
+export async function smsMessageExists(twilioSid: string): Promise<boolean> {
+  if (!twilioSid) return false;
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select({ id: smsMessages.id })
+    .from(smsMessages)
+    .where(eq(smsMessages.twilioSid, twilioSid))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function getConversations(limit = 50): Promise<SmsConversation[]> {
   const db = await getDb();
   if (!db) return [];
