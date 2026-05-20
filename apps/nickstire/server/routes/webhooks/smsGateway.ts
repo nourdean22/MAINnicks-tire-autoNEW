@@ -201,6 +201,28 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
           const { recordSmsReply } = await import("../../services/smsInstrumentation");
           await recordSmsReply(normalized, body);
         })().catch(() => undefined);
+        // wave-181.101 — process inbound intent the same way the Twilio
+        // webhook does (routes/webhooks/twilio.ts). CRITICAL TCPA fix:
+        // before this, the F25e gateway — now the PRIMARY inbound number
+        // (216-862-0005) — silently ignored STOP/UNSUBSCRIBE. A customer
+        // who texted STOP kept receiving messages because nothing set
+        // customers.smsOptOut. parseSmsResponse + executeAutoAction set
+        // the flag and push it into the live opt-out cache via
+        // markPhoneOptedOut, so the very next send is blocked. Fire-and-
+        // forget — intent handling must never block or fail the 200 ack.
+        (async () => {
+          const { parseSmsResponse, executeAutoAction } = await import(
+            "../../services/smsResponseParser"
+          );
+          const parsed = parseSmsResponse(body);
+          if (parsed.autoAction && !parsed.requiresHuman) {
+            await executeAutoAction(parsed, normalized);
+          }
+        })().catch((err) => {
+          log.warn("Inbound shop SMS intent processing failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       }
       res.status(200).json({ received: true });
       return;

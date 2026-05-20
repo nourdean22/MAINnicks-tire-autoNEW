@@ -64,7 +64,36 @@ export async function runSmsGatewayHealthMonitor(): Promise<{
     return { recordsProcessed: 0, details: "No devices registered" };
   }
 
-  const dev = devices[0];
+  // wave-181.101 (#7) — pick the RIGHT device, not blindly devices[0].
+  // The Capevace account can hold >1 device (an old test phone alongside
+  // the F25e) and the array order is not guaranteed. A stale device
+  // sorting first makes the monitor either false-alarm or — far worse —
+  // report "online" while the real F25e is dead. Prefer an explicit
+  // SHOP_SMS_GATEWAY_DEVICE_ID (the F25e is f_U1jrQBy_g8W-2pWz7g4);
+  // otherwise fall back to the freshest device by lastSeen, since the
+  // F25e is the one actually sending traffic.
+  const targetId = process.env.SHOP_SMS_GATEWAY_DEVICE_ID;
+  const dev: CapevaceDevice | undefined = targetId
+    ? devices.find((d) => d.id === targetId)
+    : devices.reduce((freshest, d) => {
+        const t = d.lastSeen ? new Date(d.lastSeen).getTime() : 0;
+        const ft = freshest.lastSeen ? new Date(freshest.lastSeen).getTime() : 0;
+        return t > ft ? d : freshest;
+      });
+
+  if (!dev) {
+    // SHOP_SMS_GATEWAY_DEVICE_ID was set but no registered device matches —
+    // treat exactly like an offline gateway.
+    if (!alertedOffline) {
+      await fireOfflineAlert(
+        `Configured F25e device (${targetId}) not found among ${devices.length} registered device(s)`,
+        null,
+      );
+      alertedOffline = true;
+    }
+    return { recordsProcessed: 0, details: "Configured device not registered" };
+  }
+
   const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
   const ageMin = lastSeenMs ? Math.round((Date.now() - lastSeenMs) / 60_000) : 999;
 
