@@ -14,7 +14,6 @@
  */
 
 import { z } from "zod";
-import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
@@ -23,12 +22,6 @@ import { buildAiCostFeed } from "@/lib/services/ai-cost";
 import { readGhostNourCandidates } from "@/lib/services/ghost-nour";
 import { readRecentV2Samples } from "@/lib/ai/judge-eval/sampler";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
-import {
-  listDeployCommits,
-  rollbackProductionDeploy,
-  VercelTokenMissingError,
-  NoPreviousDeployError,
-} from "@/lib/services/deploys";
 import {
   triggerCronByName,
   setCronEnabled as setCronEnabledService,
@@ -140,52 +133,6 @@ export const systemRouter = router({
   ghostNourCandidates: operatorProcedure
     .input(z.object({ take: z.number().int().min(1).max(50).default(20) }))
     .query(async ({ input }) => readGhostNourCandidates({ take: input.take })),
-
-  /**
-   * Phase KK (2026-05-18 PM) · owner-only · recent commits on the
-   * deploy branch + their per-commit stats. Powers the BuilderSandbox
-   * deploy panel + the standalone /system/deploys page.
-   *
-   * Delegates to `lib/services/deploys.listDeployCommits` shared
-   * service · legacy GET /api/system/deploys calls the same function ·
-   * drift impossible.
-   *
-   * Gracefully returns `{configured: false, commits: []}` when
-   * GITHUB_TOKEN is unset · caller renders a "set the env var" hint.
-   */
-  deploys: operatorProcedure
-    .input(z.object({ limit: z.number().int().min(1).max(50).default(15) }))
-    .query(async ({ input }) => listDeployCommits({ limit: input.limit })),
-
-  /**
-   * Phase KK (2026-05-18 PM) · owner-only · roll production back to
-   * the previous READY Vercel deploy. Identifies current + next-most-
-   * recent READY deploys, promotes the previous to production via
-   * Vercel's v9 promote endpoint.
-   *
-   * Delegates to `lib/services/deploys.rollbackProductionDeploy` ·
-   * legacy POST /api/system/deploys/rollback calls the same function.
-   *
-   * Edge cases:
-   *   · VERCEL_TOKEN unset → PRECONDITION_FAILED (not implemented)
-   *   · <2 READY deploys   → CONFLICT (nothing to roll back to)
-   */
-  rollbackDeploy: operatorProcedure.mutation(async () => {
-    try {
-      return await rollbackProductionDeploy();
-    } catch (err) {
-      if (err instanceof VercelTokenMissingError) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: err.message,
-        });
-      }
-      if (err instanceof NoPreviousDeployError) {
-        throw new TRPCError({ code: "CONFLICT", message: err.message });
-      }
-      throw err;
-    }
-  }),
 
   /**
    * Phase NN (2026-05-19 AM) · owner-only · manually fire a cron by

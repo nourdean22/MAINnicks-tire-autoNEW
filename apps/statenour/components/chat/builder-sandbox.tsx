@@ -5,48 +5,32 @@
  *
  * When personality is set to "builder", this panel slides in from the
  * right on desktop (>768px). Shows:
- *   · Active repos with deploy status
- *   · Recent file changes (from git)
+ *   · Quick clipboard commands (typecheck · full gate)
+ *   · Active repos
  *   · Quick links to key files
- *   · Deploy status indicator
  *
  * On mobile this doesn't render — Builder mode still works in the
  * chat, just without the visual panel.
+ *
+ * Wave 53 (2026-05-20): the Vercel-API deploy-status panel (commit
+ * list + rollback button + deploy-logs command) was removed when
+ * statenour left Vercel for Railway. The two Railway-safe clipboard
+ * helpers (typecheck · gate) survive as the Commands section below.
  */
 
-import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import {
   X,
   GitBranch,
-  CheckCircle2,
-  AlertTriangle,
-  ExternalLink,
-  Loader2,
   Terminal,
   FileCode,
-  Rocket,
   Copy,
-  RotateCcw,
   ExternalLink as ExternalIcon,
 } from "lucide-react";
-import { trpc } from "@/lib/trpc/client";
 
 interface BuilderSandboxProps {
   open: boolean;
   onClose: () => void;
-}
-
-interface DeployStatus {
-  /** Visual treatment · GitHub commits don't have a Vercel state field
-   *  · we render the deploy branch's most-recent commit as the active
-   *  pointer, color-coded by recency rather than Vercel status. */
-  state: "READY" | "ERROR" | "PENDING";
-  url?: string;
-  commit?: string;
-  at?: string;
-  subject?: string;
 }
 
 // v11.1 · Repo roots — used to compute vscode:// URLs + git-checkout
@@ -85,68 +69,9 @@ function openInVsCode(repo: keyof typeof REPO_ROOTS, relPath: string): void {
 }
 
 export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
-  // Phase KK (2026-05-18 PM) · tRPC migration · lazy-on-open query
-  // (enabled: open) keeps the GitHub API call from firing until the
-  // panel actually shows. React Query inherits the 30-second stale
-  // window so re-opens within that window skip the fetch entirely.
-  const deploysQuery = trpc.system.deploys.useQuery(
-    { limit: 1 },
-    { enabled: open, staleTime: 30_000 },
-  );
-  const rollbackMutation = trpc.system.rollbackDeploy.useMutation();
-
-  // Pre-fix bug · the component read `d.deploys?.[0]` but the route
-  // returned `{commits: [...]}` · setDeployStatus was NEVER called and
-  // the rollback button was permanently disabled. tRPC's typed output
-  // caught the field-name drift the moment the migration touched the
-  // component. Now reading the actual `commits[0]` shape.
-  const latestCommit = deploysQuery.data?.commits?.[0];
-  const deployStatus: DeployStatus | null = latestCommit
-    ? {
-        state: "READY",
-        commit: latestCommit.shortSha,
-        subject: latestCommit.subject,
-        at: latestCommit.date
-          ? new Date(latestCommit.date).toLocaleTimeString("en-US", {
-              hour: "numeric",
-              minute: "2-digit",
-            })
-          : undefined,
-      }
-    : null;
-  const loading = deploysQuery.isLoading && deploysQuery.isFetching;
-  const rollingBack = rollbackMutation.isPending;
-
-  async function handleRollback() {
-    if (!deployStatus?.commit) {
-      toast.error("no deploy to roll back to");
-      return;
-    }
-    const confirmed = confirm(
-      `Roll back production to the PREVIOUS ready deploy? Current commit ${deployStatus.commit} will be deprecated. This is immediate and reversible only by pushing a new deploy.`
-    );
-    if (!confirmed) return;
-    try {
-      await rollbackMutation.mutateAsync();
-      toast.success("rollback initiated — watch /system/deploys");
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(`rollback failed · ${msg.slice(0, 80)}`);
-    }
-  }
-
-  function handleCloneCommit() {
-    if (!deployStatus?.commit) {
-      toast.error("no commit to clone");
-      return;
-    }
-    const cmd = `git fetch origin && git checkout ${deployStatus.commit}`;
-    void copyToClipboard(cmd, `copied · ${deployStatus.commit}`);
-  }
-
-  // v8.3 D1 — extra one-tap commands the operator wants without
-  // remembering exact syntax. All of these are pure clipboard pushes;
-  // the actual run happens on Nour's terminal.
+  // v8.3 D1 — one-tap clipboard commands the operator wants without
+  // remembering exact syntax. Pure clipboard pushes; the actual run
+  // happens on Nour's terminal.
   function handleCopyTypecheck() {
     void copyToClipboard("pnpm exec tsc --noEmit", "copied · typecheck");
   }
@@ -154,19 +79,6 @@ export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
     void copyToClipboard(
       "bash scripts/pre-push-check.sh",
       "copied · run all 6 pre-push gates",
-    );
-  }
-  function handleCopyDeployLogs() {
-    if (!deployStatus?.url) {
-      toast.error("no deploy url yet");
-      return;
-    }
-    // Vercel CLI accepts a deployment URL directly. The gh fallback
-    // pulls the latest CI run which is what fails before vercel even
-    // sees the commit (e.g. cron-drift gate).
-    void copyToClipboard(
-      `vercel logs https://${deployStatus.url} || gh run view --repo nourdean22/statenour-os | head -40`,
-      "copied · deploy logs cmd",
     );
   }
 
@@ -190,115 +102,30 @@ export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
         </button>
       </div>
 
-      {/* Deploy status */}
+      {/* Commands — Railway-safe one-tap clipboard helpers */}
       <div className="px-4 py-3 border-b border-[var(--border-default)]">
         <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-2">
-          <Rocket size={10} />
-          Deploy
+          <Terminal size={10} />
+          Commands
         </div>
-        {loading ? (
-          <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-            <Loader2 size={11} className="animate-spin" />
-            Checking...
-          </div>
-        ) : deployStatus ? (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              {deployStatus.state === "READY" ? (
-                <CheckCircle2 size={12} className="text-emerald-400" />
-              ) : deployStatus.state === "ERROR" ? (
-                <AlertTriangle size={12} className="text-red-400" />
-              ) : (
-                <Loader2 size={12} className="text-amber-400 animate-spin" />
-              )}
-              <span
-                className={cn(
-                  "text-[11px] font-mono font-bold uppercase",
-                  deployStatus.state === "READY"
-                    ? "text-emerald-400"
-                    : deployStatus.state === "ERROR"
-                      ? "text-red-400"
-                      : "text-amber-400"
-                )}
-              >
-                {deployStatus.state}
-              </span>
-              {deployStatus.commit && (
-                <span className="text-[9px] text-[var(--text-tertiary)] font-mono">
-                  {deployStatus.commit}
-                </span>
-              )}
-              {deployStatus.at && (
-                <span className="text-[9px] text-[var(--text-tertiary)]">
-                  {deployStatus.at}
-                </span>
-              )}
-            </div>
-            {deployStatus.url && (
-              <a
-                href={`https://${deployStatus.url}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[9px] text-blue-400 hover:text-blue-300 flex items-center gap-1 truncate"
-              >
-                <ExternalLink size={8} />
-                {deployStatus.url}
-              </a>
-            )}
-            {/* v11.1 + v8.3 action row — rollback + clone + new
-                clipboard helpers (typecheck, full gate, deploy logs).
-                Wraps so all six fit on a 320px sidebar. */}
-            <div className="flex flex-wrap items-center gap-1 pt-1">
-              <button
-                onClick={handleRollback}
-                disabled={rollingBack || !deployStatus.commit}
-                className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-rose-400/30 text-rose-300 hover:bg-rose-400/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                title="Promote the previous ready deploy to production"
-              >
-                {rollingBack ? <Loader2 size={9} className="animate-spin" /> : <RotateCcw size={9} />}
-                rollback
-              </button>
-              <button
-                onClick={handleCloneCommit}
-                disabled={!deployStatus.commit}
-                className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] disabled:opacity-40 transition-colors"
-                title="Copy `git fetch && git checkout <sha>` to clipboard"
-              >
-                <Copy size={9} />
-                clone
-              </button>
-              <button
-                onClick={handleCopyTypecheck}
-                className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
-                title="Copy `pnpm exec tsc --noEmit` to clipboard"
-              >
-                <Copy size={9} />
-                typecheck
-              </button>
-              <button
-                onClick={handleCopyFullGate}
-                className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
-                title="Copy `bash scripts/pre-push-check.sh` (all 6 gates)"
-              >
-                <Copy size={9} />
-                gate
-              </button>
-              <button
-                onClick={handleCopyDeployLogs}
-                disabled={!deployStatus.url}
-                className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] disabled:opacity-40 transition-colors"
-                title="Copy CI / Vercel logs lookup command"
-              >
-                <Copy size={9} />
-                logs
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-[10px] text-[var(--text-tertiary)] italic">
-            No deploy data
-          </p>
-        )}
+        <div className="flex flex-wrap items-center gap-1">
+          <button
+            onClick={handleCopyTypecheck}
+            className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
+            title="Copy `pnpm exec tsc --noEmit` to clipboard"
+          >
+            <Copy size={9} />
+            typecheck
+          </button>
+          <button
+            onClick={handleCopyFullGate}
+            className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
+            title="Copy `bash scripts/pre-push-check.sh` (all 6 gates)"
+          >
+            <Copy size={9} />
+            gate
+          </button>
+        </div>
       </div>
 
       {/* Repos */}
@@ -316,7 +143,7 @@ export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
               </span>
             </div>
             <p className="text-[9px] text-[var(--text-tertiary)] font-mono">
-              codex/ollama-local → Vercel
+              main → Railway
             </p>
             <p className="text-[8px] text-[var(--text-tertiary)]">
               Next.js 16 · Prisma 7 · Tailwind 4
@@ -402,7 +229,7 @@ export function BuilderSandbox({ open, onClose }: BuilderSandboxProps) {
       {/* Footer hint */}
       <div className="px-4 py-2 border-t border-[var(--border-default)]">
         <p className="text-[8px] text-[var(--text-tertiary)] italic text-center">
-          Nick has full GitHub tools. Say &ldquo;read file X&rdquo; or &ldquo;commit to codex/ollama-local&rdquo;
+          Nick has full GitHub tools. Say &ldquo;read file X&rdquo; or &ldquo;commit to main&rdquo;
         </p>
       </div>
     </div>

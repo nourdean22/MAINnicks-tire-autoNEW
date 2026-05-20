@@ -177,18 +177,11 @@ export const FEATURE_REGISTRY: FeatureMeta[] = [
     notes: "Cron folded into mega-evening. When you log decisions on /tasks with predictedOutcome + reviewDate, the grader auto-finds evidence and writes BrainMemory category=prediction_grade. Closes Ghost Nour 0/0/null.",
   },
   {
-    name: "Auto-rollback (Vercel API)",
-    endpoint: "/api/system/rollback",
-    status: "DORMANT",
-    activationTrigger: "Set VERCEL_TOKEN + VERCEL_PROJECT_ID env vars on prod",
-    notes: "GET lists deployments, POST { deploymentId } promotes. Ready when the env is configured.",
-  },
-  {
     name: "Per-integration cost/quota probes",
     endpoint: "/api/system/integration-quotas",
     status: "PARTIAL",
-    activationTrigger: "Set provider API keys (TWILIO, STRIPE, VERCEL, RESEND tokens)",
-    notes: "Venice probe works (147ms). Resend errored (token issue). Twilio/Stripe/Vercel return 'missing' until keys set.",
+    activationTrigger: "Set provider API keys (TWILIO, STRIPE, RESEND tokens)",
+    notes: "Venice probe works (147ms). Resend errored (token issue). Twilio/Stripe return 'missing' until keys set.",
   },
 ];
 
