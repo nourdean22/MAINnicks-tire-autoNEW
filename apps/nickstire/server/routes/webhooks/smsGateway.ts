@@ -164,6 +164,29 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
       }
       const { normalized } = recordInboundShopSms(phone, body, messageId);
       if (normalized) {
+        // Persist the inbound text to smsMessages so it surfaces in
+        // /admin/sms and bumps the conversation unread badge.
+        // recordInboundShopSms() above writes only an in-memory Map
+        // (wiped on every redeploy); addSmsMessage() is the durable row
+        // the admin SMS UI actually reads. Awaited — a failed DB write
+        // returns 500 so Capevace retries instead of dropping the lead.
+        try {
+          const { getOrCreateConversation, addSmsMessage } = await import("../../db");
+          const conversation = await getOrCreateConversation(normalized);
+          await addSmsMessage({
+            conversationId: conversation.id,
+            direction: "inbound",
+            body,
+            twilioSid: messageId || undefined,
+            status: "received",
+          });
+        } catch (err) {
+          log.error("Failed to persist inbound shop SMS to smsMessages", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          res.status(500).json({ error: "persist_failed" });
+          return;
+        }
         // Fire-and-forget DB log
         logToCommunicationLog(normalized, body, "inbound", {
           source: "shop_gateway",
