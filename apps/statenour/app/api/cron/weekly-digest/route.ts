@@ -316,13 +316,13 @@ export const GET = cronHandler(async () => {
 
   const emailSubject = `NOUR OS Weekly Digest — Week of ${formatDate(weekStart)}`;
 
-  // Use the verified sending domain (autonicks.com). The previous
+  // Use the verified sending domain (bdnick.info). The previous
   // `nour@statenour-os.vercel.app` was unverified in Resend → every
   // Sunday 02:00 cron returned 500 → Vercel cron-failure email.
   // Source of recurring "deployment failed" emails Nour was getting
   // (despite the build itself being fine).
   const emailRes = await getResend().emails.send({
-    from: "NOUR OS <noreply@autonicks.com>",
+    from: "NOUR OS <noreply@bdnick.info>",
     to: "nourdean22@gmail.com",
     subject: emailSubject,
     html: htmlContent,

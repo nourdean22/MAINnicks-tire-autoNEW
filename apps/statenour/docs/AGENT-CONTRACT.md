@@ -27,7 +27,7 @@ enough.
 ## What you're working on
 
 [`statenour-os`](https://github.com/nourdean22/statenour-os) at
-`autonicks.com` — Nour's personal OS. Next.js 16 · Prisma 7 · Neon ·
+`bdnick.info` — Nour's personal OS. Next.js 16 · Prisma 7 · Neon ·
 Vercel. Companion repo is `nickstire.org` (business). See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the two-ring map.
 

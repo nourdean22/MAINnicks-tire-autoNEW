@@ -82,7 +82,7 @@ function assertMockBypassAllowed(): void {
     // was console.error only · the bypass was invisible.
     log.error("auth_bypass_active_in_production", {
       message:
-        "AUTH_ALLOW_MOCK_IN_PROD=1 set. Every caller auto-authenticates as mock operator. Intentional ONLY for preview deployments without OAuth — should never appear on autonicks.com prod.",
+        "AUTH_ALLOW_MOCK_IN_PROD=1 set. Every caller auto-authenticates as mock operator. Intentional ONLY for preview deployments without OAuth — should never appear on bdnick.info prod.",
       severity: "CRITICAL",
     });
     return;

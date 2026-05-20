@@ -415,7 +415,7 @@ export const systemTools = {
           category: t.category,
           videoOnly: t.videoOnly,
         })),
-        browseAt: "https://autonicks.com/learn",
+        browseAt: "https://bdnick.info/learn",
       };
     },
   }),

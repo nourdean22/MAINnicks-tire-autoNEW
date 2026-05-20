@@ -110,7 +110,7 @@ function formatMarkdown(
 
   lines.push("");
   lines.push(
-    `*Exported from Nour's Command Center — autonicks.com · ${new Date().toISOString()}*`
+    `*Exported from Nour's Command Center — bdnick.info · ${new Date().toISOString()}*`
   );
   return lines.join("\n");
 }

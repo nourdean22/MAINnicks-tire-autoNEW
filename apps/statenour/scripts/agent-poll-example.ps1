@@ -7,13 +7,13 @@
 # dispatches each to the right vendor bridge, and acks back.
 #
 # Env required:
-#   STATENOUR_URL  — https://autonicks.com (no trailing slash)
+#   STATENOUR_URL  — https://bdnick.info (no trailing slash)
 #   SYNC_KEY       — matches Vercel env SYNC_KEY
 #   BRIDGE_ROOT    — absolute path to nour-os-unified/modules
 #                    (where iot/ring/bridge.js lives)
 #
 # Example .env:
-#   STATENOUR_URL=https://autonicks.com
+#   STATENOUR_URL=https://bdnick.info
 #   SYNC_KEY=xxx
 #   BRIDGE_ROOT=C:\Users\nourd\NOUR-OS\nour-os-unified\modules
 #
@@ -23,7 +23,7 @@
 
 $ErrorActionPreference = "Stop"
 
-$BaseUrl  = if ($env:STATENOUR_URL)  { $env:STATENOUR_URL.TrimEnd("/") } else { "https://autonicks.com" }
+$BaseUrl  = if ($env:STATENOUR_URL)  { $env:STATENOUR_URL.TrimEnd("/") } else { "https://bdnick.info" }
 $SyncKey  = $env:SYNC_KEY
 $BridgeRoot = $env:BRIDGE_ROOT
 $PollSec  = if ($env:POLL_SECONDS) { [int]$env:POLL_SECONDS } else { 20 }

@@ -1,4 +1,4 @@
-# statenour-os · autonicks.com
+# statenour-os · bdnick.info
 
 > Nour Dean's personal operating system. Nick (the AI) + Ultron (the
 > cockpit) + Brain (the memory) + Tasks + Journal + Knowledge + Devices
@@ -139,7 +139,7 @@ codex/ollama-local  ← your feature branch (dev + preview + PROD deploy)
        │    (+ full production build on statenour-master)
        │
        ▼
-  Vercel production   → autonicks.com (deploys directly from codex/ollama-local)
+  Vercel production   → bdnick.info (deploys directly from codex/ollama-local)
        │
        ▼  CI (.github/workflows/ci.yml) — verify + build + cron-drift
        │
@@ -180,7 +180,7 @@ is "everything degrades gracefully · operator pastes credentials to
 activate each substrate". Status surfaces on `/api/health`:
 
 ```bash
-curl https://autonicks.com/api/health | jq '.data | {inngest, braintrust, agentV2}'
+curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust, agentV2}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:

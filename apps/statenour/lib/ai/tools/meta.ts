@@ -336,7 +336,7 @@ export const metaTools = {
   // select action. No selectors needed.
   browser_act: tool({
     description:
-      "Execute a natural-language action on the open session's current page: click a button, fill a form field, select an option. Stagehand plans the DOM interaction. Examples: 'click the Sign In button', 'type nour@autonicks.com into the email field', 'select Auto Repair from the category dropdown'.",
+      "Execute a natural-language action on the open session's current page: click a button, fill a form field, select an option. Stagehand plans the DOM interaction. Examples: 'click the Sign In button', 'type nour@bdnick.info into the email field', 'select Auto Repair from the category dropdown'.",
     inputSchema: z.object({
       sessionId: z.string().min(6).describe("Session id from a prior browser_do call."),
       instruction: z

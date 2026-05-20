@@ -23,7 +23,7 @@
 | HEAD | `f63a856` on `codex/ollama-local` (post v9.1.28 + redeploy trigger) |
 | Tests | 506/506 pass |
 | Pre-push gates | 9/9 green (sensitive-GET in HARD mode since v9.1.17) |
-| Production | every commit through v9.1.27 READY on autonicks.com |
+| Production | every commit through v9.1.27 READY on bdnick.info |
 | Schema | synced to Neon (this session — Cascade→Restrict + BrainMemory deletedAt index) |
 | `NICK_PRIME_PROMPT` | `shadow` (set this session — soaking) |
 | Bugs fixed in code-review hardening | 65+ across Round 1 + Round 2 audits |

@@ -76,7 +76,7 @@ interface Result {
   err?: string;
 }
 
-const UA = "Mozilla/5.0 (compatible; NickStire-Brain/10.0; +https://autonicks.com/about)";
+const UA = "Mozilla/5.0 (compatible; NickStire-Brain/10.0; +https://bdnick.info/about)";
 
 async function probe(c: Candidate): Promise<Result> {
   const t0 = Date.now();

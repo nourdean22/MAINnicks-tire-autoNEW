@@ -280,7 +280,7 @@ export async function generateVeniceImage(
     });
 
   // RELATIVE URL (Apr 15 fix): previously we built an absolute URL
-  // using VERCEL_PROJECT_PRODUCTION_URL or a hardcoded autonicks.com.
+  // using VERCEL_PROJECT_PRODUCTION_URL or a hardcoded bdnick.info.
   // That broke on preview deployments (image generated under the
   // preview host but URL pointed to prod, which 404'd because the
   // record didn't exist there) and broke locally too. Relative URLs

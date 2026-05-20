@@ -16,7 +16,7 @@ async function main() {
     { name: "v380", type: "api", status: "healthy", metadata: { deviceCount: 2, platform: "V380 Cloud P2P" } },
     { name: "eufy", type: "api", status: "degraded", metadata: { note: "Captcha pending", platform: "Eufy Security" } },
     { name: "neon-postgres", type: "api", status: "healthy", metadata: { region: "us-east-1", plan: "free" } },
-    { name: "vercel", type: "api", status: "healthy", metadata: { plan: "hobby", domain: "autonicks.com" } },
+    { name: "vercel", type: "api", status: "healthy", metadata: { plan: "hobby", domain: "bdnick.info" } },
   ];
 
   for (const intg of integrations) {

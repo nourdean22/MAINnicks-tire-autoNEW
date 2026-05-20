@@ -48,6 +48,6 @@
     }
   },
   "server": {
-    "url": "https://autonicks.com/api/vapi/schedule-dropoff"
+    "url": "https://bdnick.info/api/vapi/schedule-dropoff"
   }
 }

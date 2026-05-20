@@ -80,7 +80,7 @@ async function fetchAndParseSource(source: IndustrySource): Promise<ParsedItem[]
       signal: ac.signal,
       headers: {
         // Some publishers block default node fetch user-agents; pretend to be a feed reader.
-        "User-Agent": "NickAuto-IndustryMonitor/1.0 (+autonicks.com)",
+        "User-Agent": "NickAuto-IndustryMonitor/1.0 (+bdnick.info)",
         "Accept": "application/rss+xml, application/atom+xml, application/xml, text/xml, */*",
       },
     });

@@ -131,7 +131,7 @@ const RULES: ActionRule[] = [
         `${appt.customerName} — ${appt.serviceType}\n` +
         `📞 ${appt.customerPhone}\n` +
         `Preferred: ${appt.preferredDay || "Any"} ${appt.preferredTime || ""}\n\n` +
-        `Confirm at autonicks.com/appointments`
+        `Confirm at bdnick.info/appointments`
       );
       return { result: "success" };
     },
@@ -245,7 +245,7 @@ const RULES: ActionRule[] = [
     },
     action: async () => {
       await sendTelegram(
-        `📊 <b>Score Check</b>\n\nNo daily score logged today. The system can't help what it can't see.\n\n→ Log at autonicks.com/mastery`
+        `📊 <b>Score Check</b>\n\nNo daily score logged today. The system can't help what it can't see.\n\n→ Log at bdnick.info/mastery`
       );
       return { result: "success" };
     },
@@ -399,7 +399,7 @@ const RULES: ActionRule[] = [
     },
     action: async (data) => {
       await sendTelegram(
-        `🔀 <b>${data.count} Open Loops</b>\n\nAttention is fragmented. Close 3 before adding anything new.\n\n→ autonicks.com/loops`
+        `🔀 <b>${data.count} Open Loops</b>\n\nAttention is fragmented. Close 3 before adding anything new.\n\n→ bdnick.info/loops`
       );
       await brainMemory.remember(
         "pattern",
@@ -481,7 +481,7 @@ const RULES: ActionRule[] = [
     },
     action: async () => {
       await sendTelegram(
-        `⚠️ <b>DRIFT ALERT — 3+ Days No Scores</b>\n\nHistorical pattern: 3-day gaps → 5-7 day drift spirals → revenue drops.\n\nTODAY is the intervention point. Log one score. Just one.\n\n→ autonicks.com/mastery`
+        `⚠️ <b>DRIFT ALERT — 3+ Days No Scores</b>\n\nHistorical pattern: 3-day gaps → 5-7 day drift spirals → revenue drops.\n\nTODAY is the intervention point. Log one score. Just one.\n\n→ bdnick.info/mastery`
       );
       return { result: "success" };
     },
@@ -513,7 +513,7 @@ const RULES: ActionRule[] = [
       } catch {}
 
       await sendTelegram(
-        `☀️ <b>Morning Brief</b>\n\nRevenue today: ${revToday}\nLeads waiting: ${leadsWaiting}\n\n→ Open Nick for your full day plan: autonicks.com/chat`
+        `☀️ <b>Morning Brief</b>\n\nRevenue today: ${revToday}\nLeads waiting: ${leadsWaiting}\n\n→ Open Nick for your full day plan: bdnick.info/chat`
       );
       return { result: "success" };
     },

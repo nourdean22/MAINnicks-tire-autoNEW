@@ -1,7 +1,7 @@
 # NOUR OS — Core Memories
 
 > **v10.0.529.106 Wave 75 correction**: prod URL is now
-> `autonicks.com` (the operator's domain) · NOT `statenour-os.vercel.app`.
+> `bdnick.info` (the operator's domain) · NOT `statenour-os.vercel.app`.
 > The deployment branch is `codex/ollama-local` · NOT main. CLI tool
 > path is current. PowerShell rule stays.
 
@@ -13,7 +13,7 @@
 ## Architecture Decisions
 - Next.js App Router on Vercel
 - CLI tool at `cli/nour.ts` (run via `npx tsx`)
-- Deployed at https://autonicks.com (was statenour-os.vercel.app · migrated)
+- Deployed at https://bdnick.info (was statenour-os.vercel.app · migrated)
 - Branch: `codex/ollama-local` (was main · Wave 49 deployment branch update)
 - Tailscale network for cross-device access (100.118.151.61)
 

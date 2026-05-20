@@ -204,7 +204,7 @@ export async function commitMultipleFiles(
     {
       method: "POST",
       body: JSON.stringify({
-        message: `${message}\n\nCo-Authored-By: Nick AI <nick@autonicks.com>`,
+        message: `${message}\n\nCo-Authored-By: Nick AI <nick@bdnick.info>`,
         tree: treeData.sha,
         parents: [latestCommitSha],
       }),
@@ -312,7 +312,7 @@ export async function getDeploymentStatus(): Promise<{
     const commits = await getRecentCommits("statenour-os", "codex/ollama-local", 1);
     return {
       status: "unknown (no Vercel token — check dashboard)",
-      url: "https://autonicks.com",
+      url: "https://bdnick.info",
       createdAt: commits[0]?.date ?? "",
       buildDuration: 0,
     };

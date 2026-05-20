@@ -7,7 +7,7 @@
 > `docs/NEXT-EVOLUTION-2026-05-16.md`. Kept for historical context ·
 > do not treat as live.
 
-**Subject:** statenour-os (`autonicks.com`) · Nour's personal OS.
+**Subject:** statenour-os (`bdnick.info`) · Nour's personal OS.
 **Audience:** Nour.
 **Frame:** four axes Nour cares about · uniform / organized · intelligent · useful · interesting.
 **Method:** code-grounded · numbers from `find / grep / git` over the live tree · current commit `78f2617` (v10.0.267) plus v10.0.268-270 in flight.

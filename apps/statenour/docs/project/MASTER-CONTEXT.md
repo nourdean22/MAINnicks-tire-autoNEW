@@ -26,7 +26,7 @@ Nour Dean, 31, CEO of Nick's Tire & Auto (Cleveland/Euclid area). Lebanese-Ameri
 
 ## THE TWO SYSTEMS
 
-### 1. statenour-os (autonicks.com) — Personal Command Center
+### 1. statenour-os (bdnick.info) — Personal Command Center
 - **Stack:** Next.js 16 App Router, TypeScript, Prisma, Neon PostgreSQL, Tailwind CSS 4
 - **Deployed on:** Vercel (auto-deploys on push)
 - **Repo:** github.com/nourdean22/statenour-os

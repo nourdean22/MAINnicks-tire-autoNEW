@@ -49,6 +49,6 @@
     }
   },
   "server": {
-    "url": "https://autonicks.com/api/vapi/check-used-tire-stock"
+    "url": "https://bdnick.info/api/vapi/check-used-tire-stock"
   }
 }

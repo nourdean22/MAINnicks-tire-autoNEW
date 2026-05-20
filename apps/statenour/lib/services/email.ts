@@ -7,7 +7,7 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM_EMAIL = "NOUR OS <noreply@autonicks.com>";
+const FROM_EMAIL = "NOUR OS <noreply@bdnick.info>";
 const DEFAULT_TO = "nourdean22@gmail.com";
 
 export interface EmailOptions {
@@ -50,7 +50,7 @@ export function driftAlertEmail(alerts: { ruleName: string; severity: string; me
 
   return {
     subject: `⚠ ${alerts.length} Drift Alert${alerts.length > 1 ? "s" : ""} — NOUR OS`,
-    text: `You have ${alerts.length} unresolved drift alert${alerts.length > 1 ? "s" : ""}:\n\n${alertList}\n\nReview at https://autonicks.com/drift`,
+    text: `You have ${alerts.length} unresolved drift alert${alerts.length > 1 ? "s" : ""}:\n\n${alertList}\n\nReview at https://bdnick.info/drift`,
     html: `
       <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e5e5e5; padding: 24px; border-radius: 12px;">
         <h2 style="color: #f59e0b; font-size: 18px; margin: 0 0 16px;">⚠ Drift Alerts</h2>
@@ -63,7 +63,7 @@ export function driftAlertEmail(alerts: { ruleName: string; severity: string; me
             <div style="font-size: 12px; color: #a1a1aa; margin-top: 4px;">${a.message}</div>
           </div>
         `).join("")}
-        <a href="https://autonicks.com/drift" style="display: inline-block; margin-top: 16px; background: #f59e0b; color: #000; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Review Alerts →</a>
+        <a href="https://bdnick.info/drift" style="display: inline-block; margin-top: 16px; background: #f59e0b; color: #000; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Review Alerts →</a>
       </div>
     `,
   };
@@ -101,7 +101,7 @@ export function dailySummaryEmail(data: {
             </div>
           `).join("")}
         </div>
-        <a href="https://autonicks.com/system" style="display: inline-block; margin-top: 16px; background: #27272a; color: #e5e5e5; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">Open Dashboard →</a>
+        <a href="https://bdnick.info/system" style="display: inline-block; margin-top: 16px; background: #27272a; color: #e5e5e5; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 500;">Open Dashboard →</a>
       </div>
     `,
   };
@@ -110,7 +110,7 @@ export function dailySummaryEmail(data: {
 export function deviceOfflineEmail(deviceName: string, platform: string, lastSeen: string): EmailOptions {
   return {
     subject: `🔴 Device Offline: ${deviceName}`,
-    text: `${deviceName} (${platform}) has been offline for over 24 hours.\nLast seen: ${lastSeen}\n\nCheck at https://autonicks.com/devices`,
+    text: `${deviceName} (${platform}) has been offline for over 24 hours.\nLast seen: ${lastSeen}\n\nCheck at https://bdnick.info/devices`,
     html: `
       <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #0a0a0a; color: #e5e5e5; padding: 24px; border-radius: 12px;">
         <h2 style="color: #ef4444; font-size: 18px; margin: 0 0 16px;">🔴 Device Offline</h2>
@@ -119,7 +119,7 @@ export function deviceOfflineEmail(deviceName: string, platform: string, lastSee
           <div style="font-size: 13px; color: #a1a1aa; margin-top: 4px;">Platform: ${platform}</div>
           <div style="font-size: 13px; color: #a1a1aa;">Last seen: ${lastSeen}</div>
         </div>
-        <a href="https://autonicks.com/devices" style="display: inline-block; margin-top: 16px; background: #ef4444; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Check Devices →</a>
+        <a href="https://bdnick.info/devices" style="display: inline-block; margin-top: 16px; background: #ef4444; color: #fff; padding: 10px 20px; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 600;">Check Devices →</a>
       </div>
     `,
   };

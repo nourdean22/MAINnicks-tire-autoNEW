@@ -99,11 +99,11 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
       // If a window is already open for this app, focus + navigate.
-      // Match autonicks.com (prod) OR localhost (dev) so the PWA click
+      // Match bdnick.info (prod) OR localhost (dev) so the PWA click
       // works in both environments.
       for (const client of windowClients) {
         const sameApp =
-          client.url.includes('autonicks.com') ||
+          client.url.includes('bdnick.info') ||
           client.url.includes('localhost') ||
           client.url.includes('127.0.0.1');
         if (sameApp && 'focus' in client) {

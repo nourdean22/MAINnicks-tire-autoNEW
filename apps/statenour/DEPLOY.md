@@ -1,6 +1,6 @@
 # statenour-web · deploy contract
 
-**Live URL** · https://statenour-web-production.up.railway.app (custom domain TBD post-Vercel-retire)
+**Live URL** · https://statenour-web-production.up.railway.app · custom domain `bdnick.info` (Railway-managed · attach in the service's Networking settings)
 
 ## Railway service
 

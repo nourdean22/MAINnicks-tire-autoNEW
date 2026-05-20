@@ -17,7 +17,7 @@ load_dotenv(Path(__file__).parent / ".env")
 
 log = logging.getLogger("ring-agent")
 
-API_URL = os.getenv("STATENOUR_API_URL", "https://autonicks.com")
+API_URL = os.getenv("STATENOUR_API_URL", "https://bdnick.info")
 SYNC_KEY = os.getenv("STATENOUR_SYNC_KEY", "")
 RING_EMAIL = os.getenv("RING_EMAIL", "")
 RING_PASSWORD = os.getenv("RING_PASSWORD", "")

@@ -249,17 +249,17 @@ while ($true) {
 
 ```bash
 # Enqueue a command (as the dashboard would)
-curl -X POST https://autonicks.com/api/devices/command \
+curl -X POST https://bdnick.info/api/devices/command \
   -H "Content-Type: application/json" \
   -b "<session cookie>" \
   -d '{"deviceId":"cl1a...","command":"turn_on"}'
 
 # Agent poll (as the desktop would)
-curl https://autonicks.com/api/devices/queue?limit=5 \
+curl https://bdnick.info/api/devices/queue?limit=5 \
   -H "x-sync-key: $SYNC_KEY"
 
 # Agent ack
-curl -X PATCH https://autonicks.com/api/devices/command/<cmdId> \
+curl -X PATCH https://bdnick.info/api/devices/command/<cmdId> \
   -H "x-sync-key: $SYNC_KEY" \
   -H "Content-Type: application/json" \
   -d '{"status":"acked","resultState":{"on":true}}'

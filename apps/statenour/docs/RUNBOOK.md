@@ -9,7 +9,7 @@ Operational playbook. When something breaks or drifts, start here.
 ```
 something's wrong
      │
-     ├── autonicks.com won't load
+     ├── bdnick.info won't load
      │       → /api/health   (public)
      │       → vercel dashboard
      │       → Neon status page
@@ -218,7 +218,7 @@ Normal path:
 2. pre-push hook runs: typecheck + lint + test
 3. push → CI (.github/workflows/ci.yml) verifies
 4. mirror workflow fast-forwards statenour-master
-5. Vercel production deploys from statenour-master → autonicks.com
+5. Vercel production deploys from statenour-master → bdnick.info
 ```
 
 **Emergency rollback:**
@@ -302,8 +302,8 @@ Last-resort recovery from a Neon branch:
 
 ## Incident playbook
 
-**Severity 1 — autonicks.com is down.**
-1. `curl https://autonicks.com/api/health` — note the error.
+**Severity 1 — bdnick.info is down.**
+1. `curl https://bdnick.info/api/health` — note the error.
 2. Vercel status dashboard.
 3. Neon status page (if DB is the problem).
 4. Recent deploy in Vercel → instant rollback if it correlates.

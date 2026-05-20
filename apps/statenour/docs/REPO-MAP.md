@@ -40,7 +40,7 @@ center) — plus a small **desktop layer** for local-only IoT control.
                │ every 4h → statenour-sync
                │
      ┌─────────▼──────────────────────┐
-     │   autonicks.com                │
+     │   bdnick.info                │
      │   (statenour-os)               │
      │   Next.js 16 · Prisma · Neon   │
      │   Vercel · codex/ollama-local  │
@@ -86,7 +86,7 @@ Vercel lambdas don't have to run `setInterval` (saves ~20-30% memory).
   daily-report (7pm) · cleanup (6h) · warranty-alerts (8am) ·
   dashboard-sync (15m Mon-Sat) · abandoned-forms (30m) ·
   stale-lead-followup (2h Mon-Sat) · **statenour-sync (4h)** ←
-  this hits autonicks.com · customer-segmentation (disabled) ·
+  this hits bdnick.info · customer-segmentation (disabled) ·
   retention-90day (disabled)
 - **Status:** ACTIVE
 
@@ -113,7 +113,7 @@ cron schedule, reacts to weather triggers, self-learns from engagement.
 
 ## PERSONAL RING — command center (1 repo)
 
-### `statenour-os` · autonicks.com ← you are here
+### `statenour-os` · bdnick.info ← you are here
 Nour's personal OS. Nick chat + brain + pins + situation card +
 goal/project/task bridge + tasks + journal + knowledge + devices.
 
