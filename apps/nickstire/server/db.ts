@@ -1015,7 +1015,7 @@ export async function getCompletedBookingsWithoutReview(lookbackDays = 365) {
 import {
   serviceReminders, InsertServiceReminder,
   reminderSettings, InsertReminderSetting,
-  smsConversations, InsertSmsConversation,
+  smsConversations, InsertSmsConversation, SmsConversation,
   smsMessages, InsertSmsMessage,
   repairGallery, InsertRepairGalleryItem,
   technicians, InsertTechnician,
@@ -1218,7 +1218,7 @@ export async function addSmsMessage(data: InsertSmsMessage) {
   return { success: true, id: Number(result[0].insertId) };
 }
 
-export async function getConversations(limit = 50) {
+export async function getConversations(limit = 50): Promise<SmsConversation[]> {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(smsConversations)

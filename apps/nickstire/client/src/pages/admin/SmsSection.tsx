@@ -79,7 +79,7 @@ interface MessageRow {
   direction: "inbound" | "outbound";
   body: string;
   twilioSid: string | null;
-  status: "queued" | "sent" | "delivered" | "failed" | "received";
+  status: "queued" | "sent" | "delivered" | "failed" | "received" | "sending";
   createdAt: string | Date;
 }
 
@@ -485,7 +485,7 @@ function ConversationList({
   );
 
   const filtered = useMemo(() => {
-    const rows = (list.data as ConversationRow[] | undefined) ?? [];
+    const rows = list.data ?? [];
     if (!searchQ.trim()) return rows;
     const q = searchQ.toLowerCase();
     return rows.filter((c) =>
@@ -496,7 +496,7 @@ function ConversationList({
   }, [list.data, searchQ]);
 
   const totalUnread = useMemo(() =>
-    ((list.data as ConversationRow[] | undefined) ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
+    (list.data ?? []).reduce((acc, c) => acc + (c.unreadCount ?? 0), 0),
     [list.data]
   );
 
@@ -612,7 +612,7 @@ export default function SmsSection() {
   const list = trpc.smsConversations.list.useQuery({ limit: 100 });
 
   const selected = useMemo(
-    () => (list.data as ConversationRow[] | undefined)?.find((c) => c.id === selectedId) ?? null,
+    () => list.data?.find((c) => c.id === selectedId) ?? null,
     [list.data, selectedId],
   );
 

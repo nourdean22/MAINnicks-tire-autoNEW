@@ -84,11 +84,13 @@ export async function scheduleBookingReminders(
     }
 
     // 1 hour before (assume morning appointment if no time specified)
-    // Convert ET business hours to UTC — Railway runs UTC
+    // Convert ET business hours to UTC — Railway runs UTC. The "-1" for
+    // the one-hour-prior offset is folded into setUTCHours so the whole
+    // calculation stays in UTC; the prior setHours/getHours follow-up
+    // read local time (correct on UTC Railway, but confusing to read).
     const reminder1h = new Date(apptDate);
     const etHour = preferredTime === "morning" ? 8 : preferredTime === "afternoon" ? 13 : 9;
-    reminder1h.setUTCHours(etHourToUtcHour(reminder1h, etHour), 0, 0, 0);
-    reminder1h.setHours(reminder1h.getHours() - 1);
+    reminder1h.setUTCHours(etHourToUtcHour(reminder1h, etHour) - 1, 0, 0, 0);
     if (reminder1h > new Date()) {
       reminders.push({ type: "1h-before", scheduledFor: reminder1h });
     }
@@ -170,6 +172,27 @@ export async function processScheduledSms() {
   const now = new Date();
   let sent = 0;
   let failed = 0;
+
+  // Recovery sweep — reclaim reminders orphaned in "processing". A row is
+  // only meant to sit in "processing" for the duration of one
+  // processScheduledSms() pass. Anything still "processing" with sentAt
+  // NULL and a scheduledFor >45min in the past was abandoned by a crashed
+  // run — or over-claimed (the claim UPDATE below is unbounded but the
+  // SELECT is capped at 50, so a >50-row backlog strands the overflow).
+  // Flip those back to "pending" so a later run re-claims them; without
+  // this they strand forever and the customer never gets the reminder.
+  // 45min is comfortably longer than any single pass (<=50 sequential
+  // sends) so a live run is never reclaimed out from under itself.
+  const stuckCutoff = new Date(now.getTime() - 45 * 60 * 1000);
+  await db.update(appointmentReminders)
+    .set({ status: "pending" })
+    .where(
+      and(
+        eq(appointmentReminders.status, "processing"),
+        isNull(appointmentReminders.sentAt),
+        lte(appointmentReminders.scheduledFor, stuckCutoff)
+      )
+    );
 
   // Atomically claim pending reminders by marking them "processing" first.
   // This prevents duplicate SMS if two scheduler runs overlap.

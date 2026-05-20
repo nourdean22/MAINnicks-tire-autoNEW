@@ -1,6 +1,8 @@
 /**
  * SMS Conversations Router
- * Handles 2-way SMS messaging with customers via Twilio.
+ * Two-way SMS messaging with customers. Outbound routes through the
+ * F25e shop gateway (Twilio fallback); inbound replies are recorded by
+ * the SMS Gateway webhook (routes/webhooks/sms-gateway.ts).
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
@@ -17,7 +19,22 @@ export const smsConversationsRouter = router({
   list: adminProcedure
     .input(z.object({ limit: z.number().int().min(1).max(200).default(50) }).optional())
     .query(async ({ input }) => {
-      return getConversations(input?.limit ?? 50);
+      // Map DB columns → the shape the admin SMS inbox (SmsSection.tsx)
+      // expects. sms_conversations stores `phone` / `lastMessagePreview`;
+      // the client ConversationRow type reads `customerPhone` /
+      // `lastMessage`. Without this projection both arrive undefined —
+      // every thread shows a blank phone + "No messages", and replying
+      // in-thread posts phone:undefined which the send input's
+      // z.string().min(10) rejects.
+      const rows = await getConversations(input?.limit ?? 50);
+      return rows.map((c) => ({
+        id: c.id,
+        customerPhone: c.phone,
+        customerName: c.customerName,
+        lastMessage: c.lastMessagePreview,
+        lastMessageAt: c.lastMessageAt,
+        unreadCount: c.unreadCount,
+      }));
     }),
 
   /** Get messages for a specific conversation (admin) */
@@ -85,22 +102,3 @@ export const smsConversationsRouter = router({
       }
     }),
 });
-
-/**
- * Handle an inbound SMS from Twilio webhook.
- * Called from the Express route handler.
- */
-export async function handleInboundSms(from: string, body: string, twilioSid?: string) {
-  const normalized = from.replace(/\D/g, "").slice(-10);
-  const conversation = await getOrCreateConversation(normalized);
-
-  await addSmsMessage({
-    conversationId: conversation.id,
-    direction: "inbound",
-    body,
-    twilioSid: twilioSid || undefined,
-    status: "received",
-  });
-
-  return { conversationId: conversation.id };
-}

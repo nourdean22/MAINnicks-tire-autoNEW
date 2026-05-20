@@ -93,8 +93,10 @@ export async function logSmsOptIn(params: {
 }
 
 /**
- * Record an SMS opt-out. Called from the Twilio webhook when STOP/UNSUBSCRIBE/
- * CANCEL/END/QUIT is received — or manually by admin.
+ * Record an SMS opt-out. Live callers: executeAutoAction (services/
+ * smsResponseParser.ts) on opt-out keywords, and the SMS-bot STOP handler
+ * (routers/smsBot.ts) — both reached via the inbound SMS webhooks. `via`
+ * distinguishes keyword- vs. admin/API-initiated opt-outs.
  */
 export async function logSmsOptOut(params: {
   phone: string;
