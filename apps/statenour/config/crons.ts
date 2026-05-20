@@ -1152,38 +1152,32 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
     addedAt: "2026-05-12",
   },
+
+  // ── FOLDED · Railway/Inngest evening fan-out ───────────────────────
+  // Run via the EVENING_JOBS list in src/inngest/jobs.ts, not a
+  // standalone schedule. Registered here so config/crons.ts stays the
+  // complete cron catalog (verify-crons.ts step 2 · dark-code check).
+  {
+    name: "judge-eval-shadow",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening. Phase X auto-corpus-builder for the AGENT_V1 to AGENT_V2 prompt-builder migration · samples fresh prompts, replays each through both builders, judges + persists the comparison.",
+    addedAt: "2026-05-18",
+  },
+  {
+    name: "suggestion-outcome-rollup",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    description:
+      "FOLDED into mega-evening. Closes the suggestion-loop end-to-end · pairs each 'acted' action signal with downstream Task completions within 24h and writes a neutral outcome row back to brain_memory.",
+    addedAt: "2026-05-19",
+  },
 ];
-
-/** Active crons in the shape vercel.json expects. */
-export function buildVercelCronsBlock(): { path: string; schedule: string }[] {
-  return CRONS.filter((c) => c.mode === "active" && c.schedule).map((c) => ({
-    path: c.path ?? `/api/cron/${c.name}`,
-    schedule: c.schedule!,
-  }));
-}
-
-/** Active crons in the shape vercel.json `functions` expects. */
-export function buildVercelFunctionsBlock(): Record<string, { memory?: number; maxDuration?: number }> {
-  const out: Record<string, { memory?: number; maxDuration?: number }> = {
-    // Non-cron AI routes also get their own budget.
-    "app/api/ai/chat/route.ts": { memory: 1024, maxDuration: 120 },
-    "app/api/ai/strategy/daily/route.ts": { memory: 512, maxDuration: 120 },
-    "app/api/ai/strategy/analyze/route.ts": { memory: 512, maxDuration: 120 },
-    "app/api/ai/assist/route.ts": { memory: 512, maxDuration: 120 },
-  };
-  for (const c of CRONS) {
-    if (c.mode !== "active") continue;
-    if (!c.memory && !c.maxDuration) continue;
-    // Handle mega-evening alias — both point at same route file.
-    const routeName = c.name === "mega-evening" ? "mega" : c.name;
-    const routeKey = `app/api/cron/${routeName}/route.ts`;
-    out[routeKey] = {
-      ...(c.memory ? { memory: c.memory } : {}),
-      ...(c.maxDuration ? { maxDuration: c.maxDuration } : {}),
-    };
-  }
-  return out;
-}
 
 /** Names of crons that SHOULD exist as routes (for verifier). */
 export function expectedCronRouteNames(): Set<string> {
