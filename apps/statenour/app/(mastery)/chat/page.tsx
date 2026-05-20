@@ -153,8 +153,6 @@ import {
   extractCitations,
 } from "@/lib/chat/extract-message-metadata";
 import { dedupeMessages } from "@/lib/chat/dedupe-messages";
-import { ModePill } from "@/components/chat/mode-pill";
-import { detectChatMode } from "@/lib/ai/chat-mode-detect";
 // v10.0.529.106 · Wave 83 · SmartReplies + LaneCorrectionChip +
 // ActionClaimWarning all moved into SmartRepliesCluster.
 import { SmartRepliesCluster } from "@/components/chat/smart-replies-cluster";
@@ -490,15 +488,6 @@ function Chat() {
   // reflection / strategic_law / chat_message) contributed to the reply.
   const [deeperContext, setDeeperContext] = useState<{ count: number; types: string[] } | null>(null);
 
-  // Apr 20 — Mode-that-actually-ran. Populated from the X-Nick-Mode
-  // response header. ModePill shows this alongside the predicted
-  // mode so Nour sees "predicted DEEP → ran DEEP" confirmation or
-  // "predicted STANDARD → ran DEEP (override)" feedback.
-  const [lastRunMode, setLastRunMode] = useState<{
-    mode: "standard" | "deep";
-    source: "auto" | "override";
-  } | null>(null);
-
   // Apr 19 · Live context-blocks cache — populated by the transport
   // fetch wrapper from X-Context-Blocks header. Read by the assistant
   // message shell while streaming; later overwritten by persisted
@@ -531,7 +520,6 @@ function Chat() {
     lastPersonaHeaderRef,
     lastTraceIdRef,
     setDeeperContext,
-    setLastRunMode,
     onConversationId: (id) => onConversationIdRef.current?.(id),
   });
 
@@ -737,9 +725,6 @@ function Chat() {
   // signal instead of a static "Message Nick…".
   const adaptivePlaceholder = useAdaptivePlaceholder();
 
-  // Apr 19 · Idle suggestion — 3s of focused-but-empty input →
-  // surface ONE context-aware opener inline above the input.
-  const [inputFocused, setInputFocused] = useState(false);
   // v10.0.529.18 · idleDismissed + useIdleSuggestion both removed.
   // The render site was deleted in v10.0.141 per operator request ·
   // the hook stayed wired but its return value was never consumed.
@@ -1873,7 +1858,7 @@ function Chat() {
           telemetry from the active conversation. Sparkline + cost
           counter + provider badge. Silent when there's no telemetry
           (legacy convs without Batch A data). */}
-      {!isEmpty && messages.length > 0 && (
+      {!isEmpty && (
         // v10.0.529.54 · cut AiPulse Spline mesh · audit flagged as
         // pure vanity (data props default-on · not wired to real
         // provider/latency · burns a WebGL context on every chat open).
@@ -2056,7 +2041,7 @@ function Chat() {
                     {/* Timestamp — shown on role changes and periodically */}
                     {showTimestamp && timeLabel && (
                       <div className={cn(
-                        "text-[8px] font-mono uppercase tracking-wider mb-0.5",
+                        "text-[10px] font-mono uppercase tracking-wider mb-0.5",
                         msg.role === "user" ? "text-[var(--gold)]/40 text-right" : "text-[var(--text-tertiary)]/50"
                       )}>
                         {msg.role === "assistant" && <span className="text-[var(--gold)]/30 mr-1">Nick</span>}
@@ -2657,8 +2642,6 @@ function Chat() {
                 }
               }}
               onKeyDown={handleKey}
-              onFocus={() => setInputFocused(true)}
-              onBlur={() => setInputFocused(false)}
               placeholder={adaptivePlaceholder}
               rows={1}
               /* Apr 27 · MOBILE-FLUIDITY:
