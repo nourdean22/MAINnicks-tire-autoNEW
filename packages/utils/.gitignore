@@ -1,0 +1,13 @@
+# @nour/utils intentionally COMMITS its build output.
+#
+# package.json points main/types/exports at ./dist/*, and the package is
+# consumed as a PREBUILT workspace dependency (apps/nickstire's vite build,
+# apps/statenour, apps/worker). On a fresh clone — e.g. a Railway build —
+# dist/ must already exist or `vite build` fails with:
+#   [commonjs--resolver] Failed to resolve entry for package "@nour/utils"
+#
+# The root .gitignore has a blanket `dist/` rule; these negations override
+# it for THIS package only. After changing src/, rebuild + commit dist:
+#   pnpm --filter @nour/utils build
+!dist/
+!dist/**
