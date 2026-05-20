@@ -1015,7 +1015,36 @@ ${urls.join("\n")}
   const { validateTwilioRequest } = await import("../middleware/twilioValidation");
   app.post("/api/sms-webhook", express.urlencoded({ extended: false }), validateTwilioRequest, async (req, res) => {
     try {
-      const { Body, From } = req.body;
+      const { Body, From, MessageSid } = req.body;
+
+      // Dedup — Twilio delivers inbound webhooks at-least-once. A
+      // redelivery must not re-run the booking-bot state machine (it
+      // would double-advance / re-save the booking), re-fire
+      // executeAutoAction, or re-send the bot's TwiML reply. If this
+      // MessageSid is already recorded, ack with empty TwiML and skip.
+      const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../db");
+      if (MessageSid && (await smsMessageExists(String(MessageSid)))) {
+        console.warn(`[SMS] Duplicate inbound webhook ignored: ${String(MessageSid).slice(0, 12)}`);
+        res.type("text/xml").send("<Response></Response>");
+        return;
+      }
+      // Persist inbound — the conversation-thread record + the dedup
+      // marker the check above reads.
+      if (From && Body) {
+        try {
+          const conversation = await getOrCreateConversation(String(From));
+          await addSmsMessage({
+            conversationId: conversation.id,
+            direction: "inbound",
+            body: String(Body),
+            twilioSid: MessageSid ? String(MessageSid) : undefined,
+            status: "received",
+          });
+        } catch (persistErr) {
+          console.warn("[SMS] Failed to persist inbound webhook SMS:", persistErr instanceof Error ? persistErr.message : persistErr);
+        }
+      }
+
       // 1. Run booking bot state machine (returns reply text)
       const reply = await handleIncomingSMS(From, Body);
 

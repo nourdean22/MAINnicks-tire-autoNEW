@@ -811,6 +811,10 @@ export const smsMessages = mysqlTable("sms_messages", {
   sms_attribution_idx: index("sms_attribution_idx").on(table.direction, table.createdAt),
   // wave-181.51 — supports A/B aggregator queries in the admin tile
   sms_variant_idx: index("sms_variant_idx").on(table.variantKey, table.createdAt),
+  // audit #9 — speeds smsMessageExists() inbound-webhook dedup + the
+  // smsGateway delivery-receipt UPDATEs (both filter on twilioSid).
+  // Applied by drizzle/0050_wave181_sms_messages_twilio_sid_index.sql.
+  idx_sms_msg_twilio_sid: index("idx_sms_msg_twilio_sid").on(table.twilioSid),
 }));
 
 export type SmsMessage = typeof smsMessages.$inferSelect;
