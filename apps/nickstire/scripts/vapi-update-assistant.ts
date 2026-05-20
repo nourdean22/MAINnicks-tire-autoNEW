@@ -58,12 +58,22 @@ async function main(): Promise<void> {
     if (codeTransferIdx >= 0) {
       const codeTool = config.model.tools[codeTransferIdx];
       if (codeTool.type === "transferCall") {
-        codeTool.destinations = liveDestinations.map((d) => ({
-          type: (d.type as "number") || "number",
-          number: d.number as string,
-          message: (d.message as string) ?? codeTool.destinations[0]?.message,
-          description: (d.description as string) ?? codeTool.destinations[0]?.description,
-        }));
+        codeTool.destinations = liveDestinations.map((d) => {
+          // Preserve a dashboard-set transferPlan (e.g. the warm-transfer
+          // config) so a code re-push does not silently revert transfers
+          // to a blind transfer — which does not connect from a Vapi
+          // number. Fall back to the code default's transferPlan.
+          const transferPlan =
+            (d.transferPlan as { mode: string; message?: string } | undefined) ??
+            codeTool.destinations[0]?.transferPlan;
+          return {
+            type: (d.type as "number") || "number",
+            number: d.number as string,
+            message: (d.message as string) ?? codeTool.destinations[0]?.message,
+            description: (d.description as string) ?? codeTool.destinations[0]?.description,
+            ...(transferPlan ? { transferPlan } : {}),
+          };
+        });
         console.log(`✅ Preserved dashboard-set transfer destinations: ${codeTool.destinations.map((d) => d.number).join(", ")}`);
       }
     }
