@@ -313,6 +313,10 @@
 
   html {
     scroll-behavior: smooth;
+    /* Offset in-page anchor jumps (#booking, #services, #contact) so the
+       target heading lands clear of the 60px fixed navbar instead of
+       tucked behind it. */
+    scroll-padding-top: 5rem;
   }
 
   ::selection {

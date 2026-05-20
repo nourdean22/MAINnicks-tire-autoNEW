@@ -20,7 +20,7 @@ export default function BookingPage() {
     <>
       <SEOHead
         title="Drop Off · No Appointments · Nick's Tire & Auto Cleveland"
-        description="No appointments at Nick's Tire & Auto. We work first come first served. Pull up at 25425 Euclid Ave. Drop off if you can't wait — we text when ready."
+        description="No appointments at Nick's Tire & Auto. We work first come first served. Pull up at 17625 Euclid Ave. Drop off if you can't wait — we text when ready."
         canonicalPath="/booking"
       />
 
@@ -51,8 +51,8 @@ export default function BookingPage() {
             <div className="text-center">
               <MapPin className="mx-auto w-6 h-6 text-primary mb-2" />
               <p className="text-[11px] font-bold tracking-wider uppercase text-foreground/60 mb-1">Where We Are</p>
-              <p className="text-[15px] text-foreground">25425 Euclid Ave</p>
-              <p className="text-[13px] text-foreground/60">Euclid, OH 44132</p>
+              <p className="text-[15px] text-foreground">{BUSINESS.address.street}</p>
+              <p className="text-[13px] text-foreground/60">{BUSINESS.address.city}, {BUSINESS.address.state} {BUSINESS.address.zip}</p>
             </div>
             <div className="text-center">
               <Phone className="mx-auto w-6 h-6 text-primary mb-2" />

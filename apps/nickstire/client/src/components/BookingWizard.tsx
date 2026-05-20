@@ -85,7 +85,7 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-primary" />
-              25425 Euclid Ave, Euclid OH
+              {BUSINESS.address.street}, {BUSINESS.address.city} {BUSINESS.address.state}
             </span>
           </div>
 
