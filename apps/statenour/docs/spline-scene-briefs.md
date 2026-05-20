@@ -1,216 +1,347 @@
-# Spline Scene Briefs · v10.0.290
+# Spline Scene Briefs · NOUR OS 3D Layer
 
-Design briefs for the 4 Spline 3D scenes that anchor the
-**interactive command-center UI upgrade**. Builds in Spline editor at
-[https://app.spline.design](https://app.spline.design). Each scene
-should reflect the gold-on-dark operator-grade brand stance: rich but
-never busy, dimensional but never crowding the data overlay.
+**v10.0.290 · 2026-05-20 · Phase 1 deliverable**
+
+This document is the build spec for the 4 Spline scenes that make up
+the interactive 3D layer. The integration scaffold (`components/3d/`)
+is already in place and ships graceful no-ops while the scenes are
+unbuilt — see *Status* below.
+
+**Audience:** the operator, building scenes in the Spline editor at
+[app.spline.design](https://app.spline.design). Build each scene to
+its brief, export it, and paste the resulting
+`prod.spline.design/<id>/scene.splinecode` URL into the matching slot
+in `components/3d/scene-registry.ts`.
 
 ---
 
-## Brand tokens (apply to every scene)
+## Status
 
-| Token | Hex | Usage |
+| Phase | State |
+|---|---|
+| 1 · Integration scaffold | **Done** — `components/3d/` (8 files) + this doc |
+| 2 · Build scenes in Spline | **You are here** — build per the briefs below |
+| 3 · Wire each surface | Pending — one PR per surface, after URLs land |
+| 4 · Mobile Lighthouse + tune | Pending |
+
+With TBD placeholder URLs in `scene-registry.ts`, `<SplineScene>`
+renders `<SceneSkeleton>` (a gold-on-dark shimmer) plus a tiny
+dev-only "scene pending" badge. Nothing crashes; the Spline runtime
+chunk is never even fetched. The moment a real URL replaces a `TBD:`
+sentinel, that scene goes live wherever its wrapper is mounted.
+
+---
+
+## Shared design contract — applies to ALL 4 scenes
+
+The 3D layer must read as part of NOUR OS, not a generic Spline demo.
+
+### Color — gold-on-dark, no exceptions
+
+The app's real tokens (from `app/globals.css`). Match these hex
+values in the Spline editor's color pickers:
+
+| Token | Hex | Use |
 |---|---|---|
-| `--bg-base` | `#0A0A0A` | Scene background (hide via Play Settings · the page already has this color behind) |
-| `--gold` | `#FDB913` | Primary accent · edges, glows, key lights, hot states |
-| `--gold-dim` | `#D49A0E` | Secondary accent · receding edges, mid-tone metals |
-| `--violet-400` | `#A78BFA` | Identity / cognition tone · used for /brain galaxy + Ollama pulse |
-| `--text-primary` | `#F0F0F0` | Stark white-ish · use sparingly for highlights only |
-| `--emerald-400` | `#34D399` | Health / win state |
-| `--rose-400` | `#FB7185` | Critical / error state |
+| `--gold` | `#FDB913` | primary accent — edges, active nodes, emphasis |
+| `--gold-dim` | `#D49A0E` | secondary / low-energy gold |
+| `--bg-void` | `#050505` | scene background (or transparent) |
+| `--bg-base` | `#0A0A0A` | near-black depth |
+| `--bg-elevated` | `#1A1A1A` | mid-tone surfaces / inactive geometry |
+| `--text-tertiary` | `#909090` | quiet / inactive elements |
+| `--status-green` | `#22C55E` | health / win state (use sparingly) |
+| `--status-red` | `#EF4444` | **only** for critical alert states |
 
-Brand stance: low saturation overall, gold as the anchor, violet as the
-secondary spark. Avoid AI-default purple gradients · the violet here is
-discrete, never a fill.
+**Hard bans** (per the operator's anti-AI-slop UI gate):
+- **No purple / violet.** No purple gradients, no violet "spark"
+  accent. `app/globals.css` deliberately renamed `--status-purple`
+  to `--status-ai` "to remove the standing invitation to add purple
+  gradients" — the 3D layer holds that line. The accent vocabulary is
+  gold; status states are green/red.
+- No pure black `#000000` — the void is `#050505`.
+- No Inter font. If a scene has text, use a condensed grotesk or none.
+- No symmetric, perfectly-centered "hero logo" compositions — the
+  geometry should carry information, not decoration.
 
----
+### Motion — ambient, never attention-stealing
 
-## Universal Play Settings (set on EVERY scene before exporting)
+Harmonize with the app's existing motion vocabulary (`pulse-live`
+2s ease-in-out, `shimmer` 2.4s sweeps, the 45s rotation of
+`components/goals/mastery-polyhedron.tsx`):
 
-In Spline editor: Play (top-right) → Play Settings:
+- Idle rotation: one revolution per **40–60 seconds**. Slow enough to
+  be ambient.
+- Idle pulse: a gentle sine on emissive intensity or scale,
+  **3–5 second** period (≈ 0.2–0.3 Hz).
+- No fast spins, no bouncing, no looping camera fly-throughs.
+- Honor reduced motion: keep idle motion subtle enough that it does
+  not need a hard stop, and design each scene so it still reads when
+  near-static. (The scaffold passes no reduced-motion flag in
+  Phase 1; Phase 4 may add one.)
 
-- ✅ **Hide Background ON** · the page already has a dark background; a transparent scene composites cleanly
-- ✅ **Hide Spline Logo ON** · requires paid Spline plan (do this if available)
-- ✅ **Geometry Quality: Performance** · mobile-first — operator is on phone often
-- ✅ **Disable Page Scroll, Zoom, Pan** unless scene specifically needs them (Knowledge Galaxy is the only one that wants pan)
-- ✅ **Limit FPS · 30** for ambient scenes (Command Core, AI Pulse) · 60 OK for Knowledge Galaxy + Framework Orbit (they get more visible interaction)
+### Performance — the operator is mobile-heavy
 
-After settings change, click **Generate Draft** or **Promote to Production** before copying the URL — the URL does NOT auto-update.
+Set these in the Spline editor **before** exporting:
 
-Then: **Export → Code Export → copy `prod.spline.design/<id>/scene.splinecode`** → paste into the matching slot in `components/3d/scene-registry.ts`.
+- **Play Settings → Geometry Quality = Performance.** This is the
+  mobile geometry tier the plan calls for.
+- **Limit FPS = 30** for the ambient scenes (Command Core, AI Pulse);
+  60 is acceptable for Knowledge Galaxy and Framework Orbit.
+- Keep polycount low — favor instanced/duplicated low-poly primitives
+  over high-subdivision meshes.
+- Minimize distinct materials; reuse one or two PBR materials.
+- No expensive shaders — no raymarching, SSR, refraction — and no
+  post-processing stacks (bloom, DOF, SSAO) unless a brief explicitly
+  calls for it. They are costly on mobile GPUs.
+- Lighting: at most one key light + one fill. No area lights, no IBL
+  probes.
+- **Hide Spline Logo = ON** (requires a paid Spline plan).
+- **Target file size: ≤ 2 MB per scene** (`.splinecode`). Treat it as
+  a ceiling, not a goal — smaller is better. If a scene won't fit,
+  cut geometry detail before anything else. Per-scene targets below
+  are tighter than 2 MB.
+
+After any Play Settings change, click **Generate Draft** or
+**Promote to Production** before copying the URL — the URL does
+**not** auto-update.
+
+### Variables — the data-binding contract
+
+Each scene below lists the runtime **Variables** it must expose
+(Spline editor → Variables panel). The scaffold's `useSceneBinding`
+hook calls `app.setVariable(name, value)` with exactly these names,
+throttled to 5s. Names are case-sensitive and must match exactly.
+Variable types are `number`, `boolean`, or `string` only.
+
+If a scene does not declare a variable the scaffold tries to set, the
+runtime silently no-ops it — but the binding then does nothing, so
+the names below are a strict contract. (Phase 1 wrappers pass an
+empty variable map — they are stubs; Phase 3 wires the real data.)
 
 ---
 
 ## Scene 1 · Command Core
 
-**Surface:** `app/(mastery)/page.tsx` (homepage Ultron) · ambient backdrop, full viewport, behind data
-**Wrapper:** `components/3d/command-core.tsx` · slot `commandCore`
-**Target file size:** ≤ 1.5 MB
-**Target dimensions:** square / 16:9 friendly · the wrapper stretches to fill
+| | |
+|---|---|
+| **Surface** | Homepage Ultron — `components/ultron/ultron.tsx` (Phase 3) |
+| **Wrapper** | `components/3d/command-core.tsx` |
+| **Registry slot** | `SCENE_URLS.commandCore` |
+| **Role** | Highest-visibility surface · ambient OS-landing backdrop |
+| **Target file size** | **≤ 1.5 MB** — it is a backdrop, keep it lean |
 
-**Aesthetic intent:**
-A geometric form that signals "this is your operating system." Not a logo, not a hero · an ambient anchor that exists behind the data so the homepage feels like a command center rather than a list. Subtle rotation, gold-edged crystalline geometry, dark interior. Like looking at the core of a power source.
+### Geometry
 
-**Visual recipe:**
-- A central form: an octahedron OR an icosahedron OR a low-poly Platonic compound (designer's call). Wireframe + thin gold edges, semi-transparent dark interior. Roughly 30% of the viewport's smaller dimension.
-- Behind it: a slow-drifting particle field — gold dust, ~80–120 particles, low opacity, slight depth-of-field.
-- Top edge: a faint horizon line, gold gradient → transparent. Anchors the form vertically.
-- No floor / no shadow plane. The form exists in dark space.
+A single rotating geometric **core** — a faceted polyhedron (an
+icosahedron, an octahedron, or a low-poly Platonic compound —
+designer's call), gold wireframe edges over a dark, semi-transparent
+interior. Think "the core of a power source, contained." It sits
+*behind* the homepage data overlay (the wrapper mounts as an
+absolute, negative-z backdrop), so it must never compete for
+attention: dim, deep, and slow.
 
-**Idle motion (when no data variation):**
-- Central form rotates on Y axis at ~10° / second
-- Particles drift radially outward at ~3 px/sec, fade out at edges
-- Faint pulse on the central form's emissive glow at 0.5 Hz
+- One central mesh group, roughly 30% of the viewport's smaller
+  dimension. No orbiting satellites, no scene clutter.
+- Gold (`#FDB913`) edges; interior faces in `--bg-base` /
+  `--bg-elevated`.
+- Optional: a faint gold dust field behind the core (≤ 120 instanced
+  particles, low opacity) and a faint gold horizon line at the top
+  edge. Both subtle. No floor, no shadow plane.
 
-**Data-bound variables (expose in Spline editor):**
-- `healthScore` · number 0–100 · drives core form's emissive intensity (100 = bright gold, 0 = dim)
-- `alertLevel` · string `"info" | "warn" | "critical"` · drives core form's edge color (info = gold, warn = amber, critical = rose)
-- `situationCount` · number · drives particle density (more particles when more active items)
+### Idle animation
 
-**Performance notes:**
-- This scene mounts on the homepage · it MUST be fast. Aim ≤ 1.5 MB.
-- Particles: keep below 150 instances. Use Spline's instance feature, not individual objects.
-- Materials: PBR, low metalness, low roughness on gold edges. Avoid raymarching, avoid SSR.
+- Slow Y-axis rotation, ~50s per revolution (~7°/s).
+- A gentle ~4s (≈ 0.25 Hz) emissive pulse on the wireframe edges,
+  synced in feel to the app's `pulse-live` keyframe.
+- If a dust field is used: particles drift slowly outward and fade at
+  the edges.
+
+### Data-reactive behavior + Variables
+
+| Variable | Type | Range | Drives |
+|---|---|---|---|
+| `healthScore` | number | 0–100 | Core integrity — 100 = whole, bright, stable; lower = edges flicker, interior dims (emissive intensity). |
+| `alertLevel` | string | `"info"` \| `"warn"` \| `"critical"` | Edge color — `info` = gold, `warn` = amber-shift, `critical` = `--status-red` rim. |
+| `situationCount` | number | 0–n | Core scale / dust density — a faint size pulse when active items climb. |
 
 ---
 
 ## Scene 2 · Knowledge Galaxy
 
-**Surface:** `app/(mastery)/brain/galaxy/page.tsx` · replaces existing SVG visualization
-**Wrapper:** `components/3d/knowledge-galaxy.tsx` · slot `knowledgeGalaxy`
-**Target file size:** ≤ 2.5 MB (this is the flagship · highest budget)
-**Target dimensions:** full viewport · the SVG it replaces is roughly 70vh × 100vw
+| | |
+|---|---|
+| **Surface** | `app/(mastery)/brain/galaxy/page.tsx` (Phase 3) |
+| **Wrapper** | `components/3d/knowledge-galaxy.tsx` |
+| **Registry slot** | `SCENE_URLS.knowledgeGalaxy` |
+| **Role** | The flagship scene · replaces the existing SVG galaxy |
+| **Target file size** | **≤ 2 MB** — the most generous budget; instancing should keep it well under |
 
-**Aesthetic intent:**
-A real 3D galaxy of memory items. Replaces the existing SVG nodes/edges with actual orbiting bodies. Camera slowly arcs around the galaxy core; the operator can pan to inspect. High-confidence memories glow gold; emerging / low-confidence ones glow violet. Larger and closer = more recent.
+### Geometry
 
-**Visual recipe:**
-- ~150–250 small spheres distributed in a flattened spiral disc (galaxy shape · not a pure sphere cloud).
-- Sphere sizes: 3 tiers (small / medium / large) keyed to recency.
-- Sphere colors: gold (`--gold`) for high-confidence, violet (`--violet-400`) for emerging / low-confidence. Smooth interpolation between.
-- Dust + thin connecting lines between near-by spheres (low opacity). Suggests semantic neighborhoods.
-- Background: faint nebula gradient · gold → black → violet. Very subtle.
+A real 3D **node constellation** — brain-memory records as a cloud of
+small glowing spheres distributed in a flattened spiral disc (a
+galaxy shape, not a pure sphere cloud), with faint connecting lines
+between near neighbors. The existing page is already a "galaxy" SVG,
+so a 3D node graph is a thematic upgrade, not decoration.
 
-**Idle motion:**
-- Camera orbits the galaxy center on a slow arc · 30 second loop
-- Galaxy itself rotates on its own axis at ~2° / second
-- Subtle parallax shimmer on the dust layer
+- 40–80 **instanced** low-poly spheres — use instancing, do not
+  hand-place high-poly meshes. (Scale toward the lower end for the
+  mobile budget.)
+- Sphere brightness/emissive = that node's confidence: bright gold
+  (`--gold`) = high confidence, dim gold (`--gold-dim`) = low.
+  Sphere size keyed to recency in 2–3 tiers.
+- Thin, low-opacity gold lines connect nodes within a proximity
+  threshold — suggests semantic neighborhoods. Keep line count modest.
+- A faint depth haze / nebula gradient toward the back for parallax
+  depth — gold → `--bg-void`. Very subtle. **No violet in the
+  nebula.**
+- This page has lower traffic, so the perf budget is the most
+  permissive of the four — but still respect the ceiling.
 
-**Data-bound variables:**
-- `memoryCount` · number · drives sphere-cloud density (more memories = more visible bodies)
-- `topConfidence` · number 0–1 · drives the brightest gold sphere's emissive intensity
-- `axisShift` · number `-1 | 0 | 1` · subtle camera nudge or color tint (rising / stable / falling)
+### Idle animation
 
-**Interactive features (Spline editor):**
-- Enable **Pan** in Play Settings · the operator can drag to inspect different regions
-- Enable **Zoom** with limits (min 0.5×, max 2×) · prevents getting lost
-- Optional: hover events on spheres → emit `node-hover` event with sphere name. Wrapper can map to a tooltip in v2.
+- The whole constellation drifts — a very slow Y rotation (~60s)
+  plus a gentle per-node bob so it feels alive, not frozen.
+- Subtle twinkle on node emissive (de-synced sine per node).
 
-**Performance notes:**
-- This is the flagship scene · 2.5 MB ceiling but try to land at ~2 MB.
-- Use instancing for spheres (Spline supports it) · DON'T create 250 individual objects.
-- Consider LOD: hide the smallest spheres at low zoom levels.
+### Interactive features (optional)
+
+- Enable **Pan** in Play Settings with limits — the operator can drag
+  to inspect regions. Enable **Zoom** clamped (min 0.5×, max 2×) so
+  the view can't get lost.
+- Optional: hover events on spheres can emit a Spline event for a
+  future tooltip. Not required for Phase 3.
+
+### Data-reactive behavior + Variables
+
+| Variable | Type | Range | Drives |
+|---|---|---|---|
+| `memoryCount` | number | 0–n | How many nodes are lit / how dense the visible cloud is. |
+| `topConfidence` | number | 0–1 | Brightness ceiling — scales the brightest nodes' emissive. |
+| `axisShift` | number | 0–1 | Drift intensity — how much the constellation re-arranges when the 8-axis self-model shifts. |
 
 ---
 
 ## Scene 3 · Framework Orbit
 
-**Surface:** `app/(mastery)/system/lens-stats/page.tsx` · embedded above the existing top-frameworks table inside a `<GlassCard>` host
-**Wrapper:** `components/3d/framework-orbit.tsx` · slot `frameworkOrbit`
-**Target file size:** ≤ 1.5 MB
-**Target dimensions:** roughly 16:9, fits within a card height of ~280–320 px
+| | |
+|---|---|
+| **Surface** | `app/(mastery)/system/lens-stats/page.tsx` (Phase 3) |
+| **Wrapper** | `components/3d/framework-orbit.tsx` |
+| **Registry slot** | `SCENE_URLS.frameworkOrbit` |
+| **Role** | Strategic-AI telemetry anchor, above the top-frameworks table |
+| **Target file size** | **≤ 1.5 MB** — 52 *instanced* spheres are cheap; tight on purpose |
 
-**Aesthetic intent:**
-52 framework lenses orbit a central point. Each is a small sphere; top-fired ones are larger and gold; less-used ones are smaller and gray. Visual signal: which lenses are pulling weight today. Like looking at a particle accelerator from the side.
+### Geometry
 
-**Visual recipe:**
-- A central anchor: a small dark gold sphere (the "core" representing the registry).
-- 52 spheres orbiting at varied distances + speeds (the orbits should look organic, not concentric rings — slight inclinations, varied radii).
+**52 small spheres orbiting** a central point — one sphere per
+strategic-frameworks lens (Pareto, OKRs, First-Principles, …). It
+should read like a particle accelerator seen from the side: a system
+in motion. This scene lives *inside a `<GlassCard>`* above the
+existing table — it must not eat the page.
+
+- A small, calm central anchor — a dark-gold core sphere representing
+  the registry.
+- 52 **instanced** low-poly spheres on varied orbital radii and
+  inclinations (organic, not concentric rings) — a single material
+  with per-instance color and scale.
 - Top 3 firers: gold (`--gold`), large (~3× base size).
-- Middle tier: gold-dim (`--gold-dim`), medium.
-- Long tail (most): gray, small.
-- Subtle motion blur on faster orbits.
-- No background detail · this is meant to live inside a card, not eat the page.
+  Middle tier: `--gold-dim`, medium. Long tail: `--text-tertiary`
+  gray, small.
+- No background detail — it lives in a card, target ~16:9 at a card
+  height of ~280–320px.
 
-**Idle motion:**
-- Each sphere orbits on its own period (8–30 seconds for a full revolution)
-- Inclinations vary so the cloud has 3D depth
-- Faint pulse on the central anchor at 0.3 Hz
+### Idle animation
 
-**Data-bound variables:**
-- `topFirerSize` · number 0–1 · scales the largest sphere (linear interp between base and 3×)
-- `secondFirerSize` · number 0–1 · scales the second-largest
-- `thirdFirerSize` · number 0–1 · scales the third-largest
-- `fallbackRate` · number 0–1 · when high (> 0.3), the central anchor pulses red — visual alert that lens routing is degraded
+- Each sphere orbits the center on its own period (~8–30s for a full
+  revolution); inclinations vary so the cloud has 3D depth.
+- A faint ~3s (≈ 0.3 Hz) pulse on the central anchor.
 
-**Performance notes:**
-- 52 spheres · use instancing. Single material with per-instance color/scale.
-- Card-embedded · low priority. Aim for ≤ 1.5 MB.
-- This scene doesn't need to be visible-quality at full screen · 16:9 small canvas is the target.
+### Data-reactive behavior + Variables
+
+| Variable | Type | Range | Drives |
+|---|---|---|---|
+| `topFirerSize` | number | 0–1 | Scale of the #1 most-fired lens sphere (linear interp between base and ~3×). |
+| `secondFirerSize` | number | 0–1 | Scale of the #2 lens sphere. |
+| `thirdFirerSize` | number | 0–1 | Scale of the #3 lens sphere. |
+| `fallbackRate` | number | 0–1 | System-wide lens-fallback proportion — when high (> ~0.3) the central anchor pulses `--status-red`: a visual alert that lens routing is degraded. |
 
 ---
 
 ## Scene 4 · AI Pulse
 
-**Surface:** `app/(mastery)/chat/page.tsx` · added to the existing status strip (sidebar / top bar · small footprint)
-**Wrapper:** `components/3d/ai-pulse.tsx` · slot `aiPulse`
-**Target file size:** ≤ 800 KB (smallest · this is decorative, not central)
-**Target dimensions:** small · 32 × 32 px to ~64 × 64 px
+| | |
+|---|---|
+| **Surface** | `app/(mastery)/chat/page.tsx` status strip (Phase 3) |
+| **Wrapper** | `components/3d/ai-pulse.tsx` |
+| **Registry slot** | `SCENE_URLS.aiPulse` |
+| **Role** | Smallest scene · most-touched surface · pulses with AI work |
+| **Target file size** | **≤ 800 KB** — smallest scene on the most-loaded route |
 
-**Aesthetic intent:**
-A tiny living indicator that pulses with AI provider activity. Color shifts gold (Venice/active), violet (Ollama), red (error/stalled). Pulse speed reflects streaming latency. The operator gets a peripheral signal of whether the AI is healthy without parsing logs.
+### Geometry
 
-**Visual recipe:**
-- A single small mesh: a low-poly ico-sphere OR a tetrahedron · designer's call. Lit from one side.
-- Material: emissive, color-driven by `colorIndex` variable.
-- Optional: a faint inner core that pulses out of phase with the outer mesh.
+A tiny living **indicator** — a single small, faceted shape (a
+low-poly ico-sphere or a tetrahedron — designer's call) that lives in
+the chat status strip / sidebar. Small footprint: this is a status
+indicator with depth, not a centerpiece. It gives the operator a
+peripheral signal of whether the AI is healthy without parsing logs.
 
-**Idle motion:**
-- Soft idle pulse: scale 0.95 ↔ 1.05 at 0.5 Hz
-- Rotation: 1 full rotation per 8 seconds on Y axis
+- One mesh, gold, emissive, on a transparent background (the strip's
+  own background shows through). Lit from one side.
+- Designed to read at a small render size (~32–64px).
+- Optional: a faint inner core pulsing slightly out of phase with the
+  outer mesh.
 
-**Data-bound variables:**
-- `pulseSpeed` · number 0–1 · scales the pulse frequency (0 = idle 0.5 Hz, 1 = active 3 Hz)
-- `colorIndex` · number 0|1|2 · 0 = gold (Venice/active default), 1 = violet (Ollama), 2 = red (error)
+### Idle animation
 
-**Performance notes:**
-- Tiny scene · should land at < 800 KB easily.
-- Single mesh, single material · don't add particles, don't add lighting beyond one directional light.
-- This sits in the highest-traffic page (/chat) · keep it cheap.
+- A slow breathing pulse — scale ~0.95 ↔ 1.05 at ~0.5 Hz — this is
+  the "idle / waiting" state.
+- A slow Y rotation, ~1 revolution per 8s.
 
----
+### Data-reactive behavior + Variables
 
-## Scene-readiness checklist (for the operator building in Spline)
-
-For each scene, verify before exporting:
-
-- [ ] Geometry uses instancing where possible (Galaxy, Orbit)
-- [ ] Materials are PBR · no expensive shaders (raymarching, SSR, refraction)
-- [ ] Lighting: 1 key light + 1 fill at most. No area lights, no IBL probes.
-- [ ] Variables declared in Spline editor's Variables panel · names match exactly the strings in this brief
-- [ ] Play Settings: Hide Background ON, Geometry Quality = Performance
-- [ ] (Paid plan only) Hide Spline Logo ON
-- [ ] Tested at 1280×720 in editor preview · no jank, no missing materials
-- [ ] Exported via Code Export · URL ends in `/scene.splinecode`
-- [ ] URL pasted into `components/3d/scene-registry.ts` matching slot
-
-Once a URL lands in the registry, the wrapper component will start mounting the live scene automatically · no other code change needed.
+| Variable | Type | Range | Drives |
+|---|---|---|---|
+| `pulseSpeed` | number | 0–1 | Pulse rate — 0 = slow idle breath (~0.5 Hz), 1 = rapid pulse (~3 Hz) while the AI is actively streaming. |
+| `colorIndex` | number | 0 \| 1 \| 2 | Mesh color — `0` = gold (`#FDB913`, normal idle/active), `1` = a brighter gold "AI working" tint, `2` = `--status-red` (error/stalled). All three stay inside the gold-on-dark family except the red error state — **no purple**. |
 
 ---
 
-## After scenes are live · iteration loop
+## Scene-readiness checklist — verify before exporting each scene
 
-The scaffold separates "scene URL" from "scene quality." This means iteration is cheap:
-
-1. Notice the scene needs adjustment (lighting too bright, motion too fast, etc.)
-2. Open the scene in Spline editor, adjust
-3. Re-promote to production
-4. Copy the (same) URL or paste a new one
-5. Re-deploy · no scaffold change
-
-This is the killer pattern for Spline: the scaffold stays static once shipped.
+- [ ] Geometry uses instancing where the brief calls for it (Galaxy, Orbit).
+- [ ] Materials are PBR — no raymarching, SSR, or refraction shaders.
+- [ ] Lighting: 1 key light + 1 fill at most. No area lights, no IBL.
+- [ ] No purple / violet anywhere. Accent is gold; status is green/red.
+- [ ] Every **Variable** from the scene's brief is declared in the
+      Variables panel, with the exact name and type.
+- [ ] Play Settings: Geometry Quality = Performance; FPS limited per
+      the per-scene note; Hide Spline Logo ON (paid plan).
+- [ ] Tested at 1280×720 in editor preview — no jank, no missing
+      materials.
+- [ ] File size is within the scene's target ceiling.
+- [ ] Exported via Code Export — URL ends in `/scene.splinecode`.
 
 ---
 
-**Reconciled at v10.0.484** · 2026-05-08 EOD · this doc was reviewed against the live state of the OS in the v10.0.442-484 sprint reconciliation pass. See `docs/cohort-2026-05-08-eod-summary.md` for the sprint summary and which sections of this doc were touched. If a claim in this doc contradicts code reality, the code wins · open an issue.
+## After you build a scene
+
+1. Confirm the readiness checklist above.
+2. Export → Code Export → copy the
+   `prod.spline.design/<id>/scene.splinecode` URL.
+3. Open `components/3d/scene-registry.ts` and replace that scene's
+   `TBD:<name>` value with the real URL.
+4. Run `pnpm typecheck && pnpm lint` — both must stay green.
+5. Phase 3 then mounts the wrapper into its surface (one PR per
+   surface, per the plan's build sequence).
+
+The scaffold needs no code changes when a URL lands —
+`isSceneReady()` flips the scene on automatically.
+
+## Iteration loop — after scenes are live
+
+The scaffold separates "scene URL" from "scene quality," so iteration
+is cheap: open the scene in the Spline editor, adjust, re-promote to
+production, and the same URL serves the updated scene — no scaffold
+change, no redeploy of `components/3d/`. This is the payoff of the
+registry indirection.

@@ -2,81 +2,80 @@
 
 /**
  * SplineScene · v10.0.290 · the lazy-loaded wrapper that owns every
- * Spline 3D scene in the app.
+ * Spline 3D scene in the app. Per-surface wrappers (CommandCore,
+ * KnowledgeGalaxy, FrameworkOrbit, AiPulse) all mount through here.
  *
- * Per the spline-3d-integration skill (Next.js variant):
- *   · imports `@splinetool/react-spline/next` via `next/dynamic` so
- *     Spline's WebGL runtime never lands in the SSR bundle
- *   · ssr: false (Spline depends on `window`)
- *   · renders `<SceneSkeleton>` while the chunk + scene file load
+ * Lazy-loading (per spline-3d-integration · Next.js variant) ·
+ *   · the Spline runtime lives only in `./spline-canvas`, pulled in via
+ *     `next/dynamic` with `ssr: false` (Spline depends on `window`)
+ *   · `<SceneSkeleton>` is the `loading` fallback while the chunk +
+ *     scene file fetch
  *
- * Performance behavior ·
- *   · Intersection-observer-paused when the scene leaves the viewport
- *     (the `<div ref>` host gets `display: none` so Spline tears down
- *     its render loop). Re-mounts on re-enter.
- *   · Caller controls className for sizing · the wrapper does NOT
- *     impose dimensions of its own (a 3D scene with 0×0 dims will
- *     silently consume CPU rendering nothing).
+ * Graceful no-op (Phase 1 · TBD scene URLs) ·
+ *   · when `url` is a `TBD:` sentinel (or empty), `isSceneReady()` is
+ *     false → the component renders `<SceneSkeleton>` + a tiny dev-only
+ *     "scene pending" badge and NEVER reaches the dynamic import, so the
+ *     Spline runtime chunk is not even fetched. typecheck + lint + the
+ *     production build all stay green with zero real scenes.
+ *
+ * Performance behaviour ·
+ *   · IntersectionObserver pauses the scene when the host leaves the
+ *     viewport — the dynamic `<SplineCanvas>` unmounts, so Spline tears
+ *     down its WebGL render loop; it re-mounts on re-enter. Mirrors the
+ *     mount/unmount lifecycle of components/hud/neural-background.tsx.
+ *   · The caller owns sizing via `className` — the wrapper imposes no
+ *     dimensions (a 3D scene at 0×0 silently burns CPU rendering
+ *     nothing).
  *
  * Caller usage ·
  *   <SplineScene
  *     url={SCENE_URLS.commandCore}
  *     slotLabel="commandCore"
- *     onLoad={(app) => { ...setVariables on app ref... }}
+ *     onLoad={(app) => setApp(app)}   // feed into useSceneBinding
  *     className="absolute inset-0 -z-10"
  *   />
- *
- * If `url` is empty, the wrapper short-circuits to `<SceneSkeleton
- * pending />` and never imports the Spline runtime. This is the
- * scaffold-without-scenes path while the user builds in Spline editor.
  */
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import type { Application } from "@splinetool/runtime";
 import { SceneSkeleton } from "@/components/3d/scene-skeleton";
+import { isSceneReady } from "@/components/3d/scene-registry";
 
-// Spline's runtime Application type · subset we care about for binding.
-// Re-declared here so consumers can type their onLoad handler without
-// pulling the full @splinetool/runtime type into every per-surface
-// wrapper.
-export interface SplineApplication {
-  setVariable(name: string, value: number | string | boolean): void;
-  emitEvent?(name: string, target?: string): void;
-  findObjectByName?(name: string): unknown;
-}
+/**
+ * The Spline runtime `Application` instance — passed to `onLoad` and,
+ * from there, into `useSceneBinding`. Re-exported so per-surface
+ * wrappers type their handler without importing `@splinetool/runtime`
+ * directly.
+ */
+export type { Application as SplineApplication };
 
-// v10.0.293 · DEFERRED · the dynamic import of @splinetool/react-spline
-// is parked while we resolve a Next 16 / webpack exports-field issue
-// (both `/next` subpath and base `.` path fail to resolve · webpack
-// rejects the package's `exports` map). The scaffold + per-surface
-// wrappers + scene-briefs all remain in place · this single component
-// short-circuits to the SceneSkeleton fallback regardless of URL state
-// so the site builds + renders cleanly.
-//
-// To re-enable once the resolver config is sorted:
-//   1. Restore the `dynamic(() => import("@splinetool/react-spline"))`
-//   2. Bring back the `if (!url) { ...skeleton... }` short-circuit
-//   3. Mount `<Spline scene={url} onLoad={handleSplineLoad} />`
-// All call-sites (command-core / knowledge-galaxy / framework-orbit /
-// ai-pulse) keep working because the prop interface is unchanged.
+// Lazy import — `ssr: false` keeps Spline's WebGL runtime client-only.
+// Because the render path below is guarded by `isSceneReady()`, this
+// import only actually fires once a real (non-TBD) scene URL mounts.
+const SplineCanvas = dynamic(() => import("@/components/3d/spline-canvas"), {
+  ssr: false,
+  loading: () => <SceneSkeleton />,
+});
 
 interface SplineSceneProps {
   /**
-   * The `prod.spline.design/<id>/scene.splinecode` URL exported from
-   * the Spline editor. Empty string → renders skeleton without loading
-   * the runtime (used while scenes are TBD).
+   * The `prod.spline.design/<id>/scene.splinecode` URL from
+   * `scene-registry.ts`. A `TBD:` sentinel (Phase 1 default) → renders
+   * the skeleton + dev badge without loading the runtime.
    */
   url: string;
   /**
-   * Optional label · used only in the dev "scene pending" badge when
-   * url is empty. Mirrors the keys in scene-registry.ts.
+   * Label shown in the dev-only "scene pending" badge — mirrors the
+   * keys of `SCENE_URLS` so the operator can see which slot is awaiting
+   * a Spline export.
    */
   slotLabel?: string;
   /**
-   * Called once the scene file is loaded and the runtime Application
-   * instance is ready. Use this to wire data binding via
-   * use-scene-binding.
+   * Called once the scene file has loaded and the runtime `Application`
+   * instance is ready. Wire it into `useSceneBinding` for data binding.
    */
-  onLoad?: (app: SplineApplication) => void;
-  /** Outer className · use to size + position the scene host. */
+  onLoad?: (app: Application) => void;
+  /** Outer className — use it to size + position the scene host. */
   className?: string;
 }
 
@@ -87,31 +86,46 @@ export function SplineScene({
   className,
 }: SplineSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const [inView, setInView] = useState(true);
+  // Lazy initializer — when the platform has no IntersectionObserver
+  // (very old browsers; SSR before the ssr:false canvas is reached),
+  // start `inView` true so the scene renders eagerly. Otherwise start
+  // false and let the observer flip it. Resolving the fallback here,
+  // not in the effect, keeps the effect free of synchronous setState.
+  const [inView, setInView] = useState(
+    () => typeof IntersectionObserver === "undefined",
+  );
 
-  // Intersection-observer pause · only render Spline when host is in
-  // the viewport (kept in place for when the dynamic import is
-  // re-enabled · harmless while skeleton-only).
+  // Viewport-aware pause — render the scene only while the host is in
+  // (or within 100px of) the viewport. Off-screen → `<SplineCanvas>`
+  // unmounts and Spline stops its render loop.
   useEffect(() => {
     const host = hostRef.current;
     if (!host || typeof IntersectionObserver === "undefined") return;
-    const obs = new IntersectionObserver(
+    const observer = new IntersectionObserver(
       ([entry]) => setInView(entry.isIntersecting),
       { rootMargin: "100px" },
     );
-    obs.observe(host);
-    return () => obs.disconnect();
+    observer.observe(host);
+    return () => observer.disconnect();
   }, []);
 
-  // While the Spline import is parked, every URL state renders the
-  // skeleton. Mark `pending` only when truly TBD so dev still sees
-  // which slots are awaiting an export.
-  void onLoad; // unused while disabled
-  void inView; // unused while disabled
+  const ready = isSceneReady(url);
+  // Dev-only pending badge — cockpit-grade: tiny, monospace,
+  // 1px-bordered, corner-pinned. Not a card. Stripped in production.
+  const showPendingBadge = !ready && process.env.NODE_ENV !== "production";
+
   return (
     <div ref={hostRef} className={className}>
-      <SceneSkeleton pending={!url || !url.trim()} slotLabel={slotLabel} />
+      {ready && inView ? (
+        <SplineCanvas scene={url} onLoad={onLoad} className="h-full w-full" />
+      ) : (
+        <SceneSkeleton />
+      )}
+      {showPendingBadge && (
+        <span className="pointer-events-none absolute bottom-1 right-1 border border-[var(--border-default)] bg-[var(--bg-void)]/90 px-1 py-px font-mono text-[8px] uppercase leading-none tracking-wider text-[var(--text-tertiary)]">
+          scene pending{slotLabel ? ` · ${slotLabel}` : ""}
+        </span>
+      )}
     </div>
   );
 }
-
