@@ -176,6 +176,15 @@ export function KommandoShell({
     return () => window.removeEventListener("nour:kommando:set-mode", onSetMode);
   }, [onModeChange]);
 
+  // Declared above useOncePerSession (which calls it) so the binding exists before first use · react-hooks/preserve-manual-memoization.
+  const changeMode = useCallback((next: KommandoMode) => {
+    setMode(next);
+    onModeChange?.(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, next);
+    } catch {}
+  }, [onModeChange]);
+
   // ── Brief auto-nudge ──
   // Once per session, if Nour opens the tasks page during a review
   // window (morning 6-9am or evening 8-11pm), show a toast offering
@@ -204,14 +213,6 @@ export function KommandoShell({
     },
     [hydrated],
   );
-
-  const changeMode = useCallback((next: KommandoMode) => {
-    setMode(next);
-    onModeChange?.(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {}
-  }, [onModeChange]);
 
   const modePills = useMemo(
     () => (

@@ -145,12 +145,6 @@ export default function GoalsPage() {
   const error = goalsQuery.error;
   const reload = () => void goalsQuery.refetch();
 
-  if (loading && !data) {
-    return <MasterySkeleton cards={3} maxWidth="max-w-6xl" />;
-  }
-  if (error) return <MasteryErrorView label="Goals" error={error.message} onRetry={reload} />;
-  if (!data) return null;
-
   // Phase AAA · scroll to an axis section on Sidebar tap-through ·
   // the polyhedron vertex emits `domain` · Sidebar renders axis rows
   // with `id={`axis-${domain}`}` so the scroll target lines up.
@@ -159,6 +153,12 @@ export default function GoalsPage() {
     const el = document.getElementById(`axis-${domain}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
+
+  if (loading && !data) {
+    return <MasterySkeleton cards={3} maxWidth="max-w-6xl" />;
+  }
+  if (error) return <MasteryErrorView label="Goals" error={error.message} onRetry={reload} />;
+  if (!data) return null;
 
   return (
     <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
