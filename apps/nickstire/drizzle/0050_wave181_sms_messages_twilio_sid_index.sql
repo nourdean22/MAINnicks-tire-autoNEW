@@ -1,0 +1,33 @@
+-- wave-181 / audit #9: sms_messages — non-unique INDEX on twilioSid.
+--
+-- The twilioSid column stores the gateway message id on every SMS row
+-- (inbound message ids + outbound send ids alike). It had no index, so
+-- three query paths were full table scans:
+--
+--   1. smsMessageExists() — the inbound-webhook dedup check added with
+--      audit item #9. Runs on EVERY inbound SMS webhook delivery
+--      (routes/webhooks/smsGateway.ts, routes/webhooks/twilio.ts, and
+--      the /api/sms-webhook handler in server/_core/index.ts).
+--   2. smsGateway.ts sms:delivered / sms:sent receipt —
+--      UPDATE sms_messages SET status = ... WHERE twilioSid = ?
+--   3. smsGateway.ts sms:failed receipt — the same UPDATE.
+--
+-- A plain (non-UNIQUE) index. NOT unique on purpose:
+--   * A UNIQUE constraint would need a destructive pre-flight dedupe —
+--     the at-least-once redelivery bug that audit #9 fixes has very
+--     likely already written duplicate-twilioSid rows.
+--   * It would also turn every plain INSERT into sms_messages (e.g.
+--     services/smsInstrumentation.ts logOutboundSms, which does NOT go
+--     through addSmsMessage) into a throw-on-collision.
+-- Dedup is enforced in application code (smsMessageExists); this index
+-- is purely a lookup optimization.
+--
+-- Correctness does NOT depend on this migration — smsMessageExists()
+-- and the receipt UPDATEs work without it, just with a full scan.
+-- Safe to apply at any time; TiDB ADD INDEX is an online DDL.
+--
+-- ROLLBACK:
+--   ALTER TABLE sms_messages DROP INDEX idx_sms_msg_twilio_sid;
+
+ALTER TABLE sms_messages
+  ADD INDEX idx_sms_msg_twilio_sid (twilioSid);
