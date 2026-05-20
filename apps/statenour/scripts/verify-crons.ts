@@ -6,23 +6,18 @@
  *      `app/api/cron/<name>/route.ts` (so the code is actually present).
  *   2. Every `app/api/cron/*` directory has a matching entry in CRONS
  *      (no dark code).
- *   3. vercel.json's `crons` block equals `buildVercelCronsBlock()` and
- *      `functions` block equals `buildVercelFunctionsBlock()`.
  *
- * Run:  pnpm check:crons          → read-only verification
- *       pnpm check:crons --fix    → rewrite vercel.json from manifest
+ * The vercel.json drift check was removed when statenour left Vercel
+ * for Railway — scheduled jobs now run via the Inngest mega fan-out,
+ * not a vercel.json `crons` block.
+ *
+ * Run:  pnpm check:crons
  */
 
 import fs from "node:fs";
 import path from "node:path";
-import {
-  CRONS,
-  buildVercelCronsBlock,
-  buildVercelFunctionsBlock,
-  expectedCronRouteNames,
-} from "../config/crons";
+import { CRONS, expectedCronRouteNames } from "../config/crons";
 
-const argv = new Set(process.argv.slice(2));
 const cwd = process.cwd();
 
 let errors = 0;
@@ -61,59 +56,9 @@ for (const d of cronDirs) {
 }
 if (errors === 0) ok(`${cronDirs.length} cron routes all documented in the manifest`);
 
-// ── 3 · vercel.json drift detection ──────────────────────────────────
+// ── 3 · Retirement warnings ──────────────────────────────────────────
 console.log("");
-console.log("[3/4]  manifest → vercel.json");
-const vercelPath = path.join(cwd, "vercel.json");
-const vercel = JSON.parse(fs.readFileSync(vercelPath, "utf8"));
-const wantCrons = buildVercelCronsBlock();
-const wantFns = buildVercelFunctionsBlock();
-
-const gotCrons = (vercel.crons ?? []) as { path: string; schedule: string }[];
-
-// v9.1.16 · sort by path before comparing — was using positional
-// equality, which gave a false "out of sync" if vercel.json had the
-// right entries in a different order. The --fix path then needlessly
-// re-shuffled the file. Now: same SET semantics, no false positives.
-const sortByPath = (a: { path: string }, b: { path: string }) =>
-  a.path.localeCompare(b.path);
-const sortedGot = [...gotCrons].sort(sortByPath);
-const sortedWant = [...wantCrons].sort(sortByPath);
-
-const cronsMatch =
-  sortedGot.length === sortedWant.length &&
-  sortedGot.every(
-    (g, i) =>
-      g.path === sortedWant[i].path && g.schedule === sortedWant[i].schedule,
-  );
-
-if (!cronsMatch) {
-  if (argv.has("--fix")) {
-    vercel.crons = wantCrons;
-    vercel.functions = wantFns;
-    fs.writeFileSync(vercelPath, JSON.stringify(vercel, null, 2) + "\n", "utf8");
-    ok(`rewrote vercel.json (crons: ${wantCrons.length}, functions: ${Object.keys(wantFns).length})`);
-  } else {
-    fail(`vercel.json crons block out of sync with manifest (got ${gotCrons.length}, want ${wantCrons.length}) — run with --fix`);
-    // Show first diff for debuggability.
-    const gotSet = new Set(gotCrons.map((c) => `${c.path}|${c.schedule}`));
-    const wantSet = new Set(wantCrons.map((c) => `${c.path}|${c.schedule}`));
-    for (const w of wantCrons) {
-      const key = `${w.path}|${w.schedule}`;
-      if (!gotSet.has(key)) console.error(`     + needed: ${w.path} @ ${w.schedule}`);
-    }
-    for (const g of gotCrons) {
-      const key = `${g.path}|${g.schedule}`;
-      if (!wantSet.has(key)) console.error(`     − removed: ${g.path} @ ${g.schedule}`);
-    }
-  }
-} else {
-  ok(`vercel.json crons match manifest (${gotCrons.length} scheduled)`);
-}
-
-// ── 4 · Retirement warnings ──────────────────────────────────────────
-console.log("");
-console.log("[4/4]  retirement window");
+console.log("[3/4]  retirement window");
 const today = new Date();
 for (const c of CRONS) {
   if (c.mode === "retired" && c.retireAfter) {
@@ -126,14 +71,17 @@ for (const c of CRONS) {
   }
 }
 
-// ── 5 · Budget + fold-candidate ranking ──────────────────────────────
+// ── 4 · Budget + fold-candidate ranking ──────────────────────────────
 // v8.8 BATCH 46 — when active count is high, surface concrete fold
 // suggestions. Priority order:
 //   1. crons that fire >1×/day (e.g. every 15min, every 6h) — these
 //      are the cheapest to fold without losing meaningful resolution
 //   2. daily crons that don't need a specific hour
 //   3. weekly crons (already low-cadence; only fold if desperate)
-const VERCEL_PRO_CAP = 40;
+//
+// SOFT_CAP is a self-imposed sprawl threshold — every cron is load +
+// surface area. Railway has no platform cron limit, so folding is a
+// hygiene call, not a billing one.
 const SOFT_CAP = 38;
 
 function fireFrequency(schedule: string): number {
@@ -153,21 +101,20 @@ function fireFrequency(schedule: string): number {
 }
 
 console.log("");
-console.log("[5/5]  budget + fold suggestions");
+console.log("[4/4]  budget + fold suggestions");
 const activeSchedules = CRONS.filter((c) => c.mode === "active" && c.schedule);
-const slotsLeft = VERCEL_PRO_CAP - activeSchedules.length;
 
 if (activeSchedules.length > SOFT_CAP) {
   warn(
-    `${activeSchedules.length} active schedules — over soft cap (${SOFT_CAP}). ${slotsLeft} slot(s) until hard cap (${VERCEL_PRO_CAP}).`,
+    `${activeSchedules.length} active schedules — over the ${SOFT_CAP}-cron soft cap. Consider folding some into the mega fan-out.`,
   );
 } else if (activeSchedules.length > SOFT_CAP - 4) {
   ok(
-    `${activeSchedules.length} active schedules · ${slotsLeft} slot(s) headroom — getting close to soft cap.`,
+    `${activeSchedules.length} active schedules · approaching the ${SOFT_CAP}-cron soft cap.`,
   );
 } else {
   ok(
-    `${activeSchedules.length} active schedules · ${slotsLeft} slot(s) headroom (cap: ${VERCEL_PRO_CAP}).`,
+    `${activeSchedules.length} active schedules · under the ${SOFT_CAP}-cron soft cap.`,
   );
 }
 
