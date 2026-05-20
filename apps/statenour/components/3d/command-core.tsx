@@ -1,80 +1,42 @@
 "use client";
 
 /**
- * CommandCore · v10.0.290 · 3D ambient backdrop for the homepage Ultron
- * surface.
+ * CommandCore · v10.0.290 · per-surface wrapper for the homepage Ultron
+ * 3D backdrop — a rotating geometric core (gold-edged, dark-cored) that
+ * signals "this is your operating system" without crowding the data
+ * overlay.
  *
- * Per the spline-3d-integration UI mandate ("modern, creative, visually
- * stunning · don't build safe / generic"), the homepage gets a rotating
- * geometric form (gold-edged, dark-core) that signals "this is your
- * operating system" without crowding the data overlay.
+ * PHASE 1 STUB. This thin wrapper only mounts `<SplineScene>` with the
+ * `commandCore` registry URL — which is a TBD sentinel until the
+ * operator builds the scene, so it renders the skeleton + dev badge.
  *
- * Data binding · subscribes to `/api/ultron/situation` (the existing
- * meta-aggregator) and pushes:
- *   · `healthScore` · 0-100 derived from severity counts
- *   · `alertLevel` · "info" | "warn" | "critical"
- *   · `situationCount` · total active items (size pulse)
+ * Phase 3 wires the data binding (NOT done here — keeps Phase 1 a pure
+ * scaffold). When the scene exists, this wrapper will:
+ *   · subscribe to `/api/ultron/situation` (the existing aggregator)
+ *   · derive `healthScore` (0-100), `alertLevel`, `situationCount`
+ *   · feed them to the `useSceneBinding` map below
+ * See the CommandCore brief in docs/spline-scene-briefs.md for the
+ * exact variable contract the Spline scene must expose.
  *
- * Until the user exports a Spline scene and fills the
- * `commandCore` URL in scene-registry.ts, this wrapper renders the
- * SceneSkeleton (with the dev "scene pending" badge in development).
+ * NOT wired into components/ultron/ultron.tsx yet — that mount is
+ * Phase 3.
  */
 import { useState } from "react";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
 import { SCENE_URLS } from "@/components/3d/scene-registry";
 import { SplineScene, type SplineApplication } from "@/components/3d/spline-scene";
 import { useSceneBinding } from "@/components/3d/use-scene-binding";
 
-interface SituationShape {
-  payload?: {
-    candidates?: Array<{ severity?: string }>;
-  };
-}
-
-const SEVERITY_RANK: Record<string, number> = {
-  win: 0,
-  info: 1,
-  low: 1,
-  medium: 2,
-  high: 3,
-  critical: 4,
-};
-
-function deriveAlertLevel(items: Array<{ severity?: string }>): string {
-  const top = items.reduce((max, item) => {
-    const rank = SEVERITY_RANK[item.severity ?? "info"] ?? 1;
-    return Math.max(max, rank);
-  }, 0);
-  if (top >= 4) return "critical";
-  if (top >= 3) return "warn";
-  return "info";
-}
-
 interface CommandCoreProps {
+  /** Sizing / positioning — e.g. "absolute inset-0 -z-10" as a backdrop. */
   className?: string;
 }
 
 export function CommandCore({ className }: CommandCoreProps) {
   const [app, setApp] = useState<SplineApplication | null>(null);
-  const { data } = useUltronFetch<SituationShape>("/api/ultron/situation", {
-    ttlMs: 120_000,
-    pollMs: 120_000,
-  });
 
-  const candidates = data?.payload?.candidates ?? [];
-  const situationCount = candidates.length;
-  const alertLevel = deriveAlertLevel(candidates);
-  // Health · 100 with no warns, drops fast as severity climbs.
-  const warnCount = candidates.filter(
-    (c) => (SEVERITY_RANK[c.severity ?? "info"] ?? 0) >= 2,
-  ).length;
-  const healthScore = Math.max(0, 100 - warnCount * 10);
-
-  useSceneBinding(app, {
-    healthScore,
-    alertLevel,
-    situationCount,
-  });
+  // Phase 3: replace {} with { healthScore, alertLevel, situationCount }
+  // sourced from /api/ultron/situation. Empty map = inert no-op.
+  useSceneBinding(app, {});
 
   return (
     <SplineScene

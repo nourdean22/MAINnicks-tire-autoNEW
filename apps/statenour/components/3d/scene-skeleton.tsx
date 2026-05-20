@@ -1,50 +1,43 @@
 "use client";
 
 /**
- * SceneSkeleton · v10.0.290 · fallback rendered while a Spline scene
- * is loading (or when the scene URL is empty / TBD).
+ * SceneSkeleton · v10.0.290 · the fallback rendered while a Spline
+ * scene is loading — or, in Phase 1, the permanent placeholder while a
+ * scene URL is still a TBD sentinel.
  *
- * Mirrors the existing components/ui/shimmer-skeleton.tsx pattern but
- * with a 3D-leaning radial-gradient that matches the gold-on-dark
- * brand stance · subtle ambient glow rather than a flat gray rectangle.
+ * Mirrors the existing components/ui/shimmer-skeleton.tsx pattern: a
+ * `before:` pseudo-element sweeps the shared `shimmer` keyframe
+ * (translateX −100% → 100%, declared in app/globals.css) across a
+ * faint gold gradient. Over that sits a low-opacity radial gold glow so
+ * the placeholder reads as "depth pending" rather than a flat gray box
+ * — gold-on-dial, no purple, no pure black.
  *
- * In dev, when the scene URL is missing, also renders a tiny "scene
- * pending" badge so the operator knows the slot exists but is awaiting
- * a Spline export. Hidden in production builds.
+ * It is purely visual (`aria-hidden`) and imposes no dimensions of its
+ * own — the caller (`<SplineScene>`) owns sizing. The dev-only "scene
+ * pending" badge lives in `<SplineScene>`, not here, so this stays a
+ * single-purpose shimmer primitive.
  */
 import { cn } from "@/lib/utils";
 
 interface SceneSkeletonProps {
-  /** When true and NODE_ENV !== "production", renders a "scene pending" badge. */
-  pending?: boolean;
-  /** Slot label, used only in the pending badge. */
-  slotLabel?: string;
-  /** Optional className to size/position the skeleton. */
+  /** Optional className to size / position the skeleton. */
   className?: string;
 }
 
-export function SceneSkeleton({
-  pending = false,
-  slotLabel,
-  className,
-}: SceneSkeletonProps) {
-  const showDevBadge = pending && process.env.NODE_ENV !== "production";
+export function SceneSkeleton({ className }: SceneSkeletonProps) {
   return (
     <div
       className={cn(
-        "relative w-full h-full overflow-hidden",
-        "bg-[radial-gradient(circle_at_50%_50%,_rgba(253,185,19,0.08)_0%,_rgba(10,10,10,0.0)_70%)]",
-        "before:absolute before:inset-0 before:animate-pulse",
-        "before:bg-[radial-gradient(circle_at_50%_50%,_rgba(253,185,19,0.04)_0%,_transparent_60%)]",
+        "relative h-full w-full overflow-hidden",
+        // ambient gold glow — reads as 3D depth loading, not a gray box
+        "bg-[radial-gradient(circle_at_50%_45%,_var(--gold-ghost)_0%,_transparent_70%)]",
+        // shimmer sweep — same `shimmer` keyframe the rest of the app uses
+        "before:absolute before:inset-0",
+        "before:bg-gradient-to-r before:from-transparent before:via-[var(--gold-glow)] before:to-transparent",
+        "before:animate-[shimmer_2.4s_ease-in-out_infinite]",
         className,
       )}
       aria-hidden
-    >
-      {showDevBadge && (
-        <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded text-[8px] font-mono uppercase tracking-wider bg-[var(--bg-base)]/80 border border-[var(--gold)]/30 text-[var(--gold)]">
-          scene pending{slotLabel ? ` · ${slotLabel}` : ""}
-        </div>
-      )}
-    </div>
+    />
   );
 }
