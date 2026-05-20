@@ -11,16 +11,15 @@
 - **Desktop**: `C:\Users\nourd\OneDrive\Desktop\` (OneDrive-synced)
 
 ## Architecture Decisions
-- Next.js App Router on Vercel
+- Next.js App Router on Railway
 - CLI tool at `cli/nour.ts` (run via `npx tsx`)
-- Deployed at https://bdnick.info (was statenour-os.vercel.app · migrated)
+- Deployed at https://bdnick.info (Railway · migrated off Vercel)
 - Branch: `codex/ollama-local` (was main · Wave 49 deployment branch update)
 - Tailscale network for cross-device access (100.118.151.61)
 
 ## Key Files
 - `start.bat` — NOUR OS launcher menu (batch file, not PS)
-- `vercel.json` — cron config (morning brief, drift check, weekly review)
-- `.vercel/project.json` — Vercel project linking
+- `config/crons.ts` — cron manifest · fan-out via `/api/cron/mega`
 - `cli/nour.ts` — CLI entry point
 
 ## Session Log

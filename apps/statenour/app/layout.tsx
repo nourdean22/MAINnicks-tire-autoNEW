@@ -3,8 +3,6 @@ import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Barlow_Condensed, Instrument_Serif } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { CommandPalette } from "@/components/command-palette";
 import { PWAInstallPrompt } from "@/components/hud/pwa-install-prompt";
 import { ClientErrorTelemetry } from "@/components/ui/client-error-telemetry";
@@ -85,8 +83,6 @@ export default function RootLayout({
             duration={2000}
           />
         </TooltipProvider>
-        <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );

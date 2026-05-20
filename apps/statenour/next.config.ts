@@ -106,11 +106,11 @@ const nextConfig: NextConfig = {
           key: "Content-Security-Policy",
           value: [
             "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://vercel.live https://va.vercel-scripts.com",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data:",
-            "connect-src 'self' https://vercel.live https://vitals.vercel-insights.com https://*.openai.com https://*.anthropic.com https://api.venice.ai wss:",
+            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai wss:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",

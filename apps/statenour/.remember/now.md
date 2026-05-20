@@ -8,10 +8,9 @@
 - **Local URL**: http://localhost:3001/
 - **Network URL (Tailscale)**: http://100.118.151.61:3001/
 - **Production URL**: https://bdnick.info
-- **Vercel URL**: https://statenour-os.vercel.app
-- **Vercel Project ID**: prj_CFa6JVJblNXaS5bIOOoLwkxh7g72
-- **Vercel Project Name**: statenour-os
-- **Active branch**: `codex/ollama-local` (deploys directly to prod)
+- **Platform**: Railway · project `natural-appreciation` · service `statenour-web`
+- **Service URL (backup)**: https://statenour-web-production.up.railway.app
+- **Active branch**: `main` (monorepo `MAINnicks-tire-autoNEW`)
 
 ## Live surfaces (Apr 18 after cleanup)
 - `/`         — HQ (Ultron) with TodoDesk + BottomPulseTicker
@@ -28,7 +27,7 @@
 - **Project launcher**: `C:\Users\nourd\NOUR-OS\apps\statenour-os\start.bat`
 - Uses `.bat` (cmd.exe) — not PowerShell (execution-policy issues on this machine)
 
-## Vercel crons (vercel.json)
+## Crons (mega fan-out)
 Current scheduled (via mega cron fan-out + standalone):
 - `/api/cron/mega?slot=morning` — 9am UTC (fans out brain-cycle, device-sync,
   learn, stale-tasks, device-health, notification-sender, journal-checkin,
@@ -62,8 +61,8 @@ Current scheduled (via mega cron fan-out + standalone):
 - 11 dead lib/services, 16 dead scripts, 14 AI tools
 
 ## Notes
-- Vercel deploys from `codex/ollama-local` (not master)
-- Single push to this branch is the deploy — no `git push vercel` or CLI
+- Railway deploys from `main` (monorepo `MAINnicks-tire-autoNEW`)
+- Single push to `main` is the deploy — Railway auto-builds via Docker
 - PowerShell is unreliable — always use .bat or bash
 - Working Prisma pattern for local scripts:
   `pnpm exec tsx --env-file=.env.local <script>`
