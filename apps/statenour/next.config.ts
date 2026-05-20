@@ -74,15 +74,14 @@ const nextConfig: NextConfig = {
   // path · no in-process puppeteer.
   serverExternalPackages: ["@prisma/client"],
 
-  // v10.0.290 · Spline 3D needs its ESM packages transpiled by Next so
-  // the Next.js variant (@splinetool/react-spline/next) imports cleanly
-  // through the runtime/loader chain. Per spline-3d-integration
-  // COMMON_PROBLEMS guide.
-  //
-  // Tier-3 (2026-05-19): @nour/utils now ships pre-built dist/ via tsc,
-  // so it no longer requires transpilePackages. Kept the entry for
-  // Spline runtime packages only.
-  transpilePackages: ["@splinetool/react-spline", "@splinetool/runtime"],
+  // v10.0.290 · 3D layer.
+  // Wave 53 (2026-05-20): pivoted off Spline to React Three Fiber. The
+  // R3F packages (three · @react-three/fiber · @react-three/drei) ship
+  // standard ESM/CJS that Next 16 + Turbopack consumes directly — they
+  // do NOT need transpilePackages. The R3F <Canvas> is kept client-only
+  // via next/dynamic({ ssr: false }) in components/3d/scene-canvas.tsx,
+  // so three never enters the SSR bundle. No transpilePackages entry is
+  // required for the 3D layer; the prior Spline entries are removed.
 
   // ── Security + performance headers ───────────────────────────────────
   headers: async () => [

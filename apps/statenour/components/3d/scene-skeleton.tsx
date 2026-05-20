@@ -1,21 +1,21 @@
 "use client";
 
 /**
- * SceneSkeleton · v10.0.290 · the fallback rendered while a Spline
- * scene is loading — or, in Phase 1, the permanent placeholder while a
- * scene URL is still a TBD sentinel.
+ * SceneSkeleton · v10.0.290 · the gold-on-dark loading shimmer shown
+ * while a 3D scene's lazy chunk resolves. Wave 53: it is now the
+ * `loading` fallback for the React Three Fiber `<Canvas>` chunk
+ * (`next/dynamic` in `scene-canvas.tsx`); the Spline-era TBD-sentinel
+ * placeholder role is gone — R3F scenes are code, always "ready".
  *
  * Mirrors the existing components/ui/shimmer-skeleton.tsx pattern: a
  * `before:` pseudo-element sweeps the shared `shimmer` keyframe
  * (translateX −100% → 100%, declared in app/globals.css) across a
  * faint gold gradient. Over that sits a low-opacity radial gold glow so
  * the placeholder reads as "depth pending" rather than a flat gray box
- * — gold-on-dial, no purple, no pure black.
+ * — gold-on-dark, no purple, no pure black.
  *
  * It is purely visual (`aria-hidden`) and imposes no dimensions of its
- * own — the caller (`<SplineScene>`) owns sizing. The dev-only "scene
- * pending" badge lives in `<SplineScene>`, not here, so this stays a
- * single-purpose shimmer primitive.
+ * own — the caller (`<SceneCanvas>`) owns sizing.
  */
 import { cn } from "@/lib/utils";
 
