@@ -171,7 +171,21 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // the admin SMS UI actually reads. Awaited — a failed DB write
         // returns 500 so Capevace retries instead of dropping the lead.
         try {
-          const { getOrCreateConversation, addSmsMessage } = await import("../../db");
+          const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../../db");
+          // Dedup — the Capevace cloud relay delivers webhooks
+          // at-least-once, so the same sms:received can arrive more than
+          // once. If a durable row for this gateway message id already
+          // exists this is a redelivery: ack 200 and skip, so the
+          // executeAutoAction call below can't fire a duplicate auto-reply
+          // SMS or create a duplicate lead (auto-price-response does both).
+          if (messageId && (await smsMessageExists(messageId))) {
+            log.info("Duplicate inbound shop SMS ignored", {
+              messageId: messageId.slice(0, 12),
+              phone: phone.slice(-4),
+            });
+            res.status(200).json({ received: true, duplicate: true });
+            return;
+          }
           const conversation = await getOrCreateConversation(normalized);
           await addSmsMessage({
             conversationId: conversation.id,

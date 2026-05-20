@@ -23,7 +23,7 @@ router.use(validateTwilioRequest);
 // ─── Inbound SMS ────────────────────────────────
 router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
   try {
-    const { Body: body, From: from, To: to } = req.body;
+    const { Body: body, From: from, To: to, MessageSid: messageSid } = req.body;
 
     if (!body || !from) {
       res.status(400).send("<Response></Response>");
@@ -31,6 +31,38 @@ router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
     }
 
     log.info("Inbound SMS received", { from: from.slice(-4), body: body.slice(0, 100) });
+
+    const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../../db");
+
+    // Dedup — Twilio delivers inbound webhooks at-least-once. If we've
+    // already recorded this MessageSid it's a redelivery: ack and skip,
+    // so executeAutoAction can't fire a duplicate auto-reply SMS or
+    // create a duplicate lead (auto-price-response does both).
+    if (messageSid && (await smsMessageExists(String(messageSid)))) {
+      log.info("Duplicate inbound Twilio SMS ignored", {
+        from: from.slice(-4),
+        sid: String(messageSid).slice(0, 12),
+      });
+      res.type("text/xml").send("<Response></Response>");
+      return;
+    }
+
+    // Persist inbound to the conversation thread — this is both the
+    // admin-inbox record and the dedup marker the check above reads.
+    try {
+      const conversation = await getOrCreateConversation(from);
+      await addSmsMessage({
+        conversationId: conversation.id,
+        direction: "inbound",
+        body,
+        twilioSid: messageSid ? String(messageSid) : undefined,
+        status: "received",
+      });
+    } catch (persistErr) {
+      log.error("Failed to persist inbound Twilio SMS", {
+        error: persistErr instanceof Error ? persistErr.message : String(persistErr),
+      });
+    }
 
     // Parse intent
     const parsed = parseSmsResponse(body);
