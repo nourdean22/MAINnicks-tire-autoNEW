@@ -939,6 +939,11 @@ interface VapiTransferCallToolDef {
     number: string;
     message?: string;
     description?: string;
+    // transferPlan controls HOW the handoff happens. Without it, VAPI
+    // does a blind transfer (carrier hand-off) which does not complete
+    // from a Vapi-provided number. A warm-transfer-* mode has VAPI place
+    // the outbound leg itself, which works on any number.
+    transferPlan?: { mode: string; message?: string; sipVerb?: string };
   }>;
 }
 
@@ -976,6 +981,17 @@ const VAPI_TOOLS: VapiToolDef[] = [
         // who picks up — Nick doesn't need to summarize it.
         message: "Hold on, I'll get you over to the manager.",
         description: "Forward the live call to a human. Use whenever the caller asks to be transferred / wants a manager / wants to talk to a person, OR for: used tire availability checks, vehicle already at the shop, manager/owner requests, upset customers, complex repair questions, language barriers. NEVER assume the topic of the transfer — just transfer.",
+        // 2026-05-20 · WARM transfer. The prior default (blind transfer)
+        // hands the call to the carrier and never completes from a Vapi-
+        // provided number — a 2-day audit showed 18 transfers reaching the
+        // manager 0 times. warm-transfer-say-message has VAPI place the
+        // outbound leg itself + announce the caller, which works on any
+        // number. Live value is still dashboard-managed (preserved by
+        // vapi-update-assistant.ts); this is the code default.
+        transferPlan: {
+          mode: "warm-transfer-say-message",
+          message: "You've got a customer holding on the Nick's Tire and Auto line. Connecting you now.",
+        },
       },
     ],
   },
