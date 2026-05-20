@@ -114,11 +114,12 @@ export default function LensStatsPage() {
         </div>
       </Panel>
 
-      {/* v10.0.291 · FrameworkOrbit Spline scene · 52 framework
-          spheres orbiting a center, top-fired ones grow larger.
-          Lives above the data table as a memorable visual anchor.
-          Renders SceneSkeleton (pending badge in dev) until the
-          scene URL lands in components/3d/scene-registry.ts. */}
+      {/* FrameworkOrbit · React Three Fiber scene (Wave 53 · pivot
+          from Spline) · 52 framework spheres orbiting a center,
+          top-fired ones grow larger + gold. A memorable visual
+          anchor above the data table. Renders with placeholder
+          data for now — wiring it to the lensStats query above is
+          a follow-up. Scene code in components/3d/scenes/. */}
       <Panel>
         <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
           framework orbit
