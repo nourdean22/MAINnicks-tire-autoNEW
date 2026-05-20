@@ -1,50 +1,53 @@
 "use client";
 
 /**
- * AiPulse · v10.0.290 · per-surface wrapper for the /chat status-strip
- * 3D element — the smallest scene, on the most-touched surface. A
- * compact mesh that pulses faster while the AI is actively streaming
- * and shifts color with provider state.
+ * AiPulse · v10.0.290 · Wave 53 · per-surface wrapper for the /chat
+ * status-strip 3D element — the smallest scene, on the most-touched
+ * surface. A compact mesh that pulses faster while the AI is actively
+ * streaming and shifts color with provider state.
  *
- * PHASE 1 STUB. This thin wrapper only mounts `<SplineScene>` with the
- * `aiPulse` registry URL — a TBD sentinel until the operator builds the
- * scene, so it renders the skeleton + dev badge.
+ * Wave 53 pivot: this used to mount the Spline `<SplineScene>` with a
+ * registry URL. R3F has no external scene asset — this wrapper now
+ * mounts `<SceneCanvas>` (the generic R3F host) with `<AiPulseScene>`
+ * directly.
  *
- * Phase 3 wires the data binding (NOT done here). When the scene
- * exists, this wrapper will:
- *   · read chat AI activity (provider, latency, streaming state) from
- *     the existing chat telemetry
- *   · derive `pulseSpeed` (0-1) + `colorIndex` (0=gold, 1=ai, 2=red)
- *   · feed them to the `useSceneBinding` map below
- * See the AiPulse brief in docs/spline-scene-briefs.md for the exact
- * variable contract.
+ * PLACEHOLDER PROPS. The scene reacts to AI provider / streaming
+ * state; real-data wiring is the NEXT phase. For now this passes
+ * sensible defaults so the scene renders + visibly animates. When
+ * wired, this wrapper will read chat AI activity (provider, latency,
+ * streaming state), derive `pulseSpeed` / `colorIndex`, and pass them
+ * as props. See the AI Pulse brief in docs/3d-scene-briefs.md.
  *
- * NOT wired into app/(mastery)/chat/page.tsx yet — that mount is
- * Phase 3.
+ * NOT wired into app/(mastery)/chat/page.tsx yet — that mount is the
+ * next phase.
  */
-import { useState } from "react";
-import { SCENE_URLS } from "@/components/3d/scene-registry";
-import { SplineScene, type SplineApplication } from "@/components/3d/spline-scene";
-import { useSceneBinding } from "@/components/3d/use-scene-binding";
+import { SceneCanvas } from "@/components/3d/scene-canvas";
+import {
+  AiPulseScene,
+  type AiPulseSceneProps,
+} from "@/components/3d/scenes/ai-pulse-scene";
 
 interface AiPulseProps {
   /** Sizing / positioning — a small fixed footprint in the status strip. */
   className?: string;
+  /**
+   * Scene data. Optional — omitted values fall back to the placeholder
+   * defaults below. Real data arrives next phase.
+   */
+  data?: AiPulseSceneProps;
 }
 
-export function AiPulse({ className }: AiPulseProps) {
-  const [app, setApp] = useState<SplineApplication | null>(null);
+// Placeholder until real data is wired — a calm idle breath, gold.
+const PLACEHOLDER: AiPulseSceneProps = {
+  pulseSpeed: 0.15,
+  colorIndex: 0,
+};
 
-  // Phase 3: replace {} with { pulseSpeed, colorIndex } sourced from
-  // the chat AI-activity telemetry.
-  useSceneBinding(app, {});
-
+export function AiPulse({ className, data }: AiPulseProps) {
+  const sceneProps = data ?? PLACEHOLDER;
   return (
-    <SplineScene
-      url={SCENE_URLS.aiPulse}
-      slotLabel="aiPulse"
-      onLoad={setApp}
-      className={className}
-    />
+    <SceneCanvas className={className}>
+      <AiPulseScene {...sceneProps} />
+    </SceneCanvas>
   );
 }

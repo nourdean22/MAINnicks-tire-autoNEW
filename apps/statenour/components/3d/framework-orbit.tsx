@@ -1,50 +1,57 @@
 "use client";
 
 /**
- * FrameworkOrbit · v10.0.290 · per-surface wrapper for the
+ * FrameworkOrbit · v10.0.290 · Wave 53 · per-surface wrapper for the
  * /system/lens-stats 3D telemetry anchor — 52 small spheres orbiting a
  * central point, one per strategic-frameworks lens. Top-fired lenses
  * grow larger and gold; quiet ones stay small and gray.
  *
- * PHASE 1 STUB. This thin wrapper only mounts `<SplineScene>` with the
- * `frameworkOrbit` registry URL — a TBD sentinel until the operator
- * builds the scene, so it renders the skeleton + dev badge.
+ * Wave 53 pivot: this used to mount the Spline `<SplineScene>` with a
+ * registry URL. R3F has no external scene asset — this wrapper now
+ * mounts `<SceneCanvas>` (the generic R3F host) with
+ * `<FrameworkOrbitScene>` directly.
  *
- * Phase 3 wires the data binding (NOT done here). When the scene
- * exists, this wrapper will:
- *   · read `/api/system/lens-stats`
- *   · derive `topFirerSize` / `secondFirerSize` / `thirdFirerSize`
- *     (0-1 normalized fire counts) + `fallbackRate` (0-1)
- *   · feed them to the `useSceneBinding` map below
- * See the FrameworkOrbit brief in docs/spline-scene-briefs.md for the
- * exact variable contract.
+ * PLACEHOLDER PROPS. The scene reacts to lens-stats; real-data wiring
+ * is the NEXT phase. For now this passes sensible defaults so the
+ * scene renders + visibly animates. When wired, this wrapper will read
+ * `/api/system/lens-stats`, derive `topFirerSize` / `secondFirerSize`
+ * / `thirdFirerSize` / `fallbackRate`, and pass them as props. See the
+ * Framework Orbit brief in docs/3d-scene-briefs.md.
  *
- * NOT wired into app/(mastery)/system/lens-stats/page.tsx yet — that
- * mount is Phase 3.
+ * Mounted in app/(mastery)/system/lens-stats/page.tsx (a pre-existing
+ * mount from the prior scaffold). Real-data wiring is the next phase;
+ * the placeholder props keep the existing mount visibly alive.
  */
-import { useState } from "react";
-import { SCENE_URLS } from "@/components/3d/scene-registry";
-import { SplineScene, type SplineApplication } from "@/components/3d/spline-scene";
-import { useSceneBinding } from "@/components/3d/use-scene-binding";
+import { SceneCanvas } from "@/components/3d/scene-canvas";
+import {
+  FrameworkOrbitScene,
+  type FrameworkOrbitSceneProps,
+} from "@/components/3d/scenes/framework-orbit-scene";
 
 interface FrameworkOrbitProps {
   /** Sizing / positioning — typically a fixed-height host above the table. */
   className?: string;
+  /**
+   * Scene data. Optional — omitted values fall back to the placeholder
+   * defaults below. Real data arrives next phase.
+   */
+  data?: FrameworkOrbitSceneProps;
 }
 
-export function FrameworkOrbit({ className }: FrameworkOrbitProps) {
-  const [app, setApp] = useState<SplineApplication | null>(null);
+// Placeholder until real data is wired — a clear top-3 hierarchy, no
+// fallback alert.
+const PLACEHOLDER: FrameworkOrbitSceneProps = {
+  topFirerSize: 0.9,
+  secondFirerSize: 0.62,
+  thirdFirerSize: 0.4,
+  fallbackRate: 0.08,
+};
 
-  // Phase 3: replace {} with { topFirerSize, secondFirerSize,
-  // thirdFirerSize, fallbackRate } from /api/system/lens-stats.
-  useSceneBinding(app, {});
-
+export function FrameworkOrbit({ className, data }: FrameworkOrbitProps) {
+  const sceneProps = data ?? PLACEHOLDER;
   return (
-    <SplineScene
-      url={SCENE_URLS.frameworkOrbit}
-      slotLabel="frameworkOrbit"
-      onLoad={setApp}
-      className={className}
-    />
+    <SceneCanvas className={className}>
+      <FrameworkOrbitScene {...sceneProps} />
+    </SceneCanvas>
   );
 }
