@@ -45,6 +45,9 @@ async function check(path, expectedStatus = 200) {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const ms = Date.now() - start;
+    // Release the socket promptly · an unconsumed response body keeps the
+    // underlying connection dangling. We only need the status line.
+    if (resp.body) await resp.body.cancel().catch(() => {});
     const pass = resp.status === expectedStatus;
     // Auth-middleware redirects (302/307) on / are EXPECTED for unauthenticated
     // smoke runs · treat them as healthy (the middleware itself is working).
@@ -74,4 +77,18 @@ const results = await Promise.all([
 
 const allPass = results.every(Boolean);
 console.log(`\n${allPass ? "✅ SMOKE PASSED · deploy is healthy" : "❌ SMOKE FAILED"}`);
+
+// undici (the engine behind global fetch) keeps keep-alive sockets and
+// internal async handles open after the requests resolve. On Windows,
+// process teardown then races libuv's handle cleanup and aborts —
+// `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)` — leaving a
+// non-zero exit code even though every check passed. Destroying undici's
+// global connection pool first leaves nothing for teardown to race. The
+// Symbol lookup is how undici's own getGlobalDispatcher() resolves it; if
+// a runtime ever changes that, this no-ops and behaviour is unchanged.
+const dispatcher = globalThis[Symbol.for("undici.globalDispatcher.1")];
+if (dispatcher && typeof dispatcher.destroy === "function") {
+  await dispatcher.destroy().catch(() => {});
+}
+
 process.exit(allPass ? 0 : 1);
