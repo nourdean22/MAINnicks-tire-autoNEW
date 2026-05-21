@@ -60,26 +60,25 @@ export function toDateString(date: Date): string {
   return date.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
-/** Returns start of day (midnight) for a given date */
+/** Returns start of day (midnight ET) for a given date. ET-correct —
+ *  delegates to startOfDayET below. The prior bare `setHours(0,0,0,0)`
+ *  floored to midnight in the SERVER zone (UTC on Railway), ~4-5h off
+ *  Eastern. (`function` declarations hoist, so the forward reference to
+ *  startOfDayET is fine.) */
 export function startOfDay(date: Date = new Date()): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfDayET(date);
 }
 
-/** Returns end of day (23:59:59.999) for a given date */
+/** Returns end of day (last millisecond, ET) for a given date. */
 export function endOfDay(date: Date = new Date()): Date {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  // endOfDayET returns the START of the next ET day — back off 1ms for
+  // the inclusive end-of-day this function has always returned.
+  return new Date(endOfDayET(date).getTime() - 1);
 }
 
-/** Returns start of week (Sunday midnight) for a given date */
+/** Returns start of week (Sunday midnight ET) for a given date. */
 export function startOfWeek(value: Date): Date {
-  const next = startOfDay(value);
-  const day = next.getDay();
-  next.setDate(next.getDate() - day);
-  return next;
+  return startOfWeekET(value);
 }
 
 const DAY_MS = 1000 * 60 * 60 * 24;
