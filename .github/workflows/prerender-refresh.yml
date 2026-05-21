@@ -1,0 +1,64 @@
+name: Prerender refresh
+
+# Regenerates apps/nickstire/prerendered/*.html and commits the result.
+#
+# Why this exists: nickstire serves COMMITTED prerendered HTML to crawlers,
+# and Railway deploys do not regenerate it (PRERENDER_ON_BUILD is off, for
+# fast deploys). Without a periodic refresh the prerendered tree silently
+# drifts stale vs source — schema, meta-description and NAP changes never
+# reach Googlebot. scripts/build-maybe-prerender.mjs references this job.
+#
+# REQUIRED repo secrets (Settings -> Secrets and variables -> Actions):
+#   DATABASE_URL  the regen boots the prod server to prerender against it
+#   JWT_SECRET    any non-empty value works; prerender does not authenticate
+# The regen self-restores prerendered/ if it aborts, so a failed run is safe
+# — it just leaves the committed tree untouched. The runner must be able to
+# reach the database; if TiDB has IP allowlisting, allow GitHub Actions IPs.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"        # Mondays, 08:00 UTC
+  workflow_dispatch: {}          # manual "Run workflow" button
+
+permissions:
+  contents: write                # commit the regenerated prerendered/
+
+concurrency:
+  group: prerender-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Regenerate prerendered HTML
+        working-directory: apps/nickstire
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: pnpm run regen
+
+      - name: Commit refreshed prerender
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- apps/nickstire/prerendered; then
+            echo "prerendered/ unchanged — nothing to commit."
+          else
+            git add apps/nickstire/prerendered
+            git commit -m "chore: weekly prerender refresh [skip ci]"
+            git push
+          fi
