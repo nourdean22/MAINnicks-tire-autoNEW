@@ -755,20 +755,30 @@ async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<v
     return;
   }
   const delta = 1;
-  const next = Math.min(
-    goal.targetValue > 0 ? goal.targetValue : Number.POSITIVE_INFINITY,
-    goal.currentValue + delta,
-  );
-  const reachedTarget = goal.targetValue > 0 && next >= goal.targetValue;
-  const updateData: Record<string, unknown> = { currentValue: next };
-  if (goal.targetValue > 0) {
-    updateData.progress = Math.min(100, Math.round((next / goal.targetValue) * 100));
+  // Atomic increment — the prior read-then-write (currentValue =
+  // goal.currentValue + delta) lost updates when two linked tasks
+  // completed concurrently. `{ increment }` is atomic at the DB;
+  // progress/status are derived from the value the UPDATE returns.
+  // (The old targetValue ceiling-clamp is dropped — currentValue may
+  // briefly sit a hair past targetValue under concurrency; progress
+  // still caps at 100 and status flips to achieved either way.)
+  const lifted = await prisma.lifeGoal.update({
+    where: { id: goalId },
+    data: { currentValue: { increment: delta } },
+    select: { currentValue: true, targetValue: true, status: true },
+  });
+  const after = lifted.currentValue;
+  const reachedTarget = lifted.targetValue > 0 && after >= lifted.targetValue;
+  if (lifted.targetValue > 0) {
+    const post: Record<string, unknown> = {
+      progress: Math.min(100, Math.round((after / lifted.targetValue) * 100)),
+    };
+    if (reachedTarget && lifted.status !== "achieved") {
+      post.status = "achieved";
+      post.achievedAt = new Date();
+    }
+    await prisma.lifeGoal.update({ where: { id: goalId }, data: post });
   }
-  if (reachedTarget && goal.status !== "achieved") {
-    updateData.status = "achieved";
-    updateData.achievedAt = new Date();
-  }
-  await prisma.lifeGoal.update({ where: { id: goalId }, data: updateData });
   emitGoalEventAsync({
     goalId,
     kind: "progress_logged",
@@ -776,12 +786,12 @@ async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<v
     payload: {
       delta,
       before: goal.currentValue,
-      after: next,
-      target: goal.targetValue,
+      after,
+      target: lifted.targetValue,
       taskId,
     },
   });
-  if (reachedTarget && goal.status !== "achieved") {
+  if (reachedTarget && lifted.status !== "achieved") {
     emitGoalEventAsync({ goalId, kind: "achieved", source: "service:updateTask.goalLift" });
   }
 }

@@ -51,6 +51,12 @@ const STOP_WORDS = new Set([
 function extractEntities(text: string): string[] {
   const out: string[] = [];
   let m: RegExpExecArray | null;
+  // ENTITY_PATTERN is a module-level /g regex — .exec() advances its
+  // lastIndex, and the `out.length >= 5` break below exits the loop
+  // mid-string, leaving lastIndex non-zero. Without this reset the next
+  // call resumes scanning from that stale offset and misses leading
+  // entities — silently disabling truth-grounding for that turn.
+  ENTITY_PATTERN.lastIndex = 0;
   while ((m = ENTITY_PATTERN.exec(text)) !== null) {
     const phrase = m[0].trim();
     if (!phrase || phrase.length < 3) continue;
