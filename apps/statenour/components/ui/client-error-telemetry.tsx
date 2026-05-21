@@ -143,9 +143,18 @@ export function ClientErrorTelemetry() {
 /**
  * Imperative reporter for React error-boundary integrations or
  * manual catch blocks. Same pipeline, same dedupe, explicit shape.
+ *
+ * Pass `context.source` (e.g. "tasks.addTask") from a manual catch
+ * block — it prefixes the logged message `[source] …`, mirroring the
+ * server-side logError() convention, so /system/logs shows WHICH
+ * handler swallowed the error rather than just the bare error text.
  */
-export function reportClientError(err: unknown, context?: { boundary?: string; componentStack?: string }): void {
-  const message = err instanceof Error ? err.message : String(err);
+export function reportClientError(
+  err: unknown,
+  context?: { boundary?: string; componentStack?: string; source?: string },
+): void {
+  const rawMessage = err instanceof Error ? err.message : String(err);
+  const message = context?.source ? `[${context.source}] ${rawMessage}` : rawMessage;
   const stack = err instanceof Error ? err.stack : undefined;
   if (typeof window === "undefined") return;
   void post({
