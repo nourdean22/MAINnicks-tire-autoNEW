@@ -1201,8 +1201,19 @@ export const ALL_ROUTES: RouteEntry[] = [
   ...EXCLUDED_PAGES,
 ];
 
-/** Routes to include in sitemap.xml */
-export const SITEMAP_ROUTES = ALL_ROUTES.filter(r => r.sitemap);
+/**
+ * Routes for sitemap.xml (also feeds sitemap-services / sitemap-locations).
+ *
+ * group:"neighborhood" is excluded as a class — NeighborhoodPage.tsx
+ * renders robots="noindex, follow" on all 59 neighborhood micro-pages
+ * (thin ~24-word doorway pages; see that file for the rationale). A
+ * noindex URL in a sitemap is a contradictory crawl signal that wastes
+ * crawl budget — Ahrefs Site Audit flagged 61 such pages (2026-05-21).
+ * Excluding the group here keeps any future neighborhood route out of
+ * every sitemap automatically. prerender stays on (PRERENDER_ROUTES) so
+ * Googlebot still reads the noindex from prerendered static HTML.
+ */
+export const SITEMAP_ROUTES = ALL_ROUTES.filter(r => r.sitemap && r.group !== "neighborhood");
 
 /** Routes to prerender at build time */
 export const PRERENDER_ROUTES = ALL_ROUTES.filter(r => r.prerender);
