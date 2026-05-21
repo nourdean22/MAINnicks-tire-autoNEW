@@ -15,6 +15,7 @@ vi.mock("@/lib/prisma", () => ({
   prisma: {
     brainMemory: {
       findMany: vi.fn(),
+      upsert: vi.fn(),
     },
   },
 }));
@@ -22,7 +23,9 @@ vi.mock("@/lib/prisma", () => ({
 import { prisma } from "@/lib/prisma";
 import {
   getDismissedSuggestionIds,
+  recordSuggestionOutcome,
   suggestionLoopStats,
+  trackSuggestionAction,
 } from "@/lib/brain/suggestion-loop";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -195,5 +198,152 @@ describe("suggestionLoopStats", () => {
     // no action events surfaced → divide-by-zero guard yields 0, not NaN
     expect(stats.actionRate.research).toBe(0);
     expect(stats.positiveOutcomeRate.research).toBe(0.5);
+  });
+});
+
+describe("trackSuggestionAction", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.brainMemory.upsert).mockResolvedValue({
+      id: "mem-1",
+    } as never);
+  });
+
+  it("upserts a dismissed action under the sugg:<id>:action:<event> key", async () => {
+    const result = await trackSuggestionAction({
+      suggestionId: "weak-axis-fitness",
+      suggestionKind: "weak-axis",
+      event: "dismissed",
+    });
+
+    expect(result).toEqual({
+      id: "mem-1",
+      key: "sugg:weak-axis-fitness:action:dismissed",
+    });
+    expect(prisma.brainMemory.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.SUGGESTION_LOOP,
+            key: "sugg:weak-axis-fitness:action:dismissed",
+          },
+        },
+        create: expect.objectContaining({
+          key: "sugg:weak-axis-fitness:action:dismissed",
+          source: "suggestion-loop",
+          createdBy: "suggestion-loop",
+          metadata: expect.objectContaining({
+            suggestionId: "weak-axis-fitness",
+            event: "dismissed",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("weights each action event by training-signal strength", async () => {
+    const cases: Array<{ event: string; confidence: number }> = [
+      { event: "acted", confidence: 0.7 },
+      { event: "dismissed", confidence: 0.6 },
+      { event: "modified", confidence: 0.5 },
+      { event: "deferred", confidence: 0.3 },
+    ];
+    for (const { event, confidence } of cases) {
+      vi.mocked(prisma.brainMemory.upsert).mockClear();
+      await trackSuggestionAction({
+        suggestionId: "overdue-pile",
+        suggestionKind: "overdue",
+        event,
+      });
+      expect(prisma.brainMemory.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ confidence }),
+        }),
+      );
+    }
+  });
+
+  it("rejects an unknown action event without writing", async () => {
+    await expect(
+      trackSuggestionAction({
+        suggestionId: "x",
+        suggestionKind: "task",
+        event: "ignored",
+      }),
+    ).rejects.toThrow();
+    expect(prisma.brainMemory.upsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects an empty suggestionId without writing", async () => {
+    await expect(
+      trackSuggestionAction({
+        suggestionId: "",
+        suggestionKind: "task",
+        event: "acted",
+      }),
+    ).rejects.toThrow();
+    expect(prisma.brainMemory.upsert).not.toHaveBeenCalled();
+  });
+});
+
+describe("recordSuggestionOutcome", () => {
+  beforeEach(() => {
+    vi.mocked(prisma.brainMemory.upsert).mockResolvedValue({
+      id: "mem-2",
+    } as never);
+  });
+
+  it("upserts an outcome under the sugg:<id>:outcome:<polarity> key", async () => {
+    const result = await recordSuggestionOutcome({
+      suggestionId: "stale-pin-1",
+      suggestionKind: "stale-pin",
+      polarity: "positive",
+    });
+
+    expect(result).toEqual({
+      id: "mem-2",
+      key: "sugg:stale-pin-1:outcome:positive",
+    });
+    expect(prisma.brainMemory.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.SUGGESTION_LOOP,
+            key: "sugg:stale-pin-1:outcome:positive",
+          },
+        },
+      }),
+    );
+  });
+
+  it("weights outcomes — validated polarities strong, neutral weak", async () => {
+    const cases: Array<{ polarity: string; confidence: number }> = [
+      { polarity: "positive", confidence: 0.9 },
+      { polarity: "negative", confidence: 0.9 },
+      { polarity: "neutral", confidence: 0.4 },
+    ];
+    for (const { polarity, confidence } of cases) {
+      vi.mocked(prisma.brainMemory.upsert).mockClear();
+      await recordSuggestionOutcome({
+        suggestionId: "research-thread",
+        suggestionKind: "research",
+        polarity,
+      });
+      expect(prisma.brainMemory.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ confidence }),
+        }),
+      );
+    }
+  });
+
+  it("rejects an unknown outcome polarity without writing", async () => {
+    await expect(
+      recordSuggestionOutcome({
+        suggestionId: "x",
+        suggestionKind: "task",
+        polarity: "meh",
+      }),
+    ).rejects.toThrow();
+    expect(prisma.brainMemory.upsert).not.toHaveBeenCalled();
   });
 });
