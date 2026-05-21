@@ -120,3 +120,104 @@ export function isOlderThanDays(target: Date | string | null | undefined, days: 
   const age = daysSince(target, now);
   return age !== null && age > days;
 }
+
+// ── Eastern-Time day/week/month boundaries ─────────────────────────────
+// The system operates in ET (Cleveland) but the server runs UTC. The
+// legacy startOfDay/endOfDay/startOfWeek above use setHours(), which
+// floors to midnight in the SERVER zone (UTC) — so "today" boundaries
+// land 4-5h off ET. These *ET helpers floor to the ET wall-clock and
+// return the equivalent UTC instant, safe as Prisma gte/lt filters.
+
+const ET_TZ = "America/New_York";
+
+/** ET UTC-offset (ms) for `at` — ET = UTC + offset; negative (EDT -4h,
+ *  EST -5h). DST-correct: derived from how `at` formats in the ET zone. */
+function etOffsetMs(at: Date): number {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: ET_TZ,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(at);
+  const n = (t: string) => Number(p.find((x) => x.type === t)?.value);
+  const etWallAsUtc = Date.UTC(
+    n("year"),
+    n("month") - 1,
+    n("day"),
+    n("hour") % 24, // some engines emit "24" at midnight
+    n("minute"),
+    n("second"),
+  );
+  return etWallAsUtc - at.getTime();
+}
+
+/** ET wall-clock calendar parts of `at` (month 1-12, weekday 0=Sun). */
+function etCalendarParts(at: Date): {
+  year: number;
+  month: number;
+  day: number;
+  weekday: number;
+} {
+  const p = new Intl.DateTimeFormat("en-US", {
+    timeZone: ET_TZ,
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(at);
+  const v = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+  const WD: Record<string, number> = {
+    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+  };
+  return {
+    year: Number(v("year")),
+    month: Number(v("month")),
+    day: Number(v("day")),
+    weekday: WD[v("weekday")] ?? 0,
+  };
+}
+
+/** UTC instant of ET midnight for the given ET wall-clock Y/M/D. Date.UTC
+ *  normalizes out-of-range day/month (e.g. day+1 across a month end). */
+function etMidnightToUtc(year: number, month: number, day: number): Date {
+  const wallAsUtc = Date.UTC(year, month - 1, day, 0, 0, 0);
+  // Two passes: the offset at the wall-clock instant approximates the
+  // real offset; recomputing at the candidate resolves DST-transition
+  // days exactly.
+  const approx = wallAsUtc - etOffsetMs(new Date(wallAsUtc));
+  return new Date(wallAsUtc - etOffsetMs(new Date(approx)));
+}
+
+/** Start (midnight ET) of the ET day containing `at`, as a UTC Date. */
+export function startOfDayET(at: Date = new Date()): Date {
+  const { year, month, day } = etCalendarParts(at);
+  return etMidnightToUtc(year, month, day);
+}
+
+/** Start of the NEXT ET day — exclusive upper bound for "today" filters. */
+export function endOfDayET(at: Date = new Date()): Date {
+  const { year, month, day } = etCalendarParts(at);
+  return etMidnightToUtc(year, month, day + 1);
+}
+
+/** Start (Sunday midnight ET) of the ET week containing `at`. */
+export function startOfWeekET(at: Date = new Date()): Date {
+  const { year, month, day, weekday } = etCalendarParts(at);
+  return etMidnightToUtc(year, month, day - weekday);
+}
+
+/** Start (1st, midnight ET) of the ET month containing `at`. */
+export function startOfMonthET(at: Date = new Date()): Date {
+  const { year, month } = etCalendarParts(at);
+  return etMidnightToUtc(year, month, 1);
+}
+
+/** Start (Jan 1, midnight ET) of the ET year containing `at`. */
+export function startOfYearET(at: Date = new Date()): Date {
+  const { year } = etCalendarParts(at);
+  return etMidnightToUtc(year, 1, 1);
+}
