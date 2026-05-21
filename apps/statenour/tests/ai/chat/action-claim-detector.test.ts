@@ -145,3 +145,27 @@ describe("detectActionClaimsWithoutTools · the gate behavior", () => {
     expect(r).toHaveLength(0);
   });
 });
+
+describe("detectActionClaims · per-sentence hedge isolation", () => {
+  it("detects a fabrication even when a LATER sentence is hedged", () => {
+    // Pre-fix bug: `hedged` was document-wide, so the future-tense
+    // second sentence suppressed the real fabrication in the first.
+    const text = "Added the tasks to Bay 5 Revive. I'll send a recap later.";
+    const result = detectActionClaimsWithoutTools(text, []);
+    expect(result.length).toBeGreaterThan(0);
+    expect(result.some((c) => c.expectedTool.includes("createTask"))).toBe(true);
+  });
+
+  it("still suppresses a claim hedged within its own sentence", () => {
+    const text = "I would add those tasks if you want.";
+    const result = detectActionClaimsWithoutTools(text, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("a hedge in one sentence does not suppress a real claim in another", () => {
+    const text =
+      "I can add more later. Sent the email to the customer just now.";
+    const result = detectActionClaimsWithoutTools(text, []);
+    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+  });
+});
