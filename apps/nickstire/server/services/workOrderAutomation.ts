@@ -377,32 +377,39 @@ export async function enrollInDripCampaign(
     const campaign = getCampaignByTrigger(trigger);
     if (!campaign || !campaign.steps[0]) return;
 
-    // Dedup check BEFORE sending — prevents double-SMS on race conditions
-    try {
-      const { checkExistingEnrollment, hasActiveDripEnrollment } = await import("./dripProcessor");
+    const step = campaign.steps[0];
+    if (step.delayDays > 0) return; // Only send immediate steps here, scheduled ones need DB
 
-      // wave-117b — cross-campaign dedup. Was: only checked same-campaign
-      // enrollment, so a customer flagged BOTH "at-risk" + "declined-
-      // estimate" by the same daily cron tick would get enrolled into
-      // both campaigns simultaneously and receive 2 parallel SMS
-      // sequences. Now: if the customer is in ANY active campaign,
-      // skip the new enrollment. Operator gets one campaign at a time;
-      // when it ends (status → completed), the next trigger can fire.
+    // wave-117b cross-campaign dedup (best-effort) — if the customer is
+    // already mid-sequence in a DIFFERENT campaign, don't pile a second
+    // one on. A customer flagged for two triggers in the same cron tick
+    // gets one campaign at a time; the next fires once this completes.
+    try {
+      const { hasActiveDripEnrollment } = await import("./dripProcessor");
       const activeOther = await hasActiveDripEnrollment(customer.phone);
       if (activeOther && activeOther !== campaign.id) {
         log.info(`Drip skip (cross-campaign): ${customer.name} already in ${activeOther}, not enrolling in ${campaign.name}`);
         return;
       }
+    } catch (e) { log.warn("[services/workOrderAutomation] cross-campaign check failed:", e); }
 
-      const alreadyEnrolled = await checkExistingEnrollment(customer.phone, campaign.id);
-      if (alreadyEnrolled) {
-        log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
-        return;
-      }
-    } catch (e) { log.warn("[services/workOrderAutomation] operation failed:", e); } // If check fails, proceed (first-time enrollment is more likely)
-
-    const step = campaign.steps[0];
-    if (step.delayDays > 0) return; // Only send immediate steps here, scheduled ones need DB
+    // At-most-once claim — persist the enrollment BEFORE sending step 1.
+    // persistDripEnrollment's INSERT IGNORE is atomic on the uq_drip_active
+    // unique key, so two concurrent enroll calls for the same
+    // (phone, campaign) can't both send: the winner gets true and sends,
+    // the loser gets false and bails. Replaces the old check-then-send
+    // SELECT dedup, whose TOCTOU window let step 1 go out twice.
+    const { persistDripEnrollment } = await import("./dripProcessor");
+    const claimed = await persistDripEnrollment({
+      campaignId: campaign.id,
+      customerPhone: customer.phone,
+      customerName: customer.name,
+      metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
+    });
+    if (!claimed) {
+      log.info(`Drip skip: ${customer.name} already enrolled in ${campaign.name}`);
+      return;
+    }
 
     const { sendSms } = await import("../sms");
     const msg = personalizeMessage(step.messageTemplate, {
@@ -418,19 +425,6 @@ export async function enrollInDripCampaign(
       await sendSms(customer.phone, msg);
     }
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
-
-    // Persist enrollment for multi-step processing
-    try {
-      const { persistDripEnrollment } = await import("./dripProcessor");
-      await persistDripEnrollment({
-        campaignId: campaign.id,
-        customerPhone: customer.phone,
-        customerName: customer.name,
-        metadata: { vehicle: customer.vehicle || "", service: customer.service || "" },
-      });
-    } catch (err: unknown) {
-      log.warn(`Drip persist failed for ${customer.name}: ${(err as Error).message}`);
-    }
   } catch (err: unknown) {
     log.warn(`Drip enrollment failed: ${(err as Error).message}`);
   }

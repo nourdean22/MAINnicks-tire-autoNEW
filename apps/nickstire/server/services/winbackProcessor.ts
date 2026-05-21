@@ -28,7 +28,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
 
     // Get pending sends that are due and belong to active campaigns
     const [rows] = await db.execute(sql`
-      SELECT ws.id, ws.phone, ws.personalizedBody, ws.campaignId
+      SELECT ws.id, ws.phone, ws.personalizedBody, ws.campaignId, ws.customerId
       FROM winback_sends ws
       INNER JOIN winback_campaigns wc ON ws.campaignId = wc.id
       WHERE ws.status = 'pending'
@@ -45,6 +45,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
     const { sendSms } = await import("../sms");
     let sent = 0;
     let failed = 0;
+    let skipped = 0;
 
     // Gate SMS behind feature flag
     const { isEnabled } = await import("./featureFlags");
@@ -55,12 +56,44 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
         // Skip SMS sends but don't mark as failed
         continue;
       }
+
+      // Opt-out guard — winback_sends carries customerId, so resolve
+      // opt-out by exact id (no fuzzy phone match). Opted-out rows are
+      // marked 'failed' so they leave the 'pending' pool permanently.
+      const [optRows] = await db.execute(sql`
+        SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1
+      `);
+      const optedOut = !!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
+      if (optedOut) {
+        await db.execute(sql`
+          UPDATE winback_sends SET status = 'failed', errorMessage = 'customer opted out of SMS'
+          WHERE id = ${send.id} AND status = 'pending'
+        `);
+        skipped++;
+        continue;
+      }
+
+      // At-most-once claim — flip pending -> sent BEFORE sendSms. If the
+      // run crashes/times out after the SMS goes out but before we'd
+      // record it, the row is already out of the 'pending' pool, so the
+      // next run will NOT re-text the customer. A claimed row whose send
+      // then crashed shows 'sent' but may not have delivered — an
+      // acceptable miss, never a duplicate. The status enum is only
+      // ('pending','sent','failed'), so the claim reuses 'sent' rather
+      // than needing a schema migration for a 'sending' state.
+      const [claimRes] = await db.execute(sql`
+        UPDATE winback_sends SET status = 'sent', sentAt = NOW()
+        WHERE id = ${send.id} AND status = 'pending'
+      `);
+      if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run — never re-send
+      }
+
       const result = await sendSms(String(send.phone), String(send.personalizedBody));
 
       if (result.success) {
         await db.execute(sql`
-          UPDATE winback_sends SET status = 'sent', sentAt = NOW(), twilioSid = ${result.sid || null}
-          WHERE id = ${send.id}
+          UPDATE winback_sends SET twilioSid = ${result.sid || null} WHERE id = ${send.id}
         `);
         await db.execute(sql`UPDATE winback_campaigns SET sentCount = sentCount + 1 WHERE id = ${send.campaignId}`);
         sent++;
@@ -84,7 +117,7 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       }
     }
 
-    return { recordsProcessed: sent, details: `${sent} sent, ${failed} failed out of ${pendingSends.length}` };
+    return { recordsProcessed: sent, details: `${sent} sent, ${failed} failed, ${skipped} skipped out of ${pendingSends.length}` };
   } catch (err: unknown) {
     return { recordsProcessed: 0, details: `Failed: ${(err as Error).message}` };
   }
