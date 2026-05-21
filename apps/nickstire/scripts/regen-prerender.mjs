@@ -19,11 +19,30 @@ import fs from "fs";
 import path from "path";
 import net from "net";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const PRERENDER_DIR_FINAL = path.join(ROOT, "prerendered");
 const PRERENDER_DIR_TMP = path.join(ROOT, "dist", "prerendered");
+const PRERENDER_DIR_BACKUP = path.join(ROOT, "dist", "prerendered-prev");
+
+// The populated .env lives at the monorepo root — apps/nickstire/ has none.
+// Same resolution gsc-report.ts uses. Without this the prod server spawned
+// in Step 2 dies with "Missing required env vars: DATABASE_URL, JWT_SECRET".
+dotenv.config({ path: path.resolve(ROOT, "..", "..", ".env") });
+
+// Safety net: Step 1.5 moves prerendered/ aside before launching the server,
+// which can fail. If regen aborts for any reason before Step 4 puts a fresh
+// tree in place, restore prerendered/ on exit — a failed regen must never
+// leave the repo with the site's prerendered HTML wiped (a committed
+// deletion would tank SEO).
+process.on("exit", () => {
+  if (fs.existsSync(PRERENDER_DIR_BACKUP) && !fs.existsSync(PRERENDER_DIR_FINAL)) {
+    fs.renameSync(PRERENDER_DIR_BACKUP, PRERENDER_DIR_FINAL);
+    console.error("[regen] aborted — restored prerendered/ from backup.");
+  }
+});
 
 function findFreePort() {
   return new Promise((resolve, reject) => {
@@ -55,22 +74,26 @@ console.log("[regen] Step 1/4 — rebuilding client + server…");
 // Windows where corepack's pnpm shim can be broken after Node upgrades.
 execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
 
-// ─── Step 1.5: nuke stale prerendered/ so middleware can't short-circuit ─
+// ─── Step 1.5: move stale prerendered/ aside so middleware can't short-circuit ─
 //
 // The prerender-middleware serves prerendered/<route>/index.html to bot
 // UAs. Puppeteer identifies as Googlebot to avoid the bare-SPA-shell
-// path. Without this delete, Puppeteer would just receive the OLD
-// prerendered HTML and copy it back, defeating the whole regen.
+// path. If the OLD prerendered/ were still in place, Puppeteer would just
+// receive it and copy it straight back, defeating the whole regen.
 //
-// We keep the prod tree intact during the regen window (server reads
-// from project root /prerendered which we just removed) — when nothing
-// is found, the middleware's "no prerendered directory found" branch
-// fires and falls through to the SPA, which hydrates and renders the
-// fresh DOM that Puppeteer captures.
-console.log(`\n[regen] Step 1.5/4 — clearing stale prerendered/ so middleware can't short-circuit…`);
+// We MOVE it to dist/prerendered-prev rather than delete it: the server
+// finds no prerendered/ and the middleware's "no prerendered directory
+// found" branch falls through to the SPA (which hydrates and renders the
+// fresh DOM Puppeteer captures) — but the old tree stays recoverable. The
+// process-exit handler above renames it back if regen aborts before
+// Step 4 swaps a fresh tree into place.
+console.log(`\n[regen] Step 1.5/4 — moving stale prerendered/ aside so middleware can't short-circuit…`);
+if (fs.existsSync(PRERENDER_DIR_BACKUP)) {
+  fs.rmSync(PRERENDER_DIR_BACKUP, { recursive: true, force: true });
+}
 if (fs.existsSync(PRERENDER_DIR_FINAL)) {
-  fs.rmSync(PRERENDER_DIR_FINAL, { recursive: true, force: true });
-  console.log(`[regen] Cleared ${PRERENDER_DIR_FINAL}`);
+  fs.renameSync(PRERENDER_DIR_FINAL, PRERENDER_DIR_BACKUP);
+  console.log(`[regen] Moved prerendered/ → dist/prerendered-prev (auto-restored if regen fails)`);
 }
 
 // ─── Step 2: launch server ────────────────────────────
@@ -129,7 +152,7 @@ const countHtml = (dir) => {
   walk(dir);
   return n;
 };
-const before = fs.existsSync(PRERENDER_DIR_FINAL) ? countHtml(PRERENDER_DIR_FINAL) : 0;
+const before = fs.existsSync(PRERENDER_DIR_BACKUP) ? countHtml(PRERENDER_DIR_BACKUP) : 0;
 const fresh = countHtml(PRERENDER_DIR_TMP);
 
 // Check for the "NOUR OS" regression — anything sneaking through
@@ -155,8 +178,9 @@ if (brokenCount > 0) {
   process.exit(1);
 }
 
-fs.rmSync(PRERENDER_DIR_FINAL, { recursive: true, force: true });
 fs.renameSync(PRERENDER_DIR_TMP, PRERENDER_DIR_FINAL);
+// Fresh prerendered/ is in place — drop the pre-regen backup.
+fs.rmSync(PRERENDER_DIR_BACKUP, { recursive: true, force: true });
 
 console.log(`\n[regen] ✓ Complete.`);
 console.log(`  Before: ${before} files`);
