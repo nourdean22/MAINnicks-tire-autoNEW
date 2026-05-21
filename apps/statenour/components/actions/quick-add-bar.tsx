@@ -27,7 +27,7 @@
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Mic, Square, Loader2, Sparkles } from "lucide-react";
+import { Plus, Mic, Square, Loader2, Sparkles, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { parseQuickAdd } from "@/lib/loops/quick-add-parser";
 import { domainClass as dc } from "@/components/actions/shared";
@@ -141,6 +141,11 @@ export function QuickAddBar({
           the title — never blocks a save. */}
       {quickAddParsed ? (
         <div className="flex items-center gap-1.5 px-1 text-[9px] flex-wrap">
+          {quickAddParsed.markDone && (
+            <span className="inline-flex items-center gap-0.5 rounded border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0.5 font-bold uppercase text-emerald-300">
+              <Check size={9} /> done
+            </span>
+          )}
           <span className={cn(
             "px-1.5 py-0.5 rounded border font-bold uppercase",
             quickAddParsed.loopKind === "DAILY"
@@ -190,10 +195,12 @@ export function QuickAddBar({
           )}
         </div>
       ) : newTask.length === 0 ? (
-        <div className="flex items-center gap-2 px-1 text-[9px] text-zinc-700 font-mono select-none">
+        <div className="flex flex-wrap items-center gap-2 px-1 text-[9px] text-zinc-700 font-mono select-none">
           <span>@dania</span>
           <span className="text-zinc-800">·</span>
           <span>daily: ...</span>
+          <span className="text-zinc-800">·</span>
+          <span>done: ...</span>
           <span className="text-zinc-800">·</span>
           <span>... by fri</span>
           <span className="text-zinc-800">·</span>

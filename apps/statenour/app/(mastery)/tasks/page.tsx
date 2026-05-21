@@ -742,21 +742,38 @@ function TasksPageInner() {
         title: parsed.title,
         missionId: mId,
         effort: parsed.effort || "M15",
-        roiScore: parsed.loopKind === "PROMISE" ? 80 : 50,
+        // roiScore stays 50 — the "ungraded" sentinel scoreTaskWithAI
+        // keys on. Pre-2026-05-21 a PROMISE was hardcoded to 80, which
+        // the !== 50 skip-guard then read as "operator-graded", so
+        // promises were permanently excluded from AI ROI grading.
+        roiScore: 50,
         loopKind: parsed.loopKind,
         promiseTo: parsed.promiseTo || null,
         dueDate: parsed.dueDate ? parsed.dueDate.toISOString() : null,
       })) as { id?: string; task?: { id?: string } } | null;
       setNewTask("");
-      // Phase SS.2 · AI grading via tRPC · fire-and-forget · typed
-      // return shape (no more `body?.data?.id ?? body?.id` dance).
-      if (parsed.loopKind !== "PROMISE") {
-        const newId = created?.task?.id ?? created?.id ?? null;
-        if (newId) {
-          void scoreMutation.mutateAsync({ id: newId }).catch(() => {
-            /* non-fatal · AI grading is best-effort */
-          });
+      const newId = created?.task?.id ?? created?.id ?? null;
+      // `done:` / `did:` prefix · the operator finished this earlier
+      // and is logging it. Complete it right away so it lands in DONE
+      // (streak / mastery credit fires through checkTask). markedDone
+      // tracks the real outcome so the toast never claims "done" if
+      // the completion failed. No AI grading — a done task's roiScore
+      // never feeds the sort.
+      let markedDone = false;
+      if (parsed.markDone && newId) {
+        try {
+          await checkMutation.mutateAsync({ id: newId, action: "complete" });
+          markedDone = true;
+        } catch (err) {
+          reportClientError(err, { source: "tasks.addTask.markDone" });
         }
+      } else if (newId) {
+        // Phase SS.2 · AI grading via tRPC · fire-and-forget. Every
+        // kind gets graded now (promises included) · scoreTaskWithAI
+        // reads the roiScore=50 sentinel and replaces it 0-100.
+        void scoreMutation.mutateAsync({ id: newId }).catch(() => {
+          /* non-fatal · AI grading is best-effort */
+        });
       }
       const kindLabel =
         parsed.loopKind === "DAILY"
@@ -767,7 +784,7 @@ function TasksPageInner() {
       const extras: string[] = [kindLabel];
       if (parsed.domain) extras.push(`@${parsed.domain}`);
       if (parsed.effort) extras.push(parsed.effort);
-      toast.success(`Added · ${extras.join(" · ")}`);
+      toast.success(`${markedDone ? "Logged done" : "Added"} · ${extras.join(" · ")}`);
       load();
       notifyDataChanged("tasks", { source: "tasks-page", detail: "add" });
     } catch (err) {
