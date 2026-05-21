@@ -22,8 +22,8 @@ import {
 import { toast } from "sonner";
 import { StatCard, PageHeader, navigateToAdminSection } from "./shared";
 
-const NOUR_OS_URL = "https://autonicks.com/command";
-const NOUR_OS_CHAT_URL = "https://autonicks.com/chat";
+const NOUR_OS_URL = "https://bdnick.info/command";
+const NOUR_OS_CHAT_URL = "https://bdnick.info/chat";
 
 function timeAgo(dateStr: string | null | undefined): string {
   if (!dateStr) return "Never";
@@ -76,7 +76,7 @@ export default function CommandCenterSection() {
             <div>
               <h2 className="text-lg font-bold text-foreground tracking-tight">NOUR OS</h2>
               <p className="text-[12px] text-muted-foreground mt-0.5">
-                Your real brain lives at autonicks.com — tasks, decisions, loops, strategy.
+                Your real brain lives at bdnick.info — tasks, decisions, loops, strategy.
               </p>
             </div>
           </div>
