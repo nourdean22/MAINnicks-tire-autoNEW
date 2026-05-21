@@ -311,6 +311,11 @@ export async function getTaskById(id: string) {
 export async function createTask(input: unknown, tx?: Prisma.TransactionClient) {
   const payload = taskCreateSchema.parse(input);
 
+  // A bare quick-add task carries no explicit "next physical action";
+  // fall back to the title so the NOT-NULL column is never an empty
+  // string. title is requiredString → guaranteed non-empty.
+  if (!payload.nextPhysicalAction) payload.nextPhysicalAction = payload.title;
+
   if (isDemoMode) {
     const state = getDemoState();
     const mission = state.missions.find((candidate) => candidate.id === payload.missionId);
