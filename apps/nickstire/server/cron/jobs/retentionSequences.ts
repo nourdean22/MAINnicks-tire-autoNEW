@@ -267,6 +267,22 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
         continue;
       }
 
+      // At-most-once claim — advance the retention marker BEFORE sending.
+      // If the run crashes (or this UPDATE fails) after the text goes out,
+      // the row is already advanced, so the next daily run won't re-text
+      // the customer. The conditional WHERE also makes two overlapping
+      // runs safe — only one wins the claim.
+      const claimRes = await db
+        .update(customers)
+        .set({ lastRetentionTier: tier.days, lastRetentionDate: new Date() })
+        .where(and(
+          eq(customers.id, c.id),
+          or(isNull(customers.lastRetentionTier), sql`${customers.lastRetentionTier} < ${tier.days}`),
+        ));
+      if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run — never re-send
+      }
+
       // wave-181.46 · route through F25e gateway (operator decision: Twilio
       // is dead, Android phone is THE path). { via: "shop" } bypasses the
       // SMS_KILL_SWITCH (Twilio-only) and sends through the F25e on Verizon
@@ -277,14 +293,6 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       await logRetentionSms(c.phone, messageBody, result.sid, variantKey);
 
       if (result.success) {
-        // Update the customer's retention tracking
-        await db
-          .update(customers)
-          .set({
-            lastRetentionTier: tier.days,
-            lastRetentionDate: new Date(),
-          })
-          .where(eq(customers.id, c.id));
         processed++;
       } else {
         log.warn(`Retention ${tier.days}d SMS failed for customer #${c.id}`, {

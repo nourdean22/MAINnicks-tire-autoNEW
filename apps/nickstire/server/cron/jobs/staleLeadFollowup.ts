@@ -60,19 +60,24 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
       const normalizedLead = normalizePhone(lead.phone);
       if (normalizedLead && optOuts.has(normalizedLead)) continue;
 
+      // At-most-once claim — flip status 'new' -> 'contacted' BEFORE the
+      // send. If the run crashes after the text goes out, the lead is
+      // already out of the 'new' pool, so the next 2-hourly run won't
+      // re-text it. The conditional WHERE makes overlapping runs safe.
+      const claimRes = await db.update(leads)
+        .set({ status: "contacted" })
+        .where(and(eq(leads.id, lead.id), eq(leads.status, "new")));
+      if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run
+      }
+
       const firstName = lead.name?.split(" ")[0] || "there";
       const service = lead.recommendedService || lead.problem || "your vehicle";
       const message = `Hi ${firstName}, we got your request about ${service} at Nick's Tire & Auto. Want us to call you? Reply YES or call (216) 862-0005.`;
 
       // Wave-109: stale-lead nudge via shop gateway (1:1 transactional)
       const result = await sendSms(lead.phone, message, { via: "shop" });
-      if (result.success) {
-        // Update status to contacted
-        await db.update(leads)
-          .set({ status: "contacted" })
-          .where(eq(leads.id, lead.id));
-        processed++;
-      }
+      if (result.success) processed++;
     }
 
     if (processed > 0) {

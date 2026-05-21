@@ -86,12 +86,17 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
 
   try {
     const { getDb } = await import("../db");
-    const { customers } = await import("../../drizzle/schema");
+    const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
     const { sendSms } = await import("../sms");
-    const { sql, and, isNotNull, eq } = await import("drizzle-orm");
+    const { logOutboundSms } = await import("./smsInstrumentation");
+    const { sql, and, isNotNull, eq, gte, like } = await import("drizzle-orm");
 
     const db = await getDb();
     if (!db) return 0;
+
+    // Per-customer cooldown window for this weather trigger.
+    const variantKey = `weather_${triggerId}`;
+    const cooldownStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
     // Find customers who haven't visited in 60+ days, have valid phone, not opted out
     const targets = await db.select({
@@ -110,10 +115,31 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
     let sent = 0;
     for (const c of targets) {
       if (!c.phone) continue;
+
+      // Per-customer cooldown — skip anyone already texted for THIS
+      // weather trigger in the last 30 days. Without it, sendWeatherSms
+      // re-texts the same lapsed customers on every run a weather
+      // condition persists (rain for hours -> 'heavy_rain' fires each run).
+      const normalized = c.phone.replace(/\D/g, "").slice(-10);
+      const recent = await db.select({ id: smsMessages.id })
+        .from(smsMessages)
+        .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+        .where(and(
+          like(smsConversations.phone, `%${normalized}`),
+          eq(smsMessages.direction, "outbound"),
+          gte(smsMessages.createdAt, cooldownStart),
+          eq(smsMessages.variantKey, variantKey),
+        ))
+        .limit(1);
+      if (recent.length > 0) continue;
+
       const firstName = c.firstName || "there";
       const msg = template.replace("{name}", firstName);
       try {
         const result = await sendSms(c.phone, msg);
+        // Log with the weather variantKey so the cooldown above sees this
+        // send on the next run and the admin SMS tile counts it.
+        await logOutboundSms(c.phone, msg, result.sid, variantKey);
         if (result.success) sent++;
       } catch (err) {
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });

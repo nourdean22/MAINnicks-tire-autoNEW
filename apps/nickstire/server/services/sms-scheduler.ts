@@ -301,6 +301,18 @@ export async function processScheduledSms() {
         message = `Hi ${booking.name.split(" ")[0]}, reminder from Nick's Tire & Auto about your ${booking.service}. Call (216) 862-0005.`;
     }
 
+    // At-most-once claim — mark the reminder 'sent' BEFORE the send. The
+    // pending->processing claim above only guards overlapping runs; it
+    // does NOT cover the crash-after-send window, because the recovery
+    // sweep resurrects any 'processing' row with sentAt=NULL and re-sends
+    // it. Writing the terminal 'sent' state first closes that: a crash
+    // after this point leaves the row 'sent' (never reprocessed); a crash
+    // before it leaves 'processing' with the send not yet done (correct
+    // for the sweep to reclaim). A send failure downgrades it to 'failed'.
+    await db.update(appointmentReminders)
+      .set({ status: "sent", sentAt: now })
+      .where(eq(appointmentReminders.id, reminder.id));
+
     // wave-181.58 · route through F25e gateway (operator decision: Twilio dead).
     // Was missing from wave-181.46's batch — booking confirmations + 24h/1h
     // reminders + thank-you + maintenance-reminder all flow through this path.
@@ -309,7 +321,7 @@ export async function processScheduledSms() {
 
     if (result.success) {
       await db.update(appointmentReminders)
-        .set({ status: "sent", sentAt: now, smsSid: result.sid || null })
+        .set({ smsSid: result.sid || null })
         .where(eq(appointmentReminders.id, reminder.id));
       sent++;
 
