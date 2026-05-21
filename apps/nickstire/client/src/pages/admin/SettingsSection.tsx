@@ -726,17 +726,30 @@ function VapiPanel() {
         <span className={`px-2.5 py-1 text-[10px] font-medium tracking-[0.12em] rounded ${connected ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
           {connected
             ? `${status?.assistantCount ?? 0} ASSISTANT${(status?.assistantCount ?? 0) === 1 ? "" : "S"}`
-            : "API KEY MISSING OR INVALID"}
+            : status?.errorKind === "outage"
+              ? "VAPI VENDOR OUTAGE"
+              : status?.errorKind === "auth"
+                ? "API KEY MISSING OR INVALID"
+                : "VAPI UNREACHABLE"}
         </span>
       </div>
 
       {/* Status states */}
       {!connected && (
         <div className="border border-amber-500/30 bg-amber-500/[0.05] p-3 text-[11px] text-foreground/70 leading-relaxed">
-          {status?.error
-            ? <>Vapi error: <span className="font-mono text-amber-400">{status.error}</span></>
-            : <>Set <span className="font-mono">VAPI_API_KEY</span> in Vercel env to connect.</>
-          }
+          {status?.errorKind === "outage" ? (
+            <>
+              <span className="text-amber-400 font-semibold">VAPI vendor outage.</span> Their API
+              is unreachable — this is on VAPI&apos;s side, not your key or config. The receptionist
+              reconnects automatically once VAPI recovers; check{" "}
+              <span className="font-mono">status.vapi.ai</span>.
+              {status.error && <> <span className="font-mono text-foreground/40">({status.error})</span></>}
+            </>
+          ) : status?.error ? (
+            <>Vapi error: <span className="font-mono text-amber-400">{status.error}</span></>
+          ) : (
+            <>Set <span className="font-mono">VAPI_API_KEY</span> in the Railway env to connect.</>
+          )}
         </div>
       )}
 

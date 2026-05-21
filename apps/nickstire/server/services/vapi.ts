@@ -1491,18 +1491,34 @@ export async function getVapiStatus(): Promise<{
   assistantCount: number;
   assistants: Array<{ id: string; name: string; createdAt: string }>;
   error?: string;
+  // Classifies WHY the check failed, so the admin shows the right message
+  // instead of always blaming the API key:
+  //  · "auth"   — key missing / 401 / 403  → operator can fix
+  //  · "outage" — VAPI 5xx / 429 / unreachable → vendor-side, just wait
+  //  · "other"  — unclassified failure
+  errorKind?: "auth" | "outage" | "other";
 }> {
   try {
     if (!process.env.VAPI_API_KEY) {
-      return { connected: false, assistantCount: 0, assistants: [], error: "VAPI_API_KEY not set" };
+      return { connected: false, assistantCount: 0, assistants: [], error: "VAPI_API_KEY not set", errorKind: "auth" };
     }
     const res = await vapiFetch("/assistant");
     if (!res.ok) {
+      // 401/403 = a real auth problem (key missing/invalid). 5xx — including
+      // Cloudflare's 520-527 "origin unreachable" codes — and 429 mean VAPI
+      // itself is down or overloaded, NOT a problem with our key or config.
+      const errorKind: "auth" | "outage" | "other" =
+        res.status === 401 || res.status === 403
+          ? "auth"
+          : res.status >= 500 || res.status === 429
+            ? "outage"
+            : "other";
       return {
         connected: false,
         assistantCount: 0,
         assistants: [],
         error: `Vapi API ${res.status}: ${(await res.text()).slice(0, 200)}`,
+        errorKind,
       };
     }
     const data = (await res.json()) as Array<{ id: string; name: string; createdAt: string }>;
@@ -1512,11 +1528,14 @@ export async function getVapiStatus(): Promise<{
       assistants: data.slice(0, 10),
     };
   } catch (err) {
+    // A thrown fetch (DNS failure, timeout, connection refused) means VAPI
+    // was unreachable entirely — that is an outage, never an auth failure.
     return {
       connected: false,
       assistantCount: 0,
       assistants: [],
       error: err instanceof Error ? err.message : String(err),
+      errorKind: "outage",
     };
   }
 }
