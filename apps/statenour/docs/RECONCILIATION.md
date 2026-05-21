@@ -1,6 +1,36 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-21 (Nick agent hardening — test coverage + tooling) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1910 across 142 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-21 (suggestion-improve feature) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1934 across 144 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-21 · suggestion-improve — closing the suggestion-loop feedback loop · 3 ships
+>
+> Built the improve-agent counterpart for the suggestion-loop signal via
+> a full brainstorm → design → implement arc. Nick's proactive suggestion
+> chips now feed an analyzer that flags noisy kinds — the learning loop
+> the C4 doc flagged as open is closed. typecheck + 144/144 test files
+> (1934 tests) green before push.
+>
+> **`bc9eafd` · cover behavior-directive intensity gate** — first tests
+> for behavior-directive.ts (the gate deciding whether Nick's prompt
+> carries the ELEVATE directive): 13 cases over isStrictMode,
+> resolveIntensity, getBehaviorDirective. Tail of the test-coverage loop.
+>
+> **`aa682bd` · suggestion-improve design doc** — docs/suggestion-improve-design.md ·
+> output of a brainstorming session: understanding summary, assumptions
+> A1-A5, decision log D1-D6, full design.
+>
+> **`247c7df` · suggestion-improve feature** — new lib/brain/suggestion-improve.ts
+> (sibling of improve-agent.ts): reads suggestionLoopStats, flags any
+> suggestion kind with dismissRate >= 0.5 over >= 5 signals as "noisy",
+> persists one `suggestion_hypothesis` brain memory per noisy kind
+> (operator-facing, surfaces on /brain/wisdom). New SUGGESTION_HYPOTHESIS
+> category (RECALL-excluded). Wired as block 3 of the brain-feedback-loop
+> cron. 11 vitest cases. Diagnose-only — no auto-tuning; operator decides.
+>
+> **Scope notes:** DPO export + LLM-synthesized aggregator fixes were
+> explicitly deferred (design D1/D2). The /api/brain/improve-agent route
+> was left out — it's read-only + improve-agent-specific; the cron is the
+> canonical writer.
 
 > ## 2026-05-21 · Nick agent hardening — test coverage + tooling + rerank telemetry · 6 ships
 >
