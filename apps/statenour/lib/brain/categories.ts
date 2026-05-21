@@ -330,8 +330,6 @@ export const BRAIN_CATEGORIES = {
   UNCATEGORIZED: "uncategorized",
   /** @deprecated same as UNCATEGORIZED. */
   RANDOM: "random",
-  /** @deprecated likely a slug fragment from an older typo. Audit callers. */
-  DESC: "desc",
 } as const;
 
 export type BrainCategory =

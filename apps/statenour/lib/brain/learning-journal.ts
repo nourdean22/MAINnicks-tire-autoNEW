@@ -157,7 +157,7 @@ export async function generateLearningJournal(): Promise<JournalEntry> {
       by: ["category"],
       _count: true,
       _avg: { confidence: true },
-      orderBy: { _count: { category: BRAIN_CATEGORIES.DESC } },
+      orderBy: { _count: { category: "desc" } },
     }).catch((): CategoryDepthRow[] => []),
     // v10.0.529.23 · weak-spot detection · was 14 sequential queries
     // (findFirst + count per important domain). Now 1 groupBy that
