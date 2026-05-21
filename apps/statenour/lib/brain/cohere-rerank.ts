@@ -77,6 +77,11 @@ async function _cohereRerank<T>(args: {
       documents,
       top_n: topN,
     }),
+    // Bound the fetch itself · withGuardian's timeoutMs races the
+    // promise but does not abort the socket, so a hung Cohere brownout
+    // would pin the connection past the guardian deadline. 7.5s sits
+    // just under guardian's 8s so the abort fires first.
+    signal: AbortSignal.timeout(7_500),
   });
 
   if (!res.ok) {
