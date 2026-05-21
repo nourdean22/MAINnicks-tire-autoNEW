@@ -377,7 +377,7 @@ export const intelligenceRouter = router({
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
   }),
 
-  // ── Autonicks brain proxy ──
+  // ── Statenour brain proxy ──
   // Closes admin audit §10. The intelligence tabs (NourOsBrainCard,
   // WeatherImpactCard) used to do raw cross-origin fetch() to
   // statenour-os.vercel.app from the browser. Three problems:
@@ -391,7 +391,7 @@ export const intelligenceRouter = router({
     try {
       const ctrl = new AbortController();
       const timeoutId = setTimeout(() => ctrl.abort(), 5000);
-      const r = await fetch("https://statenour-os.vercel.app/api/brain/status", { signal: ctrl.signal });
+      const r = await fetch("https://bdnick.info/api/brain/status", { signal: ctrl.signal });
       clearTimeout(timeoutId);
       if (!r.ok) return null;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any -- statenour brain endpoint returns dynamic JSON; consumers in OverviewTab destructure varied keys (memories / automationRules / etc)
@@ -406,7 +406,7 @@ export const intelligenceRouter = router({
     try {
       const ctrl = new AbortController();
       const timeoutId = setTimeout(() => ctrl.abort(), 5000);
-      const r = await fetch("https://statenour-os.vercel.app/api/weather", { signal: ctrl.signal });
+      const r = await fetch("https://bdnick.info/api/weather", { signal: ctrl.signal });
       clearTimeout(timeoutId);
       if (!r.ok) return null;
       return await r.json();

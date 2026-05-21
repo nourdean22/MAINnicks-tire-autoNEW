@@ -502,7 +502,7 @@ export default function Admin() {
           {/* Quick links */}
           <div className="flex items-center justify-between px-2 pt-1.5 border-t border-border/15">
             <a
-              href="https://autonicks.com/chat"
+              href="https://bdnick.info/chat"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-[11px] text-primary/85 hover:text-primary font-medium transition-colors"

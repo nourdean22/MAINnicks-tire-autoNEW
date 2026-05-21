@@ -633,7 +633,7 @@ export async function getSiteHealth(): Promise<SiteHealthInfo> {
   // GOOGLE_SEARCH_CONSOLE_KEY is wired up, this will pull live counts.
   // For now: honest unknowns instead of confidently-wrong constants.
   return {
-    domains: ["nickstire.org", "www.nickstire.org", "autonicks.com", "www.autonicks.com"],
+    domains: ["nickstire.org", "www.nickstire.org"],
     sitemapPageCount,
     totalBlogPosts: 6 + dynamicBlogPosts, // 6 hardcoded + dynamic
     hardcodedBlogPosts: 6,

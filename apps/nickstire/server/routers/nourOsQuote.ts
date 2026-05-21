@@ -1,5 +1,5 @@
 /**
- * NOUR-OS Quote Router — bridges nickstire.org to autonicks.com public APIs
+ * NOUR-OS Quote Router — bridges nickstire.org to bdnick.info public APIs
  *
  * Fetches real labor data + tire inventory from statenour-os,
  * creates quotes via the statenour-os API for instant customer quotes.
@@ -8,7 +8,7 @@ import { TRPCError } from "@trpc/server";
 import { publicProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 
-const NOUR_OS_API = process.env.NOUR_OS_API_URL ?? "https://autonicks.com";
+const NOUR_OS_API = process.env.NOUR_OS_API_URL ?? "https://bdnick.info";
 
 async function fetchNourOS(path: string, init?: RequestInit) {
   const res = await fetch(`${NOUR_OS_API}${path}`, {
