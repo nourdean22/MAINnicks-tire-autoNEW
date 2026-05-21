@@ -26,15 +26,24 @@
 
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
-import { today as todayET } from "@/lib/utils/datetime";
+import {
+  today as todayET,
+  startOfDay as etDayStart,
+  endOfDay as etDayEnd,
+} from "@/lib/utils/datetime";
 
 export const dynamic = "force-dynamic";
 
 export const GET = apiHandler(
   async () => {
     const date = todayET();
-    const startOfDay = new Date(`${date}T00:00:00.000-04:00`); // ET-anchored
-    const endOfDay = new Date(`${date}T23:59:59.999-04:00`);
+    // Day bounds (UTC instants) for the ET calendar day `date`. The
+    // noon-UTC anchor lands unambiguously inside that ET day whatever
+    // the offset is — the prior hardcoded -04:00 ran an hour off all
+    // winter (EST is -05:00), so the strip dropped early-morning rows.
+    const anchor = new Date(`${date}T12:00:00Z`);
+    const startOfDay = etDayStart(anchor);
+    const endOfDay = etDayEnd(anchor);
 
     const [
       masteryRows,
