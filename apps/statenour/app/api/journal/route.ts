@@ -14,16 +14,25 @@
  */
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { buildJournalFeed } from "@/lib/services/journal-feed";
 
 export async function GET(req: Request) {
-  await requireSession(req);
-  const url = new URL(req.url);
-  const view = await buildJournalFeed({
-    limit: Number(url.searchParams.get("limit")) || 50,
-    days: Number(url.searchParams.get("days")) || 30,
-    type: url.searchParams.get("type"),
-    source: url.searchParams.get("source") || "all",
-  });
-  return NextResponse.json({ data: view });
+  try {
+    await requireSession(req);
+    const url = new URL(req.url);
+    const view = await buildJournalFeed({
+      limit: Number(url.searchParams.get("limit")) || 50,
+      days: Number(url.searchParams.get("days")) || 30,
+      type: url.searchParams.get("type"),
+      source: url.searchParams.get("source") || "all",
+    });
+    return NextResponse.json({ data: view });
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    return NextResponse.json({ error: sanitizeError(err) }, { status: 500 });
+  }
 }
