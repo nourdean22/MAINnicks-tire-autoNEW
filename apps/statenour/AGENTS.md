@@ -2,17 +2,17 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-08 EOD · post-v10.0.485 · branch `codex/ollama-local`
+> **Last refreshed:** 2026-05-20 · post wide bug-hunt wave · monorepo branch `main`
 
 ---
 
 ## 1 · Where we are right now
 
-**Project:** statenour-os (NOUR OS · personal mastery system for Nour Dean) deployed at bdnick.info via Vercel from `codex/ollama-local` branch. Companion business-ring repo lives at [`nickstire-dev`](https://github.com/nourdean22/nickstire-dev) on Railway (deploys to nickstire.org).
+**Project:** statenour-os (NOUR OS · personal mastery system for Nour Dean). Lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at `apps/statenour/` on branch `main` — pushes auto-deploy to Railway (`statenour-web-production.up.railway.app`). The old Vercel / `bdnick.info` deploy and the standalone `statenour-os` repo are retired. Companion business-ring app `nickstire` lives in the same monorepo at `apps/nickstire/` (Railway → nickstire.org).
 
 **Stack:** Next.js 16 · React 19 · Prisma 7 · Neon Postgres (with raw-SQL pgvector + tsvector extras) · Tailwind 4 · AI SDK v6 · Vitest.
 
-**Current head:** v10.0.485 on `codex/ollama-local` (commit `6e342bf`) · 15/15 pre-push gates green · production build 46s · auto-deployed to bdnick.info.
+**Versioning:** the `v10.0.X` scheme was retired at the monorepo migration — commits now use `fix · statenour · …` / `docs · statenour · …`. The repo-level pre-push hook runs `turbo build` for affected apps; statenour's full local gate is `pnpm verify:hard`.
 
 **Sprint history (recent waves · most recent first):**
 
@@ -24,7 +24,7 @@
 | Reconciliation campaign | v10.0.166 → v10.0.236 | Cron audit waves · API auth audit · component layer audit · Wave A ghost-feeder migration | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 | Post-audit consolidation | v10.0.148 → v10.0.166 | AutomationPolicy registry · explainability envelope · Brier scoring · approval queue · fabrication-defense L1-L5 stack · prompt library scaffold | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 
-**Tests:** 855+ tests across 82+ test files. **Pre-push gates:** 15/15 green every push (typecheck · prisma format · lint · test · raw-SQL audit · cron manifest · tool catalog · env-secret guard · API auth · sensitive-GET auth · policy registry coverage · cron policies · Venice gates · anti-slop UI · destructive prisma push guard · production build).
+**Tests:** 1855 tests across 140 vitest files (2026-05-20 · `.next-prod` excluded). **Pre-push gates:** 15/15 green every push (typecheck · prisma format · lint · test · raw-SQL audit · cron manifest · tool catalog · env-secret guard · API auth · sensitive-GET auth · policy registry coverage · cron policies · Venice gates · anti-slop UI · destructive prisma push guard · production build).
 
 ---
 
@@ -51,7 +51,7 @@ When the user says `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/usin
 
 ### Git flow
 
-- Active branch: `codex/ollama-local` (auto-deploys to Vercel prod)
+- Active branch: `main` (monorepo · pushing auto-deploys statenour to Railway)
 - `statenour-master` exists as a downstream mirror (auto-FF via `mirror-to-master.yml` GHA)
 - Pre-push hook: `scripts/pre-push-check.sh` — also installed at `.git/hooks/pre-push` (re-install after edits with `cp scripts/pre-push-check.sh .git/hooks/pre-push && chmod +x .git/hooks/pre-push`)
 
@@ -118,8 +118,8 @@ Detection regex lives in [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/ac
 ## 6 · How to resume in a fresh session
 
 ```bash
-# 1. cd into the repo
-cd C:\Users\nourd\NOUR-OS\apps\statenour-os
+# 1. cd into the repo (monorepo — statenour is an app within it)
+cd C:\Users\nourd\OneDrive\Desktop\nickstire-repo-staging\apps\statenour
 
 # 2. Read this file (you just did)
 
@@ -133,10 +133,10 @@ set -a && . ./.env.local && set +a
 pnpm tsx scripts/run-schema-sentinel.ts   # 14/14 expectations should be green
 
 # 5. Run the test suite
-npx vitest run                            # ~760 tests, ~5s
+pnpm test                                 # ~1855 tests across 140 files, ~10s
 
-# 6. Run the pre-push gate locally to confirm 11/11 green
-bash scripts/pre-push-check.sh
+# 6. Run the full local gate
+pnpm verify:hard                           # typecheck · lint · test · raw-SQL · crons · prompt-size · prisma validate
 
 # 7. Pick up the active backlog (section 5 above)
 ```
