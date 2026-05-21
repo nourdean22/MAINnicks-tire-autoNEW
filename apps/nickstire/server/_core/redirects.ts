@@ -131,6 +131,11 @@ const REDIRECTS: RedirectRule[] = [
   { from: "/blog/winter-tires-vs-all-season-cleveland", to: "/tires",     reason: "deleted blog post; soft-404. /tires is the canonical winter-tire intent page" },
   { from: "/blog/car-ac-not-blowing-cold",              to: "/ac-repair", reason: "deleted blog post; soft-404. /ac-repair is the canonical AC service page" },
   { from: "/blog/tire-maintenance-guide",               to: "/tires",     reason: "deleted blog post; soft-404. /tires covers tire-maintenance intent" },
+
+  // 2026-05-21 · GSC Page-Indexing re-check found one more dead blog
+  // slug still serving a 200 SPA shell (soft-404). The other three
+  // above already 301 correctly in prod.
+  { from: "/blog/pothole-season-suspension-damage", to: "/auto-repair-near-me", reason: "deleted blog post; soft-404. No suspension page — routes to the general-repair hub, matching /suspension-repair-cleveland" },
 ];
 
 // Returns a 301 redirect if the path matches, otherwise falls through.
