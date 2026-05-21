@@ -420,13 +420,19 @@ export async function pruneCandidatesForExistingThreads(
       (m) => !claimed.has(`${m.entrySource}:${m.entryId}`),
     );
     if (fresh.length < DEFAULTS.minClusterSize) continue;
+    // clusterHash is kept as the RAW cluster's hash (carried by
+    // `...c`), NOT recomputed from the pruned set. Recomputing minted
+    // a fresh BrainMemory key every time a member got claimed by a
+    // thread between scans, so persistCandidates upserted a NEW row
+    // and orphaned the prior one — stale candidates piled up in the
+    // radar. The raw hash is the cluster's stable identity; the pruned
+    // member list lives in metadata. Two raw clusters can never
+    // collide on it: greedy clustering assigns each entry to exactly
+    // one cluster, so no two clusters share members to prune down to.
     out.push({
       ...c,
       members: fresh,
       size: fresh.length,
-      clusterHash: hashCluster(
-        fresh.map((m) => `${m.entrySource}:${m.entryId}`),
-      ),
     });
   }
   return out;
