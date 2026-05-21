@@ -610,6 +610,50 @@ export async function persistCandidates(
   }
 }
 
+// ──────────────────── Step 7 · sweep stale candidates ────────────────
+
+/**
+ * Mark-and-sweep · soft-delete journal_convergence_candidate rows that
+ * no scan has refreshed within the TTL window.
+ *
+ * persistCandidates upserts every live candidate on each scan, and the
+ * upsert's update path bumps BrainMemory.updatedAt (@updatedAt). A row
+ * whose updatedAt has gone stale is a cluster that no longer
+ * re-detects — its entries aged out of the daysBack window, or the
+ * cluster dissolved. The clusterHash-stability fix stopped prune from
+ * orphaning rows mid-scan; this closes the other leak — clusters that
+ * legitimately stop converging across scans. Pre-sweep, those phantom
+ * candidates lingered in the radar indefinitely.
+ *
+ * TTL = 3 nightly scans, so a candidate survives two consecutive failed
+ * cron runs before it ages out — one transient bad scan never sweeps a
+ * still-valid candidate. Operator-confirmed / dismissed candidates are
+ * already soft-deleted by confirmCandidate / dismissCandidate, so the
+ * `deletedAt: null` filter skips them.
+ */
+const STALE_CANDIDATE_TTL_MS = 3 * 24 * 60 * 60 * 1000;
+
+export async function sweepStaleCandidates(): Promise<number> {
+  const cutoff = new Date(Date.now() - STALE_CANDIDATE_TTL_MS);
+  const result = await prisma.brainMemory
+    .updateMany({
+      where: {
+        category: BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
+        deletedAt: null,
+        updatedAt: { lt: cutoff },
+      },
+      data: { deletedAt: new Date() },
+    })
+    .catch((err) => {
+      log.warn("stale_candidate_sweep_failed", { error: sanitizeError(err) });
+      return { count: 0 };
+    });
+  if (result.count > 0) {
+    log.info("stale_candidates_swept", { count: result.count });
+  }
+  return result.count;
+}
+
 // ──────────────────── Orchestrator (cron entry) ────────────────────
 
 /**
@@ -624,6 +668,7 @@ export async function runConvergenceScan(opts: {
   scannedEntries: number;
   candidatesFound: number;
   candidatesAfterPrune: number;
+  staleSwept: number;
   thresholds: typeof DEFAULTS;
 }> {
   const entries = await gatherJournalEntries(opts.daysBack);
@@ -632,6 +677,7 @@ export async function runConvergenceScan(opts: {
       scannedEntries: entries.length,
       candidatesFound: 0,
       candidatesAfterPrune: 0,
+      staleSwept: 0,
       thresholds: DEFAULTS,
     };
   }
@@ -649,10 +695,16 @@ export async function runConvergenceScan(opts: {
   }
   await persistCandidates(withNames);
 
+  // Sweep AFTER persist · this scan's candidates just had their
+  // updatedAt bumped, so the TTL filter won't touch them — only
+  // clusters absent from recent scans age out.
+  const staleSwept = await sweepStaleCandidates();
+
   return {
     scannedEntries: entries.length,
     candidatesFound: raw.length,
     candidatesAfterPrune: pruned.length,
+    staleSwept,
     thresholds: DEFAULTS,
   };
 }
