@@ -225,8 +225,12 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
                   ...auditUpdate(),
                 },
                 select: { id: true, status: true, goalId: true, lastCompletedAt: true, lastTouchedAt: true },
-              }).catch(() => null);
-              if (beforeTask && afterTask) {
+              });
+              // No .catch — a failed task.update must NOT fall through
+              // to the auditEvent.create below, which would log a false
+              // "Auto-completed" record. A throw lands in the inner
+              // catch as task_completion_detector_failed instead.
+              if (beforeTask) {
                 void logUpdate(
                   "task",
                   match.taskId,
@@ -244,7 +248,7 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
               // progress untouched. Fire the lift directly, only on a
               // real (non-DONE → DONE) transition. It is fire-and-forget
               // and never throws.
-              if (afterTask && beforeTask && beforeTask.status !== "DONE" && beforeTask.goalId) {
+              if (beforeTask && beforeTask.status !== "DONE" && beforeTask.goalId) {
                 const { liftGoalOnTaskComplete } = await import("@/lib/services/tasks");
                 await liftGoalOnTaskComplete(beforeTask.goalId, match.taskId);
               }
