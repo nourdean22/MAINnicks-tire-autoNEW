@@ -21,7 +21,7 @@ export const GET = apiHandler(async (req, { params }) => {
     isOnline: device.status === "ONLINE",
     lastSeenAt: device.lastSeenAt,
   };
-});
+}, { auth: "owner" });
 
 /** POST /api/cameras/[id]/snapshot — Trigger manual snapshot via local agent */
 export const POST = apiHandler(async (req, { params }) => {
