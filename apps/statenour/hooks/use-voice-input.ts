@@ -23,6 +23,11 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const levelRafRef = useRef<number | null>(null);
+  // Continuous-mode silence-detection RAF handle — stored so stopContinuous
+  // can cancel the loop. Without it, a rapid stop→start leaves the old
+  // loop running (it re-sees continuousRef=true) and a second loop is
+  // started → two RAF loops compounding on every toggle.
+  const silenceRafRef = useRef<number | null>(null);
 
   // ── Single recording ──
   const startRecording = useCallback(async () => {
@@ -175,7 +180,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
             silenceTimerRef.current = null;
           }
         }
-        requestAnimationFrame(checkSilence);
+        silenceRafRef.current = requestAnimationFrame(checkSilence);
       }
 
       recorder.start();
@@ -193,6 +198,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
     continuousRef.current = false;
     setContinuous(false);
     if (silenceTimerRef.current) { clearTimeout(silenceTimerRef.current); silenceTimerRef.current = null; }
+    if (silenceRafRef.current) { cancelAnimationFrame(silenceRafRef.current); silenceRafRef.current = null; }
     if (mediaRecorderRef.current?.state === "recording") mediaRecorderRef.current.stop();
     if (audioCtxRef.current) { audioCtxRef.current.close().catch(() => {}); audioCtxRef.current = null; }
     setAudioLevel(0);

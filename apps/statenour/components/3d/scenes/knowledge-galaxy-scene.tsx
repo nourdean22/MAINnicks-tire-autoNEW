@@ -21,7 +21,7 @@
  *
  * Render this INSIDE <SceneCanvas>. Never co-mount with Framer Motion.
  */
-import { useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
@@ -111,6 +111,11 @@ function GalaxyNodes({
 
   const nodes = useMemo(() => buildNodes(), []);
 
+  // Reusable transform scratch — hoisted so the per-frame useFrame loop
+  // (and the layout effect) reuse one Object3D instead of allocating a
+  // fresh one every call.
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
   // How many nodes are "lit" — memoryCount clamped into [0, NODE_COUNT].
   const litCount = Math.min(Math.max(memoryCount, 0), NODE_COUNT);
 
@@ -169,7 +174,6 @@ function GalaxyNodes({
   useLayoutEffect(() => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const dummy = new THREE.Object3D();
     for (let i = 0; i < NODE_COUNT; i++) {
       dummy.position.copy(nodes[i].position);
       const r = TIER_RADIUS[nodes[i].sizeTier] / TIER_RADIUS[1]; // tier scale
@@ -180,10 +184,12 @@ function GalaxyNodes({
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [nodes, colorArray]);
+  }, [nodes, colorArray, dummy]);
 
-  // Dispose the link buffer on unmount.
-  useMemo(() => {
+  // Dispose the link buffer when it changes / on unmount. MUST be
+  // useEffect — useMemo memoizes a value and never calls a returned
+  // function, so the prior useMemo here freed nothing.
+  useEffect(() => {
     return () => linkGeometry.dispose();
   }, [linkGeometry]);
 
@@ -198,7 +204,6 @@ function GalaxyNodes({
     const mesh = meshRef.current;
     if (mesh) {
       const amp = 0.02 + clamp01(axisShift) * 0.13;
-      const dummy = new THREE.Object3D();
       for (let i = 0; i < NODE_COUNT; i++) {
         const n = nodes[i];
         dummy.position.set(
