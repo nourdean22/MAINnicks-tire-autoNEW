@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-20 · post wide bug-hunt wave · monorepo branch `main`
+> **Last refreshed:** 2026-05-21 · post Nick-agent upgrades wave · monorepo branch `main`
 
 ---
 
@@ -77,6 +77,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 |---|---|
 | Current state · ship history | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) — refresh after every wave |
 | Architecture · 7-layer map | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Nick agent · C4 system context | [`docs/NICK-AGENT-CONTEXT.md`](docs/NICK-AGENT-CONTEXT.md) |
 | Repo map · cross-ring layout | [`docs/REPO-MAP.md`](docs/REPO-MAP.md) |
 | Data model · table-by-table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
 | Security posture · auth gates | [`docs/SECURITY.md`](docs/SECURITY.md) |

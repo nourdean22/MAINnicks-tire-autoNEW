@@ -1,6 +1,43 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-20 (bug-hunt continuation · journal + chat + brain-recall) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1891 across 141 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-21 (Nick agent — terseness + observability + signal gate) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1891 across 141 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-21 · Nick agent — terseness + observability + signal gate · 2 ships
+>
+> Three Pipecat-inspired upgrades to the Nick agent — terseness, brain-
+> recall observability, a suggestion signal gate — plus a tooling fix
+> that unblocked the `prompt:size-check` gate. A C4 System Context doc
+> for the Nick agent was added alongside (`docs/NICK-AGENT-CONTEXT.md`)
+> so the next session reads a map instead of re-deriving it with a recon
+> agent. typecheck + lint (0 errors) + 141/141 test files green before push.
+>
+> **`0e1e817` · Nick agent — terseness, brain observability, suggestion
+> gate** — (1) the ELEVATE beat (`behavior-directive.ts`) and
+> `BROADEN_AND_SUGGEST` (`operator-rules.ts`) flip from default-on to
+> earned: a broadening line fires only on a real non-obvious angle, never
+> on factual / status replies; both prompt builders (v1 + v2) aligned.
+> (2) `contextual-recall.ts` wraps all six async recall stages in a
+> `timed` helper and emits one structured `[brain-recall]` log per turn
+> at every exit path — the pipeline was a black box. (3) `/api/nick/suggest`
+> filters suggestions dismissed in the last 7d (`getDismissedSuggestionIds`)
+> so a rejected chip stops re-firing on the 60s poll · VAD-style threshold.
+>
+> **`80ef38d` · fix measure-prompt-size crash under tsx (server-only)** —
+> `scripts/measure-prompt-size.ts` crashed on import: the prompt-builder
+> graph reaches modules that `import "server-only"`, which throws outside
+> a React Server Component context. A bare `tsx` script has no
+> `react-server` export condition, so `prompt:size-check` (and the whole
+> `verify:hard` chain) died before measuring. `Module._load` now returns
+> an empty module for `server-only` — the same no-op as its own
+> `empty.js`. Tooling-only; the production RSC build is unaffected.
+>
+> **Flagged · NOT fixed (known gaps / judgment calls):**
+> `getDismissedSuggestionIds` ships without a dedicated vitest unit — a
+> real new-code-without-coverage gap, deferred · the `prompt:size-check`
+> gate now *runs* but needs `DATABASE_URL` to complete (it measures the
+> prompt against live Neon data), so `verify:hard` cannot reach a fully-
+> green local state without Neon creds in the env — environmental, not a
+> code defect.
 
 > ## 2026-05-20 · bug-hunt continuation · journal + chat pipeline + brain recall · 10 ships
 >
