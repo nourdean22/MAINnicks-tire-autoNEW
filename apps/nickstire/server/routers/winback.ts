@@ -429,7 +429,8 @@ export const winbackRouter = router({
       return { success: true };
     }),
 
-  /** Process pending sends — called by cron/scheduler to actually send SMS */
+  /** Process pending winback sends — admin-triggered. The automatic cron
+   *  path uses services/winbackProcessor.ts (claim-then-send + opt-out). */
   processPending: adminProcedure.mutation(async () => {
     const d = await db();
     if (!d) return { processed: 0, sent: 0, failed: 0 };
@@ -456,12 +457,28 @@ export const winbackRouter = router({
     let failed = 0;
 
     for (const { send } of pendingSends) {
+      // Opt-out guard — winback_sends carries customerId; resolve opt-out
+      // by exact id. Opted-out rows are marked 'failed' so they leave the
+      // pending pool permanently.
+      const [optRows] = await d.execute(sql`SELECT smsOptOut FROM customers WHERE id = ${send.customerId} LIMIT 1`);
+      if (!!((optRows as unknown as Array<{ smsOptOut?: number }>)[0]?.smsOptOut)) {
+        await d.update(winbackSends).set({ status: "failed", errorMessage: "customer opted out of SMS" }).where(eq(winbackSends.id, send.id));
+        failed++;
+        continue;
+      }
+
+      // At-most-once claim — flip pending -> sent BEFORE the send so a
+      // crash can't leave the row 'pending' for the winbackProcessor cron
+      // to re-send. Conditional WHERE blocks a concurrent run too.
+      const [claimRes] = await d.execute(sql`UPDATE winback_sends SET status = 'sent', sentAt = NOW() WHERE id = ${send.id} AND status = 'pending'`);
+      if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+        continue; // already claimed
+      }
+
       const result = await sendSms(send.phone, send.personalizedBody);
 
       if (result.success) {
         await d.update(winbackSends).set({
-          status: "sent",
-          sentAt: new Date(),
           twilioSid: result.sid,
         }).where(eq(winbackSends.id, send.id));
 

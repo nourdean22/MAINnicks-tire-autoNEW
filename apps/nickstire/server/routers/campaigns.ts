@@ -379,13 +379,24 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
     let batchSent = 0;
     let batchFailed = 0;
     for (const send of pendingSends) {
+      // At-most-once claim — flip status 'pending' -> 'sent' BEFORE the
+      // send. resumeStuckCampaigns (cron, every 5 min) re-runs this for any
+      // campaign with rows still 'pending'; if a crash left a row 'pending'
+      // after its text went out, that recovery path re-sends it. Claiming
+      // first means a crash leaves the row 'sent' (never reprocessed). The
+      // conditional WHERE also blocks two overlapping runs from both
+      // sending the same row.
+      const claimRes = await d.update(smsCampaignSends)
+        .set({ status: "sent", sentAt: new Date() })
+        .where(and(eq(smsCampaignSends.id, send.id), eq(smsCampaignSends.status, "pending")));
+      if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run
+      }
       try {
         const result = await sendSms(send.phone, send.messageBody);
 
         if (result.success) {
           await d.update(smsCampaignSends).set({
-            status: "sent",
-            sentAt: new Date(),
             twilioSid: result.sid || null,
           }).where(eq(smsCampaignSends.id, send.id));
           batchSent++;

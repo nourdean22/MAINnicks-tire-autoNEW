@@ -45,6 +45,19 @@ export async function process24hFollowUps() {
 
   let processed = 0;
   for (const booking of eligibleBookings) {
+    // At-most-once claim — set followUp24hSent BEFORE any send. If the run
+    // crashes after the text goes out, the booking is already marked, so
+    // the next cron run won't re-text. Conditional WHERE makes overlapping
+    // runs safe. Trade-off vs the old wave-181.65 retry-on-failure: a
+    // failed send is no longer retried — an acceptable miss for a
+    // thank-you, never a double-text.
+    const claimRes = await db.update(bookings)
+      .set({ followUp24hSent: 1 })
+      .where(and(eq(bookings.id, booking.id), eq(bookings.followUp24hSent, 0)));
+    if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+      continue; // already claimed by an overlapping run
+    }
+
     const firstName = booking.name.split(" ")[0];
     const message = `Hi ${firstName}, thank you for choosing Nick's Tire & Auto for your ${booking.service.toLowerCase()}. We appreciate your business and hope everything is running smoothly. If you have any questions about the work we did, don't hesitate to call us at (216) 862-0005. — Nick's Tire & Auto`;
 
@@ -58,14 +71,6 @@ export async function process24hFollowUps() {
       message,
     });
 
-    // wave-181.65 (audit-181.58 deferred · 2026-05-18 PM)
-    // Pre-fix `followUp24hSent: 1` was set UNCONDITIONALLY even when
-    // the SMS send failed (F25e offline · invalid number) · booking
-    // was never retried on next cron run · customer silently received
-    // no thank-you. Now: stamp the flag ONLY when send succeeded OR
-    // wasn't attempted (no phone / feature disabled). Failed sends
-    // leave the flag clear so the next cron run retries.
-    let markFollowUp = true;
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
@@ -74,13 +79,9 @@ export async function process24hFollowUps() {
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
-        if (!smsResult.success) markFollowUp = false;
       }
     }
 
-    if (markFollowUp) {
-      await db.update(bookings).set({ followUp24hSent: 1 }).where(eq(bookings.id, booking.id));
-    }
     processed++;
   }
 
@@ -107,6 +108,16 @@ export async function process7dReviewRequests() {
 
   let processed = 0;
   for (const booking of eligibleBookings) {
+    // At-most-once claim — set followUp7dSent BEFORE any send (see the
+    // 24h thank-you above for rationale). Crash after the text = booking
+    // already marked = no re-text on the next run.
+    const claimRes = await db.update(bookings)
+      .set({ followUp7dSent: 1 })
+      .where(and(eq(bookings.id, booking.id), eq(bookings.followUp7dSent, 0)));
+    if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+      continue; // already claimed by an overlapping run
+    }
+
     const firstName = booking.name.split(" ")[0];
     const message = `Hi ${firstName}, it's been about a week since your visit to Nick's Tire & Auto. We hope your ${booking.service.toLowerCase()} is holding up great. If you have a moment, a Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nThank you for your trust. — Nick's Team`;
 
@@ -120,10 +131,6 @@ export async function process7dReviewRequests() {
       message,
     });
 
-    // wave-181.65 (audit-181.58 deferred · 2026-05-18 PM)
-    // Same retry-on-failure pattern as the 24h thank-you above ·
-    // failed sends leave the flag clear so next cron run retries.
-    let markFollowUp = true;
     if (booking.phone) {
       const { isEnabled } = await import("./services/featureFlags");
       if (await isEnabled("sms_review_requests")) {
@@ -132,13 +139,9 @@ export async function process7dReviewRequests() {
         if (smsResult.success && notification.id) {
           await markNotificationSent(notification.id).catch((e) => { log.warn("[follow-ups] fire-and-forget failed:", e); });
         }
-        if (!smsResult.success) markFollowUp = false;
       }
     }
 
-    if (markFollowUp) {
-      await db.update(bookings).set({ followUp7dSent: 1 }).where(eq(bookings.id, booking.id));
-    }
     processed++;
   }
 

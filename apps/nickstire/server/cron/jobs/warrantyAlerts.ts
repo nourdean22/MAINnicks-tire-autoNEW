@@ -92,14 +92,20 @@ export async function processWarrantyAlerts(): Promise<{ recordsProcessed: numbe
       const expiryDate = new Date(w.expiresAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: BUSINESS.timezone });
       const message = `Hi ${firstName}, your warranty on ${w.serviceDescription || "your service"} at Nick's Tire & Auto expires on ${expiryDate}. Schedule a check before it's up: (216) 862-0005`;
 
+      // At-most-once claim — flip reminderSent BEFORE the send. If the run
+      // crashes after the text goes out, the warranty is already marked,
+      // so the next daily run won't re-text. Conditional WHERE keeps two
+      // overlapping runs from both sending.
+      const claimRes = await db.update(warranties)
+        .set({ reminderSent: true })
+        .where(and(eq(warranties.id, w.id), eq(warranties.reminderSent, false)));
+      if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run
+      }
+
       // Wave-109: warranty reminder via shop gateway (1:1 transactional)
       const result = await sendSms(customer.phone, message, { via: "shop" });
-      if (result.success) {
-        await db.update(warranties)
-          .set({ reminderSent: true })
-          .where(eq(warranties.id, w.id));
-        processed++;
-      }
+      if (result.success) processed++;
     }
 
     log.info(`Warranty alerts sent: ${processed}`);

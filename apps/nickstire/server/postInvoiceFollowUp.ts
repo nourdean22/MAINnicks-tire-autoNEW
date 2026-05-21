@@ -120,20 +120,27 @@ export async function processPostInvoiceFollowUps(): Promise<FollowUpResult> {
           continue;
         }
 
+        // At-most-once claim — bump smsCampaignSent BEFORE the send. If the
+        // run crashes after the text goes out, the customer is already
+        // marked, so the next daily run won't re-text. The conditional
+        // WHERE (smsCampaignSent = 0) makes two overlapping runs safe.
+        const claimRes = await db
+          .update(customers)
+          .set({
+            smsCampaignSent: sql`${customers.smsCampaignSent} + 1`,
+            smsCampaignDate: new Date(),
+          })
+          .where(and(eq(customers.id, customer.id), eq(customers.smsCampaignSent, 0)));
+        if (((claimRes as unknown as Array<{ affectedRows?: number }>)[0]?.affectedRows ?? 0) === 0) {
+          result.skipped++;
+          continue; // already claimed by an overlapping run
+        }
+
         // Wave-108: post-invoice review request via shop gateway so the
         // customer recognizes the sender (same line they paid through).
         const smsResult = await sendSms(customer.phone, message, { via: "shop" });
 
         if (smsResult.success) {
-          // Mark as sent in database
-          await db
-            .update(customers)
-            .set({
-              smsCampaignSent: sql`${customers.smsCampaignSent} + 1`,
-              smsCampaignDate: new Date(),
-            })
-            .where(eq(customers.id, customer.id));
-
           result.sent++;
         } else {
           result.failed++;

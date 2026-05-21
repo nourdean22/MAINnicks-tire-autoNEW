@@ -75,8 +75,16 @@ export async function detectNoShows(): Promise<{ recordsProcessed: number; detai
     const { isEnabled } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabled("sms_retention_sequences")) {
+      // Opt-out guard — load opted-out phones (last-10-digit) so we never
+      // text a customer who sent STOP. Every other SMS job filters this;
+      // detectNoShows was missing it (TCPA exposure).
+      const [optRows] = await d.execute(sql`SELECT phone FROM customers WHERE smsOptOut = 1`);
+      const optedOut = new Set(
+        (optRows as RawRow[]).map((r) => String(r.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean),
+      );
       for (const b of noShows.filter((n) => n.phone)) {
         try {
+          if (optedOut.has(String(b.phone).replace(/\D/g, "").slice(-10))) continue;
           const firstName = (String(b.name || "there")).split(" ")[0];
           // Wave-108: no-show outreach via shop gateway (1:1)
           await sendSms(String(b.phone), `Hi ${firstName}, we noticed you may have missed your drop-off at Nick's Tire & Auto. We'd love to get you back in — call us at (216) 862-0005 or schedule a drop-off at nickstire.org. First-come, first-served, 7 days a week.`, { via: "shop" });
@@ -138,8 +146,15 @@ export async function autoCleanStaleBookings(): Promise<{ recordsProcessed: numb
     const { isEnabled: isEnabledStale } = await import("../../services/featureFlags");
     let smsSent = 0;
     if (await isEnabledStale("sms_retention_sequences")) {
+      // Opt-out guard — same as detectNoShows; load opted-out phones so
+      // an opted-out customer never gets the rebook SMS (TCPA).
+      const [optRows] = await d.execute(sql`SELECT phone FROM customers WHERE smsOptOut = 1`);
+      const optedOut = new Set(
+        (optRows as RawRow[]).map((r) => String(r.phone || "").replace(/\D/g, "").slice(-10)).filter(Boolean),
+      );
       for (const b of stale.filter((s) => s.phone && !(s.adminNotes && String(s.adminNotes).includes("[AUTO] No-show")))) {
         try {
+          if (optedOut.has(String(b.phone).replace(/\D/g, "").slice(-10))) continue;
           const firstName = (String(b.name || "there")).split(" ")[0];
           // Wave-108: expired-booking rebook via shop gateway (1:1)
           await sendSms(String(b.phone), `Hi ${firstName}! Your booking at Nick's Tire & Auto has expired. Need to reschedule? Call (216) 862-0005 or visit nickstire.org — drop-offs welcome!`, { via: "shop" });
@@ -181,12 +196,14 @@ export async function escalateStaleCallbacks(): Promise<{ recordsProcessed: numb
     if (await isEnabledCallback("sms_appointment_reminders")) {
       for (const cb of stale.filter((c) => c.phone)) {
         try {
+          // At-most-once claim — flip status BEFORE the send so a crash
+          // can't leave it 'new' for the next run to re-text.
+          const [claimRes] = await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id} AND status = 'new'`);
+          if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
           const firstName = (String(cb.name || "there")).split(" ")[0];
           // Wave-108: callback fallback via shop gateway (1:1)
           await sendSms(String(cb.phone), `Hi ${firstName}, we haven't forgotten about you! We'll be calling you back shortly regarding your request. — Nick's Tire & Auto (216) 862-0005`, { via: "shop" });
           smsSent++;
-          // Mark as "no-answer" — SMS sent but no actual call made yet
-          await d.execute(sql`UPDATE callback_requests SET status = 'no-answer', notes = CONCAT(COALESCE(notes, ''), '\nAuto-SMS: we will call you back'), calledAt = NOW() WHERE id = ${cb.id}`);
         } catch (err) { log.warn("escalateStaleCallbacks: SMS/status update failed", { error: err instanceof Error ? err.message : String(err) }); }
       }
     }
@@ -470,6 +487,12 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
 
     for (const ref of matched) {
       try {
+        // At-most-once claim — flip status 'pending' -> 'visited' BEFORE
+        // the two sends, so a crash can't leave it 'pending' for the next
+        // run to re-text both parties.
+        const [claimRes] = await d.execute(sql`UPDATE referrals SET status = 'visited', updatedAt = NOW() WHERE id = ${ref.id} AND status = 'pending'`);
+        if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
+
         const referrerFirst = (String(ref.referrerName || "there")).split(" ")[0];
         const refereeFirst = (String(ref.refereeName || "there")).split(" ")[0];
 
@@ -483,8 +506,6 @@ export async function closeReferralLoop(): Promise<{ recordsProcessed: number; d
           await sendSms(String(ref.refereePhone), `Welcome to Nick's! ${referrerFirst} sent you — you both have $25 off. Drop off anytime! (216) 862-0005`, { via: "shop" });
         }
 
-        // Update referral status to "visited"
-        await d.execute(sql`UPDATE referrals SET status = 'visited', updatedAt = NOW() WHERE id = ${ref.id}`);
         closed++;
       } catch (err) {
         log.warn("closeReferralLoop: SMS/update failed", { error: err instanceof Error ? err.message : String(err), referralId: ref.id });
@@ -542,6 +563,12 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
 
     for (const vip of vips) {
       try {
+        // At-most-once claim — stamp the VIP cooldown BEFORE the send so a
+        // crash can't leave it un-stamped for the next run to re-text.
+        // Conditional WHERE mirrors the SELECT predicate (90-day cooldown).
+        const [claimRes] = await d.execute(sql`UPDATE customers SET smsCampaignSent = 2, smsCampaignDate = NOW() WHERE id = ${vip.id} AND (smsCampaignDate IS NULL OR smsCampaignDate < DATE_SUB(NOW(), INTERVAL 90 DAY))`);
+        if (((claimRes as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) continue;
+
         // Wave-108: VIP notification via shop gateway (1:1, transactional)
         const result = await sendSms(
           String(vip.phone),
@@ -549,8 +576,6 @@ export async function notifyNewVips(): Promise<{ recordsProcessed: number; detai
           { via: "shop" }
         );
         if (result.success) {
-          // Mark as VIP-notified (smsCampaignSent = 2 means VIP notification sent)
-          await d.execute(sql`UPDATE customers SET smsCampaignSent = 2, smsCampaignDate = NOW() WHERE id = ${vip.id}`);
           notified++;
         }
       } catch (err) {
