@@ -56,14 +56,22 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
 
   try {
     let id: string | null | undefined = incomingConvId;
-    if (!id) {
+    const isUserTurn = lastUserMsg?.role === "user";
+
+    // Edge case preserved from the original lift: a first-turn request
+    // with no user message still mints a bare conversation. When there
+    // IS a user message, the conversation + first message are created
+    // together in the atomic transaction below.
+    if (!id && !isUserTurn) {
       const firstText = userContent || "New chat";
       const conv = await prisma.chatConversation.create({
         data: { title: firstText.slice(0, 80) },
+        select: { id: true },
       });
       id = conv.id;
     }
-    if (lastUserMsg?.role === "user" && id) {
+
+    if (isUserTurn) {
       // v7.6 · Apr 29 · ChatMessage Batch A · C2 — full field-set persist.
       // Helpers in lib/ai/chat/message-fields.ts own the parts tree
       // extraction, attachments hash, FTS plaintext, and client-msg-id
@@ -83,93 +91,139 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
       const hasAttachments = attachments.length > 0;
       const attachmentsHash = computeAttachmentsHash(attachments);
       const searchableContent = buildSearchableContent(parts, userContent);
-      // v7.6 · C5 · Apr 29 — Idempotency primary: client-minted id.
-      // Fallback: deterministic hash of (conv+role+content+10s-bucket)
-      // so silent retries within ~10s still resolve to the same id.
-      // Always populated, never undefined → upsert is reliable.
-      const clientMessageId =
-        extractClientMessageId(lastUserMsg) ??
-        synthesizeFallbackClientMessageId({
-          conversationId: id,
-          role: "user",
-          content: userContent,
+
+      // The message row minus its conversationId + clientMessageId —
+      // both branches below spread this and add those two fields.
+      const baseMessageData = {
+        role: "user" as const,
+        content: userContent,
+        // v7.3 attachments column kept for back-compat (read path).
+        attachments: hasAttachments
+          ? (attachments as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["attachments"])
+          : undefined,
+        // v7.6 Batch A — rich content tree, searchable plaintext,
+        // attachment hash, and stream state.
+        parts: parts
+          ? (parts as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
+          : undefined,
+        searchableContent: searchableContent ?? undefined,
+        attachmentsHash: attachmentsHash ?? undefined,
+        streamingState: "complete" as const, // user msgs always "complete" on write
+      };
+
+      let savedMessage: { id: string };
+
+      if (id) {
+        // EXISTING conversation · idempotency-checked single insert.
+        const convId = id;
+        // v7.6 · C5 · Apr 29 — Idempotency primary: client-minted id.
+        // Fallback: deterministic hash of (conv+role+content+10s-bucket)
+        // so silent retries within ~10s still resolve to the same id.
+        const clientMessageId =
+          extractClientMessageId(lastUserMsg) ??
+          synthesizeFallbackClientMessageId({
+            conversationId: convId,
+            role: "user",
+            content: userContent,
+          });
+
+        // v7.6 · Apr 29 · Idempotency guard.
+        // Primary: client-minted id — server-side dedup on
+        // (conversationId, clientMessageId). Fallback: legacy 5min
+        // content match (covers messages predating the client-id
+        // wiring). Don't dedup if attachments differ — re-uploads with
+        // the photo are intentional.
+        if (clientMessageId) {
+          const existingByClientId = await prisma.chatMessage
+            .findFirst({
+              where: { conversationId: convId, clientMessageId },
+              select: { id: true },
+            })
+            .catch(() => null);
+          if (existingByClientId) {
+            log.warn("duplicate_client_msg_id_suppressed", {
+              conversationId: convId.slice(0, 8),
+              clientMessageId: clientMessageId.slice(0, 8),
+            });
+            return convId;
+          }
+        } else if (!hasAttachments) {
+          const dupSince = new Date(Date.now() - 5 * 60_000);
+          const existingDupe = await prisma.chatMessage
+            .findFirst({
+              where: {
+                conversationId: convId,
+                role: "user",
+                content: userContent,
+                createdAt: { gte: dupSince },
+              },
+              select: { id: true },
+            })
+            .catch(() => null);
+          if (existingDupe) {
+            log.warn("duplicate_user_msg_suppressed_content_match", {
+              conversationId: convId.slice(0, 8),
+              window: "5min",
+            });
+            return convId;
+          }
+        }
+
+        savedMessage = await prisma.chatMessage.create({
+          data: {
+            conversationId: convId,
+            ...baseMessageData,
+            clientMessageId: clientMessageId ?? undefined,
+          },
+          select: { id: true },
         });
 
-      // v7.6 · Apr 29 · Idempotency guard.
-      // Primary: client-minted id. The AI SDK assigns each message a
-      // stable id on send; retries reuse it. Server upserts on
-      // (conversationId, clientMessageId). O(1) match.
-      // Fallback: legacy 5min content match (covers messages that
-      // predate the client-id wiring).
-      // Don't dedup if attachments differ — re-uploads with the
-      // photo are intentional.
-      if (clientMessageId) {
-        const existingByClientId = await prisma.chatMessage
-          .findFirst({
-            where: { conversationId: id, clientMessageId },
-            select: { id: true },
+        // v7.6 · Apr 29 · Conversation activity update. Bump
+        // messageCount + lastActiveAt so the sidebar can sort cheaply
+        // without MAX(message.createdAt) per row.
+        prisma.chatConversation
+          .update({
+            where: { id: convId },
+            data: { messageCount: { increment: 1 }, lastActiveAt: new Date() },
           })
           .catch(() => null);
-        if (existingByClientId) {
-          log.warn("duplicate_client_msg_id_suppressed", {
-            conversationId: id.slice(0, 8),
-            clientMessageId: clientMessageId.slice(0, 8),
-          });
-          return id;
-        }
-      } else if (!hasAttachments) {
-        const dupSince = new Date(Date.now() - 5 * 60_000);
-        const existingDupe = await prisma.chatMessage
-          .findFirst({
-            where: {
-              conversationId: id,
-              role: "user",
-              content: userContent,
-              createdAt: { gte: dupSince },
+      } else {
+        // NEW conversation · the conversation row AND its first message
+        // are created in ONE transaction. Pre-fix these were two
+        // separate awaits — a crash (or a chatMessage.create failure)
+        // between them orphaned an empty conversation that showed in the
+        // sidebar but opened to nothing. messageCount is seeded to 1
+        // since the first message lands in the same transaction.
+        const firstText = userContent || "New chat";
+        const created = await prisma.$transaction(async (tx) => {
+          const conv = await tx.chatConversation.create({
+            data: {
+              title: firstText.slice(0, 80),
+              messageCount: 1,
+              lastActiveAt: new Date(),
             },
             select: { id: true },
-          })
-          .catch(() => null);
-        if (existingDupe) {
-          log.warn("duplicate_user_msg_suppressed_content_match", {
-            conversationId: id.slice(0, 8),
-            window: "5min",
           });
-          return id;
-        }
+          const clientMessageId =
+            extractClientMessageId(lastUserMsg) ??
+            synthesizeFallbackClientMessageId({
+              conversationId: conv.id,
+              role: "user",
+              content: userContent,
+            });
+          const msg = await tx.chatMessage.create({
+            data: {
+              conversationId: conv.id,
+              ...baseMessageData,
+              clientMessageId: clientMessageId ?? undefined,
+            },
+            select: { id: true },
+          });
+          return { convId: conv.id, msgId: msg.id };
+        });
+        id = created.convId;
+        savedMessage = { id: created.msgId };
       }
-
-      const savedMessage = await prisma.chatMessage.create({
-        data: {
-          conversationId: id,
-          role: "user",
-          content: userContent,
-          // v7.3 attachments column kept for back-compat (read path).
-          attachments: hasAttachments
-            ? (attachments as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["attachments"])
-            : undefined,
-          // v7.6 Batch A — rich content tree, searchable plaintext,
-          // attachment hash, idempotency key, and stream state.
-          parts: parts
-            ? (parts as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
-            : undefined,
-          searchableContent: searchableContent ?? undefined,
-          attachmentsHash: attachmentsHash ?? undefined,
-          clientMessageId: clientMessageId ?? undefined,
-          streamingState: "complete", // user msgs are always "complete" on write
-        },
-        select: { id: true },
-      });
-
-      // v7.6 · Apr 29 · Conversation activity update. Bump messageCount
-      // + lastActiveAt so the sidebar can sort cheaply without
-      // MAX(message.createdAt) per row.
-      prisma.chatConversation
-        .update({
-          where: { id },
-          data: { messageCount: { increment: 1 }, lastActiveAt: new Date() },
-        })
-        .catch(() => null);
       // Apr 18 · Fire-and-forget importance scorer. Classifies every
       // user turn and auto-writes a BrainMemory row when signal ≥6.
       // Does not block streaming. No UI feedback — Nick's system
