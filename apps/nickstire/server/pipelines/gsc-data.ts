@@ -211,6 +211,67 @@ export async function fetchSearchPerformance(
 }
 
 /**
+ * Pull a live GSC report straight from the Search Console API —
+ * totals + top queries + top pages — without touching the DB. Three
+ * single-dimension calls so each table reconciles to the GSC UI.
+ * Powers `scripts/gsc-report.ts` (the `pnpm gsc:report` one-command).
+ */
+export async function getGscReport(dateRange: DateRange): Promise<{
+  summary: { clicks: number; impressions: number; ctr: number; position: number };
+  topQueries: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
+  topPages: Array<{ key: string; clicks: number; impressions: number; ctr: number; position: number }>;
+}> {
+  if (!hasGscCredentials()) {
+    throw new Error(
+      "GSC service account credentials not configured (GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_SERVICE_ACCOUNT_KEY)",
+    );
+  }
+  const token = await getAccessToken();
+  const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(GSC_SITE_URL)}/searchAnalytics/query`;
+
+  type ApiRow = { keys?: string[]; clicks: number; impressions: number; ctr: number; position: number };
+  async function query(body: Record<string, unknown>): Promise<ApiRow[]> {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ startDate: dateRange.startDate, endDate: dateRange.endDate, ...body }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!res.ok) {
+      throw new Error(`GSC API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+    }
+    return ((await res.json()) as { rows?: ApiRow[] }).rows ?? [];
+  }
+
+  // No dimensions → one grand-total row. Dimension calls default-sort
+  // by clicks desc, so rowLimit 25 yields the top 25.
+  const [totalRows, queryRows, pageRows] = await Promise.all([
+    query({}),
+    query({ dimensions: ["query"], rowLimit: 25 }),
+    query({ dimensions: ["page"], rowLimit: 25 }),
+  ]);
+
+  const total = totalRows[0] ?? { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+  const shape = (r: ApiRow) => ({
+    key: r.keys?.[0] ?? "",
+    clicks: r.clicks,
+    impressions: r.impressions,
+    ctr: r.ctr,
+    position: r.position,
+  });
+  return {
+    summary: {
+      clicks: total.clicks,
+      impressions: total.impressions,
+      ctr: total.ctr,
+      position: total.position,
+    },
+    topQueries: queryRows.map(shape),
+    topPages: pageRows.map(shape),
+  };
+}
+
+/**
  * Fetch and store GSC data for a date range.
  */
 export async function syncSearchPerformance(dateRange: DateRange): Promise<{
