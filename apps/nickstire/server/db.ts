@@ -784,7 +784,7 @@ async function updateLoyaltyTier(userId: number) {
 
 // ─── REVIEW REQUEST QUERIES ──────────────────────────
 
-import { ne, isNull, lt, gt, count as drizzleCount } from "drizzle-orm";
+import { ne, isNull, lt, gt, or, count as drizzleCount } from "drizzle-orm";
 
 /**
  * Create a new review request record (pending state).
@@ -876,11 +876,19 @@ export async function isPhoneOnReviewCooldown(phone: string, cooldownDays: numbe
   if (!db) return true; // Fail safe: don't send if DB is down
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - cooldownDays);
+  // Cooldown counts a row if EITHER it was created OR actually sent
+  // within the window. Keying on createdAt alone missed the case where a
+  // request was enqueued long ago but only sent recently (daily-cap lag),
+  // which could let a second review SMS go out too soon after the first.
+  // sentAt is NULL on pending rows, so they still block via createdAt.
   const results = await db.select({ id: reviewRequests.id }).from(reviewRequests)
     .where(and(
       eq(reviewRequests.phone, phone),
       ne(reviewRequests.status, "failed"),
-      gte(reviewRequests.createdAt, cutoff),
+      or(
+        gte(reviewRequests.createdAt, cutoff),
+        gte(reviewRequests.sentAt, cutoff),
+      ),
     ))
     .limit(1);
   return results.length > 0;

@@ -107,19 +107,27 @@ export async function hasActiveDripEnrollment(phone: string): Promise<string | n
 
 /**
  * Enroll a customer in a drip campaign (persists to DB).
- * Called from workOrderAutomation.enrollInDripCampaign after sending step 1.
+ *
+ * Doubles as the at-most-once enrollment claim. Callers invoke this
+ * BEFORE sending step 1 and only send if it returns true. The
+ * INSERT IGNORE against the uq_drip_active unique key is atomic, so two
+ * concurrent enroll calls for the same (phone, campaign) race here —
+ * exactly one gets inserted=1 (returns true → caller sends step 1), the
+ * loser gets inserted=0 (returns false → caller skips the send).
+ * Returns true on DB-down / no-campaign / single-step / error
+ * (fail-open: a rare double-send beats silently never enrolling anyone).
  */
 export async function persistDripEnrollment(params: {
   campaignId: string;
   customerPhone: string;
   customerName: string;
   metadata?: Record<string, string>;
-}): Promise<void> {
+}): Promise<boolean> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
     const db = await getDb();
-    if (!db) return;
+    if (!db) return true;
 
     await ensureTable(db);
 
@@ -138,11 +146,12 @@ export async function persistDripEnrollment(params: {
     // SUCCESS · now we explicitly log the skip via affectedRows=0.
     const { CAMPAIGNS } = await import("./dripCampaigns");
     const campaign = CAMPAIGNS.find(c => c.id === params.campaignId);
-    if (!campaign) return;
+    if (!campaign) return true;
 
-    // Step 1 was already sent by enrollInDripCampaign, start at step 2
+    // Row is created at currentStep=1 — step 1 is the caller's immediate
+    // send; the persisted row exists for the drip cron to advance step 2+.
     const nextStep = campaign.steps[1]; // step 2
-    if (!nextStep) return; // Only 1 step, no need to persist
+    if (!nextStep) return true; // Only 1 step — no multi-step row to persist
 
     const nextStepAt = new Date();
     nextStepAt.setDate(nextStepAt.getDate() + nextStep.delayDays);
@@ -162,11 +171,13 @@ export async function persistDripEnrollment(params: {
 
     if (inserted === 1) {
       log.info(`Drip enrolled: ${params.customerName} → ${params.campaignId} (step 2 at ${nextStepAt.toISOString().slice(0, 10)})`);
-    } else {
-      log.info(`Drip enrollment skipped (already enrolled): ${params.customerName} → ${params.campaignId}`);
+      return true;
     }
+    log.info(`Drip enrollment skipped (already enrolled): ${params.customerName} → ${params.campaignId}`);
+    return false;
   } catch (err: unknown) {
     log.warn(`Drip enrollment persist failed: ${(err as Error).message}`);
+    return true;
   }
 }
 
@@ -209,6 +220,36 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
         continue;
       }
 
+      // At-most-once claim — advance the enrollment BEFORE sending the
+      // step. If this run crashes/times out after the message goes out
+      // but before we'd record it, the row is already advanced
+      // (nextStepAt pushed to the future, or status='completed'), so the
+      // next 2hr run will NOT re-send this same step. A claimed row whose
+      // send then crashed misses one message — an acceptable miss, never
+      // a duplicate. The claim is conditional on currentStep, so two
+      // overlapping cron runs can't both send the same step.
+      const nextStepNum = enrollment.currentStep + 1;
+      const nextStep = campaign.steps[nextStepNum];
+      let claimRes: unknown;
+      if (nextStep) {
+        const nextAt = new Date();
+        nextAt.setDate(nextAt.getDate() + nextStep.delayDays);
+        [claimRes] = await db.execute(sql`
+          UPDATE drip_enrollments
+          SET currentStep = ${nextStepNum}, nextStepAt = ${nextAt}
+          WHERE id = ${enrollment.id} AND currentStep = ${enrollment.currentStep} AND status = 'active'
+        `);
+      } else {
+        [claimRes] = await db.execute(sql`
+          UPDATE drip_enrollments
+          SET status = 'completed', currentStep = ${nextStepNum}
+          WHERE id = ${enrollment.id} AND currentStep = ${enrollment.currentStep} AND status = 'active'
+        `);
+      }
+      if (((claimRes as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+        continue; // already claimed by an overlapping run — never re-send
+      }
+
       try {
         const meta = typeof enrollment.metadata === "string" ? JSON.parse(enrollment.metadata) : enrollment.metadata || {};
         const msg = personalizeMessage(step.messageTemplate, {
@@ -222,7 +263,19 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
           // Gate SMS behind feature flag
           const { isEnabled } = await import("./featureFlags");
           if (await isEnabled("drip_campaigns_enabled")) {
-            await sendSms(enrollment.customerPhone, msg);
+            // Opt-out guard — drip_enrollments only carries the phone, so
+            // resolve opt-out by last-10-digit match (same pattern as
+            // abandonedForms). An opted-out customer still advances
+            // through the campaign; only the SMS send is skipped, so any
+            // later email steps are unaffected.
+            const normalized = enrollment.customerPhone.replace(/\D/g, "").slice(-10);
+            const [optRows] = await db.execute(sql`
+              SELECT smsOptOut FROM customers WHERE phone LIKE ${"%" + normalized} LIMIT 1
+            `);
+            const optedOut = !!((optRows as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
+            if (!optedOut) {
+              await sendSms(enrollment.customerPhone, msg);
+            }
           }
         } else if (step.channel === "email") {
           const { isEnabled } = await import("./featureFlags");
@@ -263,21 +316,6 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
               }
             }
           }
-        }
-
-        const nextStepNum = enrollment.currentStep + 1;
-        const nextStep = campaign.steps[nextStepNum];
-
-        if (nextStep) {
-          const nextAt = new Date();
-          nextAt.setDate(nextAt.getDate() + nextStep.delayDays);
-          await db.execute(sql`
-            UPDATE drip_enrollments
-            SET currentStep = ${nextStepNum}, nextStepAt = ${nextAt}
-            WHERE id = ${enrollment.id}
-          `);
-        } else {
-          await db.execute(sql`UPDATE drip_enrollments SET status = 'completed', currentStep = ${nextStepNum} WHERE id = ${enrollment.id}`);
         }
 
         sent++;

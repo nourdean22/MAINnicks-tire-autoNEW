@@ -24,6 +24,9 @@ interface PartialFormData {
 const partials = new Map<string, PartialFormData & { createdAt: Date; recoveryAttempted: boolean }>();
 const MAX_PARTIALS = 2000;
 
+// Phone-level cooldown for recovery SMS — see processAbandonedForms.
+const RECOVERY_COOLDOWN_DAYS = 7;
+
 // Auto-cleanup every 20 minutes to prevent unbounded growth
 const abandonedCleanupInterval = setInterval(() => {
   const cutoff = Date.now() - 24 * 60 * 60 * 1000;
@@ -84,16 +87,36 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
       const { isEnabled } = await import("./featureFlags");
       if (!(await isEnabled("smart_sms_auto_reply"))) continue;
 
-      // Check opt-out before sending recovery SMS
+      // Opt-out + phone-level cooldown, both keyed on the last-10-digit
+      // phone so they survive restarts and dedupe across the multiple
+      // sessionIds one customer generates (every page visit is a fresh
+      // sessionId; the in-memory recoveryAttempted flag only dedupes
+      // within one Map entry). Without the DB cooldown, a customer who
+      // abandons, gets nudged, then returns and re-abandons is texted
+      // again — the cooldown makes recovery at-most-once per phone.
       const { getDb } = await import("../db");
       const d = await getDb();
       if (d) {
-        const { customers } = await import("../../drizzle/schema");
+        const { customers, smsMessages, smsConversations } = await import("../../drizzle/schema");
         const { like } = await import("drizzle-orm");
         const normalized = partial.phone!.replace(/\D/g, "").slice(-10);
+
         const [cust] = await d.select({ smsOptOut: customers.smsOptOut })
           .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
         if (cust?.smsOptOut) continue;
+
+        const cooldownStart = new Date(Date.now() - RECOVERY_COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+        const recent = await d.select({ id: smsMessages.id })
+          .from(smsMessages)
+          .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+          .where(and(
+            like(smsConversations.phone, `%${normalized}`),
+            eq(smsMessages.direction, "outbound"),
+            gte(smsMessages.createdAt, cooldownStart),
+            eq(smsMessages.variantKey, "abandoned_form"),
+          ))
+          .limit(1);
+        if (recent.length > 0) continue;
       }
 
       const { sendSms } = await import("../sms");
@@ -101,6 +124,12 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
       const message = `Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`;
 
       const result = await sendSms(partial.phone, message);
+      // Persist with variantKey="abandoned_form" so the cooldown above
+      // sees this send next run and the admin SMS tile counts it.
+      // Logged unconditionally (mirrors crossSellOutreach) — a failed
+      // send is recorded as failed.
+      const { logOutboundSms } = await import("./smsInstrumentation");
+      await logOutboundSms(partial.phone, message, result.sid, "abandoned_form");
       if (result.success) {
         processed++;
         log.info("Abandoned form recovery sent", { sessionId, phone: partial.phone.slice(-4) });
