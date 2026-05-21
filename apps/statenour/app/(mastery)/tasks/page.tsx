@@ -66,6 +66,10 @@ import { ProjectsPanel } from "@/components/actions/projects-panel";
 import { NowPanel } from "@/components/actions/now-panel";
 import { type AiTask } from "@/components/actions/ai-suggestions-band";
 import { ActionsContextBand } from "@/components/actions/actions-context-band";
+// TRACK consolidation (2026-05-21) · Nick's time-of-day brief · rehomed
+// here from the deleted /tasks TRACK tab — a "what to do right now"
+// surface belongs on the execute page. Self-collapses when empty.
+import { DailyBriefSection } from "@/components/actions/daily-brief-section";
 import { TodaysCompound } from "@/components/actions/todays-compound";
 // Phase E (2026-05-18 PM) · OperatorPulse · forward-looking intelligence
 // strip · "right now the move is X · pace is Y · drift is Z". Pairs with
@@ -1197,6 +1201,10 @@ function TasksPageInner() {
           which is the right behavior here · operator wants to discuss
           this task with Nick before working on it. Silent when no
           suggestions are available (clean morning). */}
+      {/* TRACK consolidation (2026-05-21) · Nick's time-of-day brief,
+          rehomed from the deleted TRACK tab. Top of the execute surface ·
+          self-collapses when there's nothing to say. */}
+      <DailyBriefSection />
       <NickSuggestions />
 
       {/* Phase E (2026-05-18 PM) · OperatorPulse · the forward-looking
@@ -1235,7 +1243,6 @@ function TasksPageInner() {
         goalToProjects={goalToProjects}
         onJumpToProject={handleJumpToProject}
         onPlanGoal={handlePlanGoal}
-        onOpenReview={() => setWizardOpen(true)}
         // Apr 27 · GB4 — pace chip → create NOW task tagged with
         // goalId. Completing this task auto-lifts the goal via the
         // S3 hook, so the metric tracks itself once Nour starts

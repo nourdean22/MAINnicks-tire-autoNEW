@@ -13,6 +13,12 @@
 import { getCategories, totalTutorials, type Tutorial } from "@/lib/learn/build-your-own-x";
 import { Search, ExternalLink, Video, BookOpen } from "lucide-react";
 import Link from "next/link";
+// TRACK consolidation (2026-05-21) · live AI learning engine (teach /
+// research · spaced-repetition review · decision-linked prompts) ·
+// rehomed here from the deleted /tasks TRACK tab. The static catalog is
+// reference; this is the active learning loop. Client island — fine
+// inside this force-static server page.
+import { KommandoLearn } from "@/components/actions/mode-learn";
 
 export const dynamic = "force-static";
 
@@ -278,6 +284,13 @@ async function LearnPageInner({
           ))}
         </div>
       )}
+
+      {/* TRACK consolidation (2026-05-21) · live AI learning engine,
+          rehomed from the deleted /tasks TRACK tab. Catalog above is
+          the reference library; this is the active loop. */}
+      <div className="mt-10 pt-8 border-t border-[var(--border-default)]">
+        <KommandoLearn />
+      </div>
     </div>
   );
 }
