@@ -21,6 +21,10 @@
  *     "<title>"
  *     "<title> by <when>"          (bare due date still parsed)
  *
+ *   Done (log a task already finished — created, then completed):
+ *     "done: <title>"
+ *     "did: <title>"
+ *
  *   Token suffixes (any kind):
  *     "<title> /M30"               (effort band)
  *     "<title> @health"            (domain tag, when no @<name>)
@@ -42,6 +46,12 @@ export interface QuickAddResult {
   dueDate?: Date;
   domain?: string;
   effort?: string;
+  /**
+   * `done:` / `did:` prefix — the operator finished this earlier and
+   * is logging it for the record. The caller creates the task, then
+   * immediately completes it.
+   */
+  markDone?: boolean;
 }
 
 /**
@@ -106,6 +116,19 @@ export function parseQuickAdd(raw: string): QuickAddResult | null {
   let promiseTo: string | undefined;
   let dueDate: Date | undefined;
 
+  // ── DONE prefix ──
+  // "done: cleaned the garage" / "did: oil change" → log a task the
+  // operator already finished. Stripped first so the remainder still
+  // parses for kind / @domain / /effort / "by <when>". The colon is
+  // REQUIRED (unlike daily:) — a bare "did X" collides too easily with
+  // a genuine to-do ("did I lock the door?").
+  let markDone = false;
+  const doneMatch = working.match(/^(?:done|did)\s*:\s*(.+)$/i);
+  if (doneMatch) {
+    markDone = true;
+    working = doneMatch[1];
+  }
+
   // ── DAILY detection ──
   // "every day: X" / "daily: X" / "habit: X" / "every morning X"
   const dailyMatch = working.match(
@@ -167,5 +190,6 @@ export function parseQuickAdd(raw: string): QuickAddResult | null {
     dueDate,
     domain,
     effort,
+    markDone,
   };
 }
