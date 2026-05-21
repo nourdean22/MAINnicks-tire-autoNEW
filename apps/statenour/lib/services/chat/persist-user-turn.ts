@@ -214,7 +214,7 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
               const { logUpdate } = await import("@/lib/db/entity-audit");
               const beforeTask = await prisma.task.findUnique({
                 where: { id: match.taskId },
-                select: { id: true, status: true, lastCompletedAt: true, lastTouchedAt: true },
+                select: { id: true, status: true, goalId: true, lastCompletedAt: true, lastTouchedAt: true },
               });
               const afterTask = await prisma.task.update({
                 where: { id: match.taskId },
@@ -224,7 +224,7 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
                   lastTouchedAt: new Date(),
                   ...auditUpdate(),
                 },
-                select: { id: true, status: true, lastCompletedAt: true, lastTouchedAt: true },
+                select: { id: true, status: true, goalId: true, lastCompletedAt: true, lastTouchedAt: true },
               }).catch(() => null);
               if (beforeTask && afterTask) {
                 void logUpdate(
@@ -237,6 +237,16 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
                     reason: `auto-complete (${Math.round(match.confidence * 100)}% match)`,
                   },
                 );
+              }
+              // The raw update above bypasses updateTask, so its
+              // liftGoalOnTaskComplete fanout never fired — a chat-auto-
+              // completed task with a linked goal left the goal's
+              // progress untouched. Fire the lift directly, only on a
+              // real (non-DONE → DONE) transition. It is fire-and-forget
+              // and never throws.
+              if (afterTask && beforeTask && beforeTask.status !== "DONE" && beforeTask.goalId) {
+                const { liftGoalOnTaskComplete } = await import("@/lib/services/tasks");
+                await liftGoalOnTaskComplete(beforeTask.goalId, match.taskId);
               }
               await prisma.auditEvent.create({
                 data: {

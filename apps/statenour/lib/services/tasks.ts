@@ -742,7 +742,7 @@ export async function deleteTask(id: string) {
  *
  * Fire-and-forget — never throws. Failures only log.
  */
-async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<void> {
+export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Promise<void> {
   const goal = await prisma.lifeGoal.findUnique({
     where: { id: goalId },
     select: { id: true, currentValue: true, targetValue: true, status: true, achievedAt: true },
