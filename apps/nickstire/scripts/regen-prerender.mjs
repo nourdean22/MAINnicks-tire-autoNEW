@@ -74,6 +74,15 @@ console.log("[regen] Step 1/4 — rebuilding client + server…");
 // Windows where corepack's pnpm shim can be broken after Node upgrades.
 execSync("npm run build", { cwd: ROOT, stdio: "inherit" });
 
+// ─── Step 1.7: ensure Puppeteer's Chrome is installed ──
+// puppeteer downloads Chrome via a postinstall script, but pnpm blocks
+// dependency postinstall scripts unless allowlisted — so on this repo
+// Step 3's prerender otherwise dies with "Could not find Chrome". This
+// command is idempotent (instant no-op once cached) and keeps regen
+// self-sufficient on a fresh clone and in CI with no extra setup step.
+console.log(`\n[regen] Step 1.7/4 — ensuring Puppeteer Chrome is installed…`);
+execSync("npx --yes puppeteer browsers install chrome", { cwd: ROOT, stdio: "inherit" });
+
 // ─── Step 1.5: move stale prerendered/ aside so middleware can't short-circuit ─
 //
 // The prerender-middleware serves prerendered/<route>/index.html to bot
