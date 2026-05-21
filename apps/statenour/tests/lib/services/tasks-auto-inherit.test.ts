@@ -164,3 +164,90 @@ describe("createTask · auto-inherit goalId", () => {
     expect(createArgs.data.goalId).toBeUndefined();
   });
 });
+
+/**
+ * Thin quick-add payload · regression cover for the 2026-05-21
+ * add-task bug.
+ *
+ * The /tasks quick-add bar POSTs through trpc.task.create with only
+ * title + missionId + a few loop fields. taskCreateSchema used to
+ * require nextPhysicalAction / frictionScore / energyRequired /
+ * context / finishCondition with no default, so .parse() threw a
+ * ZodError inside createTask() and the operator got a "Failed to add
+ * task" toast — the add path was fully broken. Those five fields now
+ * default; a bare payload must create cleanly.
+ */
+describe("createTask · thin quick-add payload", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mission.findUnique.mockResolvedValue({ id: "mission-1", deletedAt: null });
+    mocks.mission.findMany.mockResolvedValue([]);
+    mocks.task.findMany.mockResolvedValue([]); // no siblings, no sweep
+    mocks.task.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+      id: "new-task-id",
+      ...args.data,
+    }));
+    mocks.task.findUnique.mockResolvedValue({
+      id: "new-task-id",
+      missionId: "mission-1",
+      title: "call the vendor",
+      status: "INBOX",
+      mission: { id: "mission-1", title: "Mission 1" },
+    });
+    mocks.task.update.mockResolvedValue({});
+  });
+
+  it("creates a task from only title + missionId", async () => {
+    await expect(
+      createTask({ title: "call the vendor", missionId: "mission-1" }),
+    ).resolves.toBeDefined();
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.title).toBe("call the vendor");
+    expect(createArgs.data.effort).toBe("M15");
+    expect(createArgs.data.frictionScore).toBe(50);
+    expect(createArgs.data.energyRequired).toBe("MEDIUM");
+    expect(createArgs.data.context).toBe("ANYWHERE");
+    expect(createArgs.data.roiScore).toBe(50);
+    expect(createArgs.data.finishCondition).toBe("");
+  });
+
+  // nextPhysicalAction is NOT NULL with no DB default — a bare task
+  // has none, so createTask falls it back to the title rather than
+  // writing an empty string.
+  it("defaults nextPhysicalAction to the title when omitted", async () => {
+    await createTask({ title: "call the vendor", missionId: "mission-1" });
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.nextPhysicalAction).toBe("call the vendor");
+  });
+
+  it("keeps an explicit nextPhysicalAction over the title fallback", async () => {
+    await createTask({
+      title: "call the vendor",
+      missionId: "mission-1",
+      nextPhysicalAction: "dial 555-0100",
+    });
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.nextPhysicalAction).toBe("dial 555-0100");
+  });
+
+  // The exact field shape the /tasks quick-add bar sends.
+  it("creates from the quick-add bar payload shape", async () => {
+    await expect(
+      createTask({
+        title: "ship the redesign",
+        missionId: "mission-1",
+        effort: "M30",
+        roiScore: 50,
+        loopKind: "ONCE",
+        promiseTo: null,
+        dueDate: null,
+      }),
+    ).resolves.toBeDefined();
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.title).toBe("ship the redesign");
+    expect(createArgs.data.effort).toBe("M30");
+    expect(createArgs.data.loopKind).toBe("ONCE");
+  });
+});

@@ -21,19 +21,28 @@ const taskBaseSchema = z.object({
   title: requiredString("Task title"),
   missionId: requiredString("Mission"),
   status: z.enum(taskStatusValues).default("INBOX"),
-  nextPhysicalAction: requiredString("Next physical action"),
-  effort: z.enum(effortBandValues),
-  roiScore: integerRange(1, 100),
-  frictionScore: integerRange(1, 100),
-  energyRequired: z.enum(energyLevelValues),
-  context: z.enum(taskContextValues),
+  // Quick-add, AI-capture, omni-capture and chat long-press all create
+  // a task from little more than a title — they can't supply the
+  // "describe the task" fields below. Pre-2026-05-21 these were
+  // requiredString / bare-enum with no default, so every thin-payload
+  // create path threw a ZodError inside createTask() and the operator
+  // got a "Failed to add task" toast. They now default; the rich task
+  // editor still sends explicit values and enforces its own
+  // completeness client-side. createTask() upgrades an empty
+  // nextPhysicalAction to the title so the column is never "".
+  nextPhysicalAction: z.string().trim().default(""),
+  effort: z.enum(effortBandValues).default("M15"),
+  roiScore: integerRange(1, 100).default(50),
+  frictionScore: integerRange(1, 100).default(50),
+  energyRequired: z.enum(energyLevelValues).default("MEDIUM"),
+  context: z.enum(taskContextValues).default("ANYWHERE"),
   delegatable: booleanFlag.default(false),
   waitingOn: nullableString.optional(),
   dueDate: nullableDate.optional(),
   lastTouchedAt: nullableDate.optional(),
   driftRisk: integerRange(0, 100).default(0),
   manualPriorityOverride: nullableInteger(1, 999).optional(),
-  finishCondition: requiredString("Finish condition"),
+  finishCondition: z.string().trim().default(""),
   autoPriorityExplanation: optionalString,
   // ── Loops unification (Apr 15) ──
   loopKind: z.enum(loopKindValues).default("ONCE"),
