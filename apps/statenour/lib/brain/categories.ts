@@ -74,6 +74,7 @@ export const BRAIN_CATEGORIES = {
   EVAL_RUN: "eval_run", // v10.0.370 · daily quality benchmark run results
   DOMAIN_KNOWLEDGE: "domain_knowledge", // v10.0.371 · extracted facts (semantic-kind in CoALA)
   SUGGESTION_LOOP: "suggestion_loop", // v10.0.529.97 · operator action + outcome on Nick suggestions · supervised signal for DPO
+  SUGGESTION_HYPOTHESIS: "suggestion_hypothesis", // 2026-05-21 · suggestion-improve · per-kind improvement hypotheses derived from the suggestion-loop
   NUDGE_ACK: "nudge_ack",
   NUDGE_PIN_HYGIENE: "nudge_pin_hygiene",
 
@@ -381,6 +382,8 @@ export function isKnownCategory(category: string): boolean {
  */
 export const RECALL_EXCLUDE_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.MORNING_BRIEF_AUDIO,
+  // 2026-05-21 · operator-facing meta-analysis · must not leak into chat recall
+  BRAIN_CATEGORIES.SUGGESTION_HYPOTHESIS,
 ];
 
 /**

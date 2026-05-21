@@ -13,6 +13,10 @@
  *      `evolution_summary` brain memory · operator confirms
  *      individual moves on /brain/wisdom
  *
+ *   3. runSuggestionImproveAgent() · last 30d of suggestion-loop
+ *      act/dismiss signals → per-kind `suggestion_hypothesis`
+ *      brain memories flagging noisy suggestion kinds
+ *
  * Idempotent · keys are date-stamped so re-running same day
  * rewrites today's row but doesn't pollute the corpus.
  *
@@ -21,6 +25,7 @@
 
 import { NextResponse } from "next/server";
 import { runImproveAgent } from "@/lib/brain/improve-agent";
+import { runSuggestionImproveAgent } from "@/lib/brain/suggestion-improve";
 import { runWisdomEvolution } from "@/lib/brain/wisdom-evolution";
 import { brainMemory } from "@/lib/brain/memory-manager";
 
@@ -86,6 +91,19 @@ export async function GET(req: Request) {
     errors.push(`wisdom-evolution: ${(err as Error).message?.slice(0, 200)}`);
   }
 
+  // 3 · suggestion-improve · per-kind hypotheses from the suggestion-loop.
+  //     runSuggestionImproveAgent is self-protecting; the try/catch here
+  //     mirrors blocks 1-2 so a regression can never reach the response.
+  let suggestionHypothesisCount = 0;
+  let suggestionPersisted = 0;
+  try {
+    const result = await runSuggestionImproveAgent(30);
+    suggestionHypothesisCount = result.hypotheses.length;
+    suggestionPersisted = result.persisted;
+  } catch (err) {
+    errors.push(`suggestion-improve: ${(err as Error).message?.slice(0, 200)}`);
+  }
+
   return NextResponse.json({
     ok: errors.length === 0,
     durationMs: Date.now() - startedAt,
@@ -93,6 +111,10 @@ export async function GET(req: Request) {
       judgmentCount: improveJudgmentCount,
       hypothesisCount: improveHypothesisCount,
       persisted: improvePersisted,
+    },
+    suggestion: {
+      hypothesisCount: suggestionHypothesisCount,
+      persisted: suggestionPersisted,
     },
     evolution: {
       staleCount,
