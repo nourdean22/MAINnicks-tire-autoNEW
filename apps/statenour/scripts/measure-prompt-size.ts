@@ -23,9 +23,38 @@
  * For now it's a manual check we run after any prompt change.
  */
 
+import { Module } from "node:module";
 import { loadEnv, confirmDatabase } from "./_lib/safety";
 
+/**
+ * Neutralize `server-only` for this standalone `tsx` script.
+ *
+ * measure-prompt-size imports the prompt-builder graph, which
+ * transitively reaches modules that do `import "server-only"`
+ * (extract-structured.ts, budget.ts, …). server-only's index.js throws
+ * at load time unless the `react-server` export condition is set — and
+ * a bare `tsx` script has no such condition, so the import crashed
+ * before buildSystemPrompt() ever ran.
+ *
+ * `Module._load` is the CJS resolver every require() funnels through,
+ * including the ESM→CJS bridge (confirmed by the original crash stack).
+ * Returning an empty module for `server-only` is exactly what its own
+ * `empty.js` (the react-server build) does — a no-op. Tooling-only:
+ * the production RSC build is unaffected.
+ */
+function neutralizeServerOnly(): void {
+  const cjs = Module as unknown as {
+    _load: (request: string, parent: unknown, isMain: boolean) => unknown;
+  };
+  const original = cjs._load;
+  cjs._load = (request, parent, isMain) => {
+    if (request === "server-only") return {};
+    return original(request, parent, isMain);
+  };
+}
+
 async function main() {
+  neutralizeServerOnly();
   loadEnv();
   const args = process.argv.slice(2);
   const maxArg = args.indexOf("--max");
