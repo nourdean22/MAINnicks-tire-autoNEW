@@ -15,8 +15,11 @@
  *                      LoopStream consumes to bump urgency on rows
  *                      whose goal is behind/missed/needs.
  *   · goalToProjects — Map<goalId, PlanLinkedProjectChip[]> ·
- *                      KommandoPlan goal cards render these chips,
- *                      sorted by openCount desc.
+ *                      sorted by openCount desc. (Historically the
+ *                      KommandoPlan goal cards rendered these chips;
+ *                      that surface — now GoalBoard on /goals — was
+ *                      trimmed of its project-link manager, so this
+ *                      output currently has no consumer.)
  *   · projectToGoals — Map<missionId, Set<goalId>> · ProjectsPanel
  *                      uses this to label cards with the goal(s) they
  *                      serve, and to bucket "orphan" projects (no
@@ -45,8 +48,8 @@ import type {
   Project,
   GoalCacheEntry,
   GoalLineageEntry,
+  PlanLinkedProjectChip,
 } from "@/components/actions/shared";
-import type { PlanLinkedProjectChip } from "@/components/actions/mode-plan";
 
 export interface UseGoalProjectBridgeResult {
   goalLineage: Map<string, GoalLineageEntry>;

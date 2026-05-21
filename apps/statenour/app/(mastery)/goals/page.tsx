@@ -62,6 +62,14 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // TRACK consolidation (2026-05-21) · recent AI-enriched task insights,
 // grouped by 8-axis · rehomed here from the deleted /tasks TRACK tab.
 import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
+// KommandoShell dismantle · Phase 2 (2026-05-21) · the goal-authoring
+// surface — was the PLAN tab of the /tasks KommandoShell (KommandoPlan
+// in components/actions/mode-plan.tsx). Relocated + trimmed to
+// components/goals/goal-board.tsx · it REPLACES the read-only <Ladder>
+// below so /goals becomes the place goals are actually created, coached,
+// paced + planned. Self-fetches via GET /api/goals (independent of the
+// goalsSnapshot query that still feeds the header axes + missions rail).
+import { GoalBoard } from "@/components/goals/goal-board";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -103,6 +111,11 @@ interface AxisScore {
   asOf: string;
 }
 
+// `ladder` mirrors the trpc.operator.goalsSnapshot response shape ·
+// the server still groups goals by horizon. The read-only <Ladder>
+// renderer that consumed it was removed (2026-05-21 · replaced by the
+// interactive <GoalBoard>), so the field is carried for type-accuracy
+// of the snapshot but no longer rendered on this page.
 interface Snapshot {
   ladder: Record<Horizon, GoalRow[]>;
   missions: MissionRow[];
@@ -110,29 +123,6 @@ interface Snapshot {
   pruneCandidates: number;
   fetchedAt: string;
 }
-
-const ORDER: Horizon[] = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"];
-
-const HORIZON_LABEL: Record<Horizon, string> = {
-  DAY: "Today",
-  WEEK: "This Week",
-  MONTH: "This Month",
-  QUARTER: "This Quarter",
-  YEAR: "This Year",
-  LIFE: "Life",
-  UNSCOPED: "Unscoped",
-};
-
-// Hero is biggest · subsequent rungs taper in visual weight
-const HORIZON_STYLE: Record<Horizon, { titleSize: string; opacity: string; padding: string }> = {
-  DAY: { titleSize: "text-2xl", opacity: "opacity-100", padding: "py-6" },
-  WEEK: { titleSize: "text-xl", opacity: "opacity-95", padding: "py-5" },
-  MONTH: { titleSize: "text-lg", opacity: "opacity-90", padding: "py-5" },
-  QUARTER: { titleSize: "text-lg", opacity: "opacity-85", padding: "py-4" },
-  YEAR: { titleSize: "text-base", opacity: "opacity-80", padding: "py-4" },
-  LIFE: { titleSize: "text-base", opacity: "opacity-75", padding: "py-4" },
-  UNSCOPED: { titleSize: "text-sm", opacity: "opacity-60", padding: "py-3" },
-};
 
 export default function GoalsPage() {
   // Phase OO (2026-05-19 AM) · tRPC migration · types flow from
@@ -196,9 +186,17 @@ export default function GoalsPage() {
             Self-hides when empty. */}
         <RecentInsightsPanel />
 
-        {/* Main grid · ladder on left · sidebar on right (collapses on mobile) */}
+        {/* Main grid · interactive goal board on left · missions +
+            mastery sidebar on right (collapses on mobile).
+            KommandoShell dismantle · Phase 2 (2026-05-21) · the
+            read-only <Ladder> was REPLACED by <GoalBoard> — the
+            relocated goal-authoring surface. Goals are now created,
+            coached, paced + planned right here instead of behind the
+            /tasks PLAN tab. The board self-fetches its own goal data;
+            the read-only missions rail + axis list stay (they read
+            from the page's goalsSnapshot query). */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-          <Ladder ladder={data.ladder} />
+          <GoalBoard />
           <Sidebar missions={data.missions} axes={data.axes} />
         </div>
 
@@ -282,142 +280,6 @@ function AxisBadge({ axis }: { axis: AxisScore }) {
   );
 }
 
-// ── Ladder · Day hero top → Life at bottom ──────────────────────────
-
-function Ladder({ ladder }: { ladder: Snapshot["ladder"] }) {
-  // Render order: ORDER list (Day → Life), then UNSCOPED if any
-  const sections: Array<{ horizon: Horizon; goals: GoalRow[] }> = [];
-  for (const h of ORDER) {
-    if (ladder[h]?.length) sections.push({ horizon: h, goals: ladder[h] });
-  }
-  if (ladder.UNSCOPED?.length) {
-    sections.push({ horizon: "UNSCOPED", goals: ladder.UNSCOPED });
-  }
-  if (sections.length === 0) {
-    return (
-      <div className="rounded-lg border border-white/10 p-8 text-center">
-        <p className="text-sm text-white/50">No goals yet.</p>
-        <Link
-          href="/chat?q=help%20me%20set%20a%20goal%20for%20this%20week"
-          className="mt-3 inline-block text-xs text-[#FDB913] hover:underline"
-        >
-          Ask Nick to help set one →
-        </Link>
-      </div>
-    );
-  }
-  return (
-    <section className="space-y-1">
-      {sections.map(({ horizon, goals }) => (
-        <Rung key={horizon} horizon={horizon} goals={goals} />
-      ))}
-    </section>
-  );
-}
-
-function Rung({ horizon, goals }: { horizon: Horizon; goals: GoalRow[] }) {
-  const style = HORIZON_STYLE[horizon];
-  return (
-    <div className={`border-b border-white/5 ${style.padding} ${style.opacity}`}>
-      <div className="flex items-baseline justify-between gap-4 mb-3">
-        <h2 className={`${style.titleSize} font-medium`}>{HORIZON_LABEL[horizon]}</h2>
-        <span className="text-[10px] uppercase tracking-[0.18em] text-white/40 tabular-nums">
-          {goals.length} {goals.length === 1 ? "goal" : "goals"}
-        </span>
-      </div>
-      <ul className="space-y-2">
-        {goals.map((g) => (
-          <GoalCard key={g.id} goal={g} />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function GoalCard({ goal }: { goal: GoalRow }) {
-  const pct = Math.min(100, Math.max(0, goal.progress));
-  const isStale = goal.pruneCandidate;
-  return (
-    <li
-      className={`group rounded-lg border ${
-        isStale ? "border-amber-500/30 bg-amber-500/[0.03]" : "border-white/10 bg-white/[0.02]"
-      } px-4 py-3 transition hover:bg-white/[0.04]`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <p className="text-sm font-medium truncate">{goal.title}</p>
-            {/* Phase D follow-up audit (2026-05-18) · cross-link #2 ·
-                domain chip becomes a link to /journal pre-filtered
-                by the domain name. Operator can quickly see what
-                they've journaled about this goal's domain · closes
-                the audit's '/goals has no reciprocal journal link'
-                gap. Falls back to no-link if domain is empty. */}
-            {goal.domain ? (
-              <Link
-                href={`/journal?search=${encodeURIComponent(goal.domain)}`}
-                className="text-[10px] uppercase tracking-wider text-white/40 border border-white/10 rounded px-1.5 py-0.5 hover:text-white/70 hover:border-white/20"
-                title={`journal entries mentioning '${goal.domain}'`}
-              >
-                {goal.domain}
-              </Link>
-            ) : null}
-            {isStale ? (
-              <Link
-                href={`/chat?q=walk%20me%20through%20pruning%20goal%20${encodeURIComponent(goal.title)}`}
-                className="text-[10px] uppercase tracking-wider text-amber-300 border border-amber-500/30 rounded px-1.5 py-0.5 hover:bg-amber-500/10"
-                title="Nick flagged this · click to review"
-              >
-                stale
-              </Link>
-            ) : null}
-          </div>
-          {goal.why ? (
-            <p className="text-xs text-white/50 mt-1 italic line-clamp-1">
-              "{goal.why}"
-            </p>
-          ) : null}
-        </div>
-        <div className="text-right shrink-0">
-          <div className="text-sm tabular-nums text-white/80">
-            {formatValue(goal.currentValue, goal.unit)} /{" "}
-            {formatValue(goal.targetValue, goal.unit)}
-          </div>
-          {goal.openTaskCount > 0 ? (
-            <Link
-              href={`/tasks?goalId=${goal.id}`}
-              className="text-[10px] uppercase tracking-wider text-white/40 hover:text-white/70"
-            >
-              {goal.openTaskCount} task{goal.openTaskCount === 1 ? "" : "s"} →
-            </Link>
-          ) : (
-            <span className="text-[10px] uppercase tracking-wider text-white/30">
-              no tasks
-            </span>
-          )}
-        </div>
-      </div>
-      {/* Progress bar */}
-      <div className="mt-3 h-1 bg-white/5 rounded-full overflow-hidden">
-        <div
-          className="h-full bg-[#FDB913] rounded-full transition-all duration-300"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <div className="mt-1 flex items-center justify-between text-[10px] tabular-nums text-white/40">
-        <span>{pct.toFixed(0)}%</span>
-        {goal.daysSinceActivity != null ? (
-          <span>
-            {goal.daysSinceActivity === 0
-              ? "today"
-              : `${goal.daysSinceActivity}d ago`}
-          </span>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
 // ── Sidebar · missions + recent activity ────────────────────────────
 
 function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[] }) {
@@ -496,15 +358,6 @@ function MissionCard({ mission }: { mission: MissionRow }) {
       </div>
     </li>
   );
-}
-
-// ── Small primitives ───────────────────────────────────────────────
-
-function formatValue(value: number, unit: string): string {
-  if (unit === "$") return `$${value.toLocaleString()}`;
-  if (unit === "%") return `${value}%`;
-  if (!unit) return value.toLocaleString();
-  return `${value.toLocaleString()} ${unit}`;
 }
 
 // SkeletonView + ErrorView extracted to components/mastery/ on 2026-05-18 ·

@@ -19,13 +19,20 @@
 /**
  * Actions page · /tasks
  *
- * Orchestrates the 3-mode shell (today · goals · trends · enum keys
- * NOW · PLAN · TRACK kept for localStorage compat). Owns the page-
- * level data feed (tasks · projects · goalsCache · brain) + cross-
- * mode state (filters · pinnedIds · activeMode · wizard). NOW-mode
- * rendering lives in <NowPanel> · PLAN-mode project list lives in
- * <ProjectsPanel> · all goal↔project↔task linkage derives via
- * useGoalProjectBridge.
+ * The execution surface — today's loops + the context bands around
+ * them. Renders <NowPanel> directly (the daily LoopStream).
+ *
+ * History · this page used to host the KommandoShell tab system
+ * (NOW · PLAN · TRACK). 2026-05-21 the shell was dismantled: TRACK
+ * was distributed to /scoreboard + /learn (Phase 1), the PLAN goal-
+ * authoring surface was relocated to /goals as <GoalBoard> (Phase 2),
+ * and the shell itself was deleted (Phase 3). /tasks is now a single
+ * NOW surface — no tabs, no mode state.
+ *
+ * Owns the page-level data feed (tasks · projects · goalsCache ·
+ * brain) + execution state (filters · pinnedIds · wizard). Goal ↔
+ * project ↔ task lineage still derives via useGoalProjectBridge —
+ * `goalLineage` feeds LoopStream's cross-goal urgency bump.
  *
  * Each task row carries a `loopKind` field (ONCE | DAILY | PROMISE)
  * that drives streak / promise / one-shot behavior in LoopStream.
@@ -62,7 +69,11 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 // other two derived maps. The hook now owns the pace-aware compute.
 import { type TaskSortKey } from "@/components/actions/loop-stream";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { ProjectsPanel } from "@/components/actions/projects-panel";
+// KommandoShell dismantle · Phase 3 (2026-05-21) · <ProjectsPanel> was
+// the PLAN-tab Missions block · removed with the shell. Mission-create
+// now lives on /goals (GoalBoard's "Plan it" → MilestonesFlow). The
+// projects-panel.tsx file is retained for now — still imports goal↔
+// project bridge plumbing — but is no longer mounted here.
 import { NowPanel } from "@/components/actions/now-panel";
 import { type AiTask } from "@/components/actions/ai-suggestions-band";
 import { ActionsContextBand } from "@/components/actions/actions-context-band";
@@ -90,11 +101,9 @@ import { NickSuggestions } from "@/components/chat/nick-suggestions";
 // axis · reads like prose ("Today · 3 tasks compounded · Business
 // ↑0.3 · 2 goals lifted").
 import { CompoundChain } from "@/components/operator/compound-chain";
-import { KommandoShell } from "@/components/actions/kommando-modes";
 import { useGoalProjectBridge } from "@/hooks/use-goal-project-bridge";
 import { useTaskDerivedState } from "@/hooks/use-task-derived-state";
 import { useOncePerSession } from "@/hooks/use-once-per-session";
-import { scrollToElement } from "@/lib/utils/scroll";
 // v10.0.529.17 · PlanLinkedProjectChip + GoalLineageEntry no longer
 // referenced at this top level · the two maps + the lineage entry shape
 // are owned by useGoalProjectBridge now. The hook re-exports nothing —
@@ -190,13 +199,12 @@ function TasksPageInner() {
       /* no auto-send on the tasks page — user reviews + taps + */
     }
   );
-  const [expandedProject, setExpandedProject] = useState<string | null>(null);
   // v10.0.529.16 · editingGoalForTaskId + editingProjectForTaskId lifted
   // into <NowPanel> with the TaskEditSheet IIFEs they drive.
-  // Apr 20 bridge · page-level cache of goal rows · feeds Project→Goal
-  // breadcrumb chips (title lookup) + the LinkGoalPicker (full row shape
-  // with horizon/domain). KommandoPlan does its own fetch for its richer
-  // card data. v10.0.529.15 · GoalCacheEntry type lives in shared.ts.
+  // Apr 20 bridge · page-level cache of goal rows · feeds the goal↔
+  // project bridge (goalLineage → LoopStream urgency bump) + the
+  // LinkGoalPicker (full row shape with horizon/domain). v10.0.529.15 ·
+  // GoalCacheEntry type lives in shared.ts.
   const [goalsCache, setGoalsCache] = useState<GoalCacheEntry[]>([]);
   // v10.0.529.17 · goalTitles useMemo lifted into useGoalProjectBridge
   // alongside the other two derived maps. See the bridge destructure
@@ -206,14 +214,11 @@ function TasksPageInner() {
   // load() pass below is the single /api/goals fetch.
   // v10.0.529.16 · `lastRefresh` state dropped — set but never read.
   // v10.0.529.16 · showDone lifted into <NowPanel> (NOW-only).
-  // v10.0.529.15 · ProjectsPanel-local plan state + manual-form quad
-  // lifted into <ProjectsPanel>. newProjectTitle stays here because
-  // handlePlanGoal seeds it when a no-plan goal card calls "plan it".
-  const [newProjectTitle, setNewProjectTitle] = useState("");
-  // Filter state stays here per the v529.16 extraction brief · any
-  // future PLAN/TRACK surface that wants to read filter
-  // context (deep-link with a domain pre-selected, etc.) reads from
-  // one source of truth instead of poking at NowPanel internals.
+  // KommandoShell dismantle · Phase 3 (2026-05-21) · `newProjectTitle`
+  // dropped — it only seeded the PLAN-tab project-create form (via the
+  // removed handlePlanGoal). Mission-create now lives on /goals.
+  // Filter state lives here · NowPanel reads it · one source of truth
+  // instead of poking at NowPanel internals.
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [domainFilter, setDomainFilter] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -236,10 +241,10 @@ function TasksPageInner() {
   // + newDomainInput + showFilters + focusMode all lifted into <NowPanel>
   // (NOW-only UI state). LoopStream's own useCustomDomains call still
   // syncs via the hook's synthetic StorageEvent contract.
-  // Which Kommando mode is active — drives mode-aware polling.
-  // NOW + PLAN need task/mission/goal refresh; other modes fetch
-  // their own data and don't need the 60s interval burning bandwidth.
-  const [activeMode, setActiveMode] = useState<string>("NOW");
+  // KommandoShell dismantle · Phase 3 (2026-05-21) · `activeMode` state
+  // dropped — it gated the 60s poll to the NOW/PLAN tabs. With the
+  // shell gone /tasks is a single NOW surface, so the poll just runs
+  // unconditionally below.
   // Brain focus snapshot from /api/actions-brain — shape is loose
   // because the endpoint composes multiple upstream sources; we only
   // read `insights[0].text` and `dailyFocus` from it.
@@ -449,14 +454,14 @@ function TasksPageInner() {
     reload();
   }, [reload]);
 
-  // Mode-aware polling: only fire the 60s refresh when NOW or PLAN
-  // is active. TRACK fetches its own data on mount and
-  // don't need tasks/missions/goals refreshed in the background.
+  // 60s background refresh of tasks/missions/goals. KommandoShell
+  // dismantle · Phase 3 (2026-05-21) · the prior `activeMode` gate
+  // (poll only on the NOW/PLAN tabs) is gone — /tasks is now a single
+  // NOW surface, so the poll always runs.
   useEffect(() => {
-    if (activeMode !== "NOW" && activeMode !== "PLAN") return;
     const i = setInterval(reload, 60_000);
     return () => clearInterval(i);
-  }, [reload, activeMode]);
+  }, [reload]);
 
   // Cross-surface event bus — refresh whenever task data changes.
   // v10.0.424 · debounced so a chat NL action that fires 3 events
@@ -1013,40 +1018,14 @@ function TasksPageInner() {
   // not the producer). Caught during the NowPanel extraction sweep.
 
   // ── Goal ↔ Project bridge (Apr 20 · v10.0.529.17 hook) ──
-  // The three layers (LifeGoal / Mission / Task) live in separate
-  // sections but never cross-reference. The linkage is derived by
-  // walking tasks: a Mission "serves" a Goal if any of its tasks
-  // carries both goalId and missionId. Feeds:
-  //   • KommandoPlan → goal cards show linked project chips (via
-  //     `goalToProjects`)
-  //   • Projects list → each card shows the goal(s) it serves
-  //     (via `projectToGoals` + `goalTitles`)
-  //   • LoopStream → urgency bump on rows linked to a behind/missed
-  //     goal (via `goalLineage`)
-  // The 3 useMemos that produced these 4 outputs (~60 LOC) lifted
-  // into <useGoalProjectBridge> at v10.0.529.17. Memoization keys
-  // preserved · each derived shape still re-computes on its own
-  // minimal dependency slice.
-  const { goalLineage, goalToProjects, projectToGoals, goalTitles } =
-    useGoalProjectBridge(tasks, projects, goalsCache);
-
-  // Jump-to-project — expand the project card on the page when Nour
-  // taps a goal's linked project chip. v10.0.529.18 · scroll-by-id
-  // sequence delegated to <scrollToElement> util.
-  const handleJumpToProject = useCallback((projectId: string) => {
-    setExpandedProject(projectId);
-    scrollToElement(`project-card-${projectId}`, "center");
-  }, []);
-
-  // "Plan it" from a no-plan goal card — seed the project-create input
-  // with the goal title + auto-trigger the Nick-plans-it flow.
-  const handlePlanGoal = useCallback(
-    (goal: { id: string; title: string }) => {
-      setNewProjectTitle(goal.title);
-      scrollToElement("projects-block", "start");
-    },
-    [],
-  );
+  // The linkage is derived by walking tasks: a Mission "serves" a Goal
+  // if any of its tasks carries both goalId and missionId. Only
+  // `goalLineage` is consumed here — it feeds LoopStream's urgency bump
+  // on rows linked to a behind/missed goal. KommandoShell dismantle ·
+  // Phase 3 (2026-05-21) · the `goalToProjects` / `projectToGoals` /
+  // `goalTitles` outputs fed the removed PLAN tab (KommandoPlan goal
+  // cards + ProjectsPanel) · no longer destructured here.
+  const { goalLineage } = useGoalProjectBridge(tasks, projects, goalsCache);
 
   // v10.0.529.18 · `smartHeadline` / `doneSpark` / `doneGroups`
   // derivations all moved into <NowPanel>. They were display
@@ -1065,51 +1044,18 @@ function TasksPageInner() {
       </div>
     );
 
-  // ── Projects content (moved from NOW mode to PLAN mode Apr 15) ──
-  // Projects belong with planning, not today's execution. Nour
-  // pointed out the duplication — why show them under today's
-  // loops when there's a Plan tab? They render below KommandoPlan's
-  // goals section now, inside PLAN mode.
-  //
-  // v10.0.529.15 · extracted from inline ~660-LOC fragment into
-  // <ProjectsPanel> · audit win #2 from the /tasks code-explorer pass.
-  // The panel owns the create/plan/delete flows + their state · this
-  // page only threads the data it already has (projects, tasks,
-  // goalsCache, etc.) plus the deep-link target (expandedProject) and
-  // the seeded title (newProjectTitle).
-  const projectsContent = (
-    <ProjectsPanel
-      projects={projects}
-      tasks={tasks}
-      goalsCache={goalsCache}
-      goalTitles={goalTitles}
-      projectToGoals={projectToGoals}
-      expandedProject={expandedProject}
-      onToggleExpand={(id) =>
-        setExpandedProject(expandedProject === id ? null : id)
-      }
-      newProjectTitle={newProjectTitle}
-      setNewProjectTitle={setNewProjectTitle}
-      setProjects={setProjects}
-      onReload={load}
-      onCompleteTask={completeLoop}
-      onDeleteTask={deleteTask}
-    />
-  );
-
-  // Build the NOW-mode content as a <NowPanel> that KommandoShell
-  // renders when mode === "NOW". v10.0.529.16 · the ~250-LOC inline
-  // JSX fragment was extracted to components/actions/now-panel.tsx
-  // (audit win #3 from the /tasks code-explorer pass · symmetric to
-  // ProjectsPanel at v529.15). Parent threads: tasks + derived stats
-  // (parent computes once · panel reads), parent-owned filter state
-  // (kindFilter/domainFilter/searchQuery/sortKey), parent-owned cross-
-  // mode state (pinnedIds/brain/aiTasks/projects/goalsCache/
-  // goalLineage), and parent-owned action handlers
-  // (completeLoop/deleteTask/startTask/togglePin/breakPromise/addTask/
-  // genAi/adoptAi/load). NowPanel owns showDone + editingGoal/Project
-  // for + focusMode + showFilters + filter-edit quadruplet + the
-  // useCustomDomains hook call.
+  // The page body — a <NowPanel> (today's LoopStream + the execution
+  // surface). KommandoShell dismantle · Phase 3 (2026-05-21) · this
+  // used to be one of two/three mode fragments the shell switched
+  // between; it now renders directly. v10.0.529.16 · the ~250-LOC
+  // inline JSX was extracted to components/actions/now-panel.tsx.
+  // Parent threads: tasks + derived stats (parent computes once ·
+  // panel reads), filter state (kindFilter/domainFilter/searchQuery/
+  // sortKey), pinnedIds/brain/aiTasks/projects/goalsCache/goalLineage,
+  // and action handlers (completeLoop/deleteTask/startTask/togglePin/
+  // breakPromise/addTask/genAi/adoptAi/load). NowPanel owns showDone +
+  // editingGoal/Project for + focusMode + showFilters + filter-edit
+  // quadruplet + the useCustomDomains hook call.
   const nowContent = (
     <NowPanel
       tasks={tasks}
@@ -1162,10 +1108,10 @@ function TasksPageInner() {
     />
   );
 
-  // ── Final render: KommandoShell handles the 3 modes. NOW mode
-  //    gets the full nowContent fragment built above. May 02 — removed
-  //    DriftShield card per user request (was an always-on red banner
-  //    when isDrifting fired, which Nour found intrusive).
+  // ── Final render: a single NOW surface. KommandoShell dismantle ·
+  //    Phase 3 (2026-05-21) · `nowContent` renders directly — no tab
+  //    shell. May 02 — removed DriftShield card per user request (was
+  //    an always-on red banner when isDrifting fired, intrusive).
   return (
     // v10.0.529.13 · iOS safe-area · respect the home-indicator inset on
     // iPhone 14/15 so the last interactive row of the page clears the
@@ -1237,60 +1183,11 @@ function TasksPageInner() {
           deleted in the same wave. See docs/adr/0013-merge-brain-life-
           ops-ia.md. */}
       <ActionsContextBand />
-      <KommandoShell
-        nowContent={nowContent}
-        planExtra={projectsContent}
-        goalToProjects={goalToProjects}
-        onJumpToProject={handleJumpToProject}
-        onPlanGoal={handlePlanGoal}
-        // Apr 27 · GB4 — pace chip → create NOW task tagged with
-        // goalId. Completing this task auto-lifts the goal via the
-        // S3 hook, so the metric tracks itself once Nour starts
-        // checking off daily-increment tasks.
-        onCreateTaskForGoal={async ({ goalId, title }) => {
-          try {
-            const mId = await getInbox();
-            // Phase SS.1 · pace-chip goal-task creation migrated to
-            // createTaskMutation · keeps the same goalId tagging which
-            // auto-lifts the goal on completion via the S3 server hook.
-            await createTaskMutation.mutateAsync({
-              title,
-              missionId: mId,
-              goalId,
-              roiScore: 70,
-              finishCondition: "Increment logged",
-            });
-            toast.success("Added to NOW · tagged with this goal");
-            await load();
-          } catch {
-            toast.error("Failed to add task");
-          }
-        }}
-        // Apr 27 · GB1 — when a goal card's next-move chip is tapped,
-        // switch to NOW mode + scroll-flash the matching task. The
-        // ID-driven scroll uses the row id pattern LoopStream renders;
-        // a tiny highlight ring fades after 2s for orientation.
-        onJumpToTask={(taskId) => {
-          try {
-            localStorage.setItem("nour:kommando:mode", "NOW");
-          } catch {}
-          // Best-effort mode switch via storage event + a soft reload
-          // of the active mode state in KommandoShell. We just use a
-          // CustomEvent the shell listens for.
-          window.dispatchEvent(
-            new CustomEvent("nour:kommando:set-mode", { detail: "NOW" }),
-          );
-          setTimeout(() => {
-            const el = document.getElementById(`task-row-${taskId}`);
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "center" });
-              el.classList.add("ring-2", "ring-amber-400/60");
-              setTimeout(() => el.classList.remove("ring-2", "ring-amber-400/60"), 2000);
-            }
-          }, 100);
-        }}
-        onModeChange={setActiveMode}
-      />
+      {/* The execution surface. KommandoShell dismantle · Phase 3
+          (2026-05-21) · `nowContent` (the <NowPanel>) renders directly
+          where the 3-mode <KommandoShell> used to sit. Goal authoring
+          moved to /goals · TRACK moved to /scoreboard + /learn. */}
+      {nowContent}
       {/* Apr 26 · Review sheet — bottom sheet for kill/reframe/blocker
           decisions on overdue + stale tasks. Triggered by tapping the
           smart headline when reviewSet is non-empty. */}
