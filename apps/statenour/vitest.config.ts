@@ -11,7 +11,17 @@ export default defineConfig({
     // v7 · Apr 28 — Exclude Playwright e2e tests from vitest. They use
     // a different runner (`playwright test`) and import @playwright/test
     // which isn't a vitest dep.
-    exclude: ["**/node_modules/**", "**/dist/**", "**/.next/**", "tests/e2e/**"],
+    // .next-prod is statenour's NEXT_DIST_DIR for `build:local` — its
+    // standalone output bundles nickstire .test.ts files that vitest
+    // would otherwise collect and fail on (can't resolve drizzle-orm /
+    // the bundle's broken relative paths). Both build dirs are excluded.
+    exclude: [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.next/**",
+      "**/.next-prod/**",
+      "tests/e2e/**",
+    ],
     // v8.26 · Mock @/lib/auth-guard globally so route tests don't pull
     // next-auth into the vitest node environment (incompatible runtime).
     setupFiles: ["tests/setup/auth-guard-mock.ts"],
