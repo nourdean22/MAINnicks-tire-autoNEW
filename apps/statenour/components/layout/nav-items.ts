@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Zap,
   Bot,
-  Calendar,
   Pin,
   Send,
   Target,
@@ -68,7 +67,11 @@ export const NAV_ITEMS: NavItem[] = [
   // COCKPIT — the full Ultron apex dashboard. Was the root pre-Wave-27.
   { href: "/cockpit",   label: "Cockpit",     icon: Shield },
 
-  // DEPTH — growth, system, settings (accessible via sidebar + ⌘K)
+  // DEPTH — goals, growth, system, settings (accessible via sidebar + ⌘K)
+  // 2026-05-21 · KommandoShell dismantle · Phase 3 · /goals added to the
+  // nav. /goals is now the goal-authoring surface (the relocated PLAN
+  // tab) — it earns a real nav entry.
+  { href: "/goals",         label: "Goals",    icon: Target },
   { href: "/mastery",       label: "Growth",   icon: Brain },
   { href: "/brain",         label: "Brain",    icon: Brain },
   { href: "/system",        label: "System",   icon: Activity },
@@ -85,7 +88,10 @@ export const NAV_ITEMS: NavItem[] = [
 
   // v6 (Apr 28) — new tools added in the mega-overhaul. ⌘K-only,
   // not in the bottom nav (those tabs are sacred — 5 wide).
-  { href: "/plan",            label: "Plan",            icon: Calendar },
+  // 2026-05-21 · KommandoShell dismantle · Phase 3 · the dead `/plan`
+  // entry removed — there is no /plan page (next.config.ts redirects
+  // /plan → /goals) and goal authoring now lives at /goals (added to
+  // the DEPTH section above).
   { href: "/pins",            label: "Pinned Memory",   icon: Pin },
   // v10.0.302 · /intel removed · automotive-RSS dashboard's business
   // value moved to nickstire (per its own docstring); the personal-OS

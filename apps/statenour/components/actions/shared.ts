@@ -77,6 +77,25 @@ export interface GoalLineageEntry {
     | "unscored";
 }
 
+/**
+ * Goal → linked-project chip. Computed by useGoalProjectBridge by
+ * walking tasks: any Mission with at least one Task whose `goalId`
+ * matches the goal is "linked". Feeds the bridge's `goalToProjects`
+ * map.
+ *
+ * Previously exported from components/actions/mode-plan.tsx. That
+ * component was relocated to components/goals/goal-board.tsx and
+ * trimmed (2026-05-21 · KommandoShell dismantle) — the goal↔project
+ * link manager was removed there, so the type's natural home is here
+ * alongside the other goal-project bridge types.
+ */
+export interface PlanLinkedProjectChip {
+  id: string;
+  title: string;
+  openCount: number;
+  totalCount: number;
+}
+
 export interface Task {
   id: string;
   title: string;
