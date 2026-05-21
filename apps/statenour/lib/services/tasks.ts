@@ -308,7 +308,7 @@ export async function getTaskById(id: string) {
   return buildTaskViewModels([task], missions)[0];
 }
 
-export async function createTask(input: unknown) {
+export async function createTask(input: unknown, tx?: Prisma.TransactionClient) {
   const payload = taskCreateSchema.parse(input);
 
   if (isDemoMode) {
@@ -383,8 +383,12 @@ export async function createTask(input: unknown) {
     // distinctGoalIds.size  >  1 → ambiguous; abstain
   }
 
-  const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    const task = await tx.task.create({
+  // Core transactional write. Runs on the caller's `tx` when one is
+  // supplied — so convertCaptureItem can make the task-create and the
+  // capture-item update one atomic unit — otherwise in its own
+  // transaction. The body is identical either way.
+  const runCore = async (client: Prisma.TransactionClient) => {
+    const task = await client.task.create({
       data: {
         ...payload,
         // Apply inheritance ONLY when payload didn't explicitly set goalId.
@@ -395,9 +399,9 @@ export async function createTask(input: unknown) {
       }
     });
 
-    await syncTaskPriorities(tx);
+    await syncTaskPriorities(client);
 
-    const hydrated = await tx.task.findUnique({
+    const hydrated = await client.task.findUnique({
       where: { id: task.id },
       include: {
         mission: true
@@ -405,12 +409,13 @@ export async function createTask(input: unknown) {
     });
     // v9.1.15 · same fix as getTaskById — soft-delete filter.
     // v10.0.529.106 wave-74 · migrated to activeOnly() helper.
-    const missions = await tx.mission.findMany({
+    const missions = await client.mission.findMany({
       where: activeOnly(),
     });
 
     return { task, vm: buildTaskViewModels(hydrated ? [hydrated] : [], missions)[0] };
-  });
+  };
+  const result = tx ? await runCore(tx) : await prisma.$transaction(runCore);
 
   // Apr 26 · TaskEvent emit — fire-and-forget after the transaction
   // commits so analytics never blocks the user-facing write path.
