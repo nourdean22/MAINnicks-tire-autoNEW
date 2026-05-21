@@ -35,9 +35,20 @@ const STORAGE_KEY = "tasks_intel_open";
 
 interface IntelPanelProps {
   children: React.ReactNode;
+  /**
+   * When > 0 and the panel is collapsed, the toggle shows an amber
+   * count pill — a breadcrumb that the folded widgets are worth
+   * opening for, without un-folding (or fetching) them. The /tasks
+   * page feeds its overdue count; OperatorPulse inside the drawer is
+   * the strategic read on exactly those. Kept a generic number so the
+   * panel stays decoupled from any one data source.
+   */
+  signalCount?: number;
+  /** Noun rendered after the count, e.g. "overdue" → "3 overdue". */
+  signalLabel?: string;
 }
 
-export function IntelPanel({ children }: IntelPanelProps) {
+export function IntelPanel({ children, signalCount = 0, signalLabel }: IntelPanelProps) {
   const [open, setOpen] = useState(false);
 
   // Restore the persisted choice after mount. Done in an effect, not
@@ -83,6 +94,12 @@ export function IntelPanel({ children }: IntelPanelProps) {
         <span className="ml-1 hidden flex-1 truncate text-[9px] italic text-white/30 sm:block">
           brief · suggestions · pulse · compounding
         </span>
+        {!open && signalCount > 0 && (
+          <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] tabular-nums text-amber-300">
+            {signalCount}
+            {signalLabel ? ` ${signalLabel}` : ""}
+          </span>
+        )}
         {open ? (
           <ChevronDown size={13} className="ml-auto shrink-0 text-[var(--gold)]/50 sm:ml-0" />
         ) : (
