@@ -1,6 +1,95 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-20 (wide bug-hunt wave · post-monorepo) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1855 across 140 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-20 (bug-hunt continuation · journal + chat + brain-recall) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1891 across 141 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-20 · bug-hunt continuation · journal + chat pipeline + brain recall · 10 ships
+>
+> Picks up the wide-wave's flagged list, then two fresh code-review
+> fan-outs (journal feature · chat pipeline) and a brain-recall audit.
+> Every finding verified against real code before fixing — ~6 agent
+> false-positives caught and retracted. typecheck + lint (0 errors) +
+> green vitest through every ship; suite 1855 → 1891 (+36 tests).
+>
+> **Journal slice — 4 ships:**
+>
+> **`0c4ab3f` · journal-threads atomic writes** — `confirmCandidate`'s
+> thread-create + candidate soft-delete now run in one `$transaction`
+> (a crash mid-way had orphaned the thread); `joinThread`'s P2002
+> check-then-act race is caught instead of throwing unhandled.
+>
+> **`c165515` · journal API routes map ServiceError → status** — all 6
+> `/api/journal` routes returned 500 on an unauthenticated request, not
+> 401: `requireSession` throws `ServiceError` but Next.js doesn't map a
+> thrown error's `.status`. Each catch now maps it, matching the ~25
+> other hand-written routes.
+>
+> **`61b1d0f` · convergence clusterHash stability** —
+> `pruneCandidatesForExistingThreads` recomputed `clusterHash` from the
+> pruned member set, minting a new BrainMemory key (and orphaning the
+> prior row) each time a member was claimed by a thread. Hash now stays
+> the raw cluster identity. Dead `BRAIN_CATEGORIES.DESC` removed.
+>
+> **`c22eb0e` · convergence test suite** — the convergence layer had
+> zero coverage; +29 vitest units.
+>
+> **Chat pipeline — 4 ships:**
+>
+> **`008ab23` · tool-result verification no longer false-passes** —
+> `environment-verifier` matched tool results by title with no time
+> bound, so a stale same-title task verified a silently-failed
+> `createTask` as success (feeds the fabrication detector); added a
+> 5-min window + bulk verify now counts every task. `persist-user-turn`
+> auto-complete ran `task.update(...).catch(()=>null)`, letting a failed
+> update fall through to a false `Auto-completed` audit event.
+>
+> **`02d15b4` · fabrication hedge banner now persisted** — the L2
+> hedge-banner rewrite reassigned `cleanedText` AFTER the assistant
+> `ChatMessage` was already written, so the DB kept the un-hedged
+> fabricated claim. The row is now patched (content + parts +
+> searchableContent) after the rewrite.
+>
+> **`fed96b8` · new-conversation persist atomic** — `persist-user-turn`
+> created the conversation row then the first message in two separate
+> awaits; a crash between them orphaned an empty conversation. The
+> new-conversation path is now one `$transaction`.
+>
+> **`77a568a` · claim detector abbreviation-safe split** —
+> `splitSentences` broke a sentence on the period inside "i.e."/"e.g.",
+> stranding a claim's verb and object in separate fragments (detected in
+> neither). Negative lookbehinds added; +2 tests.
+>
+> **Mark-and-sweep + brain recall — 2 ships:**
+>
+> **`e9a42e6` · stale convergence-candidate sweep** —
+> `sweepStaleCandidates` soft-deletes candidates whose cluster stops
+> converging across scans (entries age out of the window) on a
+> 3-nightly-scan TTL; previously they lingered in the radar forever.
+> +2 tests.
+>
+> **`f1b6b2e` · Cohere rerank fetch abort signal** — the rerank `fetch`
+> carried no `AbortSignal`; `withGuardian`'s timeout races the promise
+> but doesn't abort the socket. Added `AbortSignal.timeout(7500)`.
+>
+> **Prior wave's flagged list — all resolved.** The wide-wave entry
+> below flagged the timezone cluster, the `persist-user-turn` goal-lift
+> bypass, `convertCaptureItem`'s missing transaction, and document-wide
+> HEDGE_PATTERNS suppression — all four were fixed earlier this session
+> (ET datetime helpers · `040a093` · `92a46fd` · `92af84f`).
+>
+> **Verified NOT bugs** (agents over-flagged · verify-don't-trust
+> caught these): `chat-recall` "pairs mis-indexed" (`pairs` and
+> `messages` are both `.map()`-derived — fully index-aligned) ·
+> `ChatMessage` "missing `deletedAt` filter" (the model has no
+> `deletedAt` column) · `journal-feed` situation typeFilter (consistent
+> with the `reflection` entryType) · `rrf.ts` / `similarity.ts` ranking
+> math verified clean.
+>
+> **Flagged · NOT fixed (low-severity / judgment calls):**
+> `contextual-recall`'s token budget counts only memory content, not
+> formatting + cross-source overhead — the block can run ~5-10% over an
+> (explicitly approximate) budget · `cohere-rerank` would drop the
+> middle slice when `topN < poolSize`, but that path is dormant (the
+> sole caller passes the full pool length).
 
 > ## 2026-05-20 · wide bug-hunt wave · 4-agent parallel audit → 4 ships
 >
