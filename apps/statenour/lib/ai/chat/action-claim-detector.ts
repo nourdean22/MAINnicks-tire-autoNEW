@@ -97,30 +97,71 @@ export interface ActionClaimReport {
   hedged: boolean;
 }
 
+// ── Sentence-level hedge isolation ───────────────────────────────────
+/**
+ * Split text into rough sentences. A claim is only a fabrication if ITS
+ * sentence isn't hedged — so a hedge in one sentence must not suppress a
+ * real claim in another. The split is deliberately loose (terminators +
+ * newlines); over-splitting just yields LESS suppression, erring toward
+ * detecting fabrication — the safe direction for this guard.
+ */
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/** True if a single sentence contains a hedge phrase. */
+function sentenceIsHedged(sentence: string): boolean {
+  return HEDGE_PATTERNS.some((re) => {
+    re.lastIndex = 0;
+    return re.test(sentence);
+  });
+}
+
 /**
  * Scan an assistant message for action-claim verbs. Returns a report
  * of detected claims; the caller decides what to do with it (warn,
  * suppress, log).
  *
+ * Hedge handling is PER-SENTENCE: a claim is collected only from a
+ * sentence that is not itself hedged. Pre-fix `hedged` was computed over
+ * the whole message and detectActionClaimsWithoutTools dropped EVERY
+ * claim when it was true — so "Added the tasks. I'll send a recap."
+ * had its real "added" fabrication suppressed by the unrelated
+ * future-tense second sentence. `report.hedged` stays document-wide
+ * (any sentence hedged) for telemetry.
+ *
  * Pure — no IO. Safe to call from inside a hot path.
  */
 export function detectActionClaims(text: string): ActionClaimReport {
+  const sentences = splitSentences(text);
+  const hedgedFlags = sentences.map(sentenceIsHedged);
+  const liveSentences = sentences.filter((_, i) => !hedgedFlags[i]);
+
   const claims: ActionClaim[] = [];
   for (const { regex, verb, mapsToTool } of ACTION_VERB_PATTERNS) {
-    const m = regex.exec(text);
-    if (m) {
-      // Snippet = the matched verb + 60 chars of surrounding context
-      const start = Math.max(0, m.index - 30);
-      const end = Math.min(text.length, m.index + m[0].length + 30);
-      const snippet = text.slice(start, end).trim();
-      claims.push({
-        verb,
-        snippet,
-        expectedTool: mapsToTool,
-      });
+    for (const sentence of liveSentences) {
+      // Reset lastIndex defensively — a /g pattern in the vocab would
+      // otherwise carry state across sentences and across calls.
+      regex.lastIndex = 0;
+      const m = regex.exec(sentence);
+      if (m) {
+        // Snippet = the matched verb + ~30 chars of surrounding context,
+        // from the sentence the claim was found in.
+        const start = Math.max(0, m.index - 30);
+        const end = Math.min(sentence.length, m.index + m[0].length + 30);
+        claims.push({
+          verb,
+          snippet: sentence.slice(start, end).trim(),
+          expectedTool: mapsToTool,
+        });
+        break; // one claim per pattern — matches the prior single-exec
+      }
     }
   }
-  const hedged = HEDGE_PATTERNS.some((re) => re.test(text));
+  const hedged = hedgedFlags.some(Boolean);
   return { claims, hedged };
 }
 
@@ -136,8 +177,10 @@ export function detectActionClaimsWithoutTools(
   text: string,
   toolCalls: ReadonlyArray<{ name: string }>,
 ): ActionClaim[] {
+  // detectActionClaims already drops claims from hedged sentences, so
+  // there is no document-wide `hedged` short-circuit here anymore — a
+  // hedge in one sentence no longer suppresses a fabrication in another.
   const report = detectActionClaims(text);
-  if (report.hedged) return [];
   if (report.claims.length === 0) return [];
 
   const firedTools = new Set(toolCalls.map((t) => t.name.toLowerCase()));
