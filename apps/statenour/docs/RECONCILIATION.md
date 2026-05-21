@@ -1,6 +1,43 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-21 (Nick agent — terseness + observability + signal gate) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1891 across 141 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-21 (Nick agent hardening — test coverage + tooling) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1910 across 142 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-21 · Nick agent hardening — test coverage + tooling + rerank telemetry · 6 ships
+>
+> Follow-up to the Nick agent wave below: hardened what shipped rather
+> than adding surface. suggestion-loop.ts went from zero coverage to a
+> 19-case vitest suite; a tooling crash blocking smoke-prod was fixed;
+> and the brain-recall observability scope was finished by instrumenting
+> the Cohere rerank stage. typecheck + 142/142 test files (1910 tests)
+> green before each push.
+>
+> **`75d216f` · smoke-prod exits cleanly on Windows (undici teardown)** —
+> scripts/smoke-prod.mjs ran its checks correctly but crashed on process
+> teardown (libuv UV_HANDLE_CLOSING assertion), exiting non-zero even
+> though every route passed. undici keeps keep-alive sockets + async
+> handles open after the fetches resolve, and process.exit() races their
+> cleanup. Fix: cancel each response body, then destroy undici's global
+> dispatcher before exit.
+>
+> **`99bce19` + `35acaea` + `9103379` · suggestion-loop.ts full coverage** —
+> the supervised-signal module had no tests. Now 19 cases in
+> tests/brain/suggestion-loop.test.ts: getDismissedSuggestionIds (the VAD
+> gate — id collection, Set de-dup, malformed-metadata skipping, windowed
+> query), suggestionLoopStats (per-kind tallies, actionRate /
+> positiveOutcomeRate, the divide-by-zero guard), and the write path
+> (trackSuggestionAction + recordSuggestionOutcome — key format,
+> confidence weights, validate-before-write). Closes the coverage gap
+> flagged in the entry below.
+>
+> **`546d21a` · log cohere-rerank cost + counts on success** —
+> cohere-rerank.ts only logged on failure; a healthy rerank — including
+> Cohere's billed search_units — was invisible. Added one `[cohere-rerank]`
+> success log. Completes the brain-recall observability scope.
+>
+> **Note:** an interim commit `28e1f13` added a first version of the
+> write-path tests; `9103379` superseded it with the deduplicated set
+> after a parallel turn appended a near-duplicate. Net state is one clean
+> suite — nothing to action.
 
 > ## 2026-05-21 · Nick agent — terseness + observability + signal gate · 2 ships
 >

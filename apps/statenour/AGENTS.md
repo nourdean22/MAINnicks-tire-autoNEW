@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-21 · post Nick-agent upgrades wave · monorepo branch `main`
+> **Last refreshed:** 2026-05-21 · post Nick-agent hardening wave (test coverage + observability) · monorepo branch `main`
 
 ---
 
