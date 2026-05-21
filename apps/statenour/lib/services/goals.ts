@@ -193,7 +193,18 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
     nextCurrent = Math.max(0, before.currentValue + progressDelta);
   }
   if (nextCurrent !== undefined) {
-    data.currentValue = nextCurrent;
+    // currentValue write: a positive progressDelta uses an atomic
+    // `{ increment }` so concurrent "+N" updates don't lose each other
+    // (the read-then-write race). Explicit sets + negative deltas keep
+    // the computed absolute value — a negative delta needs the
+    // Math.max(0) floor that `increment` cannot express. progress/status
+    // below stay derived from the optimistic nextCurrent; they self-heal
+    // on the next write if a concurrent increment raced.
+    const atomicBump =
+      typeof rawData.currentValue !== "number" &&
+      typeof progressDelta === "number" &&
+      progressDelta > 0;
+    data.currentValue = atomicBump ? { increment: progressDelta } : nextCurrent;
     const target = rawData.targetValue ?? before.targetValue;
     if (target > 0) {
       data.progress = Math.min(100, Math.round((nextCurrent / target) * 100));
