@@ -80,37 +80,37 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
         continue;
       }
 
-      // 2. Check 30-day cooldown — look for recent outbound cross-sell SMS to this phone
+      // 2. Check 30-day cooldown — has this phone had a cross-sell SMS in
+      //    the last 30 days, under ANY of its conversation rows?
+      //
+      // BUG FIX (this wave) · the spam incident. The prior version resolved
+      // "the" conversation with `LIKE '%suffix' LIMIT 1` — no ORDER BY, so
+      // the row returned was arbitrary — then checked messages under that
+      // single id. But a phone routinely has MULTIPLE smsConversations rows:
+      // historically created in different formats ("+1…" vs bare 10-digit)
+      // by different code paths (see logOutboundSms's own comment). The
+      // LIMIT 1 frequently landed on a conversation row holding none of the
+      // cross-sell messages → the cooldown saw nothing → every eligible
+      // customer got re-texted on EVERY run. Fix: one JOIN that matches the
+      // message's conversation by phone suffix, so a prior send is found
+      // under ANY row for the number — no fragile single-conversation pick.
       const cooldownDate = new Date();
       cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS);
 
-      // Check via sms_messages for recent outbound to this customer
-      const [conv] = await db.select({ id: smsConversations.id })
-        .from(smsConversations)
-        .where(like(smsConversations.phone, `%${normalized}`))
+      const recentOutbound = await db.select({ id: smsMessages.id })
+        .from(smsMessages)
+        .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+        .where(and(
+          like(smsConversations.phone, `%${normalized}`),
+          eq(smsMessages.direction, "outbound"),
+          gte(smsMessages.createdAt, cooldownDate),
+          eq(smsMessages.variantKey, "cross_sell"),
+        ))
         .limit(1);
 
-      if (conv) {
-        // wave-181.58 · cooldown match was checking for "might be time for" — the
-        // wave-181.46 brand-voice rewrite removed that text ("based on your last
-        // check-up, you're due for" is the new copy). Cooldown was permanently
-        // broken → every eligible customer would receive a cross-sell SMS on
-        // every daily run with NO 30-day guard. Switching to variantKey="cross_sell"
-        // which logOutboundSms tags reliably.
-        const recentOutbound = await db.select({ id: smsMessages.id })
-          .from(smsMessages)
-          .where(and(
-            eq(smsMessages.conversationId, conv.id),
-            eq(smsMessages.direction, "outbound"),
-            gte(smsMessages.createdAt, cooldownDate),
-            eq(smsMessages.variantKey, "cross_sell")
-          ))
-          .limit(1);
-
-        if (recentOutbound.length > 0) {
-          skipped++;
-          continue;
-        }
+      if (recentOutbound.length > 0) {
+        skipped++;
+        continue;
       }
 
       // 3. Build and send the SMS
