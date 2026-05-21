@@ -94,6 +94,17 @@ async function _cohereRerank<T>(args: {
   }
 
   const data = (await res.json()) as CohereRerankResponse;
+
+  // Success telemetry · the failure path already warns; this makes a
+  // healthy rerank observable too — candidate counts plus Cohere's
+  // billed search_units, so per-call rerank cost stops being invisible.
+  console.log("[cohere-rerank]", {
+    candidatesIn: args.candidates.length,
+    topN,
+    resultsOut: data.results.length,
+    searchUnits: data.meta?.billed_units?.search_units ?? null,
+  });
+
   return data.results.map((r) => ({
     item: args.candidates[r.index].item,
     score: r.relevance_score,
