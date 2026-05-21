@@ -16,6 +16,11 @@ export async function verifyEnvironmentState(
   toolCalls: Array<{ name: string; ok: boolean; args?: Record<string, unknown> }>
 ): Promise<EnvironmentVerificationResult[]> {
   const results: EnvironmentVerificationResult[] = [];
+  // Only count rows created in this turn's window. A bare title match
+  // would pass verification against a stale same-title task from a
+  // prior session — defeating the whole point of catching a silent
+  // failure. 5min comfortably covers any single turn's duration.
+  const recentCutoff = new Date(Date.now() - 5 * 60_000);
 
   for (const call of toolCalls) {
     if (!call.ok) {
@@ -28,7 +33,7 @@ export async function verifyEnvironmentState(
         const args = call.args as { title?: string };
         if (args?.title) {
           const task = await prisma.task.findFirst({
-            where: { title: args.title },
+            where: { title: args.title, createdAt: { gte: recentCutoff } },
             orderBy: { createdAt: "desc" }
           });
           if (task) {
@@ -40,16 +45,22 @@ export async function verifyEnvironmentState(
       } else if (call.name === "addTasksToProject") {
         const args = call.args as { tasks?: Array<{ title: string }> };
         if (args?.tasks && args.tasks.length > 0) {
-          // Verify at least the first task exists
-          const firstTask = args.tasks[0].title;
-          const task = await prisma.task.findFirst({
-            where: { title: firstTask },
-            orderBy: { createdAt: "desc" }
+          // Verify EVERY task in the batch landed — not just tasks[0].
+          // A partial commit (e.g. 1 of 5 created, 4 silently failed)
+          // used to pass as fully verified because only the first
+          // title was looked up.
+          const titles = args.tasks.map((t) => t.title).filter(Boolean);
+          const found = await prisma.task.count({
+            where: { title: { in: titles }, createdAt: { gte: recentCutoff } },
           });
-          if (task) {
+          if (found >= args.tasks.length) {
             results.push({ toolName: call.name, verified: true });
           } else {
-            results.push({ toolName: call.name, verified: false, reason: "Bulk tasks not found in database" });
+            results.push({
+              toolName: call.name,
+              verified: false,
+              reason: `Only ${found}/${args.tasks.length} bulk tasks found in database`,
+            });
           }
         }
       } else if (call.name === "completeTask") {
