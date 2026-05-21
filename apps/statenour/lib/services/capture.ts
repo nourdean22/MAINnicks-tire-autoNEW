@@ -318,127 +318,139 @@ export async function convertCaptureItem(
     throw new ServiceError("Capture item not found.", 404);
   }
 
-  let convertedTaskId: string | null = null;
-  let convertedMissionId: string | null = null;
-  let convertedLeadId: string | null = null;
-  let created: { type: string; id: string; title: string; destinationLabel: string } | null = null;
+  // Atomic: the sub-entity create (task/mission) and the capture-item
+  // update commit together or not at all. Pre-fix these were separate
+  // writes — if the update failed after the create, an orphan task/
+  // mission was left behind AND the capture item stayed un-triaged, so
+  // the next conversion attempt created a duplicate. createTask /
+  // createMission take the `tx` so their writes join this transaction.
+  // (createLead throws 501 in prod — leads live on nickstire — so the
+  // LEAD branch never persists a row; a throw just rolls the tx back.)
+  const { updated, created } = await prisma.$transaction(async (tx) => {
+    let convertedTaskId: string | null = null;
+    let convertedMissionId: string | null = null;
+    let convertedLeadId: string | null = null;
+    let created: { type: string; id: string; title: string; destinationLabel: string } | null = null;
 
-  if (input.target === CaptureConversionTarget.TASK) {
-    const missionId = await resolveTaskMissionId(input.missionId);
-    const task = await createTask({
-      title: item.title,
-      missionId,
-      status: "READY",
-      nextPhysicalAction: input.note || item.excerpt || item.summary || `Process ${item.title}`,
-      effort: "M15",
-      roiScore: Math.max(20, Math.min(100, item.actionabilityScore)),
-      frictionScore: 30,
-      energyRequired: "MEDIUM",
-      context: "ANYWHERE",
-      waitingOn: null,
-      dueDate: null,
-      driftRisk: 15,
-      finishCondition: `The captured input "${item.title}" is processed into real work and closed.`
-    });
-    if (!task) {
-      throw new ServiceError("Failed to create task from capture.", 500);
+    if (input.target === CaptureConversionTarget.TASK) {
+      const missionId = await resolveTaskMissionId(input.missionId);
+      const task = await createTask({
+        title: item.title,
+        missionId,
+        status: "READY",
+        nextPhysicalAction: input.note || item.excerpt || item.summary || `Process ${item.title}`,
+        effort: "M15",
+        roiScore: Math.max(20, Math.min(100, item.actionabilityScore)),
+        frictionScore: 30,
+        energyRequired: "MEDIUM",
+        context: "ANYWHERE",
+        waitingOn: null,
+        dueDate: null,
+        driftRisk: 15,
+        finishCondition: `The captured input "${item.title}" is processed into real work and closed.`
+      }, tx);
+      if (!task) {
+        throw new ServiceError("Failed to create task from capture.", 500);
+      }
+      convertedTaskId = task.id;
+      created = {
+        type: "task",
+        id: task.id,
+        title: task.title,
+        destinationLabel: "Task queue"
+      };
     }
-    convertedTaskId = task.id;
-    created = {
-      type: "task",
-      id: task.id,
-      title: task.title,
-      destinationLabel: "Task queue"
-    };
-  }
 
-  if (input.target === CaptureConversionTarget.MISSION) {
-    const mission = await createMission({
-      title: item.title,
-      domain: input.domain || MissionDomain.BUSINESS,
-      status: "ACTIVE",
-      priority: 7,
-      roiScore: Math.max(35, Math.min(100, item.actionabilityScore)),
-      neglectCost: 60,
-      successMetric: input.successMetric || item.summary
-    });
-    convertedMissionId = mission.id;
-    created = {
-      type: "mission",
-      id: mission.id,
-      title: mission.title,
-      destinationLabel: "Mission index"
-    };
-  }
-
-  if (input.target === CaptureConversionTarget.LEAD) {
-    const lead = await createLead({
-      fullName: item.title,
-      source: "OTHER",
-      inquiryText: item.excerpt || item.summary || item.title,
-      leadType: "OTHER",
-      urgency: input.urgency || "MEDIUM",
-      valueEstimate: input.valueEstimate ?? Math.max(150, item.actionabilityScore * 10),
-      status: "NEW"
-    });
-    convertedLeadId = lead.id;
-    created = {
-      type: "lead",
-      id: lead.id,
-      title: lead.fullName,
-      destinationLabel: "Lead queue"
-    };
-  }
-
-  const updated = await prisma.captureInboxItem.update({
-    where: { itemKey },
-    data: {
-      status: input.target === CaptureConversionTarget.ARCHIVE ? "archived" : "active",
-      triageStatus: input.target === CaptureConversionTarget.ARCHIVE ? CaptureTriageStatus.ARCHIVED : CaptureTriageStatus.CONVERTED,
-      primaryTag:
-        input.target === CaptureConversionTarget.REFERENCE
-          ? "reference"
-          : input.target === CaptureConversionTarget.PERSONAL
-            ? "personal"
-            : item.primaryTag || inferPrimaryTag(item),
-      conversionTarget: input.target,
-      convertedTaskId,
-      convertedMissionId,
-      convertedLeadId,
-      triagedAt: new Date(),
-      actionabilityScore:
-        input.target === CaptureConversionTarget.REFERENCE || input.target === CaptureConversionTarget.ARCHIVE
-          ? Math.min(item.actionabilityScore, 25)
-          : item.actionabilityScore
+    if (input.target === CaptureConversionTarget.MISSION) {
+      const mission = await createMission({
+        title: item.title,
+        domain: input.domain || MissionDomain.BUSINESS,
+        status: "ACTIVE",
+        priority: 7,
+        roiScore: Math.max(35, Math.min(100, item.actionabilityScore)),
+        neglectCost: 60,
+        successMetric: input.successMetric || item.summary
+      }, tx);
+      convertedMissionId = mission.id;
+      created = {
+        type: "mission",
+        id: mission.id,
+        title: mission.title,
+        destinationLabel: "Mission index"
+      };
     }
+
+    if (input.target === CaptureConversionTarget.LEAD) {
+      const lead = await createLead({
+        fullName: item.title,
+        source: "OTHER",
+        inquiryText: item.excerpt || item.summary || item.title,
+        leadType: "OTHER",
+        urgency: input.urgency || "MEDIUM",
+        valueEstimate: input.valueEstimate ?? Math.max(150, item.actionabilityScore * 10),
+        status: "NEW"
+      });
+      convertedLeadId = lead.id;
+      created = {
+        type: "lead",
+        id: lead.id,
+        title: lead.fullName,
+        destinationLabel: "Lead queue"
+      };
+    }
+
+    const updated = await tx.captureInboxItem.update({
+      where: { itemKey },
+      data: {
+        status: input.target === CaptureConversionTarget.ARCHIVE ? "archived" : "active",
+        triageStatus: input.target === CaptureConversionTarget.ARCHIVE ? CaptureTriageStatus.ARCHIVED : CaptureTriageStatus.CONVERTED,
+        primaryTag:
+          input.target === CaptureConversionTarget.REFERENCE
+            ? "reference"
+            : input.target === CaptureConversionTarget.PERSONAL
+              ? "personal"
+              : item.primaryTag || inferPrimaryTag(item),
+        conversionTarget: input.target,
+        convertedTaskId,
+        convertedMissionId,
+        convertedLeadId,
+        triagedAt: new Date(),
+        actionabilityScore:
+          input.target === CaptureConversionTarget.REFERENCE || input.target === CaptureConversionTarget.ARCHIVE
+            ? Math.min(item.actionabilityScore, 25)
+            : item.actionabilityScore
+      }
+    });
+
+    if (input.target === CaptureConversionTarget.REFERENCE) {
+      created = {
+        type: "reference",
+        id: updated.id,
+        title: updated.title,
+        destinationLabel: "Reference lane"
+      };
+    }
+
+    if (input.target === CaptureConversionTarget.PERSONAL) {
+      created = {
+        type: "personal",
+        id: updated.id,
+        title: updated.title,
+        destinationLabel: "Personal lane"
+      };
+    }
+
+    if (input.target === CaptureConversionTarget.ARCHIVE) {
+      created = {
+        type: "archive",
+        id: updated.id,
+        title: updated.title,
+        destinationLabel: "Archive"
+      };
+    }
+
+    return { updated, created };
   });
-
-  if (input.target === CaptureConversionTarget.REFERENCE) {
-    created = {
-      type: "reference",
-      id: updated.id,
-      title: updated.title,
-      destinationLabel: "Reference lane"
-    };
-  }
-
-  if (input.target === CaptureConversionTarget.PERSONAL) {
-    created = {
-      type: "personal",
-      id: updated.id,
-      title: updated.title,
-      destinationLabel: "Personal lane"
-    };
-  }
-
-  if (input.target === CaptureConversionTarget.ARCHIVE) {
-    created = {
-      type: "archive",
-      id: updated.id,
-      title: updated.title,
-      destinationLabel: "Archive"
-    };
-  }
 
   return serializeForJson({
     item: serializeCaptureItem(updated),

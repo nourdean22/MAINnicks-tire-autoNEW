@@ -190,7 +190,7 @@ export async function getMissionRanking() {
   return rankMissions(serializeForJson(missions));
 }
 
-export async function createMission(input: unknown) {
+export async function createMission(input: unknown, tx?: Prisma.TransactionClient) {
   const payload = missionCreateSchema.parse(input);
 
   if (isDemoMode) {
@@ -226,12 +226,15 @@ export async function createMission(input: unknown) {
     return serializeForJson(mission);
   }
 
-  const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  // Core transactional write. Runs on the caller's `tx` when one is
+  // supplied (convertCaptureItem makes the mission-create + capture
+  // update atomic), otherwise in its own transaction.
+  const runCore = async (client: Prisma.TransactionClient) => {
     if (payload.status === "ACTIVE") {
-      await assertActiveMissionCap(tx);
+      await assertActiveMissionCap(client);
     }
 
-    const mission = await tx.mission.create({
+    const mission = await client.mission.create({
       // payload.planData is `unknown` after validator (kept permissive
       // since ProjectPlanData is a deep nested type owned elsewhere);
       // Prisma's JSON column accepts InputJsonValue. Cast at the
@@ -239,9 +242,10 @@ export async function createMission(input: unknown) {
       data: payload as Prisma.MissionCreateInput
     });
 
-    await syncTaskPriorities(tx);
+    await syncTaskPriorities(client);
     return mission;
-  });
+  };
+  const created = tx ? await runCore(tx) : await prisma.$transaction(runCore);
 
   // v8.0 Phase 2A — log create.
   void logCreate("mission", created.id, created as unknown as Record<string, unknown>, {
