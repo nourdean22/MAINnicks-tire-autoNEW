@@ -1,6 +1,84 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-21 (suggestion-improve feature) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1934 across 144 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-21 (/tasks hardening wave) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1954 across 146 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-21 · /tasks — quick-add P0, Tesla-minimal redesign, drift-class closeout · 6 ships
+>
+> The operator hit a dead quick-add ("can't add a task"). Root cause:
+> taskCreateSchema required five fields the tRPC quick-add path never
+> sends — a contract-drift bug the Phase-SS tRPC migration introduced
+> and silent catch blocks hid. This wave fixed the P0, then closed the
+> whole bug class: the over-stacked /tasks page was redesigned,
+> swallowed errors made observable, the remaining tRPC mutations
+> audited, and quick-add upgraded. typecheck + lint (0 errors) + tests
+> green before each push · 20 vitest cases added across 3 files (2 new).
+>
+> **`f4703aa` · quick-add P0 — taskCreateSchema rejected thin payloads** —
+> the quick-add bar POSTs ~7 fields through trpc.task.create; the
+> schema required 5 more (nextPhysicalAction, frictionScore,
+> energyRequired, context, finishCondition) with no default, so
+> `.parse()` threw a ZodError → a generic "Failed to add task" toast.
+> AI-adopt, omni-capture and chat long-press were dead too. The 5
+> NOT-NULL columns now carry Zod defaults; createTask() falls
+> nextPhysicalAction back to the title. 4 regression tests.
+>
+> **`4e746ff` · /tasks redesign — six intel widgets folded into one drawer** —
+> daily brief · Nick's suggestions · operator pulse · today's compound ·
+> compound chain · context band had each landed ABOVE the task list,
+> one per wave. New `<IntelPanel>` disclosure folds all six BELOW
+> NowPanel, collapsed by default, children mounting only when expanded
+> (zero fetch when closed). Also re-surfaced /goals in the floating-orb
+> nav — the KommandoShell teardown added it to NAV_ITEMS as a DEPTH
+> item the orb (MOBILE_TABS only) never rendered.
+>
+> **`bf0d713` · /tasks failures now reach /system/logs** — lib/logger is
+> console-only on the client, so every catch in tasks/page.tsx was
+> browser-console-only and five handlers swallowed entirely.
+> reportClientError() gained a `source` label; all nine operator-action
+> catches (load · autoBackfill · genAi · addTask · completeLoop ·
+> startTask · breakPromise · deleteTask · adoptAi) now report through
+> the /api/errors → ErrorLog → /system/logs pipeline.
+>
+> **`0fa550c` · createMission drift fix + tRPC drift audit** — grepping
+> all 8 routers for the permissive `.input(z.record/unknown/any)`
+> signature returned exactly 2 hits: task.create (fixed) and
+> task.createMission. createMission's missionCreateSchema had the
+> identical bug — domain/priority/roiScore/neglectCost required with no
+> default, but getInbox()'s auto-Inbox creation sends only
+> {title,description,status}. Fixed with neutral defaults
+> (PERSONAL/5/50/50). New tests/lib/validators/create-schemas.test.ts
+> (6 cases) pins both schemas against their real thin payloads.
+>
+> **`f03649b` · quick-add done: prefix + promise ROI grading fix** —
+> "done: cleaned the garage" creates then immediately completes a task,
+> so the operator can log work finished earlier and still collect the
+> streak/mastery credit; the colon is mandatory so "did I lock the
+> door" stays an open task. Also: addTask hardcoded roiScore 80 for
+> PROMISE and skipped scoreMutation for them — scoreTaskWithAI skips
+> any task with roiScore !== 50, so promises were permanently
+> un-graded. Every kind now starts at the 50 sentinel and gets graded.
+> 10 parser tests.
+>
+> **`5917b4e` · IntelPanel signal badge** — the collapsed intel drawer
+> gave no hint of folded content. IntelPanel gained generic
+> signalCount/signalLabel props; the /tasks page feeds its overdue
+> count → an amber "N overdue" pill on the collapsed toggle. No extra
+> fetch — the page already derives `overdue`.
+>
+> **Flagged · NOT fixed**
+> - **adoptAi roiScore** (tasks/page.tsx) — AI-adopted tasks hardcode
+>   roiScore 90/50 and never call the score mutation, so they skip AI
+>   ROI grading. Task #3's fix was scoped to the quick-add addTask path.
+> - **load() per-fetch fallbacks** (tasks/page.tsx) — the
+>   `.catch(() => [])` on each of the task / mission / goals fetches
+>   silently degrades a failed fetch to an empty list; the operator
+>   can't tell "no data" from "fetch failed". Deferred — touching
+>   load()'s Promise.all is riskier; it's a deliberate partial-render
+>   pattern.
+> - **getInbox() description field** — sends a `description` key to
+>   createMission, but missionBaseSchema has no such field (Mission has
+>   no description column), so Zod strips it silently. Harmless but
+>   dead / misleading code.
 
 > ## 2026-05-21 · suggestion-improve — closing the suggestion-loop feedback loop · 3 ships
 >
