@@ -1,6 +1,66 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-12 EOD (v10.0.528 → v10.0.529.6 wave) · **HEAD:** `codex/ollama-local` (latest push 4e2b67d + v10.0.529.6 in flight) · **Active wave:** post-audit hardening + DB migration apply + CVE cleanup + E-3 prompt-injection fences · **Versioning:** semver-only · **Tests:** 1675 tests across 129 files · **Pre-push gates:** 15/15 green · **AGENTS.md:** at repo root
+**Last verified:** 2026-05-20 (wide bug-hunt wave · post-monorepo) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1855 across 140 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-20 · wide bug-hunt wave · 4-agent parallel audit → 4 ships
+>
+> Four `code-reviewer` agents audited ~1,300 files in parallel across 4
+> slices (API routes · AI/chat stack · services+db · components+3D).
+> ~30 findings → each verified against real code → clear/safe/high-value
+> ones fixed, the rest flagged. ~17 bugs fixed in 13 files. typecheck +
+> lint (0 errors) + 1855/1855 tests green through every ship.
+>
+> **Ship-by-ship roll-up:**
+>
+> **`a0bd932` · 3D scene memory leaks + per-frame allocations** — two
+> `useMemo(() => () => dispose())` GPU-buffer cleanups that never ran
+> (useMemo memoizes a value, never invokes a returned fn) → useEffect;
+> `mastery-polyhedron` lineGeometry given a dispose path; `THREE.Object3D`
+> / `THREE.Color` allocations hoisted out of `useFrame`; reduced-motion
+> check moved off render into an effect (was a hydration mismatch);
+> `use-voice-input` continuous-mode RAF loop given a cancel handle.
+>
+> **`79da25f` · 2 unauthenticated API routes + timing-safe cron compare**
+> — `GET /api/mastery` (scores incl. evidence text) and
+> `GET /api/cameras/[id]/snapshot` ran with zero auth (`apiHandler` with
+> no `auth` option runs no guard); `prompt-cache-flush` compared
+> CRON_SECRET with `===` (timing oracle) → exported `auth-guard`'s
+> constant-time `safeEqual`.
+>
+> **`5497222` · goal-progress write races + truth-grounding regex leak**
+> — `liftGoalOnTaskComplete` + `updateGoal` read-then-wrote
+> `lifeGoal.currentValue` (lost-update race under concurrent task
+> completes) → atomic `{ increment }`; `truth-grounding` extractEntities
+> ran a module-level `/g` regex whose `lastIndex` leaked past an early
+> `break`, silently disabling L4 fabrication-grounding on the next turn.
+>
+> **`20b196f` · exclude `.next-prod` build artifacts from vitest** —
+> vitest.config excluded `.next/` but not `.next-prod/` (statenour's
+> `NEXT_DIST_DIR` for `build:local`); a stale `.next-prod/standalone/`
+> tree left vitest collecting ~173 bundled nickstire test files →
+> permanently-red suite (24 failed files / 73 failed tests, masking real
+> regressions). Now 140 real files, 1855/1855 green, 10.7s (was 29.7s).
+>
+> **Flagged · NOT fixed (real bugs · need a bigger/riskier change):**
+>
+> - timezone cluster — `startOfLocalDay`/`startOf` in `execution.ts` ·
+>   `scoreboard.ts` · `business-intel.ts` · `strategic-triggers.ts`
+>   compute day boundaries in server-UTC, not ET; "today"
+>   scoreboard/revenue is off ~5h daily. Needs an ET-aware date helper.
+> - `persist-user-turn` chat auto-complete bypasses
+>   `liftGoalOnTaskComplete` — chat-completed tasks never lift goals.
+> - `convertCaptureItem` has no transaction — partial failure orphans a
+>   task/mission/lead.
+> - `action-claim-detector` HEDGE_PATTERNS suppress fabrication
+>   document-wide (a message that both fabricates AND hedges drops the
+>   fab claim) — needs a sentence-aware, test-covered refactor.
+> - lower-pri — bare `\bpinned\b` fab false-positive · truth-grounding
+>   sequential DB loop · several swallowed `catch` blocks in AI handlers.
+>
+> **Verified NOT bugs** (agents over-flagged · "verify don't trust"
+> caught these) — `brain-bus-durable` check-then-act (the P2002 catch +
+> Postgres conflict-blocking make the dedupe correct) · `use-wisdom-
+> suggest` `dismissed.size` effect dep (effect only acts on empty draft).
 
 > ## v10.0.528 → v10.0.529.6 · audit-driven hardening wave · 2026-05-12 · 8 ships · 1 cohort
 >
