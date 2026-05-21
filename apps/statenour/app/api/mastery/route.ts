@@ -5,6 +5,7 @@ import { today, toDateString } from "@/lib/utils/datetime";
 
 import { requireSession } from "@/lib/auth-guard";
 export async function GET(request: NextRequest) {
+  await requireSession(request);
   try {
     const { searchParams } = request.nextUrl;
     const domain = searchParams.get("domain");

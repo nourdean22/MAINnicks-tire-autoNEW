@@ -31,7 +31,7 @@ const SYNC_KEY = process.env.STATENOUR_SYNC_KEY;
 const CRON_SECRET = process.env.CRON_SECRET;
 
 /** Constant-time string comparison to prevent timing attacks. */
-function safeEqual(a: string, b: string): boolean {
+export function safeEqual(a: string, b: string): boolean {
   if (!a || !b) return false;
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);

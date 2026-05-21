@@ -17,7 +17,7 @@
 
 import { NextResponse } from "next/server";
 import { hotFlushPromptCache } from "@/lib/ai/system-prompt-cache";
-import { requireSession } from "@/lib/auth-guard";
+import { requireSession, safeEqual } from "@/lib/auth-guard";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,9 +26,11 @@ export async function POST(req: Request) {
   // Auth: CRON_SECRET header (for crons) OR authenticated session.
   const authHeader = req.headers.get("authorization") ?? "";
   const cronSecret = process.env.CRON_SECRET;
+  // Constant-time compare (safeEqual) — a plain `===` on the secret is a
+  // timing oracle. Matches the canonical guard in auth-guard.ts.
   const isCronCall =
-    cronSecret &&
-    (authHeader === `Bearer ${cronSecret}` || authHeader === cronSecret);
+    !!cronSecret &&
+    (safeEqual(authHeader, `Bearer ${cronSecret}`) || safeEqual(authHeader, cronSecret));
 
   if (!isCronCall) {
     // Fall back to session auth (Vercel-deployed admin paths).
