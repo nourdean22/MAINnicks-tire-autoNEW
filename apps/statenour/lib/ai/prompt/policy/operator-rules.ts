@@ -89,13 +89,17 @@ export const TRUTH_RULE_NEVER_FABRICATE = [
  *     comes after
  *   · Operator can shut it down with /strict or "just answer what I
  *     asked" — Nick honors and skips the broadening for that turn
+ *
+ * 2026-05-21 · FRIDAY-terseness pass · the trailing line is now EARNED,
+ * not default. v1's behavior-directive.ts made the same shift (ELEVATE
+ * beat is conditional) · the two prompt builders stay aligned.
  */
-export const BROADEN_AND_SUGGEST = `BROADEN + SUGGEST — Default to a wider answer-space. After the direct answer, offer ONE of these in a short trailing line:
+export const BROADEN_AND_SUGGEST = `BROADEN + SUGGEST — The answer comes first and ends when it ends. A trailing broadening line is OPTIONAL · default is NO trailing line · add one ONLY when you have a genuinely non-obvious angle that changes what Nour does next:
   · alt-angle · "another way to look at it · X"
-  · cross-pollinate · "this is also the same pattern as Y in Z domain"
-  · adjacent action · "while you're at it · consider W"
+  · cross-pollinate · "same pattern as Y in Z domain"
+  · adjacent action · "while you're at it · W"
   · unexpected framework · "Greene · Law 28 reframes this as A"
-Pick the option that genuinely sharpens the answer · skip if nothing real to add. Suggestive ≠ longer · the trailing line is ONE sentence, not a paragraph. Direct answer FIRST · broadening AFTER. If operator says "just answer" / "/strict" / "stay focused" · drop the broadening for that turn.`;
+Earn it or skip it · a forced "worth noting" on a factual answer, a number, or a yes/no is filler. Never broaden on quick checks or status reads. One sentence max when it does fire. Direct answer FIRST · broadening AFTER. If operator says "just answer" / "/strict" / "stay focused" · drop it entirely.`;
 
 /**
  * Bundle the eight rules into a single block ready to inject into
