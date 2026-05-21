@@ -324,38 +324,43 @@ export async function confirmCandidate(input: {
   const coherence =
     typeof meta.coherence === "number" ? meta.coherence : null;
 
+  // Atomic: spawn the thread AND retire the candidate together. Pre-fix
+  // these were two separate awaits — a crash between them left the
+  // candidate un-deleted, so the next convergence scan re-surfaced it
+  // and a second confirm created a duplicate thread.
   const now = new Date();
-  const thread = await prisma.journalThread.create({
-    data: {
-      name,
-      summary: input.summary?.trim().slice(0, 400) || null,
-      status: "active",
-      coherence,
-      detectedAt:
-        typeof meta.detectedAt === "string"
-          ? new Date(meta.detectedAt)
-          : now,
-      namedAt: now,
-      lastJoinAt: now,
-      centroid: centroid ? encodeCentroid(centroid) : null,
-      memberCount: members.length,
-      memberships: {
-        create: members.map((m) => ({
-          entrySource: m.entrySource,
-          entryId: m.entryId,
-          similarity: coherence ?? 1.0, // seed members share the cluster
-          joinMode: "seed",
-        })),
+  const [thread] = await prisma.$transaction([
+    prisma.journalThread.create({
+      data: {
+        name,
+        summary: input.summary?.trim().slice(0, 400) || null,
+        status: "active",
+        coherence,
+        detectedAt:
+          typeof meta.detectedAt === "string"
+            ? new Date(meta.detectedAt)
+            : now,
+        namedAt: now,
+        lastJoinAt: now,
+        centroid: centroid ? encodeCentroid(centroid) : null,
+        memberCount: members.length,
+        memberships: {
+          create: members.map((m) => ({
+            entrySource: m.entrySource,
+            entryId: m.entryId,
+            similarity: coherence ?? 1.0, // seed members share the cluster
+            joinMode: "seed",
+          })),
+        },
       },
-    },
-    select: { id: true, memberCount: true },
-  });
-
-  // Soft-delete the candidate so the cron + radar don't re-surface it.
-  await prisma.brainMemory.updateMany({
-    where: { id: candidate.id },
-    data: { deletedAt: now },
-  });
+      select: { id: true, memberCount: true },
+    }),
+    // Soft-delete the candidate so the cron + radar don't re-surface it.
+    prisma.brainMemory.updateMany({
+      where: { id: candidate.id },
+      data: { deletedAt: now },
+    }),
+  ]);
 
   log.info("thread_created_from_candidate", {
     threadId: thread.id,
@@ -459,27 +464,39 @@ export async function joinThread(input: {
       : oldCentroid;
 
   const now = new Date();
-  await prisma.$transaction([
-    prisma.journalThreadEntry.create({
-      data: {
-        threadId: input.threadId,
-        entrySource: input.entrySource,
-        entryId: input.entryId,
-        similarity: Math.max(0, Math.min(1, input.similarity)),
-        joinMode: input.joinMode,
-      },
-    }),
-    prisma.journalThread.update({
-      where: { id: input.threadId },
-      data: {
-        lastJoinAt: now,
-        memberCount: { increment: 1 },
-        // Reactivate if a dormant thread caught a fresh entry.
-        status: thread.status === "dormant" ? "active" : thread.status,
-        centroid: updatedCentroid ? encodeCentroid(updatedCentroid) : thread.centroid,
-      },
-    }),
-  ]);
+  try {
+    await prisma.$transaction([
+      prisma.journalThreadEntry.create({
+        data: {
+          threadId: input.threadId,
+          entrySource: input.entrySource,
+          entryId: input.entryId,
+          similarity: Math.max(0, Math.min(1, input.similarity)),
+          joinMode: input.joinMode,
+        },
+      }),
+      prisma.journalThread.update({
+        where: { id: input.threadId },
+        data: {
+          lastJoinAt: now,
+          memberCount: { increment: 1 },
+          // Reactivate if a dormant thread caught a fresh entry.
+          status: thread.status === "dormant" ? "active" : thread.status,
+          centroid: updatedCentroid ? encodeCentroid(updatedCentroid) : thread.centroid,
+        },
+      }),
+    ]);
+  } catch (err) {
+    // A concurrent joinThread for the same (threadId, entrySource,
+    // entryId) can slip past the findUnique check above and collide on
+    // the unique constraint. Treat it exactly like the membership check
+    // did — a clean no-op join, not an unhandled throw. The transaction
+    // rolled back fully, so memberCount stays correct.
+    if ((err as { code?: string }).code === "P2002") {
+      return { joined: false, error: "already a member" };
+    }
+    throw err;
+  }
 
   log.info("thread_joined", {
     threadId: input.threadId,
