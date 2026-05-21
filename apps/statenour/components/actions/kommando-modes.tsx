@@ -32,35 +32,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import {
-  Zap,
-  Target,
-  BarChart3,
-} from "lucide-react";
+import { Zap, Target } from "lucide-react";
 import { KommandoPlan, type PlanLinkedProjectChip } from "./mode-plan";
-import { KommandoTrack } from "./mode-track";
-import { KommandoLearn } from "./mode-learn";
-import { DailyBriefSection } from "./daily-brief-section";
 import { CaptureChip } from "./capture-chip";
-import { useOncePerSession } from "@/hooks/use-once-per-session";
 import { TipChip } from "@/components/ui/tip-chip";
 import { LEARN_TIPS, type LearnTipKey } from "@/lib/learn/tips";
-import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
-import { MasteryRadar } from "@/components/actions/mastery-radar";
 
-export type KommandoMode = "NOW" | "PLAN" | "TRACK";
+export type KommandoMode = "NOW" | "PLAN";
 
 const STORAGE_KEY = "nour:kommando:mode";
-const VALID_MODES: readonly KommandoMode[] = ["NOW", "PLAN", "TRACK"];
+const VALID_MODES: readonly KommandoMode[] = ["NOW", "PLAN"];
 
 /** Default mode based on time of day. Overridden by localStorage. */
 function pickDefaultMode(): KommandoMode {
   if (typeof window === "undefined") return "NOW";
   const h = new Date().getHours();
   if (h >= 22 || h < 6) return "PLAN"; // night → reflective planning
-  if (h >= 17) return "TRACK"; // evening → debrief + numbers (TRACK absorbed LEARN)
-  return "NOW"; // morning/afternoon → execute
+  return "NOW"; // day → execute
 }
 
 interface KommandoShellProps {
@@ -93,11 +81,6 @@ interface KommandoShellProps {
   /** Fires when the active mode changes so the parent can pause
    *  polling for modes that don't need it (e.g. LEARN, REVIEW). */
   onModeChange?: (mode: KommandoMode) => void;
-  /** Apr 27 · WEEKLY-REVIEW — TRACK's "Run weekly review" button +
-   *  warning queue triage links call this so the parent (which owns
-   *  the wizard mount) can open it. NOW headline does the same via
-   *  its own button. */
-  onOpenReview?: () => void;
 }
 
 // Mode pill labels · plain English · operator-grade. All three pills
@@ -111,7 +94,6 @@ interface KommandoShellProps {
 const MODE_META: Record<KommandoMode, { label: string; icon: React.ReactNode; tipKey: LearnTipKey }> = {
   NOW:   { label: "today",  icon: <Zap size={11} />,        tipKey: "mode_today" },
   PLAN:  { label: "goals",  icon: <Target size={11} />,     tipKey: "mode_goals" },
-  TRACK: { label: "trends", icon: <BarChart3 size={11} />,  tipKey: "mode_trends" },
 };
 const ACTIVE_ACCENT = "text-[var(--gold)] border-[var(--gold)]/40";
 
@@ -124,7 +106,6 @@ export function KommandoShell({
   onJumpToTask,
   onCreateTaskForGoal,
   onModeChange,
-  onOpenReview,
 }: KommandoShellProps) {
   const [mode, setMode] = useState<KommandoMode>("NOW");
   const [hydrated, setHydrated] = useState(false);
@@ -136,14 +117,11 @@ export function KommandoShell({
   useEffect(() => {
     let initial: KommandoMode = "NOW";
     try {
+      // Legacy stored values ("REVIEW"/"LEARN"/"TRACK" — all retired
+      // when the TRACK tab was distributed out, 2026-05-21) aren't in
+      // VALID_MODES, so they fall through to the time-of-day default.
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored === "REVIEW" || stored === "LEARN") {
-        initial = "TRACK";
-        localStorage.setItem(STORAGE_KEY, "TRACK");
-      } else if (
-        stored &&
-        (VALID_MODES as readonly string[]).includes(stored)
-      ) {
+      if (stored && (VALID_MODES as readonly string[]).includes(stored)) {
         initial = stored as KommandoMode;
       } else {
         initial = pickDefaultMode();
@@ -176,7 +154,6 @@ export function KommandoShell({
     return () => window.removeEventListener("nour:kommando:set-mode", onSetMode);
   }, [onModeChange]);
 
-  // Declared above useOncePerSession (which calls it) so the binding exists before first use · react-hooks/preserve-manual-memoization.
   const changeMode = useCallback((next: KommandoMode) => {
     setMode(next);
     onModeChange?.(next);
@@ -184,35 +161,6 @@ export function KommandoShell({
       localStorage.setItem(STORAGE_KEY, next);
     } catch {}
   }, [onModeChange]);
-
-  // ── Brief auto-nudge ──
-  // Once per session, if Nour opens the tasks page during a review
-  // window (morning 6-9am or evening 8-11pm), show a toast offering
-  // to jump to the trends tab (which hosts the daily brief).
-  // v10.0.529.18 · sessionStorage gate + condition extracted into
-  // <useOncePerSession>. Nudge-type is recomputed inside fn() because
-  // it's cheap and keeps the condition body side-effect-free.
-  useOncePerSession(
-    "nour:review-nudge-shown",
-    () => {
-      if (!hydrated || mode === "TRACK") return false;
-      const h = new Date().getHours();
-      return (h >= 6 && h < 9) || (h >= 20 && h < 23);
-    },
-    () => {
-      const h = new Date().getHours();
-      const nudgeType = h >= 6 && h < 9 ? "morning" : "evening";
-      toast(`${nudgeType === "morning" ? "morning" : "evening"} read is ready`, {
-        description: `Nick's ${nudgeType} brief, ready when you are`,
-        action: {
-          label: "open trends",
-          onClick: () => changeMode("TRACK"),
-        },
-        duration: 8000,
-      });
-    },
-    [hydrated],
-  );
 
   const modePills = useMemo(
     () => (
@@ -260,9 +208,9 @@ export function KommandoShell({
     [mode, changeMode]
   );
 
-  // ── Keyboard number nav (1-3 switches modes) ──
+  // ── Keyboard number nav (1-2 switches modes) ──
   // Works globally when focus isn't in an input/textarea.
-  // 1=NOW 2=PLAN 3=TRACK. Shift+number is ignored to not collide
+  // 1=NOW 2=PLAN. Shift+number is ignored to not collide
   // with special chars.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -274,7 +222,6 @@ export function KommandoShell({
       const modeByKey: Record<string, KommandoMode> = {
         "1": "NOW",
         "2": "PLAN",
-        "3": "TRACK",
       };
       const target_mode = modeByKey[e.key];
       if (target_mode && target_mode !== mode) {
@@ -289,7 +236,7 @@ export function KommandoShell({
   // ── Swipe between modes on mobile ──
   // Horizontal swipe left = next mode, right = prev mode. Same
   // thresholds as SwipeNavigation (80px dx, 1.5:1 h/v ratio, <400ms).
-  const MODES_ORDER: KommandoMode[] = ["NOW", "PLAN", "TRACK"];
+  const MODES_ORDER: KommandoMode[] = ["NOW", "PLAN"];
   const touchRef = useRef<{ x: number; y: number; time: number } | null>(null);
 
   useEffect(() => {
@@ -351,41 +298,6 @@ export function KommandoShell({
               />
               {planExtra}
             </>
-          )}
-          {mode === "TRACK" && (
-            <div className="space-y-4">
-              {/* Apr 27 · TRACK + LEARN merged. Stack order is the
-                  read pattern Nour described:
-                    1. Daily brief at the top — what to know right now
-                    2. KommandoTrack — the numbers dashboard
-                    3. KommandoLearn — research / teach / decisions
-                  Each component fetches its own data + hides itself
-                  when empty. */}
-              <DailyBriefSection />
-              {/* v10.0.529.80 · Wave 24 · #2 · mastery radar · 7d ago
-                  vs now overlay. The gap between rings IS the
-                  operator's compound interest visualized. Auto-hides
-                  when fewer than 3 domains have history. */}
-              <MasteryRadar />
-              {/* v10.0.529.79 · Wave 23 · #4 · recent insights panel ·
-                  surfaces the last 7 days of AI-enriched task_insight
-                  rows grouped by 8-axis. Auto-hides when empty. */}
-              <RecentInsightsPanel />
-              <KommandoTrack
-                onJumpMode={(m) => changeMode(m as KommandoMode)}
-                onOpenReview={onOpenReview}
-              />
-              {/* Subtle divider so the dashboard and the brief/research
-                  block don't blur together visually. */}
-              <div className="flex items-center gap-2 pt-1">
-                <div className="h-px flex-1 bg-zinc-800/40" />
-                <span className="text-[8px] uppercase tracking-[0.2em] text-zinc-700 font-mono">
-                  today · digging · learning
-                </span>
-                <div className="h-px flex-1 bg-zinc-800/40" />
-              </div>
-              <KommandoLearn onJumpMode={(m) => changeMode(m as KommandoMode)} />
-            </div>
           )}
         </>
       )}

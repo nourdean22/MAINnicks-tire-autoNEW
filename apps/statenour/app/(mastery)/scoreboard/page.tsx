@@ -36,6 +36,11 @@ import { OperatorPulse } from "@/components/operator/operator-pulse";
 // bottom (below cards) because it's a "look back at what moved the
 // numbers" view · the cards themselves are the primary read.
 import { CompoundChain } from "@/components/operator/compound-chain";
+// TRACK consolidation (2026-05-21) · task-execution telemetry (streaks ·
+// pace · project momentum · warning queue · routine heatmap) · rehomed
+// here from the deleted /tasks TRACK tab. KPI cards above are business
+// numbers; this is the execution layer beneath them.
+import { KommandoTrack } from "@/components/actions/mode-track";
 
 type Trend = "up" | "down" | "flat";
 
@@ -138,6 +143,12 @@ export default function ScoreboardPage() {
             to the tasks that fed them. Self-hides if no chained work
             happened in the window. */}
         <CompoundChain surface="scoreboard" className="mt-8 px-0 mx-0" />
+
+        {/* TRACK consolidation (2026-05-21) · task-execution telemetry ·
+            rehomed from the deleted /tasks TRACK tab. Complements the KPI
+            cards above — those are outcomes, this is the work that feeds
+            them. */}
+        <KommandoTrack />
 
         <Footer composedAt={data.composedAt} lastBriefAt={data.lastBriefAt} />
       </div>

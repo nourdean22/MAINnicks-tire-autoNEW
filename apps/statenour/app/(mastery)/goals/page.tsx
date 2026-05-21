@@ -59,6 +59,9 @@ import { OperatorPulse } from "@/components/operator/operator-pulse";
 // pulse + above the ladder so the operator sees recent compounding
 // before the static future-goal view.
 import { CompoundChain } from "@/components/operator/compound-chain";
+// TRACK consolidation (2026-05-21) · recent AI-enriched task insights,
+// grouped by 8-axis · rehomed here from the deleted /tasks TRACK tab.
+import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -186,6 +189,12 @@ export default function GoalsPage() {
             a narrative of progress · "this week · 12 tasks · 5 goals ·
             3 axes moved". Operator sees how the week actually compounded. */}
         <CompoundChain surface="goals" className="mt-4 px-0 mx-0" />
+
+        {/* TRACK consolidation (2026-05-21) · recent AI-enriched task
+            insights grouped by 8-axis · rehomed from the deleted /tasks
+            TRACK tab. Same conceptual layer as the axis scores + ladder.
+            Self-hides when empty. */}
+        <RecentInsightsPanel />
 
         {/* Main grid · ladder on left · sidebar on right (collapses on mobile) */}
         <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
