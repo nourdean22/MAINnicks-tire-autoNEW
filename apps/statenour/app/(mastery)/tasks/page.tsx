@@ -69,6 +69,10 @@ import { useVoiceInput } from "@/hooks/use-voice-input";
 // other two derived maps. The hook now owns the pace-aware compute.
 import { type TaskSortKey } from "@/components/actions/loop-stream";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+// v10.0.529.xx · client-error telemetry · routes swallowed catch-block
+// failures to /api/errors → /system/logs. lib/logger is console-only
+// on the client, so log.error() here never reached the operator.
+import { reportClientError } from "@/components/ui/client-error-telemetry";
 // KommandoShell dismantle · Phase 3 (2026-05-21) · <ProjectsPanel> was
 // the PLAN-tab Missions block · removed with the shell. Mission-create
 // now lives on /goals (GoalBoard's "Plan it" → MilestonesFlow). The
@@ -434,6 +438,7 @@ function TasksPageInner() {
         .catch((): void => {});
     } catch (err) {
       log.error("load_failed", { error: err instanceof Error ? err.message : String(err) });
+      reportClientError(err, { source: "tasks.load" });
     } finally {
       // v10.0.29 — moved into finally. Pre-v10.0.29 this was outside
       // the try/catch, so any error in the catch block (e.g., a toast
@@ -515,9 +520,11 @@ function TasksPageInner() {
           });
           await load();
         }
-      } catch {
-        // Silent — backfill is opportunistic. If it fails, the
-        // page still renders normally.
+      } catch (err) {
+        // Silent to the user — backfill is opportunistic, a failure
+        // still lets the page render normally — but report it so a
+        // persistently-failing backfill is visible in /system/logs.
+        reportClientError(err, { source: "tasks.autoBackfill" });
       }
     },
     [projects.length, tasks.length],
@@ -701,6 +708,7 @@ function TasksPageInner() {
       }
       if (mountedRef.current) toast.error("Failed to generate AI tasks");
       log.warn("ai_tasks_threw", { err: err instanceof Error ? err.message : String(err) });
+      reportClientError(err, { source: "tasks.genAi" });
     } finally {
       // Only clear `generating` if this controller is still the
       // active one — else a newer run owns the spinner.
@@ -762,8 +770,9 @@ function TasksPageInner() {
       toast.success(`Added · ${extras.join(" · ")}`);
       load();
       notifyDataChanged("tasks", { source: "tasks-page", detail: "add" });
-    } catch {
+    } catch (err) {
       toast.error("Failed to add task");
+      reportClientError(err, { source: "tasks.addTask" });
     }
   }
 
@@ -863,8 +872,9 @@ function TasksPageInner() {
           id: t.missionId,
         });
       }
-    } catch {
+    } catch (err) {
       toast.error("Complete failed");
+      reportClientError(err, { source: "tasks.completeLoop" });
     } finally {
       // v10.0.29 — moved into finally. Pre-v10.0.29 the load() was
       // outside the try/catch; if the catch block itself threw
@@ -883,8 +893,9 @@ function TasksPageInner() {
       await startMutation.mutateAsync({ id });
       toast.success("Started ⏱");
       notifyDataChanged("tasks", { source: "tasks-page", detail: "start", id });
-    } catch {
+    } catch (err) {
       toast.error("Start failed");
+      reportClientError(err, { source: "tasks.startTask" });
     }
     // Always reload so the UI reflects real server state whether we
     // succeeded or the optimistic assumption was wrong.
@@ -906,8 +917,9 @@ function TasksPageInner() {
       await breakPromiseMutation.mutateAsync({ id, reason });
       toast("Noted. Nick will remember.");
       notifyDataChanged("tasks", { source: "tasks-page", detail: "break-promise", id });
-    } catch {
+    } catch (err) {
       toast.error("Break capture failed");
+      reportClientError(err, { source: "tasks.breakPromise" });
     }
     load();
   }
@@ -919,8 +931,9 @@ function TasksPageInner() {
       // server-side · typed mutation eliminates the manual r.ok check.
       await deleteMutation.mutateAsync({ id });
       notifyDataChanged("tasks", { source: "tasks-page", detail: "delete", id });
-    } catch {
+    } catch (err) {
       toast.error("Delete failed");
+      reportClientError(err, { source: "tasks.deleteTask" });
     }
     load();
   }
@@ -960,6 +973,7 @@ function TasksPageInner() {
         taskTitle: t.title,
         error: err instanceof Error ? err.message : String(err),
       });
+      reportClientError(err, { source: "tasks.adoptAi" });
       toast.error(`Failed to add: ${t.title.slice(0, 40)}`);
     }
   }
