@@ -42,6 +42,12 @@ const GOLD_DIM = "#D49A0E";
 const TEXT_TERTIARY = "#909090"; // long-tail gray
 const STATUS_RED = "#EF4444";
 
+// Pre-built Color objects for the per-frame anchor lerp — allocating a
+// THREE.Color inside useFrame churned the GC ~120×/sec. Only read by
+// .lerp() (which mutates its caller, not its argument), so sharing is safe.
+const GOLD_DIM_COLOR = new THREE.Color(GOLD_DIM);
+const STATUS_RED_COLOR = new THREE.Color(STATUS_RED);
+
 /** One sphere per strategic-frameworks lens. */
 const LENS_COUNT = 52;
 /** Base sphere radius — the long-tail tier. Top firers scale up to 3×. */
@@ -97,6 +103,10 @@ function OrbitField({
 
   const orbits = useMemo(() => buildOrbits(), []);
 
+  // Reusable transform scratch — one Object3D reused across frames
+  // instead of a fresh allocation every useFrame call (~60×/sec).
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+
   // Per-lens scale multiplier. Indices 0/1/2 are the top-3 firers and
   // interpolate base→3× from their props; the rest are the long tail
   // (a small fixed scale). The brief: top-3 large gold, mid `gold-dim`,
@@ -149,7 +159,6 @@ function OrbitField({
     const t = state.clock.elapsedTime;
     const mesh = meshRef.current;
     if (mesh) {
-      const dummy = new THREE.Object3D();
       for (let i = 0; i < LENS_COUNT; i++) {
         const o = orbits[i];
         const a = o.angle0 + t * o.speed;
@@ -172,8 +181,8 @@ function OrbitField({
       const alert = clamp01((fallbackRate - 0.3) / 0.5); // 0 below .3
       const pulse = 0.3 + Math.sin(t / 1.5) * 0.12;
       mat.emissiveIntensity = pulse + alert * 0.3;
-      mat.emissive.set(GOLD_DIM).lerp(new THREE.Color(STATUS_RED), alert);
-      mat.color.set(GOLD_DIM).lerp(new THREE.Color(STATUS_RED), alert);
+      mat.emissive.copy(GOLD_DIM_COLOR).lerp(STATUS_RED_COLOR, alert);
+      mat.color.copy(GOLD_DIM_COLOR).lerp(STATUS_RED_COLOR, alert);
     }
   });
 

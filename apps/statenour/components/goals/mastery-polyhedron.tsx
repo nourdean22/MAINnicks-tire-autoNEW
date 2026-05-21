@@ -27,7 +27,7 @@
  *     pages that don't mount this don't pay the bundle cost
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, type ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -120,6 +120,13 @@ function PolyhedronScene({ axes, onAxisClick }: SceneProps) {
     );
     return geom;
   }, [vertices]);
+
+  // Dispose the previous BufferGeometry when `vertices` changes (axes
+  // refresh ~every 30s via React Query) and on unmount — <primitive>
+  // does not free objects it's handed.
+  useEffect(() => {
+    return () => lineGeometry.dispose();
+  }, [lineGeometry]);
 
   /** Subtle ambient rotation + pulse. */
   useFrame((state) => {
@@ -256,12 +263,17 @@ export default function MasteryPolyhedron({
   onAxisClick,
   height = 280,
 }: Props) {
-  // SSR-safe reduced-motion check · honors operator system preference
-  // per baseline-ui requirement. The Canvas is heavy · we'd rather
-  // ship the static SVG than risk a janky low-fps animation.
-  const prefersReducedMotion =
-    typeof window !== "undefined" &&
-    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  // Reduced-motion check · honors operator system preference per
+  // baseline-ui. Resolved AFTER hydration in an effect — reading
+  // matchMedia during render makes the client's first render (SVG)
+  // disagree with the server's (Canvas) and throws a hydration
+  // mismatch. Start false (= server), then correct.
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    setPrefersReducedMotion(
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true,
+    );
+  }, []);
 
   if (prefersReducedMotion) {
     return (

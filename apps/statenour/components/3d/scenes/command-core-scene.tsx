@@ -22,7 +22,7 @@
  * viewport pause, and the reduced-motion frameloop). It must never be
  * mounted in a tree that also runs Framer Motion.
  */
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { PerspectiveCamera } from "@react-three/drei";
 import * as THREE from "three";
@@ -78,8 +78,10 @@ function Core({
   const geometry = useMemo(() => new THREE.IcosahedronGeometry(1, 0), []);
   const edges = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
 
-  // Dispose GPU buffers on unmount — `useMemo` alone doesn't free them.
-  useMemo(() => {
+  // Dispose GPU buffers on unmount. MUST be useEffect: useMemo only
+  // memoizes a value — it never invokes a returned function, so the
+  // prior useMemo here freed nothing and leaked VRAM on every unmount.
+  useEffect(() => {
     return () => {
       geometry.dispose();
       edges.dispose();
