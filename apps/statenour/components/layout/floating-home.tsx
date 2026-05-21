@@ -34,7 +34,7 @@ import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 // v10.0.529.72 · BrainIcon · ServerIcon · CompassIcon dropped — they
 // only powered the BRAIN / OPS / LIFE rows of the QUICK NAV that were
 // inlined into <ActionsContextBand> on /tasks.
-import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock } from "lucide-react";
+import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target } from "lucide-react";
 import { useSystemPulse, type SystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
@@ -518,6 +518,28 @@ export function FloatingHome() {
                 </Link>
               );
             })}
+          </div>
+
+          {/* Goals · 2026-05-21 · the KommandoShell dismantle relocated
+              the old /tasks PLAN tab to a standalone /goals page (goal
+              authoring + active missions) and added /goals to NAV_ITEMS
+              — but only as a DEPTH item, which the orb (it renders
+              MOBILE_TABS only) never surfaces. On a phone — the
+              operator's primary device — that left goals + missions
+              reachable only by typing the URL. This row restores
+              one-tap access from the single nav surface. */}
+          <div className="border-t border-[var(--border-default)]">
+            <Link
+              href="/goals"
+              onClick={() => setState((s) => ({ ...s, expanded: false }))}
+              className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
+              title="goals + missions · the relocated PLAN surface"
+            >
+              <Target size={14} strokeWidth={1.5} />
+              <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
+                Goals
+              </span>
+            </Link>
           </div>
 
           {/* v10.0.529.72 · Wave 18 IA merge · BRAIN + LIFE + OPS rows

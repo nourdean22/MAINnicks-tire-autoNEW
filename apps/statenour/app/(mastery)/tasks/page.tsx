@@ -75,6 +75,10 @@ import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 // projects-panel.tsx file is retained for now — still imports goal↔
 // project bridge plumbing — but is no longer mounted here.
 import { NowPanel } from "@/components/actions/now-panel";
+// IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
+// folds the six intel/reflection widgets below the execution surface ·
+// see its docstring for the simple-on-top rationale.
+import { IntelPanel } from "@/components/actions/intel-panel";
 import { type AiTask } from "@/components/actions/ai-suggestions-band";
 import { ActionsContextBand } from "@/components/actions/actions-context-band";
 // TRACK consolidation (2026-05-21) · Nick's time-of-day brief · rehomed
@@ -1139,55 +1143,44 @@ function TasksPageInner() {
           </button>
         </div>
       ) : null}
-      {/* v10.0.529.99 · Nick's curated next-action chip · same component
-          mounted on /chat (Wave 40) · puts the supervised-signal capture
-          (action/dismiss → /api/brain/suggestion-loop) on the /tasks
-          surface so operator can act on Nick's pick directly in the task
-          context. Without onSeed, taps navigate to /chat?q=...&suggKind=...
-          which is the right behavior here · operator wants to discuss
-          this task with Nick before working on it. Silent when no
-          suggestions are available (clean morning). */}
-      {/* TRACK consolidation (2026-05-21) · Nick's time-of-day brief,
-          rehomed from the deleted TRACK tab. Top of the execute surface ·
-          self-collapses when there's nothing to say. */}
-      <DailyBriefSection />
-      <NickSuggestions />
+      {/* The execution surface — THE hero. KommandoShell dismantle ·
+          Phase 3 (2026-05-21) · `nowContent` (the <NowPanel>) renders
+          directly where the 3-mode <KommandoShell> used to sit. Goal
+          authoring moved to /goals · TRACK moved to /scoreboard +
+          /learn.
 
-      {/* Phase E (2026-05-18 PM) · OperatorPulse · the forward-looking
-          intelligence layer · ABOVE TodaysCompound because pulse =
-          "what's the move RIGHT NOW" trumps "what happened today" in
-          terms of operator orientation. Self-hides when nothing has
-          signal. Surface="tasks" so the composition emphasizes top-ROI
-          open task + 7d pace + stalest promise. */}
-      <OperatorPulse surface="tasks" className="px-0" />
-      {/* v10.0.529.79 · Wave 23 · #1 · TodaysCompound strip · shows
-          today's compounded auto-learn signal (mastery delta · insight
-          count · wisdom matched · goals lifted · focused minutes) so
-          the operator SEES the brain filling up in real time. Sits
-          ABOVE ActionsContextBand because it's higher-signal · the
-          context band is static while this strip moves with every
-          check-off. Hides when nothing happened yet today. */}
-      <TodaysCompound />
-      {/* Phase G (2026-05-18 PM) · CompoundChain · the prose-narrated
-          chain of TODAY's work · task → goal → axis → scoreboard. Sits
-          BELOW the chip strip (which is high-signal at-a-glance) ·
-          this is the deeper "what compounded into what" view. Self-
-          hides when nothing happened. surface="tasks" → today's window. */}
-      <CompoundChain surface="tasks" className="px-0 mx-0" />
-      {/* v10.0.529.72 · Wave 18 IA merge · brain + life context band lives
-          here on /tasks (the execution surface) so the operator's daily
-          flow has context inline · no second nav hop. Brain row links to
-          the /brain dashboard · Life row inlines the 5-card hub
-          (/mastery · /body · /financial · /knowledge · /learn). The
-          QUICK NAV's BRAIN + LIFE + OPS rows in floating-home.tsx were
-          deleted in the same wave. See docs/adr/0013-merge-brain-life-
-          ops-ia.md. */}
-      <ActionsContextBand />
-      {/* The execution surface. KommandoShell dismantle · Phase 3
-          (2026-05-21) · `nowContent` (the <NowPanel>) renders directly
-          where the 3-mode <KommandoShell> used to sit. Goal authoring
-          moved to /goals · TRACK moved to /scoreboard + /learn. */}
+          2026-05-21 redesign (simple on top, powerful underneath) ·
+          six intel/reflection widgets — daily brief, Nick's
+          suggestions, operator pulse, today's compound, compound
+          chain, context band — used to STACK above this surface, one
+          per wave, until the task list was buried under six cards.
+          They now fold into <IntelPanel> directly below, collapsed by
+          default. The operator's daily loop (next move · quick-add ·
+          task list) is unobstructed; intel is one deliberate tap. */}
       {nowContent}
+      {/* IntelPanel · the six intel/reflection widgets, collapsed by
+          default — children mount only when expanded, so on the /tasks
+          load path these self-fetching widgets do no work until the
+          operator opens the drawer. Order preserved from the old
+          stacked layout: brief → Nick's suggestions → pulse → today's
+          compound → compound chain → context band. Each still self-
+          hides when it has nothing to say.
+
+          NickSuggestions keeps its supervised-signal capture
+          (action/dismiss → /api/brain/suggestion-loop); folding it
+          here loses no proactive guidance because <NowPanel> already
+          carries NextMoveCard + AiSuggestionsBand on the hero surface.
+
+          ActionsContextBand still links the /brain dashboard + the
+          5-card life hub — see docs/adr/0013-merge-brain-life-ops-ia.md. */}
+      <IntelPanel>
+        <DailyBriefSection />
+        <NickSuggestions />
+        <OperatorPulse surface="tasks" className="px-0" />
+        <TodaysCompound />
+        <CompoundChain surface="tasks" className="px-0 mx-0" />
+        <ActionsContextBand />
+      </IntelPanel>
       {/* Apr 26 · Review sheet — bottom sheet for kill/reframe/blocker
           decisions on overdue + stale tasks. Triggered by tapping the
           smart headline when reviewSet is non-empty. */}
