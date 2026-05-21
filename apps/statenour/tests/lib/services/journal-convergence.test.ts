@@ -23,11 +23,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   journalThreadEntry: { findMany: vi.fn() },
+  brainMemory: { updateMany: vi.fn() },
 }));
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     journalThreadEntry: mocks.journalThreadEntry,
+    brainMemory: mocks.brainMemory,
   },
 }));
 
@@ -46,10 +48,12 @@ import {
   bulkCentroid,
   detectConvergence,
   pruneCandidatesForExistingThreads,
+  sweepStaleCandidates,
   type JournalEntryUnit,
   type ConvergenceCandidate,
   type EntrySource,
 } from "@/lib/services/journal-convergence";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 type RawCandidate = Omit<ConvergenceCandidate, "nameSuggestions">;
 
@@ -395,5 +399,26 @@ describe("pruneCandidatesForExistingThreads", () => {
       mkCandidate("hash-small", members),
     ]);
     expect(out).toEqual([]);
+  });
+});
+
+describe("sweepStaleCandidates", () => {
+  it("soft-deletes stale, non-deleted convergence candidates", async () => {
+    mocks.brainMemory.updateMany.mockResolvedValue({ count: 4 });
+    const swept = await sweepStaleCandidates();
+    expect(swept).toBe(4);
+    expect(mocks.brainMemory.updateMany).toHaveBeenCalledTimes(1);
+    const arg = mocks.brainMemory.updateMany.mock.calls[0][0];
+    expect(arg.where.category).toBe(
+      BRAIN_CATEGORIES.JOURNAL_CONVERGENCE_CANDIDATE,
+    );
+    expect(arg.where.deletedAt).toBeNull();
+    expect(arg.where.updatedAt.lt).toBeInstanceOf(Date);
+    expect(arg.data.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it("returns 0 when the sweep query fails", async () => {
+    mocks.brainMemory.updateMany.mockRejectedValue(new Error("db down"));
+    expect(await sweepStaleCandidates()).toBe(0);
   });
 });
