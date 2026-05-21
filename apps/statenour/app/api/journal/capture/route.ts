@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { checkAiRateLimit } from "@/lib/rate-limit";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -23,15 +24,19 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
  * /api/ultron/reflect which already had the cap.
  */
 export async function POST(req: Request) {
-  await requireSession(req);
-
-  // v10.0.529.21 · rate-limit gate · the audit's D-1 item.
-  const limit = checkAiRateLimit(req);
-  if (limit) return limit;
-
   try {
-    const body = (await req.json()) as { text?: string };
-    const text = (body?.text ?? "").trim();
+    await requireSession(req);
+
+    // v10.0.529.21 · rate-limit gate · the audit's D-1 item.
+    const limit = checkAiRateLimit(req);
+    if (limit) return limit;
+
+    // Defensive parse · matches sibling journal routes
+    // (threads/suggestions). Malformed JSON or a non-string `text`
+    // resolves to "" → the min-length guard returns a clean 400
+    // instead of a TypeError-driven 500.
+    const body = (await req.json().catch(() => ({}))) as { text?: unknown };
+    const text = typeof body?.text === "string" ? body.text.trim() : "";
     if (!text || text.length < 3) {
       return NextResponse.json(
         { error: "text required (min 3 chars)" },
@@ -41,6 +46,9 @@ export async function POST(req: Request) {
     const result = await ingestJournal(text, "manual");
     return NextResponse.json({ data: result });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     // v10.0.529.21 · sanitize the error before returning · pre-fix
     // `String(err)` leaked raw Prisma/Neon strings to the client.
     return NextResponse.json(

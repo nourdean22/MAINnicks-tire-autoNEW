@@ -19,6 +19,7 @@
 
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import {
@@ -40,6 +41,9 @@ export async function GET(req: Request) {
     const data = await listConvergenceCandidates();
     return NextResponse.json({ data });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("candidates_list_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
@@ -65,6 +69,12 @@ export async function POST(req: Request) {
       ...result,
     });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: err.status },
+      );
+    }
     log.error("manual_scan_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { ok: false, error: sanitizeError(err) },
@@ -87,6 +97,9 @@ export async function DELETE(req: Request) {
     const result = await dismissCandidate(hash);
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("candidate_dismiss_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },

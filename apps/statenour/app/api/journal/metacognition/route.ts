@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -15,11 +16,14 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
  * impossible.
  */
 export async function GET(req: Request) {
-  await requireSession(req);
   try {
+    await requireSession(req);
     const entry = await getLatestLearningJournalEntry();
     return NextResponse.json({ data: entry });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     return NextResponse.json(
       { data: null, error: sanitizeError(err) },
       { status: 500 },

@@ -12,6 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import {
@@ -34,6 +35,9 @@ export async function GET(req: Request) {
     const data = await listThreads({ includeDormant });
     return NextResponse.json({ data });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("threads_list_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
@@ -83,6 +87,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("thread_create_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },

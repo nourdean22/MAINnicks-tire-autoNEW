@@ -12,6 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import {
@@ -32,6 +33,9 @@ export async function GET(req: Request) {
     const data = await listThreadSuggestions();
     return NextResponse.json({ data });
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("suggestions_list_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
@@ -56,6 +60,9 @@ export async function POST(req: Request) {
     }
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("suggestion_accept_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
@@ -78,6 +85,9 @@ export async function DELETE(req: Request) {
     const result = await dismissThreadSuggestion(key);
     return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     log.error("suggestion_dismiss_failed", { error: sanitizeError(err) });
     return NextResponse.json(
       { error: sanitizeError(err) },
