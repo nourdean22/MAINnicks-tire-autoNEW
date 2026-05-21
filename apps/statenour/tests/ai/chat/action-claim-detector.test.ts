@@ -169,3 +169,24 @@ describe("detectActionClaims · per-sentence hedge isolation", () => {
     expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
   });
 });
+
+describe("detectActionClaims · abbreviation-safe sentence split", () => {
+  it("detects a claim straddling an 'i.e.' clause", () => {
+    // Pre-fix splitSentences broke on the "i.e." period — "sent"
+    // landed in one fragment and "the email" in the next, so the
+    // claim was visible in neither.
+    const result = detectActionClaimsWithoutTools(
+      "Sent it, i.e. the email to the customer.",
+      [],
+    );
+    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+  });
+
+  it("detects a claim straddling an 'e.g.' clause", () => {
+    const result = detectActionClaimsWithoutTools(
+      "Sent it, e.g. the email to the customer.",
+      [],
+    );
+    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+  });
+});

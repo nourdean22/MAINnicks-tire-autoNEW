@@ -101,13 +101,16 @@ export interface ActionClaimReport {
 /**
  * Split text into rough sentences. A claim is only a fabrication if ITS
  * sentence isn't hedged — so a hedge in one sentence must not suppress a
- * real claim in another. The split is deliberately loose (terminators +
- * newlines); over-splitting just yields LESS suppression, erring toward
- * detecting fabrication — the safe direction for this guard.
+ * real claim in another. The split is loose (terminators + newlines) but
+ * guards "i.e." / "e.g." — splitting mid-abbreviation can strand a
+ * claim's verb and object in different fragments, hiding it from both.
  */
 function splitSentences(text: string): string[] {
   return text
-    .split(/(?<=[.!?])\s+|\n+/)
+    // Sentence terminator + whitespace, OR a newline run. The negative
+    // lookbehinds keep "i.e." / "e.g." together — their internal period
+    // is not a sentence end.
+    .split(/(?:(?<!\bi\.e\.)(?<!\be\.g\.)(?<=[.!?])\s+)|\n+/i)
     .map((s) => s.trim())
     .filter(Boolean);
 }
