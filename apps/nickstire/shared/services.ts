@@ -505,7 +505,7 @@ export const SERVICES: ServiceData[] = [
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
     metaTitle: "Oil Change Cleveland · From $39 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $39 (conventional) · synthetic available · free 27-point inspection every time · in and out before your coffee's cold · just pull up to 25425 Euclid Ave. (216) 862-0005",
+    metaDescription: "Cleveland oil change from $39 — conventional or synthetic, free 27-point inspection, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic, with filter replacement and a free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome — no appointment needed.",
     heroCTA: "SCHEDULE OIL CHANGE",
