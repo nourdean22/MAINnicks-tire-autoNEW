@@ -600,6 +600,10 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           }
         }
       }
+      // Hoisted out of the hasContent block so the fabrication-rewrite
+      // block far below can patch the persisted assistant row. Stays
+      // null when the response had no content (block never assigns it).
+      let createdAssistantId: string | null = null;
       if (hasContent) {
         // v7.6 · Apr 29 · ChatMessage Batch A · C2 — assistant message persistence.
         const finishedAt = Date.now();
@@ -787,6 +791,7 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             }),
           { timeoutMs: 10_000, context: { conversationId: convId } }
         );
+        createdAssistantId = createdAssistant?.id ?? null;
         // v7.6 · Apr 29 · Bump conversation activity for assistant turn.
         prisma.chatConversation
           .update({
@@ -1056,12 +1061,53 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
             originalLength: cleanedText.length,
             newLength: rewrite.text.length,
           });
-          // Replace the variable in scope — the rest of the function
-          // (DB persist, history sync, etc.) reads cleanedText, so this
-          // single line cascades the correction through every downstream
-          // consumer.
+          // Cascade the correction to in-memory consumers — history
+          // sync and next-turn context read this variable directly.
           cleanedText = rewrite.text;
           envelope.addFact(`verifier rewrote response with hedged banner`);
+
+          // The ChatMessage row was already persisted ABOVE with the
+          // pre-rewrite text. Patch it so reload-from-history (and the
+          // DB-backed conversation summarizer) show the hedge banner,
+          // not the original fabricated claim. Best-effort — a failed
+          // patch leaves the in-memory cascade intact, never tanks onFinish.
+          if (createdAssistantId) {
+            const msgId = createdAssistantId;
+            const { extractParts, buildSearchableContent } = await import(
+              "@/lib/ai/chat/message-fields"
+            );
+            const rewrittenParts: Array<Record<string, unknown>> = [
+              { type: "text", text: cleanedText },
+            ];
+            if (reasoningText && reasoningText.trim().length > 0) {
+              rewrittenParts.push({ type: "reasoning", text: reasoningText });
+            }
+            const patchedParts = extractParts(rewrittenParts, cleanedText);
+            const patchedSearchable = buildSearchableContent(
+              patchedParts,
+              cleanedText,
+            );
+            await prisma.chatMessage
+              .update({
+                where: { id: msgId },
+                data: {
+                  content: cleanedText,
+                  parts: patchedParts
+                    ? (patchedParts as unknown as Parameters<
+                        typeof prisma.chatMessage.update
+                      >[0]["data"]["parts"])
+                    : undefined,
+                  searchableContent: patchedSearchable ?? undefined,
+                },
+              })
+              .catch((err) => {
+                log.warn("fabrication_rewrite_persist_failed", {
+                  conversationId: convId,
+                  messageId: msgId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              });
+          }
         }
 
         // Persist a structured warning the chat surface can read back
