@@ -33,13 +33,16 @@
  *   }
  *
  * Capped at 5 suggestions · ranked by severity desc + recency.
- * Auto-hides when nothing is actionable.
+ * VAD-style gate drops suggestions the operator dismissed in the
+ * last 7d (see getDismissedSuggestionIds). Auto-hides when nothing
+ * is actionable.
  */
 
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { today as todayET } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
 
 export const dynamic = "force-dynamic";
 
@@ -98,6 +101,7 @@ export const GET = apiHandler(
       unresolvedReflections,
       brokenPromises,
       stalePins,
+      dismissedIds,
     ] = await Promise.all([
       prisma.masteryScore
         .findMany({
@@ -234,6 +238,12 @@ export const GET = apiHandler(
           select: { id: true, content: true, updatedAt: true },
         })
         .catch((): Array<{ id: string; content: string; updatedAt: Date }> => []),
+
+      // VAD-style signal gate · 2026-05-21 · suggestionIds the operator
+      // dismissed in the last 7d · filtered before ranking so a rejected
+      // chip stops re-firing on the 60s poll. Pipecat/Friday VAD applied
+      // to the proactive layer · a dismissal is below-threshold noise.
+      getDismissedSuggestionIds(7).catch(() => new Set<string>()),
     ]);
 
     // ─── 1 · Weakest mastery axis (high-leverage)
@@ -447,10 +457,15 @@ export const GET = apiHandler(
       });
     }
 
+    // VAD-style signal gate · drop suggestions the operator dismissed
+    // within the last 7d before ranking · a rejected chip stops
+    // resurfacing every 60s until the underlying data clears.
+    const gated = suggestions.filter((s) => !dismissedIds.has(s.id));
+
     // Sort by severity then by id for stability, cap at 5
-    suggestions.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
+    gated.sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
     return {
-      suggestions: suggestions.slice(0, 5),
+      suggestions: gated.slice(0, 5),
       generatedAt: now.toISOString(),
       date: todayET(),
     };

@@ -231,9 +231,31 @@ export async function getContextualMemories(
   } = {},
 ): Promise<string> {
   const tokenBudget = opts.tokenBudget ?? DEFAULT_TOKEN_BUDGET;
-  const topics = await extractTopics(recentMessages);
+
+  // ── Stage-level observability ──────────────────────────────────────
+  // The recall pipeline was a black box · no per-stage latency, no
+  // hit-rate signal. `timed` records each async stage into `timings`;
+  // one structured `[brain-recall]` line logs at the return. Pipecat/
+  // Friday lens · you cannot tune a pipeline you cannot see.
+  const t0 = Date.now();
+  const timings: Record<string, number> = {};
+  const timed = async <T>(label: string, fn: () => Promise<T>): Promise<T> => {
+    const tStage = Date.now();
+    try {
+      return await fn();
+    } finally {
+      timings[label] = Date.now() - tStage;
+    }
+  };
+
+  const topics = await timed("topics", () => extractTopics(recentMessages));
 
   if (topics.length === 0) {
+    console.log("[brain-recall]", {
+      outcome: "fallback",
+      reason: "no-topics",
+      ms: Date.now() - t0,
+    });
     return getFallbackMemories(maxMemories);
   }
 
@@ -246,6 +268,7 @@ export async function getContextualMemories(
   // importance) were ranked + injected into Nick's system prompt on
   // every chat turn. This was the highest-leverage CRITICAL because
   // it ran per-turn, not nightly.
+  const tDb = Date.now();
   const allMemories = await prisma.brainMemory.findMany({
     where: {
       confidence: { gte: 0.3 },
@@ -259,13 +282,24 @@ export async function getContextualMemories(
     // v10.0.396 · seenCount + updatedAt for wisdom freshness decay
     select: { id: true, category: true, key: true, content: true, confidence: true, createdAt: true, source: true, seenCount: true, updatedAt: true },
   });
+  timings.dbFetch = Date.now() - tDb;
 
-  if (allMemories.length === 0) return "";
+  if (allMemories.length === 0) {
+    console.log("[brain-recall]", {
+      outcome: "empty",
+      reason: "no-candidates",
+      topics: topics.length,
+      ms: Date.now() - t0,
+    });
+    return "";
+  }
 
   // Try semantic scoring first · Wave 81 · pre-computed embedding
   // skips the getEmbedding round-trip when caller already has one
   // (chat route's predictive-prefetch pre-warmed userEmbedding).
-  const semanticScores = await getSemanticScores(queryText, allMemories, opts.queryEmbedding);
+  const semanticScores = await timed("semantic", () =>
+    getSemanticScores(queryText, allMemories, opts.queryEmbedding),
+  );
   const useEmbeddings = semanticScores !== null;
 
   // v10.0.361 · RRF (Reciprocal Rank Fusion) replaces linear weighted
@@ -379,17 +413,21 @@ export async function getContextualMemories(
   // override the hybrid order for top placement. Gated on COHERE_API_KEY ·
   // returns the input unchanged when unavailable, so brain still works
   // without a Cohere account.
+  let rerankFired = false;
   if (isCohereRerankAvailable() && scored.length > 5) {
     const rerankPool = scored.slice(0, 25);
-    const reranked = await cohereRerank({
-      query: queryText,
-      candidates: rerankPool.map((m) => ({
-        item: m,
-        text: `[${m.category}] ${m.content}`.slice(0, 1500),
-      })),
-      topN: rerankPool.length,
-    }).catch(() => null);
+    const reranked = await timed("rerank", () =>
+      cohereRerank({
+        query: queryText,
+        candidates: rerankPool.map((m) => ({
+          item: m,
+          text: `[${m.category}] ${m.content}`.slice(0, 1500),
+        })),
+        topN: rerankPool.length,
+      }).catch(() => null),
+    );
     if (reranked && reranked.length > 0) {
+      rerankFired = true;
       // Replace the top-25 ordering with rerank order; tail of `scored`
       // (rank > 25) stays as-is so we don't lose long-tail candidates.
       const rerankedItems = reranked.map((r) => ({
@@ -494,7 +532,16 @@ export async function getContextualMemories(
     }
   }
 
-  if (relevant.length === 0) return "";
+  if (relevant.length === 0) {
+    console.log("[brain-recall]", {
+      outcome: "empty",
+      reason: "no-relevant",
+      topics: topics.length,
+      candidates: allMemories.length,
+      ms: Date.now() - t0,
+    });
+    return "";
+  }
 
   // v10.0.364 · token-budget trim · drop lowest-relevance entries
   // until the total content size fits within the budget. Wisdom slots
@@ -502,6 +549,7 @@ export async function getContextualMemories(
   // guarantee that the always-on wisdom layer never gets dropped.
   const budgetChars = tokenBudget * CHARS_PER_TOKEN_APPROX;
   let totalChars = relevant.reduce((s, m) => s + m.content.length, 0);
+  let budgetDropped = 0;
   if (totalChars > budgetChars) {
     // Strip from the END (lowest-relevance first) but never below the
     // wisdom guarantee. The first `wisdomSlots` items in `relevant`
@@ -509,7 +557,10 @@ export async function getContextualMemories(
     const minKeep = Math.min(wisdomSlots, relevant.length);
     while (relevant.length > minKeep && totalChars > budgetChars) {
       const dropped = relevant.pop();
-      if (dropped) totalChars -= dropped.content.length;
+      if (dropped) {
+        totalChars -= dropped.content.length;
+        budgetDropped++;
+      }
     }
   }
 
@@ -553,12 +604,30 @@ export async function getContextualMemories(
   // model gets access to older insight that lives outside the
   // brain_memory table. Scored by the same hybrid formula but with
   // synthetic confidence/recency (see embedding-utils.semanticSearch).
-  await appendCrossSourceContext(lines, queryText, opts.excludeChatConversationIds);
+  const linesBeforeCross = lines.length;
+  await timed("crossSource", () =>
+    appendCrossSourceContext(lines, queryText, opts.excludeChatConversationIds),
+  );
+  const crossSourceLines = lines.length - linesBeforeCross;
 
   // Pull related commitments, loops, people (same as v1)
   const topicLower = topics.map((t) => t.toLowerCase());
-  await appendRelatedContext(lines, topicLower);
+  const linesBeforeRelated = lines.length;
+  await timed("related", () => appendRelatedContext(lines, topicLower));
 
+  console.log("[brain-recall]", {
+    outcome: "ok",
+    mode,
+    topics: topics.length,
+    candidates: allMemories.length,
+    relevant: relevant.length,
+    rerankFired,
+    crossSourceLines,
+    relatedLines: lines.length - linesBeforeRelated,
+    budgetDropped,
+    timings,
+    ms: Date.now() - t0,
+  });
   return lines.join("\n");
 }
 

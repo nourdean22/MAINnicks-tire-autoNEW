@@ -285,6 +285,46 @@ export async function listSuggestionSignals(
   });
 }
 
+/**
+ * VAD-style signal gate · 2026-05-21.
+ *
+ * Returns suggestionIds the operator DISMISSED within the last
+ * `daysBack` days. /api/nick/suggest filters these before ranking, so
+ * a dismissed chip stops re-firing on the 60s poll instead of
+ * resurfacing until the underlying data clears.
+ *
+ * Gates on `lastSeen`, not `seenCount`: trackSuggestionAction's upsert
+ * bumps `lastSeen` on every repeat dismissal, so the window self-arms —
+ * one dismissal buys `daysBack` of quiet; a repeat mid-window extends
+ * it a full window again. Graduated suppression, no count math. When
+ * the window lapses a still-relevant condition resurfaces once more.
+ *
+ * The Pipecat/Friday VAD threshold applied to the proactive layer:
+ * a dismissal is below-threshold noise — gate it, don't transmit.
+ */
+export async function getDismissedSuggestionIds(
+  daysBack = 7,
+): Promise<Set<string>> {
+  const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
+  const rows = await prisma.brainMemory.findMany({
+    where: {
+      category: CATEGORY,
+      key: { endsWith: ":action:dismissed" },
+      lastSeen: { gte: since },
+      deletedAt: null,
+    },
+    select: { metadata: true },
+  });
+  const ids = new Set<string>();
+  for (const r of rows) {
+    const meta = (r.metadata ?? {}) as Record<string, unknown>;
+    if (typeof meta.suggestionId === "string" && meta.suggestionId.length > 0) {
+      ids.add(meta.suggestionId);
+    }
+  }
+  return ids;
+}
+
 export interface SuggestionStatsByKind {
   acted: number;
   dismissed: number;
