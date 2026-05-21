@@ -1,15 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { isDemoMode } from "@/lib/runtime";
 import { serializeForJson } from "@/lib/utils/serialize";
-
-function startOfLocalDay(date = new Date()) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function endOfLocalDay(date = new Date()) {
-  const start = startOfLocalDay(date);
-  return new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-}
+// ET-correct day boundaries. The prior local `new Date(y,m,d)` floored to
+// midnight in the SERVER zone (UTC). See lib/utils/datetime.ts.
+import {
+  startOfDayET as startOfLocalDay,
+  endOfDayET as endOfLocalDay,
+} from "@/lib/utils/datetime";
 
 function clampScore(value: number) {
   return Math.max(0, Math.min(100, Math.round(value)));

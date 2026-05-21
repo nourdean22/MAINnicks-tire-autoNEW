@@ -8,7 +8,7 @@
  * Triggers run as part of the daily strategy brief or on-demand.
  */
 import { prisma } from "@/lib/prisma";
-import { toDateString } from "@/lib/utils/datetime";
+import { startOfDayET, toDateString } from "@/lib/utils/datetime";
 
 export interface StrategicTrigger {
   id: string;
@@ -23,14 +23,11 @@ export interface StrategicTrigger {
 function daysAgoDate(n: number): Date {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfDayET(d); // ET midnight, not server-UTC midnight
 }
 
 function todayStart(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfDayET();
 }
 
 /**

@@ -30,28 +30,22 @@
  */
 
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  startOfDayET,
+  startOfWeekET,
+  startOfMonthET,
+  startOfYearET,
+} from "@/lib/utils/datetime";
 
 const log = rootLogger.withSurface("services/business-intel");
 
 function startOf(unit: "day" | "week" | "month" | "year"): Date {
-  const d = new Date();
-  if (unit === "day") {
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (unit === "week") {
-    d.setDate(d.getDate() - d.getDay());
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  if (unit === "month") {
-    d.setDate(1);
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }
-  d.setMonth(0, 1);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  // ET-correct boundaries — the prior setHours(0,0,0,0) floored to
+  // midnight in the SERVER zone (UTC). See lib/utils/datetime.ts.
+  if (unit === "week") return startOfWeekET();
+  if (unit === "month") return startOfMonthET();
+  if (unit === "year") return startOfYearET();
+  return startOfDayET();
 }
 
 /**
