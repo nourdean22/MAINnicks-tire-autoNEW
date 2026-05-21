@@ -569,37 +569,14 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
               { "@type": "City", name: "Cleveland Heights" },
               { "@type": "City", name: "Shaker Heights" },
             ],
-            // wave-181.16 code-review F3 · skip Offers where the price
-            // resolves to $0 (tiers labeled "Free · written estimate",
-            // "Free if we do the repair", "Estimate free"). Emitting a
-            // $0 Offer to Google's entity-graph misrepresents the
-            // service as actually free — risk of Local Pack surfacing
-            // "Free brake inspection · $0" without the qualifier.
-            offers: config.tiers
-              .map((t) => {
-                const numericPrice = t.price.replace(/[^0-9.]/g, "").split(".")[0];
-                if (!numericPrice) return null;
-                return {
-                  "@type": "Offer",
-                  name: t.name,
-                  price: numericPrice,
-                  priceCurrency: "USD",
-                  availability: "https://schema.org/InStock",
-                };
-              })
-              .filter((o): o is NonNullable<typeof o> => o !== null),
-            // wave-181.16 code-review F1 · was hardcoded 4.9 / 1700
-            // duplicating the silent-failure F5 bug class on 9 pages.
-            // Now pulls from the canonical BUSINESS constant so when
-            // the GBP review count grows, every service page schema
-            // follows.
-            aggregateRating: {
-              "@type": "AggregateRating",
-              ratingValue: BUSINESS.reviews.rating,
-              reviewCount: BUSINESS.reviews.count,
-              bestRating: 5,
-              worstRating: 1,
-            },
+            // No top-level offers / aggregateRating on this @type:"Service".
+            // Service is not a Google rich-result type, so a rating or offer
+            // placed directly on it fails rich-results validation — Ahrefs
+            // Site Audit flagged exactly 30 pages (every FocusedServicePage
+            // instance) on 2026-05-21. The valid AggregateRating + priced
+            // OfferCatalog already render on the LocalBusinessSchema above
+            // (@type AutoRepair/TireShop, which IS rich-result-eligible).
+            // Keep rating + offers there only — never duplicate onto Service.
             url: `https://nickstire.org${config.canonicalPath}`,
           }),
         }}
