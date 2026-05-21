@@ -20,11 +20,24 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { getDismissedSuggestionIds } from "@/lib/brain/suggestion-loop";
+import {
+  getDismissedSuggestionIds,
+  suggestionLoopStats,
+} from "@/lib/brain/suggestion-loop";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 /** A findMany row as getDismissedSuggestionIds sees it (select: metadata). */
 const row = (suggestionId: unknown) => ({ metadata: { suggestionId } });
+
+/** A brain_memory row as listSuggestionSignals → suggestionLoopStats sees it. */
+const signalRow = (
+  suggestionKind: string,
+  opts: { event?: string; polarity?: string } = {},
+) => ({
+  confidence: 0.7,
+  lastSeen: new Date(),
+  metadata: { suggestionKind, suggestionId: `${suggestionKind}-x`, ...opts },
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -100,5 +113,87 @@ describe("getDismissedSuggestionIds", () => {
     );
 
     nowSpy.mockRestore();
+  });
+});
+
+describe("suggestionLoopStats", () => {
+  it("tallies action events per suggestion kind", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([
+      signalRow("task", { event: "acted" }),
+      signalRow("task", { event: "acted" }),
+      signalRow("task", { event: "dismissed" }),
+    ] as never);
+
+    const stats = await suggestionLoopStats();
+
+    expect(stats.totalSignals).toBe(3);
+    expect(stats.byKind.task).toMatchObject({
+      acted: 2,
+      dismissed: 1,
+      modified: 0,
+      deferred: 0,
+    });
+  });
+
+  it("computes actionRate as acted / (acted + dismissed + modified + deferred)", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([
+      signalRow("goal", { event: "acted" }),
+      signalRow("goal", { event: "acted" }),
+      signalRow("goal", { event: "dismissed" }),
+      signalRow("goal", { event: "modified" }),
+    ] as never);
+
+    const stats = await suggestionLoopStats();
+
+    // 2 acted of 4 surfaced
+    expect(stats.actionRate.goal).toBe(0.5);
+  });
+
+  it("computes positiveOutcomeRate as positive / (positive + negative + neutral)", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([
+      signalRow("sms", { polarity: "positive" }),
+      signalRow("sms", { polarity: "positive" }),
+      signalRow("sms", { polarity: "positive" }),
+      signalRow("sms", { polarity: "negative" }),
+    ] as never);
+
+    const stats = await suggestionLoopStats();
+
+    expect(stats.positiveOutcomeRate.sms).toBe(0.75);
+  });
+
+  it("keeps suggestion kinds independent", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([
+      signalRow("task", { event: "acted" }),
+      signalRow("goal", { event: "dismissed" }),
+    ] as never);
+
+    const stats = await suggestionLoopStats();
+
+    expect(stats.byKind.task).toMatchObject({ acted: 1, dismissed: 0 });
+    expect(stats.byKind.goal).toMatchObject({ acted: 0, dismissed: 1 });
+  });
+
+  it("returns zero totals when there are no signals", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([] as never);
+
+    const stats = await suggestionLoopStats();
+
+    expect(stats.totalSignals).toBe(0);
+    expect(stats.byKind).toEqual({});
+    expect(stats.actionRate).toEqual({});
+  });
+
+  it("reports actionRate 0 (not NaN) for a kind with only outcome signals", async () => {
+    vi.mocked(prisma.brainMemory.findMany).mockResolvedValueOnce([
+      signalRow("research", { polarity: "positive" }),
+      signalRow("research", { polarity: "neutral" }),
+    ] as never);
+
+    const stats = await suggestionLoopStats();
+
+    // no action events surfaced → divide-by-zero guard yields 0, not NaN
+    expect(stats.actionRate.research).toBe(0);
+    expect(stats.positiveOutcomeRate.research).toBe(0.5);
   });
 });
