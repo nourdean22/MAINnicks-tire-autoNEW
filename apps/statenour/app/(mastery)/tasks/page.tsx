@@ -1204,7 +1204,7 @@ function TasksPageInner() {
 
           ActionsContextBand still links the /brain dashboard + the
           5-card life hub — see docs/adr/0013-merge-brain-life-ops-ia.md. */}
-      <IntelPanel>
+      <IntelPanel signalCount={overdue} signalLabel="overdue">
         <DailyBriefSection />
         <NickSuggestions />
         <OperatorPulse surface="tasks" className="px-0" />
