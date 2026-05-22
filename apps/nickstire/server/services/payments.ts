@@ -77,7 +77,7 @@ export async function createPaymentIntent(params: {
  * the invoice + tire order paid and triggers the shop hand-off emails.
  */
 export async function createTireOrderCheckout(params: {
-  amountCents: number;
+  lineItems: Array<{ name: string; amountCents: number }>;
   tireOrderNumber: string;
   invoiceNumber: string;
   customerName: string;
@@ -100,17 +100,24 @@ export async function createTireOrderCheckout(params: {
     source: "nickstire.org",
   };
 
+  // Each charge component (tires, sales tax, card fee) is its own Stripe
+  // line item so the customer sees a fully itemised breakdown at checkout.
+  const lineItems = params.lineItems
+    .filter((li) => li.amountCents > 0)
+    .map((li) => ({
+      quantity: 1,
+      price_data: {
+        currency: "usd" as const,
+        unit_amount: li.amountCents,
+        product_data: { name: li.name },
+      },
+    }));
+  const totalCents = params.lineItems.reduce((sum, li) => sum + li.amountCents, 0);
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: [{
-        quantity: 1,
-        price_data: {
-          currency: "usd",
-          unit_amount: params.amountCents,
-          product_data: { name: params.description },
-        },
-      }],
+      line_items: lineItems,
       customer_email: params.customerEmail || undefined,
       client_reference_id: params.tireOrderNumber,
       metadata,
@@ -121,7 +128,7 @@ export async function createTireOrderCheckout(params: {
 
     if (!session.url) return { error: "Payment setup failed — Stripe returned no checkout URL." };
 
-    log.info(`Checkout session ${session.id} created for tire order ${params.tireOrderNumber} — $${(params.amountCents / 100).toFixed(2)}`);
+    log.info(`Checkout session ${session.id} created for tire order ${params.tireOrderNumber} — $${(totalCents / 100).toFixed(2)}`);
     return { url: session.url, sessionId: session.id };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
