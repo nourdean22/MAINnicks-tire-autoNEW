@@ -31,11 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AlertTriangle, RefreshCw, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface SessionPayload {
-  expires?: string;
-  user?: { email?: string; name?: string };
-}
+import { trpc } from "@/lib/trpc/client";
 
 const POLL_ACTIVE_MS = 30_000; // within danger window → check often
 const POLL_IDLE_MS = 120_000; // well above threshold → slow polling
@@ -64,14 +60,24 @@ export function SessionExpiryBanner() {
     readDismissedUntil(),
   );
 
+  // scattered-components REST→tRPC slice (2026-05-22) · `utils` drives
+  // the session-expiry probe (migrated off `authedFetch("/api/auth/
+  // expires")` onto `trpc.system.sessionExpiry`). The poll cadence is
+  // dynamic (30s inside the warn window · 120s outside) which React
+  // Query's static `refetchInterval` can't express, so the probe is
+  // fired imperatively via `utils.system.sessionExpiry.fetch()` from
+  // the existing setInterval. The procedure returns `{ expires }`
+  // directly (the legacy route's bare shape) · `sessionExpiry` is a
+  // PUBLIC procedure so it works even as the session winds down.
+  const utils = trpc.useUtils();
+
   const fetchSession = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/auth/expires", { credentials: "include" });
-      if (!res.ok) {
-        setExpiresAt(null);
-        return;
-      }
-      const data = (await res.json()) as SessionPayload;
+      // `staleTime: 0` forces every poll to hit the network — a cached
+      // expiry value would defeat the whole point of the banner.
+      const data = await utils.system.sessionExpiry.fetch(undefined, {
+        staleTime: 0,
+      });
       if (data?.expires) {
         const t = new Date(data.expires).getTime();
         setExpiresAt(Number.isFinite(t) ? t : null);
@@ -82,7 +88,7 @@ export function SessionExpiryBanner() {
     } catch {
       setExpiresAt(null);
     }
-  }, []);
+  }, [utils]);
 
   // Tick `now` each second so the countdown updates smoothly.
   useEffect(() => {

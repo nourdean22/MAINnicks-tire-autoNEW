@@ -39,7 +39,6 @@ import {
 } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 export interface PageNickProps {
   page: string;
   /**
@@ -95,8 +94,16 @@ export function PageNick({
       haptic.tap();
 
       try {
-        const res = await authedFetch("/api/ai/page-insight", {
+        // scattered-components REST→tRPC slice (2026-05-22) · this is a
+        // streaming text response (`result.toTextStreamResponse()`) —
+        // per the tRPC migration plan streaming endpoints stay REST
+        // (tRPC v11 has no first-class streaming transport). The only
+        // change is dropping `authedFetch` for a plain `fetch`:
+        // `credentials: "include"` carries the NextAuth cookie, and the
+        // `AbortController` signal needs the raw fetch anyway.
+        const res = await fetch("/api/ai/page-insight", {
           method: "POST",
+          credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             page,

@@ -31,7 +31,7 @@
 
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { router, operatorProcedure } from "../trpc";
+import { router, operatorProcedure, publicProcedure } from "../trpc";
 import { prisma } from "@/lib/prisma";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
@@ -87,6 +87,14 @@ import { buildEmbeddingCoverage } from "@/lib/services/embedding-coverage";
 import { buildCronTree } from "@/lib/services/cron-tree";
 import { getEntityHistory } from "@/lib/db/entity-audit";
 import { buildSystemHub } from "@/lib/services/system-hub";
+// scattered-components REST→tRPC slice (2026-05-22) · shared functions
+// the migrated components/{ultron/today,hud,ui}/* surfaces delegate to
+// for their /api/{drift,auth/expires,errors} calls. Each is also called
+// by the matching legacy REST route — drift structurally impossible.
+import { resolveAlert } from "@/lib/mastery/drift-engine";
+import { getSessionExpiry } from "@/lib/services/session-expiry";
+import { recordClientError } from "@/lib/services/client-error";
+import { checkBudget } from "@/lib/ai/budget";
 import {
   antiPatternCreateSchema,
   preferenceVectorSaveSchema,
@@ -2071,4 +2079,102 @@ export const systemRouter = router({
         throw err;
       }
     }),
+
+  // ═══════════ scattered-components REST→tRPC slice · system/* ═══════════
+  //
+  // The drift / session-expiry / client-error endpoints the migrated
+  // components/{ultron/today,hud,ui}/* surfaces hit. Each procedure
+  // delegates to a shared function the legacy REST route ALSO calls ·
+  // drift structurally impossible. None returns a Prisma row · the
+  // AppRouter stays trivially shallow.
+
+  /**
+   * scattered-components slice · owner-only · resolve a drift alert
+   * (the TodoDesk aging-backlog "resolve" button). Replaces the
+   * `action: "resolve"` branch of POST /api/drift · delegates to the
+   * shared `drift-engine.resolveAlert` the REST route also calls. The
+   * route's `action` discriminator is dropped (the procedure name IS
+   * the action). DriftAlert.id is `Int @id` but stale localStorage ids
+   * arrive stringified (`drift-42` → `42`) — the input accepts both and
+   * coerces. A stale id whose row was already resolved / auto-archived
+   * resolves `{ ok: true, note: "already gone" }` rather than throwing
+   * (the legacy route's swallow-on-not-found behaviour).
+   */
+  resolveDrift: operatorProcedure
+    .input(z.object({ id: z.union([z.string().max(64), z.number()]) }))
+    .mutation(async ({ input }) => {
+      const parsedId =
+        typeof input.id === "number" ? input.id : Number(input.id);
+      if (!Number.isFinite(parsedId)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Invalid id" });
+      }
+      try {
+        await resolveAlert(parsedId);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (/Record to update not found|not found/i.test(msg)) {
+          return { ok: true as const, note: "already gone" };
+        }
+        throw err;
+      }
+      return { ok: true as const };
+    }),
+
+  /**
+   * scattered-components slice · the lightweight session-expiry probe ·
+   * decodes the NextAuth JWT cookie + returns `{ expires }`. Replaces
+   * GET /api/auth/expires · delegates to the shared
+   * `session-expiry.getSessionExpiry` the REST route also calls · drift
+   * impossible. The SessionExpiryBanner polls this on a 30-120s
+   * interval. PUBLIC procedure — the legacy route is ungated (it just
+   * decodes the cookie · a missing / expired / tampered token resolves
+   * `{ expires: null }` and the banner stays silent · real 401
+   * enforcement lives in middleware). Reads the cookie off
+   * `ctx.headers`.
+   */
+  sessionExpiry: publicProcedure.query(async ({ ctx }) => {
+    // ctx.headers is populated by createTRPCContext (the App Router
+    // fetch handler) · absent only from createServerContext callers,
+    // which never hit this probe. Fall back to empty headers → the
+    // service resolves `{ expires: null }`, never throws.
+    return getSessionExpiry(ctx.headers ?? new Headers());
+  }),
+
+  /**
+   * scattered-components slice · owner-only · ingest one client-side
+   * error (unhandled error / promise rejection / error-boundary trip)
+   * into ErrorLog. Replaces POST /api/errors · delegates to the shared
+   * `client-error.recordClientError` the REST route also calls · drift
+   * impossible. ClientErrorTelemetry fires this fire-and-forget. The
+   * write is best-effort · the service swallows write failures and
+   * always resolves `{ ok: true }` (telemetry must never surface its
+   * own failure). The route's `kind` whitelist is hoisted to a strict
+   * `z.enum` at the `.input()` boundary.
+   */
+  recordClientError: operatorProcedure
+    .input(
+      z.object({
+        kind: z.enum(["error", "unhandledrejection", "boundary"]),
+        message: z.string().min(1).max(4000),
+        stack: z.string().max(20_000).optional(),
+        url: z.string().max(2000).optional(),
+        userAgent: z.string().max(1000).optional(),
+        timestamp: z.number().finite().optional(),
+        componentStack: z.string().max(10_000).optional(),
+        errorBoundary: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => recordClientError(input)),
+
+  /**
+   * scattered-components slice · owner-only · today's AI spend vs the
+   * configured daily budget (cents · percentUsed · overBudget flag).
+   * Delegates to the shared `budget.checkBudget` the /api/system/ai-
+   * analytics route also calls. The CommandPalette "AI Spend Today"
+   * probe reads only the budget summary off the legacy ai-analytics
+   * payload — this procedure returns just that `BudgetStatus` slice
+   * (the 6-way ai-analytics aggregate is overkill for a one-line
+   * toast). Flat scalar shape · no TS2589 firewall needed.
+   */
+  aiSpend: operatorProcedure.query(async () => checkBudget()),
 });

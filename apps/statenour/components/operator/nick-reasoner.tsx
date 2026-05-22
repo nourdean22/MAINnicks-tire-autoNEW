@@ -29,7 +29,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 
 /** Parse one SSE frame · "event: NAME\ndata: JSON" · returns null on
  *  malformed/empty frames. */
@@ -160,8 +159,17 @@ export function NickReasoner({
     setLiveSteps([]);
     setExpandedStep(null);
     try {
-      const res = await authedFetch("/api/nick/reason/stream", {
+      // scattered-components REST→tRPC slice (2026-05-22) · this is a
+      // Server-Sent-Events stream — per the tRPC migration plan SSE
+      // endpoints stay REST (tRPC v11 has no first-class SSE transport;
+      // see lib/trpc/routers/nick.ts). The only change is dropping
+      // `authedFetch` for a plain `fetch`: `credentials: "include"`
+      // carries the NextAuth cookie, and this handler already does its
+      // own 401/402 branching below, so `authedFetch`'s sign-in bounce
+      // is neither needed nor wanted here.
+      const res = await fetch("/api/nick/reason/stream", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: q,

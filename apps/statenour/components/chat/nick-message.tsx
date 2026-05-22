@@ -28,7 +28,6 @@ import { Pin, Maximize2, Loader2, Shuffle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { alreadyHasGeneratedImage, looksLikeMarketingContent } from "@/lib/chat/marketing-detection";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { InlineChart, parseChartSpec } from "@/components/chat/inline-chart";
 import { EmailDraftCard, parseEmailDraft } from "@/components/chat/email-draft-card";

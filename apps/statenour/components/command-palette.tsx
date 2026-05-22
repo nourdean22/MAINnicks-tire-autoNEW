@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   CommandDialog,
   CommandInput,
@@ -113,6 +113,22 @@ export function CommandPalette() {
   const [loading, setLoading] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const router = useRouter();
+  // scattered-components REST→tRPC slice (2026-05-22) · the eight
+  // CommandPalette system probes migrated off `authedFetch` onto tRPC.
+  // They're fired imperatively (not on render) from inside the
+  // `probe()` wrappers, so they use `utils.<router>.<proc>.fetch()`.
+  // Each procedure delegates to the same service the legacy REST route
+  // also calls — and most ALREADY existed from earlier slices
+  // (`system.healthSummary` · `system.diagnostics` · `brain.status` ·
+  // `system.deviceFleet` · `brain.pulseDigest` · `operator.refreshHealthDigest`)
+  // so this slice reuses them rather than adding duplicates. Only
+  // `operator.businessDashboard` + `system.aiSpend` are new.
+  const utils = trpc.useUtils();
+  // `refreshHealthDigest` is a `.mutation()` — `utils.*.fetch()` only
+  // serves queries, so its hook is declared at component scope and the
+  // probe closure calls `.mutateAsync()`. The other seven probes hit
+  // query procedures via `utils.*.fetch()`.
+  const healthDigestMut = trpc.operator.refreshHealthDigest.useMutation();
 
   // Keyboard shortcuts:
   //   ⌘K / Ctrl+K       → toggle palette
@@ -242,17 +258,23 @@ export function CommandPalette() {
       { id: "action-blind-spots", label: "Check Blind Spots", group: "Quick Actions", icon: <EyeIcon className="size-4" />, action: () => navigate("/chat?prompt=what+blind+spots+do+I+have+right+now"), keywords: ["blind", "missing", "ignore", "neglect"] },
       {
         id: "action-leads",
-        label: "Check Lead Pipeline",
+        label: "Check Business Dashboard",
         group: "Quick Actions",
         icon: <InboxIcon className="size-4" />,
-        action: probe("Lead Pipeline", async () => {
-          const res = await authedFetch("/api/analytics/dashboard");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const raw = await res.json();
-          const d = raw?.data ?? raw;
-          return `Active ${d.leads?.active ?? 0} · Urgent ${d.leads?.urgent ?? 0} · Converted ${d.leads?.convertedThisWeek ?? 0}`;
+        action: probe("Business Dashboard", async () => {
+          // scattered-components slice · trpc.operator.businessDashboard
+          // (the same `getDashboardSummary` service the legacy GET
+          // /api/analytics/dashboard called). PRE-EXISTING BUG: the old
+          // probe read `d.leads.active/urgent/convertedThisWeek` — but
+          // `getDashboardSummary` returns NO `leads` key (its shape is
+          // revenue / customers / reviews / jobs / bridgeHealth). The
+          // line always showed "Active 0 · Urgent 0 · Converted 0". The
+          // typed result forces the real fields — month revenue,
+          // customers, jobs today.
+          const d = await utils.operator.businessDashboard.fetch();
+          return `Revenue $${d.revenue.totalRevenue} · Customers ${d.customers.total ?? 0} (+${d.customers.newThisMonth ?? 0}) · Jobs today ${d.jobs.today ?? 0}`;
         }),
-        keywords: ["leads", "pipeline"],
+        keywords: ["leads", "pipeline", "business", "revenue", "dashboard"],
       },
 
       // ═══ POWER — one-keystroke ops surface (ENR5 new) ═══
@@ -262,14 +284,17 @@ export function CommandPalette() {
         group: "Power",
         icon: <RocketIcon className="size-4" />,
         action: probe("Health digest", async () => {
-          // Manually trigger the nightly digest — useful right after
-          // fixing something to watch the overall bubble down to
-          // healthy without waiting until 4am.
-          const res = await authedFetch("/api/cron/health-digest");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const raw = await res.json();
-          const d = raw?.data ?? raw;
-          return `overall=${d.overall} · ${d.counts?.critical ?? 0}c / ${d.counts?.warning ?? 0}w · ${d.highlights ?? 0} highlights`;
+          // Manually trigger the digest — useful right after fixing
+          // something to watch the overall bubble down to healthy
+          // without waiting until 4am. scattered-components slice ·
+          // trpc.operator.refreshHealthDigest (the same
+          // `refreshHealthDigest` the legacy GET /api/cron/health-digest
+          // / POST /api/ultron/health-digest both call). It returns the
+          // full `SystemHealthDigest` where `highlights` is an ARRAY
+          // (the cron route returned a count) — so this reads
+          // `.highlights.length`.
+          const d = await healthDigestMut.mutateAsync();
+          return `overall=${d.overall} · ${d.counts?.critical ?? 0}c / ${d.counts?.warning ?? 0}w · ${d.highlights?.length ?? 0} highlights`;
         }),
         keywords: ["digest", "run", "trigger", "health", "now"],
       },
@@ -308,10 +333,10 @@ export function CommandPalette() {
         group: "Power",
         icon: <PlayIcon className="size-4" />,
         action: probe("Pulse digest", async () => {
-          const res = await authedFetch("/api/ultron/pulse-digest");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const raw = await res.json();
-          const d = raw?.data ?? raw;
+          // scattered-components slice · trpc.brain.pulseDigest (the
+          // same `buildPulseDigest` service the legacy GET
+          // /api/ultron/pulse-digest called · added by slice 1).
+          const d = await utils.brain.pulseDigest.fetch();
           return `priority ${d.priority?.length ?? 0} · emerging ${d.emerging?.length ?? 0} · wins ${d.wins?.length ?? 0} · maintenance ${d.maintenance?.count ?? 0}`;
         }),
         keywords: ["pulse", "digest", "bell", "notification", "priority"],
@@ -324,10 +349,10 @@ export function CommandPalette() {
         group: "System Probes",
         icon: <HeartPulseIcon className="size-4" />,
         action: probe("System Health", async () => {
-          const res = await authedFetch("/api/health");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const data = await res.json();
-          const d = data.data ?? data;
+          // scattered-components slice · trpc.system.healthSummary (the
+          // same `buildSystemHealth` service the legacy GET /api/health
+          // called · added by the system-pages slice).
+          const d = await utils.system.healthSummary.fetch();
           return `${d.status ?? "unknown"} · db ${d.db?.latency_ms ?? "?"}ms · devices ${d.devices?.online ?? "?"}/${d.devices?.total ?? "?"}`;
         }),
         keywords: ["health", "status", "ping"],
@@ -338,10 +363,14 @@ export function CommandPalette() {
         group: "System Probes",
         icon: <WrenchIcon className="size-4" />,
         action: probe("Diagnostics", async () => {
-          const res = await authedFetch("/api/system/diagnostics");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const d = (await res.json())?.data ?? {};
-          return `db ${d.db?.latency_ms}ms · req24h ${d.kpis?.requests_24h} · err ${d.kpis?.errors_24h} · AI $${((d.kpis?.ai_cost_7d_cents ?? 0) / 100).toFixed(2)}`;
+          // scattered-components slice · trpc.system.diagnostics (the
+          // same `buildDiagnostics` service the legacy GET
+          // /api/system/diagnostics called · added by the system-pages
+          // slice). `kpis` is a `Record<string, unknown>` on the typed
+          // view — read the numeric KPIs through a narrow cast.
+          const d = await utils.system.diagnostics.fetch();
+          const kpis = d.kpis as Record<string, number | undefined>;
+          return `db ${d.db?.latency_ms}ms · req24h ${kpis.requests_24h ?? 0} · err ${kpis.errors_24h ?? 0} · AI $${((kpis.ai_cost_7d_cents ?? 0) / 100).toFixed(2)}`;
         }),
         keywords: ["diagnostic", "check"],
       },
@@ -351,11 +380,14 @@ export function CommandPalette() {
         group: "System Probes",
         icon: <BrainIcon className="size-4" />,
         action: probe("Brain", async () => {
-          const res = await authedFetch("/api/brain/status");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const d = (await res.json())?.data ?? {};
-          const m = d.memories;
-          return `${m?.total ?? 0} memories (${m?.permanent ?? 0} perm) · conf ${((m?.avgConfidence ?? 0) * 100).toFixed(0)}% · rules ${d.automationRules?.active ?? 0}`;
+          // scattered-components slice · trpc.brain.status (the same
+          // three-source assembly the legacy GET /api/brain/status used
+          // · added by the settings slice). `memories` is
+          // `brainMemory.getStatus()`'s `Record<string, unknown>` —
+          // read its numeric fields through a narrow cast.
+          const d = await utils.brain.status.fetch();
+          const m = d.memories as Record<string, number | undefined>;
+          return `${m.total ?? 0} memories (${m.permanent ?? 0} perm) · conf ${((m.avgConfidence ?? 0) * 100).toFixed(0)}% · rules ${d.automationRules?.active ?? 0}`;
         }),
         keywords: ["brain", "memory", "intelligence"],
       },
@@ -365,9 +397,12 @@ export function CommandPalette() {
         group: "System Probes",
         icon: <ZapIcon className="size-4" />,
         action: probe("AI Spend", async () => {
-          const res = await authedFetch("/api/system/ai-analytics");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const b = ((await res.json())?.data ?? {}).budget ?? {};
+          // scattered-components slice · trpc.system.aiSpend — returns
+          // `checkBudget()`'s `BudgetStatus` directly (the legacy
+          // /api/system/ai-analytics nested the same budget under
+          // `data.budget`; the one-line toast only ever read that
+          // slice, so the procedure returns just it).
+          const b = await utils.system.aiSpend.fetch();
           return `$${((b.spent ?? 0) / 100).toFixed(2)} / $${((b.limit ?? 0) / 100).toFixed(2)} (${b.percentUsed ?? 0}%)`;
         }),
         keywords: ["cost", "budget", "spend"],
@@ -378,16 +413,19 @@ export function CommandPalette() {
         group: "System Probes",
         icon: <RefreshCwIcon className="size-4" />,
         action: probe("Devices", async () => {
-          const res = await authedFetch("/api/devices");
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const devices = (await res.json())?.data?.devices ?? [];
-          const online = devices.filter((d: { status: string }) => d.status === "ONLINE").length;
-          return `${online}/${devices.length} devices online`;
+          // scattered-components slice · trpc.system.deviceFleet (the
+          // same `buildDeviceFleet` service the legacy GET /api/devices
+          // called · added by the system-pages slice). The fleet view
+          // exposes per-status counts on `summary.byStatus` directly —
+          // no client-side filter needed.
+          const d = await utils.system.deviceFleet.fetch();
+          const online = d.summary.byStatus.ONLINE ?? 0;
+          return `${online}/${d.summary.total} devices online`;
         }),
         keywords: ["device", "sync"],
       },
     ],
-    [navigate, openExternal, probe],
+    [navigate, openExternal, probe, utils, healthDigestMut],
   );
 
   // Keep a ref so the ⌘⇧K keyboard handler can reach the current

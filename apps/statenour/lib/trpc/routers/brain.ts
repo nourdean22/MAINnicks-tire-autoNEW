@@ -137,6 +137,17 @@ import {
   recordMemory,
   forgetMemoryByKey,
 } from "@/lib/services/brain-memories";
+// scattered-components REST→tRPC slice (2026-05-22) · the shared
+// services the migrated components/brain/* views delegate to for their
+// /api/brain/{memory-health,insights,continuity} reads. Each is also
+// called by the matching legacy REST route — drift structurally
+// impossible. Every service projects to flat scalar shapes (the
+// BrainMemory `metadata` Json is never selected / never returned) so
+// the recursive Prisma `JsonValue` type never reaches the AppRouter —
+// the TS2589 firewall.
+import { buildMemoryHealth } from "@/lib/services/brain-health";
+import { buildBrainInsights } from "@/lib/services/brain-insights";
+import { buildContinuityReport } from "@/lib/services/brain-continuity";
 
 export const brainRouter = router({
   /**
@@ -1195,4 +1206,56 @@ export const brainRouter = router({
   forgetMemoryByKey: operatorProcedure
     .input(z.object({ key: z.string().min(1).max(200) }))
     .mutation(async ({ input }) => forgetMemoryByKey(input.key)),
+
+  // ═══════════ scattered-components REST→tRPC slice · brain/* views ═══════════
+  //
+  // The components/brain/* views that hit /api/brain/{memory-health,
+  // insights,continuity}. Each procedure delegates to a shared service
+  // the legacy REST route ALSO calls · drift structurally impossible.
+  // The services project every row to flat scalar shapes (no BrainMemory
+  // `metadata` Json is selected or returned) so no recursive Prisma
+  // `JsonValue` type reaches the AppRouter — the TS2589 firewall.
+
+  /**
+   * scattered-components slice · owner-only · the per-category brain-
+   * memory health rollup (counts · freshness · confidence ·
+   * vectorization coverage · unhealthy-category flags). Replaces GET
+   * /api/brain/memory-health · delegates to the shared
+   * `brain-health.buildMemoryHealth` service the REST route also calls
+   * · drift impossible. BrainHealthView read only · React Query drives
+   * the refetch (the legacy view used `useAuthedFetch`'s one-shot
+   * fetch). Returns the explicit flat `MemoryHealthReport` (the rollup
+   * is a raw-SQL aggregation yielding plain scalars · TS2589 firewall
+   * satisfied trivially).
+   */
+  memoryHealth: operatorProcedure.query(async () => buildMemoryHealth()),
+
+  /**
+   * scattered-components slice · owner-only · the cross-system
+   * narrative-ribbon insight feed (week-over-week pattern signal —
+   * anti-pattern sprint · category growth · reflection gap · decision
+   * velocity · domain clustering · grade trend · cron-failure trend).
+   * Replaces GET /api/brain/insights · delegates to the shared
+   * `brain-insights.buildBrainInsights` service the REST route also
+   * calls · drift impossible. InsightRibbon read only. Distinct from
+   * `brain.nudges` (actionable now-deltas) · `BrainInsight` is a flat
+   * object · no TS2589 firewall needed.
+   */
+  insightsRibbon: operatorProcedure.query(async () => buildBrainInsights()),
+
+  /**
+   * scattered-components slice · owner-only · the cross-session memory-
+   * continuity rollup (totals · 24h created/reinforced/decayed/promoted
+   * · 7d reinforced leaderboard · all-time confidence leaderboard ·
+   * per-category churn movers). Replaces GET /api/brain/continuity ·
+   * delegates to the shared `brain-continuity.buildContinuityReport`
+   * service the REST route also calls · drift impossible.
+   * BrainContinuityView read only · React Query drives the refetch.
+   * Returns the explicit flat `ContinuityReport` (every memory row
+   * `select`s scalar fields only · the `metadata` Json is never
+   * touched · TS2589 firewall).
+   */
+  continuityReport: operatorProcedure.query(async () =>
+    buildContinuityReport(),
+  ),
 });

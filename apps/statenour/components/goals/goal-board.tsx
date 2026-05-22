@@ -87,7 +87,6 @@ import {
 import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { MilestonesFlow } from "@/components/actions/milestones-flow";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
@@ -150,13 +149,17 @@ const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
 export function GoalBoard() {
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
-  // task.* tRPC for the goals CRUD · the AI suggest/coach calls stay
-  // on authedFetch (AI domain · migrates in a later slice). load()
+  // task.* tRPC for the goals CRUD. scattered-components slice
+  // (2026-05-22) · the AI suggest/coach calls migrate now —
+  // `/api/ai/suggest-goals` → `trpc.ai.suggestGoals`, `/api/ai/coach-goal`
+  // → `trpc.ai.coachGoal` — so the `authedFetch` import is gone. load()
   // stays a callback (referenced by many handlers) but reads via
   // utils.task.goals.fetch — the procedure returns { goals } directly.
   const utils = trpc.useUtils();
   const goalsCreate = trpc.task.goalsCreate.useMutation();
   const goalsUpdate = trpc.task.goalsUpdate.useMutation();
+  const suggestGoalsMut = trpc.ai.suggestGoals.useMutation();
+  const coachGoalMut = trpc.ai.coachGoal.useMutation();
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<SuggestedGoal[]>([]);
   const [overview, setOverview] = useState<string>("");
@@ -275,25 +278,23 @@ export function GoalBoard() {
     setOverview("");
     setWarning("");
     try {
-      const r = await authedFetch("/api/ai/suggest-goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ horizon: "LIFE" }),
-      });
-      if (!r.ok) {
-        toast.error("Suggest failed");
-        setSuggesting(false);
-        return;
-      }
-      const d = await r.json();
-      setSuggested(Array.isArray(d.goals) ? d.goals : []);
+      // scattered-components slice · goal suggestions via
+      // trpc.ai.suggestGoals (the same `runSuggestGoals` service the
+      // legacy POST /api/ai/suggest-goals called). `d.goals` is typed
+      // `unknown` at the router boundary (the LLM JSON is heterogeneous)
+      // · cast through the local SuggestedGoal[], exactly as the old
+      // untyped JSON path did with its `Array.isArray` guard.
+      const d = await suggestGoalsMut.mutateAsync({ horizon: "LIFE" });
+      setSuggested(
+        Array.isArray(d.goals) ? (d.goals as SuggestedGoal[]) : [],
+      );
       setOverview(d.overview || "");
       setWarning(d.warning || "");
     } catch {
       toast.error("AI request failed");
     }
     setSuggesting(false);
-  }, []);
+  }, [suggestGoalsMut]);
 
   const adoptSuggestion = useCallback(
     async (s: SuggestedGoal) => {
@@ -457,12 +458,14 @@ export function GoalBoard() {
     async (goalId: string) => {
       setCoachingId(goalId);
       try {
-        const r = await authedFetch("/api/ai/coach-goal", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ goalId }),
-        });
-        if (!r.ok) throw new Error("coach failed");
+        // scattered-components slice · goal coaching via
+        // trpc.ai.coachGoal (the same `runCoachGoal` service the legacy
+        // POST /api/ai/coach-goal called). The procedure appends the
+        // coach entry to LifeGoal.coachLog server-side; `load()` then
+        // re-reads the goal so the new "Nick's read" renders. A missing
+        // goal throws a NOT_FOUND TRPCError → the catch surfaces the
+        // "Coach failed" toast, same as the legacy !r.ok path.
+        await coachGoalMut.mutateAsync({ goalId });
         setExpandedGoal(goalId);
         toast.success("Nick has a read");
         await load();
@@ -471,7 +474,7 @@ export function GoalBoard() {
       }
       setCoachingId(null);
     },
-    [load]
+    [load, coachGoalMut]
   );
 
   return (

@@ -24,7 +24,7 @@
 
 import { useEffect } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 interface TelemetryPayload {
   kind: "error" | "unhandledrejection" | "boundary";
   message: string;
@@ -79,17 +79,18 @@ function shouldReport(p: TelemetryPayload): boolean {
 async function post(payload: TelemetryPayload): Promise<void> {
   if (!shouldReport(payload)) return;
   try {
-    // credentials: include so the owner-auth gate on /api/errors is
-    // satisfied by the session cookie.
-    await authedFetch("/api/errors", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      // keepalive allows the POST to survive page unload — catches
-      // errors that fire right before nav.
-      keepalive: true,
-    });
+    // scattered-components REST→tRPC slice (2026-05-22) · migrated off
+    // `authedFetch("/api/errors")` onto `trpcVanilla.system.recordClientError`.
+    // ClientErrorTelemetry is mounted once at the root layout — its
+    // `post()` is a module-level function, not a React render path, so
+    // it uses the vanilla (non-hook) tRPC client. The procedure
+    // delegates to the same `recordClientError` service the legacy REST
+    // route also calls. The session cookie rides along automatically
+    // (`credentials: "same-origin"`). The legacy `keepalive` flag (POST
+    // survives page unload) has no tRPC equivalent — acceptable, since
+    // the dedupe + rate-cap mean at most a handful of unflushed
+    // errors-right-before-nav, and the next mount re-reports the loop.
+    await trpcVanilla.system.recordClientError.mutate(payload);
   } catch {
     // swallow — telemetry that itself fails should never be visible.
   }
