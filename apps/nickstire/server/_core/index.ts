@@ -227,6 +227,13 @@ async function startServer() {
   app.use("/api/trpc/payments.createPaymentIntent", formLimiter);
   app.use("/api/trpc/payments.confirmPayment", formLimiter);
 
+  // Tire-order endpoints — placeOrder writes DB rows + fires emails,
+  // createCheckout burns Stripe API quota per call, confirmCheckout
+  // retrieves a Stripe session per call. Same tight per-form ceiling.
+  app.use("/api/trpc/gatewayTire.placeOrder", formLimiter);
+  app.use("/api/trpc/gatewayTire.createCheckout", formLimiter);
+  app.use("/api/trpc/gatewayTire.confirmCheckout", formLimiter);
+
   // v1.7 audit follow-up · defense-in-depth on the 4 statenour-gated
   // AI endpoints. v1.7 added statenourAuth middleware (closing the
   // unauth hole that let anyone burn OpenAI tokens). This adds a
@@ -1122,9 +1129,17 @@ ${urls.join("\n")}
       return res.sendStatus(200);
     }
 
+    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+    if (!stripeSecretKey) {
+      // Misconfigured: webhook secret set but no API key. Ack so Stripe
+      // doesn't retry a request that can never succeed — and log loudly.
+      serverLog.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET is set but STRIPE_SECRET_KEY is missing");
+      return res.sendStatus(200);
+    }
+
     try {
       const { default: Stripe } = await import("stripe");
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      const stripe = new Stripe(stripeSecretKey);
       const event = stripe.webhooks.constructEvent(req.body, sig || "", webhookSecret);
 
       if (event.type === "payment_intent.succeeded") {
