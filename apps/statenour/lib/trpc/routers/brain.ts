@@ -1,5 +1,6 @@
 /**
- * lib/trpc/routers/brain.ts · Phase UU (2026-05-19 AM).
+ * lib/trpc/routers/brain.ts · Phase UU (2026-05-19 AM) · extended
+ * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice).
  *
  * Brain-domain procedures · the 8th domain router (nick · operator ·
  * system · chat · browser · task · journal · brain). Wraps the
@@ -7,8 +8,13 @@
  * health · identity-trajectory have minimal authedFetch · they can
  * migrate in a future UU+ phase.
  *
- * Delegates to `lib/services/brain-wisdom.ts` · the legacy REST
- * routes call the same module · drift impossible.
+ * Phase UU.2 adds two brain-domain reads the /settings surfaces touch
+ * (the SettingsPage SystemInfo memory count + the SystemDataCards
+ * memory-of-the-day card) — they're brain reads, so they live here
+ * rather than in a thin `settings` router.
+ *
+ * Delegates to shared services · the legacy REST routes call the same
+ * modules · drift impossible.
  */
 
 import { z } from "zod";
@@ -36,6 +42,9 @@ import {
   PinContentRequiredError,
   PinContentTooLongError,
 } from "@/lib/services/pins";
+import { brainMemory } from "@/lib/brain/memory-manager";
+import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
+import { prisma } from "@/lib/prisma";
 
 export const brainRouter = router({
   /**
@@ -223,4 +232,54 @@ export const brainRouter = router({
   deletePin: operatorProcedure
     .input(z.object({ id: z.string().min(1).max(64) }))
     .mutation(async ({ input }) => deletePin(input)),
+
+  // ──────────────── Settings surfaces (UU.2) ────────────────
+
+  /**
+   * Phase UU.2 · owner-only · brain health + memory stats. Replaces
+   * GET /api/brain/status · assembles from the SAME three sources the
+   * REST route uses (`brainMemory.getStatus` · recent PatternDetection
+   * rows · enabled AutomationRule rows) · drift impossible.
+   *
+   * The SettingsPage SystemInfo card reads only the memory count off
+   * this · with the typed tRPC shape the call-site now reads
+   * `data.memories.total` (where the count genuinely lives) rather
+   * than the top-level `data.total` the legacy code read — that read
+   * was always `undefined` (the route nests the count under
+   * `memories`), so the memory line silently never populated. The
+   * endpoint payload is unchanged; only the client read is corrected.
+   */
+  status: operatorProcedure.query(async () => {
+    const [memories, recentPatterns, automationRules] = await Promise.all([
+      brainMemory.getStatus(),
+      prisma.patternDetection.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { patternName: true, date: true, evidence: true },
+      }),
+      prisma.automationRule.findMany({
+        where: { enabled: true },
+        select: { name: true, priority: true, lastFired: true, fireCount: true },
+        orderBy: { priority: "asc" },
+      }),
+    ]);
+    return {
+      memories,
+      recentPatterns,
+      automationRules: {
+        active: automationRules.length,
+        rules: automationRules,
+      },
+    };
+  }),
+
+  /**
+   * Phase UU.2 · owner-only · the one memory worth surfacing today
+   * (weighted-random over high-confidence curated rows · idempotent
+   * for the day). Replaces GET /api/brain/memory-of-the-day ·
+   * delegates to the shared `memory-of-the-day` service. Returns the
+   * report at the top level — the legacy route wrapped it in
+   * `{ data }`; the tRPC query hands it back unwrapped.
+   */
+  memoryOfTheDay: operatorProcedure.query(async () => getMemoryOfTheDay()),
 });

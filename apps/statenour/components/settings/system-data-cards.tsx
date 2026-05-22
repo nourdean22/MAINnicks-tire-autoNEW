@@ -14,45 +14,21 @@
  * data into LIVE-and-readable.
  */
 
-import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Activity, AlertTriangle, Gauge, Sparkles } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 // ── Health trend (7-day sparkline) ────────────────────────────
-interface HealthTrendPoint {
-  date: string;
-  overall: "healthy" | "warning" | "critical";
-  warning: number;
-  critical: number;
-}
-
-interface HealthTrendData {
-  series: HealthTrendPoint[];
-  summary: {
-    avgWarnings: number;
-    peakWarnings: number;
-    recoveryDays: number;
-    direction: "improving" | "degrading" | "stable";
-    latestOverall: string;
-  };
-}
-
+// Phase UU.2 (2026-05-22) · REST→tRPC · the 7-day trend is now a typed
+// query (system.healthTrend). The legacy route wrapped its report in
+// `{ data }`; the tRPC procedure returns it unwrapped, so `data` here
+// is the report object directly. Silent-when-empty is preserved: the
+// card returns null while loading and when the series is empty.
 function HealthTrendCard() {
-  const [data, setData] = useState<HealthTrendData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const trendQuery = trpc.system.healthTrend.useQuery({ range: "7d" });
+  const data = trendQuery.data ?? null;
 
-  useEffect(() => {
-    authedFetch("/api/system/health-trend?range=7d")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        setData(j?.data ?? null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading || !data || data.series.length === 0) return null;
+  if (trendQuery.isPending || !data || data.series.length === 0) return null;
 
   const max = Math.max(
     1,
@@ -152,38 +128,19 @@ interface ErrorRow {
 }
 
 function ErrorRateCard() {
-  const [worst, setWorst] = useState<ErrorRow[]>([]);
-  const [summary, setSummary] = useState<{
-    totalErrors: number;
-    overallErrorRate: number;
-  } | null>(null);
-  // v10.0.104 audit fix · loading state matches the sibling
-  // HealthTrendCard. Pre-fix, "loading" and "no errors" rendered
-  // identically (both null) so any fetch failure was indistinguishable
-  // from a clean run + the silent .catch() left no breadcrumb.
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    authedFetch("/api/system/error-rate-by-route?range=24h")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (j?.data) {
-          setSummary(j.data.summary);
-          const withErrors = (j.data.worstByScore as ErrorRow[]).filter(
-            (r) => r.errors > 0,
-          );
-          setWorst(withErrors.slice(0, 5));
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.warn("[ErrorRateCard] fetch failed", err);
-        setLoading(false);
-      });
-  }, []);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · system.errorRateByRoute. The
+  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
+  // returns it unwrapped. Loading + no-errors both collapse the card
+  // (silent-when-empty), matching the prior behaviour exactly.
+  const errorQuery = trpc.system.errorRateByRoute.useQuery({ range: "24h" });
+  const summary = errorQuery.data?.summary ?? null;
+  const worst: ErrorRow[] = (errorQuery.data?.worstByScore ?? [])
+    .filter((r) => r.errors > 0)
+    .slice(0, 5);
 
   // Silent when loading or no errors — don't clutter
-  if (loading || !summary || summary.totalErrors === 0) return null;
+  if (errorQuery.isPending || !summary || summary.totalErrors === 0)
+    return null;
 
   return (
     <GlassCard>
@@ -236,28 +193,14 @@ interface QuotaProbe {
 }
 
 function IntegrationQuotasCard() {
-  const [probes, setProbes] = useState<QuotaProbe[]>([]);
-  const [summary, setSummary] = useState<{
-    total: number;
-    configured: number;
-    missing: number;
-    errors: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · system.integrationQuotas. The
+  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
+  // returns it unwrapped. Silent-when-empty preserved.
+  const quotasQuery = trpc.system.integrationQuotas.useQuery();
+  const probes: QuotaProbe[] = quotasQuery.data?.probes ?? [];
+  const summary = quotasQuery.data?.summary ?? null;
 
-  useEffect(() => {
-    authedFetch("/api/system/integration-quotas")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        if (!j?.data) return;
-        setProbes(j.data.probes ?? []);
-        setSummary(j.data.summary ?? null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading || !summary) return null;
+  if (quotasQuery.isPending || !summary) return null;
 
   return (
     <GlassCard>
@@ -305,36 +248,17 @@ function IntegrationQuotasCard() {
 }
 
 // ── Memory of the day (curated daily pick) ────────────────────
-interface MotdMemory {
-  id: string;
-  category: string;
-  key: string;
-  content: string;
-  confidence: number;
-  ageDays: number;
-}
-interface MotdData {
-  dayKey: string;
-  pickedAt?: string;
-  memory: MotdMemory | null;
-  cached?: boolean;
-}
-
+// The MotdMemory / MotdData shapes are now inferred from the
+// brain.memoryOfTheDay tRPC procedure return type — no hand-mirrored
+// interfaces needed (Phase UU.2).
 function MemoryOfDayCard() {
-  const [data, setData] = useState<MotdData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · brain.memoryOfTheDay. The
+  // legacy route wrapped its payload in `{ data }`; the tRPC procedure
+  // returns it unwrapped. Silent-when-empty preserved.
+  const motdQuery = trpc.brain.memoryOfTheDay.useQuery();
+  const data = motdQuery.data ?? null;
 
-  useEffect(() => {
-    authedFetch("/api/brain/memory-of-the-day")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((j) => {
-        setData(j?.data ?? null);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
-
-  if (loading || !data?.memory) return null;
+  if (motdQuery.isPending || !data?.memory) return null;
   const m = data.memory;
   const ageStr =
     m.ageDays === 0 ? "today" : m.ageDays === 1 ? "yesterday" : `${m.ageDays}d ago`;
