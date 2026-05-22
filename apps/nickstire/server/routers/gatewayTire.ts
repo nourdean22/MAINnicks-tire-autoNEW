@@ -737,10 +737,15 @@ export const gatewayTireRouter = router({
           if (setting) laborRate = parseFloat(setting.value);
         } catch (e) { log.warn("[gatewayTire:placeOrder] labor rate fetch failed, using default $115:", e); }
 
-        const installHours = 0.7; // Mount + balance from Auto Labor Guide
-        const laborCostCents = Math.round(installHours * laborRate * 100);
+        // Install is FREE — the value is baked into the tire price (100%
+        // markup), so the invoice carries no labor charge. Total = tires
+        // + 8% Ohio sales tax. On payment, finalizeTireOrderPayment bumps
+        // the invoice total to the exact amount Stripe collected (which
+        // also includes the 2% card fee), so the invoice always matches
+        // the cash actually taken.
+        const installHours = 0.7; // mount + balance — recorded, billed at $0
+        const laborCostCents = 0;
         const partsCostCents = totalAmount; // tires are "parts"
-        // Ohio sales tax: parts/materials only, NOT labor
         const taxRate = 0.08;
         const taxAmountCents = Math.round(partsCostCents * taxRate);
         const grandTotalCents = laborCostCents + partsCostCents + taxAmountCents;
@@ -968,6 +973,38 @@ export const gatewayTireRouter = router({
       return { url: result.url };
     }),
 
+  // ─── PUBLIC: Confirm checkout on return (webhook fallback) ──
+  // Called when the customer lands back on /tires?paid=1. Verifies the
+  // Stripe Checkout Session directly and finalises the order — so a paid
+  // order is never left "unpaid" if the webhook is slow or misconfigured.
+  // Safe: only finalises when Stripe itself reports the session paid.
+  confirmCheckout: publicProcedure
+    .input(z.object({ orderNumber: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { ok: false };
+
+      const [order] = await d.select()
+        .from(tireOrders)
+        .where(eq(tireOrders.orderNumber, input.orderNumber))
+        .limit(1);
+
+      if (!order) return { ok: false };
+      if (order.paymentStatus === "paid") return { ok: true, alreadyPaid: true };
+      if (!order.stripeSessionId) return { ok: false };
+
+      const { getCheckoutSessionStatus, finalizeTireOrderPayment } = await import("../services/payments");
+      const status = await getCheckoutSessionStatus(order.stripeSessionId);
+      if (!status.paid) return { ok: false };
+
+      await finalizeTireOrderPayment({
+        tireOrderNumber: order.orderNumber,
+        invoiceNumber: order.invoiceNumber || undefined,
+        amountCents: status.amountTotalCents,
+      });
+      return { ok: true };
+    }),
+
   // ─── PUBLIC: Check order status ────────────────────
   checkOrder: publicProcedure
     .input(z.object({
@@ -986,6 +1023,8 @@ export const gatewayTireRouter = router({
         tireSize: tireOrders.tireSize,
         quantity: tireOrders.quantity,
         totalAmount: tireOrders.totalAmount,
+        paymentStatus: tireOrders.paymentStatus,
+        paidAt: tireOrders.paidAt,
         expectedDelivery: tireOrders.expectedDelivery,
         installationDate: tireOrders.installationDate,
         createdAt: tireOrders.createdAt,

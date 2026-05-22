@@ -138,6 +138,29 @@ export async function createTireOrderCheckout(params: {
 }
 
 /**
+ * Retrieve a Stripe Checkout Session's payment status. Used by the
+ * confirm-on-return fallback (gatewayTire.confirmCheckout) so a paid
+ * order is never stuck "unpaid" if the webhook is slow or misconfigured.
+ */
+export async function getCheckoutSessionStatus(sessionId: string): Promise<{
+  paid: boolean;
+  amountTotalCents: number;
+}> {
+  const stripe = await getStripe();
+  if (!stripe) return { paid: false, amountTotalCents: 0 };
+  try {
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    return {
+      paid: session.payment_status === "paid",
+      amountTotalCents: session.amount_total || 0,
+    };
+  } catch (err) {
+    log.warn("Checkout session retrieve failed:", err);
+    return { paid: false, amountTotalCents: 0 };
+  }
+}
+
+/**
  * Finalise a paid tire order — idempotent. Called from the Stripe webhook
  * on BOTH checkout.session.completed and payment_intent.succeeded, so the
  * order completes regardless of which events the endpoint is subscribed
@@ -168,7 +191,10 @@ export async function finalizeTireOrderPayment(params: {
 
   const invNum = params.invoiceNumber || order.invoiceNumber || undefined;
   if (invNum) {
-    await d.update(invoices).set({ paymentStatus: "paid", paymentMethod: "card" })
+    // Align the invoice total to what Stripe actually collected (tires +
+    // tax + card fee) — the placement-time invoice didn't know the fee.
+    await d.update(invoices)
+      .set({ paymentStatus: "paid", paymentMethod: "card", totalAmount: params.amountCents })
       .where(eq(invoices.invoiceNumber, invNum));
   }
 

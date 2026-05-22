@@ -760,6 +760,9 @@ function OrderTracker() {
             <div>
               <p className="text-sm font-medium text-foreground">{order.quantity}x {order.tireBrand} {order.tireModel}</p>
               <p className="text-xs text-muted-foreground">Size: {order.tireSize} — Total: ${order.totalAmount.toFixed(2)}</p>
+              <p className={`text-xs font-medium mt-0.5 ${order.paymentStatus === "paid" ? "text-green-400" : "text-amber-400"}`}>
+                {order.paymentStatus === "paid" ? "✓ Paid" : "Payment pending"}
+              </p>
             </div>
             <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
               {order.statusLabel}
@@ -810,6 +813,10 @@ export default function TireFinder() {
   // Get the package details
   const { data: packageData } = trpc.gatewayTire.getPackage.useQuery();
 
+  // Confirm-on-return fallback — finalizes a paid order if the Stripe
+  // webhook hasn't landed yet (see the ?paid=1 effect below).
+  const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
+
   const handleSearch = () => {
     if (searchInput.trim().length < 3) {
       toast.error("Please enter a valid tire size (e.g. 215/60R16).");
@@ -831,6 +838,10 @@ export default function TireFinder() {
     const paid = params.get("paid");
     const order = params.get("order");
     if (paid === "1" && order) {
+      // Webhook is the primary path; this is the fallback so a paid order
+      // is never stuck "unpaid" if the webhook is slow or misconfigured.
+      // Idempotent server-side — safe even if the webhook also fires.
+      confirmCheckout.mutate({ orderNumber: order });
       toast.success(`Payment received — order ${order} is confirmed. We'll be in touch about installation.`);
     } else if (paid === "0" && order) {
       toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
