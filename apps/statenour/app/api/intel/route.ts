@@ -12,24 +12,24 @@
  * v10.0.529.106 · Wave 79 · migrated to apiHandler. Consumer reads
  * top-level `industry` key · returning raw NextResponse preserves
  * shape. Wrapper still provides rate-limit, auth, audit trace IDs.
+ *
+ * Cross-domain residuals slice (2026-05-22) · the recall moved to
+ * `lib/services/industry-intel.getIndustryIntel` so this route AND the
+ * `brain.industryIntel` tRPC procedure call the SAME function · drift
+ * structurally impossible.
  */
 
 import { NextResponse } from "next/server";
 import { apiHandler } from "@/lib/utils/http";
-import { recallIndustryIntel } from "@/lib/automotive/industry-monitor";
+import { getIndustryIntel } from "@/lib/services/industry-intel";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const GET = apiHandler(
   async () => {
-    const industry = await recallIndustryIntel({ limit: 30, daysBack: 14 });
-
-    return NextResponse.json({
-      ok: true,
-      generatedAt: new Date().toISOString(),
-      industry,
-    });
+    const view = await getIndustryIntel();
+    return NextResponse.json(view);
   },
   { auth: "owner" },
 );

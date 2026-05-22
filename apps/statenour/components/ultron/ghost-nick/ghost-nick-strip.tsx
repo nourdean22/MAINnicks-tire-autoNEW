@@ -15,14 +15,13 @@
  * user having to do anything. Force-recompute button triggers POST.
  */
 
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { DismissButton } from "@/components/ui/dismiss-button";
 import { cn } from "@/lib/utils";
 import { Loader2, RefreshCw, Ghost, Target } from "lucide-react";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface Prediction {
   task_id: string | null;
   title: string;
@@ -53,33 +52,51 @@ interface Payload {
 }
 
 export function GhostNickStrip() {
-  const { data, loading, refetch } = useUltronFetch<Payload>("/api/brain/ghost-predict", {
-    ttlMs: 900_000, // 15 min
-    pollMs: 900_000,
+  // Cross-domain residuals slice (2026-05-22) · migrated off
+  // `useUltronFetch("/api/brain/ghost-predict")` + two `authedFetch`
+  // POST/PATCH calls onto `trpc.brain.ghostPredict` (query · 15-min
+  // refetchInterval) + `recomputeGhostPredict` / `dismissGhostPrediction`
+  // (mutations). The recompute + dismiss handlers invalidate the query
+  // so the strip refreshes off the same cache entry.
+  const utils = trpc.useUtils();
+  const query = trpc.brain.ghostPredict.useQuery(undefined, {
+    refetchInterval: 900_000, // 15 min · matches the legacy pollMs
+    refetchOnWindowFocus: false,
   });
-  const [recomputing, setRecomputing] = useState(false);
+  const data = query.data;
+  const loading = query.isPending;
+
+  const recomputeMutation = trpc.brain.recomputeGhostPredict.useMutation({
+    onSettled: () => {
+      void utils.brain.ghostPredict.invalidate();
+    },
+  });
+  const dismissMutation = trpc.brain.dismissGhostPrediction.useMutation({
+    onSettled: () => {
+      void utils.brain.ghostPredict.invalidate();
+    },
+  });
 
   const recompute = useCallback(async () => {
-    setRecomputing(true);
     try {
-      await authedFetch("/api/brain/ghost-predict", { method: "POST" });
-      refetch();
-    } finally {
-      setRecomputing(false);
+      await recomputeMutation.mutateAsync();
+    } catch {
+      // best-effort · the strip stays on its last-known bundle
     }
-  }, [refetch]);
+  }, [recomputeMutation]);
 
   const dismiss = useCallback(
     async (taskIdOrTitle: string) => {
-      await authedFetch("/api/brain/ghost-predict", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "dismiss", taskIdOrTitle }),
-      }).catch(() => {});
-      refetch();
+      try {
+        await dismissMutation.mutateAsync({ taskIdOrTitle });
+      } catch {
+        // best-effort · a no-match dismiss leaves the strip unchanged
+      }
     },
-    [refetch],
+    [dismissMutation],
   );
+
+  const recomputing = recomputeMutation.isPending;
 
   const bundle = data?.bundle;
   const accuracy = data?.accuracy;

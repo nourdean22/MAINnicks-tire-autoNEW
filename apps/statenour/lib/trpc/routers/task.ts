@@ -63,6 +63,11 @@ import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
 import { taskUpdateSchema } from "@/lib/validators/tasks";
 import { getTaskSession, logSessionEvent } from "@/lib/services/task-session";
+// Cross-domain residuals slice (2026-05-22) · the one-shot undo-token
+// consumer the chat ToolResultCard's undo affordance fires. The shared
+// service is also called by the legacy POST /api/undo/[token] route —
+// drift structurally impossible.
+import { consumeUndoToken } from "@/lib/services/undo-token";
 
 const TaskEventKindSchema = z.enum([
   "created",
@@ -851,6 +856,38 @@ export const taskRouter = router({
           all: input.all,
           goalId: input.goalId,
         });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Cross-domain residuals slice (2026-05-22) · owner-only · consume a
+   * single-use undo token (the chat ToolResultCard's 30s undo
+   * affordance). Replaces POST /api/undo/[token] · delegates to the
+   * shared `undo-token.consumeUndoToken` service the REST route also
+   * calls · drift impossible.
+   *
+   * Routed to the `task` domain · the undo-able tools are snoozeTask +
+   * archiveGoal (a goal is a task-domain sibling · the `task` router
+   * already owns the related mutations). Idempotent · a second consume
+   * resolves to `{ ok, alreadyUndone }`. The route carried the token as
+   * a path param; tRPC has no path, so it rides in the input. A
+   * malformed token → ServiceError(400) → BAD_REQUEST; a not-found /
+   * expired token → ServiceError(404) → NOT_FOUND · both transports
+   * reject identically.
+   */
+  undo: operatorProcedure
+    .input(z.object({ token: z.string().min(8).max(128) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await consumeUndoToken(input.token);
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({

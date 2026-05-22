@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 const STORAGE_KEY = "nour:hq-last-visit";
 const SETTLE_MS = 5_000;
 
@@ -76,17 +76,24 @@ export function SinceLastVisitCard({ limit = 50 }: Props) {
   const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
   const [cursor, setCursor] = useState<number>(() => readCursor());
   const [error, setError] = useState<string | null>(null);
+  // Cross-domain residuals slice (2026-05-22) · migrated off
+  // `authedFetch("/api/audit/entity?firehose=1")` onto
+  // `trpc.brain.activityStream`. The read is a one-shot on mount (NOT a
+  // render-time query · the cursor diff is computed against a localStorage
+  // timestamp) so it fires imperatively via `utils.brain.activityStream
+  // .fetch()`. The procedure returns the `{ count, entries, mode }` view
+  // directly · the legacy `j.entries` envelope read is preserved.
+  const utils = trpc.useUtils();
 
   const load = useCallback(async () => {
     try {
-      const r = await authedFetch(`/api/audit/entity?firehose=1&limit=${limit}`);
-      const j = (await r.json()) as { entries?: ActivityEntry[] };
-      setEntries(Array.isArray(j.entries) ? j.entries : []);
+      const view = await utils.brain.activityStream.fetch({ limit });
+      setEntries(Array.isArray(view.entries) ? view.entries : []);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     }
-  }, [limit]);
+  }, [limit, utils]);
 
   useEffect(() => {
     void load();

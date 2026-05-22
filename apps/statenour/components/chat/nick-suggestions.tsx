@@ -36,7 +36,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 import { cn } from "@/lib/utils";
 import {
@@ -116,8 +116,6 @@ const SEVERITY_RING: Record<NickSuggestion["severity"], string> = {
 };
 
 export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
-  const [suggestions, setSuggestions] = useState<NickSuggestion[] | null>(null);
-  const [error, setError] = useState(false);
   // v10.0.529.96 · Wave 40 · slim mode · show ONE chip by default + "+ N more"
   // pill that expands the rest. Operator feedback: "obnoxiously big · don't
   // even think it's that smart." We keep the smart aggregator but surface
@@ -126,10 +124,28 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // v10.0.529.98 · suggestion-loop · client-side dismiss state. When the
   // operator clicks the X on a chip, we fire `event=dismissed` to the
   // suggestion-loop API and hide the chip locally. Server-side filtering
-  // happens on next /api/nick/suggest fetch · a future improve-agent pass
-  // can read these dismissal signals to surface less-noisy suggestions.
+  // happens on the next nick.suggestions fetch · a future improve-agent
+  // pass can read these dismissal signals to surface less-noisy chips.
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const router = useRouter();
+
+  // Cross-domain residuals slice (2026-05-22) · migrated off
+  // `authedFetch("/api/nick/suggest")` onto `trpc.nick.suggestions`.
+  // The legacy `cache: "no-store"` is preserved via `staleTime: 0`; the
+  // 60s interval is React Query's `refetchInterval`. The data-change bus
+  // (below) invalidates the query so suggestions refresh after a write.
+  const utils = trpc.useUtils();
+  const query = trpc.nick.suggestions.useQuery(undefined, {
+    refetchInterval: 60_000,
+    staleTime: 0,
+    refetchOnWindowFocus: false,
+  });
+
+  // Cross-domain residuals slice · the two suggestion-loop POSTs migrated
+  // off `authedFetch("/api/brain/suggestion-loop")` onto
+  // `trpc.brain.recordSuggestionSignal`. Fire-and-forget · never let
+  // signal capture break the seed flow.
+  const signalMutation = trpc.brain.recordSuggestionSignal.useMutation();
 
   // v10.0.529.92 · Wave 36 · standalone fallback when no onSeed
   // provided. Navigates to /chat?q=<prompt>&suggKind=X&suggId=Y so
@@ -138,46 +154,35 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
   // works on /brain · /journal · anywhere without a composer.
   //
   // v10.0.529.97 · suggestion-loop · fire the "acted" supervised
-  // signal to /api/brain/suggestion-loop before seeding the input.
-  // Fire-and-forget · don't block the UI on the POST. This closes
-  // the Ilya feedback loop · every chip tap becomes a training
-  // example for improve-agent + future DPO data.
+  // signal before seeding the input. Fire-and-forget · don't block the
+  // UI on the mutation. This closes the Ilya feedback loop · every chip
+  // tap becomes a training example for improve-agent + future DPO data.
   const recordTap = useCallback(
-    (meta: { kind: string; id: string }) => {
-      void authedFetch("/api/brain/suggestion-loop", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "action",
-          suggestionId: meta.id,
-          suggestionKind: meta.kind,
-          event: "acted",
-        }),
-      }).catch(() => {
-        // Best-effort · never let signal capture break the seed flow.
+    (meta: { kind: NickSuggestion["kind"]; id: string }) => {
+      signalMutation.mutate({
+        type: "action",
+        suggestionId: meta.id,
+        suggestionKind: meta.kind,
+        event: "acted",
       });
     },
-    [],
+    [signalMutation],
   );
 
   const recordDismiss = useCallback(
-    (meta: { kind: string; id: string }) => {
-      void authedFetch("/api/brain/suggestion-loop", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "action",
-          suggestionId: meta.id,
-          suggestionKind: meta.kind,
-          event: "dismissed",
-        }),
-      }).catch(() => {});
+    (meta: { kind: NickSuggestion["kind"]; id: string }) => {
+      signalMutation.mutate({
+        type: "action",
+        suggestionId: meta.id,
+        suggestionKind: meta.kind,
+        event: "dismissed",
+      });
     },
-    [],
+    [signalMutation],
   );
 
   const handleSeed = useCallback(
-    (prompt: string, meta?: { kind: string; id: string }) => {
+    (prompt: string, meta?: { kind: NickSuggestion["kind"]; id: string }) => {
       if (meta) recordTap(meta);
       if (onSeed) {
         onSeed(prompt, meta);
@@ -193,50 +198,33 @@ export function NickSuggestions({ onSeed }: NickSuggestionsProps) {
     [onSeed, router, recordTap],
   );
 
-  const load = useCallback(async () => {
-    try {
-      const r = await authedFetch("/api/nick/suggest", { cache: "no-store" });
-      if (!r.ok) {
-        setError(true);
-        return;
-      }
-      const body = await r.json();
-      const payload = (body?.data ?? body) as { suggestions: NickSuggestion[] };
-      setSuggestions(payload.suggestions ?? []);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, []);
-
   useEffect(() => {
-    void load();
-    const id = setInterval(load, 60_000);
     // v10.0.529.86 · Wave 30 · subscribe to wider domain set so
     // suggestions refresh when Nick (or any surface) writes to
-    // missions / brain / commitments / score. The aggregator at
-    // /api/nick/suggest reads from all of these · staying narrow
-    // (tasks+goals) left chips stale after pinMemory / addCommitment.
+    // missions / brain / commitments / score. The aggregator reads from
+    // all of these · staying narrow (tasks+goals) left chips stale after
+    // pinMemory / addCommitment.
     const off = onDataChanged(
       ["tasks", "goals", "missions", "brain", "commitments", "score"],
       () => {
-        setTimeout(() => void load(), 500);
+        setTimeout(() => void utils.nick.suggestions.invalidate(), 500);
       },
     );
     return () => {
-      clearInterval(id);
       off();
     };
-  }, [load]);
+  }, [utils]);
 
   // Initial · before first fetch resolves, render nothing (silent · no shimmer
   // strip · the chip itself is the affordance). v10.0.529.96 · Wave 40 ·
   // slim mode · the proactive layer should NOT announce its own loading.
-  if (suggestions === null) {
+  if (query.data === undefined) {
     return null;
   }
 
-  if (error || suggestions.length === 0) return null;
+  if (query.isError) return null;
+  const suggestions = query.data.suggestions;
+  if (suggestions.length === 0) return null;
 
   // v10.0.529.96 · Wave 40 · slim mode · ONE chip + tap-to-expand.
   // The aggregator already returns severity-sorted suggestions · the
