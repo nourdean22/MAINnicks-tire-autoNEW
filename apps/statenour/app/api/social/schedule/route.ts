@@ -7,14 +7,23 @@
  * queue instead of going live immediately. Buffer holds, scheduled
  * time fires, post lands.
  *
+ * misc-pages slice (2026-05-22 · legacy-modernizer REST→tRPC) · the
+ * GET (connection + profiles) and POST (schedule + audit) moved to the
+ * shared `lib/services/social-actions` module the
+ * `operator.socialSchedule` / `operator.scheduleSocialPost` tRPC
+ * procedures also call · drift structurally impossible. The route
+ * stays mounted as the rollback path.
+ *
  * Auth: session.
  */
 
 import { NextResponse } from "next/server";
-import { scheduleBufferPost, listBufferProfiles, checkBufferConnection } from "@/lib/social/buffer";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
-import { sanitizeError } from "@/lib/utils/sanitize-error";
+import {
+  getSocialSchedule,
+  scheduleSocialPost,
+  SocialScheduleInputError,
+} from "@/lib/services/social-actions";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,24 +39,7 @@ interface ScheduleBody {
 
 export async function GET(req: Request) {
   try { await requireSession(req); } catch { return NextResponse.json({ error: "unauthorized" }, { status: 401 }); }
-
-  // GET returns connection status + connected profiles for the schedule UI
-  try {
-    const [connection, profiles] = await Promise.all([
-      checkBufferConnection(),
-      listBufferProfiles().catch(() => []),
-    ]);
-    return NextResponse.json({
-      ok: true,
-      connection,
-      profiles,
-    });
-  } catch (err) {
-    return NextResponse.json({
-      ok: false,
-      error: sanitizeError(err),
-    });
-  }
+  return NextResponse.json(await getSocialSchedule());
 }
 
 export async function POST(req: Request) {
@@ -60,47 +52,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  if (!body.text || body.text.trim().length === 0) {
-    return NextResponse.json({ error: "missing_text" }, { status: 400 });
-  }
-
-  // Resolve relative URL like /api/social/publish does
-  let absoluteImageUrl: string | undefined = body.imageUrl;
-  if (absoluteImageUrl && absoluteImageUrl.startsWith("/")) {
-    const host = process.env.NEXT_PUBLIC_APP_URL?.trim()
-      || process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()
-      || (req.headers.get("host") ? `https://${req.headers.get("host")}` : "");
-    if (host) {
-      absoluteImageUrl = host.startsWith("http")
-        ? `${host}${body.imageUrl}`
-        : `https://${host}${body.imageUrl}`;
-    }
-  }
-
-  const result = await scheduleBufferPost({
-    text: body.text,
-    imageUrl: absoluteImageUrl,
-    linkUrl: body.linkUrl,
-    profileIds: body.profileIds,
-    scheduledAt: body.scheduledAt,
-    shareNow: body.shareNow,
-  });
-
-  void prisma.auditEvent.create({
-    data: {
-      actor: "social-schedule",
-      eventType: result.ok ? "scheduled_buffer" : "schedule_buffer_failed",
-      detail: result.ok
-        ? `Queued ${result.bufferUpdateIds.length} updates · for ${result.scheduledFor}`
-        : `Buffer schedule failed: ${result.error}`,
-      payload: {
-        bufferUpdateIds: result.bufferUpdateIds,
-        scheduledFor: result.scheduledFor,
-        error: result.error,
-        text: body.text.slice(0, 500),
+  try {
+    const result = await scheduleSocialPost(
+      {
+        text: body.text ?? "",
+        imageUrl: body.imageUrl,
+        linkUrl: body.linkUrl,
+        profileIds: body.profileIds,
+        scheduledAt: body.scheduledAt,
+        shareNow: body.shareNow,
       },
-    },
-  }).catch(() => {});
-
-  return NextResponse.json(result);
+      req.headers.get("host") ?? undefined,
+    );
+    return NextResponse.json(result);
+  } catch (err) {
+    if (err instanceof SocialScheduleInputError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    throw err;
+  }
 }

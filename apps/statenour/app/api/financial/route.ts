@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { today } from "@/lib/utils/datetime";
+import { getFinancialSnapshots } from "@/lib/services/financial-snapshot";
 import { z } from "zod";
 
 // v10.0.37 — input validation. Pre-fix req.json() flowed straight
@@ -23,13 +24,11 @@ const financialPostSchema = z.object({
 // (net worth, checking, savings, business revenue, take-home, debt) to
 // any unauthenticated caller. Pre-push gate is mutating-only so this
 // passed the gate while exposing operator finances.
+// misc-pages slice (2026-05-22) · the read now delegates to the
+// shared `getFinancialSnapshots` service the `operator.financialSnapshot`
+// tRPC procedure also calls · drift structurally impossible.
 export const GET = apiHandler(async () => {
-  const snapshots = await prisma.financialSnapshot.findMany({
-    orderBy: { date: "desc" },
-    take: 12,
-  });
-  const latest = snapshots[0] || null;
-  return { snapshots, latest };
+  return getFinancialSnapshots();
 }, { auth: "owner" });
 
 export const POST = apiHandler(async (req) => {

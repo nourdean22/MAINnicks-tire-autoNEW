@@ -64,6 +64,11 @@ import {
 import { buildSuggestions } from "@/lib/services/chat-suggestions";
 import { buildAutocomplete } from "@/lib/services/chat-autocomplete";
 import { inspectPrompt } from "@/lib/services/chat-prompt-inspect";
+import {
+  forkConversation,
+  ForkSourceNotFoundError,
+  ForkInvalidPivotError,
+} from "@/lib/services/chat-fork";
 
 export const chatRouter = router({
   /**
@@ -581,4 +586,44 @@ export const chatRouter = router({
   inspectPrompt: operatorProcedure
     .input(z.object({ fresh: z.boolean().optional() }))
     .query(async ({ input }) => inspectPrompt({ fresh: input.fresh })),
+
+  /**
+   * misc-pages slice (2026-05-22 · legacy-modernizer REST→tRPC) ·
+   * owner-only · fork a conversation up to (and including) a pivot
+   * message — a new ChatConversation inheriting every message before
+   * the pivot. Powers the fork-from-message control on the /chat page.
+   *
+   * Delegates to `lib/services/chat-fork.forkConversation` shared
+   * service · legacy POST /api/chat/fork calls the same function ·
+   * drift impossible. (The chat router's header note that "fork/edit
+   * mutations stay on REST" predates Phase JJ, which already migrated
+   * edit via `editMessage` — this slice closes the fork half.)
+   *
+   * Modeled as a `.mutation()` · genuine state change (a new
+   * conversation + copied messages + an AuditEvent). Returns
+   * `{ forkId, title, messageCount }`. Edge cases · missing source →
+   * NOT_FOUND · pivot not in source / no messages → BAD_REQUEST · the
+   * same 404 / 400 the REST route returned.
+   */
+  fork: operatorProcedure
+    .input(
+      z.object({
+        sourceConversationId: z.string().min(1).max(64),
+        upToMessageId: z.string().min(1).max(64),
+        titleSuffix: z.string().max(80).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await forkConversation(input);
+      } catch (err) {
+        if (err instanceof ForkSourceNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        if (err instanceof ForkInvalidPivotError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
 });

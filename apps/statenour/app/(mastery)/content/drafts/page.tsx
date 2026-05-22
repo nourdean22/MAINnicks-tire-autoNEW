@@ -25,7 +25,10 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the approve/reject action moved off
+// authedFetch onto trpc.operator.actOnDraft. The list still flows
+// through usePollingFetch (a cross-cutting hook · separate slice).
+import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -84,24 +87,17 @@ export default function DraftsPage() {
     { intervalMs: 60_000 },
   );
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const actOnDraft = trpc.operator.actOnDraft.useMutation();
 
   async function action(key: string, kind: "approve" | "reject") {
     if (busyKey) return;
     setBusyKey(key);
     try {
-      const res = await authedFetch(`/api/content/drafts/${encodeURIComponent(key)}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: kind }),
-      });
-      if (!res.ok) {
-        toast.error(kind === "approve" ? "Failed to approve" : "Failed to reject");
-        return;
-      }
+      await actOnDraft.mutateAsync({ key, action: kind });
       toast.success(kind === "approve" ? "Approved" : "Rejected");
       reload();
     } catch {
-      toast.error("Network error");
+      toast.error(kind === "approve" ? "Failed to approve" : "Failed to reject");
     } finally {
       setBusyKey(null);
     }

@@ -14,7 +14,7 @@
  *   · "regen rate by intent" — which intents need better prompts
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -22,7 +22,11 @@ import { cn } from "@/lib/utils/cn";
 import { Search, AlertCircle, TrendingUp } from "lucide-react";
 import { Sparkline } from "@/components/ui/sparkline";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the scored-content read moved off
+// authedFetch onto trpc.operator.contentHistory · a reactive useQuery
+// keyed on the filter state (the legacy code rebuilt the fetch in a
+// useCallback + useEffect on the same deps).
+import { trpc } from "@/lib/trpc/client";
 interface QualityRow {
   id: string;
   content: string;
@@ -75,9 +79,6 @@ function scoreTone(s: number): string {
 }
 
 export default function ContentHistoryPage() {
-  const [data, setData] = useState<HistoryResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [minScore, setMinScore] = useState(0);
   const [maxScore, setMaxScore] = useState(100);
@@ -96,31 +97,22 @@ export default function ContentHistoryPage() {
   }, [sortKey]);
   const [contentOnly, setContentOnly] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        q,
-        minScore: String(minScore),
-        maxScore: String(maxScore),
-        days: String(days),
-        contentMode: String(contentOnly),
-      });
-      const res = await authedFetch(`/api/content/history?${params}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as HistoryResponse;
-      setData(json);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [q, minScore, maxScore, days, contentOnly]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // v10 B.1 FIND-04's res.ok guard is now intrinsic — tRPC surfaces a
+  // non-2xx as a thrown error React Query exposes via `error`. The
+  // `cache: "no-store"` semantics carry over: the query is keyed on
+  // the live filter state so any change refetches.
+  const historyQuery = trpc.operator.contentHistory.useQuery({
+    q,
+    minScore,
+    maxScore,
+    days,
+    contentModeOnly: contentOnly,
+  });
+  const data = (historyQuery.data ?? null) as HistoryResponse | null;
+  const loading = historyQuery.isLoading;
+  const error = historyQuery.error
+    ? historyQuery.error.message
+    : null;
 
   const winners = useMemo(() => {
     if (!data) return [];

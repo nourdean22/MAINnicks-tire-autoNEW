@@ -76,6 +76,24 @@ import { buildMicroPlan, IntentTooShortError } from "@/lib/services/ultron-plan"
 import { getMit, setMit } from "@/lib/services/mit";
 import { refreshHealthDigest } from "@/lib/system/health-digest";
 import { buildCommandCenterState } from "@/lib/ai/context/command-center-state";
+import { getFinancialSnapshots } from "@/lib/services/financial-snapshot";
+import { getRevenueStats } from "@/lib/services/business-intel";
+import { getContentHistory } from "@/lib/services/content-history";
+import { approveDraft, rejectDraft } from "@/lib/content/drafts";
+import {
+  getDecisionDetail,
+  gradeDecision as gradeDecisionService,
+} from "@/lib/services/decision-detail";
+import { improvePhoto, MissingImageError } from "@/lib/services/photo-improver";
+import {
+  getSocialSchedule,
+  getRecentImages,
+  publishSocialPost,
+  scheduleSocialPost as scheduleSocialPostService,
+  SocialPublishInputError,
+  SocialImageUrlUnresolvedError,
+  SocialScheduleInputError,
+} from "@/lib/services/social-actions";
 import { TRPCError } from "@trpc/server";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -554,4 +572,311 @@ export const operatorRouter = router({
    * input · the desk is operator-scoped.
    */
   todoDesk: operatorProcedure.query(async () => buildTodoDesk()),
+
+  // ──────────────── Misc pages · /financial (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22 · legacy-modernizer REST→tRPC) ·
+   * owner-only · last 12 monthly financial snapshots + `latest` for
+   * the /financial personal-finance card. Replaces GET /api/financial
+   * · delegates to the shared `financial-snapshot.getFinancialSnapshots`
+   * the REST route also calls · drift impossible.
+   *
+   * No input · the snapshot set is operator-scoped. The service
+   * returns the explicit shallow `FinancialSnapshotView[]` shape (no
+   * Json column · no Date object) so the procedure type stays shallow.
+   * The page polls this every 60s · React Query's refetchInterval
+   * mirrors the legacy setInterval.
+   */
+  financialSnapshot: operatorProcedure.query(async () =>
+    getFinancialSnapshots(),
+  ),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · revenue rollup for a
+   * window (the /financial page sends "month"). Replaces GET
+   * /api/analytics/revenue · delegates to the SAME
+   * `business-intel.getRevenueStats` the REST route already called ·
+   * drift impossible. `period` is a strict enum · the page's 120s
+   * poll maps to React Query's refetchInterval.
+   */
+  revenueStats: operatorProcedure
+    .input(
+      z
+        .object({
+          period: z.enum(["day", "week", "month", "year"]).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => getRevenueStats(input?.period ?? "month")),
+
+  // ──────────────── Misc pages · /social (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · Buffer connection
+   * status + connected profiles for the /social schedule UI. Replaces
+   * GET /api/social/schedule · delegates to the shared
+   * `social-actions.getSocialSchedule` the REST route also calls ·
+   * drift impossible. No input.
+   */
+  socialSchedule: operatorProcedure.query(async () => getSocialSchedule()),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · last 24 generated /
+   * upscaled images for the /social publish picker. Replaces GET
+   * /api/social/recent-images · delegates to
+   * `social-actions.getRecentImages` · drift impossible. The service
+   * projects AuditEvent rows to the flat `RecentImageRow` (TS2589
+   * firewall). No input.
+   */
+  socialRecentImages: operatorProcedure.query(async () => getRecentImages()),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · direct publish to
+   * Meta IG + FB. Replaces POST /api/social/publish · delegates to
+   * `social-actions.publishSocialPost` the REST route also calls ·
+   * drift impossible.
+   *
+   * IRREVERSIBLE · modeled as a `.mutation()`. The /social page only
+   * fires this after an explicit `confirm()` dialog. `requestHost`
+   * (for resolving a relative imageUrl to a public URL Meta accepts)
+   * comes from `ctx.headers` — the REST route used the request `host`
+   * header; same source. The service's `SocialPublishInputError` /
+   * `SocialImageUrlUnresolvedError` map to BAD_REQUEST /
+   * INTERNAL_SERVER_ERROR so both transports reject identically.
+   *
+   * `platforms` is a strict enum array · `caption` / `message` are
+   * bounded · the typed-payload-mismatch guard.
+   */
+  socialPublish: operatorProcedure
+    .input(
+      z.object({
+        platforms: z.array(z.enum(["instagram", "facebook"])).min(1).max(2),
+        imageUrl: z.string().max(2000).optional(),
+        caption: z.string().max(4000).optional(),
+        message: z.string().max(4000).optional(),
+        linkUrl: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        return await publishSocialPost(
+          input,
+          ctx.headers?.get("host") ?? undefined,
+        );
+      } catch (err) {
+        if (err instanceof SocialPublishInputError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        if (err instanceof SocialImageUrlUnresolvedError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · schedule a post via
+   * Buffer (reversible · Buffer holds the queue). Replaces POST
+   * /api/social/schedule · delegates to
+   * `social-actions.scheduleSocialPost` · drift impossible.
+   *
+   * Modeled as a `.mutation()` · genuine state change (Buffer queue +
+   * AuditEvent). `requestHost` from `ctx.headers` mirrors the REST
+   * route. `text` is bounded + required · the empty-text
+   * `SocialScheduleInputError` maps to BAD_REQUEST.
+   */
+  scheduleSocialPost: operatorProcedure
+    .input(
+      z.object({
+        text: z.string().min(1).max(4000),
+        imageUrl: z.string().max(2000).optional(),
+        linkUrl: z.string().max(2000).optional(),
+        profileIds: z.array(z.string().min(1).max(64)).max(20).optional(),
+        scheduledAt: z.string().max(64).optional(),
+        shareNow: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      try {
+        return await scheduleSocialPostService(
+          input,
+          ctx.headers?.get("host") ?? undefined,
+        );
+      } catch (err) {
+        if (err instanceof SocialScheduleInputError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  // ──────────────── Misc pages · /content (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · search past content
+   * scored by the 7-axis output critic, with aggregate stats.
+   * Replaces GET /api/content/history · delegates to
+   * `content-history.getContentHistory` the REST route also calls ·
+   * drift impossible. The service projects the brain_memory `metadata`
+   * Json column to the flat `QualityMetadata` (TS2589 firewall).
+   *
+   * All numeric inputs are strictly bounded · the page sends
+   * `{ q, minScore, maxScore, days, contentMode }`.
+   */
+  contentHistory: operatorProcedure
+    .input(
+      z
+        .object({
+          q: z.string().max(200).optional(),
+          minScore: z.number().int().min(0).max(100).optional(),
+          maxScore: z.number().int().min(0).max(100).optional(),
+          shape: z.string().max(40).optional(),
+          intent: z.string().max(40).optional(),
+          contentModeOnly: z.boolean().optional(),
+          days: z.number().int().min(1).max(365).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => getContentHistory(input ?? {})),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · approve or reject a
+   * single content draft (the /content/drafts approval queue). Replaces
+   * POST /api/content/drafts/[key] · delegates to the SAME
+   * `content/drafts.approveDraft` / `rejectDraft` the REST route also
+   * calls · drift impossible.
+   *
+   * Modeled as a `.mutation()` · genuine state change (a metadata
+   * status write / soft-delete). `action` is a strict enum. An
+   * approve that doesn't resolve a draft maps to NOT_FOUND — the same
+   * 404 the REST route returned.
+   */
+  actOnDraft: operatorProcedure
+    .input(
+      z.object({
+        key: z.string().min(1).max(120),
+        action: z.enum(["approve", "reject"]),
+        reason: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (input.action === "approve") {
+        const draft = await approveDraft(input.key);
+        if (!draft) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "draft_not_found",
+          });
+        }
+        return { ok: true as const, draft };
+      }
+      await rejectDraft(input.key, input.reason);
+      return { ok: true as const, rejected: true as const };
+    }),
+
+  // ──────────────── Misc pages · /decisions/[id] (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · the single-decision
+   * detail payload (decision + same-domain sibling lineage + matching
+   * anti-patterns + computed timeline). Replaces GET /api/decisions/[id]
+   * · delegates to `decision-detail.getDecisionDetail` the REST route
+   * also calls · drift impossible. The service returns the explicit
+   * shallow `DecisionDetailView` (Dates → ISO string · anti-pattern
+   * `metadata` → `unknown` · the TS2589 firewall).
+   *
+   * `id` is a positive int · the service's `ServiceError(…, 400/404)`
+   * for a bad / missing id maps to BAD_REQUEST / NOT_FOUND.
+   */
+  decisionDetail: operatorProcedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(async ({ input }) => {
+      try {
+        return await getDecisionDetail(input.id);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · grade / edit a single
+   * decision (the /decisions/[id] edit form). Replaces POST
+   * /api/decisions/[id] · delegates to `decision-detail.gradeDecision`
+   * the REST route also calls · drift impossible.
+   *
+   * Modeled as a `.mutation()` · genuine state change (a partial
+   * update + an entity-audit diff). Every field is optional — the
+   * form submits whichever of outcome / grade / reviewDate changed.
+   */
+  gradeDecision: operatorProcedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        actualOutcome: z.string().max(8000).optional(),
+        grade: z.string().max(40).optional(),
+        reviewDate: z.string().max(40).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await gradeDecisionService(input.id, {
+          actualOutcome: input.actualOutcome,
+          grade: input.grade,
+          reviewDate: input.reviewDate,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  // ──────────────── Misc pages · /photo-improver (2026-05-22) ────────────────
+
+  /**
+   * misc-pages slice (2026-05-22) · owner-only · the storefront photo
+   * improver — vision-model scorecard + improvements + a Nick's-Tire
+   * branded re-render. Replaces POST /api/images/improve · delegates
+   * to `photo-improver.improvePhoto` the REST route also calls · drift
+   * impossible.
+   *
+   * Modeled as a `.mutation()` · genuine work (LLM vision call +
+   * optional image generation + fire-and-forget `trackGeneration`
+   * telemetry). `imageBase64` is a large bound (a data-URL payload);
+   * `mode` is a strict enum. The `MissingImageError` (neither base64
+   * nor url) maps to BAD_REQUEST · the same 400 the REST route
+   * returned.
+   */
+  improvePhoto: operatorProcedure
+    .input(
+      z.object({
+        imageBase64: z.string().max(15_000_000).optional(),
+        imageUrl: z.string().max(2000).optional(),
+        mode: z.enum(["analyze", "rebrand", "both"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await improvePhoto(input);
+      } catch (err) {
+        if (err instanceof MissingImageError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
 });
