@@ -145,18 +145,22 @@ export async function createTireOrderCheckout(params: {
 export async function getCheckoutSessionStatus(sessionId: string): Promise<{
   paid: boolean;
   amountTotalCents: number;
+  status: string | null;
+  url: string | null;
 }> {
   const stripe = await getStripe();
-  if (!stripe) return { paid: false, amountTotalCents: 0 };
+  if (!stripe) return { paid: false, amountTotalCents: 0, status: null, url: null };
   try {
     const session = await stripe.checkout.sessions.retrieve(sessionId);
     return {
       paid: session.payment_status === "paid",
       amountTotalCents: session.amount_total || 0,
+      status: session.status || null,
+      url: session.url || null,
     };
   } catch (err) {
     log.warn("Checkout session retrieve failed:", err);
-    return { paid: false, amountTotalCents: 0 };
+    return { paid: false, amountTotalCents: 0, status: null, url: null };
   }
 }
 
@@ -173,21 +177,30 @@ export async function finalizeTireOrderPayment(params: {
 }): Promise<void> {
   const { getDb } = await import("../db");
   const { tireOrders, invoices } = await import("../../drizzle/schema");
-  const { eq } = await import("drizzle-orm");
+  const { eq, sql } = await import("drizzle-orm");
   const d = await getDb();
   if (!d) return;
 
   const [order] = await d.select().from(tireOrders)
     .where(eq(tireOrders.orderNumber, params.tireOrderNumber)).limit(1);
-  // Idempotent — Stripe can redeliver webhooks, and both events fire for
-  // a single Checkout Session.
-  if (!order || order.paymentStatus === "paid") return;
+  if (!order || order.paymentStatus === "paid") return; // fast path
 
-  await d.update(tireOrders).set({
-    paymentStatus: "paid",
-    paidAt: new Date(),
-    status: order.status === "received" ? "confirmed" : order.status,
-  }).where(eq(tireOrders.orderNumber, params.tireOrderNumber));
+  // Atomic claim. finalizeTireOrderPayment runs up to 3x per payment
+  // (checkout.session.completed + payment_intent.succeeded webhooks +
+  // confirmCheckout). A SELECT-then-UPDATE check is a TOCTOU race that
+  // lets all three fire the shop hand-off. This conditional UPDATE is the
+  // real guard — only the caller that flips the row proceeds; the rest
+  // bail. Matches the claim pattern in cron/jobs/crudAutomation.ts.
+  const [claim] = await d.execute(sql`
+    UPDATE tire_orders
+    SET paymentStatus = 'paid',
+        paidAt = NOW(),
+        status = CASE WHEN status = 'received' THEN 'confirmed' ELSE status END
+    WHERE orderNumber = ${params.tireOrderNumber} AND paymentStatus <> 'paid'
+  `);
+  if (((claim as unknown as { affectedRows?: number }).affectedRows ?? 0) === 0) {
+    return; // another concurrent caller already claimed + handled this order
+  }
 
   const invNum = params.invoiceNumber || order.invoiceNumber || undefined;
   if (invNum) {
@@ -201,9 +214,13 @@ export async function finalizeTireOrderPayment(params: {
   const amountPaid = params.amountCents / 100;
   log.info(`Tire order ${params.tireOrderNumber} marked PAID — $${amountPaid.toFixed(2)}`);
 
-  // Shop hand-off — ShopDriver entry + Gateway order email to the shop.
-  import("../email-notify").then(({ notifyTireOrderPaid }) =>
-    notifyTireOrderPaid({
+  // Shop hand-off email — awaited + checked. This is load-bearing (no
+  // admin UI for these orders), so a delivery failure is a loud error,
+  // never a silent warn. notifyTireOrderPaid bypasses the notification
+  // throttle so a burst of orders can't drop it.
+  try {
+    const { notifyTireOrderPaid } = await import("../email-notify");
+    const res = await notifyTireOrderPaid({
       orderNumber: order.orderNumber,
       invoiceNumber: invNum,
       customerName: order.customerName,
@@ -216,8 +233,13 @@ export async function finalizeTireOrderPayment(params: {
       quantity: order.quantity,
       amountPaid,
       customerNotes: order.customerNotes || undefined,
-    })
-  ).catch((e) => log.warn("tire-order paid email failed:", e));
+    });
+    if (!res || !res.emailSent) {
+      log.error(`Tire order ${params.tireOrderNumber} is PAID but the shop hand-off email did NOT send — fulfil it manually`, { throttled: res?.throttled ?? false });
+    }
+  } catch (e) {
+    log.error(`Tire order ${params.tireOrderNumber} is PAID but the shop hand-off email threw — fulfil it manually:`, e);
+  }
 
   import("./telegram").then(({ sendTelegram }) =>
     sendTelegram(

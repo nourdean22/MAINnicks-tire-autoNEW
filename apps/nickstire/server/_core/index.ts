@@ -1145,7 +1145,9 @@ ${urls.join("\n")}
       if (event.type === "payment_intent.succeeded") {
         const intent = event.data.object as any;
         const invoiceNumber = intent.metadata?.invoiceNumber;
-        if (invoiceNumber) {
+        // Skip for tire orders — finalizeTireOrderPayment (below) owns the
+        // invoice update for those, including the correct collected total.
+        if (invoiceNumber && !intent.metadata?.tireOrderNumber) {
           const { getDb } = await import("../db");
           const { invoices } = await import("../../drizzle/schema");
           const { eq } = await import("drizzle-orm");

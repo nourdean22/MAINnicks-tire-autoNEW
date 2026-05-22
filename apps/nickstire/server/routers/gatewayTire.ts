@@ -938,7 +938,16 @@ export const gatewayTireRouter = router({
         return { error: "Order total unavailable — please call (216) 862-0005." };
       }
 
-      const { createTireOrderCheckout } = await import("../services/payments");
+      const { createTireOrderCheckout, getCheckoutSessionStatus } = await import("../services/payments");
+
+      // Reuse an existing still-open Stripe session — a double-click on
+      // "Pay Now" otherwise spawns two payable sessions. Still lets a
+      // customer who abandoned checkout come back and retry.
+      if (order.stripeSessionId) {
+        const existing = await getCheckoutSessionStatus(order.stripeSessionId);
+        if (existing.status === "open" && existing.url) return { url: existing.url };
+      }
+
       const base = process.env.VITE_SITE_URL || "https://nickstire.org";
 
       // Customer pays the tire total + 8% Ohio sales tax + a 2% card-
