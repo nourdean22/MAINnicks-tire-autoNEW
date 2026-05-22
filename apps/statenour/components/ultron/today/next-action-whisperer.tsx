@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { onDataChanged, notifyDataChanged } from "@/lib/events/data-change";
 import { Play, X as XIcon, Zap } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface Task {
   id: string;
   title: string;
@@ -44,6 +44,13 @@ export function NextActionWhisperer() {
   const [visible, setVisible] = useState(false);
   const dismissTimerRef = useRef<number | null>(null);
   const cooldownUntilRef = useRef<number>(0);
+  // Phase B.6b (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.task.*`. The next-task read is event-driven (fires on a
+  // `data-change` task-completion), not a render-time query · so it
+  // goes through `utils.task.list.fetch()`. The start action is a
+  // `task.update` mutation.
+  const utils = trpc.useUtils();
+  const updateTask = trpc.task.update.useMutation();
 
   const clearDismissTimer = useCallback(() => {
     if (dismissTimerRef.current !== null) {
@@ -62,11 +69,9 @@ export function NextActionWhisperer() {
 
   const fetchNext = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/tasks");
-      if (!res.ok) return null;
-      const raw = (await res.json()) as { data?: Task[] } | Task[];
-      const arr = Array.isArray(raw) ? raw : raw.data ?? [];
-      const open = (Array.isArray(arr) ? arr : []).filter(
+      const raw = (await utils.task.list.fetch(undefined)) as Task[];
+      const arr = Array.isArray(raw) ? raw : [];
+      const open = arr.filter(
         (t) => ["INBOX", "READY"].includes(t.status),
       );
       // Prefer tasks with effort=M15 (the "quick slot" sweet spot), then
@@ -81,7 +86,7 @@ export function NextActionWhisperer() {
     } catch {
       return null;
     }
-  }, []);
+  }, [utils]);
 
   // Listen for task completions
   useEffect(() => {
@@ -106,10 +111,9 @@ export function NextActionWhisperer() {
 
   const start = async () => {
     try {
-      await authedFetch(`/api/tasks/${suggestion.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "DOING" }),
+      await updateTask.mutateAsync({
+        id: suggestion.id,
+        fields: { status: "DOING" },
       });
       toast.success(`started: ${suggestion.title.slice(0, 40)}`);
       notifyDataChanged("tasks", { source: "ultron-whisperer", detail: "start", id: suggestion.id });
