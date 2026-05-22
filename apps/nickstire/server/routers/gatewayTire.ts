@@ -792,6 +792,10 @@ export const gatewayTireRouter = router({
         }).catch(err => log.error("[TireOrder] Invoice sheet sync error:", err));
 
         console.info(`[invoice:created] ${invoiceNumber} for tire order ${orderNumber} — $${(grandTotalCents / 100).toFixed(2)} (pending payment)`);
+
+        // Link the invoice to the tire order so the admin + the online
+        // payment flow (createCheckout) can resolve it later.
+        await d.update(tireOrders).set({ invoiceNumber }).where(eq(tireOrders.orderNumber, orderNumber));
       } catch (err) {
         log.error("[TireOrder] Invoice creation failed:", err instanceof Error ? (err as Error).message : err);
       }
@@ -898,6 +902,60 @@ export const gatewayTireRouter = router({
         totalAmount: totalDollars,
         uncommonSize: !isCommonSize,
       };
+    }),
+
+  // ─── PUBLIC: Start online payment (Stripe Checkout) ─
+  // Customer pays the exact tire total they saw on the order page.
+  // Returns a Stripe-hosted checkout URL — the client redirects to it.
+  // Card data is entered on Stripe's page and never touches our server.
+  createCheckout: publicProcedure
+    .input(z.object({
+      orderNumber: z.string().min(1),
+      phone: z.string().min(7),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) return { error: "Service unavailable" };
+
+      // Verify the order exists and belongs to this caller's phone.
+      const [order] = await d.select()
+        .from(tireOrders)
+        .where(and(
+          eq(tireOrders.orderNumber, input.orderNumber),
+          eq(tireOrders.customerPhone, input.phone),
+        ))
+        .limit(1);
+
+      if (!order) return { error: "Order not found. Check your order number and phone." };
+      if (order.paymentStatus === "paid") return { error: "This order is already paid." };
+      if (order.status === "cancelled") return { error: "This order was cancelled — call (216) 862-0005." };
+      if (!order.totalAmount || order.totalAmount < 50) {
+        return { error: "Order total unavailable — please call (216) 862-0005." };
+      }
+
+      const { createTireOrderCheckout } = await import("../services/payments");
+      const base = process.env.VITE_SITE_URL || "https://nickstire.org";
+      const description = `Nick's Tire & Auto — ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize}), installed`;
+
+      const result = await createTireOrderCheckout({
+        amountCents: order.totalAmount,
+        tireOrderNumber: order.orderNumber,
+        invoiceNumber: order.invoiceNumber || "",
+        customerName: order.customerName,
+        customerEmail: order.customerEmail || undefined,
+        description,
+        successUrl: `${base}/tires?order=${encodeURIComponent(order.orderNumber)}&paid=1`,
+        cancelUrl: `${base}/tires?order=${encodeURIComponent(order.orderNumber)}&paid=0`,
+      });
+
+      if ("error" in result) return { error: result.error };
+
+      // Record the session id for audit + idempotency (best-effort).
+      await d.update(tireOrders)
+        .set({ stripeSessionId: result.sessionId })
+        .where(eq(tireOrders.orderNumber, order.orderNumber));
+
+      return { url: result.url };
     }),
 
   // ─── PUBLIC: Check order status ────────────────────

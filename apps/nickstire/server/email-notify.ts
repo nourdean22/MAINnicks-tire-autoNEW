@@ -755,6 +755,72 @@ export function notifyTireOrder(details: {
   });
 }
 
+/**
+ * Notify the shop that a customer PAID for an online tire order.
+ *
+ * Goes straight to the shop inbox (moeseuclid@gmail.com) formatted as a
+ * ready-to-act hand-off. ShopDriver / Auto Labor Guide has no API, so a
+ * person re-keys the work order — Step 1 gives them exactly that, Step 2
+ * is the wholesale order to place on Gateway Tire (b2b.dktire.com).
+ */
+export function notifyTireOrderPaid(details: {
+  orderNumber: string;
+  invoiceNumber?: string;
+  customerName: string;
+  customerPhone: string;
+  customerEmail?: string;
+  vehicleInfo?: string;
+  tireBrand: string;
+  tireModel: string;
+  tireSize: string;
+  quantity: number;
+  amountPaid: number; // dollars
+  installPreference?: string;
+  customerNotes?: string;
+}) {
+  const gatewaySearch = `https://b2b.dktire.com/products?search=${encodeURIComponent(details.tireSize.replace(/[^0-9]/g, ""))}`;
+  return sendNotification({
+    category: "tire_order",
+    overrideTo: ["moeseuclid@gmail.com"],
+    subject: `PAID TIRE ORDER ${details.orderNumber} — $${details.amountPaid.toFixed(2)} — action needed`,
+    body: [
+      `CUSTOMER PAID ONLINE — $${details.amountPaid.toFixed(2)}`,
+      `Order ${details.orderNumber}${details.invoiceNumber ? ` · Invoice ${details.invoiceNumber}` : ""}`,
+      `Paid ${new Date().toLocaleString("en-US", { timeZone: BUSINESS.timezone })} · card (Stripe)`,
+      ``,
+      `Two quick things — about a minute each.`,
+      ``,
+      `========================================`,
+      `STEP 1 — ENTER IN SHOPDRIVER (Auto Labor Guide)`,
+      `========================================`,
+      `Create a work order:`,
+      `  Customer : ${details.customerName}`,
+      `  Phone    : ${details.customerPhone}`,
+      details.customerEmail ? `  Email    : ${details.customerEmail}` : "",
+      `  Vehicle  : ${details.vehicleInfo || "(not given — confirm with customer)"}`,
+      `  Service  : Tire Order & Installation`,
+      `  Tires    : ${details.quantity}x ${details.tireBrand} ${details.tireModel} (${details.tireSize})`,
+      `  Install  : ${details.installPreference || "walk-in"}`,
+      `  Paid     : $${details.amountPaid.toFixed(2)} — PAID IN FULL (card)`,
+      `  Ref      : ${details.orderNumber}`,
+      ``,
+      `========================================`,
+      `STEP 2 — ORDER THE TIRES FROM GATEWAY`,
+      `========================================`,
+      `Log in to b2b.dktire.com and place the wholesale order:`,
+      `  ${details.quantity}x ${details.tireBrand} ${details.tireModel}`,
+      `  Size    : ${details.tireSize}`,
+      `  Ship to : the shop — 17625 Euclid Ave, Cleveland`,
+      `  Search  : ${gatewaySearch}`,
+      `Then mark the order "ordered" in the admin once the PO is placed.`,
+      ``,
+      details.customerNotes ? `CUSTOMER NOTES: ${details.customerNotes}` : "",
+      ``,
+      `— Nick's Tire & Auto Website`,
+    ].filter(Boolean).join("\n"),
+  });
+}
+
 /** Notify about weekly revenue/performance report — CEO only */
 export function notifyWeeklyReport(details: {
   totalRevenue: number;
