@@ -206,7 +206,10 @@ interface OrderModalProps {
   onClose: () => void;
 }
 
-function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) {
+// Exported so the Esc-key regression test (admin.test.tsx) can render
+// this in isolation; in app code it stays an internal component of
+// TireFinder. Same module surface, no behavior change.
+export function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");

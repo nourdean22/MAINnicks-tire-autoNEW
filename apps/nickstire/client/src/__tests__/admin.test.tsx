@@ -189,6 +189,45 @@ describe("Admin — regression guards", () => {
 });
 
 // ════════════════════════════════════════════════════════════════════
+// 1b. CUSTOMER-SITE REGRESSION GUARDS
+// Customer-facing components live outside pages/admin; their regression
+// tests reuse the same mock harness above.
+// ════════════════════════════════════════════════════════════════════
+describe("Customer site — regression guards", () => {
+  /**
+   * BUG: TireFinder's OrderModal had no Escape-key handler. Only the X
+   * button and backdrop click closed it — standard keyboard/a11y
+   * expectation was missing. The fix wired a window keydown listener
+   * inside the modal's useEffect that calls onClose on Escape.
+   */
+  it("TireFinder OrderModal: Escape key closes the modal (calls onClose)", async () => {
+    const { OrderModal } = await import("../pages/TireFinder");
+    const onClose = vi.fn();
+    const tire = {
+      name: "TestBrand TestModel",
+      brand: "TestBrand",
+      model: "TestModel",
+      size: "215/60R16",
+      shopPrice: 100,
+      pricePerTireCents: 10000,
+    };
+    render(React.createElement(OrderModal, {
+      tire,
+      quantity: 4,
+      packageValue: 266,
+      onClose,
+    }));
+
+    // Pre-fix code had no Escape listener — onClose would NOT have been
+    // called by this keydown. Now it is. revert-check this test by
+    // temporarily commenting out the useEffect in TireFinder and
+    // confirming it FAILS for the right reason.
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════
 // 2. SECTION RENDER MATRIX
 // Every admin section × {loaded-empty, loading, error}. Catches the
 // crash-on-undefined class — a missing `?.` on API data is a white
