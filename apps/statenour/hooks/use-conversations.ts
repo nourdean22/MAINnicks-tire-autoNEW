@@ -11,20 +11,20 @@
 import { useEffect, useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
-// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration. The two
-// chat-domain endpoints that already have a service-backed tRPC
-// procedure are migrated onto it:
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
+// chat-domain call-site here is now typed tRPC, the `authedFetch`
+// import is gone:
+//   · GET    /api/ai/chat                    → trpc.chat.list
+//   · GET    /api/ai/chat/[id]               → trpc.chat.conversation
+//   · PATCH  /api/ai/chat/[id]  (title)      → trpc.chat.renameConversation
 //   · DELETE /api/ai/chat/[id]               → trpc.chat.deleteConversation
 //   · PATCH  /api/ai/chat/conversation/[id]  → trpc.chat.updateConversation
-// Both delegate to the SAME `chat-conversation.{deleteConversation,
-// updateConversation}` service the REST routes call · drift impossible.
-// The remaining `authedFetch` calls here — the conversation-list GET
-// (`/api/ai/chat`), the single-conversation load (`/api/ai/chat/[id]`)
-// and the title rename (`PATCH /api/ai/chat/[id]`) — hit inline route
-// handlers with NO shared service, so migrating them would require a
-// service extraction (out of this hooks-slice's scope · the
-// `authedFetch` import above stays for them).
+// `list` / `conversation` / `renameConversation` delegate to the new
+// `chat-conversation-read.*` service the legacy routes were slimmed to
+// call; `delete`/`update` delegate to `chat-conversation.*` (Phase B.5).
+// Drift between REST + tRPC is structurally impossible. The three
+// imperative reads use `utils.chat.*.fetch()` so the on-demand /
+// cursor-paginated shape this hook owns is preserved.
 import { trpc } from "@/lib/trpc/client";
 export interface Convo {
   id: string;
@@ -38,12 +38,6 @@ export interface Convo {
   starredAt?: string | null;
   mutedAt?: string | null;
   _count: { messages: number };
-}
-
-interface LoadedConvoMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
 }
 
 /** Matches the signature of setMessages from @ai-sdk/react's useChat */
@@ -62,13 +56,16 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [convos, setConvos] = useState<Convo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
-  // tRPC mutations for the two service-backed chat-domain writes.
-  // `deleteConversation` is idempotent (always resolves `{ ok: true }`,
-  // even on a missing row) · `updateConversation` throws TRPCError on a
-  // missing conversation / empty patch — both caught below, matching the
-  // legacy `r.ok` / try-catch branches verbatim.
+  // tRPC handles for the chat-domain reads + writes. `utils.chat.*
+  // .fetch()` does the imperative on-demand reads (list · single
+  // conversation). `deleteConversation` is idempotent (always resolves
+  // `{ ok: true }`, even on a missing row) · `updateConversation` /
+  // `renameConversation` throw TRPCError on a missing conversation —
+  // all caught below, matching the legacy `r.ok` / try-catch branches.
+  const utils = trpc.useUtils();
   const deleteConversationMutation = trpc.chat.deleteConversation.useMutation();
   const updateConversationMutation = trpc.chat.updateConversation.useMutation();
+  const renameConversationMutation = trpc.chat.renameConversation.useMutation();
   // v10.0.187 · pagination state. The API ships hasMore + nextCursor
   // (added in v10.0.186). Pre-fix the hook only consumed the first
   // 50/75 conversations and silently dropped older ones — heavy
@@ -83,19 +80,17 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
    * reflects the new row without needing a full page reload).
    */
   const reloadConvos = useCallback(() => {
-    authedFetch("/api/ai/chat")
-      .then((r) => r.json())
-      .then((raw) => {
-        const d = raw?.data ?? raw;
+    utils.chat.list
+      .fetch({})
+      .then((d) => {
+        // `chat.list` projects every Date column to an ISO string
+        // inside the service, so the rows match `Convo` exactly.
         setConvos(d.conversations ?? []);
-        // v10.0.187 · capture pagination flags. Defaults preserve the
-        // pre-pagination behavior for older API responses that don't
-        // include these fields (no UI regression on backward-compat).
         setHasMore(Boolean(d.hasMore));
         setNextCursor(typeof d.nextCursor === "string" ? d.nextCursor : null);
       })
       .catch(() => {});
-  }, []);
+  }, [utils]);
 
   /**
    * Load the next page of older conversations using the cursor from
@@ -106,11 +101,8 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     if (loadingMore || !hasMore || !nextCursor) return;
     setLoadingMore(true);
     try {
-      const raw = await authedFetch(
-        `/api/ai/chat?cursor=${encodeURIComponent(nextCursor)}`,
-      ).then((r) => r.json());
-      const d = raw?.data ?? raw;
-      const more: Convo[] = Array.isArray(d.conversations) ? d.conversations : [];
+      const d = await utils.chat.list.fetch({ cursor: nextCursor });
+      const more = Array.isArray(d.conversations) ? d.conversations : [];
       if (more.length > 0) {
         setConvos((prev) => {
           // De-dup by id in case server overlap or rapid double-tap.
@@ -126,7 +118,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
     } finally {
       setLoadingMore(false);
     }
-  }, [hasMore, nextCursor, loadingMore]);
+  }, [hasMore, nextCursor, loadingMore, utils]);
 
   // Initial load — no auto-resume, user picks from history dropdown
   useEffect(() => {
@@ -142,14 +134,20 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         // React sees duplicate keys when a convo is loaded while the
         // previous one is still streaming.
         setMessages([]);
-        const raw = await authedFetch(`/api/ai/chat/${id}`).then((r) => r.json());
-        const data = raw?.data ?? raw;
+        // `chat.conversation` throws NOT_FOUND on a missing id (caught
+        // by the catch below) · the result is always a conversation.
+        const conversation = await utils.chat.conversation.fetch({ id });
+        const data = { conversation };
         if (data.conversation) {
           setActiveId(id);
           // Dedupe DB rows by id as a belt-and-suspenders safety net.
           // Shouldn't be needed but a duplicate chat_message row would
           // otherwise blow up the render. O(n) dedupe keeps freshest.
-          const seen = new Map<string, LoadedConvoMessage>();
+          // Keyed by the tRPC procedure's own message-row type (role is
+          // a plain `string` there) — the per-row map() below narrows
+          // each row into the UIMessage shape regardless.
+          type ConvoMsgRow = (typeof data.conversation.messages)[number];
+          const seen = new Map<string, ConvoMsgRow>();
           for (const m of data.conversation.messages) seen.set(m.id, m);
           setMessages(
             Array.from(seen.values()).map((m) => {
@@ -232,7 +230,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         onError?.("Couldn't load conversation.");
       }
     },
-    [setMessages, onError]
+    [setMessages, onError, utils]
   );
 
   const deleteConvo = useCallback(
@@ -268,11 +266,9 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const renameConvo = useCallback(
     async (id: string, title: string) => {
       try {
-        await authedFetch(`/api/ai/chat/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title }),
-        });
+        // `renameConversation` throws TRPCError on a missing id (caught
+        // below) · the optimistic local update only runs on success.
+        await renameConversationMutation.mutateAsync({ id, title });
         setConvos((prev) =>
           prev.map((c) => (c.id === id ? { ...c, title } : c))
         );
@@ -280,7 +276,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         onError?.("Rename failed");
       }
     },
-    [onError]
+    [onError, renameConversationMutation]
   );
 
   // ── Pin/unpin via localStorage (no schema change needed) ──

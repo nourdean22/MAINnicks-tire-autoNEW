@@ -24,7 +24,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNourState } from "@/lib/state/nour-state";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/chat/resolve-mention")` onto `trpc.chat
+// .resolveMention` · the procedure delegates to the SAME `resolve-
+// mention.resolveMention` service the legacy REST route also calls ·
+// drift impossible. The expander fires it imperatively via
+// `utils.chat.resolveMention.fetch()` right before send.
+import { trpc } from "@/lib/trpc/client";
 // Apr 19 · @score retired alongside DailyScore. @week still resolves
 // server-side via /api/chat/resolve-mention to a brain-maturity +
 // habit summary, not the old daily-score aggregate.
@@ -83,6 +89,7 @@ function readMit(): MitContract | null {
 
 export function useMentionSuggestions() {
   const s = useNourState();
+  const utils = trpc.useUtils();
   const [show, setShow] = useState(false);
   const [filter, setFilter] = useState("");
   const [mit, setMit] = useState<MitContract | null>(null);
@@ -180,21 +187,24 @@ export function useMentionSuggestions() {
    * for all other tokens.
    */
   const resolveServerToken = useCallback(
-    async (key: MentionKey, surroundingText: string): Promise<string> => {
+    async (
+      key: "yesterday" | "week" | "cold",
+      surroundingText: string,
+    ): Promise<string> => {
       try {
-        const res = await authedFetch("/api/chat/resolve-mention", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, surroundingText }),
+        // `chat.resolveMention`'s input is strict to the 3 async keys —
+        // which is exactly the set `resolveServerToken` is ever called
+        // with (see `expandMentionsAsync` · `asyncKeys`).
+        const data = await utils.chat.resolveMention.fetch({
+          key,
+          surroundingText,
         });
-        if (!res.ok) return resolveToken(key);
-        const data = (await res.json()) as { value?: string };
         return data.value || resolveToken(key);
       } catch {
         return resolveToken(key);
       }
     },
-    [resolveToken]
+    [resolveToken, utils]
   );
 
   /**
@@ -223,7 +233,9 @@ export function useMentionSuggestions() {
    */
   const expandMentionsAsync = useCallback(
     async (text: string): Promise<string> => {
-      const asyncKeys: MentionKey[] = ["yesterday", "week", "cold"];
+      // Narrowed to the 3 server-resolved keys · this exact tuple is
+      // what `chat.resolveMention`'s strict input enum accepts.
+      const asyncKeys = ["yesterday", "week", "cold"] as const;
       const hasAsync = asyncKeys.some((k) =>
         new RegExp(`@${k}\\b`, "i").test(text)
       );

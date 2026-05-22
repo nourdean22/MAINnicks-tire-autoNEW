@@ -17,7 +17,14 @@
 
 import { useCallback, useState } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/ai/diagnose-chat")` onto `trpc.system
+// .diagnoseChat` · the procedure delegates to the SAME `diagnose-chat
+// .runChatDiagnostic` service the legacy REST route also calls · drift
+// impossible. The hook fires it imperatively via `utils.system
+// .diagnoseChat.fetch()` so the lazy on-demand shape is preserved.
+import { trpc } from "@/lib/trpc/client";
+
 export interface ChatDiagnoseState {
   diagnosticReport: string | null;
   diagnosing: boolean;
@@ -30,27 +37,17 @@ export interface ChatDiagnoseState {
 export function useChatDiagnose(): ChatDiagnoseState {
   const [diagnosticReport, setDiagnosticReport] = useState<string | null>(null);
   const [diagnosing, setDiagnosing] = useState(false);
+  const utils = trpc.useUtils();
 
   const runDiagnostic = useCallback(async (): Promise<void> => {
     if (diagnosing) return;
     setDiagnosing(true);
     setDiagnosticReport(null);
     try {
-      const res = await authedFetch("/api/ai/diagnose-chat");
-      const raw = (await res.json()) as {
-        data?: { report?: string };
-        report?: string;
-        error?: string;
-      };
-      // Support both the envelope shape ({ data: { report } }) used by the
-      // apiHandler wrapper and the bare ({ report } / { error }) shape that
-      // older callers / direct fetches return.
-      const report =
-        raw?.data?.report ??
-        raw?.report ??
-        raw?.error ??
-        "Diagnostic failed — no report returned.";
-      setDiagnosticReport(report);
+      const result = await utils.system.diagnoseChat.fetch();
+      setDiagnosticReport(
+        result.report || "Diagnostic failed — no report returned.",
+      );
     } catch (err) {
       setDiagnosticReport(
         `Diagnostic endpoint failed: ${
@@ -60,7 +57,7 @@ export function useChatDiagnose(): ChatDiagnoseState {
     } finally {
       setDiagnosing(false);
     }
-  }, [diagnosing]);
+  }, [diagnosing, utils]);
 
   const clearReport = useCallback(() => setDiagnosticReport(null), []);
 

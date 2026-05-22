@@ -2,8 +2,12 @@ import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
 import { today } from "@/lib/utils/datetime";
-import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
+import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { emitCommitmentTransition } from "@/lib/db/brain-bus-emit";
+// hooks-lib REST→tRPC slice (2026-05-22) · the commitment-create
+// service · also called by the new `operator.createCommitment` tRPC
+// procedure (the `/commit` chat direct-action) · drift impossible.
+import { createCommitment } from "@/lib/services/commitments";
 
 // v10.0.37 — owner-gated. Pre-fix unauthed.
 export const GET = apiHandler(async () => {
@@ -153,20 +157,14 @@ export const POST = apiHandler(async (req) => {
   const { to_whom, description, deadline, domain } = body;
   if (!description) throw new ServiceError("description required", 400);
 
-  const created = await prisma.commitment.create({
-    data: {
-      dateMade: today(),
-      toWhom: to_whom || "self",
-      description,
-      deadline: deadline || null,
-      domain: domain || null,
-    },
+  // hooks-lib REST→tRPC slice (2026-05-22) · the create branch moved
+  // to the shared `commitments.createCommitment` so this legacy REST
+  // consumer AND the new `operator.createCommitment` tRPC procedure
+  // can't drift. The other branches stay inline (no tRPC consumer).
+  return createCommitment({
+    description,
+    toWhom: to_whom,
+    deadline,
+    domain,
   });
-
-  // v8.0 — entity-audit create.
-  void logCreate("commitment", String(created.id), created as unknown as Record<string, unknown>, {
-    source: "api:commitments.POST.create",
-  });
-
-  return { ok: true, id: created.id };
 }, { auth: "owner" });

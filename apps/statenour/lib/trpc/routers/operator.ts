@@ -118,6 +118,11 @@ import {
   readMorningBrief,
   type MorningBriefView,
 } from "@/lib/services/morning-brief-read";
+// hooks-lib REST→tRPC slice (2026-05-22) · the commitment-create
+// service the `/commit` chat direct-action fires. Also called by the
+// create branch of the legacy POST /api/commitments route — drift
+// structurally impossible.
+import { createCommitment } from "@/lib/services/commitments";
 import { TRPCError } from "@trpc/server";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -1017,4 +1022,36 @@ export const operatorRouter = router({
   morningBrief: operatorProcedure.query(
     async (): Promise<MorningBriefView> => readMorningBrief(),
   ),
+
+  /**
+   * hooks-lib REST→tRPC slice (2026-05-22) · owner-only · log a new
+   * commitment. The `/commit` chat direct-action (`lib/chat/direct-
+   * actions.ts`) fires this. Replaces the create branch of POST
+   * /api/commitments · delegates to the shared `commitments.create
+   * Commitment` the legacy route also calls · drift impossible. The
+   * route's `if (!description)` guard is hoisted to the typed
+   * `.input()` (`.min(1)`) — the typed-payload-mismatch guard. Returns
+   * `{ ok, id }` mirroring the legacy envelope.
+   *
+   * `direct-actions.ts` is a non-React module · it calls this via the
+   * vanilla tRPC client (`trpcVanilla.operator.createCommitment
+   * .mutate()`).
+   */
+  createCommitment: operatorProcedure
+    .input(
+      z.object({
+        description: z.string().min(1).max(2000),
+        toWhom: z.string().max(120).nullable().optional(),
+        deadline: z.string().max(40).nullable().optional(),
+        domain: z.string().max(80).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      createCommitment({
+        description: input.description,
+        toWhom: input.toWhom,
+        deadline: input.deadline,
+        domain: input.domain,
+      }),
+    ),
 });

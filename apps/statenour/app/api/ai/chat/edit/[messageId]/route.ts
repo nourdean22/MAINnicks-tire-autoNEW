@@ -29,12 +29,11 @@
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
-import { logUpdate } from "@/lib/db/entity-audit";
 import {
   readMessageEditView,
   editChatMessage,
+  deleteMessageCascade,
   MessageNotFoundError,
   ConcurrentEditError,
   EmptyContentError,
@@ -143,16 +142,17 @@ export async function PATCH(
  *
  * Hard-deletes the target message AND every subsequent message in
  * the same conversation. Used by the chat page's `onDelete` long-
- * press action — pre-v10.0.28 the client truncated `messages` state
- * locally without calling the server, so the deleted messages
- * reappeared on next reload (server/client drift).
+ * press action.
  *
  * Why "and subsequent": the user is removing a turn from history.
  * Keeping later messages without their context creates an
  * orphan reply chain that doesn't make sense on reload.
  *
- * Phase JJ · NOT migrated to tRPC · separate concern (not used by
- * MessageEditControls · used by chat page). Stays on REST.
+ * hooks-lib REST→tRPC slice (2026-05-22) · the cascade-delete logic
+ * moved verbatim to `lib/services/chat-edit.deleteMessageCascade` so
+ * this legacy REST consumer AND the new `chat.deleteMessage` tRPC
+ * mutation can't drift. `useChatMessageActions` now fires tRPC; this
+ * route stays mounted as the coexistence / rollback path.
  */
 export async function DELETE(
   req: Request,
@@ -170,39 +170,12 @@ export async function DELETE(
   }
 
   try {
-    const target = await prisma.chatMessage.findUnique({
-      where: { id: messageId },
-      select: { id: true, conversationId: true, createdAt: true, content: true },
-    });
-    if (!target) {
+    const result = await deleteMessageCascade({ messageId });
+    return NextResponse.json({ ok: true, ...result });
+  } catch (err) {
+    if (err instanceof MessageNotFoundError) {
       return NextResponse.json({ error: "message not found" }, { status: 404 });
     }
-
-    // Delete this message + every later message in the same convo.
-    const result = await prisma.chatMessage.deleteMany({
-      where: {
-        conversationId: target.conversationId,
-        createdAt: { gte: target.createdAt },
-      },
-    });
-
-    void logUpdate(
-      "chatMessage",
-      target.id,
-      { content: target.content },
-      { content: null },
-      {
-        source: "api:ai/chat/edit.DELETE",
-        reason: `user deleted message + ${result.count - 1} subsequent`,
-      },
-    );
-
-    return NextResponse.json({
-      ok: true,
-      messageId,
-      deletedCount: result.count,
-    });
-  } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "delete failed" },
       { status: 500 },

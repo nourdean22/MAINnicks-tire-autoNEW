@@ -27,7 +27,17 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/ai/chat/wisdom-suggest")` onto `chat
+// .wisdomSuggest` · the procedure delegates to the SAME `wisdom-
+// suggest-feed.buildWisdomSuggestFeed` service the legacy REST route
+// also calls · drift impossible. This hook needs per-keystroke ABORT
+// (cancel the in-flight request when the operator types again) — only
+// the VANILLA tRPC client's `.query(input, { signal })` accepts an
+// AbortSignal (the React-Query `utils.*.fetch` options bag has no
+// `signal`). `trpcVanilla` needs no provider, so it's valid inside a
+// hook; this is the standard tRPC abort pattern.
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 
 export interface WisdomSuggestion {
   id: string;
@@ -143,35 +153,23 @@ export function useWisdomSuggest(
       abortRef.current = ctrl;
       setLoading(true);
       try {
-        const res = await authedFetch("/api/ai/chat/wisdom-suggest", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            draft: trimmed,
-            dismissedIds: Array.from(dismissed),
-          }),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) {
-          setSuggestions([]);
-          return;
-        }
-        // apiHandler wraps in { data: { suggestions: [...] }, ok, meta }
-        const json = (await res.json()) as {
-          data?: { suggestions?: WisdomSuggestion[] };
-          suggestions?: WisdomSuggestion[];
-        };
-        const list =
-          json.data?.suggestions ??
-          json.suggestions ??
-          [];
-        // Final client-side defense · API already filters but a stale
-        // cached payload (different tab, same process) could miss.
+        // The vanilla client's `.query()` accepts the AbortSignal · the
+        // next keystroke aborts the in-flight request exactly as the
+        // legacy `fetch({ signal })` did.
+        const result = await trpcVanilla.chat.wisdomSuggest.query(
+          { draft: trimmed, dismissedIds: Array.from(dismissed) },
+          { signal: ctrl.signal },
+        );
+        const list = result.suggestions ?? [];
+        // Final client-side defense · the service already filters but a
+        // stale cached payload (different tab, same process) could miss.
         const cleaned = list
           .filter((s) => s && typeof s.id === "string" && typeof s.text === "string")
           .filter((s) => !dismissed.has(s.id));
         setSuggestions(cleaned);
       } catch (err) {
+        // React Query surfaces an aborted fetch as an error whose name
+        // is "AbortError" — same guard as the legacy fetch path.
         if ((err as { name?: string }).name === "AbortError") return;
         setSuggestions([]);
       } finally {

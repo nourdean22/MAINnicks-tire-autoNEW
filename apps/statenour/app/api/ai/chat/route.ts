@@ -32,6 +32,9 @@ import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+// hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
+// also called by the new `chat.list` tRPC procedure · drift impossible.
+import { listConversations } from "@/lib/services/chat-conversation-read";
 
 const log = rootLogger.withSurface("api/ai/chat");
 
@@ -1864,46 +1867,19 @@ export async function GET(req: Request) {
   // (50 most recent titles + IDs + timestamps). The new sensitive-
   // GET gate caught it.
   await requireSession(req);
-  // v10.0.186 · pagination · pre-fix the sidebar took 50 with no
-  // pagination and no UI signal that older convos existed. Heavy
-  // sessions (>50 convs) silently lost access to history. Now:
-  // accepts ?cursor=<convId> + ?take=<N> (default 75, max 200) so
-  // the drawer can lazy-load older pages, and returns a hasMore
-  // flag derived from peeking one extra row.
+  // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list
+  // query (cursor pagination · archived filter · hasMore peek) moved
+  // verbatim to `lib/services/chat-conversation-read.listConversations`
+  // so this legacy REST consumer AND the new `chat.list` tRPC procedure
+  // can't drift. `useConversations` now reads tRPC; this stays mounted
+  // as the coexistence / rollback path.
   const url = new URL(req.url);
   const requestedTake = Number.parseInt(url.searchParams.get("take") ?? "75", 10);
-  const take = Number.isFinite(requestedTake)
-    ? Math.min(Math.max(requestedTake, 1), 200)
-    : 75;
   const cursor = url.searchParams.get("cursor") || undefined;
-  // P7 · v8.30 · ChatConversation uses `archivedAt` as the soft-delete
-  // semantic (decided 2026-04-30). Sidebar filters it out by default;
-  // archived convos still searchable via /api/chat/search.
-  const fetched = await prisma.chatConversation.findMany({
-    where: { archivedAt: null },
-    orderBy: { updatedAt: "desc" },
-    take: take + 1, // peek for hasMore
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    select: {
-      id: true,
-      title: true,
-      createdAt: true,
-      updatedAt: true,
-      // v10.0.529.59 · audit Wave 8 follow-up · expose conversation
-      // flag timestamps so ConversationDrawer rows can render star /
-      // mute state without an N-fan-out fetch. archivedAt is always
-      // null in the list response (already filtered above), so it's
-      // not selected.
-      starredAt: true,
-      mutedAt: true,
-      _count: { select: { messages: true } },
-    },
-  });
-  const hasMore = fetched.length > take;
-  const conversations = hasMore ? fetched.slice(0, take) : fetched;
-  const nextCursor = hasMore && conversations.length > 0
-    ? conversations[conversations.length - 1].id
-    : null;
-
-  return Response.json({ conversations, hasMore, nextCursor });
+  return Response.json(
+    await listConversations({
+      take: Number.isFinite(requestedTake) ? requestedTake : undefined,
+      cursor,
+    }),
+  );
 }

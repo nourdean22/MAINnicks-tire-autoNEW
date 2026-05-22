@@ -207,6 +207,25 @@ import {
 } from "@/lib/services/ghost-nour-predict";
 import { compareReplies } from "@/lib/ai/judge-eval/comparator";
 import { recordComparison } from "@/lib/ai/judge-eval/persistence";
+// hooks-lib REST→tRPC slice (2026-05-22) · the shared services /
+// helpers the migrated system-domain hooks delegate to. Each is also
+// called by the matching legacy REST route — drift structurally
+// impossible. `buildSystemPulse` + `runChatDiagnostic` return explicit
+// flat shapes (every Date stringified · no Prisma row) — the TS2589
+// firewall. The push helpers are already a clean shared layer.
+import {
+  buildSystemPulse,
+  type SystemPulseView,
+} from "@/lib/services/system-pulse";
+import {
+  runChatDiagnostic,
+  type DiagnoseChatResult,
+} from "@/lib/services/diagnose-chat";
+import {
+  saveSubscription,
+  removeSubscription,
+  VAPID_PUBLIC_KEY,
+} from "@/lib/notifications/push";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -2299,5 +2318,108 @@ export const systemRouter = router({
         sourceMessageId: input.sourceMessageId,
       });
       return { id, judgment };
+    }),
+
+  // ═══════════ hooks-lib REST→tRPC slice · system hooks ═══════════
+  //
+  // The final system-domain `authedFetch` call-sites — part of the
+  // 12-hook + 4-lib slice that closes the REST→tRPC migration. Each
+  // procedure delegates to a shared `lib/services/` function (or the
+  // already-shared push helpers) the legacy REST route ALSO calls ·
+  // drift structurally impossible. The pulse + diagnose reads return
+  // explicit flat shapes (every Date stringified · no Prisma row) — the
+  // TS2589 firewall.
+
+  /**
+   * hooks-lib slice · owner-only · the FloatingHome orb-badge pulse
+   * rollup (cron fails · errors · AI error rate · pending actions ·
+   * device fleet · Nick-quality trend). Replaces GET /api/system/pulse
+   * · delegates to the shared `system-pulse.buildSystemPulse` the
+   * legacy route also calls · drift impossible (the 30s cache moved
+   * into the service · one cache shared across both transports).
+   *
+   * `useSystemPulse` is a module-level de-duped poller, NOT a React
+   * hook itself — it uses the vanilla tRPC client (`trpcVanilla.system
+   * .pulse.query()`), the same imperative non-hook path
+   * `ClientErrorTelemetry` uses. The procedure returns the explicit
+   * flat `SystemPulseView` — every field a scalar, no Prisma row.
+   */
+  pulse: operatorProcedure.query(
+    async (): Promise<SystemPulseView> => buildSystemPulse(),
+  ),
+
+  /**
+   * hooks-lib slice · owner-only · the "Diagnose with Nick" health
+   * probe · Venice reachability + Neon latency + recent chat errors /
+   * slow requests / ai_error audit events → a markdown report.
+   * Replaces GET /api/ai/diagnose-chat · delegates to the shared
+   * `diagnose-chat.runChatDiagnostic` the legacy route also calls ·
+   * drift impossible. The probe deliberately does NOT touch the chat
+   * pipeline — the point is to diagnose a broken chat route WITHOUT
+   * going through it.
+   *
+   * `useChatDiagnose` is a React hook inside <TRPCProvider> · it fires
+   * this imperatively via `utils.system.diagnoseChat.fetch()` from the
+   * error-card "Diagnose" button. Returns the explicit flat
+   * `DiagnoseChatResult` (every Date stringified · no Prisma row).
+   */
+  diagnoseChat: operatorProcedure.query(
+    async (): Promise<DiagnoseChatResult> => runChatDiagnostic(),
+  ),
+
+  /**
+   * hooks-lib slice · the Web-Push VAPID public key (so the client can
+   * subscribe). Replaces the GET branch of /api/notifications/subscribe
+   * · returns the same `VAPID_PUBLIC_KEY` from `lib/notifications/push`
+   * the legacy route returned · drift impossible.
+   *
+   * PUBLIC procedure — the VAPID public key is non-sensitive by
+   * design (it's meant to ship to every browser); the legacy GET was
+   * ungated for the same reason. `usePushNotifications` reads
+   * `{ publicKey }` off this before calling `pushSubscribe`.
+   */
+  pushVapidKey: publicProcedure.query(() => ({
+    publicKey: VAPID_PUBLIC_KEY,
+  })),
+
+  /**
+   * hooks-lib slice · owner-only · register a Web-Push subscription.
+   * Replaces the POST branch of /api/notifications/subscribe ·
+   * delegates to the same `saveSubscription` helper the legacy route
+   * calls · drift impossible. The `subscription` shape is strict
+   * (endpoint + p256dh + auth keys) — the route's manual
+   * `!subscription?.endpoint || !subscription?.keys?.p256dh` guard
+   * hoisted to the typed `.input()`. Returns `{ success: true }`
+   * mirroring the legacy envelope.
+   */
+  pushSubscribe: operatorProcedure
+    .input(
+      z.object({
+        subscription: z.object({
+          endpoint: z.string().min(1).max(2000),
+          keys: z.object({
+            p256dh: z.string().min(1).max(500),
+            auth: z.string().min(1).max(500),
+          }),
+        }),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await saveSubscription(input.subscription);
+      return { success: true as const };
+    }),
+
+  /**
+   * hooks-lib slice · owner-only · remove a Web-Push subscription.
+   * Replaces the DELETE branch of /api/notifications/subscribe ·
+   * delegates to the same `removeSubscription` helper the legacy route
+   * calls · drift impossible. Returns `{ success: true }` mirroring the
+   * legacy envelope.
+   */
+  pushUnsubscribe: operatorProcedure
+    .input(z.object({ endpoint: z.string().min(1).max(2000) }))
+    .mutation(async ({ input }) => {
+      await removeSubscription(input.endpoint);
+      return { success: true as const };
     }),
 });

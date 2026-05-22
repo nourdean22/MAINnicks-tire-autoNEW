@@ -44,12 +44,29 @@ import {
 import {
   readMessageEditView,
   editChatMessage,
+  deleteMessageCascade,
   MessageNotFoundError,
   ConcurrentEditError,
   EmptyContentError,
   ContentTooLongError,
   MAX_CONTENT_CHARS,
 } from "@/lib/services/chat-edit";
+// hooks-lib REST→tRPC slice (2026-05-22) · the conversation-read,
+// prefetch, wisdom-suggest, and mention-resolution services the
+// migrated chat hooks delegate to. Each is also called by the matching
+// legacy REST route — drift structurally impossible. The conversation
+// reads return explicit shallow shapes (`ConversationDetail.messages[]`
+// Prisma Json columns projected to `unknown` inside the service · the
+// AppRouter type stays shallow · TS2589 firewall).
+import {
+  listConversations,
+  readConversation,
+  renameConversation,
+  ConversationNotFoundError as ConversationReadNotFoundError,
+} from "@/lib/services/chat-conversation-read";
+import { runChatPrefetch } from "@/lib/services/chat-prefetch";
+import { buildWisdomSuggestFeed } from "@/lib/services/wisdom-suggest-feed";
+import { resolveMention } from "@/lib/services/resolve-mention";
 import { readClaimWarnings } from "@/lib/services/claim-warnings";
 import {
   updateConversation,
@@ -626,4 +643,201 @@ export const chatRouter = router({
         throw err;
       }
     }),
+
+  // ═══════════ hooks-lib REST→tRPC slice · chat hooks ═══════════
+  //
+  // The final chat-domain `authedFetch` call-sites — the 12-hook +
+  // 4-lib slice that closes the REST→tRPC migration. Each procedure
+  // delegates to a shared `lib/services/` function the legacy REST
+  // route ALSO calls · drift structurally impossible. Read procedures
+  // returning Prisma rows go through services with explicit shallow
+  // return shapes (the `ChatMessage` Json columns projected to
+  // `unknown`) so the recursive `JsonValue` type never reaches the
+  // AppRouter — the TS2589 firewall.
+
+  /**
+   * hooks-lib slice · owner-only · the conversation-list feed for the
+   * /chat history drawer · cursor-paginated, newest-first, archived
+   * filtered out. Replaces GET /api/ai/chat · delegates to the shared
+   * `chat-conversation-read.listConversations` the legacy route also
+   * calls · drift impossible. The legacy `?cursor` / `?take` query
+   * params are mirrored as typed inputs. `useConversations` keys on the
+   * input so the "load older" cursor fetch refetches.
+   */
+  list: operatorProcedure
+    .input(
+      z
+        .object({
+          cursor: z.string().max(64).optional(),
+          take: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listConversations({ cursor: input?.cursor, take: input?.take }),
+    ),
+
+  /**
+   * hooks-lib slice · owner-only · read one conversation + its full
+   * message history (oldest-first). Replaces GET /api/ai/chat/[id] ·
+   * delegates to the shared `chat-conversation-read.readConversation`
+   * the legacy route also calls · drift impossible. A missing id throws
+   * NOT_FOUND (the page branches on it to show "couldn't load"). The
+   * service returns the explicit shallow `ConversationDetail` — every
+   * `ChatMessage` Json column (`parts` · `attachments` · `editHistory`
+   * · `errorDetails` · `tokenUsage`) projected to `unknown` · the
+   * AppRouter type stays shallow · TS2589 firewall.
+   */
+  conversation: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      try {
+        return await readConversation({ id: input.id });
+      } catch (err) {
+        if (err instanceof ConversationReadNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * hooks-lib slice · owner-only · rename a conversation's title.
+   * Replaces the title-only PATCH /api/ai/chat/[id] · delegates to the
+   * shared `chat-conversation-read.renameConversation` · drift
+   * impossible. Distinct from `updateConversation` (the archive/star/
+   * mute flag mutation) — this is the inline-rename path. A missing id
+   * throws NOT_FOUND.
+   */
+  renameConversation: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        title: z.string().min(1).max(200),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await renameConversation({ id: input.id, title: input.title });
+      } catch (err) {
+        if (err instanceof ConversationReadNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * hooks-lib slice · owner-only · hard-delete a chat message AND every
+   * subsequent message in the same conversation (the chat long-press
+   * "delete" action). Replaces DELETE /api/ai/chat/edit/[messageId] ·
+   * delegates to the shared `chat-edit.deleteMessageCascade` · drift
+   * impossible. The cascade truncates from the target forward so a bad
+   * reply + its downstream context drop in one shot. A missing id
+   * throws NOT_FOUND (the hook reverts its optimistic truncate).
+   */
+  deleteMessage: operatorProcedure
+    .input(z.object({ messageId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await deleteMessageCascade({ messageId: input.messageId });
+      } catch (err) {
+        if (err instanceof MessageNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * hooks-lib slice · owner-only · the speculative chat warm-up the
+   * composer fires while the operator types (`useChatPrefetch`) + on
+   * surface-boot (`useIdleWarmup`). Replaces POST /api/ai/chat/prefetch
+   * · delegates to the shared `chat-prefetch.runChatPrefetch` the
+   * legacy route also calls · drift impossible. Pure warmup · NEVER
+   * calls Venice. `clientId` (one per tab from sessionStorage) keys the
+   * service's rate-limit + draft-dedupe.
+   *
+   * Modeled as a `.mutation()` · it warms server-side caches (a side
+   * effect · not a pure read) and the client fires it fire-and-forget.
+   * Never throws — the service resolves a short-circuit `reason` for
+   * too-short / rate-limited / duplicate drafts.
+   */
+  prefetch: operatorProcedure
+    .input(
+      z.object({
+        draft: z.string().max(8000),
+        clientId: z.string().max(128).optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      runChatPrefetch({ draft: input.draft, clientId: input.clientId }),
+    ),
+
+  /**
+   * hooks-lib slice · owner-only · the at-write-time wisdom-pill feed ·
+   * 1-2 wisdoms most semantically relevant to the current composer
+   * draft. Replaces POST /api/ai/chat/wisdom-suggest · delegates to the
+   * shared `wisdom-suggest-feed.buildWisdomSuggestFeed` the legacy
+   * route also calls · drift impossible (the 60s in-memory cache + the
+   * dismissed-id read-time filter live in the service).
+   *
+   * Modeled as a `.query()` · pure read (the `markWisdomShown` write is
+   * fire-and-forget cooldown telemetry, not the request's purpose) ·
+   * `useWisdomSuggest` fires it imperatively via `utils.chat
+   * .wisdomSuggest.fetch()` with a 600ms debounce + AbortController.
+   * A pathological 5000+ char paste throws PAYLOAD_TOO_LARGE — the
+   * ServiceError(413) the route surfaced, mapped to the matching code.
+   */
+  wisdomSuggest: operatorProcedure
+    .input(
+      z.object({
+        draft: z.string().max(8000),
+        dismissedIds: z.array(z.string().max(64)).max(50).optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        return await buildWisdomSuggestFeed({
+          draft: input.draft,
+          dismissedIds: input.dismissedIds,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 413 ? "PAYLOAD_TOO_LARGE" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * hooks-lib slice · owner-only · resolve an async @mention token
+   * (@yesterday / @week / @cold) to its live bracketed value. Replaces
+   * POST /api/chat/resolve-mention · delegates to the shared
+   * `resolve-mention.resolveMention` the legacy route also calls ·
+   * drift impossible. `useMentionSuggestions` fires it imperatively via
+   * `utils.chat.resolveMention.fetch()` right before send.
+   *
+   * Modeled as a `.query()` · pure read (DB counts + a cold-memory
+   * search · no write). `key` is bounded to a strict enum so an unknown
+   * token is rejected at the boundary — the sync expander already
+   * handles every other token client-side, so only the three async
+   * keys ever reach this procedure.
+   */
+  resolveMention: operatorProcedure
+    .input(
+      z.object({
+        key: z.enum(["yesterday", "week", "cold"]),
+        surroundingText: z.string().max(8000).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      resolveMention({
+        key: input.key,
+        surroundingText: input.surroundingText,
+      }),
+    ),
 });

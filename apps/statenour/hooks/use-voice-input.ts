@@ -2,7 +2,15 @@
 
 import { useState, useRef, useCallback } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
+// `/api/ai/transcribe` takes a multipart `FormData` audio Blob — tRPC's
+// httpBatchLink JSON-serialises its inputs, so a Blob cannot ride a
+// tRPC procedure. This is the same carve-out the prior slice made for
+// the voice/token mint ("stays plain fetch · no procedure"). The
+// `authedFetch` import is replaced with a bare `fetch` carrying
+// `credentials: "include"` (the only thing `authedFetch` added over
+// `fetch` for a transient best-effort call like this) — the
+// `use-authed-fetch` import is gone.
 /**
  * useVoiceInput — single recording + continuous voice mode.
  * Single: tap to record, tap to stop, transcribes via Whisper.
@@ -74,7 +82,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
         try {
           const form = new FormData();
           form.append("audio", blob, "voice.webm");
-          const res = await authedFetch("/api/ai/transcribe", { method: "POST", body: form });
+          const res = await fetch("/api/ai/transcribe", { method: "POST", body: form, credentials: "include" });
           if (!res.ok) {
             // v10.0.420 · was silently swallowed · the 7-day audit caught
             // /api/ai/transcribe returning 404 forever (route never built).
@@ -137,7 +145,7 @@ export function useVoiceInput(onTranscript: (text: string) => void, onAutoSend: 
         try {
           const form = new FormData();
           form.append("audio", blob, "voice.webm");
-          const res = await authedFetch("/api/ai/transcribe", { method: "POST", body: form });
+          const res = await fetch("/api/ai/transcribe", { method: "POST", body: form, credentials: "include" });
           if (!res.ok) {
             console.warn(`[voice-input · continuous] transcribe HTTP ${res.status}`);
           } else {

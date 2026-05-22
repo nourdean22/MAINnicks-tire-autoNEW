@@ -9,7 +9,18 @@
  */
 
 import { useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/system/pulse")` onto `trpc.system.pulse`. The
+// CRUX of this slice: `fetchPulse()` below is a MODULE-LEVEL function
+// (the de-duped singleton poller · NOT a React hook · runs outside any
+// component render path), so it CANNOT use the React-hooks tRPC client
+// — it uses the vanilla (non-hook) client, the same imperative path
+// `ClientErrorTelemetry` uses. `useSystemPulse` IS a hook, but it only
+// subscribes to the module cache; the actual fetch never happens in a
+// render. The procedure delegates to the SAME `system-pulse.build
+// SystemPulse` service the legacy GET /api/system/pulse route was
+// slimmed to call · drift impossible.
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 
 export interface SystemPulse {
   cronFails24h: number;
@@ -60,10 +71,11 @@ async function fetchPulse(): Promise<void> {
   if (inflight) return inflight;
   inflight = (async () => {
     try {
-      const res = await authedFetch("/api/system/pulse", { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-      cached = (json.data ?? json) as SystemPulse;
+      // Vanilla (non-hook) tRPC client · this function is module-level,
+      // not a render path. `system.pulse` returns the explicit flat
+      // `SystemPulseView` — structurally a superset of `SystemPulse`
+      // (every field this consumer reads is present).
+      cached = (await trpcVanilla.system.pulse.query()) as SystemPulse;
       lastFetchAt = Date.now();
       for (const fn of listeners) fn(cached);
     } catch {

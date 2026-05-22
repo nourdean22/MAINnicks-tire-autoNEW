@@ -1,22 +1,22 @@
 "use client";
 
 import { useCallback } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { haptic } from "@/lib/ui/haptic";
 import { logger as rootLogger } from "@/lib/logger";
-// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration. `onPin`'s
-// two `/api/brain/pinned` calls (POST + the 800ms readback GET) move
-// onto the existing `trpc.brain.{createPin,pinned}` procedures (Phase
-// YY) · both delegate to the SAME `pins.{createPin,listPins}` service
-// the REST route calls · drift impossible. NOT migrated (the
-// `authedFetch` import stays for them):
-//   · onDelete       — DELETE /api/ai/chat/edit/[id] has no shared
-//     service + no tRPC procedure (chat-edit.ts exports only the
-//     edit/read fns) · would need a service extraction.
-//   · onSaveAsBelief — does a `POST /api/brain/memories` (the no-`key`
-//     route · no clean procedure) alongside the harvest call · the two
-//     halves can't both migrate, so the hook stays whole on REST.
-//   · onSaveAsDecision — pure `POST /api/brain/memories` · same route.
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
+// call-site here is now typed tRPC, the `authedFetch` import is gone.
+//   · onPin          → trpc.brain.{createPin,pinned} (Phase YY)
+//   · onDelete       → trpc.chat.deleteMessage (NEW · delegates to the
+//     `chat-edit.deleteMessageCascade` service the legacy DELETE
+//     /api/ai/chat/edit/[id] route now also calls · drift impossible)
+//   · onSaveAsBelief → trpc.brain.harvestBeliefs + trpc.brain.recordMemory
+//   · onSaveAsDecision → trpc.brain.recordMemory
+// `recordMemory` upserts by (category, key) — the harvest/save-as-*
+// paths supply a content-hash key, fixing the pre-existing payload bug
+// where the old `POST /api/brain/memories` calls omitted the required
+// `key` field (the route 400'd · the failure was masked by a generic
+// toast). Every procedure delegates to the SAME service its legacy
+// REST route calls · drift structurally impossible.
 import { trpc } from "@/lib/trpc/client";
 
 /**
@@ -59,6 +59,20 @@ export type ChatMessageActions = {
 const log = rootLogger.withSurface("chat/action-sheet");
 
 /**
+ * Stable content-hash key for a save-as-* memory row. `brainMemory
+ * .remember` upserts by (category, key) — keying on a hash of the
+ * content slice means re-saving the same text reinforces the existing
+ * row instead of duplicating it. Cheap djb2-ish hash · base36.
+ */
+function memoryKey(content: string): string {
+  let h = 0;
+  for (let i = 0; i < content.length; i++) {
+    h = (h * 31 + content.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
+/**
  * Generic over the message type so the hook can consume the AI SDK's
  * useChat output without dragging a specific UIMessage shape across
  * the boundary. The page typically passes `messages` and `setMessages`
@@ -88,6 +102,11 @@ export function useChatMessageActions<TMessage extends { id: string }>({
   // verification imperatively.
   const utils = trpc.useUtils();
   const createPinMutation = trpc.brain.createPin.useMutation();
+  // tRPC handles for onDelete + the save-as-* paths. Each throws
+  // TRPCError on failure, caught by the existing try/catch blocks.
+  const deleteMessageMutation = trpc.chat.deleteMessage.useMutation();
+  const harvestBeliefsMutation = trpc.brain.harvestBeliefs.useMutation();
+  const recordMemoryMutation = trpc.brain.recordMemory.useMutation();
 
   const onCopy = useCallback(() => {
     if (actionSheetMsg?.text) {
@@ -180,10 +199,9 @@ export function useChatMessageActions<TMessage extends { id: string }>({
     setMessages(messages.slice(0, idx));
     haptic.medium();
     try {
-      const res = await authedFetch(`/api/ai/chat/edit/${targetId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      // `deleteMessage` cascade-deletes the target + every subsequent
+      // message · throws TRPCError on a missing id (caught below).
+      await deleteMessageMutation.mutateAsync({ messageId: targetId });
       haptic.success();
     } catch (err) {
       // Revert + surface failure
@@ -194,28 +212,30 @@ export function useChatMessageActions<TMessage extends { id: string }>({
       );
       setTimeout(() => setError(null), 3500);
     }
-  }, [actionSheetMsg, messages, setMessages, setError]);
+  }, [actionSheetMsg, messages, setMessages, setError, deleteMessageMutation]);
 
   const onSaveAsBelief = useCallback(async () => {
     // v10.0.28 — toast feedback. Pre-v10.0.28 this had .catch(() => {})
     // on every fetch which swallowed all failures silently.
     if (!actionSheetMsg) return;
     try {
-      const beliefRes = await authedFetch("/api/beliefs", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "harvest_now" }),
+      // `harvestBeliefs` is the typed equivalent of the legacy PATCH
+      // /api/beliefs `{action:"harvest_now"}` branch · `recordMemory`
+      // persists the message text as a belief_manual row. The legacy
+      // `POST /api/brain/memories` call omitted the route's REQUIRED
+      // `key` field (a pre-existing payload bug · the route 400'd · the
+      // failure was masked by the generic toast) — `recordMemory`'s
+      // typed `.input()` makes that impossible, so we mint a stable
+      // content-hash key here. `remember` upserts by (category, key) so
+      // re-saving the same text reinforces rather than duplicating.
+      await harvestBeliefsMutation.mutateAsync();
+      const content = actionSheetMsg.text.slice(0, 500);
+      await recordMemoryMutation.mutateAsync({
+        category: "belief_manual",
+        key: `belief_manual:${memoryKey(content)}`,
+        content,
+        source: "chat:save-as-belief",
       });
-      const memRes = await authedFetch("/api/brain/memories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "belief_manual",
-          content: actionSheetMsg.text.slice(0, 500),
-          confidence: 0.9,
-        }),
-      });
-      if (!beliefRes.ok || !memRes.ok) throw new Error("save failed");
       haptic.success();
     } catch (err) {
       log.error("action.saveAsBelief.failed", { error: err instanceof Error ? err.message : String(err) });
@@ -223,21 +243,21 @@ export function useChatMessageActions<TMessage extends { id: string }>({
       setError("Couldn't save as belief — try again");
       setTimeout(() => setError(null), 3500);
     }
-  }, [actionSheetMsg, setError]);
+  }, [actionSheetMsg, setError, harvestBeliefsMutation, recordMemoryMutation]);
 
   const onSaveAsDecision = useCallback(async () => {
     if (!actionSheetMsg) return;
     try {
-      const res = await authedFetch("/api/brain/memories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          category: "decision_manual",
-          content: actionSheetMsg.text.slice(0, 500),
-          confidence: 0.9,
-        }),
+      // Same fix as onSaveAsBelief — the legacy `POST /api/brain/
+      // memories` omitted the required `key`; `recordMemory` mints a
+      // stable content-hash key so the row actually lands.
+      const content = actionSheetMsg.text.slice(0, 500);
+      await recordMemoryMutation.mutateAsync({
+        category: "decision_manual",
+        key: `decision_manual:${memoryKey(content)}`,
+        content,
+        source: "chat:save-as-decision",
       });
-      if (!res.ok) throw new Error(`${res.status}`);
       haptic.success();
     } catch (err) {
       log.error("action.saveAsDecision.failed", { error: err instanceof Error ? err.message : String(err) });
@@ -245,7 +265,7 @@ export function useChatMessageActions<TMessage extends { id: string }>({
       setError("Couldn't save as decision — try again");
       setTimeout(() => setError(null), 3500);
     }
-  }, [actionSheetMsg, setError]);
+  }, [actionSheetMsg, setError, recordMemoryMutation]);
 
   const onShowReasoning = useCallback(() => {
     if (!actionSheetMsg) return;
