@@ -79,6 +79,10 @@
 >   createMission, but missionBaseSchema has no such field (Mission has
 >   no description column), so Zod strips it silently. Harmless but
 >   dead / misleading code.
+>
+> **Update** · all three resolved same-session in `b8a5c42` — adoptAi
+> now grades through the roiScore=50 sentinel, load() fetch failures
+> report to /system/logs, and the dead `description` key is gone.
 
 > ## 2026-05-21 · suggestion-improve — closing the suggestion-loop feedback loop · 3 ships
 >
