@@ -11,7 +11,13 @@ import { BUSINESS } from "@shared/business";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import BrandMark from "@/components/BrandMark";
 
+// Tires sits FIRST — highest customer intent. Without this entry, tire-
+// buyers landing on the homepage had no nav-level path to /tires (they
+// had to scroll past the hero into the symptom grid to find "GET TIRES
+// TODAY"). Direct browser audit found this was the single biggest
+// discovery gap in the customer journey.
 const NAV_LINKS = [
+  { label: "Tires", href: "/tires" },
   { label: "Services", href: "/services" },
   { label: "Payment Programs", href: "/financing" },
   { label: "Reviews", href: "/reviews" },

@@ -241,6 +241,16 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
     onError: () => toast.error("Couldn't start checkout. Please call (216) 862-0005 to pay."),
   });
 
+  // Escape closes the modal — standard keyboard/a11y expectation. Was
+  // missing; only the X button and backdrop click closed the modal.
+  // Direct browser audit found it. Registered globally on `window` so
+  // it works whether or not focus is inside the modal form.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   if (!tire) return null;
 
   const tireTotal = tire.shopPrice * quantity;

@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { AlertTriangle, Phone, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
@@ -46,7 +47,11 @@ export function EmergencyMode() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.phone || !formData.issue) {
-      alert("Please fill in all required fields");
+      // toast not alert() — alert() is suppressed in iOS PWA standalone
+      // mode (where users-on-phones often run customer-facing PWAs) so
+      // a missing-field submit produced no visible feedback. Same
+      // native-primitive bug class fixed in wave-139/168 admin work.
+      toast.error("Please fill in all required fields");
       return;
     }
     submitEmergency.mutate({
