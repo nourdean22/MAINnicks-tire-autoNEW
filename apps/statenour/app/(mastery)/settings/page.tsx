@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -24,7 +24,7 @@ import { SystemDataCards } from "@/components/settings/system-data-cards";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
 
 export default function SettingsPage() {
@@ -174,42 +174,50 @@ function AutoPilotControls() {
     { key: "auto_session_distill", label: "Chat Session Distillation", description: "Every 3h · fold idle chats into durable memory", icon: Brain, enabled: true },
   ]);
 
+  // Phase UU.2 (2026-05-22) · REST→tRPC · the flag map is a typed query
+  // (system.autopilotFlags). It merges into the local `flags` state
+  // (which carries the rich label/icon/description metadata the server
+  // doesn't store). On query error the localStorage fallback still
+  // applies — the same resilience the prior authedFetch path had.
+  const autopilotQuery = trpc.system.autopilotFlags.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const setAutopilotMutation = trpc.system.setAutopilotFlags.useMutation();
+
   useEffect(() => {
     // v10.0.117 audit fix · alive flag prevents setFlags from firing
-    // on a dead instance if user navigates away during the fetch
-    // (or during the localStorage fallback path).
+    // on a dead instance if user navigates away mid-load.
     let alive = true;
-    // Load from server, fall back to localStorage
-    // v10.0.33 — res.ok guard before .json(). Pre-fix a 401/500
-    // would call .json() on a non-JSON error body, throw, fall
-    // into the .catch and silently load stale localStorage flags
-    // — the user got no signal the server fetch had failed.
-    authedFetch("/api/settings/autopilot").then(r => {
-      if (!r.ok) throw new Error(`autopilot HTTP ${r.status}`);
-      return r.json();
-    }).then(data => {
-      if (!alive) return;
-      if (data.flags) {
-        setFlags(prev => prev.map(f => ({
+    if (autopilotQuery.data?.flags) {
+      const serverFlags = autopilotQuery.data.flags;
+      setFlags((prev) =>
+        prev.map((f) => ({
           ...f,
-          enabled: data.flags[f.key] !== undefined ? data.flags[f.key] : f.enabled,
-        })));
-      }
-    }).catch(() => {
-      if (!alive) return;
+          enabled:
+            serverFlags[f.key] !== undefined ? serverFlags[f.key] : f.enabled,
+        })),
+      );
+    } else if (autopilotQuery.error) {
+      // Server load failed — fall back to localStorage so a toggle
+      // made offline isn't lost on the next visit.
       try {
         const stored = localStorage.getItem("nour-autopilot-flags");
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          setFlags(prev => prev.map(f => ({
-            ...f,
-            enabled: parsed[f.key] !== undefined ? parsed[f.key] : f.enabled,
-          })));
+        if (stored && alive) {
+          const parsed = JSON.parse(stored) as Record<string, boolean>;
+          setFlags((prev) =>
+            prev.map((f) => ({
+              ...f,
+              enabled:
+                parsed[f.key] !== undefined ? parsed[f.key] : f.enabled,
+            })),
+          );
         }
       } catch {}
-    });
-    return () => { alive = false; };
-  }, []);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [autopilotQuery.data, autopilotQuery.error]);
 
   function toggleFlag(key: string) {
     setFlags(prev => {
@@ -218,11 +226,7 @@ function AutoPilotControls() {
       const map: Record<string, boolean> = {};
       updated.forEach(f => { map[f.key] = f.enabled; });
       localStorage.setItem("nour-autopilot-flags", JSON.stringify(map));
-      authedFetch("/api/settings/autopilot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ flags: map }),
-      }).catch(() => {});
+      setAutopilotMutation.mutate({ flags: map });
       // v10.0.529.90 · Wave 34 · fire bus · AiSettingsPanel (Wave 31)
       // + any future autopilot consumers refresh instantly.
       notifyDataChanged("settings", { source: "settings-page", detail: "autopilot-toggle", id: key });
@@ -319,45 +323,30 @@ function SystemInfoRow({
 }
 
 function SystemInfo() {
-  const [info, setInfo] = useState<ToolsHealth | null>(null);
-  const [memoryCount, setMemoryCount] = useState<number | null>(null);
-  // v10 B.1 FIND-06 · explicit error indicator. Was silent on dual
-  // fetch failure — hardcoded fallbacks (149, "v8.1") rendered as
-  // live facts. Now we show "—" + a small warning when both fetches
-  // fail, so the operator sees STALE not LIE.
-  const [healthError, setHealthError] = useState(false);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · the version/tools card pulls
+  // two typed queries: system.toolsHealth (the ToolsHealth shape) and
+  // brain.status. The legacy code read the memory count off the
+  // top-level `d.total` of /api/brain/status — but that route nests
+  // the count under `memories`, so `d.total` was always undefined and
+  // this line never populated. The typed shape forces the correct
+  // read (`memories.total`); the endpoint payload is unchanged.
+  const toolsQuery = trpc.system.toolsHealth.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const brainQuery = trpc.brain.status.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
 
-  useEffect(() => {
-    // v10.0.117 audit fix · alive guard prevents the three setters
-    // from writing to a dead component if user navigates away during
-    // the dual-fetch.
-    let alive = true;
-    let healthOk = false;
-    let memoryOk = false;
-    Promise.all([
-      authedFetch("/api/tools/health")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (alive && d) {
-            setInfo(d as ToolsHealth);
-            healthOk = true;
-          }
-        })
-        .catch(() => {}),
-      authedFetch("/api/brain/status")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (alive && d?.total) {
-            setMemoryCount(d.total);
-            memoryOk = true;
-          }
-        })
-        .catch(() => {}),
-    ]).finally(() => {
-      if (alive && !healthOk && !memoryOk) setHealthError(true);
-    });
-    return () => { alive = false; };
-  }, []);
+  const info: ToolsHealth | null = (toolsQuery.data ?? null) as ToolsHealth | null;
+  const memoryCount: number | null =
+    typeof brainQuery.data?.memories?.total === "number"
+      ? brainQuery.data.memories.total
+      : null;
+  // v10 B.1 FIND-06 · explicit error indicator. Was silent on dual
+  // fetch failure — hardcoded fallbacks rendered as live facts. Show
+  // "—" + a small warning when BOTH queries fail so the operator sees
+  // STALE not LIE.
+  const healthError = toolsQuery.isError && brainQuery.isError;
 
   return (
     <div className="mt-10">

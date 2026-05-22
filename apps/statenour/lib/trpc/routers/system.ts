@@ -1,5 +1,6 @@
 /**
- * lib/trpc/routers/system.ts · Phase S.2 (2026-05-18 PM)
+ * lib/trpc/routers/system.ts · Phase S.2 (2026-05-18 PM) · extended
+ * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice).
  *
  * System telemetry procedures · per the J tRPC migration plan, this is
  * the third domain router (after `nick` for reasoning + `operator` for
@@ -9,11 +10,18 @@
  * Replaces (coexistence · legacy REST stays mounted):
  *   · GET /api/system/health-report → healthReport
  *
- * Both call the same `buildHealthReport()` service so the legacy REST
+ * Phase UU.2 folds the /settings system-ops surfaces in here (rather
+ * than spawning a thin `settings` router): cron control catalog +
+ * path-trigger, auto-pilot flags, tools health, and the three
+ * SystemDataCards endpoints (health-trend · error-rate · quotas). All
+ * are config / system-ops flavoured → `system` is their natural home.
+ *
+ * Every procedure delegates to a shared service so the legacy REST
  * consumers and the new tRPC consumers can't drift.
  */
 
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
@@ -24,10 +32,47 @@ import { readRecentV2Samples } from "@/lib/ai/judge-eval/sampler";
 import { scanCronHealth } from "@/lib/system/cron-diagnostics";
 import {
   triggerCronByName,
+  triggerCronByPath,
   setCronEnabled as setCronEnabledService,
+  listScheduledCrons,
+  listCronControls,
+  getCronStats,
 } from "@/lib/services/cron-control";
+import {
+  getAutopilotFlags,
+  setAutopilotFlags,
+} from "@/lib/services/autopilot-flags";
+import { buildToolsHealth } from "@/lib/services/tools-health";
+import {
+  buildHealthTrend,
+  buildErrorRateByRoute,
+  buildIntegrationQuotas,
+} from "@/lib/services/system-data";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
+
+// CronControlPanel's `/api/settings/crons` GET assembles scheduled crons
+// + mega-fanout virtual crons + control state + 14d stats. The MEGA
+// fanout list is duplicated from `app/api/settings/crons/route.ts`
+// verbatim (the route keeps its copy as the rollback path).
+const MEGA_FANOUT = [
+  "device-sync",
+  "learn",
+  "stale-tasks",
+  "device-health",
+  "brain-cycle",
+  "notification-sender",
+  "journal-checkin",
+  "embed-backfill",
+  "reflect",
+  "predict",
+  "think",
+  "consolidate",
+  "drift-check",
+  "daily-report",
+  "data-cleanup",
+  "intelligence",
+];
 
 export const systemRouter = router({
   /**
@@ -177,4 +222,161 @@ export const systemRouter = router({
       );
       return { jobName: input.jobName, enabled: next };
     }),
+
+  // ───────────────── Settings · cron control panel (UU.2) ─────────────────
+
+  /**
+   * Phase UU.2 · owner-only · the CronControlPanel catalog. Replaces
+   * GET /api/settings/crons · scheduled crons (from vercel.json) PLUS
+   * the mega-fanout virtual crons, each joined to its kill-switch
+   * control state + 14-day success/fail stats.
+   *
+   * Assembles from the SAME three `cron-control` service functions the
+   * REST route calls (`listScheduledCrons` · `listCronControls` ·
+   * `getCronStats`) · the mega-fanout merge logic mirrors the route
+   * verbatim · drift impossible. Returns the row array directly (the
+   * panel reads `raw.data` off the legacy envelope · the tRPC query
+   * gives it the array unwrapped).
+   */
+  cronCatalog: operatorProcedure.query(async () => {
+    const [scheduled, controls, stats] = await Promise.all([
+      listScheduledCrons(),
+      listCronControls(),
+      getCronStats(),
+    ]);
+    const controlsMap = new Map(controls.map((c) => [c.jobName, c]));
+    const scheduledNames = new Set(scheduled.map((c) => c.jobName));
+    const virtualCrons = MEGA_FANOUT.filter(
+      (name) => !scheduledNames.has(name),
+    ).map((name) => ({
+      jobName: name,
+      path: `/api/cron/${name}`,
+      schedule: "(mega fanout)",
+    }));
+    const all = [...scheduled, ...virtualCrons];
+    return all.map((c) => {
+      const control = controlsMap.get(c.jobName);
+      const stat = stats[c.jobName] ?? {
+        lastSuccessAt: null,
+        lastFailAt: null,
+        success14d: 0,
+        fail14d: 0,
+      };
+      return {
+        ...c,
+        enabled: control?.enabled ?? true,
+        note: control?.note ?? null,
+        controlUpdatedAt: control?.updatedAt ?? null,
+        ...stat,
+      };
+    });
+  }),
+
+  /**
+   * Phase UU.2 · owner-only · manually fire a cron by its path (e.g.
+   * `/api/cron/drift-check` or `/api/cron/mega?slot=morning`). Replaces
+   * POST /api/settings/crons/trigger · delegates to the same
+   * `triggerCronByPath` the REST route calls · drift impossible.
+   *
+   * The CronControlPanel already knows each cron's path (from
+   * `cronCatalog`), so a path-keyed trigger maps the panel's existing
+   * `trigger(path, jobName)` signature 1:1 · this is deliberately
+   * distinct from the jobName-keyed `runCron` (NN) which the cron-
+   * diagnostics page uses. The path guard mirrors the REST route.
+   */
+  triggerCron: operatorProcedure
+    .input(z.object({ path: z.string().min(1).max(200) }))
+    .mutation(async ({ input }) => {
+      if (!input.path.startsWith("/api/cron/")) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid cron path",
+        });
+      }
+      return triggerCronByPath(input.path);
+    }),
+
+  // ──────────────── Settings · auto-pilot flags (UU.2) ────────────────
+
+  /**
+   * Phase UU.2 · owner-only · read the persisted auto-pilot flag map.
+   * Replaces GET /api/settings/autopilot · delegates to the shared
+   * `autopilot-flags` service · drift impossible. Returns
+   * `{ flags }` matching the legacy envelope so the page's
+   * `data.flags` access is unchanged.
+   */
+  autopilotFlags: operatorProcedure.query(async () => {
+    return { flags: await getAutopilotFlags() };
+  }),
+
+  /**
+   * Phase UU.2 · owner-only · persist the auto-pilot flag map. Replaces
+   * POST /api/settings/autopilot · the service merges over DEFAULTS so
+   * every known key is present. Input is a typed string→boolean record
+   * (the panel builds the map from its flag list · the keys are
+   * operator-defined flag names so a `z.record` of `z.boolean()` is the
+   * correct shape — the *values* are strictly typed, which is the guard
+   * that matters here).
+   */
+  setAutopilotFlags: operatorProcedure
+    .input(z.object({ flags: z.record(z.string(), z.boolean()) }))
+    .mutation(async ({ input }) => {
+      return { flags: await setAutopilotFlags(input.flags) };
+    }),
+
+  // ─────────────── Settings · tools health + data cards (UU.2) ───────────────
+
+  /**
+   * Phase UU.2 · owner-only · runtime dependency check for every tool
+   * category (DB latency · env-var presence · per-category rollup).
+   * Replaces GET /api/tools/health · delegates to the shared
+   * `tools-health` service · drift impossible.
+   */
+  toolsHealth: operatorProcedure.query(async () => buildToolsHealth()),
+
+  /**
+   * Phase UU.2 · owner-only · 7/14/30-day SystemHealthDigest trend for
+   * the SystemDataCards sparkline. Replaces GET /api/system/health-trend
+   * · delegates to the shared `system-data.buildHealthTrend` service.
+   * Returns the report at the top level — the legacy route wrapped it
+   * in `{ data }`, the component reads `j?.data`; the tRPC query hands
+   * it back unwrapped and the call-site reads the object directly.
+   */
+  healthTrend: operatorProcedure
+    .input(
+      z
+        .object({ range: z.enum(["7d", "14d", "30d"]).default("7d") })
+        .optional(),
+    )
+    .query(async ({ input }) => buildHealthTrend(input?.range ?? "7d")),
+
+  /**
+   * Phase UU.2 · owner-only · per-route reliability metrics over a
+   * window, scored "fix-first". Replaces GET
+   * /api/system/error-rate-by-route · delegates to the shared
+   * `system-data.buildErrorRateByRoute` service.
+   */
+  errorRateByRoute: operatorProcedure
+    .input(
+      z
+        .object({
+          range: z.enum(["1h", "24h", "7d"]).default("24h"),
+          minRequests: z.number().int().min(1).max(1000).default(5),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildErrorRateByRoute(input?.range ?? "24h", input?.minRequests ?? 5),
+    ),
+
+  /**
+   * Phase UU.2 · owner-only · real-time cost/quota state per provider
+   * (Twilio · Resend · Stripe · Vercel · Venice). Replaces GET
+   * /api/system/integration-quotas · delegates to the shared
+   * `system-data.buildIntegrationQuotas` service. No input · always
+   * probes every configured provider.
+   */
+  integrationQuotas: operatorProcedure.query(async () =>
+    buildIntegrationQuotas(),
+  ),
 });

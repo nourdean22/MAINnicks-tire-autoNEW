@@ -17,7 +17,7 @@
  * there's no schema. All curation goes through /api/skills.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
@@ -37,7 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch, describeFetchError } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface StoredSkill {
   dbId: string;
@@ -85,45 +85,41 @@ function tierColor(tier: StoredSkill["tier"]): string {
 }
 
 export function SkillLibraryPanel() {
-  const [active, setActive] = useState<StoredSkill[] | null>(null);
-  const [pending, setPending] = useState<StoredSkill[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  // v8.2 D5 — track when the data was last fetched so the FreshnessChip
-  // can render an accurate age + provenance.
-  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const [tab, setTab] = useState<Tab>("candidates");
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [extracting, setExtracting] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editTrigger, setEditTrigger] = useState("");
   const [editAction, setEditAction] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // v11.1 · authedFetch retries once after 300ms on 401 to dodge
-      // the cold-load cookie-arrival race. describeFetchError surfaces
-      // status code + body preview so diagnosis is one glance.
-      const res = await authedFetch("/api/skills");
-      if (!res.ok) {
-        throw new Error(await describeFetchError(res));
-      }
-      const raw = (await res.json()) as { data?: { active: StoredSkill[]; pending: StoredSkill[] } };
-      setActive(raw.data?.active ?? []);
-      setPending(raw.data?.pending ?? []);
-      setLastFetchedAt(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · the active + pending skill
+  // lists are a typed query (operator.skills). The legacy route
+  // wrapped the payload in `{ data }`; the procedure returns
+  // { active, pending } directly. lastFetchedAt derives from React
+  // Query's dataUpdatedAt. All four curation paths (promote · drop ·
+  // graduate · ungraduate · edit · extract_now) go through the single
+  // operator.curateSkill mutation — the same multiplexed endpoint the
+  // REST PATCH was — then invalidate the query to refetch.
+  const utils = trpc.useUtils();
+  const skillsQuery = trpc.operator.skills.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const active: StoredSkill[] | null = (skillsQuery.data?.active ??
+    null) as StoredSkill[] | null;
+  const pending: StoredSkill[] | null = (skillsQuery.data?.pending ??
+    null) as StoredSkill[] | null;
+  const loading = skillsQuery.isPending;
+  const lastFetchedAt = skillsQuery.dataUpdatedAt
+    ? new Date(skillsQuery.dataUpdatedAt)
+    : null;
+  const error = skillsQuery.error
+    ? skillsQuery.error.message || "failed to load"
+    : null;
+  const load = useCallback(() => void skillsQuery.refetch(), [skillsQuery]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const curateMutation = trpc.operator.curateSkill.useMutation();
+  const extracting =
+    curateMutation.isPending &&
+    curateMutation.variables?.action === "extract_now";
 
   const act = useCallback(
     async (
@@ -133,12 +129,7 @@ export function SkillLibraryPanel() {
     ) => {
       setBusy(key);
       try {
-        const res = await authedFetch("/api/skills", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, action, kind }),
-        });
-        if (!res.ok) throw new Error("patch failed");
+        await curateMutation.mutateAsync({ key, action, kind });
         toast.success(
           action === "promote"
             ? "skill promoted to active"
@@ -148,27 +139,28 @@ export function SkillLibraryPanel() {
                 ? "skill graduated (silent-track)"
                 : "skill back to active",
         );
-        await load();
+        await utils.operator.skills.invalidate();
       } catch (e) {
         toast.error(`${action} failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusy(null);
       }
     },
-    [load],
+    [curateMutation, utils],
   );
 
   const extractNow = useCallback(async () => {
-    setExtracting(true);
     try {
-      const res = await authedFetch("/api/skills", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "extract_now" }),
-      });
-      if (!res.ok) throw new Error("extract failed");
-      const raw = (await res.json()) as { data?: { result?: { newCandidates?: number; bySource?: Record<string, number> } } };
-      const r = raw.data?.result;
+      const res = await curateMutation.mutateAsync({ action: "extract_now" });
+      // The procedure returns { ok, result } for extract_now · result
+      // shape comes straight from extractSkillsFromTasks.
+      const r =
+        "result" in res
+          ? (res.result as {
+              newCandidates?: number;
+              bySource?: Record<string, number>;
+            })
+          : undefined;
       const newN = r?.newCandidates ?? 0;
       const parts = [
         r?.bySource?.tasks ? `${r.bySource.tasks} tasks` : "",
@@ -179,13 +171,11 @@ export function SkillLibraryPanel() {
         newN > 0 ? `${newN} new candidates${parts.length ? ` · ${parts.join(" · ")}` : ""}` : "no new candidates",
       );
       setTab("candidates");
-      await load();
+      await utils.operator.skills.invalidate();
     } catch (e) {
       toast.error(`extract failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setExtracting(false);
     }
-  }, [load]);
+  }, [curateMutation, utils]);
 
   const startEdit = useCallback((s: StoredSkill) => {
     setEditKey(s.key);
@@ -204,28 +194,23 @@ export function SkillLibraryPanel() {
       if (!editKey) return;
       setBusy(editKey);
       try {
-        const res = await authedFetch("/api/skills", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            key: editKey,
-            action: "edit",
-            kind: s.pending ? "skill_pending" : "skill",
-            trigger: editTrigger,
-            actionText: editAction,
-          }),
+        await curateMutation.mutateAsync({
+          key: editKey,
+          action: "edit",
+          kind: s.pending ? "skill_pending" : "skill",
+          trigger: editTrigger,
+          actionText: editAction,
         });
-        if (!res.ok) throw new Error("edit failed");
         toast.success("skill edited");
         cancelEdit();
-        await load();
+        await utils.operator.skills.invalidate();
       } catch (e) {
         toast.error(`edit failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusy(null);
       }
     },
-    [editKey, editTrigger, editAction, load, cancelEdit],
+    [editKey, editTrigger, editAction, curateMutation, cancelEdit, utils],
   );
 
   const candidates = pending ?? [];

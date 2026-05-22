@@ -33,15 +33,33 @@ import {
 } from "lucide-react";
 import { haptic } from "@/lib/ui/haptic";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
+// Phase UU.2 · the provider / mode / reasoning / web-search fields are
+// narrowed to the same unions the operator.updateAiConfig input enforces
+// (was `string`). The panel always passes correctly-narrowed values
+// already — tightening the interface lets `Partial<AiConfig>` flow into
+// the typed mutation with no cast, and is the typed-payload-mismatch
+// guard at the call-site type level.
 interface AiConfig {
-  defaultProvider?: string;
-  defaultMode?: string;
-  defaultTaskType?: string;
+  defaultProvider?: "venice" | "ollama" | "openai" | "anthropic" | "emergency";
+  defaultMode?: "standard" | "deep";
+  defaultTaskType?:
+    | "fast"
+    | "reason"
+    | "deep"
+    | "vision"
+    | "embed"
+    | "code"
+    | "sql"
+    | "math"
+    | "creative"
+    | "summary"
+    | "classify"
+    | "extract";
   temperature?: number;
-  reasoningEffort?: string;
-  webSearch?: string;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "max";
+  webSearch?: "auto" | "on" | "off";
   webScraping?: boolean;
   disabledTools?: string[];
   alwaysOnTools?: string[];
@@ -67,24 +85,33 @@ export function AiSettingsPanel() {
   const [syncResult, setSyncResult] = useState<string | null>(null);
   const [disabledTool, setDisabledTool] = useState("");
 
+  // Phase UU.2 (2026-05-22) · REST→tRPC · config + cold-memory stats
+  // stay in local state (the panel mutates `config` optimistically on
+  // every slider/toggle, so it can't be a raw query result). The
+  // initial load + the data-change-bus refresh are imperative reads
+  // via utils.*.fetch(); writes are typed mutations.
+  const utils = trpc.useUtils();
+
   const loadConfig = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/settings/ai-config");
-      if (res.ok) setConfig(await res.json());
+      setConfig((await utils.operator.aiConfig.fetch()) as AiConfig);
     } catch {}
-  }, []);
+  }, [utils]);
 
   const loadStats = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/drive/sync");
-      if (res.ok) setStats(await res.json());
+      setStats((await utils.operator.coldMemoryStats.fetch()) as ColdMemoryStats);
     } catch {}
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     loadConfig();
     loadStats();
   }, [loadConfig, loadStats]);
+
+  const updateConfigMutation = trpc.operator.updateAiConfig.useMutation();
+  const resetConfigMutation = trpc.operator.resetAiConfig.useMutation();
+  const syncDriveMutation = trpc.operator.syncDrive.useMutation();
 
   // v10.0.529.87 · Wave 31 · subscribe to "settings" domain so a
   // chat-triggered syncDriveMemory refreshes the Cold Memory card
@@ -99,64 +126,53 @@ export function AiSettingsPanel() {
   }, [loadStats]);
 
   // Partial update helper — debounced feel by setting local state
-  // optimistically then firing the PATCH in the background.
+  // optimistically then firing the typed mutation in the background.
+  // updateAiConfig validates the patch against the SHARED
+  // aiConfigPatchSchema (every field strictly typed) — the
+  // typed-payload-mismatch guard — and returns the merged config.
   const patch = useCallback(
     async (p: Partial<AiConfig>) => {
       setConfig((c) => ({ ...c, ...p }));
       haptic.tap();
       try {
-        const res = await authedFetch("/api/settings/ai-config", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(p),
-        });
-        if (res.ok) {
-          const updated = await res.json();
-          setConfig(updated);
-          haptic.success();
-        } else {
-          haptic.error();
-        }
+        const updated = await updateConfigMutation.mutateAsync(p);
+        setConfig(updated as AiConfig);
+        haptic.success();
       } catch {
         haptic.error();
       }
     },
-    []
+    [updateConfigMutation],
   );
 
   const reset = useCallback(async () => {
     haptic.warn();
     try {
-      const res = await authedFetch("/api/settings/ai-config", { method: "DELETE" });
-      if (res.ok) {
-        setConfig(await res.json());
-        haptic.success();
-      }
+      const reseted = await resetConfigMutation.mutateAsync();
+      setConfig(reseted as AiConfig);
+      haptic.success();
     } catch {
       haptic.error();
     }
-  }, []);
+  }, [resetConfigMutation]);
 
   const syncDrive = useCallback(async () => {
     setSyncing(true);
     setSyncResult(null);
     haptic.start();
     try {
-      const res = await authedFetch("/api/drive/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actor: "user_sync" }),
-      });
-      const data = await res.json();
+      const data = await syncDriveMutation.mutateAsync({ actor: "user_sync" });
       if (data.ok || data.stored != null) {
         haptic.success();
         setSyncResult(
           data.hint ||
-            `Synced: ${data.stored ?? 0} new, ${data.skippedCount ?? 0} skipped, ${((data.durationMs ?? 0) / 1000).toFixed(1)}s`
+            `Synced: ${data.stored ?? 0} new, ${data.skippedCount ?? 0} skipped, ${((data.durationMs ?? 0) / 1000).toFixed(1)}s`,
         );
       } else {
         haptic.error();
-        setSyncResult(data.reason || data.error || "sync failed");
+        // DriveIngestResult carries the failure message in `reason`;
+        // a thrown error lands in the catch below (not here).
+        setSyncResult(data.reason || "sync failed");
       }
       await loadStats();
     } catch (err) {
@@ -165,7 +181,7 @@ export function AiSettingsPanel() {
     }
     setSyncing(false);
     setTimeout(() => setSyncResult(null), 6000);
-  }, [loadStats]);
+  }, [loadStats, syncDriveMutation]);
 
   const addDisabledTool = useCallback(() => {
     const t = disabledTool.trim();
@@ -265,7 +281,14 @@ export function AiSettingsPanel() {
           <SegmentedSelect
             value={config.defaultProvider || "auto"}
             options={["auto", "venice", "openai", "anthropic"]}
-            onChange={(v) => patch({ defaultProvider: v === "auto" ? undefined : v })}
+            onChange={(v) =>
+              patch({
+                defaultProvider:
+                  v === "auto"
+                    ? undefined
+                    : (v as "venice" | "openai" | "anthropic"),
+              })
+            }
           />
         </Row>
 
@@ -274,7 +297,12 @@ export function AiSettingsPanel() {
           <SegmentedSelect
             value={config.defaultMode || "auto"}
             options={["auto", "standard", "deep"]}
-            onChange={(v) => patch({ defaultMode: v === "auto" ? undefined : v })}
+            onChange={(v) =>
+              patch({
+                defaultMode:
+                  v === "auto" ? undefined : (v as "standard" | "deep"),
+              })
+            }
           />
         </Row>
 

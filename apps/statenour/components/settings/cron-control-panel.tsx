@@ -17,15 +17,18 @@
  * Nour can find a knob fast.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Play, Loader2, Clock, CheckCircle2, XCircle, Power, Search } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
-interface CronRow {
+// CronRow shape is inferred from the system.cronCatalog procedure
+// return type — kept as a type alias only for the local helpers'
+// signatures (Phase UU.2 · REST→tRPC).
+type CronRow = {
   jobName: string;
   path: string;
   schedule: string;
@@ -36,7 +39,7 @@ interface CronRow {
   lastFailAt: string | null;
   success14d: number;
   fail14d: number;
-}
+};
 
 // Human-readable cron schedule (covers the vercel.json patterns this
 // project actually uses; falls back to the raw expression otherwise).
@@ -81,79 +84,86 @@ function timeAgo(iso: string | null): string {
 }
 
 export function CronControlPanel() {
-  const [rows, setRows] = useState<CronRow[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [showDisabledOnly, setShowDisabledOnly] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const [firing, setFiring] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/settings/crons");
-      if (!res.ok) throw new Error("fetch failed");
-      const raw = (await res.json()) as { data?: CronRow[] };
-      setRows(raw.data ?? []);
-      setLoadedAt(Date.now());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · the catalog is a typed query
+  // (system.cronCatalog). The legacy route wrapped the row array in
+  // `{ data }`; the procedure returns the array directly. loadedAt is
+  // derived from React Query's dataUpdatedAt so the FreshnessChip stays
+  // accurate. load()/refresh repoint to refetch.
+  const utils = trpc.useUtils();
+  const catalogQuery = trpc.system.cronCatalog.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const rows: CronRow[] | null = catalogQuery.data ?? null;
+  const loading = catalogQuery.isPending;
+  const loadedAt = catalogQuery.dataUpdatedAt || null;
+  const error = catalogQuery.error
+    ? catalogQuery.error.message || "fetch failed"
+    : null;
+  const load = useCallback(() => void catalogQuery.refetch(), [catalogQuery]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase UU.2 · kill-switch toggle + manual trigger are typed
+  // mutations. setCronEnabled is jobName-keyed (the NN mutation, reused
+  // here); triggerCron is path-keyed (new in UU.2, maps the panel's
+  // existing trigger(path, jobName) signature 1:1).
+  const setCronEnabledMutation = trpc.system.setCronEnabled.useMutation();
+  const triggerCronMutation = trpc.system.triggerCron.useMutation();
 
-  const toggle = useCallback(async (jobName: string, nextEnabled: boolean) => {
-    setToggling(jobName);
-    // Optimistic
-    setRows((prev) => prev?.map((r) => (r.jobName === jobName ? { ...r, enabled: nextEnabled } : r)) ?? null);
-    try {
-      const res = await authedFetch("/api/settings/crons", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobName, enabled: nextEnabled }),
-      });
-      if (!res.ok) throw new Error("toggle failed");
-      toast.success(`${jobName} ${nextEnabled ? "enabled" : "disabled"}`);
-    } catch (e) {
-      // Revert
-      setRows((prev) => prev?.map((r) => (r.jobName === jobName ? { ...r, enabled: !nextEnabled } : r)) ?? null);
-      toast.error(`toggle failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setToggling(null);
-    }
-  }, []);
-
-  const trigger = useCallback(async (path: string, jobName: string) => {
-    setFiring(jobName);
-    try {
-      const res = await authedFetch("/api/settings/crons/trigger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
-      const raw = (await res.json()) as { data?: { ok: boolean; status: number; durationMs: number } };
-      const r = raw.data;
-      if (r?.ok) {
-        toast.success(`${jobName} → ${r.status} (${r.durationMs}ms)`);
-        // Reload stats so last-success flips fresh
-        void load();
-      } else {
-        toast.error(`${jobName} failed: ${r?.status ?? "?"}`);
+  const toggle = useCallback(
+    async (jobName: string, nextEnabled: boolean) => {
+      setToggling(jobName);
+      // Optimistic — patch the React Query cache so the switch flips
+      // instantly, exactly as the prior setRows optimistic update did.
+      utils.system.cronCatalog.setData(undefined, (prev) =>
+        prev?.map((r) =>
+          r.jobName === jobName ? { ...r, enabled: nextEnabled } : r,
+        ),
+      );
+      try {
+        await setCronEnabledMutation.mutateAsync({
+          jobName,
+          enabled: nextEnabled,
+        });
+        toast.success(`${jobName} ${nextEnabled ? "enabled" : "disabled"}`);
+      } catch (e) {
+        // Revert the optimistic patch.
+        utils.system.cronCatalog.setData(undefined, (prev) =>
+          prev?.map((r) =>
+            r.jobName === jobName ? { ...r, enabled: !nextEnabled } : r,
+          ),
+        );
+        toast.error(`toggle failed: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setToggling(null);
       }
-    } catch (e) {
-      toast.error(`trigger failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setFiring(null);
-    }
-  }, [load]);
+    },
+    [utils, setCronEnabledMutation],
+  );
+
+  const trigger = useCallback(
+    async (path: string, jobName: string) => {
+      setFiring(jobName);
+      try {
+        const r = await triggerCronMutation.mutateAsync({ path });
+        if (r?.ok) {
+          toast.success(`${jobName} → ${r.status} (${r.durationMs}ms)`);
+          // Reload stats so last-success flips fresh
+          void catalogQuery.refetch();
+        } else {
+          toast.error(`${jobName} failed: ${r?.status ?? "?"}`);
+        }
+      } catch (e) {
+        toast.error(`trigger failed: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setFiring(null);
+      }
+    },
+    [triggerCronMutation, catalogQuery],
+  );
 
   const visible = useMemo(() => {
     if (!rows) return [] as CronRow[];

@@ -10,13 +10,13 @@
  * the score.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Loader2, Pin, PinOff, RefreshCw, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface Axis {
   value: number;
@@ -102,49 +102,46 @@ function barColor(value: number): string {
 }
 
 export function IdentityPanel() {
-  const [snap, setSnap] = useState<Snapshot | null>(null);
-  const [history, setHistory] = useState<HistoryPoint[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [pinning, setPinning] = useState<AxisKey | null>(null);
   const [pinValue, setPinValue] = useState("");
   const [busy, setBusy] = useState<AxisKey | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/identity?history=1");
-      if (!res.ok) throw new Error("load failed");
-      const raw = (await res.json()) as { data?: { snapshot?: Snapshot; history?: HistoryPoint[] | null } };
-      setSnap(raw.data?.snapshot ?? null);
-      setHistory(raw.data?.history ?? null);
-      setLoadedAt(Date.now());
-    } catch (e) {
-      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase UU.2 (2026-05-22) · REST→tRPC · the snapshot + history are a
+  // typed query (operator.identity). The legacy route wrapped the
+  // payload in `{ data }`; the procedure returns { snapshot, history }
+  // directly. recompute / pin are typed mutations that invalidate the
+  // query — the prior code set `snap` straight from the mutation
+  // response; invalidate-then-refetch reaches the same end state with
+  // the server snapshot as the single source of truth.
+  const utils = trpc.useUtils();
+  const identityQuery = trpc.operator.identity.useQuery(
+    { history: true },
+    { refetchOnWindowFocus: false },
+  );
+  const snap: Snapshot | null = (identityQuery.data?.snapshot ??
+    null) as Snapshot | null;
+  const history: HistoryPoint[] | null = (identityQuery.data?.history ??
+    null) as HistoryPoint[] | null;
+  const loading = identityQuery.isPending;
+  const loadedAt = identityQuery.dataUpdatedAt || null;
+  const load = useCallback(
+    () => void identityQuery.refetch(),
+    [identityQuery],
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const recomputeMutation = trpc.operator.recomputeIdentity.useMutation();
+  const pinMutation = trpc.operator.pinIdentityAxis.useMutation();
+  const refreshing = recomputeMutation.isPending;
 
   const recompute = useCallback(async () => {
-    setRefreshing(true);
     try {
-      const res = await authedFetch("/api/identity", { method: "POST" });
-      if (!res.ok) throw new Error("recompute failed");
-      const raw = (await res.json()) as { data?: { snapshot?: Snapshot } };
-      setSnap(raw.data?.snapshot ?? null);
+      await recomputeMutation.mutateAsync();
+      await utils.operator.identity.invalidate();
       toast.success("self-model refreshed");
     } catch (e) {
       toast.error(`recompute failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setRefreshing(false);
     }
-  }, []);
+  }, [recomputeMutation, utils]);
 
   const savePin = useCallback(
     async (axis: AxisKey) => {
@@ -156,14 +153,8 @@ export function IdentityPanel() {
       }
       setBusy(axis);
       try {
-        const res = await authedFetch("/api/identity", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ axis, value }),
-        });
-        if (!res.ok) throw new Error("pin failed");
-        const body = (await res.json()) as { data?: { snapshot?: Snapshot } };
-        setSnap(body.data?.snapshot ?? null);
+        await pinMutation.mutateAsync({ axis, value });
+        await utils.operator.identity.invalidate();
         toast.success(value == null ? "override cleared" : `pinned at ${value}`);
         setPinning(null);
         setPinValue("");
@@ -173,7 +164,7 @@ export function IdentityPanel() {
         setBusy(null);
       }
     },
-    [pinValue],
+    [pinValue, pinMutation, utils],
   );
 
   return (
