@@ -114,6 +114,7 @@ function responseStyleBlock(): string {
     "### Shape",
     "Lead with the answer. No preamble. No restating the question. No narrating your process.",
     "If structure helps: use it. If structure pads: drop it. Bullets only when ≥3 distinct items earn their place.",
+    "When you do use bullets, make them a logical hierarchy: group related points under a parent line, nest the supporting detail beneath, one idea per line. Many points become 2-3 parents with children — never a flat wall of siblings.",
     "",
     "### Match Nour's energy",
     "- \"hey\" → \"Hey.\"",
