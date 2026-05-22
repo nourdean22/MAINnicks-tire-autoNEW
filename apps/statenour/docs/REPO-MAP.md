@@ -5,7 +5,7 @@ so future sessions + any agent understand the layering without
 grepping. Last refreshed 2026-05-21 (infra reconciliation — statenour
 moved into the `MAINnicks-tire-autoNEW` monorepo at `apps/statenour/`,
 deployed by Railway; the standalone `statenour-os` repo, the
-`codex/ollama-local` branch, Vercel, and `bdnick.info` are retired).
+`codex/ollama-local` branch, and Vercel are retired).
 
 > **Live source:** [`config/repos.ts`](../config/repos.ts) is now the
 > structured truth — typed entries with `ring`, `tier`, `host`,
@@ -43,8 +43,7 @@ center) — plus a small **desktop layer** for local-only IoT control.
                │ every 4h → statenour-sync
                │
      ┌─────────▼──────────────────────────┐
-     │   statenour-web-production         │
-     │     .up.railway.app                │
+     │   bdnick.info                      │
      │   (MAINnicks-tire-autoNEW          │
      │    monorepo · apps/statenour/)     │
      │   Next.js 16 · Prisma · Neon       │
@@ -128,7 +127,7 @@ goal/project/task bridge + tasks + journal + knowledge + devices.
   AI SDK v6 · Venice GLM-4.7-flash-heretic (with same-turn fallback to
   Ollama/OpenAI/Anthropic via `streamWithFallback`)
 - **Deploy:** Railway (`statenour-web` service), branch `main` →
-  `statenour-web-production.up.railway.app`
+  `bdnick.info`
 - **Local:** `C:\Users\nourd\OneDrive\Desktop\nickstire-repo-staging\apps\statenour`
 - **Status:** ACTIVE · under heavy development
 - **Nick write access:** `none`
@@ -303,6 +302,5 @@ parent ring. Promote to repo only when it has its own deploy.
 
 **Reconciled 2026-05-21** · infra sweep — the statenour rows were
 rewritten for the monorepo + Railway reality (was the standalone
-`statenour-os` repo / Vercel / `codex/ollama-local` / `bdnick.info`,
-all retired). If a claim in this doc contradicts code reality, the
+`statenour-os` repo / Vercel / `codex/ollama-local`, all retired). If a claim in this doc contradicts code reality, the
 code wins · open an issue.

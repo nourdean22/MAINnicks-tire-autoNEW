@@ -28,10 +28,10 @@ enough.
 
 **statenour** — Nour's personal OS. Lives in the
 [`nourdean22/MAINnicks-tire-autoNEW`](https://github.com/nourdean22/MAINnicks-tire-autoNEW)
-monorepo at `apps/statenour/`, branch `main`, deployed by **Railway**
-to `statenour-web-production.up.railway.app`. Next.js 16 · Prisma 7 ·
+monorepo at `apps/statenour/`, branch `main`, deployed by **Railway**,
+served at `bdnick.info` (custom domain). Next.js 16 · Prisma 7 ·
 Neon. The standalone `statenour-os` repo, the `codex/ollama-local`
-branch, Vercel, and `bdnick.info` are all retired. Companion app
+branch, and Vercel are all retired. Companion app
 `nickstire` lives in the same monorepo at `apps/nickstire/`. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the two-ring map.
 
