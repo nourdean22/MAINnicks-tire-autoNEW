@@ -28,19 +28,6 @@ import {
 const REVENUE_TARGET_KEY = "nour_revenue_target";
 const DEFAULT_TARGET = 20000;
 
-interface Snapshot {
-  date: string;
-  net_worth_estimate: number | null;
-  checking_balance: number | null;
-  savings_balance: number | null;
-  investment_value: number | null;
-  business_revenue: number | null;
-  owner_take_home: number | null;
-  total_debt: number | null;
-  savings_rate_pct: number | null;
-  notes: string | null;
-}
-
 interface RevenueDay {
   date: string;
   revenue: number;
@@ -93,11 +80,12 @@ export default function FinancialPage() {
     { period: "month" },
     { refetchInterval: 120_000 },
   );
-  // The procedure returns the camelCase row the legacy /api/financial
-  // GET also returned (raw Prisma row, post-envelope). The page's
-  // snake_case `Snapshot` interface never matched that shape — kept
-  // as-is via a cast so behavior is byte-identical to the REST path.
-  const latest = (financialQuery.data?.latest ?? null) as Snapshot | null;
+  // `latest` is the FinancialSnapshotView the operator.financialSnapshot
+  // procedure returns (camelCase Prisma row). Type flows straight from
+  // the procedure — no cast, no local interface. The prior snake_case
+  // `Snapshot` interface silently mismatched the camelCase payload, so
+  // every personal-finance field rendered "—" (fixed 2026-05-22).
+  const latest = financialQuery.data?.latest ?? null;
   const loading = financialQuery.isLoading;
   const revenueHistory: RevenueDay[] = revenueQuery.data?.byDay
     ? Object.entries(revenueQuery.data.byDay as Record<string, number>)
@@ -338,8 +326,8 @@ export default function FinancialPage() {
                 <DollarSign size={14} className="text-[var(--gold)]" />
                 <span className="text-xs text-[var(--text-tertiary)] uppercase tracking-wider">Net Worth</span>
               </div>
-              {latest.net_worth_estimate !== null ? (
-                <AnimatedCounter value={latest.net_worth_estimate} prefix="$" className="font-mono text-3xl font-bold" duration={1200} />
+              {latest.netWorthEstimate !== null ? (
+                <AnimatedCounter value={latest.netWorthEstimate} prefix="$" className="font-mono text-3xl font-bold" duration={1200} />
               ) : (
                 <p className="font-mono text-3xl font-bold">—</p>
               )}
@@ -347,25 +335,25 @@ export default function FinancialPage() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-2 stagger-in">
-              <StatCard label="Checking" value={fmt(latest.checking_balance)} numValue={latest.checking_balance ?? undefined} danger={(latest.checking_balance ?? 0) < 0} />
-              <StatCard label="Savings" value={fmt(latest.savings_balance)} numValue={latest.savings_balance ?? undefined} />
-              <StatCard label="Investments" value={fmt(latest.investment_value)} numValue={latest.investment_value ?? undefined} />
-              <StatCard label="Business Rev" value={fmt(latest.business_revenue)} numValue={latest.business_revenue ?? undefined} />
-              <StatCard label="Take-Home" value={fmt(latest.owner_take_home)} numValue={latest.owner_take_home ?? undefined} />
-              <StatCard label="Total Debt" value={fmt(latest.total_debt)} numValue={latest.total_debt ?? undefined} danger={(latest.total_debt ?? 0) > 0} />
+              <StatCard label="Checking" value={fmt(latest.checkingBalance)} numValue={latest.checkingBalance ?? undefined} danger={(latest.checkingBalance ?? 0) < 0} />
+              <StatCard label="Savings" value={fmt(latest.savingsBalance)} numValue={latest.savingsBalance ?? undefined} />
+              <StatCard label="Investments" value={fmt(latest.investmentValue)} numValue={latest.investmentValue ?? undefined} />
+              <StatCard label="Business Rev" value={fmt(latest.businessRevenue)} numValue={latest.businessRevenue ?? undefined} />
+              <StatCard label="Take-Home" value={fmt(latest.ownerTakeHome)} numValue={latest.ownerTakeHome ?? undefined} />
+              <StatCard label="Total Debt" value={fmt(latest.totalDebt)} numValue={latest.totalDebt ?? undefined} danger={(latest.totalDebt ?? 0) > 0} />
             </div>
 
             {/* Savings Rate */}
-            {latest.savings_rate_pct !== null && (
+            {latest.savingsRatePct !== null && (
               <Card className="p-3 flex items-center gap-3 bg-[var(--bg-raised)] border-[var(--border-default)] mt-3">
-                {latest.savings_rate_pct >= 20 ? (
+                {latest.savingsRatePct >= 20 ? (
                   <TrendingUp size={16} className="text-[var(--status-green)]" />
                 ) : (
                   <TrendingDown size={16} className="text-[var(--status-red)]" />
                 )}
                 <div>
                   <p className="text-xs text-[var(--text-tertiary)]">Savings Rate</p>
-                  <p className="font-mono font-semibold">{latest.savings_rate_pct}%</p>
+                  <p className="font-mono font-semibold">{latest.savingsRatePct}%</p>
                 </div>
               </Card>
             )}
