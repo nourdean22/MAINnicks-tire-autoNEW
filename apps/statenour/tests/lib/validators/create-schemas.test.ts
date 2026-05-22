@@ -71,12 +71,9 @@ describe("taskCreateSchema · /tasks quick-add contract", () => {
 
 describe("missionCreateSchema · getInbox() auto-Inbox contract", () => {
   // The exact payload getInbox() sends when no mission exists yet.
-  // `description` isn't a missionBaseSchema field — z.object() strips
-  // unknown keys silently, so it's harmless noise, not a parse error.
   it("accepts the thin auto-Inbox payload getInbox() sends", () => {
     const r = missionCreateSchema.parse({
       title: "Inbox",
-      description: "Quick tasks",
       status: "ACTIVE",
     });
     expect(r.domain).toBe("PERSONAL");
