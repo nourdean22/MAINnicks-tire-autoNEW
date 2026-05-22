@@ -26,7 +26,7 @@ import { notifyDataChanged } from "@/lib/events/data-change";
 import { Eye, Sparkles, ArrowRight, Loader2, ChevronDown, Target, RotateCcw, X as XIcon, Info } from "lucide-react";
 import { MemoryCalibrationRitual } from "./memory-calibration";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 type Template = "soap" | "driscoll" | "ssc" | "aar";
 
 interface TemplateDef {
@@ -120,6 +120,14 @@ export function ReflectComposer() {
   const [extractIntelligence, setExtractIntelligence] = useState(false);
   const [showSplitHelp, setShowSplitHelp] = useState(false);
 
+  // Phase TT.2 (2026-05-22) · REST→tRPC · the reflection submit is now
+  // a typed mutation. The input shape is pinned by the SHARED
+  // reflectSubmitSchema (lib/validators/journal) — the same schema the
+  // REST route's safeParseBody parses — so the client payload can't
+  // drift from what the server accepts (the typed-payload-mismatch
+  // guard, the /tasks quick-add bug class).
+  const reflectMutation = trpc.journal.reflect.useMutation();
+
   // Hydrate last-used template + any draft on mount. Also honor #reflect
   // or ?seed=... hash from the Ultron /reflect slash so the composer
   // auto-scrolls + pre-fills the first field.
@@ -212,41 +220,35 @@ export function ReflectComposer() {
     setPushback(null);
     setNextStep(null);
     try {
-      const res = await authedFetch("/api/ultron/reflect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          template: templateKey,
-          fields,
-          mood: mood || undefined,
-          askPushback: true,
-          // v10.0.529.25 · pass the toggle so the route knows whether
-          // to also run ingestJournal on this reflection.
-          extractIntelligence,
-        }),
+      // Phase TT.2 · typed mutation · tRPC returns the result
+      // unwrapped (no { data } envelope · the REST route had one).
+      const result = await reflectMutation.mutateAsync({
+        template: templateKey,
+        fields,
+        mood: mood || undefined,
+        askPushback: true,
+        // pass the toggle so the service knows whether to also run
+        // ingestJournal on this reflection.
+        extractIntelligence,
       });
-      if (!res.ok) throw new Error();
-      const raw = (await res.json()) as {
-        data?: { pushback: string | null; nextStep: "bet" | "memory-check" | "done"; extractionFired?: boolean };
-      };
-      setPushback(raw?.data?.pushback ?? null);
-      setNextStep(raw?.data?.nextStep ?? "done");
+      setPushback(result.pushback ?? null);
+      setNextStep(result.nextStep ?? "done");
       // v10.0.529.25 · surface extraction confirmation when fired ·
       // ingestJournal runs server-side fire-and-forget so the operator
       // gets a "starting" signal here rather than waiting on
       // completion. The /journal feed will refresh when the BrainDump
       // lands via the data-change event below.
-      toast.success(raw?.data?.extractionFired ? "reflection logged · extracting…" : "reflection logged");
+      toast.success(result.extractionFired ? "reflection logged · extracting…" : "reflection logged");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       notifyDataChanged("any", { source: "ultron-reflect", detail: "reflection-saved" });
       // Auto-surface calibration when the model suggests memory-check
-      if (raw?.data?.nextStep === "memory-check") setShowCalibration(true);
+      if (result.nextStep === "memory-check") setShowCalibration(true);
     } catch {
       toast.error("save failed");
     } finally {
       setSubmitting(false);
     }
-  }, [templateKey, fields, mood, filledCount, extractIntelligence]);
+  }, [templateKey, fields, mood, filledCount, extractIntelligence, reflectMutation]);
 
   const resetForNext = () => {
     setFields({});

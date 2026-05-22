@@ -20,7 +20,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface CandidateMember {
@@ -44,15 +44,21 @@ export function ThreadRadar({
 }: {
   onThreadCreated?: () => void;
 }) {
-  // Phase D · audit-fix #1 (2026-05-18) · collapsed bespoke
-  // state-mgmt block to the shared useAuthedFetch hook.
-  // 2026-05-18 PM bugfix · useAuthedFetch auto-unwraps the
-  // {data:...} envelope from apiHandler routes · original ship
-  // double-wrapped the type which meant `candidates` was always [].
-  const { data, error, loading, reload } = useAuthedFetch<Candidate[]>(
-    "/api/journal/convergence",
-  );
-  const candidates = data ?? [];
+  // Phase TT.2 (2026-05-22) · REST→tRPC · useAuthedFetch swapped for
+  // trpc.journal.convergence.useQuery. The query owns the {data}
+  // envelope · loading stays silent on initial load and error
+  // collapses to the empty-radar surface, both exactly as before.
+  const convergenceQuery = trpc.journal.convergence.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const candidates: Candidate[] = convergenceQuery.data ?? [];
+  const error = convergenceQuery.error;
+  const loading = convergenceQuery.isLoading;
+  const reload = () => convergenceQuery.refetch();
+
+  // Phase TT.2 · manual convergence scan is now a typed mutation ·
+  // delegates to the same runConvergenceScan the nightly cron uses.
+  const scanMutation = trpc.journal.runConvergenceScan.useMutation();
 
   // Manual scan trigger · 2026-05-18 PM follow-up · operator can
   // now run the convergence pipeline on demand instead of waiting
@@ -74,21 +80,10 @@ export function ThreadRadar({
     if (scanState.busy) return;
     setScanState((s) => ({ ...s, busy: true, error: null }));
     try {
-      const res = await authedFetch("/api/journal/convergence", {
-        method: "POST",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
-      const json = (await res.json()) as {
-        ranAt: string;
-        scannedEntries: number;
-        candidatesFound: number;
-        candidatesAfterPrune: number;
-      };
+      // Phase TT.2 · typed mutation · the result shape (ranAt +
+      // scanned/found/afterPrune counts) is the same envelope the
+      // REST route returned · just no HTTP-status unwrap needed.
+      const json = await scanMutation.mutateAsync();
       setScanState({
         busy: false,
         lastResult: {
@@ -221,25 +216,23 @@ function CandidateCard({
     return c.length > 0 ? c : chosen.trim();
   }, [custom, chosen]);
 
+  // Phase TT.2 (2026-05-22) · REST→tRPC · confirm sends the candidate's
+  // clusterHash through createThread (confirm-candidate mode) · dismiss
+  // soft-deletes the candidate. Both typed mutations · the router maps
+  // business rejections to BAD_REQUEST so the inline err surface is
+  // preserved verbatim.
+  const confirmMutation = trpc.journal.createThread.useMutation();
+  const dismissMutation = trpc.journal.dismissCandidate.useMutation();
+
   const confirm = async () => {
     if (!finalName || busy) return;
     setBusy(true);
     setErr(null);
     try {
-      const res = await authedFetch("/api/journal/threads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clusterHash: candidate.clusterHash,
-          name: finalName,
-        }),
+      await confirmMutation.mutateAsync({
+        clusterHash: candidate.clusterHash,
+        name: finalName,
       });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
       onActioned();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -253,13 +246,7 @@ function CandidateCard({
     setBusy(true);
     setErr(null);
     try {
-      const res = await authedFetch(
-        `/api/journal/convergence?hash=${encodeURIComponent(
-          candidate.clusterHash,
-        )}`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await dismissMutation.mutateAsync({ hash: candidate.clusterHash });
       onActioned();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));

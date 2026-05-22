@@ -17,10 +17,10 @@
  * card in Ultron's signal zone via the MemoryCalibrationCard wrapper.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   RotateCcw, Check, Edit3, Trash2, X as XIcon, Loader2, ArrowRight,
 } from "lucide-react";
@@ -54,41 +54,50 @@ const CATEGORY_COLOR: Record<string, string> = {
 };
 
 export function MemoryCalibrationRitual({ onClose, autoLoad = true }: CalibrationProps) {
-  const [samples, setSamples] = useState<MemorySample[]>([]);
-  const [loading, setLoading] = useState(autoLoad);
+  // Phase TT.2 (2026-05-22) · REST→tRPC · the aging-beliefs read is now
+  // trpc.journal.calibrationSamples.useQuery, gated by `autoLoad` via
+  // the `enabled` flag (matches the old "only load when autoLoad" rule).
+  // `act` removes an actioned memory by tracking its id in `actedIds` ·
+  // the rendered list is the query data minus that set, so there's no
+  // local mirror to keep in sync (no setState-in-effect).
+  const samplesQuery = trpc.journal.calibrationSamples.useQuery(undefined, {
+    enabled: autoLoad,
+    refetchOnWindowFocus: false,
+  });
+  const [actedIds, setActedIds] = useState<Set<string>>(new Set());
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [working, setWorking] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/ultron/calibrate");
-      if (!res.ok) return;
-      const raw = (await res.json()) as { data?: { samples?: MemorySample[] } };
-      setSamples(raw?.data?.samples ?? []);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // The list the UI renders: fetched samples minus the ones the
+  // operator already ruled on this session.
+  const samples = useMemo<MemorySample[]>(() => {
+    const fetched = samplesQuery.data?.samples ?? [];
+    return actedIds.size === 0
+      ? fetched
+      : fetched.filter((m) => !actedIds.has(m.id));
+  }, [samplesQuery.data, actedIds]);
 
-  useEffect(() => {
-    if (autoLoad) load();
-  }, [autoLoad, load]);
+  // autoLoad=false → query never fires → not loading. autoLoad=true →
+  // mirror React Query's isLoading exactly.
+  const loading = autoLoad && samplesQuery.isLoading;
+  // reshuffle · refetch + clear the acted-on set so the new picks all show.
+  const load = () => {
+    setActedIds(new Set());
+    return samplesQuery.refetch();
+  };
+
+  // Phase TT.2 · the verify/update/retire ruling is now a typed
+  // mutation · the strict calibrationRulingSchema input means the
+  // payload can't drift from what the server expects.
+  const calibrateMutation = trpc.journal.calibrate.useMutation();
 
   const act = async (id: string, action: "verify" | "update" | "retire", newContent?: string) => {
     setWorking(id);
     try {
-      const res = await authedFetch("/api/ultron/calibrate", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action, newContent }),
-      });
-      if (!res.ok) throw new Error();
+      await calibrateMutation.mutateAsync({ id, action, newContent });
       // Remove from view — no re-surface for this memory in this session
-      setSamples((prev) => prev.filter((m) => m.id !== id));
+      setActedIds((prev) => new Set(prev).add(id));
       setEditing(null);
       setDraft("");
       toast.success(
