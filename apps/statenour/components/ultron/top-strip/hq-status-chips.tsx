@@ -5,7 +5,7 @@
  *
  * Surfaces the chat control state OUTSIDE of /chat so Nour can:
  *   • See pinned count at a glance (click → /brain#pinned-context)
- *   • See /api/ai/chat/suggestions health (click → /brain for
+ *   • See chat-suggestion cache health (click → /brain for
  *     SuggestionTelemetryPanel)
  *   • See system-prompt size + cache status (click → prompt inspector)
  *
@@ -15,14 +15,22 @@
  *
  * Lives inside TopStrip between the wordmark and OmniCapture when
  * there's room. Mobile (< md) shows pin count only to save space.
+ *
+ * Cross-domain residuals slice (2026-05-22) · migrated off the
+ * `Promise.all([authedFetch ×2])` (/api/brain/pinned · /api/ai/chat/
+ * suggestions/stats) onto `trpc.brain.pinned` + `trpc.brain.suggestionStats`
+ * — two `useQuery` hooks with a 30s `refetchInterval` (a `Promise.all`
+ * of `utils.*.fetch()` would trip TS2589 via tuple inference · two
+ * independent reactive queries is the correct shape anyway). The
+ * `brain.pinned` procedure types its result as `Record<string,unknown>`
+ * so the two fields this chip reads are narrowed at the call-site.
  */
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Pin, Sparkles, AlertCircle } from "lucide-react";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface PinSummary {
   count: number;
   staleCount: number;
@@ -35,47 +43,47 @@ interface SuggestionHealth {
   fallbackHeavy: boolean;
 }
 
-export function HQStatusChips() {
-  const [pins, setPins] = useState<PinSummary | null>(null);
-  const [sug, setSug] = useState<SuggestionHealth | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const [pinsRes, sugRes] = await Promise.all([
-          authedFetch("/api/brain/pinned?withStats=1").then((r) => (r.ok ? r.json() : null)),
-          authedFetch("/api/ai/chat/suggestions/stats").then((r) => (r.ok ? r.json() : null)),
-        ]);
-        if (cancelled) return;
-        if (pinsRes?.stats) {
-          setPins({
-            count: pinsRes.pins?.length ?? 0,
-            staleCount: pinsRes.stats.stalePins ?? 0,
-            veryStaleCount: pinsRes.stats.veryStalePins ?? 0,
-            injectedCount: pinsRes.stats.injectedCount ?? 0,
-          });
-        }
-        if (sugRes && typeof sugRes.cacheHitRate === "number") {
-          setSug({
-            hitRatePct: Math.round(sugRes.cacheHitRate * 100),
-            fallbackHeavy:
-              sugRes.heuristic > 0 &&
-              sugRes.requests > 0 &&
-              sugRes.heuristic / sugRes.requests > 0.4,
-          });
-        }
-      } catch {
-        // silent — chips are optional
+/** Narrow the `brain.pinned` loose `Record` result to what this chip reads. */
+function readPinSummary(raw: Record<string, unknown> | undefined): PinSummary | null {
+  if (!raw) return null;
+  const stats = raw.stats as
+    | {
+        stalePins?: number;
+        veryStalePins?: number;
+        injectedCount?: number;
       }
-    }
-    void load();
-    const id = setInterval(load, 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+    | undefined;
+  if (!stats) return null;
+  const pins = Array.isArray(raw.pins) ? raw.pins : [];
+  return {
+    count: pins.length,
+    staleCount: stats.stalePins ?? 0,
+    veryStaleCount: stats.veryStalePins ?? 0,
+    injectedCount: stats.injectedCount ?? 0,
+  };
+}
+
+export function HQStatusChips() {
+  const pinnedQuery = trpc.brain.pinned.useQuery(
+    { withStats: true },
+    { refetchInterval: 30_000, refetchOnWindowFocus: false },
+  );
+  const sugQuery = trpc.brain.suggestionStats.useQuery(undefined, {
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: false,
+  });
+
+  const pins = readPinSummary(pinnedQuery.data);
+  const sugData = sugQuery.data;
+  const sug: SuggestionHealth | null = sugData
+    ? {
+        hitRatePct: Math.round(sugData.cacheHitRate * 100),
+        fallbackHeavy:
+          sugData.heuristic > 0 &&
+          sugData.requests > 0 &&
+          sugData.heuristic / sugData.requests > 0.4,
+      }
+    : null;
 
   if (!pins && !sug) return null;
 

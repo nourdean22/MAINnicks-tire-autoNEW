@@ -168,6 +168,16 @@ import { getEcosystemDigest } from "@/lib/system/repo-briefing";
 import { hotFlushPromptCache } from "@/lib/ai/system-prompt-cache";
 import { cached } from "@/lib/utils/cache";
 import type { PowerSettings } from "@/lib/services/power-panel";
+// Cross-domain residuals slice (2026-05-22) · the 3 shared services the
+// migrated components/chat/* cards delegate to for their /api/ai/* +
+// /api/system/* cross-domain calls. Each is also called by the matching
+// legacy REST route — drift structurally impossible. Read procedures
+// return the explicit shallow service shapes (the trace `metadata` Json
+// is dropped inside the service · the AppRouter type stays shallow ·
+// TS2589 firewall).
+import { probeVeniceStatus } from "@/lib/services/venice-status";
+import { buildAgentTraceByMessage } from "@/lib/services/agent-trace-by-message";
+import { getProviderHealth } from "@/lib/ai/provider-health";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -1984,4 +1994,81 @@ export const systemRouter = router({
         sources: input?.sources,
       }),
     ),
+
+  // ═══════════ Cross-domain residuals slice · chat→system ═══════════
+  //
+  // The components/chat/* cards that hit /api/ai/* + /api/system/*
+  // cross-domain endpoints. Each procedure delegates to a shared
+  // lib/services/ function the legacy REST route ALSO calls · drift
+  // structurally impossible. No input takes a permissive z.record —
+  // veniceStatus + providerHealth take no input; agentTraceByMessage
+  // takes a strict z.object.
+
+  /**
+   * Cross-domain residuals slice · owner-only · the live Venice API
+   * status + balance probe. Replaces GET /api/ai/venice-status ·
+   * delegates to the shared `venice-status.probeVeniceStatus` service
+   * the REST route also calls. No input · the probe is a single bounded
+   * fetch (10s timeout). `useVeniceHealth` polls this on a 30s interval
+   * · React Query now drives the refetch via refetchInterval. Never
+   * throws — a missing key / network failure resolves to
+   * `{ ok: false, error }` so the consumer's health dot just goes amber.
+   */
+  veniceStatus: operatorProcedure.query(async () => probeVeniceStatus()),
+
+  /**
+   * Cross-domain residuals slice · owner-only · the full multi-provider
+   * health snapshot (per-provider availability + cooldown + recent
+   * errors + overall tone). Replaces GET /api/system/provider-health ·
+   * delegates to the same `provider-health.getProviderHealth` the REST
+   * route calls · drift impossible. No input. ProviderDegradationBanner
+   * polls this on a 60s interval · React Query drives the refetch. The
+   * legacy route returned the snapshot at the top level; the procedure
+   * returns it unwrapped and the call-site reads it directly.
+   */
+  providerHealth: operatorProcedure.query(async () => getProviderHealth()),
+
+  /**
+   * Cross-domain residuals slice · owner-only · resolve a ChatMessage
+   * to its agent-trace chain (the "why this answer" panel under each
+   * Nick reply). Replaces GET /api/system/agent-traces/by-message/
+   * [messageId] · delegates to the shared
+   * `agent-trace-by-message.buildAgentTraceByMessage` service. Distinct
+   * from `agentTraceDetail` (the /system page · keyed by traceId) — this
+   * is keyed by messageId and carries the fresh-stream fallbacks.
+   *
+   * The route's path param + optional `?conversationId` query param are
+   * mirrored as a strict typed input. The ReasoningTrace card lazy-
+   * fetches this via `utils.system.agentTraceByMessage.fetch()` only on
+   * expand. A missing-and-unresolvable message throws ServiceError(404)
+   * → NOT_FOUND so both transports reject identically.
+   */
+  agentTraceByMessage: operatorProcedure
+    .input(
+      z.object({
+        messageId: z.string().min(1).max(128),
+        conversationId: z.string().min(1).max(64).optional(),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        return await buildAgentTraceByMessage(
+          input.messageId,
+          input.conversationId,
+        );
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code:
+              err.status === 404
+                ? "NOT_FOUND"
+                : err.status === 400
+                  ? "BAD_REQUEST"
+                  : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });

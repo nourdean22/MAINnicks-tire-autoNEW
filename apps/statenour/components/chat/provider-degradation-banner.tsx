@@ -8,9 +8,9 @@
  * fallback" pattern where Venice goes down → Anthropic kicks in →
  * operator never knows the chat is 2× slower / 10× more expensive.
  *
- * Polls /api/ai/venice-status (existing endpoint) every 60s · renders
- * when overallTone is "amber" or "red". Hidden when green. Single-line
- * tile · expandable on click for per-provider detail.
+ * Polls provider-health every 60s · renders when overallTone is "amber"
+ * or "red". Hidden when green. Single-line tile · expandable on click
+ * for per-provider detail.
  *
  * Design choices:
  *   · Polling cadence 60s · matches HUD refresh · operator sees state
@@ -23,60 +23,37 @@
  *
  * Per docs/glitch-taxonomy.md · Category 8 · "silent provider downgrade"
  * is one of the named failure modes.
+ *
+ * Cross-domain residuals slice (2026-05-22) · migrated off
+ * `authedFetch("/api/system/provider-health")` onto
+ * `trpc.system.providerHealth`. The 60s poll is now React Query's
+ * `refetchInterval`. The query data is the strictly-typed
+ * `ProviderHealthSnapshot` — the pre-fix local `ProviderHealthPayload`
+ * interface had drifted field names (`cooldownMs` etc) that only
+ * compiled because `authedFetch` returns untyped JSON; the render now
+ * reads the real `quotaCooldownRemainingMs` / `recentErrors` /
+ * `avgLatencyMs` fields.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AlertTriangle, AlertOctagon, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { authedFetch } from "@/hooks/use-authed-fetch";
-
-interface ProviderHealth {
-  name: string;
-  available: boolean;
-  cooldownMs?: number;
-  recentErrorCount?: number;
-  recentLatencyP95Ms?: number;
-}
-
-interface ProviderHealthPayload {
-  overallTone: "green" | "amber" | "red";
-  pillLabel: string;
-  providers: ProviderHealth[];
-  generatedAt: string;
-}
+import { trpc } from "@/lib/trpc/client";
 
 const POLL_MS = 60_000;
 
 export function ProviderDegradationBanner() {
-  const [data, setData] = useState<ProviderHealthPayload | null>(null);
   const [expanded, setExpanded] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        // v10.0.347 · switched from /api/ai/venice-status (Venice-only
-        // balance + rateLimits) to /api/system/provider-health (full
-        // multi-provider snapshot · what we actually need).
-        const r = await authedFetch("/api/system/provider-health");
-        if (!r.ok) return;
-        const j = (await r.json()) as ProviderHealthPayload;
-        if (!cancelled) setData(j);
-      } catch {
-        // Silent fail · banner just stays in last-known state
-      }
-    }
-    void load();
-    const i = setInterval(load, POLL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(i);
-    };
-  }, []);
+  const query = trpc.system.providerHealth.useQuery(undefined, {
+    refetchInterval: POLL_MS,
+    refetchOnWindowFocus: false,
+    // Silent fail · the banner just stays in its last-known state on a
+    // transport hiccup (the legacy fetch swallowed errors the same way).
+    retry: false,
+  });
+  const data = query.data;
 
   // Hidden when green or no data yet · only renders during degradation.
-  // v10.0.347 · also defend against malformed payloads (missing providers
-  // field) · the banner crashed at .filter() before the endpoint fix.
   if (!data || data.overallTone === "green") return null;
   if (!Array.isArray(data.providers)) return null;
 
@@ -129,23 +106,21 @@ export function ProviderDegradationBanner() {
               <span className="opacity-70">
                 {p.available ? "available" : "down"}
               </span>
-              {typeof p.cooldownMs === "number" && p.cooldownMs > 0 && (
+              {p.quotaCooldownRemainingMs > 0 && (
                 <span className="opacity-50 ml-auto">
-                  cooldown {Math.round(p.cooldownMs / 1000)}s
+                  cooldown {Math.round(p.quotaCooldownRemainingMs / 1000)}s
                 </span>
               )}
-              {typeof p.recentErrorCount === "number" &&
-                p.recentErrorCount > 0 && (
-                  <span className="opacity-50 ml-2">
-                    {p.recentErrorCount} err recent
-                  </span>
-                )}
-              {typeof p.recentLatencyP95Ms === "number" &&
-                p.recentLatencyP95Ms > 0 && (
-                  <span className="opacity-50 ml-2">
-                    p95 {p.recentLatencyP95Ms}ms
-                  </span>
-                )}
+              {p.recentErrors > 0 && (
+                <span className="opacity-50 ml-2">
+                  {p.recentErrors} err recent
+                </span>
+              )}
+              {p.avgLatencyMs > 0 && (
+                <span className="opacity-50 ml-2">
+                  avg {Math.round(p.avgLatencyMs)}ms
+                </span>
+              )}
             </div>
           ))}
           <p className="text-[9px] font-mono opacity-50 mt-2">

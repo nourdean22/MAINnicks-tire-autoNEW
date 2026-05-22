@@ -7,38 +7,23 @@
 // raw NextResponse so the existing UI (which reads {escalation: ...})
 // continues to see the same top-level shape. Wrapper still adds
 // rate limiting, normalized auth, audit trace IDs, error sanitization.
+//
+// Cross-domain residuals slice (2026-05-22) · the read moved to
+// `lib/services/escalations.getLatestEscalation` so this route AND the
+// `brain.escalations` tRPC procedure call the SAME function · drift
+// structurally impossible.
 
 import { NextResponse } from "next/server";
 import { apiHandler } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
+import { getLatestEscalation } from "@/lib/services/escalations";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export const GET = apiHandler(
   async () => {
-    // Latest escalation in the last 6h
-    const recent = await prisma.brainMemory
-      .findFirst({
-        where: {
-          category: "lead_escalation",
-          createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, content: true, metadata: true, createdAt: true },
-      })
-      .catch(() => null);
-
-    if (!recent) return NextResponse.json({ escalation: null });
-
-    return NextResponse.json({
-      escalation: {
-        id: recent.id,
-        content: recent.content,
-        metadata: recent.metadata,
-        ageMinutes: Math.round((Date.now() - recent.createdAt.getTime()) / 60_000),
-      },
-    });
+    const { escalation } = await getLatestEscalation();
+    return NextResponse.json({ escalation });
   },
   { auth: "owner" },
 );

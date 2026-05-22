@@ -23,6 +23,11 @@ import {
 } from "@/lib/ai/reasoning/budget";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+// Cross-domain residuals slice (2026-05-22) · the proactive-suggestion
+// aggregator the NickSuggestions chip strip reads. The shared service
+// is also called by the legacy GET /api/nick/suggest route — drift
+// structurally impossible.
+import { buildNickSuggestions } from "@/lib/services/nick-suggestions";
 
 const VALID_TIERS = ["quick", "standard", "smart", "deep", "thorough", "mega"] as const;
 const TierSchema = z.enum(VALID_TIERS);
@@ -289,4 +294,23 @@ export const nickRouter = router({
       fetchedAt: new Date().toISOString(),
     };
   }),
+
+  /**
+   * Cross-domain residuals slice (2026-05-22) · owner-only · the Nick
+   * proactive-layer aggregator · cross-references mastery scores ·
+   * stuck/overdue tasks · stalled goals · pattern clusters · orphan
+   * nudges · contradictions · unresolved reflections · broken promises
+   * · stale pins into ≤5 severity-ranked suggestion chips. Replaces GET
+   * /api/nick/suggest · delegates to the shared
+   * `nick-suggestions.buildNickSuggestions` service the REST route also
+   * calls · drift impossible.
+   *
+   * No input · the feed is operator-scoped. NickSuggestions polls this
+   * on a 60s interval + an onDataChanged refresh — React Query now
+   * drives the refetch. The legacy route's `cache: "no-store"` semantics
+   * are preserved via `staleTime: 0` at the call-site. Returns the
+   * explicit shallow `NickSuggestionsView` (every signal is a scalar
+   * projection · no Prisma Json reaches the AppRouter · TS2589 firewall).
+   */
+  suggestions: operatorProcedure.query(async () => buildNickSuggestions()),
 });

@@ -21,7 +21,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import {
   CheckCircle2,
@@ -82,6 +82,10 @@ function UndoChip({
   const expiryMs = useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
   const [now, setNow] = useState(() => Date.now());
   const [state, setState] = useState<"ready" | "pending" | "done" | "failed">("ready");
+  // Cross-domain residuals slice (2026-05-22) · migrated off
+  // `authedFetch("/api/undo/<token>")` onto `trpc.task.undo`. The undo
+  // is a single imperative POST on tap · modeled as a mutation.
+  const undoMutation = trpc.task.undo.useMutation();
 
   useEffect(() => {
     if (state !== "ready") return;
@@ -102,10 +106,7 @@ function UndoChip({
   const onClick = async () => {
     setState("pending");
     try {
-      const res = await authedFetch(`/api/undo/${encodeURIComponent(token)}`, {
-        method: "POST",
-      });
-      if (!res.ok) throw new Error(`undo HTTP ${res.status}`);
+      await undoMutation.mutateAsync({ token });
       setState("done");
       // Refresh the affected surface · same domain wiring Waves 30+ use.
       notifyDataChanged(domain, { source: "undo-chip", detail: token });

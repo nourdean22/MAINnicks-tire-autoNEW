@@ -104,6 +104,26 @@ import { runWisdomEvolution } from "@/lib/brain/wisdom-evolution";
 import { recordMetric } from "@/lib/services/metrics";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
 import { ServiceError } from "@/lib/utils/service-error";
+// Cross-domain residuals slice (2026-05-22) · the shared functions the
+// migrated components/chat/* + components/ultron/* cards delegate to for
+// their /api/brain/* + /api/intel cross-domain calls. Each is also
+// called by the matching legacy REST route — drift structurally
+// impossible.
+import { getLatestEscalation } from "@/lib/services/escalations";
+import { getIndustryIntel } from "@/lib/services/industry-intel";
+import {
+  trackSuggestionAction,
+  recordSuggestionOutcome,
+  SuggestionKind,
+  OutcomePolarity,
+  ActionEvent,
+} from "@/lib/brain/suggestion-loop";
+import {
+  getGhostPredictions,
+  computeGhostPredictions,
+  loadGhostAccuracy,
+  dismissPrediction,
+} from "@/lib/brain/ghost-nick";
 
 export const brainRouter = router({
   /**
@@ -897,5 +917,166 @@ export const brainRouter = router({
         }
         throw err;
       }
+    }),
+
+  // ═══════════ Cross-domain residuals slice · chat/ultron→brain ═══════════
+  //
+  // The components/chat/* + components/ultron/* cards that hit /api/brain/*
+  // + /api/intel cross-domain endpoints. Each procedure delegates to a
+  // shared service / lib function the legacy REST route ALSO calls ·
+  // drift structurally impossible. The suggestion-loop write input is a
+  // strict discriminated union built from the suggestion-loop lib's own
+  // exported z.enum constants (NOT a permissive z.record · the typed-
+  // payload-mismatch guard).
+
+  /**
+   * Cross-domain residuals slice · owner-only · the most-recent
+   * unresolved lead escalation (last 6h). Replaces GET
+   * /api/brain/escalations · delegates to the shared
+   * `escalations.getLatestEscalation` service. `useAdaptivePlaceholder`
+   * fans this in alongside `maturity` + `industryIntel` to craft the
+   * composer placeholder. Returns the explicit shallow `EscalationView`
+   * (BrainMemory `metadata` Json projected to `unknown` · TS2589
+   * firewall). Fail-soft · a DB error resolves to `{ escalation: null }`.
+   */
+  escalations: operatorProcedure.query(async () => getLatestEscalation()),
+
+  /**
+   * Cross-domain residuals slice · owner-only · the last-14d automotive
+   * industry-intel rollup (top 30). Replaces GET /api/intel · delegates
+   * to the shared `industry-intel.getIndustryIntel` service the REST
+   * route also calls · drift impossible. `recallIndustryIntel` already
+   * returns a flat scalar array · no Prisma Json reaches the AppRouter.
+   * `useAdaptivePlaceholder` reads `industry[0].title` for the quiet
+   * placeholder rotation.
+   *
+   * Routed to the `brain` domain · /api/intel is the brain-intel
+   * surface and `useAdaptivePlaceholder` already reads two other
+   * /api/brain/* endpoints in the same fan-out.
+   */
+  industryIntel: operatorProcedure.query(async () => getIndustryIntel()),
+
+  /**
+   * Cross-domain residuals slice · owner-only · capture a supervised-
+   * signal loop event for a Nick suggestion (action OR outcome).
+   * Replaces POST /api/brain/suggestion-loop · delegates to the shared
+   * `suggestion-loop.{trackSuggestionAction,recordSuggestionOutcome}`
+   * the REST route also calls · drift impossible.
+   *
+   * Input is a strict discriminated union on `type` — the `action`
+   * variant carries `event` (acted/dismissed/modified/deferred), the
+   * `outcome` variant carries `polarity` (positive/negative/neutral).
+   * Both reuse the suggestion-loop lib's own `SuggestionKind` /
+   * `ActionEvent` / `OutcomePolarity` z.enum exports so the enums can't
+   * drift from the lib's internal `.parse()`. NickSuggestions fires the
+   * `action` variant fire-and-forget on chip tap (`acted`) + X
+   * (`dismissed`).
+   */
+  recordSuggestionSignal: operatorProcedure
+    .input(
+      z.discriminatedUnion("type", [
+        z.object({
+          type: z.literal("action"),
+          suggestionId: z.string().min(1).max(128),
+          suggestionKind: SuggestionKind,
+          event: ActionEvent,
+          delaySeconds: z
+            .number()
+            .int()
+            .nonnegative()
+            .max(60 * 60 * 24 * 365)
+            .optional(),
+          modifiedTo: z.string().max(2000).optional(),
+          notes: z.string().max(2000).optional(),
+        }),
+        z.object({
+          type: z.literal("outcome"),
+          suggestionId: z.string().min(1).max(128),
+          suggestionKind: SuggestionKind,
+          polarity: OutcomePolarity,
+          delaySeconds: z
+            .number()
+            .int()
+            .nonnegative()
+            .max(60 * 60 * 24 * 365)
+            .optional(),
+          notes: z.string().max(4000).optional(),
+        }),
+      ]),
+    )
+    .mutation(async ({ input }) => {
+      if (input.type === "action") {
+        return trackSuggestionAction({
+          suggestionId: input.suggestionId,
+          suggestionKind: input.suggestionKind,
+          event: input.event,
+          delaySeconds: input.delaySeconds,
+          modifiedTo: input.modifiedTo,
+          notes: input.notes,
+        });
+      }
+      return recordSuggestionOutcome({
+        suggestionId: input.suggestionId,
+        suggestionKind: input.suggestionKind,
+        polarity: input.polarity,
+        delaySeconds: input.delaySeconds,
+        notes: input.notes,
+      });
+    }),
+
+  /**
+   * Cross-domain residuals slice · owner-only · the current Ghost Nick
+   * prediction bundle + accuracy. Replaces GET /api/brain/ghost-predict
+   * · delegates to the shared `ghost-nick.{getGhostPredictions,
+   * loadGhostAccuracy}` the REST route also calls · drift impossible.
+   * GhostNickStrip polls this on a 15-min interval · React Query now
+   * drives the refetch. `GhostPredictionBundle` / `GhostAccuracy` are
+   * flat interfaces (no Prisma Json) · no TS2589 firewall needed.
+   */
+  ghostPredict: operatorProcedure.query(async () => {
+    const [bundle, accuracy] = await Promise.all([
+      getGhostPredictions(),
+      loadGhostAccuracy(),
+    ]);
+    return { bundle, accuracy };
+  }),
+
+  /**
+   * Cross-domain residuals slice · owner-only · force a recompute of
+   * the Ghost Nick prediction bundle (the GhostNickStrip "recompute"
+   * button). Replaces POST /api/brain/ghost-predict · delegates to the
+   * shared `ghost-nick.{computeGhostPredictions,loadGhostAccuracy}`.
+   * Modeled as a `.mutation()` · genuine work (re-runs the predictor +
+   * persists the bundle). The caller invalidates `brain.ghostPredict`
+   * after success.
+   */
+  recomputeGhostPredict: operatorProcedure.mutation(async () => {
+    const [bundle, accuracy] = await Promise.all([
+      computeGhostPredictions(),
+      loadGhostAccuracy(),
+    ]);
+    return { bundle, accuracy, recomputed: true as const };
+  }),
+
+  /**
+   * Cross-domain residuals slice · owner-only · dismiss one Ghost Nick
+   * prediction (the per-row "not going to do this" button). Replaces
+   * PATCH /api/brain/ghost-predict · delegates to the shared
+   * `ghost-nick.dismissPrediction`. The route's `action: "dismiss"`
+   * discriminator is dropped (the procedure name IS the action) ·
+   * `taskIdOrTitle` is the only real param. A missing bundle / no match
+   * throws NOT_FOUND so both transports reject identically.
+   */
+  dismissGhostPrediction: operatorProcedure
+    .input(z.object({ taskIdOrTitle: z.string().min(1).max(400) }))
+    .mutation(async ({ input }) => {
+      const bundle = await dismissPrediction(input.taskIdOrTitle);
+      if (!bundle) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "bundle missing or no match",
+        });
+      }
+      return { bundle };
     }),
 });

@@ -21,117 +21,23 @@
  *   400 · token payload malformed (defensive · should never happen)
  *   200 · revert succeeded OR was already consumed
  *
- * Fires notifyDataChanged-equivalent · the bus is browser-side so the
- * client wraps this POST and triggers the bus on success.
+ * Cross-domain residuals slice (2026-05-22) · the revert logic moved to
+ * `lib/services/undo-token.consumeUndoToken` so this route AND the
+ * `task.undo` tRPC procedure call the SAME function · drift structurally
+ * impossible. The service throws `ServiceError(400|404)` · apiHandler
+ * maps `.status` to the HTTP code so the 400/404/200 contract is
+ * preserved.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { requireSession } from "@/lib/auth-guard";
+import { apiHandler } from "@/lib/utils/http";
+import { consumeUndoToken } from "@/lib/services/undo-token";
 
 export const runtime = "nodejs";
 
-interface UndoPayload {
-  toolName: "snoozeTask" | "archiveGoal";
-  taskId?: string;
-  goalId?: string;
-  originalStatus: string;
-}
-
-export async function POST(req: NextRequest, ctx: { params: Promise<{ token: string }> }) {
-  await requireSession(req);
-
-  const { token } = await ctx.params;
-  if (!token || typeof token !== "string" || token.length < 8) {
-    return NextResponse.json({ ok: false, error: "invalid token" }, { status: 400 });
-  }
-
-  const row = await prisma.brainMemory.findFirst({
-    where: {
-      category: "undo_token",
-      key: token,
-    },
-    select: { id: true, content: true, expiresAt: true, deletedAt: true },
-  });
-
-  if (!row) {
-    return NextResponse.json({ ok: false, error: "token not found" }, { status: 404 });
-  }
-
-  // Already consumed · idempotent return
-  if (row.deletedAt) {
-    return NextResponse.json({ ok: true, alreadyUndone: true });
-  }
-
-  // Expired (>30s old · cron / next reads should clean these up)
-  if (row.expiresAt && row.expiresAt.getTime() < Date.now()) {
-    return NextResponse.json({ ok: false, error: "token expired" }, { status: 404 });
-  }
-
-  let payload: UndoPayload;
-  try {
-    payload = JSON.parse(row.content) as UndoPayload;
-  } catch {
-    return NextResponse.json({ ok: false, error: "malformed token payload" }, { status: 400 });
-  }
-
-  try {
-    // v10.0.529.97 · Wave 41 · dispatch revert by toolName. Each branch
-    // is small + idempotent. Adding a new tool to undo means adding a
-    // branch here and writing the matching undo_token in the tool
-    // execute() · no schema migration required.
-    switch (payload.toolName) {
-      case "snoozeTask": {
-        if (!payload.taskId) {
-          return NextResponse.json({ ok: false, error: "missing taskId" }, { status: 400 });
-        }
-        await prisma.task.update({
-          where: { id: payload.taskId },
-          data: {
-            status: payload.originalStatus as "INBOX" | "READY" | "DOING" | "WAITING" | "DONE",
-            snoozedUntil: null,
-            lastTouchedAt: new Date(),
-          },
-        });
-        break;
-      }
-      case "archiveGoal": {
-        if (!payload.goalId) {
-          return NextResponse.json({ ok: false, error: "missing goalId" }, { status: 400 });
-        }
-        await prisma.lifeGoal.update({
-          where: { id: payload.goalId },
-          data: {
-            status: payload.originalStatus,
-            deletedAt: null,
-            updatedAt: new Date(),
-          },
-        });
-        break;
-      }
-      default: {
-        return NextResponse.json(
-          { ok: false, error: `unsupported toolName: ${payload.toolName}` },
-          { status: 400 },
-        );
-      }
-    }
-
-    // Mark token consumed · subsequent POSTs hit the alreadyUndone branch.
-    await prisma.brainMemory
-      .update({ where: { id: row.id }, data: { deletedAt: new Date() } })
-      .catch(() => null);
-
-    return NextResponse.json({
-      ok: true,
-      undone: true,
-      toolName: payload.toolName,
-      entityId: payload.taskId ?? payload.goalId,
-    });
-  } catch (err) {
-    return NextResponse.json(
-      { ok: false, error: err instanceof Error ? err.message : String(err) },
-      { status: 500 },
-    );
-  }
-}
+export const POST = apiHandler(
+  async (_req, { params }) => {
+    const { token } = await params!;
+    return consumeUndoToken(token);
+  },
+  { auth: "owner" },
+);

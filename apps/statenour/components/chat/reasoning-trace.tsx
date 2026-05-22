@@ -28,8 +28,13 @@ import * as React from "react";
 import { useState, useCallback, useId } from "react";
 import { ChevronRight, ChevronDown, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
+// Cross-domain residuals slice (2026-05-22) · `TraceResponse` stays a
+// local interface describing what THIS card reads. The shared service's
+// `AgentTraceByMessageView` (the `system.agentTraceByMessage` return
+// type) is assignable to it — every field this card touches is present
+// and compatibly typed.
 interface TraceRow {
   id: string;
   label: string;
@@ -70,7 +75,11 @@ interface TraceResponse {
     promptTokens: number | null;
     completionTokens: number | null;
     persona: string | null;
-    critic: unknown;
+    // Optional · tRPC's superjson transport surfaces an `unknown`
+    // procedure field as optional (an `undefined` value is dropped on
+    // the wire). The render already null-coalesces every `summary.*`
+    // read so this is behavior-neutral.
+    critic?: unknown;
     createdAt: string;
   } | null;
 }
@@ -96,6 +105,14 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
   // per ReasoningTrace instance — multiple traces on the same page
   // never collide.
   const contentsId = useId();
+  // Cross-domain residuals slice (2026-05-22) · migrated off
+  // `authedFetch("/api/system/agent-traces/by-message/<id>")` onto
+  // `trpc.system.agentTraceByMessage`. The trace is lazy-fetched only on
+  // first expand · zero cost while collapsed · so it fires imperatively
+  // via `utils.system.agentTraceByMessage.fetch()`. The procedure
+  // returns the trace object directly · the legacy `json.data` envelope
+  // unwrap is gone.
+  const utils = trpc.useUtils();
 
   const toggle = useCallback(async () => {
     if (open) {
@@ -107,22 +124,17 @@ export function ReasoningTrace({ messageId, conversationId, className }: Reasoni
     setLoading(true);
     setErr(null);
     try {
-      const qs = conversationId
-        ? `?conversationId=${encodeURIComponent(conversationId)}`
-        : "";
-      const res = await authedFetch(
-        `/api/system/agent-traces/by-message/${messageId}${qs}`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { ok?: boolean; data?: TraceResponse };
-      // apiHandler wraps payload under .data
-      setData(json.data ?? (json as unknown as TraceResponse));
+      const trace = await utils.system.agentTraceByMessage.fetch({
+        messageId,
+        conversationId,
+      });
+      setData(trace);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [open, data, loading, messageId, conversationId]);
+  }, [open, data, loading, messageId, conversationId, utils]);
 
   return (
     <div className={cn("mt-2 text-[11px]", className)}>

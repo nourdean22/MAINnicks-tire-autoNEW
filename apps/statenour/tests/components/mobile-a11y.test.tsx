@@ -23,24 +23,16 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { renderToStaticMarkup } from "react-dom/server";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-// next/navigation pulls in the App Router runtime · stub usePathname
-// so the GlobalTopTicker can be rendered in node. Returning anything
-// non-"/" lets the ticker mount.
-import { vi } from "vitest";
-vi.mock("next/navigation", () => ({
-  usePathname: () => "/chat",
-}));
-
-// The bottom ticker fetches /api/ultron/personal-pulse on mount. In
-// the SSR pass `useEffect` doesn't run · the component returns null
-// when data is null · so we test the top ticker's wrapper for the
-// role + aria-label landmark (the bottom ticker's wrapper is read off
-// the file source since SSR returns "" until data lands).
-import { ReasoningTrace } from "@/components/chat/reasoning-trace";
+// Cross-domain residuals slice (2026-05-22) · the A7 ReasoningTrace
+// test dropped its `renderToStaticMarkup` SSR smoke-render — the
+// component now depends on the tRPC Context (it migrated its lazy
+// trace fetch onto `trpc.system.agentTraceByMessage`). The a11y
+// contract is locked source-side, matching the A6 ticker test. With
+// that render gone, `renderToStaticMarkup` + the `ReasoningTrace`
+// import are no longer needed in this file.
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 
@@ -144,23 +136,23 @@ describe("A3 · ticker container bumped to min-h 32px on mobile", () => {
 
 describe("A7 · ReasoningTrace toggle has aria-controls pointing at disclosed contents", () => {
   it("the toggle button's aria-controls matches the disclosed div's id (when open)", () => {
-    // Open state · the contents render with a stable id. We render
-    // the closed state (default) AND check the source for the wiring
-    // because in SSR the open-state mount only happens after a click.
-    // Source-level check: useId() · aria-controls={contentsId} · id={contentsId}.
+    // Cross-domain residuals slice (2026-05-22) · ReasoningTrace
+    // migrated its lazy trace fetch off `authedFetch` onto
+    // `trpc.system.agentTraceByMessage` via `trpc.useUtils()`, which
+    // needs a tRPC Context provider — so the component can no longer be
+    // SSR-rendered in isolation via renderToStaticMarkup. Source-level
+    // check instead · the SAME pattern the A6 GlobalTopTicker test above
+    // already adopted for the identical cause (Phase B.6a). The
+    // useId() · aria-controls={contentsId} · id={contentsId} regex below
+    // fully locks the a11y wiring contract.
     const src = readSource("components/chat/reasoning-trace.tsx");
     expect(src).toContain("const contentsId = useId();");
+    // The toggle button declares aria-controls + aria-expanded + the
+    // accessible label · all three are the disclosure-pattern contract.
     expect(src).toContain("aria-controls={contentsId}");
+    expect(src).toContain("aria-expanded={open}");
+    expect(src).toContain('aria-label="Toggle reasoning trace"');
+    // The disclosed contents div carries the matching stable id.
     expect(src).toContain("id={contentsId}");
-
-    // SSR sanity · rendering the component (closed) does not throw.
-    const html = renderToStaticMarkup(
-      <ReasoningTrace messageId="test-msg-1" />,
-    );
-    // The toggle button is always in the DOM (open or closed) so the
-    // aria-controls attribute must be present even when collapsed.
-    expect(html).toContain("aria-controls=");
-    expect(html).toContain("aria-expanded=");
-    expect(html).toContain("aria-label=\"Toggle reasoning trace\"");
   });
 });
