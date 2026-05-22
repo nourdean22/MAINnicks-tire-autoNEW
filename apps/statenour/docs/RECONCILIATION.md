@@ -1,6 +1,50 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-21 (/tasks hardening wave) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1954 across 146 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-21 (staleness reconcile) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1954 across 146 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-21 · staleness deep-dive + reconcile — dead infra, dead code, fossil docs · 5 ships
+>
+> The operator's read — "a lot of old, stale, outdated data everywhere"
+> — was correct. A 3-agent deep-dive audit (docs · dead code · stale
+> comments) mapped it. Root finding: the CODE is disciplined (it
+> self-documents its own removals), so code cruft is just "kept for
+> now" files nobody garbage-collected — but the DOCS are the real rot,
+> because they were append-only and never reconciled. Net of the wave:
+> roughly −2,000 lines. typecheck + lint (0 errors) + the full
+> 1954-test suite green.
+>
+> **`16fcb6a` · Nick's GitHub write/deploy capability removed** — 5 AI
+> tools (githubWriteFile / CommitMultiple / SafeCommit / Deploy +
+> checkDeployStatus) + 7 github.ts helpers, all wired to the retired
+> statenour-os repo / codex branch / Vercel. They silently no-op'd
+> (Nick "shipped", nothing reached prod); repointed at the live
+> monorepo `main` they would push unreviewed code straight to
+> production. Nick keeps every READ tool.
+>
+> **`a362b1d` · 9 dead files + dead logScore deleted** — −1,602 lines.
+> projects-panel · home-strip · context-rail · mode-pill · capture-chip
+> + 4 abandoned `components/3d/*` scenes. Every one grep-proven
+> zero-import; the full 1954-test suite confirmed nothing depended on
+> them.
+>
+> **`35bd055` · RECONCILIATION.md fossil fenced** — the buried v10.0.5x
+> "READ THIS FIRST · single source of truth" header (which asserted the
+> retired stack as current) is now a loud ⚠ HISTORICAL ARCHIVE fence.
+>
+> **`06bbbb3` · lying comments + dead CSS** — fixed the lib/logger
+> comment that claimed client errors reach /system/logs (they do not);
+> removed the `context-rail-drift` + `mode-pill-active` dead CSS.
+>
+> **`824e724` · doc infra-sweep · 10 files** — RUNBOOK · REPO-MAP ·
+> AGENT-CONTRACT · README · AGENTS.md · ARCHITECTURE · DATA-MODEL ·
+> tool-catalog · 3d-briefs · crons.ts swept from Vercel / bdnick.info /
+> codex → monorepo / `main` / Railway. AGENTS.md pre-push gate-count
+> self-conflict resolved (verify:hard = 7 checks). Model count 78 → 80.
+>
+> **Deliberately LEFT (not stale-as-harm):** 2,313 `v10.0.x` version
+> stamps + ~12 "extracted from X" archaeology comments — true history,
+> bulk-editing them is churn with zero functional gain. `/plan`→`/goals`
+> route refs also left — functional via a 301 redirect.
 
 > ## 2026-05-21 · /tasks — quick-add P0, Tesla-minimal redesign, drift-class closeout · 6 ships
 >
