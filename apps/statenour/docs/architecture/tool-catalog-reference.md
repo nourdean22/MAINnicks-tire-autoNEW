@@ -1,10 +1,11 @@
 # Tool catalog reference · every tool Nick can call
 
 The authoritative tool count lives in `lib/ai/tools/catalog.ts`
-(`TOOL_CATALOG.length`). At time of writing: **113 tools** registered.
-A contract test in `tests/ai/tool-contract.test.ts` asserts 1:1
-alignment between `nourTools` (the function objects in
-`lib/ai/tools.ts`) and the catalog metadata (this list).
+(`TOOL_CATALOG.length`). At time of writing: **138 tools** registered
+(verified 2026-05-21). A contract test in
+`tests/ai/tool-contract.test.ts` asserts 1:1 alignment between
+`nourTools` (the function objects in `lib/ai/tools.ts`) and the
+catalog metadata (this list).
 
 > Sorted by `ToolCategory` matching `catalog.ts`. Each row shows the
 > name, what it does, its inputs, its outputs, cost tier, battle-safe
@@ -209,25 +210,20 @@ catalog and the model:
 
 ---
 
-## `files` — Drive + GitHub (19)
+## `files` — Drive + GitHub (14)
 
 | Tool                       | Description                                                          | Input                                              | Output                                    | Cost | Battle | Side-effect | Talks to                 |
 |----------------------------|----------------------------------------------------------------------|----------------------------------------------------|------------------------------------------|------|--------|------|--------------------------|
 | `buildArchitectureMemory`  | Scan a repo feature + store its architecture in brain memory         | `repo, feature, filePaths[], summary`              | `{ stored, feature, repo }`              | spendy | no   | no   | `BrainMemory(architecture)` |
-| `checkDeployStatus`        | Check Vercel deploy status for a repo                                | `repo`                                              | deploy state payload                      | free | yes    | no   | Vercel API               |
 | `getRepoMap`               | Return the structured repo metadata (stack + key paths + branch)     | `repo`                                              | `{ name, branch, stack, keyPaths }`      | cheap | no    | no   | `config/repos.ts`        |
-| `githubCommitMultiple`     | Commit multiple file changes in one operation                        | `repo, branch, message, files[]`                    | `{ committed, sha }`                      | free | no     | **yes**| GitHub API             |
 | `githubCreateIssue`        | Create a GitHub issue                                                | `repo, title, body, labels?`                        | `{ created, number, url }`                | free | no     | **yes**| GitHub API             |
 | `githubCreatePR`           | Create a pull request                                                | `repo, title, body, head, base, draft?`             | `{ created, number, url }`                | free | no     | **yes**| GitHub API             |
-| `githubDeploy`             | Trigger a deploy (push to deploy branch)                             | `repo, branch?`                                     | `{ deployed, url }`                       | free | no     | **yes**| GitHub + Vercel        |
 | `githubListFiles`          | List files in a repo directory                                       | `repo, path, ref?`                                  | files array                               | free | yes    | no   | GitHub API               |
 | `githubListRepos`          | List all configured repos                                            | `{}`                                                 | repo array                                | free | yes    | no   | `config/repos.ts`        |
 | `githubReadFile`           | Read a single file from a repo                                       | `repo, path, ref?`                                  | `{ content, sha }`                        | free | yes    | no   | GitHub API               |
 | `githubReadMultiple`       | Read multiple files from a repo in one call                          | `repo, paths[], ref?`                               | files array                               | free | no     | no   | GitHub API               |
 | `githubRecentCommits`      | Recent commits on a branch                                           | `repo, branch?, limit?`                             | commits array                             | free | yes    | no   | GitHub API               |
-| `githubSafeCommit`         | Commit with pre-commit validation (lint + typecheck) before push     | `repo, branch, message, files[]`                    | `{ committed, validated, sha }`           | free | no     | **yes**| GitHub API + validators|
 | `githubSearchCode`         | Search code across all configured repos                              | `query, repo?, language?`                           | search hits                               | free | no     | no   | GitHub API               |
-| `githubWriteFile`          | Create or update a file in a repo                                    | `repo, path, content, message, branch?`             | `{ committed, sha }`                      | free | no     | **yes**| GitHub API             |
 | `learnCodingPreference`    | Store a coding preference Nour expressed (tab vs space, naming, etc.)| `preference, scope?`                                | `{ stored }`                              | free | no     | no   | `BrainMemory(coding_preference)` |
 | `listRecentDriveFiles`     | List recently modified files in Nour's Drive                         | `limit: 1-20` (default 10)                          | `{ files[], count }`                      | free | yes    | no   | Google Drive API         |
 | `readDriveFile`            | Read content of a Drive document (Docs / Sheets / text / markdown)   | `fileId, mimeType?`                                 | `{ name, content, truncated }`            | free | no     | no   | Google Drive API         |
@@ -294,6 +290,11 @@ catalog and the model:
 | `createPaymentLink`        | v7 cleanup Apr 28 | Stripe mutating actions belong on nickstire.org/admin                         |
 | `triggerFollowUp`          | v7 cleanup Apr 28 | Customer-facing follow-ups belong on nickstire.org/admin                      |
 | `generateSocialPost` etc.  | Apr 17          | Post generation moved to nickstire admin · autonicks keeps image generation     |
+| `checkDeployStatus`        | 2026-05-21      | Vercel deploy-status probe · statenour deploys on Railway now, not Vercel        |
+| `githubWriteFile`          | 2026-05-21      | Agent code-write tool removed · code edits stay manual (Nick has no write access) |
+| `githubCommitMultiple`     | 2026-05-21      | Same — multi-file commit tool removed · Nick observes repos, doesn't push        |
+| `githubSafeCommit`         | 2026-05-21      | Same — validated-commit tool removed                                             |
+| `githubDeploy`             | 2026-05-21      | Deploy-trigger tool removed · deploys are Railway-driven off `main` pushes       |
 
 ---
 
@@ -308,7 +309,7 @@ categoryOf(name)         → ToolCategory | null // reverse lookup
 catalogSummary()         → [{ category, count }, …]  // for /system/ai-cost
 battleSafeTools()        → string[]            // battle=true subset
 sideEffectingTools()     → string[]            // strict-mode approval list
-TOOL_COUNT               = TOOL_CATALOG.length // 113
+TOOL_COUNT               = TOOL_CATALOG.length // 138
 ```
 
 Telemetry consumers:

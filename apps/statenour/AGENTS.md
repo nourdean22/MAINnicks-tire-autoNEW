@@ -24,7 +24,7 @@
 | Reconciliation campaign | v10.0.166 → v10.0.236 | Cron audit waves · API auth audit · component layer audit · Wave A ghost-feeder migration | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 | Post-audit consolidation | v10.0.148 → v10.0.166 | AutomationPolicy registry · explainability envelope · Brier scoring · approval queue · fabrication-defense L1-L5 stack · prompt library scaffold | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 
-**Tests:** 1954 tests across 146 vitest files (2026-05-21 · `.next-prod` excluded). **Pre-push gates:** 15/15 green every push (typecheck · prisma format · lint · test · raw-SQL audit · cron manifest · tool catalog · env-secret guard · API auth · sensitive-GET auth · policy registry coverage · cron policies · Venice gates · anti-slop UI · destructive prisma push guard · production build).
+**Tests:** 1954 tests across 146 vitest files (2026-05-21 · `.next-prod` excluded). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
 
 ---
 
@@ -44,27 +44,30 @@ When the user says `/karpathy-guidelines`, `/kaizen`, `/superpowers-lab`, `/usin
 
 1. **Auto mode** is usually on — execute autonomously, prefer action over planning, course-correct from user pushback. Never destructive without explicit confirmation.
 2. **Small ships** — typical commit is 1–4 files, 1 test file, 1 ship per slice. The wave is 4–6 slices. Don't try to ship the whole wave in one commit.
-3. **All 11/11 pre-push gates must be green** every push. If a gate fires, the cascade is: typecheck → format (NEW v10.0.159) → lint → test → raw-SQL audit → cron manifest → tool catalog → env-secret guard → API auth → sensitive-GET auth → policy registry coverage. Production build adds gate [12/12].
-4. **Soft caps** — Vercel cron budget = 40 (currently 38); operator-private GET routes need `auth: "owner"`; mutating routes need explicit auth wrapper.
-5. **Pgvector lives in Prisma now** (v10.0.171) — `vector_embeddings.embedding_vec` and `embedding_vec_1536` + `embedding_dim` + `model` are declared as `Unsupported(...)` in the schema. Prisma SEES them and won't drop them on `db push`. Querying still requires raw SQL (`lib/db/pgvector.ts`). The `chat_messages.searchable_tsv` GENERATED column also lives in the schema as `Unsupported("tsvector")? @default(dbgenerated())`. The HNSW index on `embedding_vec_1536` is raw-SQL only — Prisma can't model index types. Schema sentinel still guards existence as defense-in-depth. The destructive-push gate at [2/11] still blocks `--accept-data-loss` patterns in shipping config.
+3. **The push must build clean.** `.husky/pre-push` runs `turbo build` for affected apps — a Next.js prerender error blocks the push. Before pushing, run `pnpm verify:hard` (typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`) to catch the rest locally.
+4. **Soft caps** — operator-private GET routes need `auth: "owner"`; mutating routes need explicit auth wrapper.
+5. **Pgvector lives in Prisma now** — `vector_embeddings.embedding_vec` and `embedding_vec_1536` + `embedding_dim` + `model` are declared as `Unsupported(...)` in the schema. Prisma SEES them and won't drop them on `db push`. Querying still requires raw SQL (`lib/db/pgvector.ts`). The `chat_messages.searchable_tsv` GENERATED column also lives in the schema as `Unsupported("tsvector")? @default(dbgenerated())`. The HNSW index on `embedding_vec_1536` is raw-SQL only — Prisma can't model index types. Schema sentinel still guards existence as defense-in-depth. The `check:raw-sql` step in `verify:hard` blocks `--accept-data-loss` patterns in shipping config.
 6. **Inbox missions ≠ user projects** — `lib/services/mission-helpers.ts isInboxMission()` is the single predicate. Three surfaces depend on it (Plan view, Track tile, mission cap).
 
 ### Git flow
 
-- Active branch: `main` (monorepo · pushing auto-deploys statenour to Railway)
-- `statenour-master` exists as a downstream mirror (auto-FF via `mirror-to-master.yml` GHA)
-- Pre-push hook: `scripts/pre-push-check.sh` — also installed at `.git/hooks/pre-push` (re-install after edits with `cp scripts/pre-push-check.sh .git/hooks/pre-push && chmod +x .git/hooks/pre-push`)
+- Active branch: `main` (monorepo · pushing auto-deploys statenour to Railway via per-service watch paths)
+- Pre-push hook: the repo-root `.husky/pre-push` runs `turbo run build --filter=...[upstream]` for affected apps
+- `apps/statenour/scripts/pre-push-check.sh` is a stale Vercel-era artifact (it still references `codex/ollama-local` / `statenour-master`) — it is NOT the active hook; ignore it
 
 ### Commit message format
 
+The `v10.0.X` version scheme is retired. Commits use a `type · scope ·
+summary` subject (`fix · statenour · …`, `docs · statenour · …`):
+
 ```
-v10.0.X · <scope> · <one-line summary>
+<type> · statenour · <one-line summary>
 
 <context paragraph: what triggered this, what was broken>
 
 <implementation paragraph: files touched, how the fix works>
 
-<verify section: tests passing, gates green, what's next>
+<verify section: tests passing, build clean, what's next>
 
 Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
@@ -82,7 +85,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 | Data model · table-by-table | [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) |
 | Security posture · auth gates | [`docs/SECURITY.md`](docs/SECURITY.md) |
 | AI agent contract | [`docs/AGENT-CONTRACT.md`](docs/AGENT-CONTRACT.md) |
-| Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — generates `vercel.json` via `pnpm exec tsx scripts/verify-crons.ts --fix` |
+| Cron manifest (single source) | [`config/crons.ts`](config/crons.ts) — verified against the filesystem via `pnpm check:crons`; scheduled jobs run through the Inngest mega fan-out, not a `vercel.json` crons block |
 | AutomationPolicy registry | DB · `automation_policies` · seed via `pnpm tsx scripts/seed-policies.ts` |
 | Schema-drift guard | [`lib/db/schema-sentinel.ts`](lib/db/schema-sentinel.ts) (EXPECTATIONS list) |
 
