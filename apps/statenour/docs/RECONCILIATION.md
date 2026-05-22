@@ -671,22 +671,19 @@
 > and fixed: `/capture` and `/ops` redirect targets pointed at non-existent
 > `/command` route (404 trap from pre-Ultron consolidation).
 
-> **READ THIS FIRST if you're a fresh agent session.** Below is the
-> single source of truth for everything that has shipped in the v10
-> wave. The headline since v10.0.27: **two pre-existing CRITICAL
-> bugs were sitting in production for weeks before audit caught them.**
-> One was a SQL syntax error in the durable brain-bus claim query
-> that had been silently failing every 2 minutes since v10.0.1
-> (fixed in v10.0.27). The other was an unauthed-GET privacy hole
-> across 14 routes (journal, devices/command, goals, tasks,
-> commitments, body, habits, mastery/mood-trend, etc.) that the
-> sensitive-GET pre-push gate had been silently missing since v9.1.17
-> ratchet (fixed in v10.0.37; gate widened from 5 → 16 prefixes).
+> ⚠ **HISTORICAL ARCHIVE — do NOT read as current.** Everything from
+> here to the end of this file is the v9.1 → v10.0.7x reconciliation
+> ledger, kept for history only. It PRE-DATES the monorepo migration
+> and describes RETIRED infrastructure — the standalone `statenour-os`
+> repo, the `codex/ollama-local` branch, Vercel, and `bdnick.info`.
+> Branch names, cron counts, model counts, pre-push gate counts and
+> "active gate task" notes below are frozen at that era and are NOT
+> current — do not trust a number from this section.
 >
-> **Active gate task:** Track A · NICK_PRIME_PROMPT=shadow soaking.
-> Watch `/system/prompt-comparison`. Flip to `=1` once parity holds
-> (zero `prompt.shadow.build_failures` + delta within ±5%). Track C
-> + v9.2 prompt-builder deletion both unblock on the flip.
+> **For the current state of the OS, read the TOP of this file.**
+> statenour now ships from the `MAINnicks-tire-autoNEW` monorepo
+> (`apps/statenour/`), branch `main`, deployed by Railway. The
+> `v10.0.X` version scheme is retired. (archived 2026-05-21)
 
 ## v9.1 wave progress (after v9.0 Command Spine)
 
