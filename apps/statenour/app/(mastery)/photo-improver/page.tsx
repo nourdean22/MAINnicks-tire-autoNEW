@@ -22,7 +22,9 @@ import { cn } from "@/lib/utils/cn";
 import { Upload, Loader2, AlertCircle, Sparkles, Send, Image as ImageIcon, Wand2 } from "lucide-react";
 import Link from "next/link";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the analyze/rebrand run moved off
+// authedFetch onto trpc.operator.improvePhoto.
+import { trpc } from "@/lib/trpc/client";
 interface AnalysisResult {
   scores: {
     lighting: number;
@@ -113,6 +115,8 @@ export default function PhotoImproverPage() {
     if (file) handleFile(file);
   };
 
+  const improvePhoto = trpc.operator.improvePhoto.useMutation();
+
   const run = async () => {
     if (!imageBase64 && !imageUrl) {
       setError("Drop or paste an image first");
@@ -121,21 +125,13 @@ export default function PhotoImproverPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await authedFetch("/api/images/improve", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          imageBase64: imageBase64 ?? undefined,
-          imageUrl: imageUrl || undefined,
-          mode,
-        }),
-      });
-      // v10.0.33 — res.ok BEFORE .json(). Pre-fix the order was
-      // reversed: a non-200 with non-JSON body would throw inside
-      // .json() before the explicit Error could fire, masking the
-      // real HTTP status.
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const json = (await res.json()) as ImproveResponse;
+      // tRPC surfaces a non-2xx as a thrown error (replacing the
+      // v10.0.33 manual res.ok-before-.json() guard).
+      const json = (await improvePhoto.mutateAsync({
+        imageBase64: imageBase64 ?? undefined,
+        imageUrl: imageUrl || undefined,
+        mode,
+      })) as ImproveResponse;
       setData(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

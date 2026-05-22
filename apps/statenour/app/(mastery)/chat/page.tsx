@@ -190,7 +190,11 @@ import { haptic } from "@/lib/ui/haptic";
 import { extractMessageText } from "@/lib/chat/extract-message-text";
 import { getMessageMeta } from "@/lib/chat/get-message-meta";
 // v10.0.529.54 · AiPulse import removed · vanity 3D mesh cut.
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the page's last 2 authedFetch calls
+// (fork + revert) migrated to trpc — fork → chat.fork (NEW), revert →
+// chat.editMessage (REUSED, the Phase JJ edit procedure). The
+// authedFetch import is now gone · /chat page is 100% on tRPC.
+import { trpc } from "@/lib/trpc/client";
 // v10.0.529.106 · Wave 83 · rootLogger import removed · all log
 // surfaces moved into the action hooks (useChatMessageActions ·
 // useNickMessageActions) where the only callers live.
@@ -929,26 +933,19 @@ function Chat() {
 
   // Fork-from-message handler (#4) — placed after useConversations so
   // activeId + loadConvoBase are in scope.
+  const forkMutation = trpc.chat.fork.useMutation();
   const handleFork = useCallback(
     async (messageId: string) => {
       if (!activeId) return;
       haptic.medium();
       try {
-        const res = await authedFetch("/api/chat/fork", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sourceConversationId: activeId,
-            upToMessageId: messageId,
-            titleSuffix: "fork",
-          }),
+        // tRPC surfaces a non-2xx as a thrown error · the catch below
+        // handles the fork-failed path the legacy !res.ok branch did.
+        const data = await forkMutation.mutateAsync({
+          sourceConversationId: activeId,
+          upToMessageId: messageId,
+          titleSuffix: "fork",
         });
-        if (!res.ok) {
-          setError("Fork failed");
-          setTimeout(() => setError(null), 3000);
-          return;
-        }
-        const data = (await res.json()) as { forkId: string; title: string };
         haptic.success();
         await loadConvoBase(data.forkId);
         setError(`Forked → ${data.title}`);
@@ -959,7 +956,7 @@ function Chat() {
         setTimeout(() => setError(null), 3000);
       }
     },
-    [activeId, loadConvoBase]
+    [activeId, loadConvoBase, forkMutation]
   );
   // Keep transport body in sync with the active convo + overrides.
   // Each override is only included when it's NOT "auto" — that way the
@@ -1398,15 +1395,15 @@ function Chat() {
     },
     [setEditingAssistantId, setMessages],
   );
+  const editMessageMutation = trpc.chat.editMessage.useMutation();
   const handleFooterMessageReverted = useCallback(
     (id: string, priorContent: string) => {
-      // Revert = trigger an edit with the old content
-      void authedFetch(`/api/ai/chat/edit/${encodeURIComponent(id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: priorContent }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
+      // Revert = trigger an edit with the old content. Reuses the
+      // Phase JJ chat.editMessage procedure (PATCH /api/ai/chat/edit/
+      // [id] equivalent). A thrown error is swallowed — same as the
+      // legacy `.catch(() => undefined)`.
+      editMessageMutation
+        .mutateAsync({ messageId: id, content: priorContent })
         .then((j) => {
           if (!j || typeof j.content !== "string") return;
           setMessages((prev) =>
@@ -1419,7 +1416,7 @@ function Chat() {
         })
         .catch(() => undefined);
     },
-    [setMessages],
+    [setMessages, editMessageMutation],
   );
   const handleFooterSwapBranch = useCallback(
     (activeMessageId: string, siblingId: string) => {

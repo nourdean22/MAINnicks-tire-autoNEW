@@ -33,7 +33,11 @@ import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { Send, Calendar, Loader2, CheckCircle, AlertCircle, Image as ImageIcon, Globe } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the two mount reads + the publish /
+// schedule actions moved off authedFetch onto trpc.operator.* —
+// socialSchedule / socialRecentImages (queries) and socialPublish /
+// scheduleSocialPost (mutations).
+import { trpc } from "@/lib/trpc/client";
 interface BufferProfile {
   id: string;
   service: string;
@@ -92,47 +96,37 @@ function SocialPageInner() {
   const [platforms, setPlatforms] = useState(initialPlatforms);
   const [scheduleMode, setScheduleMode] = useState<"now" | "next-slot" | "datetime">("next-slot");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [profiles, setProfiles] = useState<BufferProfile[]>([]);
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>([]);
-  const [bufferConn, setBufferConn] = useState<BufferConnection | null>(null);
-  const [recentImages, setRecentImages] = useState<Array<{ id: string; detail: string; createdAt: string }>>([]);
   const [publishing, setPublishing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
   const [results, setResults] = useState<PublishResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Load Buffer profiles + connection on mount
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await authedFetch("/api/social/schedule");
-        if (res.ok) {
-          const json = await res.json();
-          setBufferConn(json.connection);
-          setProfiles(json.profiles ?? []);
-          setSelectedProfiles((json.profiles ?? []).filter((p: BufferProfile) => p.default).map((p: BufferProfile) => p.id));
-        }
-      } catch {
-        // silent — UI shows "not connected"
-      }
-    })();
-  }, []);
+  // Buffer connection + profiles · the legacy mount fetch is now a
+  // query. A failure stays silent (UI shows "not connected") — that
+  // matches the legacy try/catch that swallowed errors.
+  const scheduleQuery = trpc.operator.socialSchedule.useQuery();
+  const bufferConn: BufferConnection | null =
+    scheduleQuery.data?.connection ?? null;
+  const profiles: BufferProfile[] = scheduleQuery.data?.profiles ?? [];
 
-  // Load recent generated images
+  // Recent generated images for the picker.
+  const recentImagesQuery = trpc.operator.socialRecentImages.useQuery();
+  const recentImages: Array<{ id: string; detail: string; createdAt: string }> =
+    recentImagesQuery.data?.images ?? [];
+
+  // Seed the default profile selection once the profiles land (the
+  // legacy fetch set this inside its .then()).
   useEffect(() => {
-    void (async () => {
-      try {
-        const res = await authedFetch("/api/social/recent-images");
-        if (res.ok) {
-          const json = await res.json();
-          setRecentImages(json.images ?? []);
-        }
-      } catch {
-        // silent
-      }
-    })();
-  }, []);
+    if (profiles.length === 0) return;
+    setSelectedProfiles(
+      profiles.filter((p) => p.default).map((p) => p.id),
+    );
+  }, [profiles]);
+
+  const publishMutation = trpc.operator.socialPublish.useMutation();
+  const scheduleMutation = trpc.operator.scheduleSocialPost.useMutation();
 
   const charCount = caption.length;
   const charLimit = 2200; // IG max
@@ -159,21 +153,14 @@ function SocialPageInner() {
     if (!confirm(`Publish to ${targets.join(" + ")}? This is irreversible.`)) return;
     setPublishing(true);
     try {
-      const res = await authedFetch("/api/social/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          platforms: targets,
-          imageUrl,
-          caption,
-          message: caption,
-        }),
+      // tRPC surfaces a non-2xx as a thrown error (replacing the
+      // v10.0.33 manual res.ok-before-.json() guard).
+      const json = await publishMutation.mutateAsync({
+        platforms: targets,
+        imageUrl,
+        caption,
+        message: caption,
       });
-      // v10.0.33 — res.ok before .json(). Pre-fix a 5xx with HTML
-      // body would throw inside .json() and surface a generic
-      // SyntaxError, hiding the actual status.
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const json = await res.json();
       setResults(json.results ?? []);
       if (json.ok) {
         setSuccess(`Published to ${json.succeeded} channel${json.succeeded === 1 ? "" : "s"}`);
@@ -187,7 +174,7 @@ function SocialPageInner() {
     } finally {
       setPublishing(false);
     }
-  }, [caption, imageUrl, platforms]);
+  }, [caption, imageUrl, platforms, publishMutation]);
 
   const handleSchedule = useCallback(async () => {
     setError(null);
@@ -212,20 +199,15 @@ function SocialPageInner() {
     if (!confirm(`${summary}? Will queue ${selectedProfiles.length} update(s).`)) return;
     setScheduling(true);
     try {
-      const res = await authedFetch("/api/social/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: caption,
-          imageUrl: imageUrl || undefined,
-          profileIds: selectedProfiles,
-          scheduledAt: scheduleMode === "datetime" ? scheduledAt : undefined,
-          shareNow: scheduleMode === "now",
-        }),
+      // tRPC surfaces a non-2xx as a thrown error (same fix as
+      // handlePublish above).
+      const json = await scheduleMutation.mutateAsync({
+        text: caption,
+        imageUrl: imageUrl || undefined,
+        profileIds: selectedProfiles,
+        scheduledAt: scheduleMode === "datetime" ? scheduledAt : undefined,
+        shareNow: scheduleMode === "now",
       });
-      // v10.0.33 — res.ok guard (same fix as handlePublish above).
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const json = await res.json();
       if (json.ok) {
         setSuccess(`Queued ${json.bufferUpdateIds.length} update(s) for ${json.scheduledFor}`);
         setCaption("");
@@ -238,7 +220,7 @@ function SocialPageInner() {
     } finally {
       setScheduling(false);
     }
-  }, [caption, imageUrl, selectedProfiles, scheduleMode, scheduledAt]);
+  }, [caption, imageUrl, selectedProfiles, scheduleMode, scheduledAt, scheduleMutation]);
 
   return (
     <StandardPage

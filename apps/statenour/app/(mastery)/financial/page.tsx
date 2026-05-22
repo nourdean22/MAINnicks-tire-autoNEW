@@ -13,7 +13,13 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Pencil, Check, X } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the two polled reads moved off
+// authedFetch onto trpc.operator.financialSnapshot +
+// operator.revenueStats · React Query's refetchInterval replaces the
+// manual setInterval + AbortController plumbing (each refetch
+// supersedes the prior in-flight request — the "latest poll wins"
+// behavior the abort controllers were enforcing).
+import { trpc } from "@/lib/trpc/client";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine,
   ResponsiveContainer, Tooltip,
@@ -71,13 +77,33 @@ const TOOLTIP_STYLE = {
 };
 
 export default function FinancialPage() {
-  const [latest, setLatest] = useState<Snapshot | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [revenueHistory, setRevenueHistory] = useState<RevenueDay[]>([]);
   const [monthlyTarget, setMonthlyTarget] = useState(DEFAULT_TARGET);
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState("");
   const targetInputRef = useRef<HTMLInputElement>(null);
+
+  // misc-pages slice (2026-05-22) · the two polled reads · React
+  // Query's refetchInterval replaces the prior setInterval (60s /
+  // 120s) + per-request AbortController plumbing — a refetch
+  // supersedes the in-flight request, so "latest poll wins" holds.
+  const financialQuery = trpc.operator.financialSnapshot.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const revenueQuery = trpc.operator.revenueStats.useQuery(
+    { period: "month" },
+    { refetchInterval: 120_000 },
+  );
+  // The procedure returns the camelCase row the legacy /api/financial
+  // GET also returned (raw Prisma row, post-envelope). The page's
+  // snake_case `Snapshot` interface never matched that shape — kept
+  // as-is via a cast so behavior is byte-identical to the REST path.
+  const latest = (financialQuery.data?.latest ?? null) as Snapshot | null;
+  const loading = financialQuery.isLoading;
+  const revenueHistory: RevenueDay[] = revenueQuery.data?.byDay
+    ? Object.entries(revenueQuery.data.byDay as Record<string, number>)
+        .map(([date, revenue]) => ({ date, revenue: Number(revenue) }))
+        .sort((a, b) => a.date.localeCompare(b.date))
+    : [];
 
   // Load target from localStorage on mount
   useEffect(() => {
@@ -129,64 +155,11 @@ export default function FinancialPage() {
     setEditingTarget(false);
   }
 
-  // v10.0.31 — abort signals so 60s + 120s polling intervals don't
-  // accumulate stale in-flight requests on slow networks. Latest
-  // poll always wins.
-  const financialInflightRef = useRef<AbortController | null>(null);
-  const revenueInflightRef = useRef<AbortController | null>(null);
-
-  const loadFinancial = useCallback(async () => {
-    if (financialInflightRef.current) financialInflightRef.current.abort();
-    const ctrl = new AbortController();
-    financialInflightRef.current = ctrl;
-    try {
-      const r = await authedFetch("/api/financial", { signal: ctrl.signal });
-      if (!r.ok) throw new Error(`financial fetch ${r.status}`);
-      const raw = await r.json();
-      const d = raw?.data ?? raw;
-      setLatest(d.latest);
-    } catch (err) {
-      if ((err as { name?: string })?.name === "AbortError") return;
-      flog.error("financial_load_exception", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadRevenueHistory = useCallback(async () => {
-    if (revenueInflightRef.current) revenueInflightRef.current.abort();
-    const ctrl = new AbortController();
-    revenueInflightRef.current = ctrl;
-    try {
-      const r = await authedFetch("/api/analytics/revenue?period=month", {
-        signal: ctrl.signal,
-      });
-      if (!r.ok) throw new Error(`revenue history fetch ${r.status}`);
-      const raw = await r.json();
-      const data = raw?.data ?? raw;
-      if (data?.byDay) {
-        const days: RevenueDay[] = Object.entries(data.byDay as Record<string, number>)
-          .map(([date, revenue]) => ({ date, revenue: Number(revenue) }))
-          .sort((a, b) => a.date.localeCompare(b.date));
-        setRevenueHistory(days);
-      }
-    } catch (err) {
-      if ((err as { name?: string })?.name === "AbortError") return;
-      flog.error("revenue_history_load_exception", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    loadFinancial();
-    loadRevenueHistory();
-    const i1 = setInterval(loadFinancial, 60000);
-    const i2 = setInterval(loadRevenueHistory, 120000);
-    return () => { clearInterval(i1); clearInterval(i2); };
-  }, [loadFinancial, loadRevenueHistory]);
+  // FreshnessChip's reload — refetches both polled queries.
+  const reloadAll = useCallback(() => {
+    void financialQuery.refetch();
+    void revenueQuery.refetch();
+  }, [financialQuery, revenueQuery]);
 
   // Dynamic target (editable, persisted to localStorage)
   const MONTHLY_TARGET = monthlyTarget;
@@ -240,7 +213,7 @@ export default function FinancialPage() {
           <FreshnessChip
             lastFetchedAt={latest?.date}
             source="snapshots + revenue"
-            onReload={() => { loadFinancial(); loadRevenueHistory(); }}
+            onReload={reloadAll}
           />
         </div>
       </header>

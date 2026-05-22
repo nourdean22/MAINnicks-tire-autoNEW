@@ -21,10 +21,12 @@
  * types (grade letter, revisit count, similarity).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// misc-pages slice (2026-05-22) · the detail read + grade-save moved
+// off authedFetch onto trpc.operator.decisionDetail / gradeDecision.
+import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
@@ -102,11 +104,8 @@ export default function DecisionDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const id = params?.id;
-
-  const [data, setData] = useState<DetailPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
+  const numericId = Number(id);
+  const idValid = Number.isInteger(numericId) && numericId > 0;
 
   // ── Edit form state ─────────────────────────────────────────────
   const [editing, setEditing] = useState(false);
@@ -115,29 +114,28 @@ export default function DecisionDetailPage() {
   const [editReviewDate, setEditReviewDate] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    if (!id) return;
-    try {
-      const res = await authedFetch(`/api/decisions/${id}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const payload = (json.data ?? json) as DetailPayload;
-      setData(payload);
-      setFetchedAt(new Date().toISOString());
-      setError(null);
-      setEditOutcome(payload.decision.actualOutcome ?? "");
-      setEditGrade(payload.decision.grade ?? "");
-      setEditReviewDate(payload.decision.reviewDate ?? "");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "load failed");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
+  // Reactive detail read · `cache: "no-store"` carries over as a
+  // staleTime-0 query keyed on the id. `enabled` gates the call until
+  // the route param resolves to a valid positive int.
+  const detailQuery = trpc.operator.decisionDetail.useQuery(
+    { id: numericId },
+    { enabled: idValid },
+  );
+  const data = (detailQuery.data ?? null) as DetailPayload | null;
+  const loading = detailQuery.isLoading;
+  const error = detailQuery.error ? detailQuery.error.message : null;
+  const fetchedAt = detailQuery.dataUpdatedAt
+    ? new Date(detailQuery.dataUpdatedAt).toISOString()
+    : null;
 
+  // Seed the edit form whenever fresh decision data lands (the legacy
+  // load() seeded these inside its .then()).
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!data) return;
+    setEditOutcome(data.decision.actualOutcome ?? "");
+    setEditGrade(data.decision.grade ?? "");
+    setEditReviewDate(data.decision.reviewDate ?? "");
+  }, [data]);
 
   // v10.0.529.89 · Wave 33 · split-pane refresh · when Nick grades or
   // reviews this decision via chat (reviewDecisionReplay tool fires
@@ -145,26 +143,24 @@ export default function DecisionDetailPage() {
   // Pre-Wave-33 the operator could see Nick's grade in the chat
   // transcript while this page still showed the old grade · jarring.
   useEffect(() => {
-    return onDataChanged(["journal"], () => void load());
-  }, [load]);
+    return onDataChanged(["journal"], () => void detailQuery.refetch());
+  }, [detailQuery]);
+
+  const gradeDecision = trpc.operator.gradeDecision.useMutation();
 
   async function save() {
-    if (!id) return;
+    if (!idValid) return;
     setSaving(true);
     try {
-      const res = await authedFetch(`/api/decisions/${id}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          actualOutcome: editOutcome || undefined,
-          grade: editGrade || undefined,
-          reviewDate: editReviewDate || undefined,
-        }),
+      await gradeDecision.mutateAsync({
+        id: numericId,
+        actualOutcome: editOutcome || undefined,
+        grade: editGrade || undefined,
+        reviewDate: editReviewDate || undefined,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast.success("decision updated");
       setEditing(false);
-      await load();
+      await detailQuery.refetch();
       // v10.0.529.90 · Wave 34 · symmetric notify. Wave 33 wired this
       // page to LISTEN for "journal" events from chat-driven grading ·
       // now it also EMITS so /journal list + any split-pane view
@@ -258,7 +254,7 @@ export default function DecisionDetailPage() {
             <FreshnessChip
               lastFetchedAt={fetchedAt}
               source="api/decisions/[id]"
-              onReload={() => void load()}
+              onReload={() => void detailQuery.refetch()}
             />
             <button
               onClick={() => setEditing((v) => !v)}
