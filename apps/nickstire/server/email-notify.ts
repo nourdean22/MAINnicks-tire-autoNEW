@@ -392,6 +392,9 @@ export interface NotifyInput {
   overrideTo?: string[];
   /** Template name used (for tracking) */
   templateUsed?: string;
+  /** Skip the smart-batching throttle — for load-bearing transactional
+   *  sends (e.g. a paid-order hand-off) that must never be dropped. */
+  bypassThrottle?: boolean;
 }
 
 export async function sendNotification(input: NotifyInput): Promise<{
@@ -422,8 +425,12 @@ export async function sendNotification(input: NotifyInput): Promise<{
     }
   }
 
-  // Smart batching: check throttle
-  const throttledRecipients = recipients.filter((r) => shouldThrottle(r));
+  // Smart batching: check throttle. bypassThrottle is set for load-bearing
+  // transactional sends (e.g. a paid tire-order hand-off) that must never
+  // be dropped no matter how many other notifications are in the window.
+  const throttledRecipients = input.bypassThrottle
+    ? []
+    : recipients.filter((r) => shouldThrottle(r));
   if (throttledRecipients.length === recipients.length && recipients.length > 0) {
     log.info("All recipients throttled, skipping email", {
       category: input.category,
@@ -443,8 +450,10 @@ export async function sendNotification(input: NotifyInput): Promise<{
     return { emailSent: false, pushSent: false, recipients, throttled: true };
   }
 
-  // Filter to non-throttled recipients
-  const activeRecipients = recipients.filter((r) => !shouldThrottle(r));
+  // Filter to non-throttled recipients (all of them when bypassing).
+  const activeRecipients = input.bypassThrottle
+    ? recipients
+    : recipients.filter((r) => !shouldThrottle(r));
 
   // Send email if we have recipients (with retry)
   let emailSent = false;
@@ -793,6 +802,7 @@ export function notifyTireOrderPaid(details: {
   return sendNotification({
     category: "tire_order",
     overrideTo: ["moeseuclid@gmail.com"],
+    bypassThrottle: true,
     subject: `PAID TIRE ORDER ${details.orderNumber} — $${details.amountPaid.toFixed(2)} — action needed`,
     body: [
       `CUSTOMER PAID ONLINE — $${details.amountPaid.toFixed(2)}`,
