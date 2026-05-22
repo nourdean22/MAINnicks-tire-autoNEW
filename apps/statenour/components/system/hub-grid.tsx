@@ -27,9 +27,8 @@
  * Added domain grouping + the attention strip.
  */
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   Activity,
@@ -592,27 +591,15 @@ function HubCardLink({
 }
 
 export function SystemHubGrid() {
-  const [data, setData] = useState<HubPayload | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      try {
-        const res = await authedFetch("/api/system/hub", { cache: "no-store" });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (alive && json?.data) setData(json.data);
-      } catch {
-        /* swallow — cards show "—" on failure */
-      }
-    }
-    void load();
-    const id = setInterval(load, 60_000);
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  // Phase VV (2026-05-22) · REST→tRPC · system.hub. The legacy route
+  // wrapped its rollup in `{ data }`; the procedure returns it
+  // unwrapped. The page polled on a 60s setInterval — refetchInterval
+  // now drives that. A failed fetch leaves `data` null and every card
+  // falls back to its "—" chip, exactly as the prior swallowed catch.
+  const hubQuery = trpc.system.hub.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const data: HubPayload | null = hubQuery.data ?? null;
 
   const decorated = CARDS.map((c) => ({ c, chip: c.chip(data) }));
 

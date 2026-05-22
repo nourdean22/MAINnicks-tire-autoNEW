@@ -13,10 +13,10 @@
  * no Inter, no AI-slop symmetric rounding. Mirrors SchemaDriftCard.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { CheckCircle, AlertTriangle, ChevronRight } from "lucide-react";
 
 interface PerQuestion {
@@ -48,49 +48,25 @@ interface EvalRun {
 const PASS_THRESHOLD = 0.8;
 
 export function EvalRegressionCard() {
-  const [runs, setRuns] = useState<EvalRun[] | null>(null);
-  const [drillRun, setDrillRun] = useState<EvalRun | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Phase VV (2026-05-22) · REST→tRPC · the 7-run sparkline + the
+  // 1-row failure drill-down are two typed queries (system.evalResults).
+  // The drill-down query is gated by `enabled` so it only fires when the
+  // operator expands the failures section — matching the prior lazy
+  // `loadLatestDetail()` behaviour. The legacy route returned
+  // `{ results }`; the procedure returns it unwrapped.
   const [expanded, setExpanded] = useState(false);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/eval-results?limit=7");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as
-        | { data?: { results: EvalRun[] } }
-        | { results: EvalRun[] };
-      const results =
-        ("data" in j && j.data?.results) || ("results" in j && j.results) || [];
-      setRuns(results);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadLatestDetail = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/eval-results?limit=1");
-      if (!res.ok) return;
-      const j = (await res.json()) as
-        | { data?: { results: EvalRun[] } }
-        | { results: EvalRun[] };
-      const results =
-        ("data" in j && j.data?.results) || ("results" in j && j.results) || [];
-      if (results[0]) setDrillRun(results[0]);
-    } catch {
-      // soft-fail · drill-down view stays in summary mode
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const runsQuery = trpc.system.evalResults.useQuery({ limit: 7 });
+  const drillQuery = trpc.system.evalResults.useQuery(
+    { limit: 1 },
+    { enabled: expanded },
+  );
+  const runs: EvalRun[] | null = runsQuery.data?.results ?? null;
+  const drillRun: EvalRun | null = drillQuery.data?.results?.[0] ?? null;
+  const loading = runsQuery.isPending;
+  const error = runsQuery.error
+    ? runsQuery.error.message || "fetch failed"
+    : null;
+  const load = () => void runsQuery.refetch();
 
   if (loading && !runs) {
     return (
@@ -222,10 +198,7 @@ export function EvalRegressionCard() {
       {topFailures.length > 0 && (
         <div>
           <button
-            onClick={() => {
-              setExpanded((v) => !v);
-              if (!drillRun) void loadLatestDetail();
-            }}
+            onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
           >
             <ChevronRight

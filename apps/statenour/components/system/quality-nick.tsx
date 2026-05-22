@@ -18,14 +18,14 @@
  *   · bars tint: ≥80 emerald, ≥65 amber, else rose
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Panel } from "@/components/panel";
 // PageHeader removed · parent /system/quality page provides one
 import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface WindowAgg {
   replies: number;
   overall: { avg: number; median: number; p25: number; p75: number };
@@ -129,28 +129,18 @@ function TrendBars({ trend }: { trend: Feed["trend"] }) {
 }
 
 export function QualityNickView() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [win, setWin] = useState<Win>("7d");
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/quality", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      console.error("quality load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.quality. The legacy route
+  // returned the feed directly (no `{data}` wrap) and the page polled it
+  // on a 60s setInterval — refetchInterval now drives that. `refresh`
+  // repoints to refetch (also serves the manual refresh button).
+  const qualityQuery = trpc.system.quality.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const feed: Feed | null = qualityQuery.data ?? null;
+  const loading = qualityQuery.isPending || qualityQuery.isFetching;
+  const load = () => void qualityQuery.refetch();
 
   const active = feed ? (win === "today" ? feed.today : win === "7d" ? feed.last7d : feed.last30d) : null;
   const dirIcon = feed ? (feed.direction === "rising" ? "↗" : feed.direction === "falling" ? "↘" : "→") : "—";

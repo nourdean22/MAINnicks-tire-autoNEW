@@ -13,10 +13,10 @@
  * cards. D5-compliant via FreshnessChip.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { CheckCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 
 interface DriftFinding {
@@ -41,31 +41,27 @@ const SEV_TINT: Record<string, string> = {
 };
 
 export function SchemaDriftCard() {
-  const [report, setReport] = useState<DriftReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Phase VV (2026-05-22) · REST→tRPC · system.schemaDrift. The legacy
+  // route's `?force=1` skipped its 30s module-level cache; that cache
+  // now lives in the shared service and the procedure takes `{force}`.
+  // The reload button flips a `force` flag → React Query keys on it and
+  // re-fetches, hitting the uncached path exactly as the old reload did.
+  // The legacy route returned the report directly (no `{data}` wrap).
   const [expanded, setExpanded] = useState(false);
-
-  const load = useCallback(async (force = false) => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(
-        `/api/system/schema-drift${force ? "?force=1" : ""}`,
-      );
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: DriftReport } & DriftReport;
-      setReport(j.data ?? (j as DriftReport));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+  const [force, setForce] = useState(false);
+  const driftQuery = trpc.system.schemaDrift.useQuery({ force });
+  const report: DriftReport | null = driftQuery.data ?? null;
+  const loading = driftQuery.isPending || driftQuery.isFetching;
+  const error = driftQuery.error
+    ? driftQuery.error.message || "fetch failed"
+    : null;
+  const load = (forceRefresh = false) => {
+    if (forceRefresh && !force) {
+      setForce(true); // flips the query key → forced re-fetch
+    } else {
+      void driftQuery.refetch();
     }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  };
 
   if (loading && !report) {
     return (

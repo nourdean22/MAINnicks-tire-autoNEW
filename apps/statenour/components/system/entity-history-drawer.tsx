@@ -18,9 +18,9 @@
  * data — autonicks-side audit only.
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface AuditEntry {
   id: string;
   entityType: string;
@@ -86,33 +86,24 @@ export function EntityHistoryDrawer({
   limit = 50,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
-  const [entries, setEntries] = useState<AuditEntry[] | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    if (entries !== null && !loading) return;
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    authedFetch(`/api/audit/entity?type=${encodeURIComponent(entityType)}&id=${encodeURIComponent(entityId)}&limit=${limit}`,
-    )
-      .then((r) => r.json())
-      .then((j: { entries: AuditEntry[] }) => {
-        if (cancelled) return;
-        setEntries(Array.isArray(j.entries) ? j.entries : []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load history");
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [open, entries, loading, entityType, entityId, limit]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.entityHistory. The fetch
+  // only fired once the drawer opened (the prior effect bailed when
+  // `!open`) — `enabled: open` reproduces that lazy behaviour exactly,
+  // and React Query's per-input cache means a re-open of the same
+  // entity is instant instead of re-fetching. The legacy route returned
+  // `{ count, entries, mode }`; the procedure returns the same shape.
+  const historyQuery = trpc.system.entityHistory.useQuery(
+    { entityType, entityId, limit },
+    { enabled: open },
+  );
+  const entries: AuditEntry[] | null = historyQuery.data
+    ? (historyQuery.data.entries as AuditEntry[])
+    : null;
+  const loading = historyQuery.isPending && open;
+  const error = historyQuery.error
+    ? historyQuery.error.message || "Failed to load history"
+    : null;
 
   const grouped = useMemo(() => {
     if (!entries) return [];

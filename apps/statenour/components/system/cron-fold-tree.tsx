@@ -17,12 +17,12 @@
  * per row).
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface CronRow {
   name: string;
   schedule: string | null;
@@ -62,26 +62,17 @@ const ACTIVE_TINT: Record<string, string> = {
 };
 
 export function CronFoldTree() {
-  const [data, setData] = useState<ApiResponse | null>(null);
   const [showRetired, setShowRetired] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    authedFetch("/api/system/crons")
-      .then((r) => r.json())
-      .then((j: { data?: ApiResponse } & ApiResponse) => {
-        if (cancelled) return;
-        setData(j.data ?? (j as ApiResponse));
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "load failed");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Phase VV (2026-05-22) · REST→tRPC · system.cronTree. The legacy
+  // route returned `{ rows, summary, generatedAt }` directly (no
+  // `{data}` wrap); the procedure returns the same shape. One-shot
+  // fetch on mount — no interval, matching the prior behaviour.
+  const treeQuery = trpc.system.cronTree.useQuery();
+  const data: ApiResponse | null = treeQuery.data ?? null;
+  const error = treeQuery.error
+    ? treeQuery.error.message || "load failed"
+    : null;
 
   if (error) {
     return (

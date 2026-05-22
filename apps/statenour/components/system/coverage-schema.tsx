@@ -9,12 +9,12 @@
  * is the one to fix first.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 // PageHeader removed · parent /system/coverage page provides one
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -50,31 +50,22 @@ function fmtNum(n: number): string {
 }
 
 export function CoverageSchemaView() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [showFlaggedOnly, setShowFlaggedOnly] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/schema-coverage");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: Payload } | Payload;
-      setData(("data" in j && j.data ? j.data : (j as Payload)));
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.schemaCoverage. The
+  // legacy route returned the report directly (no `{data}` wrap); the
+  // procedure returns the same shape. FreshnessChip's timestamp comes
+  // from React Query's dataUpdatedAt; reload repoints to refetch.
+  const coverageQuery = trpc.system.schemaCoverage.useQuery();
+  const data: Payload | null = coverageQuery.data ?? null;
+  const loading = coverageQuery.isPending;
+  const error = coverageQuery.error
+    ? coverageQuery.error.message || "fetch failed"
+    : null;
+  const lastFetched = coverageQuery.dataUpdatedAt
+    ? new Date(coverageQuery.dataUpdatedAt)
+    : null;
+  const load = () => void coverageQuery.refetch();
 
   const visible = data
     ? showFlaggedOnly

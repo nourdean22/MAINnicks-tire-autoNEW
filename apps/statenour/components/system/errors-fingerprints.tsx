@@ -23,7 +23,7 @@ import { Panel } from "@/components/panel";
 import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface Grouped {
   message: string;
@@ -60,54 +60,53 @@ function levelTint(level: string): string {
 }
 
 export function ErrorsFingerprints() {
-  const [groups, setGroups] = useState<Grouped[]>([]);
-  const [recent, setRecent] = useState<LogRow[]>([]);
-  const [total, setTotal] = useState(0);
   const [levelFilter, setLevelFilter] = useState<Level>("all");
-  const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const prevCountRef = useRef(0);
-  const fetchRef = useRef<AbortController | null>(null);
+  // prevTotalRef holds the total from the PRIOR successful fetch;
+  // lastSeenUpdateRef de-dupes so the same fetch isn't counted twice.
+  const prevTotalRef = useRef(0);
+  const lastSeenTotalRef = useRef(0);
+  const lastSeenUpdateRef = useRef(0);
 
-  const load = useCallback(async () => {
-    fetchRef.current?.abort();
-    const ac = new AbortController();
-    fetchRef.current = ac;
+  // Phase VV (2026-05-22) · REST→tRPC · the fingerprint deck + the
+  // recent feed are two typed queries (system.errorsGrouped +
+  // system.errorsRecent), each keyed on the level filter so switching
+  // it re-fetches automatically. The legacy route multiplexed both off
+  // one URL with `?grouped=true`; the procedures split them, and each
+  // returns its payload directly (no `{data}` wrap). 30s auto-refresh
+  // moves to refetchInterval.
+  const level = levelFilter === "all" ? undefined : levelFilter;
+  const groupedQuery = trpc.system.errorsGrouped.useQuery(
+    { level },
+    { refetchInterval: 30_000 },
+  );
+  const recentQuery = trpc.system.errorsRecent.useQuery(
+    { level, pageSize: 50 },
+    { refetchInterval: 30_000 },
+  );
+  const groups: Grouped[] = groupedQuery.data?.groups ?? [];
+  const recent: LogRow[] = recentQuery.data?.data ?? [];
+  const total = recentQuery.data?.total ?? 0;
+  const loading = groupedQuery.isPending || recentQuery.isPending;
+  const load = () => {
+    void groupedQuery.refetch();
+    void recentQuery.refetch();
+  };
 
-    try {
-      const levelQuery = levelFilter !== "all" ? `&level=${levelFilter}` : "";
-      const [gRes, rRes] = await Promise.all([
-        authedFetch(`/api/system/errors?grouped=true${levelQuery}`, { signal: ac.signal, cache: "no-store" }),
-        authedFetch(`/api/system/errors?pageSize=50${levelQuery}`, { signal: ac.signal, cache: "no-store" }),
-      ]);
-      if (!gRes.ok || !rRes.ok) throw new Error("fetch failed");
-      const gJson = await gRes.json();
-      const rJson = await rRes.json();
-      const gData = gJson.data ?? gJson;
-      const rData = rJson.data ?? rJson;
-      setGroups(gData.groups ?? []);
-      setRecent(Array.isArray(rData.data) ? rData.data : rData.data?.data ?? []);
-      const newTotal = rData.total ?? 0;
-      setTotal((oldTotal) => {
-        prevCountRef.current = oldTotal;
-        return newTotal;
-      });
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        // best-effort · auto-refresh will retry
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [levelFilter]);
-
+  // "N new since last refresh" — each time a genuinely new fetch lands
+  // (dataUpdatedAt changed), roll the prior total forward. The old
+  // imperative loader did this inside a setTotal callback; here an
+  // effect keyed on dataUpdatedAt reproduces it exactly.
   useEffect(() => {
-    load();
-    const i = setInterval(load, 30_000);
-    return () => clearInterval(i);
-  }, [load]);
+    const upd = recentQuery.dataUpdatedAt;
+    if (upd && upd !== lastSeenUpdateRef.current) {
+      prevTotalRef.current = lastSeenTotalRef.current;
+      lastSeenTotalRef.current = recentQuery.data?.total ?? 0;
+      lastSeenUpdateRef.current = upd;
+    }
+  }, [recentQuery.dataUpdatedAt, recentQuery.data]);
+  const newSinceLast = total - prevTotalRef.current;
 
-  const newSinceLast = total - prevCountRef.current;
   const fatalCount = useMemo(
     () => groups.filter((g) => g.message.toLowerCase().includes("fatal")).length,
     [groups],
@@ -122,22 +121,25 @@ export function ErrorsFingerprints() {
     });
   }, []);
 
+  // Phase VV (2026-05-22) · REST→tRPC · the "open as task" action wrote
+  // to POST /api/tasks (the `task` domain · already migrated). It now
+  // goes through trpc.task.create — the createTaskFromAPI service the
+  // procedure delegates to does its own Zod validation on the payload.
+  const createTaskMutation = trpc.task.create.useMutation();
+
   async function openAsTask(msg: string) {
     try {
-      const res = await authedFetch("/api/tasks", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: `investigate: ${msg.slice(0, 80)}`,
-          notes: `Auto-created from /system/logs (errors view).\n\n${msg}`,
-          priority: "normal",
-          tags: ["ops", "investigate"],
-        }),
+      await createTaskMutation.mutateAsync({
+        title: `investigate: ${msg.slice(0, 80)}`,
+        notes: `Auto-created from /system/logs (errors view).\n\n${msg}`,
+        priority: "normal",
+        tags: ["ops", "investigate"],
       });
-      if (res.ok) toast.success("task created");
-      else toast.error(`task creation failed (${res.status})`);
+      toast.success("task created");
     } catch (e) {
-      toast.error(`error: ${e instanceof Error ? e.message : e}`);
+      toast.error(
+        `task creation failed: ${e instanceof Error ? e.message : e}`,
+      );
     }
   }
 

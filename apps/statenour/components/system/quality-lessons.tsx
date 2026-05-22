@@ -22,7 +22,7 @@
  *   · form shake on validation fail
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Panel } from "@/components/panel";
 // PageHeader removed · parent /system/quality page provides one
 import { cn } from "@/lib/utils/cn";
@@ -32,7 +32,7 @@ import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 type Severity = "info" | "warn" | "critical";
 type Domain = "business" | "personal" | "tech" | "health" | "relationships" | "other";
 
@@ -105,9 +105,6 @@ function timeAgo(iso: string): string {
 }
 
 export function QualityLessonsView() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [fetchedAt, setFetchedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [domainFilter, setDomainFilter] = useState<Domain | "all">("all");
   const [sevFilter, setSevFilter] = useState<Severity | "all">("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -123,23 +120,26 @@ export function QualityLessonsView() {
     domain: "business" as Domain,
     tags: "",
   });
-  const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/anti-patterns", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-      setFetchedAt(new Date().toISOString());
-    } catch (e) {
-      console.error("anti-patterns load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase VV (2026-05-22) · REST→tRPC · the library read is a typed
+  // query (system.antiPatterns); create / revisit / delete are three
+  // typed mutations. The legacy routes all returned their payload
+  // directly (no `{data}` wrap). After every mutation the read query is
+  // invalidated so the list re-runs, matching the prior `await load()`.
+  // FreshnessChip's timestamp comes from React Query's dataUpdatedAt.
+  const utils = trpc.useUtils();
+  const lessonsQuery = trpc.system.antiPatterns.useQuery();
+  const feed: Feed | null = lessonsQuery.data ?? null;
+  const loading = lessonsQuery.isPending;
+  const fetchedAt = lessonsQuery.dataUpdatedAt
+    ? new Date(lessonsQuery.dataUpdatedAt).toISOString()
+    : null;
+  const load = () => void lessonsQuery.refetch();
 
-  useEffect(() => { load(); }, [load]);
+  const createMutation = trpc.system.createAntiPattern.useMutation();
+  const revisitMutation = trpc.system.revisitAntiPattern.useMutation();
+  const deleteMutation = trpc.system.deleteAntiPattern.useMutation();
+  const saving = createMutation.isPending;
 
   const filtered = useMemo(() => {
     if (!feed) return [];
@@ -183,47 +183,31 @@ export function QualityLessonsView() {
       toast.error("key must contain at least one letter or number");
       return;
     }
-    setSaving(true);
     try {
       const tags = form.tags.split(",").map((t) => t.trim()).filter(Boolean);
-      const res = await authedFetch("/api/system/anti-patterns", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          key: keyNormalized,
-          attempt: form.attempt,
-          outcome: form.outcome,
-          lesson: form.lesson,
-          severity: form.severity,
-          domain: form.domain,
-          tags,
-        }),
+      const res = await createMutation.mutateAsync({
+        key: keyNormalized,
+        attempt: form.attempt,
+        outcome: form.outcome,
+        lesson: form.lesson,
+        severity: form.severity,
+        domain: form.domain,
+        tags,
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const action = (json.data ?? json).action ?? "saved";
-      toast.success(`${keyNormalized} ${action}`);
+      toast.success(`${keyNormalized} ${res.action ?? "saved"}`);
       setForm({ key: "", attempt: "", outcome: "", lesson: "", severity: "warn", domain: "business", tags: "" });
       setShowForm(false);
-      await load();
+      await utils.system.antiPatterns.invalidate();
     } catch (e) {
       toast.error(`save failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setSaving(false);
     }
   }
 
   async function revisit(key: string) {
     try {
-      const res = await authedFetch("/api/system/anti-patterns/revisit", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      toast.success(`revisited ${key} · total ${(json.data ?? json).revisitCount}×`);
-      await load();
+      const res = await revisitMutation.mutateAsync({ key });
+      toast.success(`revisited ${key} · total ${res.revisitCount}×`);
+      await utils.system.antiPatterns.invalidate();
     } catch (e) {
       toast.error(`revisit failed: ${e instanceof Error ? e.message : e}`);
     }
@@ -232,10 +216,9 @@ export function QualityLessonsView() {
   async function remove(key: string) {
     if (!window.confirm(`delete anti-pattern "${key}"? this is not reversible.`)) return;
     try {
-      const res = await authedFetch(`/api/system/anti-patterns?key=${encodeURIComponent(key)}`, { method: "DELETE" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await deleteMutation.mutateAsync({ key });
       toast.success(`deleted ${key}`);
-      await load();
+      await utils.system.antiPatterns.invalidate();
     } catch (e) {
       toast.error(`delete failed: ${e instanceof Error ? e.message : e}`);
     }

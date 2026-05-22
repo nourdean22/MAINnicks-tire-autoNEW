@@ -13,11 +13,10 @@
  * inspection. Flip NICK_PRIME_PROMPT=1 once v2 covers v1 signals.
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Check, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -70,38 +69,29 @@ interface TrendPayload {
 }
 
 export function PromptComparisonView() {
-  const [data, setData] = useState<ComparePayload | null>(null);
-  const [trend, setTrend] = useState<TrendPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [compareRes, trendRes] = await Promise.all([
-        authedFetch("/api/system/prompt-compare"),
-        authedFetch("/api/system/prompt-shadow-trend?days=7"),
-      ]);
-      if (!compareRes.ok) throw new Error(`${compareRes.status} ${compareRes.statusText}`);
-      const j = (await compareRes.json()) as { data?: ComparePayload } & ComparePayload;
-      setData(j.data ?? (j as ComparePayload));
-      if (trendRes.ok) {
-        const t = (await trendRes.json()) as { data?: TrendPayload } & TrendPayload;
-        setTrend(t.data ?? (t as TrendPayload));
-      }
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · the side-by-side compare and the
+  // 7-day shadow trend are two typed queries (system.promptCompare +
+  // system.promptShadowTrend). Both legacy routes returned their payload
+  // directly (no `{data}` wrap). The trend query is best-effort — the
+  // prior code only rendered the trend strip when it loaded OK, so a
+  // trend error is swallowed here too (compare drives the error state).
+  // FreshnessChip's timestamp comes from the compare query's
+  // dataUpdatedAt; reload re-fetches both.
+  const compareQuery = trpc.system.promptCompare.useQuery();
+  const trendQuery = trpc.system.promptShadowTrend.useQuery({ days: 7 });
+  const data: ComparePayload | null = compareQuery.data ?? null;
+  const trend: TrendPayload | null = trendQuery.data ?? null;
+  const loading = compareQuery.isPending;
+  const error = compareQuery.error
+    ? compareQuery.error.message || "fetch failed"
+    : null;
+  const lastFetched = compareQuery.dataUpdatedAt
+    ? new Date(compareQuery.dataUpdatedAt)
+    : null;
+  const load = () => {
+    void compareQuery.refetch();
+    void trendQuery.refetch();
+  };
 
   return (
     <div className="space-y-4">

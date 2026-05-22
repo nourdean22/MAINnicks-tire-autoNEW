@@ -8,14 +8,14 @@
  * vars, retired-cron deletion windows. One pass, one list.
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Panel } from "@/components/panel";
 // PageHeader removed · parent /system/coverage page provides one
 import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface Gap {
   category: string;
   severity: "info" | "warn" | "critical";
@@ -45,26 +45,17 @@ const SEVERITY_TEXT: Record<Gap["severity"], string> = {
 };
 
 export function CoverageGapsView() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string | "all">("all");
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/gaps", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      console.error("gaps fetch failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.gaps. The legacy route
+  // returned the feed directly (no `{data}` wrap); the procedure returns
+  // the same shape. One-shot fetch on mount; the re-scan button repoints
+  // to refetch. `isFetching` keeps the button's "scanning…" state live
+  // through a manual re-scan.
+  const gapsQuery = trpc.system.gaps.useQuery();
+  const feed: Feed | null = gapsQuery.data ?? null;
+  const loading = gapsQuery.isPending || gapsQuery.isFetching;
+  const load = () => void gapsQuery.refetch();
 
   const filtered = useMemo(() => {
     if (!feed) return [];

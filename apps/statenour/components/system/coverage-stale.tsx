@@ -13,7 +13,7 @@
  * generic "done."
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Panel } from "@/components/panel";
 // PageHeader removed · parent /system/coverage page provides one
 import { cn } from "@/lib/utils/cn";
@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface StaleExample {
   id: string | number;
   label: string;
@@ -44,27 +44,20 @@ interface StaleReport {
 }
 
 export function CoverageStaleView() {
-  const [report, setReport] = useState<StaleReport | null>(null);
-  const [loading, setLoading] = useState(true);
   const [purging, setPurging] = useState<string | null>(null); // category id or "all"
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/stale-data", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setReport(json.data ?? json);
-    } catch (e) {
-      console.error("stale-data load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · the scanner read is a typed
+  // query (system.staleData), the two purge actions are one typed
+  // mutation (system.purgeStaleData — category present = single, absent
+  // = purge-all). Both legacy routes returned their payload directly
+  // (no `{data}` wrap). After every purge the scanner query is
+  // invalidated so the report re-runs, matching the prior `await load()`.
+  const utils = trpc.useUtils();
+  const staleQuery = trpc.system.staleData.useQuery();
+  const report: StaleReport | null = staleQuery.data ?? null;
+  const loading = staleQuery.isPending || staleQuery.isFetching;
+  const load = () => void staleQuery.refetch();
+  const purgeMutation = trpc.system.purgeStaleData.useMutation();
 
   async function purgeCategory(category: string, title: string) {
     if (
@@ -76,16 +69,10 @@ export function CoverageStaleView() {
     }
     setPurging(category);
     try {
-      const res = await authedFetch("/api/system/stale-data/purge", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ category }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const result = (json.data ?? json).result;
+      const res = await purgeMutation.mutateAsync({ category });
+      const result = res.mode === "single" ? res.result : null;
       toast.success(result?.note ?? `Purged ${title}`);
-      await load();
+      await utils.system.staleData.invalidate();
     } catch (e) {
       toast.error(
         `Purge failed: ${e instanceof Error ? e.message : String(e)}`,
@@ -106,18 +93,13 @@ export function CoverageStaleView() {
     }
     setPurging("all");
     try {
-      const res = await authedFetch("/api/system/stale-data/purge", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const data = json.data ?? json;
-      toast.success(
-        `Purged ${data.totalPurged} rows across ${data.results.length} categories`,
-      );
-      await load();
+      const res = await purgeMutation.mutateAsync({});
+      if (res.mode === "all") {
+        toast.success(
+          `Purged ${res.totalPurged} rows across ${res.results.length} categories`,
+        );
+      }
+      await utils.system.staleData.invalidate();
     } catch (e) {
       toast.error(
         `Purge all failed: ${e instanceof Error ? e.message : String(e)}`,
