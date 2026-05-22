@@ -33,7 +33,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import {
   BookOpen,
@@ -146,51 +145,48 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
   const [active, setActive] = useState<HistoryEntry | null>(null);
   const [spawning, setSpawning] = useState(false);
   // task.create replaces POST /api/tasks for the "spawn a loop"
-  // affordance · same `createTaskFromAPI` service the REST route
-  // calls. The brain/AI calls (teach · research · memories) stay on
-  // authedFetch — those domains migrate in later slices.
+  // affordance · same `createTaskFromAPI` service the REST route calls.
+  // actions-surface slice · the brain + AI calls (teach · research ·
+  // memories) are now tRPC too:
+  //   · ai.teach           — POST /api/ai/teach
+  //   · ai.research        — POST /api/integrations/research
+  //   · brain.recordMemory — POST /api/brain/memories
+  //   · brain.forgetMemoryByKey — the spaced-review "Got it ✓" delete
   const createTask = trpc.task.create.useMutation();
-  // v10.0.529.84 · Wave 28 · A2 · goal-driven topic seeds. Audit found
-  // an Apr-15 "future version" comment on hardcoded topics · the
-  // active goals API already powers the sibling KommandoPlan tab.
-  // Top 4 active goals become the first 4 chips · static set fills
-  // the remainder.
-  const [goalSeeds, setGoalSeeds] = useState<
-    Array<{ query: string; tool: LearnTool; category: string }>
-  >([]);
-
+  const teachMut = trpc.ai.teach.useMutation();
+  const researchMut = trpc.ai.research.useMutation();
+  const recordMemoryMut = trpc.brain.recordMemory.useMutation();
+  const forgetMemoryMut = trpc.brain.forgetMemoryByKey.useMutation();
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
 
-  // v28 · fetch active goals once on mount · transforms titles into
-  // learn-topic seeds. Fire-and-forget · failure leaves goalSeeds
-  // empty · static SUGGESTED_TOPICS still surface as fallback.
-  useEffect(() => {
-    void (async () => {
-      try {
-        const r = await fetch("/api/goals", { cache: "no-store" });
-        if (!r.ok) return;
-        const body = await r.json();
-        const rows = (body?.data ?? body?.goals ?? []) as Array<{
-          title?: string;
-          status?: string;
-          domain?: string;
-        }>;
-        const active = rows
-          .filter((g) => g.status === "active" && g.title)
-          .slice(0, 4)
-          .map((g) => ({
-            query: `How do I move ${g.title}`,
-            tool: "teach" as LearnTool,
-            category: g.domain ?? "personal",
-          }));
-        setGoalSeeds(active);
-      } catch {
-        /* silent · fallback to hardcoded list */
-      }
-    })();
-  }, []);
+  // v10.0.529.84 · Wave 28 · A2 · goal-driven topic seeds. The top 4
+  // active goals become the first 4 chips · the static SUGGESTED_TOPICS
+  // set fills the remainder.
+  //
+  // actions-surface slice · migrated off the plain `fetch("/api/goals")`
+  // onto `trpc.task.goals` (the same procedure the sibling KommandoPlan
+  // tab already uses). A transport error leaves `goalSeeds` empty — the
+  // static SUGGESTED_TOPICS still surface as fallback.
+  const goalsQuery = trpc.task.goals.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const goalSeeds = useMemo<
+    Array<{ query: string; tool: LearnTool; category: string }>
+  >(
+    () =>
+      (goalsQuery.data?.goals ?? [])
+        .filter((g) => g.status === "active" && g.title)
+        .slice(0, 4)
+        .map((g) => ({
+          query: `How do I move ${g.title}`,
+          tool: "teach" as LearnTool,
+          category: g.domain ?? "personal",
+        })),
+    [goalsQuery.data],
+  );
 
   // Detect what Nick will do with this query — shown as a hint
   const detectedTool = useMemo(
@@ -223,37 +219,46 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
     [onJumpMode, createTask]
   );
 
-  const saveToBrain = useCallback(async (topic: string, content: string) => {
-    try {
-      const r = await authedFetch("/api/brain/memories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+  // actions-surface slice · "Save to brain" via trpc.brain.recordMemory.
+  // The legacy POST sent NO `key`, but the /api/brain/memories route
+  // requires one (`!body.key` → 400) — so this affordance was
+  // pre-broken: the toast said "Saved" while the write always 400'd.
+  // The typed procedure requires a key, so we derive a stable one from
+  // the topic + a timestamp · the save now genuinely lands. (The legacy
+  // body's `confidence: 0.8` was also dead — the POST handler never
+  // read it; `brainMemory.remember` seeds confidence 0.5.)
+  const saveToBrain = useCallback(
+    async (topic: string, content: string) => {
+      try {
+        const slug = topic.slice(0, 60).replace(/\s+/g, "_").toLowerCase();
+        await recordMemoryMut.mutateAsync({
           category: "insight",
+          key: `learn_${slug}_${Date.now()}`,
           content: `[Learn: ${topic}] ${content}`,
-          confidence: 0.8,
-        }),
-      });
-      if (!r.ok) throw new Error("save failed");
-      toast.success("Saved to brain");
-    } catch {
-      toast.error("Save failed");
-    }
-  }, []);
+          source: "learn_mode",
+        });
+        toast.success("Saved to brain");
+      } catch {
+        toast.error("Save failed");
+      }
+    },
+    [recordMemoryMut],
+  );
 
   // ── Spaced repetition: schedule review reminders ──
   // When Nour learns something, schedule reviews at Day 1, 3, 7, 30.
   // Uses BrainMemory with category "spaced_review" and a future
   // timestamp so we can query for due reviews.
-  const scheduleSpacedReview = useCallback(async (topic: string, mvuSummary: string) => {
-    const intervals = [1, 3, 7, 30]; // days
-    for (const days of intervals) {
-      const reviewDate = new Date(Date.now() + days * 86_400_000);
-      try {
-        await authedFetch("/api/brain/memories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+  // actions-surface slice · spaced-review scheduling via
+  // trpc.brain.recordMemory (replaces the per-interval POST
+  // /api/brain/memories). Each interval is upserted by its `key`.
+  const scheduleSpacedReview = useCallback(
+    async (topic: string, mvuSummary: string) => {
+      const intervals = [1, 3, 7, 30]; // days
+      for (const days of intervals) {
+        const reviewDate = new Date(Date.now() + days * 86_400_000);
+        try {
+          await recordMemoryMut.mutateAsync({
             category: "spaced_review",
             key: `review_${topic.slice(0, 40).replace(/\s+/g, "_")}_d${days}`,
             content: JSON.stringify({
@@ -263,67 +268,96 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
               interval: days,
               completed: false,
             }),
-            confidence: 0.9,
             source: "learn_mode",
-          }),
-        });
-      } catch {}
-    }
-  }, []);
+          });
+        } catch {}
+      }
+    },
+    [recordMemoryMut],
+  );
 
   // ── Decision journal integration ──
   // Surface active decisions that could benefit from learning.
   // Connects "you're deciding on X" with "learn about Y."
-  const [activeDecisions, setActiveDecisions] = useState<Array<{ title: string; topic: string }>>([]);
-  useEffect(() => {
-    authedFetch("/api/decisions?status=pending&limit=5")
-      .then((r): Promise<unknown> => (r.ok ? r.json() : Promise.resolve({ decisions: [] })))
-      .then((raw) => {
-        const d = raw as { decisions?: Array<{ title: string; context?: string }>; data?: { decisions?: Array<{ title: string; context?: string }> } };
-        const decisions = d.decisions || d.data?.decisions || [];
-        // For each decision, suggest a learning topic
-        const mapped = decisions.slice(0, 3).map((dec: { title: string; context?: string }) => ({
+  // actions-surface slice · "learn before you decide" · migrated off
+  // `authedFetch("/api/decisions")` onto `trpc.operator.decisions`. The
+  // procedure returns `{ decisions }` directly — the top 3 become
+  // decision-linked learning prompts.
+  const decisionsQuery = trpc.operator.decisions.useQuery(undefined, {
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const activeDecisions = useMemo<Array<{ title: string; topic: string }>>(
+    () =>
+      (decisionsQuery.data?.decisions ?? [])
+        .slice(0, 3)
+        .map((dec) => ({
           title: dec.title,
           topic: `How to make better decisions about: ${dec.title}`,
-        }));
-        setActiveDecisions(mapped);
-      })
-      .catch((): void => {});
-  }, []);
+        })),
+    [decisionsQuery.data],
+  );
 
-  // Load due spaced reviews on mount
-  const [dueReviews, setDueReviews] = useState<Array<{ topic: string; summary: string; interval: number; key: string }>>([]);
-  useEffect(() => {
-    authedFetch("/api/brain/memories?category=spaced_review&limit=50")
-      .then((r): Promise<unknown> => (r.ok ? r.json() : Promise.resolve({ memories: [] })))
-      .then((raw) => {
-        const d = raw as { memories?: Array<{ content: string; key: string }>; data?: { memories?: Array<{ content: string; key: string }> } };
-        const memories = d.memories || d.data?.memories || [];
-        const now = Date.now();
-        const due: typeof dueReviews = [];
-        for (const m of memories) {
-          try {
-            const data = JSON.parse(m.content);
-            if (data.completed) continue;
-            if (new Date(data.reviewAt).getTime() <= now) {
-              due.push({ topic: data.topic, summary: data.summary, interval: data.interval, key: m.key });
-            }
-          } catch {}
+  // Load due spaced reviews · migrated off `authedFetch("/api/brain/
+  // memories?category=spaced_review")` onto `trpc.brain.memories`. The
+  // "Got it ✓" button removes a row locally (dismissedReviewKeys) AND
+  // fires the real soft-delete, so the due list is derived from the
+  // query data minus the dismissed set.
+  const [dismissedReviewKeys, setDismissedReviewKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const reviewMemoriesQuery = trpc.brain.memories.useQuery(
+    { category: "spaced_review", limit: 50 },
+    { retry: false, refetchOnWindowFocus: false },
+  );
+  const dueReviews = useMemo<
+    Array<{ topic: string; summary: string; interval: number; key: string }>
+  >(() => {
+    const now = Date.now();
+    const due: Array<{
+      topic: string;
+      summary: string;
+      interval: number;
+      key: string;
+    }> = [];
+    for (const m of reviewMemoriesQuery.data?.memories ?? []) {
+      if (dismissedReviewKeys.has(m.key)) continue;
+      try {
+        const data = JSON.parse(m.content) as {
+          topic: string;
+          summary: string;
+          interval: number;
+          reviewAt: string;
+          completed?: boolean;
+        };
+        if (data.completed) continue;
+        if (new Date(data.reviewAt).getTime() <= now) {
+          due.push({
+            topic: data.topic,
+            summary: data.summary,
+            interval: data.interval,
+            key: m.key,
+          });
         }
-        setDueReviews(due);
-      })
-      .catch((): void => {});
-  }, []);
+      } catch {}
+    }
+    return due;
+  }, [reviewMemoriesQuery.data, dismissedReviewKeys]);
 
-  // Mark a spaced review as completed
-  const completeReview = useCallback(async (key: string) => {
-    setDueReviews((prev) => prev.filter((r) => r.key !== key));
-    try {
-      // We can't easily update via the API, so just remove the memory
-      // The next interval's review still exists
-      await authedFetch(`/api/brain/memories?key=${encodeURIComponent(key)}`, { method: "DELETE" });
-    } catch {}
-  }, []);
+  // Mark a spaced review as completed · hide it locally + soft-delete
+  // the row. Replaces the legacy `DELETE /api/brain/memories?key=…`
+  // call, which had no route handler (it always 404'd · the row was
+  // never actually removed). `brain.forgetMemoryByKey` does the real
+  // lookup-by-key soft-delete.
+  const completeReview = useCallback(
+    async (key: string) => {
+      setDismissedReviewKeys((prev) => new Set(prev).add(key));
+      try {
+        await forgetMemoryMut.mutateAsync({ key });
+      } catch {}
+    },
+    [forgetMemoryMut],
+  );
 
   const run = useCallback(
     async (overrideQuery?: string, overrideTool?: LearnTool) => {
@@ -333,13 +367,13 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       setLoading(true);
       try {
         if (tool === "teach") {
-          const r = await authedFetch("/api/ai/teach", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ topic: q, depth: "standard" }),
-          });
-          if (!r.ok) throw new Error("Nick couldn't teach that — try rephrasing");
-          const data = (await r.json()) as TeachResponse;
+          // actions-surface slice · POST /api/ai/teach → trpc.ai.teach.
+          // mutateAsync rejects on a server error · the catch below
+          // surfaces the same retry-prompt toast the `!r.ok` branch did.
+          const data = (await teachMut.mutateAsync({
+            topic: q,
+            depth: "standard",
+          })) as TeachResponse;
           const entry: HistoryEntry = { tool: "teach", query: q, at: Date.now(), data };
           const next = [entry, ...history.filter((h) => h.query !== q || h.tool !== "teach")].slice(0, MAX_HISTORY);
           setHistory(next);
@@ -350,13 +384,17 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
             scheduleSpacedReview(q, data.mvuRead);
           }
         } else {
-          const r = await authedFetch("/api/integrations/research", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query: q, taskType: "research" }),
+          // actions-surface slice · POST /api/integrations/research →
+          // trpc.ai.research. The procedure returns the multi-model
+          // result ({ content, provider, model }) — `query` is merged
+          // in here so the ResearchCard header renders it (the legacy
+          // route returned `routeQuery`'s result verbatim, which never
+          // carried `query`, so the card header was always blank).
+          const result = await researchMut.mutateAsync({
+            query: q,
+            taskType: "research",
           });
-          if (!r.ok) throw new Error("Research failed — web sources may be down");
-          const data = (await r.json()) as ResearchResponse;
+          const data: ResearchResponse = { ...result, query: q };
           const entry: HistoryEntry = { tool: "research", query: q, at: Date.now(), data };
           const next = [entry, ...history.filter((h) => h.query !== q || h.tool !== "research")].slice(0, MAX_HISTORY);
           setHistory(next);
@@ -369,7 +407,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       }
       setLoading(false);
     },
-    [query, history, scheduleSpacedReview]
+    [query, history, scheduleSpacedReview, teachMut, researchMut]
   );
 
   // Stats

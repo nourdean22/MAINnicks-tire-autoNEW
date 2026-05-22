@@ -50,7 +50,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { createTask } from "@/lib/services/client/tasks";
 import { LinkedMissionsPanel } from "@/components/missions/linked-missions-panel";
@@ -116,13 +115,18 @@ export function ProjectDetail({
   const [loading, setLoading] = useState<"learn" | "guide" | null>(null);
 
   // task.* tRPC mutations · replace the in-domain PATCH /api/tasks,
-  // PATCH /api/missions, POST /api/tasks/:id/check + spawn-tasks
-  // calls. The /api/ai/plan-project calls (learn/guide/plan/replan)
-  // stay on authedFetch — AI domain, migrates in a later slice.
+  // PATCH /api/missions, POST /api/tasks/:id/check + spawn-tasks calls.
+  // actions-surface slice · the /api/ai/plan-project calls (learn /
+  // guide / plan / replan) now hit `trpc.ai.planProject`, and the
+  // `{ missionId: null }` "remove from project" / "clear inbox" PATCHes
+  // hit `trpc.task.leaveMission` (the legacy null-write was structurally
+  // dead — Task.missionId is a non-nullable FK).
   const updateTask = trpc.task.update.useMutation();
   const checkTaskMut = trpc.task.check.useMutation();
   const missionUpdate = trpc.task.missionUpdate.useMutation();
   const spawnTasks = trpc.task.spawnTasks.useMutation();
+  const planProjectMut = trpc.ai.planProject.useMutation();
+  const leaveMissionMut = trpc.task.leaveMission.useMutation();
 
   // Inline title edit — PATCH /api/missions/[id] with new title.
   // Parent listens for `notifyDataChanged("projects", ...)` and reloads
@@ -267,23 +271,23 @@ export function ProjectDetail({
     }
     setBulkBusy("clear");
     try {
+      // actions-surface slice · "clear inbox" via trpc.task.leaveMission.
+      // The legacy PATCH `{ missionId: null }` was structurally dead
+      // (non-nullable FK + a required-field schema) — it failed every
+      // time. `leaveMission` re-points each task at the Inbox mission,
+      // which is exactly the "move INBOX-status tasks back to global
+      // Inbox" the button promises.
       const results = await Promise.allSettled(
-        inboxTasks.map((t) =>
-          authedFetch(`/api/tasks/${t.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ missionId: null }),
-          }),
-        ),
+        inboxTasks.map((t) => leaveMissionMut.mutateAsync({ id: t.id })),
       );
-      const ok = results.filter((rr) => rr.status === "fulfilled" && rr.value.ok).length;
+      const ok = results.filter((rr) => rr.status === "fulfilled").length;
       toast.success(`Cleared ${ok} INBOX → global`);
       notifyDataChanged("tasks", { source: "project-detail", detail: "clear-inbox", id: missionId });
       notifyDataChanged("projects", { source: "project-detail", detail: "clear-inbox", id: missionId });
     } finally {
       setBulkBusy(null);
     }
-  }, [tasks, missionId]);
+  }, [tasks, missionId, leaveMissionMut]);
 
   const startRename = useCallback((id: string, currentTitle: string) => {
     setRenameTaskId(id);
@@ -446,40 +450,44 @@ export function ProjectDetail({
     [checkedItems]
   );
 
+  // actions-surface slice · POST /api/ai/plan-project mode=learn →
+  // trpc.ai.planProject. The procedure returns a `mode`-keyed
+  // discriminated union — narrow to "learn" before reading `learning`.
   const runLearn = useCallback(async () => {
     setLoading("learn");
     try {
-      const r = await authedFetch("/api/ai/plan-project", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ missionId, mode: "learn" }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      if (d.learning) {
-        setLearning(d.learning as LearningPath);
+      const d = await planProjectMut.mutateAsync({ missionId, mode: "learn" });
+      // `d.learning` is typed `unknown` at the router boundary (the
+      // TS2589 firewall · see PlanProjectWireResult) · cast back to the
+      // local LearningPath, exactly as the old untyped JSON path did.
+      if (d.mode === "learn" && d.learning) {
+        const learning = d.learning as LearningPath;
+        setLearning(learning);
         toast.success("Learning path generated");
         if (onPlanUpdated && plan) {
-          onPlanUpdated({ ...plan, learning: d.learning as LearningPath, updatedAt: new Date().toISOString() });
+          onPlanUpdated({
+            ...plan,
+            learning,
+            updatedAt: new Date().toISOString(),
+          });
         }
       }
     } catch {
       toast.error("Learn mode failed");
     }
     setLoading(null);
-  }, [missionId, onPlanUpdated, plan]);
+  }, [missionId, onPlanUpdated, plan, planProjectMut]);
 
+  // actions-surface slice · POST /api/ai/plan-project mode=guide →
+  // trpc.ai.planProject. Narrow to the "guide" variant before reading
+  // `entry`.
   const runGuide = useCallback(async () => {
     setLoading("guide");
     try {
-      const r = await authedFetch("/api/ai/plan-project", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ missionId, mode: "guide" }),
-      });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = await r.json();
-      if (d.entry) {
+      const d = await planProjectMut.mutateAsync({ missionId, mode: "guide" });
+      // `d.entry` is typed `unknown` at the router boundary (the TS2589
+      // firewall) · cast back to the local CoachEntry.
+      if (d.mode === "guide" && d.entry) {
         setCoachEntry(d.entry as CoachEntry);
         toast.success("Nick has a read");
       }
@@ -487,7 +495,7 @@ export function ProjectDetail({
       toast.error("Guide mode failed");
     }
     setLoading(null);
-  }, [missionId]);
+  }, [missionId, planProjectMut]);
 
   // Fallback: no planData. Instead of telling the user to delete
   // their project (hostile), show a smart task view + offer to
@@ -597,15 +605,17 @@ export function ProjectDetail({
           onClick={async () => {
             setLoading("guide");
             try {
-              const r = await authedFetch("/api/ai/plan-project", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ missionId, mode: "plan", title }),
+              // actions-surface slice · plan generation via
+              // trpc.ai.planProject (narrow to the "plan" variant).
+              // `d.plan` is typed `unknown` at the router boundary (the
+              // TS2589 firewall) · cast back to ProjectPlanData.
+              const d = await planProjectMut.mutateAsync({
+                missionId,
+                mode: "plan",
+                title,
               });
-              if (!r.ok) throw new Error("plan failed");
-              const d = await r.json();
-              if (d.plan && onPlanUpdated) {
-                onPlanUpdated(d.plan);
+              if (d.mode === "plan" && d.plan && onPlanUpdated) {
+                onPlanUpdated(d.plan as ProjectPlanData);
                 toast.success("Plan generated");
               } else {
                 toast.success("Plan started — tasks created");
@@ -999,23 +1009,21 @@ export function ProjectDetail({
                     e.stopPropagation();
                     setLoading("guide");
                     try {
-                      const r = await authedFetch("/api/ai/plan-project", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          missionId,
-                          mode: "plan",
-                          title,
-                          regenerate: true,
-                        }),
+                      // actions-surface slice · regenerate phases via
+                      // trpc.ai.planProject. The legacy `regenerate: true`
+                      // body field was dead — the plan-project schema
+                      // never declared it · safeParseBody dropped it.
+                      // `d.plan` is `unknown` at the router boundary (the
+                      // TS2589 firewall) · cast back to ProjectPlanData.
+                      const d = await planProjectMut.mutateAsync({
+                        missionId,
+                        mode: "plan",
+                        title,
                       });
-                      if (r.ok) {
-                        const d = await r.json();
-                        if (d.plan && onPlanUpdated) onPlanUpdated(d.plan);
-                        toast.success("Phases generated");
-                      } else {
-                        toast.error("Plan failed");
+                      if (d.mode === "plan" && d.plan && onPlanUpdated) {
+                        onPlanUpdated(d.plan as ProjectPlanData);
                       }
+                      toast.success("Phases generated");
                     } catch {
                       toast.error("Plan failed");
                     }
@@ -1130,32 +1138,31 @@ export function ProjectDetail({
                             onClick={async (e) => {
                               e.stopPropagation();
                               try {
-                                const r = await authedFetch(`/api/tasks/${t.id}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ missionId: null }),
+                                // actions-surface slice · "remove from
+                                // project" via trpc.task.leaveMission.
+                                // The legacy PATCH `{ missionId: null }`
+                                // was structurally dead (non-nullable
+                                // FK) — leaveMission re-points the task
+                                // at the Inbox mission so it "lives on
+                                // NOW" as the title promises.
+                                await leaveMissionMut.mutateAsync({ id: t.id });
+                                toast.success(`Removed from project — task lives on NOW`);
+                                // Apr 27 · "erase in place = erase
+                                // everywhere" — notify every surface
+                                // (NOW, PLAN, TRACK) so they refresh
+                                // and the task disappears from the
+                                // project view, not just here.
+                                notifyDataChanged("tasks", {
+                                  source: "project-detail",
+                                  detail: "remove-from-project",
+                                  id: t.id,
                                 });
-                                if (r.ok) {
-                                  toast.success(`Removed from project — task lives on NOW`);
-                                  // Apr 27 · "erase in place = erase
-                                  // everywhere" — notify every surface
-                                  // (NOW, PLAN, TRACK) so they refresh
-                                  // and the task disappears from the
-                                  // project view, not just here.
-                                  notifyDataChanged("tasks", {
-                                    source: "project-detail",
-                                    detail: "remove-from-project",
-                                    id: t.id,
-                                  });
-                                  notifyDataChanged("projects", {
-                                    source: "project-detail",
-                                    detail: "remove-from-project",
-                                    id: missionId,
-                                  });
-                                  onPlanUpdated?.(plan);
-                                } else {
-                                  toast.error("Couldn't remove");
-                                }
+                                notifyDataChanged("projects", {
+                                  source: "project-detail",
+                                  detail: "remove-from-project",
+                                  id: missionId,
+                                });
+                                onPlanUpdated?.(plan);
                               } catch {
                                 toast.error("Remove failed");
                               }

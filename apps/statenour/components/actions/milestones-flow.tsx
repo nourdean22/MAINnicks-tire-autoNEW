@@ -33,7 +33,6 @@ import { cn } from "@/lib/utils";
 import { Brain, Plus, Sparkles, Loader2, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 
 interface SuggestedMilestone {
@@ -70,33 +69,34 @@ export function MilestonesFlow({
   const [milestones, setMilestones] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   // task.createMission / task.spawnTasks replace POST /api/missions +
-  // POST /api/projects/:id/spawn-tasks. The plan-project AI calls
-  // stay on authedFetch (AI domain · migrates in a later slice).
+  // POST /api/projects/:id/spawn-tasks. actions-surface slice · the
+  // plan-project AI calls (mode=milestones · mode=plan) now hit
+  // `trpc.ai.planProject` (replacing POST /api/ai/plan-project).
   const createMission = trpc.task.createMission.useMutation();
   const spawnTasks = trpc.task.spawnTasks.useMutation();
+  const planProjectMut = trpc.ai.planProject.useMutation();
 
-  // Step 1: load milestone suggestions on mount
+  // Step 1: load milestone suggestions on mount.
+  // actions-surface slice · POST /api/ai/plan-project mode=milestones →
+  // trpc.ai.planProject. The procedure returns a discriminated union
+  // keyed on `mode` — narrow to the "milestones" variant before reading
+  // `milestones` / `rationale`.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const r = await authedFetch("/api/ai/plan-project", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            mode: "milestones",
-            title: goal.title,
-            goalTarget: goal.targetValue,
-            goalUnit: goal.unit,
-            goalMetric: goal.metric,
-            goalDeadline: goal.deadline,
-            domain: goal.domain,
-          }),
+        const d = await planProjectMut.mutateAsync({
+          mode: "milestones",
+          title: goal.title,
+          goalTarget: goal.targetValue,
+          goalUnit: goal.unit,
+          goalMetric: goal.metric,
+          goalDeadline: goal.deadline ?? undefined,
+          domain: goal.domain,
         });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const d = await r.json();
         if (cancelled) return;
-        const list = (d?.data?.milestones ?? d?.milestones ?? []) as SuggestedMilestone[];
+        const list: SuggestedMilestone[] =
+          d.mode === "milestones" ? d.milestones : [];
         const labels = list
           .map((m) => {
             const parts = [m.label];
@@ -106,7 +106,7 @@ export function MilestonesFlow({
           })
           .filter(Boolean);
         setMilestones(labels.length > 0 ? labels : ["", "", ""]);
-        setRationale(d?.data?.rationale ?? d?.rationale ?? "");
+        setRationale(d.mode === "milestones" ? d.rationale : "");
         setPhase("editing");
       } catch (err) {
         if (cancelled) return;
@@ -118,6 +118,7 @@ export function MilestonesFlow({
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goal]);
 
   const updateMilestone = (i: number, value: string) =>
@@ -165,19 +166,19 @@ export function MilestonesFlow({
         return;
       }
 
-      // Generate the plan with confirmed milestones constraining phases
-      const pr = await authedFetch("/api/ai/plan-project", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Generate the plan with confirmed milestones constraining phases.
+      // actions-surface slice · POST /api/ai/plan-project mode=plan →
+      // trpc.ai.planProject. mutateAsync rejects on a server error · the
+      // outer catch surfaces the "Plan failed" toast.
+      try {
+        await planProjectMut.mutateAsync({
           mode: "plan",
           missionId,
           title: goal.title,
           milestones: trimmed,
           domain: goal.domain,
-        }),
-      });
-      if (!pr.ok) {
+        });
+      } catch {
         toast.error("AI couldn't generate the plan");
         setPhase("editing");
         return;

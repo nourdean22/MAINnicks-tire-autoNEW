@@ -36,7 +36,6 @@ import {
 } from "@/lib/brain/project-momentum";
 import { suggestGoalsForProject, LinkGoalPicker } from "@/components/actions/link-goal-picker";
 import { ProjectDetail } from "@/components/actions/project-detail";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import {
   domainClass as dc,
@@ -118,9 +117,10 @@ export function ProjectCard({
   onRefresh,
 }: ProjectCardProps) {
   // task.update replaces PATCH /api/tasks/:id for the goal link /
-  // unlink chips. The re-plan button still calls /api/ai/plan-project
-  // via authedFetch (AI domain · migrates in a later slice).
+  // unlink chips. actions-surface slice · the re-plan button now hits
+  // `trpc.ai.planProject` (replacing POST /api/ai/plan-project).
   const updateTask = trpc.task.update.useMutation();
+  const planProjectMut = trpc.ai.planProject.useMutation();
   const activePt = pt.filter((t) => ["INBOX", "READY", "DOING"].includes(t.status));
   const pd = pt.filter((t) => t.status === "DONE").length;
   const pct = pt.length > 0 ? Math.round((pd / pt.length) * 100) : 0;
@@ -249,24 +249,19 @@ export function ProjectCard({
                     `Asking Nick to re-plan "${p.title}"…`,
                     { id: `replan-${p.id}` },
                   );
-                  const r = await authedFetch("/api/ai/plan-project", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      missionId: p.id,
-                      mode: "plan",
-                      title: p.title,
-                      regenerate: true,
-                    }),
+                  // actions-surface slice · re-plan via trpc.ai.planProject.
+                  // The legacy `regenerate: true` body field was dead — the
+                  // plan-project schema never declared it, so the route's
+                  // safeParseBody silently dropped it. Omitted here.
+                  await planProjectMut.mutateAsync({
+                    missionId: p.id,
+                    mode: "plan",
+                    title: p.title,
                   });
-                  if (r.ok) {
-                    toast.success("Plan refreshed — phases updated", {
-                      id: `replan-${p.id}`,
-                    });
-                    await onRefresh();
-                  } else {
-                    toast.error("Re-plan failed", { id: `replan-${p.id}` });
-                  }
+                  toast.success("Plan refreshed — phases updated", {
+                    id: `replan-${p.id}`,
+                  });
+                  await onRefresh();
                 } catch {
                   toast.error("Re-plan failed", { id: `replan-${p.id}` });
                 }

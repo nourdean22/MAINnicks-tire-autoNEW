@@ -84,6 +84,10 @@ import {
   getDecisionDetail,
   gradeDecision as gradeDecisionService,
 } from "@/lib/services/decision-detail";
+// actions-surface REST→tRPC slice (2026-05-22) · the decision-log list
+// read · also called by the legacy GET /api/decisions route — drift
+// structurally impossible.
+import { listDecisions } from "@/lib/services/decisions";
 import { improvePhoto, MissingImageError } from "@/lib/services/photo-improver";
 import {
   getSocialSchedule,
@@ -807,6 +811,24 @@ export const operatorRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * actions-surface REST→tRPC slice (2026-05-22) · owner-only · the
+   * decision-log list — the 50 most-recent decisions + the pending-
+   * review subset. Replaces GET /api/decisions · delegates to the
+   * shared `decisions.listDecisions` service the REST route also calls
+   * · drift impossible. No input · the feed is operator-scoped.
+   *
+   * KommandoLearn reads `decisions[].title` + `.context` off this for
+   * its "learn before you decide" topic seeds. Returns `{ decisions,
+   * pending_review }` (explicit shallow `DecisionRow[]` · every Date
+   * stringified · the TS2589 firewall). The legacy route's `?status` /
+   * `?limit` query params were never read by the GET handler — the
+   * list was always the same 50 + pending subset — so no input is
+   * needed for parity.
+   */
+  decisions: operatorProcedure.query(async () => listDecisions()),
+
 
   /**
    * misc-pages slice (2026-05-22) · owner-only · grade / edit a single

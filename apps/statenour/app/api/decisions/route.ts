@@ -3,25 +3,22 @@ import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
 import { today } from "@/lib/utils/datetime";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
+import { listDecisions } from "@/lib/services/decisions";
 
-// v9.1.14 · GET added `auth: "owner"` — leaked operator decisions.
-export const GET = apiHandler(async () => {
-  const decisions = await prisma.masteryDecision.findMany({
-    orderBy: { date: "desc" },
-    take: 50,
-  });
-
-  const pendingReview = await prisma.masteryDecision.findMany({
-    where: {
-      // v9.1.13 · also added deletedAt:null upstream.
-      deletedAt: null,
-      reviewDate: { lte: today() },
-      actualOutcome: null,
-    },
-  });
-
-  return { decisions, pending_review: pendingReview };
-}, { auth: "owner" });
+/**
+ * GET /api/decisions — recent decisions + the pending-review subset.
+ *
+ * v9.1.14 · `auth: "owner"` — was leaking operator decisions.
+ *
+ * actions-surface REST→tRPC slice (2026-05-22) · the list logic moved
+ * to the shared `lib/services/decisions.listDecisions` service · this
+ * route AND the new `trpc.operator.decisions` procedure call the same
+ * function · drift impossible. The route stays mounted as the rollback
+ * path.
+ */
+export const GET = apiHandler(async () => listDecisions(), {
+  auth: "owner",
+});
 
 export const POST = apiHandler(async (req) => {
   const body = await req.json();

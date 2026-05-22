@@ -35,7 +35,6 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import {
   Brain as BrainIcon,
   Target,
@@ -44,7 +43,7 @@ import {
   DollarSign,
   Library,
 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { TipChip } from "@/components/ui/tip-chip";
 import { LEARN_TIPS } from "@/lib/learn/tips";
 
@@ -72,37 +71,30 @@ interface MaturitySummary {
   openContradictions: number;
 }
 
-async function fetchMaturitySummary(): Promise<MaturitySummary | null> {
-  try {
-    const r = await authedFetch("/api/brain/maturity", { cache: "no-store" });
-    if (!r.ok) return null;
-    const j = await r.json();
-    const m = j.data?.maturity ?? j.maturity;
-    if (!m) return null;
-    return {
-      score: typeof m.score === "number" ? m.score : 0,
-      openContradictions:
-        typeof m.components?.contradictions?.open === "number"
-          ? m.components.contradictions.open
-          : 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
 export function ActionsContextBand() {
-  const [summary, setSummary] = useState<MaturitySummary | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    void fetchMaturitySummary().then((s) => {
-      if (alive) setSummary(s);
-    });
-    return () => {
-      alive = false;
-    };
-  }, []);
+  // actions-surface slice · migrated off `authedFetch("/api/brain/
+  // maturity")` onto `trpc.brain.maturity`. The procedure returns the
+  // `BrainMaturityView` unwrapped (the legacy route wrapped it in
+  // `{ maturity }`). A transport error leaves `data` undefined → the
+  // band stays calm (no badge), matching the legacy `null` fallback.
+  const maturityQuery = trpc.brain.maturity.useQuery(undefined, {
+    staleTime: 0,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+  const summary: MaturitySummary | null = maturityQuery.data
+    ? {
+        score:
+          typeof maturityQuery.data.score === "number"
+            ? maturityQuery.data.score
+            : 0,
+        openContradictions:
+          typeof maturityQuery.data.components?.contradictions?.open ===
+          "number"
+            ? maturityQuery.data.components.contradictions.open
+            : 0,
+      }
+    : null;
 
   // Compact alert badge · only renders when there's signal worth seeing.
   // 0 contradictions = silent (the band stays calm).

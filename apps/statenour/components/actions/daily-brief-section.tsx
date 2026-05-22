@@ -26,7 +26,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { TipChip } from "@/components/ui/tip-chip";
 import { LEARN_TIPS } from "@/lib/learn/tips";
 import {
@@ -154,30 +154,55 @@ export function DailyBriefSection() {
     return () => clearInterval(id);
   }, []);
 
+  // actions-surface slice · the imperative coordinated read · all five
+  // endpoints are now tRPC procedures fetched via utils.*.fetch(). Each
+  // promise is fired into its own `const` BEFORE any `await` so the
+  // reads still run concurrently — but they are NOT collected into a
+  // `Promise.all([...])` tuple. Tuple inference over multiple deep tRPC
+  // fetch types is the exact pattern that trips TS2589 once the
+  // AppRouter grows; awaiting the pre-started promises individually
+  // keeps the concurrency and the resolved types identical.
+  const utils = trpc.useUtils();
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [digestRes, maintRes, brainRes, lensRes, voiceRes] = await Promise.all([
-        authedFetch("/api/ultron/pulse-digest").then((r) => (r.ok ? r.json() : null)),
-        authedFetch("/api/brain/memories?category=belief_refresh_report&limit=1"
-        ).then((r) => (r.ok ? r.json() : null)),
-        // v10.0.277 · pulse chips · weak axis + top lens + voice today
-        authedFetch("/api/actions-brain").then((r) => (r.ok ? r.json() : null)),
-        authedFetch("/api/system/lens-stats?days=1").then((r) => (r.ok ? r.json() : null)),
-        authedFetch("/api/system/vapi-calls?days=1").then((r) => (r.ok ? r.json() : null)),
-      ]);
+      // Fire all five reads concurrently · `.catch(() => null)` mirrors
+      // the legacy `r.ok ? r.json() : null` safe-fail.
+      const digestP = utils.brain.pulseDigest
+        .fetch()
+        .catch(() => null);
+      const beliefP = utils.brain.memories
+        .fetch({ category: "belief_refresh_report", limit: 1 })
+        .catch(() => null);
+      const brainP = utils.task.actionsBrain.fetch().catch(() => null);
+      const lensP = utils.system.lensStats
+        .fetch({ days: 1 })
+        .catch(() => null);
+      const voiceP = utils.system.vapiCalls
+        .fetch({ days: 1 })
+        .catch(() => null);
+      const pinP = utils.brain.memories
+        .fetch({ category: "nudge_pin_hygiene", limit: 1 })
+        .catch(() => null);
+
+      const digestRes = await digestP;
+      const maintRes = await beliefP;
+      const brainRes = await brainP;
+      const lensRes = await lensP;
+      const voiceRes = await voiceP;
+      const pinMaint = await pinP;
 
       // Pulse chips · safe-fail · null if any source breaks
       try {
-        const brainData = (brainRes?.data ?? null) as
-          | { weakAxis?: string | null; maturity?: number | null }
-          | null;
-        const lensData = (lensRes?.data ?? lensRes ?? null) as
-          | { topFrameworks?: Array<{ framework: string; count: number }> }
-          | null;
-        const voiceData = (voiceRes?.data ?? voiceRes ?? null) as
-          | { totalCalls?: number }
-          | null;
+        // task.actionsBrain returns the ActionsBrainView · the weak-axis
+        // + maturity live under `.data` (same as the legacy
+        // /api/actions-brain payload the code read off `brainRes.data`).
+        const brainData = brainRes?.data ?? null;
+        // system.lensStats returns the LensStats unwrapped.
+        const lensData = lensRes ?? null;
+        // system.vapiCalls returns the VapiCallStatsView unwrapped.
+        const voiceData = voiceRes ?? null;
         const top = lensData?.topFrameworks?.find(
           (f) => f.framework !== "(fallback)",
         );
@@ -192,30 +217,28 @@ export function DailyBriefSection() {
         setPulse(null);
       }
 
-      // pulse-digest route returns { priority, emerging, wins, maintenance }
-      // directly (no envelope) based on the route shape.
+      // brain.pulseDigest returns the PulseDigest unwrapped (the legacy
+      // route wrapped it in `{ data }`). The component's local
+      // `DigestPayload` types `maintenance` as `DigestItem[]` whereas the
+      // service's `PulseDigest` types it as `{ count, sample }` — but
+      // this component never reads `digest.maintenance` (it builds its
+      // own maintenance list from brain memories), only `.priority` /
+      // `.emerging` / `.wins`, which match. Cast through `unknown` since
+      // the one diverging field is unused here.
       if (digestRes) {
-        setDigest(
-          (digestRes.data ?? digestRes) as DigestPayload
-        );
+        setDigest(digestRes as unknown as DigestPayload);
       }
 
       // belief refresh rows — merged with pin hygiene into one list.
-      // Also pull pin hygiene via a separate call since memories API
-      // can only filter one category at a time through this endpoint.
-      const [pinMaint] = await Promise.all([
-        authedFetch("/api/brain/memories?category=nudge_pin_hygiene&limit=1"
-        ).then((r) => (r.ok ? r.json() : null)),
-      ]);
-
+      // The brain.memories procedure can only filter one category at a
+      // time, so pin hygiene rode in its own `pinP` fetch above.
       const rows: MaintenanceRow[] = [];
-      const beliefList =
-        (maintRes?.data ?? maintRes?.memories ?? maintRes ?? []) as Array<{
-          id: string;
-          content?: string;
-          updatedAt?: string;
-          metadata?: { changes?: Array<{ action: string }> };
-        }>;
+      const beliefList = (maintRes?.memories ?? []) as Array<{
+        id: string;
+        content?: string;
+        updatedAt?: string;
+        metadata?: { changes?: Array<{ action: string }> };
+      }>;
       for (const r of (Array.isArray(beliefList) ? beliefList : []).slice(0, 1)) {
         const needsReview =
           r.metadata?.changes?.filter((c) => c.action === "queued_for_review").length || 0;
@@ -231,13 +254,12 @@ export function DailyBriefSection() {
           link: "/brain",
         });
       }
-      const pinList =
-        (pinMaint?.data ?? pinMaint?.memories ?? pinMaint ?? []) as Array<{
-          id: string;
-          content?: string;
-          updatedAt?: string;
-          metadata?: { findings?: Array<{ kind: string }> };
-        }>;
+      const pinList = (pinMaint?.memories ?? []) as Array<{
+        id: string;
+        content?: string;
+        updatedAt?: string;
+        metadata?: { findings?: Array<{ kind: string }> };
+      }>;
       for (const r of (Array.isArray(pinList) ? pinList : []).slice(0, 1)) {
         const veryStale =
           r.metadata?.findings?.filter((f) => f.kind === "very_stale").length || 0;
@@ -259,7 +281,7 @@ export function DailyBriefSection() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     void load();

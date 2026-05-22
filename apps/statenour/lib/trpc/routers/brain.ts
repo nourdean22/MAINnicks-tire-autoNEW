@@ -124,6 +124,19 @@ import {
   loadGhostAccuracy,
   dismissPrediction,
 } from "@/lib/brain/ghost-nick";
+// actions-surface REST→tRPC slice (2026-05-22) · the shared services the
+// migrated components/actions/* cards delegate to for their /api/brain/*
+// + /api/ultron/* calls. Each is also called by the matching legacy REST
+// route — drift structurally impossible. The memory reads return the
+// explicit shallow `BrainMemoryRow` shape (the BrainMemory `metadata`
+// Json projected to `unknown` inside the service · the AppRouter type
+// stays shallow · TS2589 firewall).
+import { buildPulseDigest } from "@/lib/services/pulse-digest";
+import {
+  listMemories,
+  recordMemory,
+  forgetMemoryByKey,
+} from "@/lib/services/brain-memories";
 
 export const brainRouter = router({
   /**
@@ -1079,4 +1092,107 @@ export const brainRouter = router({
       }
       return { bundle };
     }),
+  // ═══════════ actions-surface REST→tRPC slice · actions→brain ═══════════
+  //
+  // The components/actions/* cards that hit /api/ultron/pulse-digest +
+  // /api/brain/memories. Each procedure delegates to a shared service the
+  // legacy REST route ALSO calls · drift structurally impossible. The
+  // memory reads return the explicit shallow `BrainMemoryRow` shape (the
+  // BrainMemory `metadata` Json projected to `unknown` inside the service)
+  // so no recursive Prisma `JsonValue` type reaches the AppRouter — the
+  // TS2589 firewall.
+
+  /**
+   * actions-surface slice · owner-only · the ranked-and-clustered
+   * notification-bell digest (priority · emerging · wins · maintenance
+   * tiers + summary mood). Replaces GET /api/ultron/pulse-digest ·
+   * delegates to the shared `pulse-digest.buildPulseDigest` service the
+   * REST route also calls · drift impossible. The service is 60s-cached
+   * internally · DailyBriefSection polls this on a 5-min interval ·
+   * React Query now drives the refetch. The legacy route wrapped the
+   * payload in `{ data }`; the procedure returns the explicit shallow
+   * `PulseDigest` unwrapped (every field a scalar projection · the
+   * AuditEvent `payload` Json is read only to derive a link string
+   * inside the service · never returned · TS2589 firewall).
+   */
+  pulseDigest: operatorProcedure.query(async () => buildPulseDigest()),
+
+  /**
+   * actions-surface slice · owner-only · recall BrainMemory rows by
+   * category + optional search query, sorted by confidence. Replaces
+   * GET /api/brain/memories · delegates to the shared
+   * `brain-memories.listMemories` service the REST route also calls ·
+   * drift impossible. The legacy `?category` / `?q` / `?minConfidence`
+   * / `?limit` query params are mirrored as a typed optional input.
+   * KommandoLearn reads `spaced_review` + `decisions`-adjacent rows off
+   * this. Returns `{ memories }` (explicit shallow `BrainMemoryRow[]` ·
+   * the `metadata` Json column projected to `unknown` · TS2589 firewall).
+   */
+  memories: operatorProcedure
+    .input(
+      z
+        .object({
+          category: z.string().max(80).optional(),
+          query: z.string().max(200).optional(),
+          minConfidence: z.number().min(0).max(1).optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listMemories({
+        category: input?.category,
+        query: input?.query,
+        minConfidence: input?.minConfidence,
+        limit: input?.limit,
+      }),
+    ),
+
+  /**
+   * actions-surface slice · owner-only · persist (or reinforce) one
+   * BrainMemory row. Replaces POST /api/brain/memories · delegates to
+   * the shared `brain-memories.recordMemory` service the REST route
+   * also calls · `brainMemory.remember` upserts by (category, key) so
+   * re-recording the same key reinforces rather than duplicating. The
+   * route's `category` / `key` / `content` required-field guard is
+   * hoisted to the typed `.input()` (all `.min(1)`) — the typed-
+   * payload-mismatch guard. KommandoLearn's "Save to brain" + spaced-
+   * review scheduling fire this. Returns `{ memory }` (explicit shallow
+   * `BrainMemoryRow`).
+   */
+  recordMemory: operatorProcedure
+    .input(
+      z.object({
+        category: z.string().min(1).max(80),
+        key: z.string().min(1).max(200),
+        content: z.string().min(1).max(20_000),
+        source: z.string().max(60).optional(),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      recordMemory({
+        category: input.category,
+        key: input.key,
+        content: input.content,
+        source: input.source,
+        metadata: input.metadata,
+      }),
+    ),
+
+  /**
+   * actions-surface slice · owner-only · soft-delete the most-recent
+   * BrainMemory row matching a key. KommandoLearn's spaced-review
+   * "Got it ✓" affordance fires this.
+   *
+   * GENUINELY NEW behaviour · the legacy `DELETE /api/brain/memories
+   * ?key=…` call had NO route handler — it always 404'd and the error
+   * was silently swallowed (the review row never actually cleared).
+   * This procedure does the real lookup-by-key soft-delete the UI
+   * promised all along. Idempotent · a missing key resolves to
+   * `{ ok: true, deleted: false }` (preserving the no-throw contract).
+   */
+  forgetMemoryByKey: operatorProcedure
+    .input(z.object({ key: z.string().min(1).max(200) }))
+    .mutation(async ({ input }) => forgetMemoryByKey(input.key)),
 });

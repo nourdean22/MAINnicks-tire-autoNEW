@@ -66,7 +66,6 @@ import {
 } from "@/lib/brain/project-momentum";
 import { toast } from "sonner";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
@@ -109,11 +108,6 @@ interface ProjectRow {
   updatedAt?: string;
 }
 
-interface StoryResponse {
-  story?: string;
-  highlights?: string[];
-}
-
 export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps = {}) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [goals, setGoals] = useState<GoalRow[]>([]);
@@ -128,6 +122,10 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
   const utils = trpc.useUtils();
   const updateTask = trpc.task.update.useMutation();
   const goalsUpdate = trpc.task.goalsUpdate.useMutation();
+  // ai.trackStory replaces POST /api/ai/track-story · the weekly-story
+  // narrator. The AI domain now has a tRPC router; the story call rides
+  // there. mutateAsync resolves with `{ story }`.
+  const trackStoryMut = trpc.ai.trackStory.useMutation();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -482,38 +480,37 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
   }, [tasks, goals, projects]);
 
   // ── Story footer — AI summary fetch ──
+  // actions-surface slice · migrated off `authedFetch("/api/ai/track-
+  // story")` onto `trpc.ai.trackStory`. The weekly counters are
+  // aggregated client-side (kept cheap) and sent as the strict typed
+  // input. Failure is swallowed — the story is non-essential.
   const fetchStory = useCallback(async () => {
     setStoryLoading(true);
     try {
-      const r = await authedFetch("/api/ai/track-story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          doneToday: stats.doneToday,
-          thisWkDone: stats.thisWkDone,
-          prevWkDone: stats.prevWkDone,
-          warningCount: stats.warnings.length,
-          goalCount: stats.goalRows.length,
-          projectCount: stats.projectRows.length,
-          coldProjects: stats.projectRows.filter(
-            (p) => p.momentum.momentum === "cold" || p.momentum.momentum === "dead",
-          ).length,
-          behindGoals: stats.goalRows.filter(
-            (g) => g.verdict.kind === "behind" || g.verdict.kind === "missed",
-          ).length,
-          topStreak: stats.topStreak,
-        }),
+      const d = await trackStoryMut.mutateAsync({
+        doneToday: stats.doneToday,
+        thisWkDone: stats.thisWkDone,
+        prevWkDone: stats.prevWkDone,
+        warningCount: stats.warnings.length,
+        goalCount: stats.goalRows.length,
+        projectCount: stats.projectRows.length,
+        coldProjects: stats.projectRows.filter(
+          (p) =>
+            p.momentum.momentum === "cold" ||
+            p.momentum.momentum === "dead",
+        ).length,
+        behindGoals: stats.goalRows.filter(
+          (g) => g.verdict.kind === "behind" || g.verdict.kind === "missed",
+        ).length,
+        topStreak: stats.topStreak,
       });
-      if (r.ok) {
-        const d: StoryResponse = await r.json();
-        setStory(d.story ?? null);
-      }
+      setStory(d.story ?? null);
     } catch {
       // silent — story is non-essential
     } finally {
       setStoryLoading(false);
     }
-  }, [stats]);
+  }, [stats, trackStoryMut]);
 
   useEffect(() => {
     if (!loading && tasks.length > 0 && !story) {
