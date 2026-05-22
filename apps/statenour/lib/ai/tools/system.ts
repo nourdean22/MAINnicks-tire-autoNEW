@@ -829,25 +829,6 @@ export const systemTools = {
     },
   }),
 
-  githubWriteFile: tool({
-    description: "Create or update a file in a GitHub repo. Use to push code changes, configs, or data. Creates a commit directly.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name"),
-      path: z.string().describe("File path"),
-      content: z.string().describe("Full file content to write"),
-      message: z.string().describe("Commit message"),
-      branch: z.string().optional().describe("Branch (default: main)"),
-    }),
-    execute: async ({ repo, path, content, message, branch }) => {
-      const { createOrUpdateFile } = await import("@/lib/integrations/github");
-      try {
-        return await createOrUpdateFile(repo, path, content, message, branch);
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
   githubCreatePR: tool({
     description: "Create a pull request on a GitHub repo. Use after pushing changes to a branch.",
     inputSchema: z.object({
@@ -898,43 +879,6 @@ export const systemTools = {
     },
   }),
 
-  githubCommitMultiple: tool({
-    description: "Commit multiple file changes in a single commit. Use when making coordinated changes across files. This triggers auto-deploy on Vercel.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name (statenour-os or MAINnicks-tire-autoNEW)"),
-      files: z.array(z.object({
-        path: z.string().describe("File path in repo"),
-        content: z.string().describe("Full file content"),
-      })).describe("Array of files to create/update"),
-      message: z.string().describe("Commit message describing the changes"),
-      branch: z.string().optional().describe("Branch (default: codex/ollama-local for statenour, main for nickstire)"),
-    }),
-    execute: async ({ repo, files, message, branch }) => {
-      const { commitMultipleFiles } = await import("@/lib/integrations/github");
-      try {
-        const defaultBranch = branch ?? (repo === "statenour-os" ? "codex/ollama-local" : "main");
-        return await commitMultipleFiles(repo, files, message, defaultBranch);
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
-  githubDeploy: tool({
-    description: "Trigger a Vercel deployment for a repo. Use after making code changes to deploy them live.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name to deploy"),
-    }),
-    execute: async ({ repo }) => {
-      const { triggerVercelDeploy } = await import("@/lib/integrations/github");
-      try {
-        return await triggerVercelDeploy(repo);
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
   githubReadMultiple: tool({
     description: "Read multiple files at once from a repo. Use to understand a full feature — read the route, the service, the component, and the types together. Much faster than reading one at a time.",
     inputSchema: z.object({
@@ -950,64 +894,6 @@ export const systemTools = {
       } catch (e) {
         return { error: e instanceof Error ? e.message : String(e) };
       }
-    },
-  }),
-
-  githubSafeCommit: tool({
-    description: "Write code changes safely via a feature branch. Creates nick/[feature] branch, commits files, then auto-merges to prod. Safer than direct commits — if merge fails, prod stays clean.",
-    inputSchema: z.object({
-      repo: z.string().describe("Repo name"),
-      featureName: z.string().describe("Short feature name (e.g., 'add-loading-spinner')"),
-      files: z.array(z.object({
-        path: z.string(),
-        content: z.string(),
-      })),
-      message: z.string().describe("Commit message"),
-    }),
-    execute: async ({ repo, featureName, files, message }) => {
-      const { createBranch, commitMultipleFiles, mergeBranch, deleteBranch, REPO_CONFIG } = await import("@/lib/integrations/github");
-      try {
-        const config = repo.includes("nicks") ? REPO_CONFIG.nickstire : REPO_CONFIG.statenour;
-        const branchName = `nick/${featureName}`;
-
-        // 1. Create feature branch from prod
-        await createBranch(config.name, branchName, config.branch).catch(() => {
-          // Branch might already exist — that's fine
-        });
-
-        // 2. Commit to feature branch
-        const commit = await commitMultipleFiles(config.name, files, message, branchName);
-
-        // 3. Merge to prod branch (auto-deploys)
-        const merge = await mergeBranch(config.name, branchName, config.branch, `Merge: ${message}`);
-
-        // 4. Clean up feature branch
-        if (merge.merged) {
-          await deleteBranch(config.name, branchName).catch(() => {});
-        }
-
-        return {
-          committed: true,
-          commitSha: commit.sha,
-          merged: merge.merged,
-          branch: branchName,
-          deployTriggered: merge.merged,
-          message: merge.merged
-            ? `Changes committed and merged to ${config.branch}. Auto-deploy triggered.`
-            : `Committed to ${branchName} but merge failed. Check for conflicts.`,
-        };
-      } catch (e) {
-        return { error: e instanceof Error ? e.message : String(e) };
-      }
-    },
-  }),
-
-  checkDeployStatus: tool({
-    description: "Check the latest Vercel deployment status. Use after committing code to verify the deploy succeeded.",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const { getDeploymentStatus } = await import("@/lib/integrations/github");
-      return getDeploymentStatus();
     },
   }),
 
