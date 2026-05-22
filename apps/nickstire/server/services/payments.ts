@@ -138,6 +138,73 @@ export async function createTireOrderCheckout(params: {
 }
 
 /**
+ * Finalise a paid tire order — idempotent. Called from the Stripe webhook
+ * on BOTH checkout.session.completed and payment_intent.succeeded, so the
+ * order completes regardless of which events the endpoint is subscribed
+ * to. Marks the order + invoice paid and fires the shop hand-off.
+ */
+export async function finalizeTireOrderPayment(params: {
+  tireOrderNumber: string;
+  invoiceNumber?: string;
+  amountCents: number;
+}): Promise<void> {
+  const { getDb } = await import("../db");
+  const { tireOrders, invoices } = await import("../../drizzle/schema");
+  const { eq } = await import("drizzle-orm");
+  const d = await getDb();
+  if (!d) return;
+
+  const [order] = await d.select().from(tireOrders)
+    .where(eq(tireOrders.orderNumber, params.tireOrderNumber)).limit(1);
+  // Idempotent — Stripe can redeliver webhooks, and both events fire for
+  // a single Checkout Session.
+  if (!order || order.paymentStatus === "paid") return;
+
+  await d.update(tireOrders).set({
+    paymentStatus: "paid",
+    paidAt: new Date(),
+    status: order.status === "received" ? "confirmed" : order.status,
+  }).where(eq(tireOrders.orderNumber, params.tireOrderNumber));
+
+  const invNum = params.invoiceNumber || order.invoiceNumber || undefined;
+  if (invNum) {
+    await d.update(invoices).set({ paymentStatus: "paid", paymentMethod: "card" })
+      .where(eq(invoices.invoiceNumber, invNum));
+  }
+
+  const amountPaid = params.amountCents / 100;
+  log.info(`Tire order ${params.tireOrderNumber} marked PAID — $${amountPaid.toFixed(2)}`);
+
+  // Shop hand-off — ShopDriver entry + Gateway order email to the shop.
+  import("../email-notify").then(({ notifyTireOrderPaid }) =>
+    notifyTireOrderPaid({
+      orderNumber: order.orderNumber,
+      invoiceNumber: invNum,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerEmail: order.customerEmail || undefined,
+      vehicleInfo: order.vehicleInfo || undefined,
+      tireBrand: order.tireBrand,
+      tireModel: order.tireModel,
+      tireSize: order.tireSize,
+      quantity: order.quantity,
+      amountPaid,
+      customerNotes: order.customerNotes || undefined,
+    })
+  ).catch((e) => log.warn("tire-order paid email failed:", e));
+
+  import("./telegram").then(({ sendTelegram }) =>
+    sendTelegram(
+      `TIRE ORDER PAID — ${params.tireOrderNumber}\n` +
+      `${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
+      `${order.customerName} · ${order.customerPhone}\n` +
+      `$${amountPaid.toFixed(2)} paid online\n\n` +
+      `Check moeseuclid@gmail.com — enter in ShopDriver + order from Gateway.`
+    )
+  ).catch((e) => log.warn("tire-order paid telegram failed:", e));
+}
+
+/**
  * Confirm a payment was completed (webhook or polling)
  */
 export async function getPaymentStatus(paymentIntentId: string): Promise<{
