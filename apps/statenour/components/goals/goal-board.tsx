@@ -88,6 +88,8 @@ import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { MilestonesFlow } from "@/components/actions/milestones-flow";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
+
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
 
 interface CoachEntry {
@@ -148,6 +150,13 @@ const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
 export function GoalBoard() {
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
+  // task.* tRPC for the goals CRUD · the AI suggest/coach calls stay
+  // on authedFetch (AI domain · migrates in a later slice). load()
+  // stays a callback (referenced by many handlers) but reads via
+  // utils.task.goals.fetch — the procedure returns { goals } directly.
+  const utils = trpc.useUtils();
+  const goalsCreate = trpc.task.goalsCreate.useMutation();
+  const goalsUpdate = trpc.task.goalsUpdate.useMutation();
   const [suggesting, setSuggesting] = useState(false);
   const [suggested, setSuggested] = useState<SuggestedGoal[]>([]);
   const [overview, setOverview] = useState<string>("");
@@ -184,15 +193,15 @@ export function GoalBoard() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await authedFetch("/api/goals");
-      if (r.ok) {
-        const d = await r.json();
-        const list = (d.data?.goals ?? d.goals ?? []) as LifeGoal[];
-        setGoals(list.filter((g) => g.status === "active"));
-      }
+      const d = await utils.task.goals.fetch(undefined);
+      // Cast via unknown · the goals procedure's return is a deeply
+      // enriched mapped type · a direct cast to LifeGoal[] trips the
+      // TS2589 "excessively deep" instantiation guard.
+      const list = (d?.goals ?? []) as unknown as LifeGoal[];
+      setGoals(list.filter((g) => g.status === "active"));
     } catch {}
     setLoading(false);
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     load();
@@ -219,15 +228,7 @@ export function GoalBoard() {
   const archiveGoal = useCallback(
     async (goalId: string) => {
       try {
-        const r = await authedFetch("/api/goals", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: goalId, status: "paused" }),
-        });
-        if (!r.ok) {
-          toast.error("Couldn't archive");
-          return;
-        }
+        await goalsUpdate.mutateAsync({ id: goalId, status: "paused" });
         toast.success("Archived. Find it later in paused goals.");
         notifyDataChanged("goals", { source: "goal-board", detail: "archive", id: goalId });
         await load();
@@ -235,7 +236,7 @@ export function GoalBoard() {
         toast.error("Couldn't archive");
       }
     },
-    [load],
+    [load, goalsUpdate],
   );
 
   // Apr 27 · G2 — inline progress-logging submitter. Declared after
@@ -249,12 +250,7 @@ export function GoalBoard() {
       }
       setLogBusy(true);
       try {
-        const r = await authedFetch("/api/goals", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: goalId, progressDelta: num }),
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        await goalsUpdate.mutateAsync({ id: goalId, progressDelta: num });
         toast.success(`Logged ${num > 0 ? "+" : ""}${num}`);
         setLogId(null);
         setLogValue("");
@@ -270,7 +266,7 @@ export function GoalBoard() {
         setLogBusy(false);
       }
     },
-    [logValue, load],
+    [logValue, load, goalsUpdate],
   );
 
   const suggestGoals = useCallback(async () => {
@@ -302,59 +298,51 @@ export function GoalBoard() {
   const adoptSuggestion = useCallback(
     async (s: SuggestedGoal) => {
       try {
-        const r = await authedFetch("/api/goals", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            domain: s.domain,
-            title: s.title,
-            metric: s.metric,
-            targetValue: s.targetValue,
-            unit: s.unit,
-            horizon: "LIFE",
-            why: s.why,
-          }),
+        await goalsCreate.mutateAsync({
+          domain: s.domain,
+          title: s.title,
+          metric: s.metric,
+          targetValue: s.targetValue,
+          unit: s.unit,
+          horizon: "LIFE",
+          why: s.why,
         });
-        if (r.ok) {
-          toast.success("Goal adopted");
-          setSuggested((p) => p.filter((x) => x.title !== s.title));
-          notifyDataChanged("goals", { source: "goal-board", detail: "adopt-suggestion" });
-          load();
-        }
+        toast.success("Goal adopted");
+        setSuggested((p) => p.filter((x) => x.title !== s.title));
+        notifyDataChanged("goals", { source: "goal-board", detail: "adopt-suggestion" });
+        load();
       } catch {
         toast.error("Adopt failed");
       }
     },
-    [load]
+    [load, goalsCreate]
   );
 
   const addManual = useCallback(async () => {
     const title = newTitle.trim();
     if (!title) return;
     try {
-      const r = await authedFetch("/api/goals", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          domain: "personal",
-          title,
-          horizon: newHorizon || null,
-          why: newWhy.trim() || undefined,
-        }),
+      // `horizon` is an optional enum on createGoalSchema · omit it
+      // (undefined) when the form field is blank. The legacy code
+      // sent `null` here, which the schema rejects — the typed input
+      // forces the correct "field omitted" shape.
+      await goalsCreate.mutateAsync({
+        domain: "personal",
+        title,
+        horizon: newHorizon || undefined,
+        why: newWhy.trim() || undefined,
       });
-      if (r.ok) {
-        toast.success("Goal added");
-        setNewTitle("");
-        setNewWhy("");
-        setNewHorizon("");
-        setShowAddForm(false);
-        notifyDataChanged("goals", { source: "goal-board", detail: "manual-add" });
-        load();
-      }
+      toast.success("Goal added");
+      setNewTitle("");
+      setNewWhy("");
+      setNewHorizon("");
+      setShowAddForm(false);
+      notifyDataChanged("goals", { source: "goal-board", detail: "manual-add" });
+      load();
     } catch {
       toast.error("Failed");
     }
-  }, [newTitle, newWhy, newHorizon, load]);
+  }, [newTitle, newWhy, newHorizon, load, goalsCreate]);
 
   // Inline edit state — one row at a time. PATCH /api/goals supports
   // title / why / horizon out of the box (see updateGoalSchema).
@@ -424,10 +412,14 @@ export function GoalBoard() {
       return;
     }
     // Build delta payload — skip fields the user didn't touch so we
-    // don't overwrite server-side values with empty strings.
-    const payload: Record<string, unknown> = { id: editingId, title };
-    payload.why = editWhy.trim() || null;
-    if (editHorizon) payload.horizon = editHorizon;
+    // don't overwrite server-side values with empty strings. Typed
+    // against updateGoalSchema (the shared task.goalsUpdate input).
+    const payload: Parameters<typeof goalsUpdate.mutateAsync>[0] = {
+      id: editingId,
+      title,
+      why: editWhy.trim() || null,
+    };
+    if (editHorizon) payload.horizon = editHorizon as Horizon;
     if (editTargetValue !== "") {
       const tv = parseFloat(editTargetValue);
       if (Number.isFinite(tv)) payload.targetValue = tv;
@@ -442,28 +434,24 @@ export function GoalBoard() {
       payload.deadline = null;
     }
     if (editDomain) payload.domain = editDomain;
-    if (editStatus) payload.status = editStatus;
+    if (editStatus) {
+      payload.status = editStatus as NonNullable<
+        Parameters<typeof goalsUpdate.mutateAsync>[0]["status"]
+      >;
+    }
     setSavingEdit(true);
     try {
-      const r = await authedFetch("/api/goals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (r.ok) {
-        toast.success("Goal updated");
-        notifyDataChanged("goals", { source: "goal-board", detail: "edit", id: editingId });
-        cancelEdit();
-        await load();
-      } else {
-        toast.error("Save failed");
-      }
+      await goalsUpdate.mutateAsync(payload);
+      toast.success("Goal updated");
+      notifyDataChanged("goals", { source: "goal-board", detail: "edit", id: editingId });
+      cancelEdit();
+      await load();
     } catch {
       toast.error("Save failed");
     } finally {
       setSavingEdit(false);
     }
-  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, cancelEdit, load]);
+  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, cancelEdit, load, goalsUpdate]);
 
   const coachGoal = useCallback(
     async (goalId: string) => {

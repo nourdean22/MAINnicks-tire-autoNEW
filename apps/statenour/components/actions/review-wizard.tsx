@@ -38,8 +38,8 @@ import { notifyDataChanged } from "@/lib/events/data-change";
 import { computeProjectMomentum } from "@/lib/brain/project-momentum";
 import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import type { Task } from "@/components/actions/shared";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface GoalRow {
   id: string;
   title: string;
@@ -87,6 +87,12 @@ export function ReviewWizard({
 }: ReviewWizardProps) {
   const [step, setStep] = useState<Step>(1);
   const [busy, setBusy] = useState(false);
+  // Triage mutations · replace the legacy PATCH /api/{tasks,goals,
+  // missions} calls. mutateAsync resolves on success / rejects on a
+  // server error, matching the old `r.ok` true/false branches.
+  const updateTask = trpc.task.update.useMutation();
+  const goalsUpdate = trpc.task.goalsUpdate.useMutation();
+  const missionUpdate = trpc.task.missionUpdate.useMutation();
   // Step 1 — local set of warnings the user has already actioned so
   // the row hides without a refetch.
   const [actioned, setActioned] = useState<Set<string>>(new Set());
@@ -215,16 +221,10 @@ export function ReviewWizard({
 
   const killTask = async (taskId: string, warningId: string) => {
     try {
-      const r = await authedFetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ARCHIVED" }),
-      });
-      if (r.ok) {
-        toast.success("Killed");
-        setActioned((prev) => new Set(prev).add(warningId));
-        notifyDataChanged("tasks", { source: "review-wizard", detail: "kill", id: taskId });
-      }
+      await updateTask.mutateAsync({ id: taskId, fields: { status: "ARCHIVED" } });
+      toast.success("Killed");
+      setActioned((prev) => new Set(prev).add(warningId));
+      notifyDataChanged("tasks", { source: "review-wizard", detail: "kill", id: taskId });
     } catch {
       toast.error("Couldn't kill");
     }
@@ -232,16 +232,10 @@ export function ReviewWizard({
 
   const pauseGoal = async (goalId: string, warningId: string) => {
     try {
-      const r = await authedFetch("/api/goals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: goalId, status: "paused" }),
-      });
-      if (r.ok) {
-        toast.success("Goal paused");
-        setActioned((prev) => new Set(prev).add(warningId));
-        notifyDataChanged("goals", { source: "review-wizard", detail: "pause", id: goalId });
-      }
+      await goalsUpdate.mutateAsync({ id: goalId, status: "paused" });
+      toast.success("Goal paused");
+      setActioned((prev) => new Set(prev).add(warningId));
+      notifyDataChanged("goals", { source: "review-wizard", detail: "pause", id: goalId });
     } catch {
       toast.error("Couldn't pause");
     }
@@ -249,16 +243,13 @@ export function ReviewWizard({
 
   const archiveProject = async (projectId: string, warningId: string) => {
     try {
-      const r = await authedFetch(`/api/missions/${projectId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "PAUSED" }),
+      await missionUpdate.mutateAsync({
+        id: projectId,
+        fields: { status: "PAUSED" },
       });
-      if (r.ok) {
-        toast.success("Project paused");
-        setActioned((prev) => new Set(prev).add(warningId));
-        notifyDataChanged("projects", { source: "review-wizard", detail: "pause", id: projectId });
-      }
+      toast.success("Project paused");
+      setActioned((prev) => new Set(prev).add(warningId));
+      notifyDataChanged("projects", { source: "review-wizard", detail: "pause", id: projectId });
     } catch {
       toast.error("Couldn't pause project");
     }

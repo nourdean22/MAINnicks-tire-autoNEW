@@ -37,6 +37,7 @@ import {
 import { suggestGoalsForProject, LinkGoalPicker } from "@/components/actions/link-goal-picker";
 import { ProjectDetail } from "@/components/actions/project-detail";
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   domainClass as dc,
   type Task,
@@ -116,6 +117,10 @@ export function ProjectCard({
   onPlanUpdated,
   onRefresh,
 }: ProjectCardProps) {
+  // task.update replaces PATCH /api/tasks/:id for the goal link /
+  // unlink chips. The re-plan button still calls /api/ai/plan-project
+  // via authedFetch (AI domain · migrates in a later slice).
+  const updateTask = trpc.task.update.useMutation();
   const activePt = pt.filter((t) => ["INBOX", "READY", "DOING"].includes(t.status));
   const pd = pt.filter((t) => t.status === "DONE").length;
   const pct = pt.length > 0 ? Math.round((pd / pt.length) * 100) : 0;
@@ -325,10 +330,9 @@ export function ProjectCard({
                                 try {
                                   await Promise.all(
                                     taskIds.map((tid) =>
-                                      authedFetch(`/api/tasks/${tid}`, {
-                                        method: "PATCH",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ goalId: s.goal.id }),
+                                      updateTask.mutateAsync({
+                                        id: tid,
+                                        fields: { goalId: s.goal.id },
                                       }),
                                     ),
                                   );
@@ -390,15 +394,14 @@ export function ProjectCard({
                           try {
                             const results = await Promise.allSettled(
                               taskIds.map((tid) =>
-                                authedFetch(`/api/tasks/${tid}`, {
-                                  method: "PATCH",
-                                  headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ goalId: null }),
+                                updateTask.mutateAsync({
+                                  id: tid,
+                                  fields: { goalId: null },
                                 }),
                               ),
                             );
                             const ok = results.filter(
-                              (r) => r.status === "fulfilled" && r.value.ok,
+                              (r) => r.status === "fulfilled",
                             ).length;
                             if (ok > 0) {
                               toast.success(

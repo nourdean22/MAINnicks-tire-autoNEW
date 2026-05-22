@@ -18,64 +18,34 @@
  * the next poll cycle.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 import { TipChip } from "@/components/ui/tip-chip";
-
-interface CompoundData {
-  date: string;
-  masteryTotal: number;
-  topMastery: { domain: string; score: number; delta: number } | null;
-  insightCount: number;
-  wisdomCount: number;
-  learnCount: number;
-  goalsLifted: number;
-  focusedMinutes: number;
-  tasksDone: number;
-  tasksOpen: number;
-}
 
 const REFRESH_TIP =
   "live-updates as you check off tasks. shows today's compounded growth · mastery lifts · insights captured · wisdom matched · goals moved · time focused.";
 
 export function TodaysCompound() {
-  const [data, setData] = useState<CompoundData | null>(null);
-  const [error, setError] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await authedFetch("/api/tasks/today-compound", { cache: "no-store" });
-      if (!r.ok) {
-        setError(true);
-        return;
-      }
-      const body = await r.json();
-      const payload = (body?.data ?? body) as CompoundData;
-      setData(payload);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, []);
+  // Polls every 60s · matches the legacy setInterval cadence.
+  // onDataChanged refetches after a task/goal mutation so the strip
+  // updates instantly after a check-off. The 500ms delay lets the
+  // server-side auto-learn write land before the refetch fires.
+  const { data, isError, refetch } = trpc.task.todayCompound.useQuery(
+    undefined,
+    { refetchInterval: 60_000 },
+  );
 
   useEffect(() => {
-    void load();
-    const id = setInterval(load, 60_000);
     const off = onDataChanged(["tasks", "goals"], () => {
-      // Debounce micro-bursts: wait a tick so the server-side auto-
-      // learn write completes before we re-fetch.
-      setTimeout(() => void load(), 500);
+      setTimeout(() => void refetch(), 500);
     });
-    return () => {
-      clearInterval(id);
-      off();
-    };
-  }, [load]);
+    return off;
+  }, [refetch]);
 
   // Silent on failure · the strip is non-essential context.
-  if (error || !data) return null;
+  if (isError || !data) return null;
 
   // Strip hides entirely if literally nothing happened today AND
   // there's no open work. Avoids surfacing an empty row first thing

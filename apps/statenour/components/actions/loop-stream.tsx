@@ -75,7 +75,8 @@ import {
   computeWhyLine,
 } from "@/components/actions/loop-row-item";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
+
 interface LoopStreamProps {
   tasks: Task[];
   onComplete: (id: string) => void | Promise<void>;
@@ -254,6 +255,11 @@ export function LoopStream({
   // by default from the parent.
   const [breakModalFor, setBreakModalFor] = useState<{ id: string; title: string } | null>(null);
   const [breakReason, setBreakReason] = useState("");
+  // task.update / task.domainSwap replace PATCH /api/tasks/:id +
+  // POST /api/tasks/:id/domain. mutateAsync resolves on success and
+  // rejects on error, matching the old `r.ok` branches.
+  const updateTask = trpc.task.update.useMutation();
+  const domainSwap = trpc.task.domainSwap.useMutation();
 
   // Apr 26 · F3 — inline kill/reframe/blocker for stale rows. Tapping
   // the STALE chip flips the row into decide-mode; the three verbs
@@ -349,18 +355,17 @@ export function LoopStream({
     finally { setBulkBusy(false); setSelectMode(false); setSelectedIds(new Set()); }
   }, [selectedIds]);
   const bulkSnooze = useCallback(async () => {
-    const t = new Date(); t.setDate(t.getDate() + 1);
-    const iso = t.toISOString();
     await runBulk(async (id) => {
-      await authedFetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "WAITING", snoozedUntil: iso }),
-      });
+      // Sends only { status: "WAITING" } · the legacy PATCH also sent
+      // a `snoozedUntil` but taskUpdateSchema (REST + tRPC) has no
+      // such key, so it was stripped before reaching Prisma — the
+      // snooze date was never persisted. Migrating to the typed
+      // task.update keeps the persisted result identical.
+      await updateTask.mutateAsync({ id, fields: { status: "WAITING" } });
     });
     notifyDataChanged("tasks", { source: "loop-stream", detail: "bulk-snooze" });
     await onReviewChange?.();
-  }, [runBulk, onReviewChange]);
+  }, [runBulk, onReviewChange, updateTask]);
   const bulkDelete = useCallback(async () => {
     if (selectedIds.size > 5 && !confirm(`Delete ${selectedIds.size} tasks?`)) return;
     await runBulk(onDelete);
@@ -535,42 +540,32 @@ export function LoopStream({
 
   // v10.0.529.14 · domain swap moved into the parent so the row stays
   // presentational. Pre-extraction this was inline in the row map and
-  // captured authedFetch/toast/notifyDataChanged via closure; same
+  // captured the mutation/toast/notifyDataChanged via closure; same
   // semantics here, just hoisted one level so the boundary is cleaner.
   const onCommitDomainSwap = useCallback(
     async (taskId: string, domain: string) => {
       setDomainSwapBusy(true);
       try {
-        const r = await authedFetch(`/api/tasks/${taskId}/domain`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ domain }),
+        await domainSwap.mutateAsync({ id: taskId, domain });
+        toast.success(`Domain → ${domain}`);
+        notifyDataChanged("tasks", {
+          source: "loop-stream",
+          detail: "domain-swap",
+          id: taskId,
         });
-        if (r.ok) {
-          toast.success(`Domain → ${domain}`);
-          notifyDataChanged("tasks", {
-            source: "loop-stream",
-            detail: "domain-swap",
-            id: taskId,
-          });
-          notifyDataChanged("missions", {
-            source: "loop-stream",
-            detail: "domain-swap",
-          });
-          await onReviewChange?.();
-          setDomainEditId(null);
-        } else {
-          toast.error("Couldn't change");
-        }
+        notifyDataChanged("missions", {
+          source: "loop-stream",
+          detail: "domain-swap",
+        });
+        await onReviewChange?.();
+        setDomainEditId(null);
       } catch {
         toast.error("Domain change failed");
       } finally {
         setDomainSwapBusy(false);
       }
     },
-    [onReviewChange],
+    [onReviewChange, domainSwap],
   );
 
   const onOpenBreakModal = useCallback((taskId: string, title: string) => {

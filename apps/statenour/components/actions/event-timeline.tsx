@@ -14,16 +14,15 @@
  * panel opens. Fast (capped 30 events, single indexed query).
  */
 
-import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface TaskEvent {
   id: string;
   kind: string;
   source: string | null;
-  payload: Record<string, unknown> | null;
+  payload: unknown;
   createdAt: string;
 }
 
@@ -63,7 +62,7 @@ const KIND_LABEL: Record<string, string> = {
   killed: "killed",
 };
 
-function formatRelative(iso: string): string {
+function formatRelative(iso: string | Date): string {
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 60_000) return "just now";
   if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m`;
@@ -73,32 +72,13 @@ function formatRelative(iso: string): string {
 }
 
 export function EventTimeline({ taskId }: EventTimelineProps) {
-  const [events, setEvents] = useState<TaskEvent[] | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Lazy-fetched on expand · the row mounts this component only when
+  // the panel opens, so the query fires exactly once per expand.
+  // React Query keys on { taskId } so each task caches independently.
+  const { data, isLoading } = trpc.task.events.useQuery({ taskId });
+  const events: TaskEvent[] = (data?.events ?? []) as TaskEvent[];
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      setLoading(true);
-      try {
-        const res = await authedFetch(`/api/tasks/${taskId}/events`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const list: TaskEvent[] = data?.data ?? data ?? [];
-        if (!cancelled) setEvents(Array.isArray(list) ? list : []);
-      } catch {
-        if (!cancelled) setEvents([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [taskId]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center gap-2 text-[9px] text-zinc-600">
         <Loader2 size={9} className="animate-spin" />
@@ -107,7 +87,7 @@ export function EventTimeline({ taskId }: EventTimelineProps) {
     );
   }
 
-  if (!events || events.length === 0) {
+  if (events.length === 0) {
     return (
       <p className="text-[9px] text-zinc-700 italic">
         No events yet. Future state changes will appear here.

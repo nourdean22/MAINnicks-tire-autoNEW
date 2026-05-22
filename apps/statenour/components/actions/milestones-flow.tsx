@@ -33,8 +33,9 @@ import { cn } from "@/lib/utils";
 import { Brain, Plus, Sparkles, Loader2, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
-
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
+
 interface SuggestedMilestone {
   label: string;
   metric: string | null;
@@ -68,6 +69,11 @@ export function MilestonesFlow({
   const [rationale, setRationale] = useState<string>("");
   const [milestones, setMilestones] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  // task.createMission / task.spawnTasks replace POST /api/missions +
+  // POST /api/projects/:id/spawn-tasks. The plan-project AI calls
+  // stay on authedFetch (AI domain · migrates in a later slice).
+  const createMission = trpc.task.createMission.useMutation();
+  const spawnTasks = trpc.task.spawnTasks.useMutation();
 
   // Step 1: load milestone suggestions on mount
   useEffect(() => {
@@ -131,42 +137,28 @@ export function MilestonesFlow({
     }
     setPhase("generating");
     try {
-      // Create the Mission first
-      const mr = await authedFetch("/api/missions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      // Create the Mission first · createMission validates the
+      // payload server-side against missionCreateSchema.
+      let missionId: string | undefined;
+      try {
+        const mission = await createMission.mutateAsync({
           title: goal.title,
           domain: (goal.domain || "PERSONAL").toUpperCase(),
           // v7 · Apr 28 · priority is 1-10 per missionCreateSchema.
-          // Was 60 which fails validation. Mid-high (7) for goal flows.
+          // Mid-high (7) for goal flows.
           priority: 7,
           roiScore: 60,
           neglectCost: 40,
           status: "ACTIVE",
-        }),
-      });
-      if (!mr.ok) {
-        const errBody = await mr.text().catch(() => "");
-        let msg = "Couldn't create project";
-        try {
-          const parsed = JSON.parse(errBody) as { error?: string; details?: { fieldErrors?: Record<string, string[]> } };
-          if (parsed.error) msg = `Project creation failed: ${parsed.error}`;
-          if (parsed.details?.fieldErrors) {
-            const fields = Object.entries(parsed.details.fieldErrors)
-              .map(([k, v]) => `${k}: ${v.join(", ")}`)
-              .join(" · ");
-            if (fields) msg = `Validation failed — ${fields}`;
-          }
-        } catch {
-          /* leave default */
-        }
-        toast.error(msg);
+        });
+        missionId = (mission as { id?: string } | null)?.id;
+      } catch (err) {
+        toast.error(
+          `Couldn't create project${err instanceof Error ? `: ${err.message}` : ""}`,
+        );
         setPhase("editing");
         return;
       }
-      const mJson = await mr.json();
-      const missionId = (mJson?.data ?? mJson)?.id;
       if (!missionId) {
         toast.error("Project created but no id");
         setPhase("editing");
@@ -192,16 +184,18 @@ export function MilestonesFlow({
       }
 
       // Spawn the first phase (tagged with goalId so completing
-      // those tasks lifts the goal via the S3 hook)
-      const sr = await authedFetch(`/api/projects/${missionId}/spawn-tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phaseIndex: 0, goalId: goal.id }),
-      });
+      // those tasks lifts the goal via the S3 hook). Best-effort —
+      // a spawn failure doesn't abort the (already-created) project.
       let spawned = 0;
-      if (sr.ok) {
-        const sd = await sr.json();
-        spawned = sd?.data?.spawned ?? sd?.spawned ?? 0;
+      try {
+        const sd = await spawnTasks.mutateAsync({
+          missionId,
+          phaseIndex: 0,
+          goalId: goal.id,
+        });
+        spawned = sd?.spawned ?? 0;
+      } catch {
+        /* spawn is best-effort · project + plan already landed */
       }
 
       toast.success(
