@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface Suggestion {
@@ -40,29 +40,35 @@ export function ThreadSuggestions({
 }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
-  // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch · errors
-  // silently no-op (suggestions are advisory · radar stays quiet).
-  // 2026-05-18 PM bugfix · auto-unwrap fix · was double-wrapped.
-  const { data, loading, reload } = useAuthedFetch<Suggestion[]>(
-    "/api/journal/suggestions",
-  );
-  const suggestions = data ?? [];
+  // Phase TT.2 (2026-05-22) · REST→tRPC · useAuthedFetch swapped for
+  // trpc.journal.suggestions.useQuery. Errors still silently no-op
+  // (suggestions are advisory · radar stays quiet) — the component
+  // hides itself on loading/empty exactly as before. The query owns
+  // the {data} envelope so no manual unwrap is needed.
+  const suggestionsQuery = trpc.journal.suggestions.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+  const suggestions: Suggestion[] = suggestionsQuery.data ?? [];
+  const loading = suggestionsQuery.isLoading;
+  // local alias · keeps existing call-sites in handlers below readable
+  const load = () => suggestionsQuery.refetch();
 
   useEffect(() => {
-    if (refreshSignal != null) reload();
-  }, [refreshSignal, reload]);
-  const load = reload; // local alias · keeps existing call-sites in handlers below readable
+    if (refreshSignal != null) suggestionsQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
+  // Phase TT.2 · accept/dismiss are now typed mutations · the strict
+  // z.object({ key }) input means the payload can't drift from what
+  // the server expects (the typed-payload-mismatch guard).
+  const acceptMutation = trpc.journal.acceptSuggestion.useMutation();
+  const dismissMutation = trpc.journal.dismissSuggestion.useMutation();
 
   const accept = async (key: string) => {
     if (busyKey) return;
     setBusyKey(key);
     try {
-      const res = await authedFetch("/api/journal/suggestions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await acceptMutation.mutateAsync({ key });
       await load();
       onActioned?.();
     } catch {
@@ -77,11 +83,7 @@ export function ThreadSuggestions({
     if (busyKey) return;
     setBusyKey(key);
     try {
-      const res = await authedFetch(
-        `/api/journal/suggestions?key=${encodeURIComponent(key)}`,
-        { method: "DELETE" },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await dismissMutation.mutateAsync({ key });
       await load();
     } catch {
       await load();

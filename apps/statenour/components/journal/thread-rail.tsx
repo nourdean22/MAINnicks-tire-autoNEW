@@ -14,7 +14,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 
 interface Thread {
@@ -45,19 +45,30 @@ export function ThreadRail({
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
 
-  // Phase D · audit-fix #1 (2026-05-18) · useAuthedFetch instead of
-  // bespoke state-mgmt + manual reload effect.
-  // 2026-05-18 PM bugfix · useAuthedFetch auto-unwraps the
-  // {data:...} envelope · original ship double-wrapped which meant
-  // `threads` was always [].
-  const { data, error, loading, reload } = useAuthedFetch<Thread[]>(
-    "/api/journal/threads?includeDormant=true",
+  // Phase TT.2 (2026-05-22) · REST→tRPC · useAuthedFetch swapped for
+  // trpc.journal.threads.useQuery. The query owns the {data} envelope ·
+  // the includeDormant flag is now a typed input rather than a query
+  // string. Loading/error still collapse the component exactly as
+  // before (both return null below).
+  const threadsQuery = trpc.journal.threads.useQuery(
+    { includeDormant: true },
+    { refetchOnWindowFocus: false },
   );
-  const threads = data ?? [];
+  const threads: Thread[] = threadsQuery.data ?? [];
+  const error = threadsQuery.error;
+  const loading = threadsQuery.isLoading;
+  const reload = () => threadsQuery.refetch();
 
   useEffect(() => {
-    if (refreshSignal != null) reload();
-  }, [refreshSignal, reload]);
+    if (refreshSignal != null) threadsQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshSignal]);
+
+  // Phase TT.2 · operator-initiated thread creation is now a typed
+  // mutation. The router maps a duplicate-name business rejection to
+  // BAD_REQUEST · mutateAsync rejects with that message so the inline
+  // createErr surface is preserved verbatim.
+  const createThreadMutation = trpc.journal.createThread.useMutation();
 
   const submitNewThread = async () => {
     const name = newName.trim();
@@ -65,17 +76,7 @@ export function ThreadRail({
     setCreateBusy(true);
     setCreateErr(null);
     try {
-      const res = await authedFetch("/api/journal/threads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(body.error ?? `HTTP ${res.status}`);
-      }
+      await createThreadMutation.mutateAsync({ name });
       setNewName("");
       setCreating(false);
       reload();
