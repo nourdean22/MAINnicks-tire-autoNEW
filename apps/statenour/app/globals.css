@@ -1920,15 +1920,6 @@ body::after {
   animation: nick-thinking-shimmer 1.8s ease-in-out infinite;
 }
 
-/* Context rail subtle pulse when state = drift */
-@keyframes context-rail-drift {
-  0%, 100% { border-color: rgba(239, 68, 68, 0.15); }
-  50%      { border-color: rgba(239, 68, 68, 0.35); }
-}
-.context-rail-drift {
-  animation: context-rail-drift 2.6s ease-in-out infinite;
-}
-
 /* Tool card shimmer — a gradient bar sweeps across while the tool is
    still running. Beats a plain pulse because Nour can tell at a
    glance that something is actively happening, not just loading. */
@@ -2017,27 +2008,6 @@ body::after {
 .smart-reply-chip:nth-child(2) { animation-delay: 60ms; }
 .smart-reply-chip:nth-child(3) { animation-delay: 120ms; }
 .smart-reply-chip:nth-child(4) { animation-delay: 180ms; }
-
-/* v10.0.468 · Mode pill active breathe · was 0-alpha → MAX-alpha
- * shadow tween · now opacity 0..1 on a fixed-shadow pseudo. */
-@keyframes mode-pill-active-breathe {
-  0%, 100% { opacity: 0; }
-  50%      { opacity: 1; }
-}
-.mode-pill-active {
-  position: relative;
-  isolation: isolate;
-}
-.mode-pill-active::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: 0 0 0 2px rgba(253, 185, 19, 0.25), 0 0 10px rgba(253, 185, 19, 0.1);
-  z-index: -1;
-  animation: mode-pill-active-breathe 2.2s ease-in-out infinite;
-}
 
 /* v10.0.468 · Pin reinforce single-shot green pulse · structurally
  * identical to a fade-in / fade-out · pseudo holds the shadow,

@@ -45,9 +45,10 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { logger as rootLogger } from "@/lib/logger";
 
-// v10.0.29 — structured logger for tasks-page client-side errors.
-// Pre-v10.0.29 the only diagnostic call was a console.error in load()
-// which didn't reach /system/errors.
+// `log` is a structured logger — but on the client (this file) it
+// only writes to the browser console; it does NOT reach /system/logs.
+// For operator-visible failure telemetry use reportClientError()
+// (imported below) — it posts to /api/errors → /system/logs.
 const log = rootLogger.withSurface("tasks/page");
 import { toast } from "sonner";
 // v10.0.529.15 · Button / Input / cn / Loader2 / Brain dropped here ·
@@ -74,10 +75,10 @@ import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 // on the client, so log.error() here never reached the operator.
 import { reportClientError } from "@/components/ui/client-error-telemetry";
 // KommandoShell dismantle · Phase 3 (2026-05-21) · <ProjectsPanel> was
-// the PLAN-tab Missions block · removed with the shell. Mission-create
-// now lives on /goals (GoalBoard's "Plan it" → MilestonesFlow). The
-// projects-panel.tsx file is retained for now — still imports goal↔
-// project bridge plumbing — but is no longer mounted here.
+// the PLAN-tab Missions block · removed with the shell, and the
+// projects-panel.tsx file was deleted in the 2026-05-21 dead-code
+// sweep. Mission-create now lives on /goals (GoalBoard's "Plan it" →
+// MilestonesFlow).
 import { NowPanel } from "@/components/actions/now-panel";
 // IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
 // folds the six intel/reflection widgets below the execution surface ·

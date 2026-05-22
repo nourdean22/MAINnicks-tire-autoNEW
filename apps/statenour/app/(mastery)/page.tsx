@@ -26,9 +26,9 @@ import { OperatorPulse } from "@/components/operator/operator-pulse";
  *
  * Self-hides on zero signal · clean morning is silent.
  *
- * /ultron + the legacy chip strip still exist · HomeStrip kept in
- * tree at components/home/home-strip.tsx for reference (can be
- * deleted in a follow-up commit once the narrator proves out).
+ * /ultron + the legacy chip strip still exist · HomeStrip — the
+ * pre-narrator home widget — was deleted in the 2026-05-21 dead-code
+ * sweep once HomeNarrator proved out.
  *
  * Wrapped automatically by `app/(mastery)/layout.tsx` which provides
  * NourStateProvider + AmbientAura + PageTracker + KeyboardShortcuts.
