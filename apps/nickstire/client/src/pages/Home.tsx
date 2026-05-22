@@ -394,7 +394,7 @@ function TrustNumbers({ reviewData }: { reviewData: HomeReviewData }) {
                     s.value
                   )}
                 </div>
-                <div className="mt-1 text-sm text-foreground/40 font-medium">{s.label}</div>
+                <div className="mt-1 text-sm text-foreground/60 font-medium">{s.label}</div>
               </div>
             </FadeIn>
           ))}
@@ -649,7 +649,7 @@ function Reviews({ reviewData }: { reviewData: HomeReviewData }) {
                 <p className="text-foreground/70 leading-relaxed flex-1 text-[0.95rem]">"{r.text}"</p>
                 <div className="mt-6 pt-5 border-t border-border">
                   <span className="font-semibold text-foreground text-sm">{r.name}</span>
-                  <span className="block text-foreground/30 text-xs mt-0.5">Google Review</span>
+                  <span className="block text-foreground/60 text-xs mt-0.5">Google Review</span>
                 </div>
               </div>
             </FadeIn>
@@ -679,11 +679,11 @@ function Contact() {
               <h2 className="font-heading text-4xl lg:text-5xl font-bold text-foreground tracking-tight uppercase">
                 Pull up anytime.
               </h2>
-              <p className="mt-4 text-foreground/40 text-lg">No appointment needed. Walk in 7 days a week, drop the keys, hail an Uber from our lot — we'll text the moment your car is ready. Some customers leave for a haircut and come back to a finished alignment.</p>
+              <p className="mt-4 text-foreground/60 text-lg">No appointment needed. Walk in 7 days a week, drop the keys, hail an Uber from our lot — we'll text the moment your car is ready. Some customers leave for a haircut and come back to a finished alignment.</p>
 
               <div className="mt-10 space-y-8">
                 <div>
-                  <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Location</h3>
+                  <h3 className="text-xs font-semibold text-foreground/60 uppercase tracking-widest mb-3">Location</h3>
                   <div className="flex items-start gap-3">
                     <MapPin className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="text-foreground/70">
@@ -694,7 +694,7 @@ function Contact() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Hours</h3>
+                  <h3 className="text-xs font-semibold text-foreground/60 uppercase tracking-widest mb-3">Hours</h3>
                   <div className="flex items-start gap-3">
                     <Clock className="w-4 h-4 text-primary mt-1 shrink-0" />
                     <div className="text-foreground/70">
@@ -705,7 +705,7 @@ function Contact() {
                 </div>
 
                 <div>
-                  <h3 className="text-xs font-semibold text-foreground/30 uppercase tracking-widest mb-3">Phone</h3>
+                  <h3 className="text-xs font-semibold text-foreground/60 uppercase tracking-widest mb-3">Phone</h3>
                   <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('contact')} className="flex items-center gap-3 group">
                     <Phone className="w-4 h-4 text-primary shrink-0" />
                     <span className="text-2xl font-semibold text-foreground group-hover:text-primary transition-colors tracking-tight">{BUSINESS.phone.display}</span>
