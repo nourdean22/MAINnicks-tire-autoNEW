@@ -13,7 +13,7 @@
  *  · Danger zone — links to destructive ops (reset brain, emergency stop)
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
@@ -21,11 +21,7 @@ import { toast } from "sonner";
 import type { PowerSettings, ProviderPin, QuietLevel } from "@/lib/services/power-panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { GlassCard } from "@/components/ui/glass-card";
-
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface Feed {
-  settings: PowerSettings;
-}
+import { trpc } from "@/lib/trpc/client";
 
 function dollars(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
@@ -41,26 +37,36 @@ function timeAgo(iso: string): string {
 }
 
 export default function PowerPanel() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/power", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      console.error("power panel load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase B.7b · React Query drives the power-panel snapshot (was a
+  // manual authedFetch with `cache: "no-store"` — staleTime: 0 plus
+  // the FreshnessChip refetch reproduce that). The settings shape
+  // flows from the procedure's `{ settings }` envelope.
+  const utils = trpc.useUtils();
+  const powerQuery = trpc.system.powerSettings.useQuery(undefined, {
+    staleTime: 0,
+  });
+  const feed = powerQuery.data ?? null;
+  const loading = powerQuery.isLoading;
+  const load = () => void powerQuery.refetch();
 
-  useEffect(() => { load(); }, [load]);
+  // Phase B.7b · single-setting patch via tRPC mutation. The
+  // mutation returns the fresh `{ settings }` snapshot; we seed the
+  // query cache with it so the panel reflects the change immediately
+  // (was a manual setFeed). Only the 6 mutable PowerSettings keys are
+  // patchable — the procedure's `key` enum enforces it.
+  const patchMutation = trpc.system.setPowerSetting.useMutation();
 
-  async function patch<K extends keyof PowerSettings>(
+  async function patch<
+    K extends
+      | "quietMode"
+      | "providerPin"
+      | "strictMode"
+      | "dailyCostCapCents"
+      | "pauseAllCrons"
+      | "shadowMode",
+  >(
     key: K,
     value: PowerSettings[K],
     opts?: { confirm?: string; toastMsg?: string },
@@ -68,14 +74,8 @@ export default function PowerPanel() {
     if (opts?.confirm && !window.confirm(opts.confirm)) return;
     setSaving(String(key));
     try {
-      const res = await authedFetch("/api/system/power", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ key, value }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
+      const result = await patchMutation.mutateAsync({ key, value });
+      utils.system.powerSettings.setData(undefined, result);
       toast.success(opts?.toastMsg ?? `${String(key)} updated`);
     } catch (e) {
       toast.error(`failed: ${e instanceof Error ? e.message : e}`);

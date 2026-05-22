@@ -11,31 +11,11 @@
  * VAPI API key stays server-side via /api/system/vapi-calls.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
-import { authedFetch } from "@/hooks/use-authed-fetch";
-
-interface MostRecent {
-  id: string;
-  createdAt?: string;
-  status?: string;
-  endedReason?: string | null;
-  durationSec?: number | null;
-}
-
-interface CallStats {
-  windowDays: number;
-  sinceIso: string;
-  totalCalls: number;
-  byStatus: Record<string, number>;
-  byEndedReason: Record<string, number>;
-  avgDurationSec: number;
-  mostRecent: MostRecent | null;
-  totalCostUsd: number;
-  error?: string;
-}
+import { trpc } from "@/lib/trpc/client";
 
 const WINDOWS = [
   { label: "1d", days: 1 },
@@ -45,40 +25,17 @@ const WINDOWS = [
 ] as const;
 
 export default function VapiCallsPage() {
-  const [data, setData] = useState<CallStats | null>(null);
   const [days, setDays] = useState<number>(7);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch(`/api/system/vapi-calls?days=${days}`);
-      if (!r.ok) {
-        setError(`HTTP ${r.status}`);
-        setData(null);
-        return;
-      }
-      const payload = (await r.json()) as { data: CallStats } | CallStats;
-      const stats = "data" in payload ? payload.data : payload;
-      setData(stats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7b · React Query drives the fetch + the 60s auto-refresh
+  // (was a manual setInterval over authedFetch). The input object is
+  // the query key, so switching the window pill refetches without a
+  // manual load(). The VAPI call-stats shape flows from the procedure.
+  const { data, isLoading, error } = trpc.system.vapiCalls.useQuery(
+    { days },
+    { refetchInterval: 60_000, staleTime: 30_000 },
+  );
+  const loading = isLoading;
 
   const fmtAgo = (iso?: string) => {
     if (!iso) return "—";
@@ -115,7 +72,7 @@ export default function VapiCallsPage() {
 
       {(error || data?.error) && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-[12px] text-red-300">
-          {error || data?.error}
+          {error ? error.message : data?.error}
         </div>
       )}
 

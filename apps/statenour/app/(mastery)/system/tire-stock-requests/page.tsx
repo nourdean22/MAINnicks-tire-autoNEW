@@ -15,12 +15,12 @@
  * Window selector · 1d / 7d / 30d / 90d. Auto-refresh 60s.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface SizeAgg {
   size: string;
@@ -105,7 +105,6 @@ const WINDOWS = [
 ] as const;
 
 export default function TireStockRequestsPage() {
-  const [data, setData] = useState<TireStockData | null>(null);
   const [days, setDays] = useState<number>(30);
   // v10.0.440 · sort key · 4 modes
   type TireSort = "newest" | "oldest" | "urgent-first" | "quantity-most";
@@ -119,38 +118,18 @@ export default function TireStockRequestsPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("tire-stock:sortKey", sortKey);
   }, [sortKey]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch(`/api/system/tire-stock-requests?days=${days}`);
-      if (!r.ok) {
-        setError(`HTTP ${r.status}`);
-        setData(null);
-        return;
-      }
-      const payload = (await r.json()) as { data: TireStockData } | TireStockData;
-      const stats = "data" in payload ? payload.data : payload;
-      setData(stats);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7b · React Query drives the fetch + the 60s auto-refresh
+  // (was a manual setInterval over authedFetch). The input object is
+  // the query key, so switching the window pill refetches without a
+  // manual load(). The TireStockData shape flows from the procedure.
+  const stockQuery = trpc.system.tireStockRequests.useQuery(
+    { days },
+    { refetchInterval: 60_000, staleTime: 30_000 },
+  );
+  const data = stockQuery.data ?? null;
+  const loading = stockQuery.isLoading;
+  const error = stockQuery.error;
 
   const fmtAgo = (iso?: string | null) => {
     if (!iso) return "—";
@@ -189,7 +168,7 @@ export default function TireStockRequestsPage() {
 
       {error && (
         <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-[11px] text-red-300">
-          Failed to load · {error}
+          Failed to load · {error.message}
         </div>
       )}
 

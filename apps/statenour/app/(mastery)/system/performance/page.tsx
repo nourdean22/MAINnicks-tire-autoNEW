@@ -19,12 +19,12 @@
  * feel them.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import { AlertCircle, Flame, Timer, TrendingUp } from "lucide-react";
 
@@ -70,34 +70,24 @@ function errorRateClass(rate: number): string {
 }
 
 export default function PerformancePage() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [hours, setHours] = useState(24);
   const [search, setSearch] = useState("");
   const [showSlowOnly, setShowSlowOnly] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(
-        `/api/system/performance?hours=${hours}`,
-        { cache: "no-store" },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json.data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [hours]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase B.7b · React Query drives the per-route latency fetch (was a
+  // manual authedFetch with `cache: "no-store"`). The input object is
+  // the query key, so switching the window pill refetches without a
+  // manual load(). The Payload shape flows from the procedure.
+  const {
+    data,
+    isLoading: loading,
+    error,
+    refetch,
+  } = trpc.system.routePerformance.useQuery(
+    { hours },
+    { staleTime: 0 },
+  );
+  const load = () => void refetch();
 
   const filtered = useMemo(() => {
     if (!data) return [];
@@ -133,7 +123,7 @@ export default function PerformancePage() {
         <Panel className="border-rose-500/40 bg-rose-500/10">
           <div className="flex items-center gap-2 p-3 text-sm text-rose-200">
             <AlertCircle className="h-4 w-4" />
-            <span>{error}</span>
+            <span>{error.message}</span>
           </div>
         </Panel>
       )}

@@ -35,18 +35,20 @@
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import {
-  getEntityHistory,
-  getActorActivity,
-  type AuditAction,
-} from "@/lib/db/entity-audit";
+import { getEntityHistory, type AuditAction } from "@/lib/db/entity-audit";
 // Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
 // the global-firehose branch delegates to the shared
 // `brain-domain.buildActivityStream` so this route AND the new
 // `trpc.brain.activityStream` procedure call the same function · drift
-// impossible. The per-entity + actor-firehose modes stay route-local
-// (no tRPC consumer in this slice).
+// impossible.
 import { buildActivityStream } from "@/lib/services/brain-domain";
+// Phase B.7b (2026-05-22 · legacy-modernizer REST→tRPC system-pages
+// slice) · the actor-firehose branch delegates to the shared
+// `system-pages-b.buildActorActivity` so this route AND the new
+// `trpc.system.actorActivity` procedure call the same function · drift
+// impossible. The per-entity mode stays route-local (served on the tRPC
+// side by the existing `system.entityHistory` procedure).
+import { buildActorActivity } from "@/lib/services/system-pages-b";
 
 const ALLOWED_ACTIONS: ReadonlyArray<AuditAction> = [
   "created",
@@ -85,11 +87,12 @@ export const GET = apiHandler(async (req) => {
   // /brain/continuity's "what's happening across the system" surface.
   if (firehose) {
     if (actor) {
-      const entries = await getActorActivity(actor, { limit, since });
-      return { count: entries.length, entries, mode: "actor-firehose" };
+      // Actor-firehose · routed through the shared service so this
+      // route and trpc.system.actorActivity can't drift.
+      return buildActorActivity({ actor, action, since, limit });
     }
-    // Global firehose · the only mode with a tRPC consumer · routed
-    // through the shared service so both transports can't drift.
+    // Global firehose · routed through the shared service so both
+    // transports can't drift.
     return buildActivityStream({ limit, since });
   }
 

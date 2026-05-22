@@ -16,12 +16,12 @@
  *   "Is the database where I think it is, and how did it get there?"
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -96,36 +96,28 @@ function envColor(env: string): string {
 }
 
 export default function SchemaHistoryPage() {
-  const [data, setData] = useState<LedgerPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [envFilter, setEnvFilter] = useState<EnvFilter>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const url =
-        envFilter === "all"
-          ? "/api/system/schema-history?limit=100"
-          : `/api/system/schema-history?limit=100&env=${envFilter}`;
-      const res = await authedFetch(url);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: LedgerPayload } & LedgerPayload;
-      setData(j.data ?? (j as LedgerPayload));
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [envFilter]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase B.7b · React Query drives the ledger fetch (was a manual
+  // authedFetch). The input object is the query key, so switching the
+  // env filter refetches without a manual load(). The LedgerPayload
+  // shape flows from the procedure (every Date already ISO-stringified
+  // service-side).
+  const historyQuery = trpc.system.schemaHistory.useQuery(
+    {
+      limit: 100,
+      env: envFilter === "all" ? undefined : envFilter,
+    },
+    { staleTime: 30_000 },
+  );
+  const data = historyQuery.data ?? null;
+  const loading = historyQuery.isLoading;
+  const error = historyQuery.error;
+  const load = () => void historyQuery.refetch();
+  const lastFetched = historyQuery.dataUpdatedAt
+    ? new Date(historyQuery.dataUpdatedAt)
+    : null;
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded((s) => {
@@ -158,7 +150,7 @@ export default function SchemaHistoryPage() {
     >
       {error && !data && (
         <Panel className="border-rose-500/40 bg-rose-500/[0.05]">
-          <p className="p-3 text-[12px] text-rose-200">{error}</p>
+          <p className="p-3 text-[12px] text-rose-200">{error.message}</p>
         </Panel>
       )}
 

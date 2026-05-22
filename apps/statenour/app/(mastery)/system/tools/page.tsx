@@ -17,12 +17,12 @@
  * palette, search filters both tool name AND description.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import { AlertCircle, Beaker, CheckCircle2, DollarSign, Pencil, Search } from "lucide-react";
 
@@ -93,9 +93,6 @@ const FAMILY_BG: Record<string, string> = {
 };
 
 export default function ToolsPage() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "mutating" | "expensive" | "unregistered">("all");
   const [selectedFamily, setSelectedFamily] = useState<string | null>(null);
@@ -112,24 +109,17 @@ export default function ToolsPage() {
     window.localStorage.setItem("system-tools:sortKey", sortKey);
   }, [sortKey]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/tools/stats", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json.data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase B.7b · React Query drives the tool-inventory fetch (was a
+  // manual authedFetch with `cache: "no-store"` — the tRPC query's
+  // staleTime: 0 + the FreshnessChip's refetch reproduce that). The
+  // Payload shape flows from the procedure's return type.
+  const {
+    data,
+    isLoading: loading,
+    error,
+    refetch,
+  } = trpc.system.toolStats.useQuery(undefined, { staleTime: 0 });
+  const load = () => void refetch();
 
   const filteredByFamily = useMemo(() => {
     if (!data) return new Map<string, ToolRow[]>();
@@ -204,7 +194,7 @@ export default function ToolsPage() {
         <Panel className="border-rose-500/40 bg-rose-500/10">
           <div className="flex items-center gap-2 p-3 text-sm text-rose-200">
             <AlertCircle className="h-4 w-4" />
-            <span>{error}</span>
+            <span>{error.message}</span>
           </div>
         </Panel>
       )}

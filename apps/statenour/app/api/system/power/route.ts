@@ -1,14 +1,21 @@
 import { apiHandler } from "@/lib/utils/http";
 import { z } from "zod";
-import { getPowerSettings, setPowerSetting, type PowerSettings } from "@/lib/services/power-panel";
-import { setCronEnabled } from "@/lib/services/cron-control";
-import { CRONS } from "@/config/crons";
+import { getPowerSettings, type PowerSettings } from "@/lib/services/power-panel";
+import { applyPowerSetting } from "@/lib/services/system-pages-b";
 
 /**
  * GET  /api/system/power           → full settings snapshot
  * POST /api/system/power           → patch a single setting
  * POST /api/system/power/pause-all → flip every cron off (emergency stop)
  * POST /api/system/power/resume-all → flip every cron back on
+ *
+ * Phase B.7b (2026-05-22 · legacy-modernizer REST→tRPC system-pages
+ * slice) · the POST patch logic (incl. the `pauseAllCrons` per-cron
+ * kill-switch fan-out) moved to the shared
+ * `lib/services/system-pages-b.applyPowerSetting` service · this route
+ * AND the new `trpc.system.setPowerSetting` procedure call the same
+ * function · drift impossible. The route stays mounted as the rollback
+ * path.
  */
 
 const PatchSchema = z.object({
@@ -28,6 +35,7 @@ export const GET = apiHandler(async () => {
   const settings = await getPowerSettings();
   return { settings };
 }, { auth: "owner" }); // v9.1.17 · added by add-get-route-auth.ts
+
 export const POST = apiHandler(async (req) => {
   const body = PatchSchema.parse(await req.json());
   // Validate provider pin ⊆ accepted enum.
@@ -41,17 +49,9 @@ export const POST = apiHandler(async (req) => {
       throw Object.assign(new Error("invalid quietMode"), { status: 400, code: "QUIET_INVALID" });
     }
   }
-  // pauseAllCrons is a pseudo-setting — also fans out to per-cron kill switches
-  // so the existing /system/crons respects it too.
-  if (body.key === "pauseAllCrons") {
-    const enable = !body.value;
-    await Promise.all(
-      CRONS.filter((c) => c.mode === "active").map((c) =>
-        setCronEnabled(c.name, enable, "bulk via /system/power"),
-      ),
-    );
-  }
-  await setPowerSetting(body.key as keyof PowerSettings, body.value as never, body.note);
-  const settings = await getPowerSettings();
-  return { settings };
+  return applyPowerSetting({
+    key: body.key as keyof PowerSettings,
+    value: body.value,
+    note: body.note,
+  });
 }, { auth: "owner" }); // v9.1.17 · added by add-get-route-auth.ts
