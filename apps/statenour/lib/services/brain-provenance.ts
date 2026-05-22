@@ -32,6 +32,13 @@ export interface ProvenanceHit {
   content: string;
   confidence: number;
   ageDays: number;
+  /**
+   * KNN cosine distance (0 = identical). Carried through verbatim
+   * from `RecallHit` via the `...h` spread below — the interface
+   * declares it so tRPC-inferred consumers (the ReasoningTraceModal's
+   * `match %` readout) see the field the runtime already returns.
+   */
+  knnDistance: number;
   finalScore: number;
   bdi?: BdiType;
   coala?: CoalaKind;

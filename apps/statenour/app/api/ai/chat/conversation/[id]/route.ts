@@ -17,8 +17,11 @@
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
+import {
+  updateConversation,
+  ConversationNotFoundError,
+} from "@/lib/services/chat-conversation";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -51,40 +54,27 @@ export async function PATCH(
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
-  const data: Record<string, unknown> = {};
-  if (typeof body.archived === "boolean") data.archivedAt = body.archived ? new Date() : null;
-  if (typeof body.starred === "boolean")  data.starredAt  = body.starred  ? new Date() : null;
-  if (typeof body.muted === "boolean")    data.mutedAt    = body.muted    ? new Date() : null;
-  if (typeof body.title === "string") {
-    const t = body.title.trim().slice(0, 200);
-    if (t) data.title = t;
-  }
-
-  if (Object.keys(data).length === 0) {
-    return NextResponse.json({ error: "no fields to update" }, { status: 400 });
-  }
-
+  // Phase B.5 · the flag-toggle + title logic lives in the shared
+  // `updateConversation` service · `trpc.chat.updateConversation`
+  // calls the same function · drift impossible.
   try {
-    const updated = await prisma.chatConversation.update({
-      where: { id },
-      data: data as Parameters<typeof prisma.chatConversation.update>[0]["data"],
-      select: {
-        id: true,
-        title: true,
-        archivedAt: true,
-        starredAt: true,
-        mutedAt: true,
-        lastActiveAt: true,
-        messageCount: true,
-      },
+    const result = await updateConversation({
+      id,
+      archived: body.archived,
+      starred: body.starred,
+      muted: body.muted,
+      title: body.title,
     });
-    return NextResponse.json({ ok: true, conversation: updated });
+    return NextResponse.json(result);
   } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === "P2025") return NextResponse.json({ error: "conversation not found" }, { status: 404 });
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "update failed" },
-      { status: 500 },
-    );
+    if (err instanceof ConversationNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
+    const msg = err instanceof Error ? err.message : "update failed";
+    // "no fields to update" is a client error · everything else 500s.
+    if (msg === "no fields to update") {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

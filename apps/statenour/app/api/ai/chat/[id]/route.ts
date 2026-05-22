@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
 import { requireSession } from "@/lib/auth-guard";
+import { deleteConversation } from "@/lib/services/chat-conversation";
 export const maxDuration = 60;
 
 export async function GET(
@@ -105,7 +106,8 @@ export async function DELETE(
   await requireSession(req);
   const { id } = await params;
 
-  await prisma.chatConversation.delete({ where: { id } }).catch((): null => null);
-
-  return Response.json({ ok: true });
+  // Phase B.5 · idempotent hard-delete lives in the shared
+  // `deleteConversation` service · `trpc.chat.deleteConversation`
+  // calls the same function · drift impossible.
+  return Response.json(await deleteConversation({ id }));
 }

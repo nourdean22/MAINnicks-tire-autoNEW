@@ -14,61 +14,25 @@
  * Editorial layout per docs/aesthetic-principles.md (v10.0.352).
  */
 
-import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { bdiLabel, bdiTone, type BdiType } from "@/lib/brain/bdi";
 
-interface AnnotatedHit {
-  memoryId: string;
-  category: string;
-  key: string;
-  content: string;
-  confidence: number;
-  ageDays: number;
-  knnDistance: number;
-  finalScore: number;
-  bdi: BdiType;
-}
+// Phase B.5 (2026-05-22) · migrated from `authedFetch` +
+// useEffect/cancelled-flag to `trpc.chat.messageProvenance.useQuery`
+// (the same procedure MessageInfoCard already uses). The local
+// AnnotatedHit / JudgeRubric / ProvenanceResponse interfaces are
+// gone — types now flow from the procedure's return shape, so a
+// service-side change can't drift this modal silently.
 
+// JudgeRubric is the shape of the (intentionally `unknown`-typed)
+// feedback.judgment.rubric field · kept local for the readout cast.
 interface JudgeRubric {
   accuracy?: number;
   actionability?: number;
   brevity?: number;
   tone?: number;
   evidence?: number;
-}
-
-interface ProvenanceResponse {
-  message: {
-    id: string;
-    role: string;
-    contentPreview: string;
-    createdAt: string;
-  };
-  userContext: string | null;
-  recall: {
-    scanned: number;
-    durationMs: number;
-    hits: AnnotatedHit[];
-    bdiChain: string;
-  };
-  // v10.0.384 · post-stream feedback artifacts
-  feedback?: {
-    judgment: {
-      summary: string;
-      rubric: JudgeRubric | null;
-      composite: number | null;
-      flagForReview: boolean;
-      judgedAt: string;
-    } | null;
-    objection: {
-      summary: string;
-      severity: number;
-      foundFlaw: boolean;
-      raisedAt: string;
-    } | null;
-  };
 }
 
 const BDI_ORDER: BdiType[] = ["belief", "desire", "intention", "observation"];
@@ -91,30 +55,16 @@ interface Props {
 }
 
 export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
-  const [data, setData] = useState<ProvenanceResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open || !messageId) return;
-    let alive = true;
-    setLoading(true);
-    setError(null);
-    setData(null);
-    (async () => {
-      try {
-        const res = await authedFetch(`/api/brain/provenance/${messageId}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as ProvenanceResponse;
-        if (alive) setData(json);
-      } catch (err) {
-        if (alive) setError((err as Error).message);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => { alive = false; };
-  }, [open, messageId]);
+  // Phase B.5 · React Query handles the lazy fetch + cleanup ·
+  // `enabled` gates the call to "modal open AND a messageId is set",
+  // mirroring the pre-B.5 `if (!open || !messageId) return` guard.
+  const provenanceQ = trpc.chat.messageProvenance.useQuery(
+    { messageId: messageId ?? "" },
+    { enabled: open && !!messageId, retry: false },
+  );
+  const data = provenanceQ.data ?? null;
+  const loading = provenanceQ.isFetching;
+  const error = provenanceQ.error ? provenanceQ.error.message : null;
 
   if (!open) return null;
 
@@ -204,7 +154,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                       </span>
                     )}
                   </p>
-                  {data.feedback.judgment.rubric && (
+                  {!!data.feedback.judgment.rubric && (
                     <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-2 text-[11px] font-mono">
                       {([
                         ["accuracy", "ACC"],
@@ -213,7 +163,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
                         ["tone", "TONE"],
                         ["evidence", "EVD"],
                       ] as const).map(([key, label]) => {
-                        const v = (data.feedback!.judgment!.rubric as Record<string, number | undefined>)[key];
+                        const v = (data.feedback!.judgment!.rubric as JudgeRubric)[key];
                         if (v === undefined) return null;
                         const tone =
                           v >= 8

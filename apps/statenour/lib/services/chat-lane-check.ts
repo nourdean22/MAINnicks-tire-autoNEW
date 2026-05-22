@@ -188,3 +188,63 @@ export async function checkLane(args: LaneCheckArgs): Promise<LaneCheckResult> {
 
   return { chip };
 }
+
+/**
+ * Phase B.5 (2026-05-22) · record a lane-correction chip tap/dismiss.
+ *
+ * Extracted from `app/api/ai/chat/lane-check/feedback/route.ts` so the
+ * legacy REST endpoint AND the new `trpc.chat.laneCheckFeedback`
+ * mutation both call this single function · drift impossible. Folded
+ * into this module (rather than a new file) because it's the write
+ * side of the same lane-check feature `checkLane` above serves.
+ *
+ * Writes a SystemMetric row (metric="lane.chip.feedback", value=1
+ * on tap / 0 on dismiss, tags={action, domain, severity, msgHash}).
+ * NON-FATAL by contract · the Prisma write is `.catch(() => {})` and
+ * any thrown error is swallowed to a `{ ok: true }` — feedback
+ * telemetry must never break the chip UI. The legacy route mirrors
+ * this by returning HTTP 200 even on failure.
+ */
+export interface LaneCheckFeedbackArgs {
+  action: "tapped" | "dismissed";
+  domain: string;
+  severity?: string;
+  userMessage?: string;
+  assistantMessage?: string;
+}
+
+export async function recordLaneCheckFeedback(
+  args: LaneCheckFeedbackArgs,
+): Promise<{ ok: true }> {
+  try {
+    const msgSample =
+      (args.userMessage || "").slice(-80) +
+      "|" +
+      (args.assistantMessage || "").slice(-80);
+    let h = 0;
+    for (let i = 0; i < msgSample.length; i++) {
+      h = (h * 31 + msgSample.charCodeAt(i)) | 0;
+    }
+    const msgHash = String(h);
+
+    await prisma.systemMetric
+      .create({
+        data: {
+          metric: "lane.chip.feedback",
+          value: args.action === "tapped" ? 1 : 0,
+          unit: "bool",
+          source: "api",
+          tags: {
+            action: args.action,
+            domain: args.domain,
+            severity: args.severity || "unknown",
+            msgHash,
+          } as Parameters<typeof prisma.systemMetric.create>[0]["data"]["tags"],
+        },
+      })
+      .catch(() => {});
+  } catch {
+    // Telemetry can't break a user action · swallow.
+  }
+  return { ok: true };
+}

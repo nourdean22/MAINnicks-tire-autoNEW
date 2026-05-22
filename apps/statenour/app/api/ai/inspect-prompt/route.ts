@@ -19,21 +19,15 @@
 
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import {
-  getCachedPrompt,
   setCachedPrompt,
   invalidatePromptCache,
 } from "@/lib/ai/system-prompt-cache";
 import { getActiveProviderInfo } from "@/lib/ai/provider";
 import { recordError } from "@/lib/errors/record-error";
+import { inspectPrompt } from "@/lib/services/chat-prompt-inspect";
 
 import { requireSession } from "@/lib/auth-guard";
 export const dynamic = "force-dynamic";
-
-// Rough heuristic: 4 chars per token for English text.
-// Not exact but good enough for a UI readout.
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
 
 export async function GET(req: Request) {
   // v10.0.183 · the GET path leaked the assembled system prompt
@@ -45,54 +39,36 @@ export async function GET(req: Request) {
   const raw = url.searchParams.get("raw") === "1";
 
   try {
-    const { provider, modelId } = getActiveProviderInfo();
-
-    if (fresh) invalidatePromptCache();
-
-    let prompt: string;
-    let fromCache: boolean;
-    const buildStart = Date.now();
-
-    const cached = getCachedPrompt(provider, "full");
-    if (cached) {
-      prompt = cached;
-      fromCache = true;
-    } else {
-      prompt = await buildSystemPrompt();
-      setCachedPrompt(provider, "full", prompt);
-      fromCache = false;
-    }
-
-    const buildMs = Date.now() - buildStart;
-
-    // Venice context window — keep in sync with route.ts MAX_SYSTEM_CHARS
-    const maxSystemChars = provider === "anthropic" ? 120_000 : 65_000;
-    const truncated = prompt.length > maxSystemChars;
-    const truncatedAt = truncated ? maxSystemChars : null;
-    const effectivePrompt = truncated ? prompt.slice(0, maxSystemChars) : prompt;
+    // Phase B.5 · the prompt build + cache + truncation analysis live
+    // in the shared `inspectPrompt` service · `trpc.chat.inspectPrompt`
+    // calls the same function · drift impossible. The service result
+    // carries the full effective prompt as `.prompt` · this route
+    // still serves it as text/plain on `?raw=1` and as a preview-only
+    // JSON shape otherwise (back-compat with pre-B.5 REST consumers).
+    const r = await inspectPrompt({ fresh });
 
     if (raw) {
-      return new Response(effectivePrompt, {
+      return new Response(r.prompt, {
         headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
     }
 
     return Response.json({
-      provider,
-      modelId,
-      fromCache,
-      buildMs,
-      length: prompt.length,
-      effectiveLength: effectivePrompt.length,
-      wordCount: prompt.split(/\s+/).filter(Boolean).length,
-      tokenEstimate: estimateTokens(effectivePrompt),
-      maxSystemChars,
-      truncated,
-      truncatedAt,
-      // Send a preview — the full prompt can be many KB. UI fetches
-      // ?raw=1 when it wants the complete text.
-      preview: effectivePrompt.slice(0, 2000),
-      tail: effectivePrompt.slice(-1000),
+      provider: r.provider,
+      modelId: r.modelId,
+      fromCache: r.fromCache,
+      buildMs: r.buildMs,
+      length: r.length,
+      effectiveLength: r.effectiveLength,
+      wordCount: r.wordCount,
+      tokenEstimate: r.tokenEstimate,
+      maxSystemChars: r.maxSystemChars,
+      truncated: r.truncated,
+      truncatedAt: r.truncatedAt,
+      // Preview-only — the full prompt can be many KB. Legacy UI
+      // fetches ?raw=1 when it wants the complete text.
+      preview: r.preview,
+      tail: r.tail,
     });
   } catch (err) {
     recordError("chat:prompt-build", err);

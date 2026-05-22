@@ -24,13 +24,16 @@ import { cn } from "@/lib/utils";
 import { X, Search, MessageSquare, User, Bot, Loader2, Download, Star, Archive, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 
 // Phase Z (2026-05-18 PM) · Snippet + SearchResultGroup types now flow
 // from the chat.search procedure's return shape · the manual mirrors
-// are removed below. Mutations (toggleConvoFlag, deleteConvo) stay
-// on REST per coexistence pattern.
+// are removed below.
+//
+// Phase B.5 (2026-05-22) · toggleConvoFlag + deleteConvo migrated off
+// `authedFetch` onto `trpc.chat.updateConversation` /
+// `trpc.chat.deleteConversation` mutations · the search query was
+// already on tRPC (Phase Z).
 
 interface ChatHistorySearchProps {
   open: boolean;
@@ -98,29 +101,30 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
     };
   }, [query]);
 
-  const toggleConvoFlag = useCallback(async (conversationId: string, flag: "starred" | "archived") => {
-    try {
-      const r = await authedFetch(`/api/ai/chat/conversation/${conversationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ [flag]: true }),
-      });
-      if (r.ok) {
+  // Phase B.5 · React Query mutations replace the authedFetch PATCH /
+  // DELETE. onSuccess/onError preserve the prior toast + cache-refresh
+  // behavior exactly.
+  const updateConvoMut = trpc.chat.updateConversation.useMutation();
+  const deleteConvoMut = trpc.chat.deleteConversation.useMutation();
+
+  const toggleConvoFlag = useCallback(
+    async (conversationId: string, flag: "starred" | "archived") => {
+      try {
+        await updateConvoMut.mutateAsync({ id: conversationId, [flag]: true });
         toast.success(flag === "starred" ? "Starred" : "Archived");
         refreshSearch();
-      } else {
+      } catch {
         toast.error("Failed");
       }
-    } catch {
-      toast.error("Failed");
-    }
-  }, [refreshSearch]);
+    },
+    [updateConvoMut, refreshSearch],
+  );
 
-  const deleteConvo = useCallback(async (conversationId: string, title: string) => {
-    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
-    try {
-      const r = await authedFetch(`/api/ai/chat/${conversationId}`, { method: "DELETE" });
-      if (r.ok) {
+  const deleteConvo = useCallback(
+    async (conversationId: string, title: string) => {
+      if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+      try {
+        await deleteConvoMut.mutateAsync({ id: conversationId });
         toast.success("deleted");
         // Phase Z · optimistic drop · setData() removes the row from
         // React Query's cache so the list updates immediately without
@@ -135,13 +139,12 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
             : old,
         );
         void utils.chat.search.invalidate();
-      } else {
+      } catch {
         toast.error("Delete failed");
       }
-    } catch {
-      toast.error("Delete failed");
-    }
-  }, [utils, trimmedDebounced]);
+    },
+    [deleteConvoMut, utils, trimmedDebounced],
+  );
 
   const handleJump = useCallback(
     (conversationId: string) => {

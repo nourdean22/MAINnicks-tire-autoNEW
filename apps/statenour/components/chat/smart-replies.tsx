@@ -23,7 +23,8 @@ import { cn } from "@/lib/utils";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { Sparkles } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
+
 interface SmartRepliesProps {
   /** Last user message that kicked off this assistant reply */
   userMessage: string;
@@ -47,6 +48,14 @@ export function SmartReplies({
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Phase B.5 · the smart-reply fetch migrated off `authedFetch` onto
+  // the `trpc.chat.suggestions` query. It's modeled as a lazy
+  // imperative fetch (`utils.chat.suggestions.fetch`) — not a
+  // useQuery — because the component owns a deliberate 250ms
+  // delay-after-stream + a cancelled-guard that React Query's
+  // staleTime can't express. `utils` is stable across renders.
+  const utils = trpc.useUtils();
+
   useEffect(() => {
     // Don't bother on short replies (acks, one-word answers).
     if (!assistantMessage || assistantMessage.trim().length < 40) {
@@ -61,13 +70,10 @@ export function SmartReplies({
     // Small delay so we don't fire during the final token stream.
     const delay = setTimeout(async () => {
       try {
-        const res = await authedFetch("/api/ai/chat/suggestions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userMessage, assistantMessage }),
+        const data = await utils.chat.suggestions.fetch({
+          userMessage,
+          assistantMessage,
         });
-        if (!res.ok) throw new Error("bad response");
-        const data = (await res.json()) as { suggestions?: string[] };
         if (cancelled) return;
         const out = Array.isArray(data.suggestions)
           ? data.suggestions.filter((s) => typeof s === "string" && s.trim().length > 0)

@@ -132,13 +132,25 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [tArr, gWrapped, pArr] = await Promise.all([
-        utils.task.list.fetch(undefined).catch((): Task[] => []),
-        utils.task.goals
-          .fetch(undefined)
-          .catch((): { goals: GoalRow[] } => ({ goals: [] })),
-        utils.task.missions.fetch().catch((): ProjectRow[] => []),
-      ]);
+      // Phase B.5 · fire all three tRPC reads concurrently, then await
+      // each separately. The prior `await Promise.all([...])` form tripped
+      // TS2589 ("excessively deep") once the chat-router slice grew the
+      // AppRouter type — Promise.all's 3-tuple inference over three deep
+      // tRPC fetch types crossed TS's instantiation-depth limit. Awaiting
+      // the pre-started promises individually keeps the concurrency and
+      // the resolved types identical, without the tuple inference.
+      const tasksP = utils.task.list
+        .fetch(undefined)
+        .catch((): Task[] => []);
+      const goalsP = utils.task.goals
+        .fetch(undefined)
+        .catch((): { goals: GoalRow[] } => ({ goals: [] }));
+      const projectsP = utils.task.missions
+        .fetch()
+        .catch((): ProjectRow[] => []);
+      const tArr = await tasksP;
+      const gWrapped = await goalsP;
+      const pArr = await projectsP;
       setTasks(Array.isArray(tArr) ? (tArr as Task[]) : []);
       const gArr = gWrapped?.goals ?? [];
       setGoals(Array.isArray(gArr) ? (gArr as GoalRow[]) : []);

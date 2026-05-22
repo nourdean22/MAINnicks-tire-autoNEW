@@ -22,7 +22,6 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Eye, AlertTriangle, ArrowUpRight, X } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/lib/trpc/root";
@@ -75,6 +74,14 @@ export function LaneCorrectionChip({ userMessage, assistantMessage, messageId, h
       retry: false, // chip is decoration · no retry storm if it fails
     },
   );
+  // Phase B.5 · feedback POST migrated off `authedFetch` onto the
+  // `trpc.chat.laneCheckFeedback` mutation. Fired via `.mutate()`
+  // (no await) so it stays fire-and-forget — the chip is decoration ·
+  // a failed feedback write must never block the tap navigation or
+  // the dismiss. The server procedure is itself non-fatal (HTTP-200-
+  // equivalent), so there's no error path to surface.
+  const feedbackMut = trpc.chat.laneCheckFeedback.useMutation();
+
   const chip = data?.chip ?? null;
 
   if (hidden || dismissed || !chip) return null;
@@ -82,18 +89,13 @@ export function LaneCorrectionChip({ userMessage, assistantMessage, messageId, h
   const Icon = chip.severity === "critical" || chip.severity === "high" ? AlertTriangle : Eye;
 
   const sendFeedback = (action: "tapped" | "dismissed") => {
-    authedFetch("/api/ai/chat/lane-check/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      keepalive: true,
-      body: JSON.stringify({
-        action,
-        domain: chip.domain,
-        severity: chip.severity,
-        userMessage,
-        assistantMessage,
-      }),
-    }).catch(() => {});
+    feedbackMut.mutate({
+      action,
+      domain: chip.domain,
+      severity: chip.severity,
+      userMessage,
+      assistantMessage,
+    });
   };
 
   return (

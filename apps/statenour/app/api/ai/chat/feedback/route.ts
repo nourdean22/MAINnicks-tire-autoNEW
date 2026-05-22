@@ -19,9 +19,13 @@
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { logger as rootLogger } from "@/lib/logger";
+import {
+  recordMessageFeedback,
+  InvalidFeedbackScoreError,
+  MessageFeedbackNotFoundError,
+} from "@/lib/services/chat-feedback";
 
 const log = rootLogger.withSurface("ai/chat/feedback");
 
@@ -64,128 +68,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "messageId required" }, { status: 400 });
   }
 
-  // score: null clears, 0 also clears, ±1 set
-  const rawScore = body.score;
-  let nextScore: number | null;
-  if (rawScore == null || rawScore === 0) {
-    nextScore = null;
-  } else if (rawScore === 1 || rawScore === -1) {
-    nextScore = rawScore;
-  } else {
-    return NextResponse.json({ error: "score must be -1, 0, 1, or null" }, { status: 400 });
-  }
-
+  // Phase B.5 · score normalization + 3-tier messageId resolution +
+  // the fire-and-forget BrainMemory / AuditEvent writes all live in
+  // the shared `recordMessageFeedback` service · `trpc.chat.message
+  // Feedback` calls the same function · drift impossible.
   try {
-    // v10.0.111 audit fix · single-user system today, but verifying
-    // the message exists (and is the kind we accept feedback on) is
-    // cheap and closes the door on cross-conversation feedback if a
-    // second user account is ever introduced.
-    //
-    // v10.0.517 · fresh-stream fallback (see header comment).
-    let existing = await prisma.chatMessage.findUnique({
-      where: { id: body.messageId },
-      select: { id: true, conversationId: true, role: true },
+    const result = await recordMessageFeedback({
+      messageId: body.messageId,
+      score: body.score ?? null,
+      reason: body.reason,
+      snippet: body.snippet,
+      conversationId: body.conversationId,
     });
-    if (!existing && body.conversationId) {
-      existing = await prisma.chatMessage.findFirst({
-        where: { conversationId: body.conversationId, role: "assistant" },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, conversationId: true, role: true },
-      });
-    }
-    // v10.0.518 · ultimate fallback for fresh-stream feedback when
-    // the chat page can't pass conversationId yet (first message of
-    // a brand-new conversation). Single-operator system · "latest
-    // assistant within the last 60s" resolves to the click target.
-    if (!existing) {
-      existing = await prisma.chatMessage.findFirst({
-        where: {
-          role: "assistant",
-          createdAt: { gte: new Date(Date.now() - 60_000) },
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, conversationId: true, role: true },
-      });
-    }
-    if (!existing) {
-      return NextResponse.json({ error: "message not found" }, { status: 404 });
-    }
-
-    const updated = await prisma.chatMessage.update({
-      where: { id: existing.id },
-      data: { feedbackScore: nextScore },
-      select: { id: true, feedbackScore: true, conversationId: true },
-    });
-
-    // Fire-and-forget: persist a brain_memory note for the learning
-    // loop to mine later. Negative feedback gets higher confidence
-    // (we want to learn from misses).
-    if (nextScore != null) {
-      // v10.0.515 · #6 preference loop · pull provider/model/persona/
-      // traceId off the message's tokenUsage blob so the nightly
-      // learner cron has the full turn signal pinned to each thumbs.
-      const fullMsg = await prisma.chatMessage
-        .findUnique({
-          where: { id: updated.id },
-          select: { tokenUsage: true, model: true, content: true },
-        })
-        .catch(() => null);
-      const usage = (fullMsg?.tokenUsage ?? {}) as Record<string, unknown>;
-
-      const reason =
-        typeof body.reason === "string" && body.reason.length > 0
-          ? body.reason.slice(0, 1000)
-          : null;
-      const snippet =
-        typeof body.snippet === "string" && body.snippet.length > 0
-          ? body.snippet.slice(0, 200)
-          : (fullMsg?.content ?? "").slice(0, 200);
-
-      const payload = {
-        messageId: updated.id,
-        conversationId: updated.conversationId,
-        score: nextScore,
-        rating: nextScore > 0 ? "up" : "down",
-        reason,
-        snippet,
-        model: fullMsg?.model ?? null,
-        provider: typeof usage.provider === "string" ? usage.provider : null,
-        persona: typeof usage.persona === "string" ? usage.persona : null,
-        traceId: typeof usage.traceId === "string" ? usage.traceId : null,
-        at: new Date().toISOString(),
-      };
-
-      // Brain memory · today's contextual recall reads this.
-      void prisma.brainMemory
-        .create({
-          data: {
-            category: "chat_feedback",
-            key: `feedback:${updated.id}`,
-            source: "chat_ui",
-            content: `score=${nextScore} on message ${updated.id} in conv ${updated.conversationId.slice(0, 8)}${reason ? ` · reason: ${reason}` : ""}`,
-            confidence: nextScore < 0 ? 0.85 : 0.6,
-            metadata: payload as unknown as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
-          },
-        })
-        .catch(() => undefined);
-
-      // v10.0.515 · #6 · AuditEvent stream for the learner cron
-      // (Phase 2 work). Append-only · pinned to messageId so the
-      // cron can join back to ChatMessage + AgentTrace by traceId.
-      void prisma.auditEvent
-        .create({
-          data: {
-            actor: "operator",
-            eventType: "chat_feedback",
-            detail: `${payload.rating} · ${updated.id}`,
-            payload,
-          },
-        })
-        .catch(() => undefined);
-    }
-
-    return NextResponse.json({ ok: true, messageId: updated.id, feedbackScore: updated.feedbackScore });
+    return NextResponse.json(result);
   } catch (err) {
+    if (err instanceof InvalidFeedbackScoreError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
+    }
+    if (err instanceof MessageFeedbackNotFoundError) {
+      return NextResponse.json({ error: err.message }, { status: 404 });
+    }
     // v10.0.111 audit fix · do not echo Prisma error messages to
     // the client — Prisma's connection errors include the
     // DATABASE_URL string. Log full detail server-side.

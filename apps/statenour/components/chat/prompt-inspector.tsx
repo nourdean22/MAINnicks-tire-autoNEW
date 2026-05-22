@@ -21,22 +21,19 @@ import { useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { X, RefreshCw, Download, AlertTriangle, CheckCircle2 } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
-interface PromptStats {
-  provider: string;
-  modelId: string;
-  fromCache: boolean;
-  buildMs: number;
-  length: number;
-  effectiveLength: number;
-  wordCount: number;
-  tokenEstimate: number;
-  maxSystemChars: number;
-  truncated: boolean;
-  truncatedAt: number | null;
-  preview: string;
-  tail: string;
-}
+import { trpc } from "@/lib/trpc/client";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "@/lib/trpc/root";
+
+// Phase B.5 (2026-05-22) · migrated from a plain `fetch()` (JSON
+// metadata) + an `authedFetch("?raw=1")` (text/plain full prompt)
+// onto the single `trpc.chat.inspectPrompt` query. The procedure
+// can't return a raw text body, so it returns the full effective
+// prompt as the `prompt` field of the structured result — and the
+// "download full" action now reads that already-loaded field
+// instead of firing a second network call. PromptStats is the
+// procedure's return shape · types flow from the router.
+type PromptStats = inferRouterOutputs<AppRouter>["chat"]["inspectPrompt"];
 
 interface PromptInspectorProps {
   open: boolean;
@@ -49,21 +46,25 @@ export function PromptInspector({ open, onClose }: PromptInspectorProps) {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const load = useCallback(async (fresh = false) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const url = fresh ? "/api/ai/inspect-prompt?fresh=1" : "/api/ai/inspect-prompt";
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setStats(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load prompt");
-    }
-    setLoading(false);
-  }, []);
+  // Phase B.5 · lazy imperative fetch via tRPC · `load()` keeps its
+  // open-triggered + FRESH-button call shape · `fresh` maps to the
+  // procedure's `{ fresh }` input (the old `?fresh=1` query param).
+  const utils = trpc.useUtils();
+
+  const load = useCallback(
+    async (fresh = false) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await utils.chat.inspectPrompt.fetch({ fresh });
+        setStats(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load prompt");
+      }
+      setLoading(false);
+    },
+    [utils],
+  );
 
   useEffect(() => {
     if (open && !stats) load();
@@ -75,11 +76,16 @@ export function PromptInspector({ open, onClose }: PromptInspectorProps) {
     setRefreshing(false);
   }, [load]);
 
-  const downloadFull = useCallback(async () => {
+  const downloadFull = useCallback(() => {
+    // Phase B.5 · the full prompt now arrives in the loaded `stats`
+    // (`stats.prompt`) — no second `?raw=1` network call. If the
+    // panel hasn't loaded yet there's nothing to download.
+    if (!stats) {
+      setError("Prompt not loaded yet");
+      return;
+    }
     try {
-      const res = await authedFetch("/api/ai/inspect-prompt?raw=1");
-      const text = await res.text();
-      const blob = new Blob([text], { type: "text/plain" });
+      const blob = new Blob([stats.prompt], { type: "text/plain" });
       const a = document.createElement("a");
       const url = URL.createObjectURL(blob);
       a.href = url;
@@ -89,7 +95,7 @@ export function PromptInspector({ open, onClose }: PromptInspectorProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Download failed");
     }
-  }, []);
+  }, [stats]);
 
   if (!open) return null;
 
