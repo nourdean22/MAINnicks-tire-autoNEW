@@ -266,6 +266,24 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             className="mt-8 flex flex-col sm:flex-row gap-3 motion-safe:animate-[fadeInUp_0.6s_ease-out_0.7s_both]"
             style={{ opacity: 0 }}
           >
+            {/* ORDER TIRES — first CTA. Tire-buying is the highest-
+                revenue intent landing on this hero; previously customers
+                had no above-the-fold path to /tires (had to scroll past
+                the hero into the symptom grid to find "GET TIRES TODAY").
+                Direct browser audit found this gap. Same gold-primary
+                style as SCHEDULE DROP-OFF — the homepage serves two
+                intents (buy-tires-online + drop-off-for-service) and
+                each deserves a primary CTA. */}
+            <Link
+              href="/tires"
+              className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98]"
+              aria-label="Order tires online from Nick's Tire and Auto"
+            >
+              <span className="py-1.5">ORDER TIRES</span>
+              <span className="ml-2 inline-flex items-center justify-center w-9 h-9 rounded-md bg-black/12 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] group-hover:translate-x-1 group-hover:-translate-y-[1px] group-hover:bg-black/16">
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </Link>
             <a
               href="#booking"
               className="group relative inline-flex items-center bg-[#FDB913] text-[#0A0A0A] pl-7 pr-2 py-2 rounded-lg font-bold text-lg shadow-[0_4px_24px_rgba(253,185,19,0.35)] transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[#FDB913] hover:shadow-[0_6px_32px_rgba(253,185,19,0.55)] active:scale-[0.98] btn-premium"

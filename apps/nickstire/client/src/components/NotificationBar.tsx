@@ -18,9 +18,19 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { X, Phone, Star, Clock, AlertTriangle, Shield, MapPin, Zap, Snowflake, CloudRain, CloudLightning, Wind, Sun, Thermometer, Cloud, Wrench, Gauge, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { ACIMA_COMPACT_DISCLOSURE } from "@/lib/acima";
+
+// Routes where the rotating cross-sell band is suppressed. The customer
+// is in active buying intent — pulling attention to brake/diagnostic
+// cross-sells competes with the buying decision. Direct browser audit
+// found "Ignoring that check engine light?" firing while a customer
+// browsed tires. Tire-buying surfaces own their own value/financing
+// messaging (FREE installation badge, ACIMA in the order modal), so the
+// band is redundant here, not just distracting.
+const SUPPRESS_ON_ROUTES = ["/tires", "/tire-finder"];
 
 // ─── STRATEGY TYPES ────────────────────────────────────
 type Strategy = "urgency" | "social_proof" | "scarcity" | "seasonal" | "authority" | "loss_aversion" | "local_identity" | "value_anchor" | "weather" | "dynamic";
@@ -278,8 +288,15 @@ const weatherSeverityStyles: Record<string, string> = {
 
 // ─── COMPONENT ─────────────────────────────────────────
 export default function NotificationBar() {
+  const [location] = useLocation();
   const [dismissed, setDismissed] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+
+  // Suppress the rotating band on buying-intent surfaces (see
+  // SUPPRESS_ON_ROUTES). The hook order above is preserved — early
+  // return AFTER all hooks have been declared so the lint:hooks gate
+  // passes (the project audits hooks-after-early-return).
+  const isSuppressedRoute = SUPPRESS_ON_ROUTES.some((r) => location.startsWith(r));
 
   // Fetch weather data from the server
   const { data: weatherData } = trpc.weather.current.useQuery(undefined, {
@@ -389,7 +406,7 @@ export default function NotificationBar() {
     localStorage.setItem("nicks-notif-dismissed", Date.now().toString());
   }, []);
 
-  if (dismissed || activeNotifications.length === 0) return null;
+  if (isSuppressedRoute || dismissed || activeNotifications.length === 0) return null;
 
   const current = activeNotifications[currentIndex % activeNotifications.length];
 

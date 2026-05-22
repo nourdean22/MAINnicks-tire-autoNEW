@@ -38,6 +38,7 @@ import {
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
 import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -1223,8 +1224,19 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                   </a>
                 )}
                 <button
-                  onClick={() => {
-                    if (confirm("Delete this invoice?")) deleteInvoice.mutate({ id: inv.id });
+                  onClick={async () => {
+                    // confirmDialog not native confirm() — native confirm()
+                    // is suppressed in iOS PWA standalone mode, so the
+                    // operator's delete-invoice tap silently did nothing
+                    // on their phone (the same bug class wave-139 fixed
+                    // for the rest of the admin).
+                    const ok = await confirmDialog({
+                      title: "Delete invoice?",
+                      message: `${inv.invoiceNumber || `Invoice #${inv.id}`} — ${inv.customerName || "this customer"}. This cannot be undone.`,
+                      confirmLabel: "Delete",
+                      tone: "danger",
+                    });
+                    if (ok) deleteInvoice.mutate({ id: inv.id });
                   }}
                   className="p-1 text-foreground/20 hover:text-red-400 transition-colors"
                   title="Delete"
