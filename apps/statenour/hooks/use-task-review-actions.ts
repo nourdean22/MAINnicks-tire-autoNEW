@@ -23,7 +23,15 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// REST→tRPC hooks slice (2026-05-22) · migrated off `authedFetch`
+// (`PATCH /api/tasks/[id]` + `POST /api/tasks/[id]/event`) onto the
+// existing `trpc.task.update` + `trpc.task.emitEvent` procedures
+// (Phase WW / QQ) · both delegate to the SAME `services/tasks.updateTask`
+// + `brain/task-events.emitTaskEvent` the REST routes call · drift
+// impossible. `task.update` takes `{ id, fields }` where `fields` is the
+// shared `taskUpdateSchema`; `task.emitEvent` takes the CLIENT_EMIT_KINDS
+// allowlist (which includes `killed`).
+import { trpc } from "@/lib/trpc/client";
 interface UseTaskReviewActionsOpts {
   /** Caller's reload — runs after every successful action. */
   onChange?: () => void | Promise<void>;
@@ -51,6 +59,12 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
   const { onChange, source = "page:tasks/now" } = opts;
   const [busyId, setBusyId] = useState<string | null>(null);
 
+  // tRPC mutations · `update` mirrors the legacy `PATCH /api/tasks/[id]`
+  // (throws TRPCError on failure · the existing try/catch handles it) ·
+  // `emitEvent` mirrors the fire-and-forget `POST /api/tasks/[id]/event`.
+  const updateMutation = trpc.task.update.useMutation();
+  const emitEventMutation = trpc.task.emitEvent.useMutation();
+
   const fireRefresh = useCallback(() => {
     notifyDataChanged("tasks", { source, detail: "review-action" });
     void onChange?.();
@@ -60,21 +74,17 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
     async (taskId: string) => {
       setBusyId(taskId);
       try {
-        const res = await authedFetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "ARCHIVED" }),
+        await updateMutation.mutateAsync({
+          id: taskId,
+          fields: { status: "ARCHIVED" },
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         // The TaskEvent emit happens inside updateTask, but it'll be
         // flagged "abandoned" — we want this surface to record an
         // explicit "killed" decision so avoidance signals are clean.
-        // Fire a separate explicit event via the dedicated endpoint.
-        void authedFetch(`/api/tasks/${taskId}/event`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ kind: "killed", source }),
-        }).catch(() => {});
+        // Fire a separate explicit event via the dedicated procedure.
+        void emitEventMutation
+          .mutateAsync({ taskId, kind: "killed", source })
+          .catch(() => {});
         toast.success("Killed.");
         fireRefresh();
       } catch (err) {
@@ -83,7 +93,7 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         setBusyId(null);
       }
     },
-    [fireRefresh, source],
+    [fireRefresh, source, updateMutation, emitEventMutation],
   );
 
   const reframe = useCallback(
@@ -93,12 +103,7 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
     ) => {
       setBusyId(taskId);
       try {
-        const res = await authedFetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patch),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        await updateMutation.mutateAsync({ id: taskId, fields: patch });
         toast.success("Reframed.");
         fireRefresh();
       } catch (err) {
@@ -107,19 +112,17 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         setBusyId(null);
       }
     },
-    [fireRefresh],
+    [fireRefresh, updateMutation],
   );
 
   const blocker = useCallback(
     async (taskId: string, waitingOn: string) => {
       setBusyId(taskId);
       try {
-        const res = await authedFetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "WAITING", waitingOn }),
+        await updateMutation.mutateAsync({
+          id: taskId,
+          fields: { status: "WAITING", waitingOn },
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast.success(`Waiting on ${waitingOn}.`);
         fireRefresh();
       } catch (err) {
@@ -128,7 +131,7 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         setBusyId(null);
       }
     },
-    [fireRefresh],
+    [fireRefresh, updateMutation],
   );
 
   const snooze = useCallback(
@@ -146,15 +149,19 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         //   task disappears from active list · task-resurface cron
         //   flips back to READY when the timestamp passes (folded
         //   into mega-morning).
-        const res = await authedFetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        await updateMutation.mutateAsync({
+          id: taskId,
+          // `snoozedUntil` isn't a `taskUpdateSchema` field — the cast
+          // (the same pattern todo-desk.tsx uses for heterogeneous
+          // patches) satisfies the typed `fields` input at the boundary.
+          // The procedure re-validates against the shared schema, which
+          // strips `snoozedUntil` exactly as the legacy REST path did —
+          // behavior preserved verbatim.
+          fields: {
             status: "WAITING",
             snoozedUntil: next.toISOString(),
-          }),
+          } as Parameters<typeof updateMutation.mutateAsync>[0]["fields"],
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const label = days === 1 ? "tomorrow" : days === 7 ? "next week" : `${days}d`;
         toast.success(`snoozed · back ${label}`);
         fireRefresh();
@@ -164,19 +171,23 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         setBusyId(null);
       }
     },
-    [fireRefresh],
+    [fireRefresh, updateMutation],
   );
 
   const edit = useCallback(
     async (taskId: string, patch: Record<string, unknown>) => {
       setBusyId(taskId);
       try {
-        const res = await authedFetch(`/api/tasks/${taskId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(patch),
+        // `patch` is a heterogeneous task-field map · the cast satisfies
+        // the typed `fields` input at the boundary (same pattern as
+        // todo-desk.tsx) · the procedure re-validates against the shared
+        // `taskUpdateSchema` so the runtime contract is unchanged.
+        await updateMutation.mutateAsync({
+          id: taskId,
+          fields: patch as Parameters<
+            typeof updateMutation.mutateAsync
+          >[0]["fields"],
         });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         toast.success("Saved.");
         // Apr 27 · domain-aware notify — "edit anywhere = update
         // everywhere." When the patch touches a relational field
@@ -197,7 +208,7 @@ export function useTaskReviewActions(opts: UseTaskReviewActionsOpts = {}): Revie
         setBusyId(null);
       }
     },
-    [onChange, source],
+    [onChange, source, updateMutation],
   );
 
   return { kill, reframe, blocker, snooze, edit, busyId };

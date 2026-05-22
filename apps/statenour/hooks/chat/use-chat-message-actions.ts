@@ -4,6 +4,20 @@ import { useCallback } from "react";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 import { haptic } from "@/lib/ui/haptic";
 import { logger as rootLogger } from "@/lib/logger";
+// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration. `onPin`'s
+// two `/api/brain/pinned` calls (POST + the 800ms readback GET) move
+// onto the existing `trpc.brain.{createPin,pinned}` procedures (Phase
+// YY) · both delegate to the SAME `pins.{createPin,listPins}` service
+// the REST route calls · drift impossible. NOT migrated (the
+// `authedFetch` import stays for them):
+//   · onDelete       — DELETE /api/ai/chat/edit/[id] has no shared
+//     service + no tRPC procedure (chat-edit.ts exports only the
+//     edit/read fns) · would need a service extraction.
+//   · onSaveAsBelief — does a `POST /api/brain/memories` (the no-`key`
+//     route · no clean procedure) alongside the harvest call · the two
+//     halves can't both migrate, so the hook stays whole on REST.
+//   · onSaveAsDecision — pure `POST /api/brain/memories` · same route.
+import { trpc } from "@/lib/trpc/client";
 
 /**
  * Bundles the long-press MessageActionSheet's six callback bodies
@@ -69,6 +83,12 @@ export function useChatMessageActions<TMessage extends { id: string }>({
   setError: (msg: string | null) => void;
   setReasoningTraceMsg: (id: string | null) => void;
 }): ChatMessageActions {
+  // tRPC handles for onPin · `createPin` throws TRPCError on failure
+  // (caught below) · `utils.brain.pinned.fetch` does the 800ms readback
+  // verification imperatively.
+  const utils = trpc.useUtils();
+  const createPinMutation = trpc.brain.createPin.useMutation();
+
   const onCopy = useCallback(() => {
     if (actionSheetMsg?.text) {
       navigator.clipboard?.writeText(actionSheetMsg.text).catch(() => {});
@@ -103,24 +123,19 @@ export function useChatMessageActions<TMessage extends { id: string }>({
         haptic.tap();
         return;
       }
-      const res = await authedFetch("/api/brain/pinned", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: body,
-          source: "pin:longpress",
-        }),
+      await createPinMutation.mutateAsync({
+        content: body,
+        source: "pin:longpress",
       });
-      if (!res.ok) throw new Error("permanent pin failed");
 
       // Verification pass — read back within 2s to confirm the
       // write actually landed. Silent failures on POST would
       // otherwise leave Nour thinking the pin worked.
       setTimeout(async () => {
         try {
-          const verify = await authedFetch("/api/brain/pinned");
-          if (!verify.ok) return;
-          const data = (await verify.json()) as { pins?: Array<{ content: string }> };
+          const data = (await utils.brain.pinned.fetch({})) as {
+            pins?: Array<{ content: string }>;
+          };
           const found = (data.pins || []).some(
             (p) => p.content.startsWith(body.slice(0, 40))
           );
@@ -138,7 +153,7 @@ export function useChatMessageActions<TMessage extends { id: string }>({
       log.error("pin.longpress.failed", { error: err instanceof Error ? err.message : String(err) });
       haptic.error();
     }
-  }, [actionSheetMsg, pins]);
+  }, [actionSheetMsg, pins, createPinMutation, utils]);
 
   const onEdit = useCallback(() => {
     if (actionSheetMsg?.role === "user") {

@@ -5,6 +5,20 @@ import { authedFetch } from "@/hooks/use-authed-fetch";
 import { haptic } from "@/lib/ui/haptic";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { logger as rootLogger } from "@/lib/logger";
+// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration.
+//   · onCreateTask  → trpc.task.create   (POST /api/tasks · Phase SS)
+//   · onPinToMemory → trpc.brain.createPin (POST /api/brain/pinned · Phase YY)
+// Both delegate to the SAME service the REST route calls
+// (`task-actions.createTaskFromAPI` · `pins.createPin`) · drift
+// impossible. `onSaveToBrain` (`POST /api/brain/memories`) is NOT
+// migrated — that route requires a `key` field this hook never sent
+// (a pre-existing payload bug · the route 400s on it), has no shared
+// service, and no tRPC procedure · migrating it would change behavior
+// + need a service extraction (out of this hooks-slice's scope · the
+// `authedFetch` import stays for it). `postFeedback` below also stays
+// on `authedFetch` — it is a module-level (non-hook) function called
+// straight from JSX, and there is no vanilla tRPC client in this app.
+import { trpc } from "@/lib/trpc/client";
 
 /**
  * Per-message action handlers wired into <NickMessage>'s
@@ -36,6 +50,11 @@ export function useNickMessageActions({
 }: {
   setError: (msg: string | null) => void;
 }): NickMessageActions {
+  // tRPC mutations · both throw TRPCError on failure, caught by the
+  // try/catch below (matching the legacy `!res.ok` branches).
+  const createTaskMutation = trpc.task.create.useMutation();
+  const createPinMutation = trpc.brain.createPin.useMutation();
+
   const onCopy = useCallback((text: string) => {
     navigator.clipboard?.writeText(text).then(() => {
       // Visual feedback handled by the button itself
@@ -48,21 +67,19 @@ export function useNickMessageActions({
       // failures were silent (only console.error).
       try {
         const firstSentence = text.split(/[.!?]\s/)[0]?.slice(0, 120) || text.slice(0, 120);
-        const res = await authedFetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: firstSentence,
-            loopKind: "ONCE",
-            nextPhysicalAction: firstSentence,
-            effort: "M15",
-            roiScore: 50,
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-            context: "ANYWHERE",
-          }),
+        // `task.create`'s input is a permissive z.record · the
+        // createTaskFromAPI → createTask service re-validates the
+        // payload against `taskCreateSchema` (same as the REST route).
+        await createTaskMutation.mutateAsync({
+          title: firstSentence,
+          loopKind: "ONCE",
+          nextPhysicalAction: firstSentence,
+          effort: "M15",
+          roiScore: 50,
+          frictionScore: 30,
+          energyRequired: "MEDIUM",
+          context: "ANYWHERE",
         });
-        if (!res.ok) throw new Error(`${res.status}`);
         haptic.success();
       } catch (err) {
         log.error("action.createTask.failed", { error: err instanceof Error ? err.message : String(err) });
@@ -71,7 +88,7 @@ export function useNickMessageActions({
         setTimeout(() => setError(null), 3500);
       }
     },
-    [setError],
+    [setError, createTaskMutation],
   );
 
   const onSaveToBrain = useCallback(
@@ -101,15 +118,10 @@ export function useNickMessageActions({
   const onPinToMemory = useCallback(
     async (text: string) => {
       try {
-        const res = await authedFetch("/api/brain/pinned", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: text.slice(0, 1200),
-            source: "pin:chat",
-          }),
+        await createPinMutation.mutateAsync({
+          content: text.slice(0, 1200),
+          source: "pin:chat",
         });
-        if (!res.ok) throw new Error("pin failed");
         // v10.0.529.87 · Wave 31 · audit found this
         // path bypassed the bus while the parallel
         // pinMemory tool path fires "brain" via
@@ -126,7 +138,7 @@ export function useNickMessageActions({
         haptic.error();
       }
     },
-    [],
+    [createPinMutation],
   );
 
   return {

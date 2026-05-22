@@ -23,7 +23,15 @@
 
 import { useEffect, useRef } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// REST→tRPC hooks slice (2026-05-22) · migrated off `authedFetch
+// ("/api/ai/chat/suggestions")` onto the existing `trpc.chat.suggestions`
+// query (Phase B.5) · both delegate to the SAME `chat-suggestions.
+// buildSuggestions` service · drift impossible. This hook only WARMS
+// the suggestion cache (the result is discarded) · React Query's
+// per-input dedup means this warm + the SmartReplies component's own
+// `utils.chat.suggestions.fetch` share one cache slot, exactly as the
+// legacy "same POST body → same server cache key" comment intended.
+import { trpc } from "@/lib/trpc/client";
 interface WarmArgs {
   /** Stable id of the assistant message — warming skips on change */
   assistantId: string | null;
@@ -49,6 +57,7 @@ export function useSuggestionWarm({
 }: WarmArgs) {
   const warmedIdRef = useRef<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     if (!assistantId) return;
@@ -61,12 +70,13 @@ export function useSuggestionWarm({
 
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      authedFetch("/api/ai/chat/suggestions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userMessage, assistantMessage }),
-        keepalive: true,
-      }).catch(() => {});
+      // Fire-and-forget cache warm · `utils.chat.suggestions.fetch`
+      // primes React Query's cache so SmartReplies' own fetch (same
+      // input) hits it. Errors are swallowed — warming must never
+      // surface to the UI (mirrors the legacy `.catch(() => {})`).
+      void utils.chat.suggestions
+        .fetch({ userMessage, assistantMessage })
+        .catch(() => {});
     }, POST_STREAM_DELAY_MS);
 
     return () => {
@@ -75,5 +85,5 @@ export function useSuggestionWarm({
         timerRef.current = null;
       }
     };
-  }, [assistantId, assistantMessage, userMessage, streaming]);
+  }, [assistantId, assistantMessage, userMessage, streaming, utils]);
 }
