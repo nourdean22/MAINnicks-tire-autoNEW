@@ -40,6 +40,14 @@ function formatSizeForSearch(size: string): string {
   return size.replace(/[\/Rr\s-]/g, "");
 }
 
+// Customer pays the tire total + 8% Ohio sales tax + a 2% card-processing
+// surcharge. Computed in integer cents to match the server charge exactly.
+function priceBreakdown(subtotalCents: number) {
+  const tax = Math.round(subtotalCents * 0.08);
+  const cardFee = Math.round((subtotalCents + tax) * 0.02);
+  return { subtotal: subtotalCents, tax, cardFee, total: subtotalCents + tax + cardFee };
+}
+
 type SortOption = "price-low" | "price-high" | "warranty" | "brand";
 type CategoryFilter = "all" | "budget" | "mid" | "premium";
 
@@ -236,6 +244,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
   if (!tire) return null;
 
   const tireTotal = tire.shopPrice * quantity;
+  const bd = priceBreakdown(tire.pricePerTireCents * quantity);
 
   // Success state
   if (orderResult) {
@@ -270,7 +279,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
                 {checkoutMutation.isPending ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Starting secure checkout…</>
                 ) : (
-                  <>Pay Now — ${orderResult.totalAmount.toFixed(2)}</>
+                  <>Pay Now — ${(bd.total / 100).toFixed(2)}</>
                 )}
               </button>
               <p className="text-[10px] text-muted-foreground text-center mt-2">
@@ -321,13 +330,24 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           <div className="bg-background/50 border border-border/30 rounded-md p-4 mb-6 text-left space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">{quantity}x {tire.brand} {tire.model}</span>
-              <span className="text-foreground font-medium">${orderResult.totalAmount.toFixed(2)}</span>
+              <span className="text-foreground font-medium">${(bd.subtotal / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Nick's Premium Installation Package</span>
               <span className="text-green-400 font-medium">FREE</span>
             </div>
-            <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/30">No charge until you approve. We confirm pricing and availability first.</p>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Ohio sales tax (8%)</span>
+              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Card processing fee (2%)</span>
+              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between pt-2 border-t border-border/30">
+              <span className="font-medium text-foreground">Total</span>
+              <span className="font-semibold text-primary">${(bd.total / 100).toFixed(2)}</span>
+            </div>
           </div>
           <button onClick={onClose} className="w-full bg-primary text-primary-foreground py-3 rounded-md font-medium hover:bg-primary/90 transition-colors">
             Done
@@ -395,16 +415,28 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
             </div>
           </div>
 
-          <div className="border-t border-border/30 mt-3 pt-3">
-            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+          <div className="border-t border-border/30 mt-3 pt-3 space-y-1.5">
+            <div className="flex justify-between text-xs text-muted-foreground">
               <span>Installation package value</span>
               <span className="line-through">${packageValue}+</span>
             </div>
-            <div className="flex justify-between">
-              <span className="font-medium text-foreground">Your Total</span>
-              <span className="font-semibold text-primary text-lg">${tireTotal.toFixed(2)}</span>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Tires x{quantity}</span>
+              <span className="text-foreground">${(bd.subtotal / 100).toFixed(2)}</span>
             </div>
-            <p className="text-[10px] text-green-400 mt-1 text-right font-medium">
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Ohio sales tax (8%)</span>
+              <span className="text-foreground">${(bd.tax / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Card processing fee (2%)</span>
+              <span className="text-foreground">${(bd.cardFee / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between pt-1.5 border-t border-border/20">
+              <span className="font-medium text-foreground">Your Total</span>
+              <span className="font-semibold text-primary text-lg">${(bd.total / 100).toFixed(2)}</span>
+            </div>
+            <p className="text-[10px] text-green-400 text-right font-medium">
               You save ${packageValue}+ on installation
             </p>
           </div>
@@ -526,7 +558,7 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           {orderMutation.isPending ? (
             <><Loader2 className="w-4 h-4 animate-spin" /> Placing Order...</>
           ) : (
-            <>Place Order — ${tireTotal.toFixed(2)}</>
+            <>Place Order — ${(bd.total / 100).toFixed(2)}</>
           )}
         </button>
 

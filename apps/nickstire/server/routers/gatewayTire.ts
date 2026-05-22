@@ -935,15 +935,25 @@ export const gatewayTireRouter = router({
 
       const { createTireOrderCheckout } = await import("../services/payments");
       const base = process.env.VITE_SITE_URL || "https://nickstire.org";
-      const description = `Nick's Tire & Auto — ${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize}), installed`;
+
+      // Customer pays the tire total + 8% Ohio sales tax + a 2% card-
+      // processing surcharge — each an itemised Stripe line item.
+      const subtotal = order.totalAmount;                      // cents
+      const tax = Math.round(subtotal * 0.08);
+      const cardFee = Math.round((subtotal + tax) * 0.02);
+      const tireLabel = `${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize}) — installed free`;
 
       const result = await createTireOrderCheckout({
-        amountCents: order.totalAmount,
+        lineItems: [
+          { name: tireLabel, amountCents: subtotal },
+          { name: "Ohio sales tax (8%)", amountCents: tax },
+          { name: "Card processing fee (2%)", amountCents: cardFee },
+        ],
         tireOrderNumber: order.orderNumber,
         invoiceNumber: order.invoiceNumber || "",
         customerName: order.customerName,
         customerEmail: order.customerEmail || undefined,
-        description,
+        description: `Nick's Tire & Auto — order ${order.orderNumber}`,
         successUrl: `${base}/tires?order=${encodeURIComponent(order.orderNumber)}&paid=1`,
         cancelUrl: `${base}/tires?order=${encodeURIComponent(order.orderNumber)}&paid=0`,
       });
