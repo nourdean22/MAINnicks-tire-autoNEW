@@ -25,6 +25,7 @@ import {
   countUnresolved,
   resolveContradiction,
   type ContradictionStatus,
+  type StoredContradiction,
 } from "@/lib/brain/contradiction-surfacer";
 
 /** One contradiction row · camelCase, the shape the card renders. */
@@ -148,4 +149,51 @@ export async function resolveContradictionEntry(input: {
     status: input.status,
     resolvedAt: result.resolved_at ?? null,
   };
+}
+
+// ──────────────── /api/contradictions (brain-domain panel) ────────────────
+//
+// The /brain ContradictionResolutionPanel reads the RAW snake_case
+// `StoredContradiction` shape (`new_excerpt` · `old_excerpt` ·
+// `days_apart` · …) — distinct from the camelCase `ContradictionsView`
+// the ultron ContradictionsCard above renders. `StoredContradiction` is
+// a flat plain object parsed from a JSON content column (no Prisma Json
+// type), so there is no recursive type to firewall.
+
+/**
+ * List contradictions for the /brain panel · unresolved-only by
+ * default, or the full 90-day history when `includeResolved`. Lifted
+ * verbatim from GET /api/contradictions — the route and the tRPC
+ * `brain.contradictions` procedure both call this.
+ */
+export async function listStoredContradictions(input: {
+  includeResolved: boolean;
+}): Promise<{ contradictions: StoredContradiction[] }> {
+  const rows = input.includeResolved
+    ? await loadAllContradictions(90)
+    : await loadRecentContradictions(14, false);
+  return { contradictions: rows };
+}
+
+/**
+ * Resolve a contradiction from the /brain panel. Lifted verbatim from
+ * PATCH /api/contradictions — `resolveContradiction` returns null when
+ * the row is missing OR its content JSON is corrupt; the route mapped
+ * both to 404, so this throws ServiceError(404). The route and the
+ * tRPC `brain.resolveContradiction` procedure both call this.
+ */
+export async function resolveStoredContradiction(input: {
+  key: string;
+  status: ContradictionResolveChoice;
+  note?: string;
+}): Promise<{ contradiction: StoredContradiction }> {
+  const resolved = await resolveContradiction(
+    input.key,
+    input.status,
+    input.note,
+  );
+  if (!resolved) {
+    throw new ServiceError("contradiction not found", 404);
+  }
+  return { contradiction: resolved };
 }

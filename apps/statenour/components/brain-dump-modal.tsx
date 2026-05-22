@@ -30,7 +30,10 @@ import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { Sparkles, X, Zap, NotebookPen, Loader2 } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/journal/
+// capture")` onto `trpc.brain.captureThought` · the optimistic-UI clear
+// stays client-side, fired before the mutation resolves.
+import { trpc } from "@/lib/trpc/client";
 // v10.0.529.26 · Arc B Phase 1A · extend wisdom-suggest from /chat to
 // the brain-dump composer. Same hook + same UI surface · sits ABOVE
 // the textarea as a faded gold-on-dark margin note · operator
@@ -60,6 +63,7 @@ export function BrainDumpModal() {
   // pre-v529.22 modal-mode-switch (result-card replaced the textarea).
   const [lastResult, setLastResult] = useState<CaptureResult | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const captureMutation = trpc.brain.captureThought.useMutation();
 
   // Global hotkey: Cmd/Ctrl+Shift+J
   useEffect(() => {
@@ -117,17 +121,9 @@ export function BrainDumpModal() {
     const toastId = toast.loading("Capturing thought…");
 
     try {
-      const res = await authedFetch("/api/journal/capture", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: trimmed }),
-      });
-      if (!res.ok) {
-        toast.error("Capture failed", { id: toastId });
-        return;
-      }
-      const raw = await res.json();
-      const data = (raw?.data ?? raw) as CaptureResult;
+      const data = (await captureMutation.mutateAsync({
+        text: trimmed,
+      })) as CaptureResult;
       setLastResult(data);
       notifyDataChanged("any", { source: "global-capture", detail: "journal-capture" });
 
@@ -150,7 +146,7 @@ export function BrainDumpModal() {
     } finally {
       setInFlight((n) => Math.max(0, n - 1));
     }
-  }, [text]);
+  }, [text, captureMutation]);
 
   const onKey = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

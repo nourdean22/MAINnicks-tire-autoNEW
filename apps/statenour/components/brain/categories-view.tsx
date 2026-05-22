@@ -17,9 +17,12 @@
  * the writer-flowed-to-bucket-not-in-registry telltale.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Panel } from "@/components/panel";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// category-stats")` onto `trpc.brain.categoryStats` · reactive read ·
+// `cache: "no-store"` semantics preserved via `staleTime: 0`.
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import { AlertTriangle, CheckCircle2, ArrowRight, Database } from "lucide-react";
 
@@ -60,32 +63,15 @@ function ageChip(iso: string | null): string {
 }
 
 export function BrainCategoriesView() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | StatStatus>("all");
   const [search, setSearch] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/brain/category-stats", {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json.data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const statsQuery = trpc.brain.categoryStats.useQuery(undefined, {
+    staleTime: 0,
+  });
+  const data = (statsQuery.data as Payload | undefined) ?? null;
+  const loading = statsQuery.isLoading;
+  const error = statsQuery.isError ? statsQuery.error.message : null;
 
   const byDomain = useMemo(() => {
     if (!data) return new Map<string, StatRow[]>();

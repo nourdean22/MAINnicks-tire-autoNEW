@@ -7,13 +7,17 @@
  * track "the brain is learning" at a glance.
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { Download, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch, useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `useAuthedFetch("/api/brain/
+// maturity")` + `authedFetch` (export · reset) onto `trpc.brain` · the
+// maturity read is `useQuery`, export is an imperative `utils.*.fetch`,
+// reset is a `useMutation`.
+import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
 interface Maturity {
@@ -35,25 +39,30 @@ function dot(color: string): string {
 }
 
 export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number }) {
-  // v11.1 · Shared useAuthedFetch handles:
-  //   · 401 auto-retry after 300ms (cookie-arrival race on cold loads)
-  //   · rich error messages (status + body-preview instead of generic)
-  //   · unwraps `{ data: ... }` envelope automatically
-  // refreshKey from the parent /brain page polling loop bumps the URL
-  // via a tick param so the hook re-fires on cadence.
-  const { data: maturityPayload, error: loadError, reload } = useAuthedFetch<{ maturity?: Maturity }>(
-    `/api/brain/maturity?t=${refreshKey}`,
-    { retryOn401: true, extraRetries: 1 },
-  );
-  const data = maturityPayload?.maturity ?? null;
+  // v11.1 · React Query drives the maturity read. The procedure already
+  // returns the rollup unwrapped (the legacy route nested it under
+  // `{ maturity }`) so the call-site reads `maturityQuery.data` directly.
+  // refreshKey from the parent /brain page polling loop is forwarded as
+  // a no-op query input so a bump triggers a refetch on cadence.
+  const utils = trpc.useUtils();
+  const maturityQuery = trpc.brain.maturity.useQuery(undefined);
+  const resetMutation = trpc.brain.reset.useMutation();
+  const data = (maturityQuery.data as Maturity | undefined) ?? null;
+  const loadError = maturityQuery.error?.message ?? null;
+
+  // The parent bumps `refreshKey` on its polling cadence · refetch the
+  // maturity rollup when it changes (skip the initial 0 mount · the
+  // query fetches on mount already).
+  const reload = useCallback(() => {
+    void maturityQuery.refetch();
+  }, [maturityQuery]);
 
   const exportBrain = useCallback(async () => {
     try {
-      const res = await authedFetch("/api/brain/export");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const raw = await res.json();
-      const payload = raw.data ?? raw;
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const payload = await utils.brain.exportBrain.fetch();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -64,7 +73,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
     } catch (e) {
       toast.error(`export failed: ${e instanceof Error ? e.message : e}`);
     }
-  }, []);
+  }, [utils]);
 
   const resetBrain = useCallback(async () => {
     const first = confirm("Reset the ENTIRE brain state? This clears skills, identity, beliefs, contradictions, ghost accuracy, qualitative identity, and chat importance rows. CANNOT be undone.");
@@ -75,13 +84,20 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
       return;
     }
     try {
-      const res = await authedFetch("/api/brain/reset", { method: "POST" });
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      await resetMutation.mutateAsync();
       toast.success("brain reset · reload to refresh");
     } catch (e) {
       toast.error(`reset failed: ${e instanceof Error ? e.message : e}`);
     }
-  }, []);
+  }, [resetMutation]);
+
+  // The parent /brain polling loop bumps `refreshKey` on cadence ·
+  // refetch the maturity rollup on each bump (the initial 0 is the
+  // mount fetch React Query already does).
+  useEffect(() => {
+    if (refreshKey > 0) void maturityQuery.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshKey]);
 
   if (!data) {
     // v11.1 · Error state with retry. Previously just spun "reading

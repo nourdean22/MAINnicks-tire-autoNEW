@@ -16,64 +16,27 @@
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
+import { buildRecentInsights } from "@/lib/services/brain-domain";
 
 export const dynamic = "force-dynamic";
 
-interface InsightDTO {
-  key: string;
-  content: string;
-  axis: string | null;
-  wisdomQuery: string | null;
-  confidence: number;
-  lastSeen: string;
-  enrichedAt: string | null;
-}
-
+// Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+// the inline query + metadata projection moved to
+// `lib/services/brain-domain.buildRecentInsights` so this route AND the
+// new `trpc.brain.recentInsights` procedure call the same function ·
+// drift impossible.
 export const GET = apiHandler(
   async (req) => {
     const url = new URL(req.url);
-    const days = Math.min(30, Math.max(1, Number(url.searchParams.get("days") ?? 7)));
-    const limit = Math.min(200, Math.max(1, Number(url.searchParams.get("limit") ?? 50)));
-
-    const since = new Date(Date.now() - days * 86_400_000);
-    const rows = await prisma.brainMemory
-      .findMany({
-        where: {
-          category: "task_insight",
-          deletedAt: null,
-          lastSeen: { gte: since },
-        },
-        orderBy: { lastSeen: "desc" },
-        take: limit,
-        select: {
-          key: true,
-          content: true,
-          confidence: true,
-          metadata: true,
-          lastSeen: true,
-        },
-      })
-      .catch((): Array<{ key: string; content: string; confidence: number; metadata: unknown; lastSeen: Date }> => []);
-
-    const insights: InsightDTO[] = rows.map((r) => {
-      const m = (r.metadata ?? null) as {
-        axis?: string | null;
-        wisdom_query?: string | null;
-        enriched_at?: string | null;
-      } | null;
-      return {
-        key: r.key,
-        content: r.content,
-        axis: m?.axis ?? null,
-        wisdomQuery: m?.wisdom_query ?? null,
-        confidence: r.confidence,
-        lastSeen: r.lastSeen.toISOString(),
-        enrichedAt: m?.enriched_at ?? null,
-      };
-    });
-
-    return { insights, days, count: insights.length };
+    const days = Math.min(
+      30,
+      Math.max(1, Number(url.searchParams.get("days") ?? 7)),
+    );
+    const limit = Math.min(
+      200,
+      Math.max(1, Number(url.searchParams.get("limit") ?? 50)),
+    );
+    return buildRecentInsights({ days, limit });
   },
   { auth: "owner" },
 );

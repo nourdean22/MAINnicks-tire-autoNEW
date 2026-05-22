@@ -20,7 +20,11 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { AlertTriangle, Check, X, Split, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/contradictions")`
+// (GET `?all=1` + PATCH) onto `trpc.brain.contradictions` (reactive read ·
+// `includeResolved` typed input) + `trpc.brain.resolveContradiction`
+// (mutation).
+import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
 interface StoredContradiction {
@@ -41,45 +45,44 @@ interface StoredContradiction {
 
 type Tab = "unresolved" | "history";
 
+type ResolveStatus = "current_wins" | "old_wins" | "both_valid" | "dismissed";
+
 export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string | null }) {
-  const [rows, setRows] = useState<StoredContradiction[] | null>(null);
   const [tab, setTab] = useState<Tab>("unresolved");
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notingKey, setNotingKey] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
-  const [pendingResolve, setPendingResolve] = useState<StoredContradiction["status"] | null>(null);
+  const [pendingResolve, setPendingResolve] = useState<ResolveStatus | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(`/api/contradictions${tab === "history" ? "?all=1" : ""}`);
-      if (!res.ok) throw new Error("fetch failed");
-      const raw = (await res.json()) as { data?: { contradictions?: StoredContradiction[] } };
-      setRows(raw.data?.contradictions ?? []);
-      setLoadedAt(Date.now());
-    } catch (e) {
-      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [tab]);
+  const utils = trpc.useUtils();
+  const contraQuery = trpc.brain.contradictions.useQuery({
+    includeResolved: tab === "history",
+  });
+  const resolveMutation = trpc.brain.resolveContradiction.useMutation();
 
+  const rows =
+    (contraQuery.data?.contradictions as StoredContradiction[] | undefined) ??
+    (contraQuery.isError ? [] : null);
+  const loading = contraQuery.isLoading;
+  const loadedAt = contraQuery.dataUpdatedAt || null;
+
+  const load = useCallback(() => {
+    void utils.brain.contradictions.invalidate();
+  }, [utils]);
+
+  // Surface a load failure as a toast once per error (matches the
+  // legacy `catch → toast.error` · React Query has no per-fetch catch).
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (contraQuery.isError) {
+      toast.error(`load failed: ${contraQuery.error.message}`);
+    }
+  }, [contraQuery.isError, contraQuery.error]);
 
   const resolve = useCallback(
-    async (key: string, status: StoredContradiction["status"], note?: string) => {
+    async (key: string, status: ResolveStatus, note?: string) => {
       setBusy(key);
       try {
-        const res = await authedFetch("/api/contradictions", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, status, note }),
-        });
-        if (!res.ok) throw new Error("resolve failed");
+        await resolveMutation.mutateAsync({ key, status, note });
         toast.success(
           status === "current_wins"
             ? "current position locked in · old deprecated"
@@ -92,17 +95,17 @@ export function ContradictionResolutionPanel({ focusKey }: { focusKey?: string |
         setNotingKey(null);
         setNoteText("");
         setPendingResolve(null);
-        await load();
+        await utils.brain.contradictions.invalidate();
       } catch (e) {
         toast.error(`resolve failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusy(null);
       }
     },
-    [load],
+    [resolveMutation, utils],
   );
 
-  const beginResolve = useCallback((key: string, status: StoredContradiction["status"]) => {
+  const beginResolve = useCallback((key: string, status: ResolveStatus) => {
     setNotingKey(key);
     setNoteText("");
     setPendingResolve(status);

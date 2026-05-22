@@ -10,43 +10,18 @@
  *
  * Owner-auth. Intended for debugging / fresh start. Cannot be undone.
  * The UI confirms twice (confirm + prompt) before hitting this.
+ *
+ * Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+ * the inline deleteMany moved to `lib/services/brain-domain.resetBrainState`
+ * so this route AND the new `trpc.brain.reset` procedure call the same
+ * function · the destructive category set never drifts between transports.
  */
 import { apiHandler } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
-
-const BRAIN_CATEGORIES = [
-  "chat_importance",
-  "chat_summary",
-  "skill",
-  "skill_pending",
-  "identity_snapshot",
-  "qualitative_identity",
-  "ghost_prediction",
-  "ghost_accuracy",
-  "contradiction",
-  "belief",
-  "belief_candidate",
-  "brain_dump_importance",
-];
+import { resetBrainState } from "@/lib/services/brain-domain";
 
 export const POST = apiHandler(
   async () => {
-    const result = await prisma.brainMemory.deleteMany({
-      where: { category: { in: BRAIN_CATEGORIES } },
-    });
-
-    await prisma.auditEvent
-      .create({
-        data: {
-          actor: "brain_reset",
-          eventType: "brain_insight",
-          detail: `Full brain reset — ${result.count} rows deleted across ${BRAIN_CATEGORIES.length} categories`,
-          payload: { categories: BRAIN_CATEGORIES, count: result.count } as any,
-        },
-      })
-      .catch(() => {});
-
-    return { ok: true, deleted: result.count, categories: BRAIN_CATEGORIES };
+    return resetBrainState();
   },
   { auth: "owner" },
 );

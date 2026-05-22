@@ -23,7 +23,10 @@ import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { X, ArrowLeft, Network, ArrowRightCircle, RotateCcw, Loader2 } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// graph-neighborhood")` onto `trpc.brain.graphNeighborhood` ·
+// imperative `utils.*.fetch()` (the modal loads on each pivot/reload).
+import { trpc } from "@/lib/trpc/client";
 export interface GraphNode {
   type: string;
   id: string;
@@ -105,6 +108,7 @@ const TYPE_LABEL: Record<string, string> = {
 // ── The explorer ──────────────────────────────────────────────────────
 
 export function MemoryGraphExplorer() {
+  const utils = trpc.useUtils();
   const [stack, setStack] = useState<OpenMemoryGraphDetail[]>([]);
   const [data, setData] = useState<GraphResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,21 +131,25 @@ export function MemoryGraphExplorer() {
   }, []);
 
   // Load neighborhood whenever the top of the stack changes
-  const load = useCallback(async (node: OpenMemoryGraphDetail, d: 1 | 2) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await authedFetch(`/api/brain/graph-neighborhood?type=${encodeURIComponent(node.type)}&id=${encodeURIComponent(node.id)}&depth=${d}`,
-      );
-      if (!res.ok) throw new Error("fetch failed");
-      const raw = (await res.json()) as { data?: GraphResponse };
-      setData(raw.data ?? null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (node: OpenMemoryGraphDetail, d: 1 | 2) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const view = await utils.brain.graphNeighborhood.fetch({
+          type: node.type,
+          id: node.id,
+          depth: d,
+        });
+        setData(view as GraphResponse);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [utils],
+  );
 
   useEffect(() => {
     if (!current) {

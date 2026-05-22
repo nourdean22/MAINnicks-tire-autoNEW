@@ -18,8 +18,12 @@
  * clusters cross MIN_MEMBERS · the panel hides itself.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useCallback, useEffect } from "react";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// patterns")` (GET + POST) onto `trpc.brain.patterns` (reactive read ·
+// `cache: "no-store"` → `staleTime: 0`) + `trpc.brain.regeneratePatterns`
+// (mutation).
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 import { TipChip } from "@/components/ui/tip-chip";
 import { Sparkles, RefreshCw } from "lucide-react";
@@ -37,52 +41,38 @@ const PATTERN_TIP =
   "the system clusters your recent task insights by 8-axis identity. when 3+ tasks land on the same axis, it's a pattern worth noticing · maybe a thread to pull, maybe a sign to shift.";
 
 export function PatternCard() {
-  const [patterns, setPatterns] = useState<Pattern[] | null>(null);
-  const [error, setError] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await authedFetch("/api/brain/patterns", { cache: "no-store" });
-      if (!r.ok) {
-        setError(true);
-        return;
-      }
-      const body = await r.json();
-      const payload = (body?.data ?? body) as { patterns: Pattern[] };
-      setPatterns(payload.patterns ?? []);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, []);
+  const utils = trpc.useUtils();
+  const patternsQuery = trpc.brain.patterns.useQuery(undefined, {
+    staleTime: 0,
+  });
+  const regenerateMutation = trpc.brain.regeneratePatterns.useMutation();
+  const patterns =
+    (patternsQuery.data?.patterns as Pattern[] | undefined) ?? null;
 
   const regenerate = useCallback(async () => {
-    setRefreshing(true);
     try {
-      await authedFetch("/api/brain/patterns", { method: "POST" });
-      await load();
+      await regenerateMutation.mutateAsync();
+      await utils.brain.patterns.invalidate();
     } catch {
-      setError(true);
-    } finally {
-      setRefreshing(false);
+      // surfaced via the query's error state on the next render
     }
-  }, [load]);
+  }, [regenerateMutation, utils]);
 
   useEffect(() => {
-    void load();
     // v10.0.529.84 · Wave 28 · B6 · subscribe to tasks data-change
     // so the pattern surface refreshes when a check-off lands a new
     // task_insight. Pre-Wave-28 the panel only refreshed on manual
     // regen · stale by default.
     const off = onDataChanged(["tasks"], () => {
-      setTimeout(() => void load(), 500);
+      setTimeout(() => void utils.brain.patterns.invalidate(), 500);
     });
     return () => off();
-  }, [load]);
+  }, [utils]);
 
-  if (error || !patterns) return null;
+  if (patternsQuery.isError || !patterns) return null;
   if (patterns.length === 0) return null;
+
+  const refreshing = regenerateMutation.isPending;
 
   return (
     <section

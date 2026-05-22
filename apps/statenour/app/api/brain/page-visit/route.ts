@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 import { requireSession } from "@/lib/auth-guard";
+import { recordPageVisit } from "@/lib/services/brain-domain";
 export const dynamic = "force-dynamic";
 
 /**
@@ -12,39 +13,27 @@ export const dynamic = "force-dynamic";
  * - Which pages Nour avoids (blind spots)
  * - Time patterns (morning = command, late night = drift?)
  * - Frequency patterns (hasn't checked drift in 3 days)
+ *
+ * Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+ * the inline auditEvent write moved to
+ * `lib/services/brain-domain.recordPageVisit` so this route AND the new
+ * `trpc.brain.pageVisit` procedure call the same function · drift
+ * impossible.
  */
 export async function POST(req: Request) {
   await requireSession(req);
-  try {
-    const body = await req.json();
-    const { page, referrer } = body;
+  const body = await req.json().catch(() => ({}));
+  const { page, referrer } = body as { page?: unknown; referrer?: unknown };
 
-    if (!page || typeof page !== "string") {
-      return NextResponse.json({ ok: false }, { status: 400 });
-    }
-
-    const hour = new Date().getHours();
-    const dayOfWeek = new Date().toLocaleDateString("en-US", { weekday: "short", timeZone: "America/New_York" });
-
-    await prisma.auditEvent.create({
-      data: {
-        actor: "page_tracker",
-        eventType: "page_visit",
-        detail: page,
-        payload: {
-          page,
-          referrer: referrer || null,
-          hour,
-          dayOfWeek,
-          timestamp: new Date().toISOString(),
-        },
-      },
-    });
-
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: true }); // Fail silently — tracking is non-critical
+  if (!page || typeof page !== "string") {
+    return NextResponse.json({ ok: false }, { status: 400 });
   }
+
+  const result = await recordPageVisit({
+    page,
+    referrer: typeof referrer === "string" ? referrer : null,
+  });
+  return NextResponse.json(result);
 }
 
 /**

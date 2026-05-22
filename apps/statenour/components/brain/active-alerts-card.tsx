@@ -11,10 +11,11 @@
  * category with the latest items + a relative-time stamp.
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// active-alerts")` onto `trpc.brain.activeAlerts` · reactive read.
+import { trpc } from "@/lib/trpc/client";
 import { AlertTriangle, Activity, TrendingDown } from "lucide-react";
 
 interface Alert {
@@ -23,7 +24,7 @@ interface Alert {
   key: string;
   content: string;
   createdAt: string;
-  metadata: Record<string, unknown> | null;
+  metadata: unknown;
 }
 
 interface AlertsPayload {
@@ -82,33 +83,17 @@ function relTime(iso: string): string {
 }
 
 export function ActiveAlertsCard() {
-  const [payload, setPayload] = useState<AlertsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
+  // v8.3 BATCH 13 · React Query drives the fetch · the card used a
+  // one-shot `load()` (no interval) · same here · the FreshnessChip
+  // reload maps to `refetch()` and lastFetchedAt to `dataUpdatedAt`.
+  const alertsQuery = trpc.brain.activeAlerts.useQuery(undefined);
+  const payload = (alertsQuery.data as AlertsPayload | undefined) ?? null;
+  const lastFetchedAt = alertsQuery.dataUpdatedAt
+    ? new Date(alertsQuery.dataUpdatedAt)
+    : null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/brain/active-alerts");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: AlertsPayload } & AlertsPayload;
-      setPayload(j.data ?? (j as AlertsPayload));
-      setLastFetchedAt(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading && !payload) return null; // silent loading — appears once data arrives
-  if (error && !payload) return null; // silent error
+  if (alertsQuery.isLoading && !payload) return null; // silent loading — appears once data arrives
+  if (alertsQuery.isError && !payload) return null; // silent error
   if (!payload) return null;
 
   const totalAlerts = Object.values(payload.counts).reduce((a, b) => a + b, 0);
@@ -124,7 +109,7 @@ export function ActiveAlertsCard() {
         <FreshnessChip
           lastFetchedAt={lastFetchedAt}
           source="api/brain/active-alerts"
-          onReload={() => void load()}
+          onReload={() => void alertsQuery.refetch()}
           compact
         />
       </div>

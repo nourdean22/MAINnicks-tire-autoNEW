@@ -5,14 +5,16 @@
  * so Nour sees what the self-model is screaming about right now.
  */
 
-import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, AlertCircle, Info, Loader2 } from "lucide-react";
 import { DismissButton } from "@/components/ui/dismiss-button";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// nudges")` (read) + `authedFetch("/api/brain/nudges/dismiss")` (POST)
+// onto `trpc.brain.nudges` + `trpc.brain.dismissNudge`.
+import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
@@ -55,32 +57,16 @@ const SEVERITY_GLYPH = {
 };
 
 export function NudgePanel() {
-  const [nudges, setNudges] = useState<Nudge[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [nonce, setNonce] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authedFetch("/api/brain/nudges");
-        if (!res.ok) throw new Error("nudge fetch failed");
-        const raw = (await res.json()) as { data?: { nudges?: Nudge[] } };
-        if (!cancelled) {
-          setNudges(raw.data?.nudges ?? []);
-          setLoadedAt(Date.now());
-        }
-      } catch {
-        if (!cancelled) setNudges([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [nonce]);
+  const utils = trpc.useUtils();
+  const nudgesQuery = trpc.brain.nudges.useQuery(undefined);
+  const dismissMutation = trpc.brain.dismissNudge.useMutation();
+  // The query errors silently · the panel renders the empty state on
+  // both error and no-data (same as the legacy `catch → setNudges([])`).
+  const nudges: Nudge[] | null = nudgesQuery.isError
+    ? []
+    : ((nudgesQuery.data?.nudges as Nudge[] | undefined) ?? null);
+  const loading = nudgesQuery.isLoading;
+  const loadedAt = nudgesQuery.dataUpdatedAt || null;
 
   if (loading) {
     return (
@@ -96,7 +82,7 @@ export function NudgePanel() {
     return (
       <GlassCard>
         <div className="flex justify-end mb-1">
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => setNonce((n) => n + 1)} />
+          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
         <EmptyState
           icon={AlertCircle}
@@ -114,7 +100,7 @@ export function NudgePanel() {
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="flex items-center gap-2">
           <p className="section-label">Live nudges</p>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => setNonce((n) => n + 1)} />
+          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void nudgesQuery.refetch()} />
         </div>
         <span className="text-[9px] font-mono text-[var(--text-tertiary)]">
           <AnimatedCounter value={nudges.filter((n) => n.severity === "high").length} /> high ·{" "}
@@ -149,13 +135,13 @@ export function NudgePanel() {
                   e.preventDefault();
                   e.stopPropagation();
                   try {
-                    await authedFetch("/api/brain/nudges/dismiss", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ source: n.source, text: n.text, until: "7d" }),
+                    await dismissMutation.mutateAsync({
+                      source: n.source,
+                      text: n.text,
+                      until: "7d",
                     });
                     toast.success("dismissed · back in 7d");
-                    setNonce((v) => v + 1);
+                    void utils.brain.nudges.invalidate();
                   } catch {
                     toast.error("dismiss failed");
                   }

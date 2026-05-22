@@ -9,11 +9,13 @@
  * local (reset on cold start) so treat as "recent" not "lifetime."
  */
 
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Sparkles, Zap, Brain, AlertCircle } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/ai/chat/
+// suggestions/stats")` onto `trpc.brain.suggestionStats` · reactive
+// read · the 15s `setInterval` is now React Query's refetchInterval.
+import { trpc } from "@/lib/trpc/client";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
@@ -32,36 +34,16 @@ interface Stats {
 }
 
 export function SuggestionTelemetryPanel() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [nonce, setNonce] = useState(0);
+  // The endpoint returns a `live`/`history24` envelope PLUS the flat
+  // legacy keys the panel binds — the procedure preserves that shape,
+  // so the `Stats` projection off the top level is unchanged.
+  const statsQuery = trpc.brain.suggestionStats.useQuery(undefined, {
+    refetchInterval: 15_000,
+  });
+  const stats = (statsQuery.data as Stats | undefined) ?? null;
+  const loadedAt = statsQuery.dataUpdatedAt || null;
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await authedFetch("/api/ai/chat/suggestions/stats");
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        const data = (await res.json()) as Stats;
-        if (!cancelled) {
-          setStats(data);
-          setError(null);
-          setLoadedAt(Date.now());
-        }
-      } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "load failed");
-      }
-    }
-    void load();
-    const id = setInterval(load, 15_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, [nonce]);
-
-  if (!stats && !error) {
+  if (!stats && !statsQuery.isError) {
     return (
       <GlassCard className="p-4">
         <div className="text-[11px] text-[var(--text-tertiary)]">
@@ -71,11 +53,12 @@ export function SuggestionTelemetryPanel() {
     );
   }
 
-  if (error && !stats) {
+  if (statsQuery.isError && !stats) {
     return (
       <GlassCard className="p-4">
         <div className="flex items-center gap-2 text-[11px] text-red-400">
-          <AlertCircle size={12} /> telemetry load failed: {error}
+          <AlertCircle size={12} /> telemetry load failed:{" "}
+          {statsQuery.error.message}
         </div>
       </GlassCard>
     );
@@ -97,7 +80,7 @@ export function SuggestionTelemetryPanel() {
         <h2 className="text-[13px] font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
           Smart Replies — Live Telemetry
         </h2>
-        <FreshnessChip lastFetchedAt={loadedAt} source="lambda" compact onReload={() => setNonce((n) => n + 1)} />
+        <FreshnessChip lastFetchedAt={loadedAt} source="lambda" compact onReload={() => void statsQuery.refetch()} />
         <span className="text-[10px] text-[var(--text-tertiary)]">lambda-local</span>
       </div>
 

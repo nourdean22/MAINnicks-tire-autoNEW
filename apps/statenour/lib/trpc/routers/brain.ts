@@ -1,17 +1,30 @@
 /**
  * lib/trpc/routers/brain.ts · Phase UU (2026-05-19 AM) · extended
- * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice).
+ * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice)
+ * · extended Phase B.6d (2026-05-22 · REST→tRPC brain-domain slice).
  *
  * Brain-domain procedures · the 8th domain router (nick · operator ·
  * system · chat · browser · task · journal · brain). Wraps the
- * /brain/wisdom dashboard read + curation actions. /brain galaxy ·
- * health · identity-trajectory have minimal authedFetch · they can
- * migrate in a future UU+ phase.
+ * /brain/wisdom dashboard read + curation actions plus — as of B.6d —
+ * the full /brain dashboard component surface (alerts · beliefs ·
+ * maturity · categories · contradictions · activity stream · graph
+ * explorer · nudges · page tracker · patterns · prediction streaks ·
+ * qualitative identity · recent insights · suggestion + tool telemetry
+ * · wisdom evolution · brain-dump capture).
  *
  * Phase UU.2 adds two brain-domain reads the /settings surfaces touch
  * (the SettingsPage SystemInfo memory count + the SystemDataCards
  * memory-of-the-day card) — they're brain reads, so they live here
  * rather than in a thin `settings` router.
+ *
+ * Phase B.6d migrates the ~20 components/brain/* + brain-dump-modal
+ * call-sites off `authedFetch`. Every NEW procedure delegates to a
+ * shared `lib/services/` or `lib/brain/` function the legacy REST route
+ * ALSO calls · drift structurally impossible. Read procedures returning
+ * Prisma rows go through services with explicit shallow return shapes
+ * (the BrainMemory / AuditEvent Json columns projected to scalar /
+ * `unknown`) so the recursive `JsonValue` type never reaches the
+ * AppRouter — the TS2589 firewall.
  *
  * Delegates to shared services · the legacy REST routes call the same
  * modules · drift impossible.
@@ -45,6 +58,52 @@ import {
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
+// Phase B.6d · brain-domain slice · the shared services / lib functions
+// the migrated components/brain/* + brain-dump-modal call-sites delegate
+// to. Each is also called by the matching legacy REST route — drift
+// structurally impossible.
+import {
+  buildActiveAlerts,
+  buildBrainMaturity,
+  buildBrainExport,
+  resetBrainState,
+  buildCategoryStats,
+  buildRecentInsights,
+  buildGraphNeighborhood,
+  buildActivityStream,
+  recordPageVisit,
+  buildSuggestionStats,
+} from "@/lib/services/brain-domain";
+import {
+  listStoredContradictions,
+  resolveStoredContradiction,
+  type ContradictionResolveChoice,
+} from "@/lib/services/contradictions";
+import {
+  loadActiveBeliefs,
+  loadBeliefCandidates,
+  promoteBelief,
+  dropBelief,
+  editBelief,
+  harvestBeliefs,
+} from "@/lib/brain/belief-harvester";
+import { computeNudges, dismissNudge } from "@/lib/brain/cross-system-nudge";
+import {
+  loadCurrentPatterns,
+  runPatternClustering,
+} from "@/lib/services/pattern-clusterer";
+import { computePredictionStreaks } from "@/lib/brain/prediction-streaks";
+import {
+  loadQualitativeIdentity,
+  computeQualitativeIdentity,
+  addManualEntry,
+  removeEntry,
+} from "@/lib/brain/qualitative-identity";
+import { getToolStats, getProblemTools } from "@/lib/ai/tool-telemetry";
+import { runWisdomEvolution } from "@/lib/brain/wisdom-evolution";
+import { recordMetric } from "@/lib/services/metrics";
+import { ingestJournal } from "@/lib/brain/journal-ingest";
+import { ServiceError } from "@/lib/utils/service-error";
 
 export const brainRouter = router({
   /**
@@ -282,4 +341,561 @@ export const brainRouter = router({
    * `{ data }`; the tRPC query hands it back unwrapped.
    */
   memoryOfTheDay: operatorProcedure.query(async () => getMemoryOfTheDay()),
+
+  // ════════════════ Phase B.6d · /brain dashboard surface ════════════════
+  //
+  // The ~20 components/brain/* + brain-dump-modal call-sites migrated off
+  // `authedFetch`. Every procedure delegates to a shared service / lib
+  // function the legacy REST route ALSO calls · drift structurally
+  // impossible. Read procedures returning Prisma rows go through services
+  // with explicit shallow return shapes (`brain-domain.ts` projects every
+  // BrainMemory / AuditEvent Json column to scalar / `unknown`) so the
+  // recursive `JsonValue` type never reaches the AppRouter — TS2589
+  // firewall.
+
+  /**
+   * Phase B.6d · owner-only · recent BrainMemory alert rows (correlation
+   * · decision-quality-drift · schema-drift · quota · spike · brain-bus)
+   * grouped by category. Replaces GET /api/brain/active-alerts ·
+   * delegates to the shared `brain-domain.buildActiveAlerts`. The
+   * legacy `?limit` / `?sinceDays` query params are mirrored as typed
+   * optional inputs (same 1-50 / 1-180 clamps).
+   *
+   * ActiveAlertsCard read only · React Query drives the refetch (the
+   * card used a one-shot `load()` · no interval).
+   */
+  activeAlerts: operatorProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(50).optional(),
+          sinceDays: z.number().int().min(1).max(180).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildActiveAlerts({
+        limit: input?.limit ?? 10,
+        sinceDays: input?.sinceDays ?? 30,
+      }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · the curated belief library · active
+   * beliefs + pending candidates. Replaces GET /api/beliefs ·
+   * delegates to the shared `belief-harvester` lib functions the REST
+   * route also calls. Returns `{ active, candidates }` mirroring the
+   * legacy envelope. `StoredBelief` is a flat object parsed from a JSON
+   * content column (no Prisma Json) · no TS2589 firewall needed.
+   */
+  beliefs: operatorProcedure.query(async () => {
+    const [active, candidates] = await Promise.all([
+      loadActiveBeliefs(),
+      loadBeliefCandidates(),
+    ]);
+    return { active, candidates };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · run the belief harvester now (the
+   * "harvest now" button on BeliefsPanel). Replaces the
+   * `action: "harvest_now"` branch of PATCH /api/beliefs · delegates to
+   * the shared `belief-harvester.harvestBeliefs`. Returns
+   * `{ ok, result }` mirroring the legacy envelope.
+   */
+  harvestBeliefs: operatorProcedure.mutation(async () => {
+    const result = await harvestBeliefs();
+    return { ok: true as const, result };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · promote / drop / edit a belief or
+   * belief-candidate. Replaces the `promote` / `drop` / `edit` branches
+   * of PATCH /api/beliefs · delegates to the shared `belief-harvester`
+   * functions the route also calls. The route's per-action validation
+   * (statement required on edit · candidate-not-found → 404) is mirrored
+   * here so both transports reject identically.
+   */
+  actOnBelief: operatorProcedure
+    .input(
+      z.object({
+        key: z.string().min(1).max(64),
+        action: z.enum(["promote", "drop", "edit"]),
+        kind: z.enum(["belief", "belief_candidate"]).optional(),
+        statement: z.string().min(1).max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (input.action === "promote") {
+        const promoted = await promoteBelief(input.key, input.statement);
+        if (!promoted) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "candidate not found",
+          });
+        }
+        return { ok: true as const, belief: promoted };
+      }
+      if (input.action === "drop") {
+        const kind = input.kind ?? "belief_candidate";
+        const dropped = await dropBelief(input.key, kind);
+        if (!dropped) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "not found" });
+        }
+        return { ok: true as const, dropped: true };
+      }
+      // edit
+      if (!input.statement) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "statement required",
+        });
+      }
+      const kind = input.kind ?? "belief";
+      const edited = await editBelief(input.key, kind, input.statement);
+      if (!edited) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "not found" });
+      }
+      return { ok: true as const, belief: edited };
+    }),
+
+  /**
+   * Phase B.6d · owner-only · the aggregate brain-maturity rollup
+   * (0-100 score + per-subsystem counters). Replaces GET
+   * /api/brain/maturity · delegates to the shared
+   * `brain-domain.buildBrainMaturity`. Returns the rollup at the top
+   * level — the legacy route wrapped it in `{ maturity }`; the
+   * BrainMaturityHeader call-site reads the object directly.
+   */
+  maturity: operatorProcedure.query(async () => buildBrainMaturity()),
+
+  /**
+   * Phase B.6d · owner-only · the full self-model JSON dump (the
+   * download-backup button on BrainMaturityHeader). Replaces GET
+   * /api/brain/export · delegates to the shared
+   * `brain-domain.buildBrainExport`. Return type is `unknown` — the
+   * payload is a heterogeneous backup blob the client serialises
+   * straight to a Blob (TS2589 firewall · the deep snapshot types stay
+   * out of the AppRouter).
+   */
+  exportBrain: operatorProcedure.query(async () => buildBrainExport()),
+
+  /**
+   * Phase B.6d · owner-only · nuke ALL brain-learning state (the
+   * double-confirmed reset button on BrainMaturityHeader). Replaces
+   * POST /api/brain/reset · delegates to the shared
+   * `brain-domain.resetBrainState` so the destructive 12-category set
+   * never drifts between transports. Irreversible.
+   */
+  reset: operatorProcedure.mutation(async () => resetBrainState()),
+
+  /**
+   * Phase B.6d · owner-only · the BrainMemory category heat-map (per-
+   * category row counts · freshness · confidence · registry status).
+   * Replaces GET /api/brain/category-stats · delegates to the shared
+   * `brain-domain.buildCategoryStats`. The legacy route wrapped the
+   * payload in `{ data }`; the BrainCategoriesView call-site reads the
+   * object directly. Preserves the `cache: "no-store"` semantics — the
+   * call-site sets `staleTime: 0`.
+   */
+  categoryStats: operatorProcedure.query(async () => buildCategoryStats()),
+
+  /**
+   * Phase B.6d · owner-only · the /brain panel contradiction list ·
+   * unresolved-only by default, full 90-day history when
+   * `includeResolved`. Replaces GET /api/contradictions (`?all=1`) ·
+   * delegates to the shared `contradictions.listStoredContradictions`.
+   * Returns `{ contradictions }` mirroring the legacy envelope ·
+   * `StoredContradiction` is a flat object parsed from a JSON content
+   * column (no Prisma Json) · no TS2589 firewall needed. Distinct from
+   * `system.contradictions` (the ultron card's camelCase view).
+   */
+  contradictions: operatorProcedure
+    .input(
+      z.object({ includeResolved: z.boolean().optional() }).optional(),
+    )
+    .query(async ({ input }) =>
+      listStoredContradictions({
+        includeResolved: input?.includeResolved ?? false,
+      }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · resolve a contradiction from the /brain
+   * panel (current_wins · old_wins · both_valid · dismissed). Replaces
+   * PATCH /api/contradictions · delegates to the shared
+   * `contradictions.resolveStoredContradiction`. A missing-or-corrupt
+   * row throws ServiceError(404) → NOT_FOUND so both transports reject
+   * identically.
+   */
+  resolveContradiction: operatorProcedure
+    .input(
+      z.object({
+        key: z.string().min(1).max(128),
+        status: z.enum([
+          "current_wins",
+          "old_wins",
+          "both_valid",
+          "dismissed",
+        ]),
+        note: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await resolveStoredContradiction({
+          key: input.key,
+          status: input.status as ContradictionResolveChoice,
+          note: input.note,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.6d · owner-only · the cross-OS entity-audit firehose ·
+   * recent activity across every entity, newest-first. Replaces the
+   * global-firehose branch of GET /api/audit/entity (`?firehose=1`) ·
+   * delegates to the shared `brain-domain.buildActivityStream` (the
+   * AuditEvent `payload` / before / after Json is dropped, scalar
+   * fields only · TS2589 firewall). GlobalActivityStream polls this on
+   * a 60s interval · React Query now drives the refetch. The legacy
+   * `?limit=` param (clamped 1-500) is mirrored as a typed input.
+   */
+  activityStream: operatorProcedure
+    .input(
+      z
+        .object({ limit: z.number().int().min(1).max(500).optional() })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildActivityStream({ limit: input?.limit ?? 30 }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · the edge neighborhood around one memory-
+   * graph node (depth 1 or 2). Replaces GET /api/brain/graph-neighborhood
+   * · delegates to the shared `brain-domain.buildGraphNeighborhood`. The
+   * MemoryGraphExplorer modal fetches this imperatively on each
+   * pivot/reload via `utils.brain.graphNeighborhood.fetch()`.
+   */
+  graphNeighborhood: operatorProcedure
+    .input(
+      z.object({
+        type: z.string().min(1).max(60),
+        id: z.string().min(1).max(128),
+        depth: z.union([z.literal(1), z.literal(2)]).default(1),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildGraphNeighborhood({
+        type: input.type,
+        id: input.id,
+        depth: input.depth,
+      }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · the cross-system real-time nudge feed.
+   * Replaces GET /api/brain/nudges · delegates to the shared
+   * `cross-system-nudge.computeNudges` the REST route also calls.
+   * Returns `{ nudges }` mirroring the legacy envelope. `Nudge` is a
+   * flat object · no TS2589 firewall needed.
+   */
+  nudges: operatorProcedure.query(async () => {
+    const nudges = await computeNudges();
+    return { nudges };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · dismiss (ACK) a nudge for a window. The
+   * NudgePanel per-nudge dismiss button fires this. Replaces POST
+   * /api/brain/nudges/dismiss · delegates to the shared
+   * `cross-system-nudge.dismissNudge` (which lives alongside
+   * `computeNudges` so the ack-key derivation can't drift from the
+   * suppression filter). `until` defaults to "7d" — the panel sends
+   * exactly that.
+   */
+  dismissNudge: operatorProcedure
+    .input(
+      z.object({
+        source: z.string().min(1).max(60),
+        text: z.string().min(1).max(2000),
+        until: z.enum(["today", "7d", "forever"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      dismissNudge({
+        source: input.source,
+        text: input.text,
+        until: input.until,
+      }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · record a silent page visit for brain
+   * pattern detection. The PageTracker component fires this fire-and-
+   * forget on every route change. Replaces POST /api/brain/page-visit ·
+   * delegates to the shared `brain-domain.recordPageVisit`. Fail-silent
+   * (tracking is non-critical) — the service swallows write errors.
+   */
+  pageVisit: operatorProcedure
+    .input(
+      z.object({
+        page: z.string().min(1).max(512),
+        referrer: z.string().max(2048).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) =>
+      recordPageVisit({ page: input.page, referrer: input.referrer }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · the current task-pattern clusters from
+   * BrainMemory (8-axis identity clusters). Replaces GET
+   * /api/brain/patterns · delegates to the shared
+   * `pattern-clusterer.loadCurrentPatterns`. Returns `{ patterns }`
+   * mirroring the legacy envelope. `ClusteredPattern` is a flat object
+   * · no TS2589 firewall needed. PatternCard reads this + a 500ms-
+   * debounced reload on the `tasks` data-change bus.
+   */
+  patterns: operatorProcedure.query(async () => {
+    const patterns = await loadCurrentPatterns();
+    return { patterns };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · regenerate the task-pattern clusters on
+   * demand (the "regen" button on PatternCard). Replaces POST
+   * /api/brain/patterns · delegates to the shared
+   * `pattern-clusterer.runPatternClustering`. Returns the
+   * `{ patterns, emitted }` run result.
+   */
+  regeneratePatterns: operatorProcedure.mutation(async () =>
+    runPatternClustering(),
+  ),
+
+  /**
+   * Phase B.6d · owner-only · per-category prediction-accuracy streaks.
+   * Replaces GET /api/brain/prediction-streaks · delegates to the
+   * shared `prediction-streaks.computePredictionStreaks`. The legacy
+   * `?windowDays=` param (clamped 7-365 · default 90) is mirrored as a
+   * typed optional input. Returns the `StreaksReport` (flat object · no
+   * TS2589 firewall needed). PredictionStreaksCard read only.
+   */
+  predictionStreaks: operatorProcedure
+    .input(
+      z
+        .object({
+          windowDays: z.number().int().min(7).max(365).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      computePredictionStreaks(input?.windowDays ?? 90),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · the qualitative-identity bundle (values ·
+   * fears · operating style · rhythms · red lines). Replaces GET
+   * /api/identity/qualitative · delegates to the shared
+   * `qualitative-identity.loadQualitativeIdentity`. Returns
+   * `{ identity }` mirroring the legacy envelope. `QualitativeIdentity`
+   * is a flat object parsed from a JSON content column · no TS2589
+   * firewall needed.
+   */
+  qualitativeIdentity: operatorProcedure.query(async () => {
+    const identity = await loadQualitativeIdentity();
+    return { identity };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · recompute the qualitative identity from
+   * 60d of reflections + chat importance + beliefs (the "recompute"
+   * button on QualitativeIdentityPanel). Replaces POST
+   * /api/identity/qualitative · delegates to the shared
+   * `qualitative-identity.computeQualitativeIdentity`. Returns
+   * `{ identity }` so the call-site reads the same shape the GET does.
+   */
+  recomputeQualitativeIdentity: operatorProcedure.mutation(async () => {
+    const identity = await computeQualitativeIdentity();
+    return { identity };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · add or remove a manual qualitative-
+   * identity entry. Replaces the `add` / `remove` branches of PATCH
+   * /api/identity/qualitative · delegates to the shared
+   * `qualitative-identity.{addManualEntry,removeEntry}`. The route's
+   * `bucket` whitelist + `text` ≥3-char guard are hoisted to the typed
+   * `.input()` so a bad bucket is rejected at the boundary. Returns
+   * `{ identity }` so the call-site re-renders from the same shape.
+   */
+  editQualitativeIdentity: operatorProcedure
+    .input(
+      z.object({
+        action: z.enum(["add", "remove"]),
+        bucket: z.enum([
+          "values",
+          "fears",
+          "operating_style",
+          "rhythms",
+          "red_lines",
+        ]),
+        text: z.string().min(3).max(180),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const identity =
+        input.action === "add"
+          ? await addManualEntry(input.bucket, input.text)
+          : await removeEntry(input.bucket, input.text);
+      return { identity };
+    }),
+
+  /**
+   * Phase B.6d · owner-only · last-N-days task-insight rows grouped-
+   * ready by 8-axis identity. Replaces GET /api/brain/recent-insights ·
+   * delegates to the shared `brain-domain.buildRecentInsights` (the
+   * BrainMemory `metadata` Json is projected to 3 scalar fields inside
+   * the service · TS2589 firewall). The legacy `?days` / `?limit`
+   * params (clamped 1-30 / 1-200) are mirrored as typed inputs.
+   * RecentInsightsPanel read only · `cache: "no-store"` semantics
+   * preserved via `staleTime: 0` at the call-site.
+   */
+  recentInsights: operatorProcedure
+    .input(
+      z
+        .object({
+          days: z.number().int().min(1).max(30).optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildRecentInsights({
+        days: input?.days ?? 7,
+        limit: input?.limit ?? 50,
+      }),
+    ),
+
+  /**
+   * Phase B.6d · owner-only · suggestion-cache hit/miss + Venice
+   * OK/fail telemetry (lambda-local live counters + 24h SystemMetric
+   * baseline). Replaces GET /api/ai/chat/suggestions/stats · delegates
+   * to the shared `brain-domain.buildSuggestionStats`. SuggestionTelemetryPanel
+   * polls this on a 15s interval · React Query now drives the refetch.
+   */
+  suggestionStats: operatorProcedure.query(async () =>
+    buildSuggestionStats(),
+  ),
+
+  /**
+   * Phase B.6d · owner-only · per-tool invocation telemetry (totalCalls
+   * · successRate · avgDurationMs · lastErrors) + the problem-tool
+   * list. Replaces GET /api/brain/tools · delegates to the shared
+   * `tool-telemetry.{getToolStats,getProblemTools}` the REST route also
+   * calls. Returns `{ ok, total, problem, stats }` mirroring the legacy
+   * envelope. `ToolStat` is a flat object · no TS2589 firewall needed.
+   */
+  toolTelemetry: operatorProcedure.query(async () => {
+    const [stats, problem] = await Promise.all([
+      getToolStats(100),
+      getProblemTools(),
+    ]);
+    return {
+      ok: true as const,
+      total: stats.length,
+      problem,
+      stats,
+    };
+  }),
+
+  /**
+   * Phase B.6d · owner-only · the three self-evolution candidate
+   * classes (stale · redundant · low-trust). Replaces GET
+   * /api/brain/wisdom/evolution · delegates to the shared
+   * `wisdom-evolution.runWisdomEvolution` the REST route also calls.
+   * Returns `{ stale, redundant, lowTrust, totalCandidates }` — all
+   * flat objects · no TS2589 firewall needed. WisdomEvolutionPanel read
+   * (the panel reuses `brain.actOnWisdom` for the deprecate action).
+   */
+  wisdomEvolution: operatorProcedure.query(async () => runWisdomEvolution()),
+
+  /**
+   * Phase B.6d · owner-only · lightweight brain-feedback telemetry
+   * recorder. Replaces POST /api/brain/telemetry · delegates to the
+   * shared `metrics.recordMetric` the REST route also calls. The
+   * route's `ALLOWED_EVENTS` whitelist is hoisted to a strict
+   * `z.enum` at the `.input()` boundary so an unknown event is
+   * rejected there. Fire-and-forget from the WisdomEvolutionPanel
+   * deprecate handler.
+   */
+  recordTelemetry: operatorProcedure
+    .input(
+      z.object({
+        event: z.enum([
+          "see_also_click",
+          "evolution_deprecate",
+          "evolution_review",
+          "mode_chip_cycle",
+          "mode_chip_send",
+          "improve_page_view",
+        ]),
+        value: z.number().finite().optional(),
+        tags: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await recordMetric(
+        `brain_feedback.${input.event}`,
+        typeof input.value === "number" && Number.isFinite(input.value)
+          ? input.value
+          : 1,
+        {
+          unit: "count",
+          tags: input.tags ?? {},
+          source: "brain-feedback-ui",
+        },
+      );
+      return { ok: true as const };
+    }),
+
+  /**
+   * Phase B.6d · owner-only · raw-text brain-dump capture · runs the
+   * full journal-ingest pipeline (BrainDump row + AI extraction +
+   * pgvector embedding + task/insight/commitment writes). Replaces POST
+   * /api/journal/capture · delegates to the shared
+   * `journal-ingest.ingestJournal` the REST route also calls. The
+   * BrainDumpModal fires this; the optimistic-UI clear happens
+   * client-side before the mutation resolves. The route's `min 3 chars`
+   * guard is hoisted to the typed `.input()`.
+   *
+   * Rate-limiting · the REST route checks `checkAiRateLimit(req)` ·
+   * the tRPC path is owner-only + single-operator so request-level
+   * rate-limiting is deferred (matching the `task.aiGenerate` rationale
+   * · essentially zero abuse surface).
+   */
+  captureThought: operatorProcedure
+    .input(z.object({ text: z.string().min(3).max(20_000) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await ingestJournal(input.text.trim(), "manual");
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });

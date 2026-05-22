@@ -16,9 +16,13 @@
  *     never reads as broken.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/audit/
+// entity?firehose=1&limit=N")` onto `trpc.brain.activityStream` ·
+// reactive read · the 60s `setInterval` is now React Query's
+// refetchInterval · the pagination "load older" still bumps the limit.
+import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 interface ActivityEntry {
   id: string;
@@ -57,46 +61,28 @@ function formatActor(actor: string): string {
 }
 
 export function GlobalActivityStream({ limit = 30 }: { limit?: number }) {
-  const [entries, setEntries] = useState<ActivityEntry[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   // v8.6 BATCH 36 — pagination. `windowSize` grows by `limit` each
-  // time Nour clicks "Load more". The fetch URL passes the current
-  // total so the server gives us everything in one shot (cheap
-  // because the entity_audits index is on (entityType, entityId,
-  // createdAt) — no full scan).
+  // time Nour clicks "Load more". The query passes the current total
+  // so the server gives us everything in one shot (cheap because the
+  // entity_audits index is on (entityType, entityId, createdAt) — no
+  // full scan).
   const [windowSize, setWindowSize] = useState(limit);
-  const [loadingMore, setLoadingMore] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    let intervalId: ReturnType<typeof setInterval> | null = null;
-
-    async function load() {
-      try {
-        const r = await authedFetch(`/api/audit/entity?firehose=1&limit=${windowSize}`);
-        const j = (await r.json()) as { entries: ActivityEntry[] };
-        if (cancelled) return;
-        setEntries(Array.isArray(j.entries) ? j.entries : []);
-        setLoading(false);
-        setLoadingMore(false);
-        setError(null);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load activity");
-        setLoading(false);
-        setLoadingMore(false);
-      }
-    }
-
-    load();
-    intervalId = setInterval(load, 60_000);
-
-    return () => {
-      cancelled = true;
-      if (intervalId) clearInterval(intervalId);
-    };
-  }, [windowSize]);
+  // The 60s cadence the legacy `setInterval` provided is React Query's
+  // refetchInterval · the windowSize bump re-keys the query.
+  const activityQuery = trpc.brain.activityStream.useQuery(
+    { limit: windowSize },
+    { refetchInterval: 60_000 },
+  );
+  const entries =
+    (activityQuery.data?.entries as ActivityEntry[] | undefined) ??
+    (activityQuery.isError ? [] : null);
+  const loading = activityQuery.isLoading;
+  const error = activityQuery.isError
+    ? activityQuery.error.message
+    : null;
+  // `loadingMore` is true while a bumped-windowSize fetch is in flight.
+  const loadingMore = activityQuery.isFetching && !activityQuery.isLoading;
 
   if (loading) {
     return (
@@ -187,7 +173,6 @@ export function GlobalActivityStream({ limit = 30 }: { limit?: number }) {
           <button
             type="button"
             onClick={() => {
-              setLoadingMore(true);
               setWindowSize((w) => Math.min(w + limit, 500));
             }}
             disabled={loadingMore || windowSize >= 500}
