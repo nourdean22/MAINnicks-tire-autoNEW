@@ -533,11 +533,16 @@ function Services() {
                 {s.desc}
               </p>
               <div className="mt-6 flex gap-3">
+                {/* Descriptive link text — Lighthouse a11y/SEO audit flagged
+                    the previous "Learn More" as non-descriptive (same text
+                    on 3 different service cards, screen readers reading
+                    out-of-context couldn't tell them apart). Including the
+                    service name fixes both. */}
                 <Link
                   href={s.slug}
                   className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
                 >
-                  Learn More
+                  Learn more about {s.title.toLowerCase()}
                 </Link>
                 <a
                   href={BUSINESS.phone.href}
