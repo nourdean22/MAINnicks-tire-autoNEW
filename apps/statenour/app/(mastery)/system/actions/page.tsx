@@ -18,7 +18,7 @@
  *   · last-fired time-ago tick every 30s
  */
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -26,7 +26,14 @@ import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.autonomousActions.useQuery`.
+// React Query keys on the input object, so changing the window /
+// rule / approval filter refetches without a manual `load()` — the
+// AbortController the prior code juggled is React Query's job now.
+// The 30s `cache:"no-store"` poll maps to `refetchInterval`.
+import { trpc } from "@/lib/trpc/client";
+
 interface RuleRow {
   ruleName: string;
   total: number;
@@ -108,8 +115,6 @@ function SuccessRing({ rate }: { rate: number }) {
 }
 
 export default function ActionsPage() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [win, setWin] = useState<Win>("7d");
   const [ruleFilter, setRuleFilter] = useState<string | null>(null);
   const [approvalFilter, setApprovalFilter] = useState<string | null>(null);
@@ -126,43 +131,38 @@ export default function ActionsPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("system-actions:sortKey", sortKey);
   }, [sortKey]);
-  const fetchRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
-    fetchRef.current?.abort();
-    const ac = new AbortController();
-    fetchRef.current = ac;
-    try {
-      const params = new URLSearchParams({ since: win });
-      if (ruleFilter) params.set("rule", ruleFilter);
-      if (approvalFilter) params.set("approval", approvalFilter);
-      const res = await authedFetch(`/api/system/actions?${params}`, { signal: ac.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        console.error("actions fetch failed", e);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [win, ruleFilter, approvalFilter]);
+  // Phase B.7a · React Query keys on this input object · changing any
+  // filter triggers a refetch automatically. 30s `refetchInterval`
+  // replaces the prior setInterval poll.
+  const actionsQuery = trpc.system.autonomousActions.useQuery(
+    {
+      since: win,
+      ...(ruleFilter ? { rule: ruleFilter } : {}),
+      ...(approvalFilter
+        ? {
+            approval: approvalFilter as
+              | "auto"
+              | "pending"
+              | "approved"
+              | "rejected",
+          }
+        : {}),
+    },
+    { refetchInterval: 30_000 },
+  );
+  const feed: Feed | null = (actionsQuery.data as Feed | undefined) ?? null;
+  const loading = actionsQuery.isPending || actionsQuery.isFetching;
+  const load = () => void actionsQuery.refetch();
 
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 30_000);
-    return () => clearInterval(i);
-  }, [load]);
-
-  const toggleExpand = useCallback((id: string) => {
+  const toggleExpand = (id: string) => {
     setExpanded((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id);
       else n.add(id);
       return n;
     });
-  }, []);
+  };
 
   const pendingCount = feed?.approvalBreakdown.pending ?? 0;
 

@@ -1,7 +1,6 @@
 import { apiHandler } from "@/lib/utils/http";
 import { z } from "zod";
-import { triggerCronByPath } from "@/lib/services/cron-control";
-import { CRONS } from "@/config/crons";
+import { runManifestCron } from "@/lib/services/cron-control";
 
 /**
  * POST /api/system/crons/run · fire a cron now.
@@ -12,10 +11,11 @@ import { CRONS } from "@/config/crons";
  * paths. Kill-switch override: runs even when disabled (explicit manual
  * run takes precedence).
  *
- * v10.0.119 audit-pattern follow-up · the prior comment claimed "Auth:
- * operator session (apiHandler default)" but apiHandler has NO default
- * auth — same foot-gun audit 10 caught on /api/tasks. Anonymous callers
- * could trigger any cron in the manifest. Now actually owner-gated.
+ * Phase B.7a (2026-05-22) · the manifest-validate + trigger logic moved
+ * to the shared `cron-control.runManifestCron` service so the legacy
+ * REST endpoint AND the new `system.runManifestCron` tRPC procedure
+ * can't drift. This route stays mounted as the coexistence / rollback
+ * path. ServiceError(404/410) → apiHandler maps to the matching status.
  */
 
 const BodySchema = z.object({
@@ -24,14 +24,5 @@ const BodySchema = z.object({
 
 export const POST = apiHandler(async (req) => {
   const body = BodySchema.parse(await req.json());
-  const def = CRONS.find((c) => c.name === body.jobName);
-  if (!def) {
-    throw Object.assign(new Error(`unknown cron: ${body.jobName}`), { status: 404, code: "CRON_UNKNOWN" });
-  }
-  if (def.mode === "retired") {
-    throw Object.assign(new Error(`cron ${body.jobName} is retired`), { status: 410, code: "CRON_RETIRED" });
-  }
-  const path = def.path ?? `/api/cron/${body.jobName}`;
-  const result = await triggerCronByPath(path);
-  return { jobName: body.jobName, ...result };
+  return runManifestCron(body.jobName);
 }, { auth: "owner" });

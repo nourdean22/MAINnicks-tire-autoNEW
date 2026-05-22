@@ -19,11 +19,13 @@
  * surfaced." Now there's one screen for it.
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.deploymentTruth.useQuery`. The
+// 60s poll maps to `refetchInterval`.
+import { trpc } from "@/lib/trpc/client";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -102,33 +104,21 @@ function relTime(iso: string | null): string {
 }
 
 export default function DeploymentTruthPage() {
-  const [data, setData] = useState<DeploymentTruth | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/deployment-truth");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: DeploymentTruth } & DeploymentTruth;
-      setData(j.data ?? (j as DeploymentTruth));
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    // 60s poll — composed payload, costlier than a single endpoint.
-    const i = setInterval(load, 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7a · single typed useQuery · 60s refetchInterval mirrors
+  // the prior setInterval poll (composed payload, costlier than a
+  // single endpoint).
+  const truthQuery = trpc.system.deploymentTruth.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const data: DeploymentTruth | null =
+    (truthQuery.data as DeploymentTruth | undefined) ?? null;
+  const loading = truthQuery.isPending || truthQuery.isFetching;
+  const error = truthQuery.error ? truthQuery.error.message : null;
+  const lastFetched =
+    truthQuery.dataUpdatedAt > 0
+      ? new Date(truthQuery.dataUpdatedAt)
+      : null;
+  const load = () => void truthQuery.refetch();
 
   return (
     <StandardPage

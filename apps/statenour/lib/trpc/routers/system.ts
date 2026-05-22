@@ -32,6 +32,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
+import { prisma } from "@/lib/prisma";
 import { buildHealthReport } from "@/lib/services/system-health";
 import { buildLensStats } from "@/lib/services/lens-stats";
 import { buildJudgeEvalSummary } from "@/lib/services/judge-eval";
@@ -113,8 +114,80 @@ import {
   buildDecisionReplaysView,
   markDecisionReplay,
 } from "@/lib/services/decision-replays";
+// Phase B.7a · system-pages sub-slice · the shared services the
+// migrated app/(mastery)/system/* page surfaces delegate to. Each is
+// also called by the matching legacy REST route — drift structurally
+// impossible. All return explicit shallow shapes (Prisma Json columns
+// projected to `unknown` inside the service) so the recursive
+// `JsonValue` type never reaches the AppRouter — the TS2589 firewall.
+import {
+  buildDiagnostics,
+  buildSystemHealth,
+  buildAutonomousActionsFeed,
+  buildAgentTracesFeed,
+  buildAgentTraceDetail,
+  buildChatHealth,
+  buildSystemCosts,
+  buildCronRunHistory,
+  buildCronCommandDeck,
+  buildDeploymentTruth,
+  buildDeviceFleet,
+} from "@/lib/services/system-pages";
+import { runManifestCron } from "@/lib/services/cron-control";
+import {
+  listPendingActions,
+  summarizeQueue,
+  decidePendingAction,
+} from "@/lib/automation/approval-queue";
+import { tailEvents } from "@/lib/db/brain-bus-tail";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
+
+/** Phase B.7a · the seven TraceSource values · mirrors the
+ *  VALID_SOURCES whitelist in app/api/system/agent-traces/route.ts.
+ *  The `agentTraces` procedure's `source` input is strict to this
+ *  enum so a bad value is rejected at the boundary. */
+const TraceSourceSchema = z.enum([
+  "chat",
+  "cron",
+  "autonomous",
+  "tool",
+  "journal",
+  "brain",
+  "other",
+]);
+
+/**
+ * Phase B.7a · flat brain-bus tail event shape for the `brainBusEvents`
+ * procedure. The `tailEvents` service returns `Date` fields; the
+ * procedure stringifies them (mirroring the legacy REST route's map) so
+ * the public type matches the /system/brain-bus page's `TailEvent`
+ * interface exactly. No Prisma Json reaches the wire — `payloadPreview`
+ * is already a string projection inside the service.
+ */
+interface BrainBusTailView {
+  generatedAt: string;
+  cursor: string | null;
+  windowCounts: {
+    pending: number;
+    processing: number;
+    done: number;
+    failed: number;
+    dead: number;
+  };
+  events: Array<{
+    id: string;
+    topic: string;
+    eventType: string;
+    status: string;
+    attempts: number;
+    payloadPreview: string | null;
+    lastError: string | null;
+    createdAt: string;
+    processedAt: string | null;
+    availableAt: string;
+  }>;
+}
 
 // CronControlPanel's `/api/settings/crons` GET assembles scheduled crons
 // + mega-fanout virtual crons + control state + 14d stats. The MEGA
@@ -1040,6 +1113,412 @@ export const systemRouter = router({
                 ? "NOT_FOUND"
                 : err.status === 400
                   ? "BAD_REQUEST"
+                  : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  // ═════════════ Phase B.7a · system-pages sub-slice A ═════════════
+  //
+  // The authedFetch call-sites in the first ~13 app/(mastery)/system/*
+  // page files migrated onto trpc.system.*. Every procedure delegates
+  // to a shared lib/services/ function the legacy REST route ALSO calls
+  // · drift structurally impossible. Read procedures return the explicit
+  // shallow service shapes (Prisma Json columns projected to `unknown`
+  // inside the service · the public AppRouter type stays shallow ·
+  // TS2589 firewall).
+
+  /**
+   * Phase B.7a · owner-only · the /system landing-page diagnostics
+   * rollup · DB health + KPIs + row counts + device counts +
+   * integrations. Replaces GET /api/system/diagnostics · delegates to
+   * the shared `system-pages.buildDiagnostics` service. SystemPage
+   * polls this on a 60s interval · React Query drives the refetch.
+   * Returns the view at the top level (the legacy route's apiHandler
+   * wrapped it in `{ data }`; the call-site read `r.data ?? r` · the
+   * tRPC query hands it back unwrapped).
+   */
+  diagnostics: operatorProcedure.query(async () => buildDiagnostics()),
+
+  /**
+   * Phase B.7a · owner-only · the composite health probe — DB + task /
+   * commitment / device / radar counts + morning-brief readiness +
+   * Inngest + Braintrust visibility. Replaces GET /api/health ·
+   * delegates to the shared `system-pages.buildSystemHealth` service
+   * (which owns the 30s cache). SystemPage reads `alerts.unresolved` +
+   * `commitments.active` off this.
+   */
+  healthSummary: operatorProcedure.query(async () => buildSystemHealth()),
+
+  /**
+   * Phase B.7a · owner-only · Nick's autonomous-action audit feed ·
+   * grouped-by-rule leaderboard + latest 100 rows + approval breakdown.
+   * Replaces GET /api/system/actions · delegates to the shared
+   * `system-pages.buildAutonomousActionsFeed` service. The legacy
+   * `?since` / `?rule` / `?approval` query params are mirrored as typed
+   * optional inputs. ActionsPage polls this on a 30s interval · React
+   * Query drives the refetch · the input object is the query key so
+   * changing a filter triggers a refetch without a manual `load()`.
+   */
+  autonomousActions: operatorProcedure
+    .input(
+      z
+        .object({
+          since: z.enum(["24h", "7d", "30d"]).optional(),
+          rule: z.string().max(200).optional(),
+          approval: z
+            .enum(["auto", "pending", "approved", "rejected"])
+            .optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildAutonomousActionsFeed({
+        since: input?.since,
+        rule: input?.rule,
+        approval: input?.approval,
+      }),
+    ),
+
+  /**
+   * Phase B.7a · owner-only · recent agent-trace chains + roll-ups + a
+   * prior-24h baseline for the TrendCounter deltas. Replaces GET
+   * /api/system/agent-traces · delegates to the shared
+   * `system-pages.buildAgentTracesFeed` service. The legacy `?limit`
+   * (clamped 1-100) / `?source` query params are mirrored as typed
+   * inputs · `source` is strict to the TraceSource enum. AgentTracesPage
+   * keys on the input object so switching the source filter refetches.
+   */
+  agentTraces: operatorProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(100).optional(),
+          source: TraceSourceSchema.optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildAgentTracesFeed({
+        limit: input?.limit,
+        source: input?.source,
+      }),
+    ),
+
+  /**
+   * Phase B.7a · owner-only · the full chain for one trace + per-row +
+   * consolidated explainability envelope. Replaces GET
+   * /api/system/agent-traces/[traceId] · delegates to the shared
+   * `system-pages.buildAgentTraceDetail` service. An unknown traceId
+   * throws ServiceError(404) → NOT_FOUND so both transports reject
+   * identically (the page branches on the 404 to show a "stale link"
+   * message).
+   */
+  agentTraceDetail: operatorProcedure
+    .input(z.object({ traceId: z.string().min(1).max(128) }))
+    .query(async ({ input }) => {
+      try {
+        return await buildAgentTraceDetail(input.traceId);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.7a · owner-only · the chat-route operator rollup — latency,
+   * cost, volume, error rate, quality, tool health, provider mix.
+   * Replaces GET /api/system/chat-health · delegates to the shared
+   * `system-pages.buildChatHealth` service. ChatHealthPage polls this
+   * on a 60s interval. The legacy route wrapped the payload in
+   * `{ data }`; the procedure returns it unwrapped.
+   */
+  chatHealth: operatorProcedure.query(async () => buildChatHealth()),
+
+  /**
+   * Phase B.7a · owner-only · the operator-grade cost + latency +
+   * provider-health rollup over a configurable window. Replaces GET
+   * /api/system/costs · delegates to the shared
+   * `system-pages.buildSystemCosts` service. The legacy `?days` query
+   * param (clamped 1-90 · default 7) is mirrored as a typed input ·
+   * SystemCostsPage polls this on a 30s interval and keys on the input
+   * so switching the window refetches.
+   */
+  costs: operatorProcedure
+    .input(
+      z
+        .object({ days: z.number().int().min(1).max(90).optional() })
+        .optional(),
+    )
+    .query(async ({ input }) => buildSystemCosts({ days: input?.days })),
+
+  /**
+   * Phase B.7a · owner-only · per-job cron-run history · last N rows +
+   * success-rate / median / p95. Replaces GET
+   * /api/system/cron-runs/[jobName] · delegates to the shared
+   * `system-pages.buildCronRunHistory` service. The legacy `?sinceDays`
+   * (clamped 1-180) / `?limit` (clamped 1-500) query params are
+   * mirrored as typed inputs · CronRunsPage keys on the input so
+   * switching the window refetches.
+   */
+  cronRunHistory: operatorProcedure
+    .input(
+      z.object({
+        jobName: z.string().min(1).max(120),
+        sinceDays: z.number().int().min(1).max(180).optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildCronRunHistory({
+        jobName: input.jobName,
+        sinceDays: input.sinceDays,
+        limit: input.limit,
+      }),
+    ),
+
+  /**
+   * Phase B.7a · owner-only · the live cron command-deck feed · manifest
+   * + per-job stats + drift + next-run countdown. Replaces GET
+   * /api/system/crons · delegates to the shared
+   * `system-pages.buildCronCommandDeck` service. CronsPage polls this on
+   * a 30s interval. Distinct from `cronTree` (the fold-lineage view) —
+   * this carries the per-row `nextRunAt` + `drift` the control deck
+   * renders.
+   */
+  cronDeck: operatorProcedure.query(async () => buildCronCommandDeck()),
+
+  /**
+   * Phase B.7a · owner-only · fire a cron by jobName, validated against
+   * the `config/crons.ts` manifest. Replaces POST /api/system/crons/run
+   * · delegates to the shared `cron-control.runManifestCron` service.
+   * An unknown jobName throws ServiceError(404) → NOT_FOUND; a retired
+   * one ServiceError(410) → the tRPC code has no 410, so retired maps to
+   * BAD_REQUEST (the page surfaces the message verbatim either way).
+   *
+   * Distinct from `runCron` (NN · the cron-diagnostics page · jobName →
+   * vercel.json catalog via `triggerCronByName`) — this is the
+   * `/system/crons` deck + `/system/cron-runs` drill-down path which
+   * validates the typed CronDef manifest.
+   */
+  runManifestCron: operatorProcedure
+    .input(z.object({ jobName: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await runManifestCron(input.jobName);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.7a · owner-only · the live deployment-agreement check —
+   * code SHA + schema drift + env-secret presence + prompt mode + 24h
+   * cron health. Replaces GET /api/system/deployment-truth · delegates
+   * to the shared `system-pages.buildDeploymentTruth` service (which
+   * owns the 30s cache). DeploymentTruthPage polls this on a 60s
+   * interval.
+   */
+  deploymentTruth: operatorProcedure.query(async () =>
+    buildDeploymentTruth(),
+  ),
+
+  /**
+   * Phase B.7a · owner-only · the fleet-level device health feed —
+   * SmartDevice + DeviceCommand + DeviceEvent composite + agent
+   * liveness. Replaces GET /api/system/devices · delegates to the
+   * shared `system-pages.buildDeviceFleet` service. DevicesPage polls
+   * this on a 30s interval.
+   */
+  deviceFleet: operatorProcedure.query(async () => buildDeviceFleet()),
+
+  /**
+   * Phase B.7a · owner-only · retire every stale SmartDevice (status in
+   * the filter set + lastSeenAt older than `olderThanDays`). Replaces
+   * POST /api/devices/retire-stale · delegates to the same prisma
+   * cleanup the route runs (FK-cascade DeviceCommand + DeviceEvent, then
+   * delete the rows). `dryRun` returns the candidate list without
+   * deleting — the DevicesPage retire button fires a dryRun first to
+   * populate its confirm dialog count, then the real call.
+   *
+   * The route's `RetireBody` shape ({ olderThanDays?, statuses?,
+   * dryRun? }) is mirrored as a strict typed input. Kept inline (small,
+   * route-local · YAGNI · no other caller).
+   */
+  retireStaleDevices: operatorProcedure
+    .input(
+      z
+        .object({
+          olderThanDays: z.number().int().min(1).max(365).optional(),
+          statuses: z.array(z.string().min(1).max(40)).max(10).optional(),
+          dryRun: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .mutation(async ({ input }) => {
+      const olderThanDays = input?.olderThanDays ?? 7;
+      const statuses = input?.statuses ?? ["OFFLINE", "UNKNOWN", "ERROR"];
+      const cutoff = new Date(
+        Date.now() - olderThanDays * 24 * 60 * 60 * 1000,
+      );
+
+      const candidates = await prisma.smartDevice.findMany({
+        where: {
+          status: { in: statuses },
+          OR: [{ lastSeenAt: { lt: cutoff } }, { lastSeenAt: null }],
+        },
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+          lastSeenAt: true,
+          status: true,
+        },
+      });
+
+      if (input?.dryRun) {
+        return {
+          ok: true as const,
+          dryRun: true as const,
+          count: candidates.length,
+          candidates,
+        };
+      }
+
+      if (candidates.length === 0) {
+        return { ok: true as const, retired: 0, candidates: [] };
+      }
+
+      const ids = candidates.map((c) => c.id);
+      await prisma.deviceCommand
+        .deleteMany({ where: { deviceId: { in: ids } } })
+        .catch(() => ({ count: 0 }));
+      await prisma.deviceEvent
+        .deleteMany({ where: { deviceId: { in: ids } } })
+        .catch(() => ({ count: 0 }));
+      const deleted = await prisma.smartDevice.deleteMany({
+        where: { id: { in: ids } },
+      });
+
+      return {
+        ok: true as const,
+        retired: deleted.count,
+        candidates: candidates.map((c) => ({ id: c.id, name: c.name })),
+      };
+    }),
+
+  /**
+   * Phase B.7a · owner-only · the durable brain-bus event tail · cursor-
+   * based incremental fetch + 24h status counts. Replaces GET
+   * /api/system/brain-bus-events · delegates to the shared
+   * `brain-bus-tail.tailEvents` service the legacy route also calls.
+   * The legacy `?sinceId` / `?limit` / `?topic` query params are
+   * mirrored as typed inputs. The procedure stringifies the service's
+   * `Date` fields (mirroring the route's map) so the public type
+   * matches the page's `TailEvent` interface. BrainBusPage polls this
+   * on a 3s cursor loop.
+   */
+  brainBusEvents: operatorProcedure
+    .input(
+      z
+        .object({
+          sinceId: z.string().max(128).optional(),
+          limit: z.number().int().min(1).max(200).optional(),
+          topic: z.string().max(120).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }): Promise<BrainBusTailView> => {
+      const result = await tailEvents({
+        sinceId: input?.sinceId,
+        limit: input?.limit,
+        topic: input?.topic,
+      });
+      return {
+        generatedAt: new Date().toISOString(),
+        cursor: result.cursor,
+        windowCounts: result.windowCounts,
+        events: result.events.map((e) => ({
+          id: e.id,
+          topic: e.topic,
+          eventType: e.eventType,
+          status: e.status,
+          attempts: e.attempts,
+          payloadPreview: e.payloadPreview,
+          lastError: e.lastError,
+          createdAt: e.createdAt.toISOString(),
+          processedAt: e.processedAt?.toISOString() ?? null,
+          availableAt: e.availableAt.toISOString(),
+        })),
+      };
+    }),
+
+  /**
+   * Phase B.7a · owner-only · the pending-autonomous-action approval
+   * queue · every approval="pending" AutonomousAction row + policy
+   * hints + a summary. Replaces GET /api/system/approvals · delegates
+   * to the shared `approval-queue.{listPendingActions,summarizeQueue}`
+   * the legacy route also calls. Returns `{ summary, rows }` mirroring
+   * the legacy `data` envelope so ApprovalsPage's `data.rows` /
+   * `data.summary` reads are unchanged.
+   */
+  approvals: operatorProcedure.query(async () => {
+    const rowsPromise = listPendingActions();
+    const summaryPromise = summarizeQueue();
+    const rows = await rowsPromise;
+    const summary = await summaryPromise;
+    return { summary, rows };
+  }),
+
+  /**
+   * Phase B.7a · owner-only · decide one pending AutonomousAction row
+   * (approve · reject) with optional notes. Replaces POST
+   * /api/system/approvals/[id] · delegates to the shared
+   * `approval-queue.decidePendingAction` service (which on approve also
+   * replays the deferred side effect). The route carried the row id as
+   * a path param; tRPC has no path, so it rides in the input object.
+   * A missing id throws ServiceError(404) → NOT_FOUND; a non-pending
+   * row ServiceError(409) → CONFLICT · both transports reject
+   * identically.
+   */
+  decideApproval: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(128),
+        decision: z.enum(["approved", "rejected"]),
+        notes: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await decidePendingAction(
+          input.id,
+          input.decision,
+          "nour",
+          input.notes,
+        );
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code:
+              err.status === 404
+                ? "NOT_FOUND"
+                : err.status === 409
+                  ? "CONFLICT"
                   : "INTERNAL_SERVER_ERROR",
             message: err.message,
           });

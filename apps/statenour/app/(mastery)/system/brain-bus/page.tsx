@@ -17,7 +17,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch tail read is now an imperative
+// `utils.system.brainBusEvents.fetch()`. This page owns its own 3s
+// cursor loop + visibility-pause + append buffer — that bespoke logic
+// is preserved verbatim; only the transport swaps to a typed tRPC
+// fetch (the roadmap's lazy/imperative-read pattern).
+import { trpc } from "@/lib/trpc/client";
 import {
   Activity,
   AlertTriangle,
@@ -106,34 +112,36 @@ export default function BrainBusPage() {
   const pausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
 
-  const fetchOnce = useCallback(async (initial = false) => {
-    try {
-      const params = new URLSearchParams();
-      params.set("limit", initial ? "50" : "200");
-      if (cursorRef.current) params.set("sinceId", cursorRef.current);
-      const res = await authedFetch(`/api/system/brain-bus-events?${params.toString()}`);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: Payload } | Payload;
-      const p = ("data" in j && j.data ? j.data : (j as Payload));
-      setCounts(p.windowCounts);
-      if (p.cursor) cursorRef.current = p.cursor;
-      if (p.events.length > 0) {
-        setEvents((prev) => {
-          // Append on incremental fetch; replace on initial fetch.
-          const merged = initial ? p.events : [...prev, ...p.events];
-          return merged.slice(-MAX_BUFFER);
+  const utils = trpc.useUtils();
+
+  const fetchOnce = useCallback(
+    async (initial = false) => {
+      try {
+        const p = await utils.system.brainBusEvents.fetch({
+          limit: initial ? 50 : 200,
+          ...(cursorRef.current ? { sinceId: cursorRef.current } : {}),
         });
-      } else if (initial) {
-        setEvents([]);
+        setCounts(p.windowCounts);
+        if (p.cursor) cursorRef.current = p.cursor;
+        if (p.events.length > 0) {
+          setEvents((prev) => {
+            // Append on incremental fetch; replace on initial fetch.
+            const merged = initial ? p.events : [...prev, ...p.events];
+            return merged.slice(-MAX_BUFFER);
+          });
+        } else if (initial) {
+          setEvents([]);
+        }
+        setLastFetched(new Date());
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
       }
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [utils],
+  );
 
   useEffect(() => {
     void fetchOnce(true);

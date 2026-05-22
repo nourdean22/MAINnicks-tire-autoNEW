@@ -23,7 +23,11 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.agentTraces.useQuery`. React
+// Query keys on the `{ source }` input so switching the source filter
+// refetches without a manual `load()`.
+import { trpc } from "@/lib/trpc/client";
 import {
   AlertTriangle,
   Activity,
@@ -130,10 +134,6 @@ function sourceColor(source: string): string {
 }
 
 export default function AgentTracesPage() {
-  const [data, setData] = useState<AgentTracePayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // v10.0.23 polish — search box (traceId / label substring) + errors-only toggle.
@@ -152,33 +152,26 @@ export default function AgentTracesPage() {
     window.localStorage.setItem("system-traces:sortKey", sortKey);
   }, [sortKey]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const url =
-        sourceFilter === "all"
-          ? "/api/system/agent-traces?limit=50"
-          : `/api/system/agent-traces?limit=50&source=${sourceFilter}`;
-      const res = await authedFetch(url);
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as
-        | { data?: AgentTracePayload }
-        | AgentTracePayload;
-      setData(
-        ("data" in j && j.data ? j.data : (j as AgentTracePayload)),
-      );
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [sourceFilter]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase B.7a · React Query keys on `{ source }` · switching the
+  // source filter refetches automatically. `limit:50` matches the
+  // legacy `?limit=50`.
+  const tracesQuery = trpc.system.agentTraces.useQuery({
+    limit: 50,
+    ...(sourceFilter === "all" ? {} : { source: sourceFilter }),
+  });
+  const data: AgentTracePayload | null =
+    (tracesQuery.data as AgentTracePayload | undefined) ?? null;
+  const loading = tracesQuery.isPending || tracesQuery.isFetching;
+  const error = tracesQuery.error
+    ? tracesQuery.error.message
+    : null;
+  const lastFetched =
+    tracesQuery.dataUpdatedAt > 0
+      ? new Date(tracesQuery.dataUpdatedAt)
+      : null;
+  const load = useCallback(() => {
+    void tracesQuery.refetch();
+  }, [tracesQuery]);
 
   const toggleExpand = useCallback((id: string) => {
     setExpanded((s) => {

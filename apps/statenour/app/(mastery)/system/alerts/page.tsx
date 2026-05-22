@@ -25,7 +25,11 @@ import { Panel } from "@/components/panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.brain.activeAlerts.useQuery` (the
+// procedure already shipped in the brain-domain slice). React Query
+// keys on `{ sinceDays }` so changing the window refetches.
+import { trpc } from "@/lib/trpc/client";
 
 interface Alert {
   id: string;
@@ -102,10 +106,6 @@ function relTime(iso: string): string {
 }
 
 export default function AlertsInspectorPage() {
-  const [payload, setPayload] = useState<AlertsPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetchedAt, setLastFetchedAt] = useState<Date | null>(null);
   const [sinceDays, setSinceDays] = useState(30);
   const [activeCategories, setActiveCategories] = useState<Set<string>>(
     new Set(ALL_CATS),
@@ -123,27 +123,23 @@ export default function AlertsInspectorPage() {
     window.localStorage.setItem("system-alerts:sortKey", sortDir);
   }, [sortDir]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(
-        `/api/brain/active-alerts?sinceDays=${sinceDays}&limit=50`,
-      );
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: AlertsPayload } & AlertsPayload;
-      setPayload(j.data ?? (j as AlertsPayload));
-      setLastFetchedAt(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [sinceDays]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase B.7a · React Query keys on `{ sinceDays }` · changing the
+  // window refetches automatically. `limit:50` matches the legacy URL.
+  const alertsQuery = trpc.brain.activeAlerts.useQuery({
+    sinceDays,
+    limit: 50,
+  });
+  const payload: AlertsPayload | null =
+    (alertsQuery.data as AlertsPayload | undefined) ?? null;
+  const loading = alertsQuery.isPending || alertsQuery.isFetching;
+  const error = alertsQuery.error ? alertsQuery.error.message : null;
+  const lastFetchedAt =
+    alertsQuery.dataUpdatedAt > 0
+      ? new Date(alertsQuery.dataUpdatedAt)
+      : null;
+  const load = useCallback(() => {
+    void alertsQuery.refetch();
+  }, [alertsQuery]);
 
   const flattened = useMemo(() => {
     if (!payload) return [];

@@ -7,12 +7,14 @@
  * problem tools, provider mix. Reads /api/system/chat-health.
  */
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.chatHealth.useQuery`. The 60s
+// poll maps to `refetchInterval`.
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   AlertTriangle,
@@ -69,32 +71,16 @@ function rateClass(rate: number): string {
 }
 
 export default function ChatHealthPage() {
-  const [data, setData] = useState<Payload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/chat-health", {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setData(json.data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const id = setInterval(load, 60_000);
-    return () => clearInterval(id);
-  }, [load]);
+  // Phase B.7a · single typed useQuery · 60s refetchInterval mirrors
+  // the prior setInterval poll.
+  const chatHealthQuery = trpc.system.chatHealth.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const data: Payload | null =
+    (chatHealthQuery.data as Payload | undefined) ?? null;
+  const loading = chatHealthQuery.isPending || chatHealthQuery.isFetching;
+  const error = chatHealthQuery.error ? chatHealthQuery.error.message : null;
+  const load = () => void chatHealthQuery.refetch();
 
   return (
     <StandardPage

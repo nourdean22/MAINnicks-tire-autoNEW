@@ -22,7 +22,12 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is `trpc.system.approvals.useQuery` and the
+// approve/reject POST is `trpc.system.decideApproval.useMutation`.
+// The optimistic-remove-from-list behaviour is preserved via local
+// `rows`/`summary` state seeded from the query.
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   CheckCircle2,
@@ -59,10 +64,6 @@ interface QueueSummary {
   oldestAgeMin: number | null;
 }
 
-interface ApiResponse {
-  data: { summary: QueueSummary; rows: PendingAction[] };
-}
-
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
   if (ms < 60_000) return "just now";
@@ -76,44 +77,32 @@ function timeAgo(iso: string): string {
 export default function ApprovalsPage() {
   const [rows, setRows] = useState<PendingAction[]>([]);
   const [summary, setSummary] = useState<QueueSummary | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmingReject, setConfirmingReject] = useState<string | null>(null);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch("/api/system/approvals");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const json = (await r.json()) as ApiResponse;
-      setRows(json.data.rows);
-      setSummary(json.data.summary);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase B.7a · the queue read is a typed useQuery; local `rows` /
+  // `summary` state mirrors it so the optimistic remove-on-decide still
+  // works. A successful decide invalidates the query for a clean
+  // re-sync.
+  const utils = trpc.useUtils();
+  const approvalsQuery = trpc.system.approvals.useQuery();
+  const loading = approvalsQuery.isPending || approvalsQuery.isFetching;
+  const error = approvalsQuery.error ? approvalsQuery.error.message : null;
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
+    if (approvalsQuery.data) {
+      setRows(approvalsQuery.data.rows as unknown as PendingAction[]);
+      setSummary(approvalsQuery.data.summary);
+    }
+  }, [approvalsQuery.data]);
+
+  const decideMutation = trpc.system.decideApproval.useMutation();
 
   const decide = useCallback(
     async (id: string, decision: "approved" | "rejected", notes?: string) => {
       setBusyId(id);
       try {
-        const r = await authedFetch(`/api/system/approvals/${id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ decision, notes }),
-        });
-        if (!r.ok) {
-          const t = await r.text().catch(() => "");
-          throw new Error(`HTTP ${r.status} ${t.slice(0, 100)}`);
-        }
+        await decideMutation.mutateAsync({ id, decision, notes });
         toast.success(decision === "approved" ? "Approved" : "Rejected");
         // Optimistic remove from list.
         setRows((prev) => prev.filter((p) => p.id !== id));
@@ -121,13 +110,14 @@ export default function ApprovalsPage() {
           prev ? { ...prev, total: Math.max(0, prev.total - 1) } : prev,
         );
         setConfirmingReject(null);
+        await utils.system.approvals.invalidate();
       } catch (e) {
         toast.error(`failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusyId(null);
       }
     },
-    [],
+    [decideMutation, utils],
   );
 
   return (
