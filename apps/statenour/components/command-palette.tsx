@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { trpc } from "@/lib/trpc/client";
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 import {
   CommandDialog,
   CommandInput,
@@ -113,22 +113,18 @@ export function CommandPalette() {
   const [loading, setLoading] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
   const router = useRouter();
-  // scattered-components REST→tRPC slice (2026-05-22) · the eight
-  // CommandPalette system probes migrated off `authedFetch` onto tRPC.
-  // They're fired imperatively (not on render) from inside the
-  // `probe()` wrappers, so they use `utils.<router>.<proc>.fetch()`.
+  // scattered-components REST→tRPC slice (2026-05-22 · prerender fix) ·
+  // the eight CommandPalette system probes migrated off `authedFetch`
+  // onto tRPC. CommandPalette mounts in the ROOT layout
+  // (app/layout.tsx), OUTSIDE the <TRPCProvider> that wraps only the
+  // (mastery) layout — so the React hook clients (`trpc.useUtils()` /
+  // `useMutation()`) throw "Unable to find tRPC Context" at prerender.
+  // The probes are imperative (fired from `probe()` closures, never on
+  // render), so they call the vanilla client `trpcVanilla` directly —
+  // no provider needed, exactly like the root-layout ClientErrorTelemetry.
   // Each procedure delegates to the same service the legacy REST route
-  // also calls — and most ALREADY existed from earlier slices
-  // (`system.healthSummary` · `system.diagnostics` · `brain.status` ·
-  // `system.deviceFleet` · `brain.pulseDigest` · `operator.refreshHealthDigest`)
-  // so this slice reuses them rather than adding duplicates. Only
-  // `operator.businessDashboard` + `system.aiSpend` are new.
-  const utils = trpc.useUtils();
-  // `refreshHealthDigest` is a `.mutation()` — `utils.*.fetch()` only
-  // serves queries, so its hook is declared at component scope and the
-  // probe closure calls `.mutateAsync()`. The other seven probes hit
-  // query procedures via `utils.*.fetch()`.
-  const healthDigestMut = trpc.operator.refreshHealthDigest.useMutation();
+  // also calls; most already exist from earlier slices, only
+  // `operator.businessDashboard` + `system.aiSpend` are new this slice.
 
   // Keyboard shortcuts:
   //   ⌘K / Ctrl+K       → toggle palette
@@ -271,7 +267,7 @@ export function CommandPalette() {
           // line always showed "Active 0 · Urgent 0 · Converted 0". The
           // typed result forces the real fields — month revenue,
           // customers, jobs today.
-          const d = await utils.operator.businessDashboard.fetch();
+          const d = await trpcVanilla.operator.businessDashboard.query();
           return `Revenue $${d.revenue.totalRevenue} · Customers ${d.customers.total ?? 0} (+${d.customers.newThisMonth ?? 0}) · Jobs today ${d.jobs.today ?? 0}`;
         }),
         keywords: ["leads", "pipeline", "business", "revenue", "dashboard"],
@@ -293,7 +289,7 @@ export function CommandPalette() {
           // full `SystemHealthDigest` where `highlights` is an ARRAY
           // (the cron route returned a count) — so this reads
           // `.highlights.length`.
-          const d = await healthDigestMut.mutateAsync();
+          const d = await trpcVanilla.operator.refreshHealthDigest.mutate();
           return `overall=${d.overall} · ${d.counts?.critical ?? 0}c / ${d.counts?.warning ?? 0}w · ${d.highlights?.length ?? 0} highlights`;
         }),
         keywords: ["digest", "run", "trigger", "health", "now"],
@@ -336,7 +332,7 @@ export function CommandPalette() {
           // scattered-components slice · trpc.brain.pulseDigest (the
           // same `buildPulseDigest` service the legacy GET
           // /api/ultron/pulse-digest called · added by slice 1).
-          const d = await utils.brain.pulseDigest.fetch();
+          const d = await trpcVanilla.brain.pulseDigest.query();
           return `priority ${d.priority?.length ?? 0} · emerging ${d.emerging?.length ?? 0} · wins ${d.wins?.length ?? 0} · maintenance ${d.maintenance?.count ?? 0}`;
         }),
         keywords: ["pulse", "digest", "bell", "notification", "priority"],
@@ -352,7 +348,7 @@ export function CommandPalette() {
           // scattered-components slice · trpc.system.healthSummary (the
           // same `buildSystemHealth` service the legacy GET /api/health
           // called · added by the system-pages slice).
-          const d = await utils.system.healthSummary.fetch();
+          const d = await trpcVanilla.system.healthSummary.query();
           return `${d.status ?? "unknown"} · db ${d.db?.latency_ms ?? "?"}ms · devices ${d.devices?.online ?? "?"}/${d.devices?.total ?? "?"}`;
         }),
         keywords: ["health", "status", "ping"],
@@ -368,7 +364,7 @@ export function CommandPalette() {
           // /api/system/diagnostics called · added by the system-pages
           // slice). `kpis` is a `Record<string, unknown>` on the typed
           // view — read the numeric KPIs through a narrow cast.
-          const d = await utils.system.diagnostics.fetch();
+          const d = await trpcVanilla.system.diagnostics.query();
           const kpis = d.kpis as Record<string, number | undefined>;
           return `db ${d.db?.latency_ms}ms · req24h ${kpis.requests_24h ?? 0} · err ${kpis.errors_24h ?? 0} · AI $${((kpis.ai_cost_7d_cents ?? 0) / 100).toFixed(2)}`;
         }),
@@ -385,7 +381,7 @@ export function CommandPalette() {
           // · added by the settings slice). `memories` is
           // `brainMemory.getStatus()`'s `Record<string, unknown>` —
           // read its numeric fields through a narrow cast.
-          const d = await utils.brain.status.fetch();
+          const d = await trpcVanilla.brain.status.query();
           const m = d.memories as Record<string, number | undefined>;
           return `${m.total ?? 0} memories (${m.permanent ?? 0} perm) · conf ${((m.avgConfidence ?? 0) * 100).toFixed(0)}% · rules ${d.automationRules?.active ?? 0}`;
         }),
@@ -402,7 +398,7 @@ export function CommandPalette() {
           // /api/system/ai-analytics nested the same budget under
           // `data.budget`; the one-line toast only ever read that
           // slice, so the procedure returns just it).
-          const b = await utils.system.aiSpend.fetch();
+          const b = await trpcVanilla.system.aiSpend.query();
           return `$${((b.spent ?? 0) / 100).toFixed(2)} / $${((b.limit ?? 0) / 100).toFixed(2)} (${b.percentUsed ?? 0}%)`;
         }),
         keywords: ["cost", "budget", "spend"],
@@ -418,14 +414,14 @@ export function CommandPalette() {
           // called · added by the system-pages slice). The fleet view
           // exposes per-status counts on `summary.byStatus` directly —
           // no client-side filter needed.
-          const d = await utils.system.deviceFleet.fetch();
+          const d = await trpcVanilla.system.deviceFleet.query();
           const online = d.summary.byStatus.ONLINE ?? 0;
           return `${online}/${d.summary.total} devices online`;
         }),
         keywords: ["device", "sync"],
       },
     ],
-    [navigate, openExternal, probe, utils, healthDigestMut],
+    [navigate, openExternal, probe],
   );
 
   // Keep a ref so the ⌘⇧K keyboard handler can reach the current
