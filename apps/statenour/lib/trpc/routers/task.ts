@@ -68,6 +68,11 @@ import { getTaskSession, logSessionEvent } from "@/lib/services/task-session";
 // service is also called by the legacy POST /api/undo/[token] route —
 // drift structurally impossible.
 import { consumeUndoToken } from "@/lib/services/undo-token";
+// actions-surface REST→tRPC slice (2026-05-22) · the "leave the current
+// project" operation · moves a task to the Inbox mission. The shared
+// service is also called by the legacy PATCH /api/tasks/[id] route —
+// drift structurally impossible.
+import { leaveMission } from "@/lib/services/task-mission";
 
 const TaskEventKindSchema = z.enum([
   "created",
@@ -118,6 +123,63 @@ interface TaskEventRow {
   kind?: string;
   /** selected by `eventsByKind`; absent on `events` rows. */
   taskId?: string;
+}
+
+/**
+ * THE TS2589 FIREWALL · the shallow, explicit row shape `task.goals`
+ * returns.
+ *
+ * `getGoals` (lib/services/goals.ts) does `prisma.lifeGoal.findMany()`
+ * with NO `select` and spreads the full row (`...g`) into its enriched
+ * result. The `LifeGoal` model carries TWO `Json` columns — `planData`
+ * + `coachLog` — so the raw `getGoals` return leaks Prisma's recursive
+ * `JsonValue` machinery into the `AppRouter` type. Once the router grew
+ * (the actions-surface REST→tRPC slice added the `ai` domain + ~7
+ * procedures) the total instantiation depth crossed TS's limit and
+ * surfaced as TS2589 "Type instantiation is excessively deep" at the
+ * `task.goals` `.useQuery` call-site in KommandoLearn.
+ *
+ * The fix is the same discipline as `TaskEventRow` above: an explicit,
+ * flat interface — the two `Json` columns projected to `unknown`, the
+ * `Date` columns kept as `Date` (tRPC superjson-serialises them; the
+ * consumers' local `GoalRow` types already read them as strings). The
+ * procedure body casts the `getGoals` result to `GoalCacheRow[]`, which
+ * contains the deep Prisma instantiation to this file — the public
+ * procedure type stays shallow. Read components cast to their own local
+ * goal shape regardless (KommandoTrack's `GoalRow`, KommandoLearn's
+ * inline filter, the /tasks page `GoalCacheEntry`).
+ */
+interface GoalCacheRow {
+  id: string;
+  domain: string;
+  title: string;
+  metric: string;
+  targetValue: number;
+  currentValue: number;
+  unit: string;
+  deadline: Date | null;
+  status: string;
+  progress: number;
+  achievedAt: Date | null;
+  createdBy: string | null;
+  updatedBy: string | null;
+  horizon: string | null;
+  why: string | null;
+  /** LifeGoal.planData Json · `unknown` to keep the AppRouter shallow. */
+  planData: unknown;
+  estimatedHours: number | null;
+  /** LifeGoal.coachLog Json · `unknown` to keep the AppRouter shallow. */
+  coachLog: unknown;
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  // ── getGoals enrichment fields ──
+  linkedTaskCount: number;
+  linkedDoneCount: number;
+  linkedActiveCount: number;
+  minutesInvested: number;
+  nextMove: { id: string; title: string; status: string } | null;
+  loopsThisWeek: number;
 }
 
 export const taskRouter = router({
@@ -178,7 +240,11 @@ export const taskRouter = router({
         domain: input?.domain ?? null,
         includeDeleted: input?.includeDeleted ?? false,
       });
-      return { goals };
+      // TS2589 firewall · cast the raw `getGoals` result (which spreads
+      // the full LifeGoal Prisma row, Json columns and all) to the flat
+      // `GoalCacheRow[]` so the recursive `JsonValue` type never reaches
+      // the AppRouter. See the `GoalCacheRow` doc-comment above.
+      return { goals: goals as unknown as GoalCacheRow[] };
     }),
 
   /**
@@ -898,4 +964,39 @@ export const taskRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * actions-surface REST→tRPC slice (2026-05-22) · owner-only · move a
+   * task off its current project. The legacy call-sites (ProjectDetail
+   * clear-inbox + remove-from-project · LinkProjectPicker "leave
+   * mission") PATCH'd /api/tasks/[id] with `{ missionId: null }` — a
+   * payload that was STRUCTURALLY DEAD: `Task.missionId` is a
+   * non-nullable FK (prisma/schema.prisma:295) AND the shared
+   * `taskUpdateSchema` types it as a required string, so the write
+   * failed on both layers and surfaced a generic error toast every
+   * time.
+   *
+   * Delegates to the shared `task-mission.leaveMission` service · the
+   * DB-valid interpretation of "leave a project" on a non-nullable FK
+   * is to re-point the task at the catch-all Inbox mission (the same
+   * move `domainSwap` makes · the UI copy already promises "keeps the
+   * task, clears the link"). ServiceError(404) → NOT_FOUND so both
+   * transports reject identically.
+   */
+  leaveMission: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await leaveMission(input.id);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
 });

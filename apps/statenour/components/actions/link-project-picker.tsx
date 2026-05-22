@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils";
 import { Loader2, Briefcase, X } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { notifyDataChanged } from "@/lib/events/data-change";
 
 export interface ProjectPickerOption {
@@ -73,6 +72,13 @@ export function LinkProjectPicker({
   // on success and rejects on a server error, matching the old
   // `r.ok` true/false branches exactly.
   const updateTask = trpc.task.update.useMutation();
+  // task.leaveMission replaces the legacy PATCH /api/tasks/:id
+  // `{ missionId: null }` "leave mission" call. That payload was
+  // structurally dead — `Task.missionId` is a non-nullable FK and the
+  // shared taskUpdateSchema rejected it, so the old flow failed every
+  // time. `leaveMission` re-points the task at the catch-all Inbox
+  // mission, the DB-valid reading of "leave a project".
+  const leaveMissionMut = trpc.task.leaveMission.useMutation();
 
   // Outside-click closes the sheet. Parent owns the visibility flag —
   // we just notify on close so it can clear its edit state.
@@ -132,38 +138,28 @@ export function LinkProjectPicker({
     }
   };
 
-  // FLAGGED · NOT migrated to trpc.task.update. This sends
-  // { missionId: null }, but Task.missionId is a non-null FK
-  // (prisma/schema.prisma:295 `missionId String`) and the shared
-  // taskUpdateSchema types missionId as a non-nullable optional —
-  // so a typed tRPC `fields` arg would reject `missionId: null` at
-  // compile time. The legacy REST path already fails this payload at
-  // taskUpdateSchema.parse() inside updateTask() (the "leave mission"
-  // flow is pre-broken). Kept on authedFetch verbatim so this slice
-  // changes no behaviour; fixing the leave-mission flow is its own task.
+  // actions-surface slice · "leave mission" via trpc.task.leaveMission.
+  // The legacy `{ missionId: null }` PATCH was structurally dead (see
+  // the leaveMissionMut comment above) — it failed every time. The
+  // procedure re-points the task at the Inbox mission, which is what
+  // the picker's "↗ leave mission" copy promises ("keeps the task,
+  // clears the link"). mutateAsync resolves on success / rejects on a
+  // server error, matching the old `r.ok` branches.
   const handleLeave = async () => {
     setBusyId("__leave__");
     try {
-      const r = await authedFetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ missionId: null }),
+      await leaveMissionMut.mutateAsync({ id: taskId });
+      toast.success("Removed from mission");
+      notifyDataChanged("tasks", {
+        source: "link-project-picker",
+        detail: "leave",
+        id: taskId,
       });
-      if (r.ok) {
-        toast.success("Removed from mission");
-        notifyDataChanged("tasks", {
-          source: "link-project-picker",
-          detail: "leave",
-          id: taskId,
-        });
-        notifyDataChanged("projects", {
-          source: "link-project-picker",
-          detail: "leave",
-        });
-        onLinked?.();
-      } else {
-        toast.error("Couldn't remove");
-      }
+      notifyDataChanged("projects", {
+        source: "link-project-picker",
+        detail: "leave",
+      });
+      onLinked?.();
     } catch (e) {
       toast.error(`Remove failed: ${e instanceof Error ? e.message : e}`);
     } finally {
