@@ -1,6 +1,7 @@
 /**
  * lib/trpc/routers/system.ts · Phase S.2 (2026-05-18 PM) · extended
- * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice).
+ * Phase UU.2 (2026-05-22 · legacy-modernizer REST→tRPC settings slice)
+ * · extended Phase VV (2026-05-22 · REST→tRPC system-widgets sub-slice).
  *
  * System telemetry procedures · per the J tRPC migration plan, this is
  * the third domain router (after `nick` for reasoning + `operator` for
@@ -15,6 +16,14 @@
  * path-trigger, auto-pilot flags, tools health, and the three
  * SystemDataCards endpoints (health-trend · error-rate · quotas). All
  * are config / system-ops flavoured → `system` is their natural home.
+ *
+ * Phase VV folds the 15 components/system/* dashboard widgets in here
+ * (the system domain is genuinely large — one router, no sub-routers):
+ *   evalResults · promptCompare · promptShadowTrend · promptLibrary ·
+ *   decisionDrift · antiPatterns + createAntiPattern + revisitAntiPattern
+ *   + deleteAntiPattern · quality · schemaDrift · errorsGrouped +
+ *   errorsRecent · staleData + purgeStaleData · schemaCoverage · gaps ·
+ *   embeddingCoverage · cronTree · entityHistory · hub.
  *
  * Every procedure delegates to a shared service so the legacy REST
  * consumers and the new tRPC consumers can't drift.
@@ -48,6 +57,36 @@ import {
   buildErrorRateByRoute,
   buildIntegrationQuotas,
 } from "@/lib/services/system-data";
+import { ServiceError } from "@/lib/utils/service-error";
+import { listEvalResults } from "@/lib/services/eval-results";
+import { buildPromptCompare } from "@/lib/services/prompt-compare";
+import { readShadowTrend } from "@/lib/ai/prompt/v2/shadow-metrics";
+import { listPrompts, getRegistryStats } from "@/lib/prompts/library";
+import type { PromptCategory } from "@/lib/prompts/library";
+import { buildDecisionDriftFeed } from "@/lib/services/decision-drift";
+import {
+  listAntiPatterns,
+  upsertAntiPattern,
+  revisitAntiPattern,
+  deleteAntiPattern,
+} from "@/lib/services/anti-patterns";
+import { buildNickQualityFeed } from "@/lib/services/nick-quality";
+import { getSchemaDrift } from "@/lib/services/schema-drift";
+import { listGroupedErrors, listRecentErrors } from "@/lib/services/error-log";
+import { scanStaleData } from "@/lib/system/stale-data-scanner";
+import type { StaleCategoryId } from "@/lib/system/stale-data-scanner";
+import {
+  purgeStaleCategory,
+  purgeAllStale,
+} from "@/lib/system/stale-data-purger";
+import { buildSchemaCoverageReport } from "@/lib/db/schema-coverage";
+import { getTopSlowQueries } from "@/lib/db/slow-query-tracker";
+import { scanSystemGaps } from "@/lib/services/system-gaps";
+import { buildEmbeddingCoverage } from "@/lib/services/embedding-coverage";
+import { buildCronTree } from "@/lib/services/cron-tree";
+import { getEntityHistory } from "@/lib/db/entity-audit";
+import { buildSystemHub } from "@/lib/services/system-hub";
+import { antiPatternCreateSchema } from "@/lib/validators/system";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -73,6 +112,24 @@ const MEGA_FANOUT = [
   "data-cleanup",
   "intelligence",
 ];
+
+/**
+ * Phase VV · the stale-data category whitelist · mirrors the `KNOWN`
+ * set in app/api/system/stale-data/purge/route.ts verbatim. The
+ * `purgeStaleData` mutation rejects any id outside this set so a typo
+ * can't reach the purger.
+ */
+const STALE_CATEGORIES: ReadonlySet<StaleCategoryId> =
+  new Set<StaleCategoryId>([
+    "drift_alerts_unresolved_14d",
+    "pending_actions_7d",
+    "skill_candidates_30d",
+    "open_contradictions_60d",
+    "abandoned_tasks_30d",
+    "orphan_conversations",
+    "overdue_decisions_reviews",
+    "ancient_device_events",
+  ]);
 
 export const systemRouter = router({
   /**
@@ -379,4 +436,350 @@ export const systemRouter = router({
   integrationQuotas: operatorProcedure.query(async () =>
     buildIntegrationQuotas(),
   ),
+
+  // ════════════════ Phase VV · system dashboard widgets ════════════════
+
+  /**
+   * Phase VV · owner-only · latest N nightly eval-regression reports.
+   * Replaces GET /api/system/eval-results · delegates to the shared
+   * `eval-results.listEvalResults` service. `limit === 1` returns the
+   * heavy `perQuestionResults` drill-down; larger limits omit it (the
+   * trend payload stays tight). EvalRegressionCard calls this twice —
+   * `{limit:7}` for the sparkline, `{limit:1}` for the failure drawer.
+   */
+  evalResults: operatorProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(90).default(14) }))
+    .query(async ({ input }) => listEvalResults(input.limit)),
+
+  /**
+   * Phase VV · owner-only · the v1↔v2 system-prompt shadow comparison.
+   * Replaces GET /api/system/prompt-compare · delegates to the shared
+   * `prompt-compare.buildPromptCompare` service. Returns the full
+   * payload (both prompts + section-coverage delta) at the top level —
+   * the legacy route returned the object directly, so the call-site
+   * reads it unwrapped.
+   */
+  promptCompare: operatorProcedure.query(async () => buildPromptCompare()),
+
+  /**
+   * Phase VV · owner-only · the shadow-mode v1/v2 char-delta trend.
+   * Replaces GET /api/system/prompt-shadow-trend?days=N · delegates to
+   * the same `readShadowTrend` helper every consumer uses. The 24h
+   * summary (avgPct + sample count) is computed here exactly as the
+   * REST route did so PromptComparisonView's trend strip is unchanged.
+   */
+  promptShadowTrend: operatorProcedure
+    .input(z.object({ days: z.number().int().min(1).max(30).default(7) }))
+    .query(async ({ input }) => {
+      const series = await readShadowTrend(input.days);
+      const last24Cutoff = Date.now() - 86_400_000;
+      const last24 = series.charsDeltaPct.filter(
+        (p) => new Date(p.createdAt).getTime() >= last24Cutoff,
+      );
+      const avgPct24h =
+        last24.length === 0
+          ? null
+          : Math.round(
+              (last24.reduce((acc, p) => acc + p.value, 0) / last24.length) *
+                10,
+            ) / 10;
+      return {
+        generatedAt: new Date().toISOString(),
+        windowDays: input.days,
+        summary: {
+          sampleCount: series.charsDeltaPct.length,
+          sampleCount24h: last24.length,
+          avgPct24h,
+          latestPct:
+            series.charsDeltaPct[series.charsDeltaPct.length - 1]?.value ??
+            null,
+          latestAt:
+            series.charsDeltaPct[series.charsDeltaPct.length - 1]
+              ?.createdAt ?? null,
+        },
+        series,
+      };
+    }),
+
+  /**
+   * Phase VV · owner-only · the reusable-prompt registry from
+   * lib/prompts/library.ts + stats. Replaces GET /api/system/prompts ·
+   * delegates to the same `listPrompts` + `getRegistryStats` the route
+   * calls. Optional category/tag filters mirror the legacy query
+   * params. Returns `{ stats, filter, prompts }` so PromptLibraryView's
+   * `data.*` access is unchanged (it read `json.data` off the legacy
+   * envelope · the tRPC query hands the object back unwrapped).
+   */
+  promptLibrary: operatorProcedure
+    .input(
+      z
+        .object({
+          category: z.string().max(40).optional(),
+          tag: z.string().max(60).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => {
+      const prompts = listPrompts({
+        category: (input?.category as PromptCategory | undefined) ?? undefined,
+        tag: input?.tag ?? undefined,
+      });
+      return {
+        stats: getRegistryStats(),
+        filter: {
+          category: (input?.category as PromptCategory | null) ?? null,
+          tag: input?.tag ?? null,
+        },
+        prompts,
+      };
+    }),
+
+  /**
+   * Phase VV · owner-only · the decision follow-through pulse (W12.2).
+   * Replaces GET /api/system/decision-drift · delegates to the shared
+   * `decision-drift.buildDecisionDriftFeed` service. QualityDecisionsView
+   * polls this on a 2-minute interval — the page now drives the refetch
+   * via refetchInterval rather than a manual setInterval.
+   */
+  decisionDrift: operatorProcedure.query(async () =>
+    buildDecisionDriftFeed(),
+  ),
+
+  /**
+   * Phase VV · owner-only · the anti-pattern library (W12.4) listing.
+   * Replaces GET /api/system/anti-patterns · delegates to the shared
+   * `anti-patterns.listAntiPatterns` service. Returns `{ items,
+   * summary }` mirroring the legacy `data` envelope.
+   */
+  antiPatterns: operatorProcedure.query(async () => listAntiPatterns()),
+
+  /**
+   * Phase VV · owner-only · create (or merge-by-key) an anti-pattern.
+   * Replaces POST /api/system/anti-patterns · delegates to the shared
+   * `anti-patterns.upsertAntiPattern` service.
+   *
+   * Input uses the SHARED `antiPatternCreateSchema` from
+   * @/lib/validators/system — the exact schema the REST route's
+   * `CreateSchema.parse()` uses. NOT a permissive z.record at the
+   * procedure boundary · this is the typed-payload-mismatch guard (the
+   * /tasks quick-add bug class). Returns `{ item, action }` where
+   * action is "created" | "updated".
+   */
+  createAntiPattern: operatorProcedure
+    .input(antiPatternCreateSchema)
+    .mutation(async ({ input }) => upsertAntiPattern(input)),
+
+  /**
+   * Phase VV · owner-only · bump an anti-pattern's revisit counter.
+   * Replaces POST /api/system/anti-patterns/revisit · delegates to the
+   * shared `anti-patterns.revisitAntiPattern` service. A missing key
+   * throws ServiceError(404) → mapped to NOT_FOUND so both transports
+   * reject identically.
+   */
+  revisitAntiPattern: operatorProcedure
+    .input(z.object({ key: z.string().min(1).max(60) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await revisitAntiPattern(input.key);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase VV · owner-only · soft-delete an anti-pattern (recoverable).
+   * Replaces DELETE /api/system/anti-patterns?key=... · delegates to
+   * the shared `anti-patterns.deleteAntiPattern` service.
+   */
+  deleteAntiPattern: operatorProcedure
+    .input(z.object({ key: z.string().min(1).max(60) }))
+    .mutation(async ({ input }) => deleteAntiPattern(input.key)),
+
+  /**
+   * Phase VV · owner-only · the Nick-quality trend (W12.1). Replaces
+   * GET /api/system/quality · delegates to the shared
+   * `nick-quality.buildNickQualityFeed` service. QualityNickView polls
+   * this on a 60s interval — now driven by refetchInterval.
+   */
+  quality: operatorProcedure.query(async () => buildNickQualityFeed()),
+
+  /**
+   * Phase VV · owner-only · the 30s-cached schema-drift check. Replaces
+   * GET /api/system/schema-drift · delegates to the shared
+   * `schema-drift.getSchemaDrift` service (which now owns the cache the
+   * route used to hold as a module closure). `force` skips the cache —
+   * the SchemaDriftCard's reload button passes `{force:true}`.
+   */
+  schemaDrift: operatorProcedure
+    .input(
+      z.object({ force: z.boolean().optional() }).optional(),
+    )
+    .query(async ({ input }) => getSchemaDrift(input?.force ?? false)),
+
+  /**
+   * Phase VV · owner-only · top-20 error fingerprints grouped by
+   * message. Replaces the `?grouped=true` branch of GET
+   * /api/system/errors · delegates to the shared
+   * `error-log.listGroupedErrors` service. Optional level filter
+   * mirrors the legacy `?level=` param.
+   */
+  errorsGrouped: operatorProcedure
+    .input(
+      z
+        .object({
+          level: z.enum(["fatal", "error", "warn"]).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) => listGroupedErrors(input?.level)),
+
+  /**
+   * Phase VV · owner-only · paginated recent-errors feed. Replaces the
+   * paginated branch of GET /api/system/errors · delegates to the
+   * shared `error-log.listRecentErrors` service. ErrorsFingerprints
+   * calls this with `{pageSize:50}`.
+   */
+  errorsRecent: operatorProcedure
+    .input(
+      z
+        .object({
+          level: z.enum(["fatal", "error", "warn"]).optional(),
+          page: z.number().int().min(1).max(1000).optional(),
+          pageSize: z.number().int().min(1).max(100).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listRecentErrors({
+        level: input?.level,
+        page: input?.page,
+        pageSize: input?.pageSize,
+      }),
+    ),
+
+  /**
+   * Phase VV · owner-only · scan for "looks-live-but-stale" rows across
+   * 8 categories. Replaces GET /api/system/stale-data · delegates to
+   * the same `scanStaleData` scanner the route + cron use. No writes.
+   */
+  staleData: operatorProcedure.query(async () => scanStaleData()),
+
+  /**
+   * Phase VV · owner-only · purge stale data. Replaces POST
+   * /api/system/stale-data/purge · delegates to the same
+   * `purgeStaleCategory` / `purgeAllStale` the route calls.
+   *
+   * Omitting `category` purges EVERY category (the big-red-button);
+   * passing one purges only that category. The category whitelist
+   * mirrors the REST route's `KNOWN` set verbatim — an unknown id
+   * throws BAD_REQUEST so both transports reject identically. Returns
+   * the legacy `{ ok, mode, ... }` envelope so CoverageStaleView's
+   * `data.result` / `data.totalPurged` reads are unchanged.
+   */
+  purgeStaleData: operatorProcedure
+    .input(
+      z
+        .object({ category: z.string().max(80).optional() })
+        .optional(),
+    )
+    .mutation(async ({ input }) => {
+      if (input?.category) {
+        if (!STALE_CATEGORIES.has(input.category as StaleCategoryId)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Unknown category: ${input.category}. Valid: ${[
+              ...STALE_CATEGORIES,
+            ].join(", ")}`,
+          });
+        }
+        const result = await purgeStaleCategory(
+          input.category as StaleCategoryId,
+        );
+        return { ok: true, mode: "single" as const, result };
+      }
+      const all = await purgeAllStale();
+      return { ok: true, mode: "all" as const, ...all };
+    }),
+
+  /**
+   * Phase VV · owner-only · the index-coverage audit (every tracked
+   * model with row + index counts + under-indexed-hot-table flag).
+   * Replaces GET /api/system/schema-coverage · delegates to the same
+   * `buildSchemaCoverageReport` the route calls, cross-referenced with
+   * the slow-query tracker exactly as the route did.
+   */
+  schemaCoverage: operatorProcedure.query(async () => {
+    const slowQueryShapes = getTopSlowQueries(20).map((q) => q.shape);
+    return buildSchemaCoverageReport({ slowQueryShapes });
+  }),
+
+  /**
+   * Phase VV · owner-only · the "nothing missing" detector (W11.4) —
+   * scans for unscheduled crons, empty API shells, tool-catalog drift,
+   * stale models, unset env vars. Replaces GET /api/system/gaps ·
+   * delegates to the shared `system-gaps.scanSystemGaps` service.
+   */
+  gaps: operatorProcedure.query(async () => scanSystemGaps()),
+
+  /**
+   * Phase VV · owner-only · the pgvector-migration coverage rollup.
+   * Replaces GET /api/system/embedding-coverage · delegates to the
+   * shared `embedding-coverage.buildEmbeddingCoverage` service.
+   */
+  embeddingCoverage: operatorProcedure.query(async () =>
+    buildEmbeddingCoverage(),
+  ),
+
+  /**
+   * Phase VV · owner-only · the full cron manifest + live stats + the
+   * fold/retire lineage (mode + foldedInto per row). Replaces GET
+   * /api/system/crons · delegates to the shared `cron-tree.buildCronTree`
+   * service. Distinct from `cronCatalog` (UU.2 · the /settings panel) —
+   * this carries the FULL manifest so the CronFoldTree lineage view can
+   * render folded + retired crons, which the scheduled-only catalog
+   * cannot.
+   */
+  cronTree: operatorProcedure.query(async () => buildCronTree()),
+
+  /**
+   * Phase VV · owner-only · the field-level provenance log for one
+   * entity. Replaces the per-entity-history branch of GET
+   * /api/audit/entity · delegates to the same `getEntityHistory` the
+   * route calls. The actor-firehose / global-firehose modes stay
+   * REST-only · no tRPC consumer in this slice (EntityHistoryDrawer
+   * only ever uses the per-entity mode).
+   */
+  entityHistory: operatorProcedure
+    .input(
+      z.object({
+        entityType: z.string().min(1).max(60),
+        entityId: z.string().min(1).max(128),
+        limit: z.number().int().min(1).max(500).default(50),
+      }),
+    )
+    .query(async ({ input }) => {
+      const entries = await getEntityHistory(
+        input.entityType,
+        input.entityId,
+        { limit: input.limit },
+      );
+      return { count: entries.length, entries, mode: "entity" as const };
+    }),
+
+  /**
+   * Phase VV · owner-only · the /system hub landing-page rollup — one
+   * compact payload feeding every subsurface card's live chip.
+   * Replaces GET /api/system/hub · delegates to the shared
+   * `system-hub.buildSystemHub` service. SystemHubGrid polls this on a
+   * 60s interval — now driven by refetchInterval. The legacy route
+   * wrapped the payload in `{ data }`; the procedure returns it
+   * unwrapped and the call-site reads it directly.
+   */
+  hub: operatorProcedure.query(async () => buildSystemHub()),
 });

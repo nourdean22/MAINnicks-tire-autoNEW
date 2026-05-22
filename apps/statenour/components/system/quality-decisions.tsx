@@ -16,7 +16,7 @@
  *   · 12-week grade trend bars
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Panel } from "@/components/panel";
 // PageHeader removed · parent /system/quality page provides one
 import { cn } from "@/lib/utils/cn";
@@ -25,7 +25,7 @@ import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface Miss {
   id: number;
   title: string;
@@ -134,28 +134,18 @@ function GradeTrendBars({ trend }: { trend: Feed["trend"] }) {
 }
 
 export function QualityDecisionsView() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [win, setWin] = useState<Win>("30d");
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/decision-drift", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      console.error("decision-drift load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 120_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.decisionDrift. The legacy
+  // route returned the feed directly (no `{data}` wrap) and the page
+  // polled it on a 2-minute setInterval — refetchInterval now drives
+  // that. `refresh` repoints to refetch (also serves the refresh button).
+  const driftQuery = trpc.system.decisionDrift.useQuery(undefined, {
+    refetchInterval: 120_000,
+  });
+  const feed: Feed | null = driftQuery.data ?? null;
+  const loading = driftQuery.isPending || driftQuery.isFetching;
+  const load = () => void driftQuery.refetch();
 
   const active = feed
     ? win === "today"

@@ -14,9 +14,9 @@
  *   · Filter by category or tag
  */
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Panel } from "@/components/panel";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   Loader2,
@@ -86,30 +86,20 @@ const CATEGORY_META: Record<
 };
 
 export function PromptLibraryView() {
-  const [data, setData] = useState<ApiResponse["data"] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | Category>("all");
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch("/api/system/prompts");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const json = (await r.json()) as ApiResponse;
-      setData(json.data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.promptLibrary. The legacy
+  // route wrapped its payload in `{ data }`; the procedure returns
+  // `{ stats, filter, prompts }` directly. The category/search filter is
+  // still client-side (the page filters the full list locally), so no
+  // input is passed — the whole registry is fetched once.
+  const libraryQuery = trpc.system.promptLibrary.useQuery();
+  const data: ApiResponse["data"] | null = libraryQuery.data ?? null;
+  const loading = libraryQuery.isPending;
+  const error = libraryQuery.error
+    ? libraryQuery.error.message || "fetch failed"
+    : null;
 
   const filtered = useMemo(() => {
     if (!data) return [];

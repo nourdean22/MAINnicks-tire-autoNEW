@@ -1,0 +1,73 @@
+/**
+ * lib/services/error-log.ts · Phase VV (2026-05-22 ·
+ * legacy-modernizer REST→tRPC system slice).
+ *
+ * ErrorLog read helpers. Lifted verbatim from the GET branch of
+ * app/api/system/errors/route.ts so the legacy REST endpoint AND the
+ * new `system.errorsGrouped` / `system.errorsRecent` tRPC procedures
+ * call the same functions · drift between consumers structurally
+ * impossible.
+ *
+ * The legacy route multiplexed two shapes off one URL (`?grouped=true`
+ * vs paginated). The tRPC layer splits them into two named procedures
+ * so each has its own typed return — but the underlying queries are
+ * byte-for-byte the route's.
+ *
+ * The DELETE branch (bulk purge) stays REST-only · no tRPC consumer
+ * in this slice.
+ */
+
+import { prisma } from "@/lib/prisma";
+
+/** Top-20 most-frequent errors, grouped by message. */
+export async function listGroupedErrors(level?: string) {
+  const where = {
+    ...(level && { level }),
+  };
+  const errors = await prisma.errorLog.groupBy({
+    by: ["message"],
+    where,
+    _count: { id: true },
+    _max: { createdAt: true },
+    orderBy: { _count: { id: "desc" } },
+    take: 20,
+  });
+  return {
+    groups: errors.map((e) => ({
+      message: e.message,
+      count: e._count.id,
+      lastSeen: e._max.createdAt,
+    })),
+  };
+}
+
+/** Paginated recent-errors feed (newest first). */
+export async function listRecentErrors(opts: {
+  level?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const where = {
+    ...(opts.level && { level: opts.level }),
+  };
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(100, opts.pageSize ?? 20);
+
+  const [data, total] = await Promise.all([
+    prisma.errorLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.errorLog.count({ where }),
+  ]);
+
+  return {
+    data,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}

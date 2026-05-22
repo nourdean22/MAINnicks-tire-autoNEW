@@ -14,13 +14,12 @@
  * path overtake the JS path as the backfill drains.
  */
 
-import { useCallback, useEffect, useState } from "react";
 // PageHeader removed · parent /system/coverage page provides one
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Badge } from "@/components/ui/badge";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { CheckCircle2, AlertTriangle, Database, Activity } from "lucide-react";
 
 interface CoveragePayload {
@@ -71,30 +70,20 @@ function fmtMs(ms: number | null): string {
 }
 
 export function CoverageEmbeddingView() {
-  const [data, setData] = useState<CoveragePayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/system/embedding-coverage");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: CoveragePayload } & CoveragePayload;
-      setData(j.data ?? (j as CoveragePayload));
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  // Phase VV (2026-05-22) · REST→tRPC · system.embeddingCoverage. The
+  // legacy route returned the payload directly (no `{data}` wrap); the
+  // procedure returns the same shape. FreshnessChip's timestamp comes
+  // from React Query's dataUpdatedAt; reload repoints to refetch.
+  const coverageQuery = trpc.system.embeddingCoverage.useQuery();
+  const data: CoveragePayload | null = coverageQuery.data ?? null;
+  const loading = coverageQuery.isPending;
+  const error = coverageQuery.error
+    ? coverageQuery.error.message || "fetch failed"
+    : null;
+  const lastFetched = coverageQuery.dataUpdatedAt
+    ? new Date(coverageQuery.dataUpdatedAt)
+    : null;
+  const load = () => void coverageQuery.refetch();
 
   return (
     <div className="space-y-4">
