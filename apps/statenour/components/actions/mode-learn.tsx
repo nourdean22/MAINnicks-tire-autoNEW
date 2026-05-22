@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   BookOpen,
   Globe,
@@ -144,6 +145,11 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [active, setActive] = useState<HistoryEntry | null>(null);
   const [spawning, setSpawning] = useState(false);
+  // task.create replaces POST /api/tasks for the "spawn a loop"
+  // affordance · same `createTaskFromAPI` service the REST route
+  // calls. The brain/AI calls (teach · research · memories) stay on
+  // authedFetch — those domains migrate in later slices.
+  const createTask = trpc.task.create.useMutation();
   // v10.0.529.84 · Wave 28 · A2 · goal-driven topic seeds. Audit found
   // an Apr-15 "future version" comment on hardcoded topics · the
   // active goals API already powers the sibling KommandoPlan tab.
@@ -197,21 +203,16 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       if (!title.trim()) return;
       setSpawning(true);
       try {
-        const r = await authedFetch("/api/tasks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: title.trim(),
-            loopKind: "ONCE",
-            nextPhysicalAction: title.trim(),
-            effort: "M15",
-            roiScore: 50,
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-            context: "ANYWHERE",
-          }),
+        await createTask.mutateAsync({
+          title: title.trim(),
+          loopKind: "ONCE",
+          nextPhysicalAction: title.trim(),
+          effort: "M15",
+          roiScore: 50,
+          frictionScore: 30,
+          energyRequired: "MEDIUM",
+          context: "ANYWHERE",
         });
-        if (!r.ok) throw new Error("spawn failed");
         toast.success("Loop spawned → NOW");
         if (onJumpMode) onJumpMode("NOW");
       } catch {
@@ -219,7 +220,7 @@ export function KommandoLearn({ onJumpMode }: KommandoLearnProps = {}) {
       }
       setSpawning(false);
     },
-    [onJumpMode]
+    [onJumpMode, createTask]
   );
 
   const saveToBrain = useCallback(async (topic: string, content: string) => {

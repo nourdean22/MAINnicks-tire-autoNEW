@@ -14,64 +14,32 @@
  * Auto-hides when there's no mastery data yet (fresh OS).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { TipChip } from "@/components/ui/tip-chip";
 import { onDataChanged } from "@/lib/events/data-change";
 import { Target } from "lucide-react";
-
-interface Suggestion {
-  source: string;
-  title: string;
-  taskId?: string;
-  reason: string;
-}
-
-interface NextMove {
-  weakestDomain: string | null;
-  weakestScore?: number;
-  weakestDelta?: number;
-  rationale: string | null;
-  suggestions: Suggestion[];
-}
 
 const TIP =
   "the system finds your weakest mastery axis and suggests 3 moves: tasks already in your inbox that lift it, threads from recent patterns, or a daily-loop to create. updates as you check things off.";
 
 export function NextMoveCard() {
-  const [data, setData] = useState<NextMove | null>(null);
-  const [error, setError] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await authedFetch("/api/tasks/next-move", { cache: "no-store" });
-      if (!r.ok) {
-        setError(true);
-        return;
-      }
-      const body = await r.json();
-      const payload = (body?.data ?? body) as NextMove;
-      setData(payload);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, []);
+  // Polls every 120s for the weakest-axis read · matches the legacy
+  // setInterval cadence. onDataChanged refetches after a task/goal
+  // mutation so the card reflects check-offs without waiting a cycle.
+  const { data, isError, refetch } = trpc.task.nextMove.useQuery(undefined, {
+    refetchInterval: 120_000,
+  });
 
   useEffect(() => {
-    void load();
-    const id = setInterval(load, 120_000);
     const off = onDataChanged(["tasks", "goals"], () => {
-      setTimeout(() => void load(), 500);
+      setTimeout(() => void refetch(), 500);
     });
-    return () => {
-      clearInterval(id);
-      off();
-    };
-  }, [load]);
+    return off;
+  }, [refetch]);
 
-  if (error || !data || !data.weakestDomain || data.suggestions.length === 0) {
+  if (isError || !data || !data.weakestDomain || data.suggestions.length === 0) {
     return null;
   }
 

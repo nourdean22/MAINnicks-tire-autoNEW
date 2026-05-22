@@ -19,27 +19,10 @@
  *   · v7.6 Task autoPriority (API picks highest-priority linked task)
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Target, ArrowRight } from "lucide-react";
-
-interface NextAction {
-  goalId: string;
-  goalTitle: string;
-  domain: string;
-  paceDelta: number;
-  source: "task" | "memory" | "default";
-  text: string;
-  refId: string | null;
-}
-
-interface ApiPayload {
-  generatedAt: string;
-  behindPaceCount: number;
-  nextActions: NextAction[];
-}
 
 const SOURCE_TAG: Record<string, { label: string; tint: string }> = {
   task: { label: "task", tint: "text-emerald-300 bg-emerald-500/10" },
@@ -48,30 +31,11 @@ const SOURCE_TAG: Record<string, { label: string; tint: string }> = {
 };
 
 export function GoalNextActionsCard() {
-  const [payload, setPayload] = useState<ApiPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Render-time read · the legacy component fetched once on mount.
+  const { data: payload, isLoading, error, refetch } =
+    trpc.task.goalNextActions.useQuery();
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/goals/next-actions");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: ApiPayload } & ApiPayload;
-      setPayload(j.data ?? (j as ApiPayload));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading && !payload) {
+  if (isLoading && !payload) {
     return (
       <GlassCard>
         <p className="text-[11px] text-[var(--text-tertiary)]">checking goal pace…</p>
@@ -83,9 +47,9 @@ export function GoalNextActionsCard() {
     return (
       <GlassCard>
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-rose-400">next-actions unavailable: {error}</p>
+          <p className="text-[11px] text-rose-400">next-actions unavailable: {error.message}</p>
           <button
-            onClick={() => void load()}
+            onClick={() => void refetch()}
             className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)]"
           >
             retry
@@ -114,7 +78,7 @@ export function GoalNextActionsCard() {
         <FreshnessChip
           lastFetchedAt={payload.generatedAt}
           source="api/goals/next-actions"
-          onReload={() => void load()}
+          onReload={() => void refetch()}
           compact
         />
       </div>

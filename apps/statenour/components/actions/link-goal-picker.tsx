@@ -22,8 +22,8 @@ import { Loader2, Target, X, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { notifyDataChanged } from "@/lib/events/data-change";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface GoalOption {
   id: string;
   title: string;
@@ -148,6 +148,11 @@ export function LinkGoalPicker({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [showStale, setShowStale] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
+  // task.update replaces PATCH /api/tasks/:id. The link/unlink flows
+  // fire one mutation per task via Promise.allSettled · a fulfilled
+  // promise = a successful update (the legacy code's `r.value.ok`),
+  // a rejected one = a failure.
+  const updateTask = trpc.task.update.useMutation();
 
   // Apr 27 · split goals into alive vs stale buckets so the picker
   // doesn't shove zombie goals (0% progress, no linked tasks, 30d+
@@ -213,16 +218,10 @@ export function LinkGoalPicker({
     try {
       const results = await Promise.allSettled(
         taskIdsWithoutGoal.map((taskId) =>
-          authedFetch(`/api/tasks/${taskId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ goalId: null }),
-          }),
+          updateTask.mutateAsync({ id: taskId, fields: { goalId: null } }),
         ),
       );
-      const ok = results.filter(
-        (r) => r.status === "fulfilled" && r.value.ok,
-      ).length;
+      const ok = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.length - ok;
       if (ok > 0) {
         toast.success(
@@ -263,23 +262,17 @@ export function LinkGoalPicker({
     }
     setBusyId(goal.id);
     try {
-      // Parallel PATCH — tasks API accepts goalId via the existing
-      // update schema. We don't create a Mission.goalId column
+      // Parallel update — task.update accepts goalId via the shared
+      // taskUpdateSchema. We don't create a Mission.goalId column
       // because the bridge derives linkage from tasks. Fine for
       // projects with 50 or fewer tasks; above that we'd want a
       // bulk endpoint but Nour's workload is well under.
       const results = await Promise.allSettled(
         taskIdsWithoutGoal.map((taskId) =>
-          authedFetch(`/api/tasks/${taskId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ goalId: goal.id }),
-          })
-        )
+          updateTask.mutateAsync({ id: taskId, fields: { goalId: goal.id } }),
+        ),
       );
-      const ok = results.filter(
-        (r) => r.status === "fulfilled" && r.value.ok
-      ).length;
+      const ok = results.filter((r) => r.status === "fulfilled").length;
       const failed = results.length - ok;
       if (ok > 0) {
         toast.success(

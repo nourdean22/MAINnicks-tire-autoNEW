@@ -25,9 +25,19 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
-import { listTasks, deleteTask } from "@/lib/services/tasks";
-import { listMissions, createMission } from "@/lib/services/missions";
-import { getGoals } from "@/lib/services/goals";
+import { listTasks, deleteTask, updateTask } from "@/lib/services/tasks";
+import {
+  listMissions,
+  createMission,
+  updateMission,
+} from "@/lib/services/missions";
+import {
+  getGoals,
+  createGoal,
+  updateGoal,
+  createGoalSchema,
+  updateGoalSchema,
+} from "@/lib/services/goals";
 import { buildActionsBrain } from "@/lib/services/actions-brain";
 import {
   checkTask,
@@ -39,9 +49,19 @@ import {
 } from "@/lib/services/task-actions";
 import { generateAiTasks } from "@/lib/services/ai-tasks";
 import { backfillProjectTasks } from "@/lib/services/backfill-tasks";
+import { buildTodayCompound } from "@/lib/services/today-compound";
+import { buildNextMove } from "@/lib/services/next-move";
+import { buildGoalNextActions } from "@/lib/services/goal-next-actions";
+import { spawnProjectTasks } from "@/lib/services/spawn-tasks";
+import {
+  createMissionLink,
+  getLinksFor,
+  deleteMissionLink,
+} from "@/lib/services/mission-links";
 import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
+import { taskUpdateSchema } from "@/lib/validators/tasks";
 
 const TaskEventKindSchema = z.enum([
   "created",
@@ -459,4 +479,306 @@ export const taskRouter = router({
     .mutation(async ({ input }) =>
       backfillProjectTasks({ firstPhaseOnly: input?.firstPhaseOnly }),
     ),
+
+  /**
+   * Phase WW (2026-05-22 · legacy-modernizer REST→tRPC actions slice)
+   * · owner-only · partial-update a task. Replaces the legacy PATCH
+   * /api/tasks/[id] · the most-called mutation in the actions domain
+   * (link/unlink goal · link/unlink project · status switch · rename
+   * · bulk archive · snooze · domain-inbox moves).
+   *
+   * Input is the SHARED `taskUpdateSchema` from @/lib/validators/tasks
+   * — the exact schema `services/tasks.updateTask` parses internally.
+   * Sharing it makes the typed-payload-mismatch class structurally
+   * impossible (the /tasks quick-add bug, 2026-05-21): the procedure
+   * boundary and the downstream `.parse()` validate the SAME object.
+   * `id` is a separate scalar arg · everything else is `fields`.
+   *
+   * Delegates to `services/tasks.updateTask` · legacy PATCH calls the
+   * same function · drift impossible. ServiceError(404) → NOT_FOUND.
+   */
+  update: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        fields: taskUpdateSchema,
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await updateTask(input.id, input.fields);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase WW · owner-only · move a task to a domain's Inbox mission.
+   * Replaces POST /api/tasks/[id]/domain. Since `domain` lives on
+   * Mission (not Task), this is implemented as a mission swap: find
+   * (or lazily create) the per-domain Inbox mission, then re-point
+   * the task's missionId.
+   *
+   * The REST route's `bodySchema` was `{ domain: string.min(1).max(50) }`
+   * declared inline · re-declared verbatim here. The normalize +
+   * inbox-create logic is small and route-local · kept inline rather
+   * than extracting a one-caller service (YAGNI).
+   */
+  domainSwap: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        domain: z.string().min(1).max(50),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const DOMAIN_MAP: Record<
+        string,
+        "BUSINESS" | "PERSONAL" | "HEALTH" | "CONTENT" | "FINANCE"
+      > = {
+        business: "BUSINESS",
+        work: "BUSINESS",
+        personal: "PERSONAL",
+        health: "HEALTH",
+        fitness: "HEALTH",
+        content: "CONTENT",
+        creative: "CONTENT",
+        finance: "FINANCE",
+        money: "FINANCE",
+      };
+      const targetDomain =
+        DOMAIN_MAP[input.domain.trim().toLowerCase()] ?? "PERSONAL";
+      const inboxTitle = `Inbox - ${targetDomain.toLowerCase()}`;
+
+      let inbox = await prisma.mission.findFirst({
+        where: { title: inboxTitle, status: "ACTIVE", deletedAt: null },
+        select: { id: true, title: true, domain: true },
+      });
+      if (!inbox) {
+        inbox = await prisma.mission.create({
+          data: {
+            title: inboxTitle,
+            domain: targetDomain,
+            status: "ACTIVE",
+            priority: 50,
+            roiScore: 50,
+            neglectCost: 30,
+          },
+          select: { id: true, title: true, domain: true },
+        });
+      }
+
+      const task = await prisma.task.update({
+        where: { id: input.id },
+        data: { missionId: inbox.id, lastTouchedAt: new Date() },
+        include: { mission: true },
+      });
+
+      return {
+        task: {
+          id: task.id,
+          missionId: task.missionId,
+          mission: task.mission
+            ? {
+                id: task.mission.id,
+                title: task.mission.title,
+                domain: task.mission.domain,
+              }
+            : null,
+        },
+      };
+    }),
+
+  /**
+   * Phase WW · owner-only · today's compounded auto-learn signal ·
+   * the 1-row "today's growth" strip above /tasks (TodaysCompound).
+   * Replaces GET /api/tasks/today-compound · delegates to the
+   * `today-compound.buildTodayCompound` shared service the REST route
+   * also calls · drift impossible. Pure read · safe to poll on 60s.
+   */
+  todayCompound: operatorProcedure.query(async () => buildTodayCompound()),
+
+  /**
+   * Phase WW · owner-only · Nick's "what to do now" read · weakest
+   * mastery axis + rationale + up to 3 candidate moves (NextMoveCard
+   * at the top of NOW mode). Replaces GET /api/tasks/next-move ·
+   * delegates to `next-move.buildNextMove` · drift impossible.
+   */
+  nextMove: operatorProcedure.query(async () => buildNextMove()),
+
+  /**
+   * Phase WW · owner-only · behind-pace goal nudges feeding
+   * GoalNextActionsCard on /plan. Replaces GET /api/goals/next-actions
+   * · delegates to `goal-next-actions.buildGoalNextActions`. The
+   * legacy route's `?limit=` query param (clamped 1..20, default 5)
+   * is mirrored as a typed optional input.
+   */
+  goalNextActions: operatorProcedure
+    .input(
+      z
+        .object({ limit: z.number().int().min(1).max(20).optional() })
+        .optional(),
+    )
+    .query(async ({ input }) => buildGoalNextActions(input?.limit ?? 5)),
+
+  /**
+   * Phase WW · owner-only · create a LifeGoal. Replaces POST
+   * /api/goals. Input is the SHARED `createGoalSchema` exported from
+   * @/lib/services/goals — the exact schema the REST route parses
+   * before calling `createGoal` · the schema IS the contract · drift
+   * impossible. `createGoal` takes already-parsed input, so the tRPC
+   * `.input()` IS the validation boundary.
+   */
+  goalsCreate: operatorProcedure
+    .input(createGoalSchema)
+    .mutation(async ({ input }) => createGoal(input)),
+
+  /**
+   * Phase WW · owner-only · update a LifeGoal (rename · re-pace ·
+   * pause · log progress via `progressDelta`). Replaces PATCH
+   * /api/goals. Input is the SHARED `updateGoalSchema` from
+   * @/lib/services/goals · same contract as the REST route.
+   */
+  goalsUpdate: operatorProcedure
+    .input(updateGoalSchema)
+    .mutation(async ({ input }) => updateGoal(input)),
+
+  /**
+   * Phase WW · owner-only · partial-update a Mission (pause a project
+   * · reorder phases via `planData`). Replaces PATCH /api/missions/[id]
+   * · delegates to `services/missions.updateMission` · the same
+   * function the REST route calls · drift impossible.
+   *
+   * `updateMission` does its own zod validation on the payload shape;
+   * the call-sites send a small heterogeneous set ({ status } ·
+   * { planData } · { status, ...meta }) so the `fields` arg stays a
+   * genuine dynamic map. NOT a `z.record(z.unknown())` blanket —
+   * `z.unknown()` values are the minimum needed for `planData` (an
+   * arbitrarily-nested plan object the service re-validates).
+   */
+  missionUpdate: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        fields: z.record(z.string(), z.unknown()),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await updateMission(input.id, input.fields);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase WW · owner-only · all mission-to-mission links touching one
+   * mission (outbound + inbound). Replaces GET /api/missions/[id]/links
+   * · delegates to `mission-links.getLinksFor`. Returns `{ links }` to
+   * mirror the legacy REST envelope.
+   */
+  missionLinks: operatorProcedure
+    .input(z.object({ missionId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const links = await getLinksFor(input.missionId);
+      return { links };
+    }),
+
+  /**
+   * Phase WW · owner-only · create a mission-to-mission link.
+   * Replaces POST /api/missions/[id]/links · delegates to
+   * `mission-links.createMissionLink` (idempotent upsert). The
+   * service throws plain Errors for self-link / missing-mission ·
+   * mapped to BAD_REQUEST so the component's error toast is
+   * preserved. Returns `{ link }` mirroring the REST envelope.
+   */
+  missionLinkCreate: operatorProcedure
+    .input(
+      z.object({
+        sourceId: z.string().min(1).max(64),
+        targetId: z.string().min(1).max(64),
+        relation: z.string().max(40).nullable().optional(),
+        note: z.string().max(500).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const link = await createMissionLink({
+          sourceId: input.sourceId,
+          targetId: input.targetId,
+          relation: input.relation,
+          note: input.note,
+          createdBy: "user",
+        });
+        return { link };
+      } catch (err) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : "could not link",
+        });
+      }
+    }),
+
+  /**
+   * Phase WW · owner-only · remove a mission-to-mission link by id.
+   * Replaces DELETE /api/missions/[id]/links/[linkId] · delegates to
+   * `mission-links.deleteMissionLink` (idempotent · returns
+   * `{ ok: true }` even if the link is already gone).
+   */
+  missionLinkDelete: operatorProcedure
+    .input(z.object({ linkId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => deleteMissionLink(input.linkId)),
+
+  /**
+   * Phase WW · owner-only · auto-create NOW tasks from a project
+   * plan's phases. Replaces POST /api/projects/[id]/spawn-tasks ·
+   * delegates to `spawn-tasks.spawnProjectTasks` · the same function
+   * the REST route calls · drift impossible.
+   *
+   * Idempotent · re-running only spawns un-spawned steps. The route's
+   * SpawnRequest body fields ({ phase?, phaseIndex?, all?, goalId? })
+   * are mirrored as a typed input. ServiceError(404/400) → the
+   * matching tRPC code so both transports reject identically.
+   */
+  spawnTasks: operatorProcedure
+    .input(
+      z.object({
+        missionId: z.string().min(1).max(64),
+        phase: z.string().max(200).optional(),
+        phaseIndex: z.number().int().min(0).max(200).optional(),
+        all: z.boolean().optional(),
+        goalId: z.string().max(64).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await spawnProjectTasks({
+          missionId: input.missionId,
+          phase: input.phase,
+          phaseIndex: input.phaseIndex,
+          all: input.all,
+          goalId: input.goalId,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });

@@ -33,6 +33,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Loader2, Briefcase, X } from "lucide-react";
 import { toast } from "sonner";
+import { trpc } from "@/lib/trpc/client";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 import { notifyDataChanged } from "@/lib/events/data-change";
 
@@ -68,6 +69,10 @@ export function LinkProjectPicker({
 }: LinkProjectPickerProps) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement | null>(null);
+  // task.update replaces PATCH /api/tasks/:id · mutateAsync resolves
+  // on success and rejects on a server error, matching the old
+  // `r.ok` true/false branches exactly.
+  const updateTask = trpc.task.update.useMutation();
 
   // Outside-click closes the sheet. Parent owns the visibility flag —
   // we just notify on close so it can clear its edit state.
@@ -93,37 +98,32 @@ export function LinkProjectPicker({
     if (project.id === currentProjectId) return;
     setBusyId(project.id);
     try {
-      const r = await authedFetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ missionId: project.id }),
+      await updateTask.mutateAsync({
+        id: taskId,
+        fields: { missionId: project.id },
       });
-      if (r.ok) {
-        toast.success(
-          `Moved to "${project.title.slice(0, 40)}"`,
-        );
-        // Cross-surface notify — task left its old project + joined a
-        // new one, so both project views need to refresh as does the
-        // NOW stream's mission breadcrumb.
-        notifyDataChanged("tasks", {
-          source: "link-project-picker",
-          detail: "link",
-          id: taskId,
-        });
-        notifyDataChanged("projects", {
-          source: "link-project-picker",
-          detail: "link",
-          id: project.id,
-        });
-        notifyDataChanged("missions", {
-          source: "link-project-picker",
-          detail: "link",
-          id: project.id,
-        });
-        onLinked?.();
-      } else {
-        toast.error("Move failed");
-      }
+      toast.success(
+        `Moved to "${project.title.slice(0, 40)}"`,
+      );
+      // Cross-surface notify — task left its old project + joined a
+      // new one, so both project views need to refresh as does the
+      // NOW stream's mission breadcrumb.
+      notifyDataChanged("tasks", {
+        source: "link-project-picker",
+        detail: "link",
+        id: taskId,
+      });
+      notifyDataChanged("projects", {
+        source: "link-project-picker",
+        detail: "link",
+        id: project.id,
+      });
+      notifyDataChanged("missions", {
+        source: "link-project-picker",
+        detail: "link",
+        id: project.id,
+      });
+      onLinked?.();
     } catch (e) {
       toast.error(`Move failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -132,6 +132,15 @@ export function LinkProjectPicker({
     }
   };
 
+  // FLAGGED · NOT migrated to trpc.task.update. This sends
+  // { missionId: null }, but Task.missionId is a non-null FK
+  // (prisma/schema.prisma:295 `missionId String`) and the shared
+  // taskUpdateSchema types missionId as a non-nullable optional —
+  // so a typed tRPC `fields` arg would reject `missionId: null` at
+  // compile time. The legacy REST path already fails this payload at
+  // taskUpdateSchema.parse() inside updateTask() (the "leave mission"
+  // flow is pre-broken). Kept on authedFetch verbatim so this slice
+  // changes no behaviour; fixing the leave-mission flow is its own task.
   const handleLeave = async () => {
     setBusyId("__leave__");
     try {

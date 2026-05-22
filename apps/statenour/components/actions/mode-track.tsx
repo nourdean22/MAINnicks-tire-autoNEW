@@ -67,6 +67,7 @@ import {
 import { toast } from "sonner";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 interface KommandoTrackProps {
@@ -121,29 +122,26 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
   const [story, setStory] = useState<string | null>(null);
   const [storyLoading, setStoryLoading] = useState(false);
 
+  // task.* tRPC utils for the imperative coordinated fetch · the
+  // legacy code ran a Promise.all of 3 authedFetch reads. utils.*.fetch
+  // returns the payload directly (no apiHandler envelope to unwrap).
+  const utils = trpc.useUtils();
+  const updateTask = trpc.task.update.useMutation();
+  const goalsUpdate = trpc.task.goalsUpdate.useMutation();
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [t, g, p] = await Promise.all([
-        authedFetch("/api/tasks")
-          .then((r) => (r.ok ? r.json() : Promise.resolve({})))
-          .catch(() => ({})),
-        authedFetch("/api/goals")
-          .then((r) => (r.ok ? r.json() : Promise.resolve({})))
-          .catch(() => ({})),
-        authedFetch("/api/missions?status=ACTIVE")
-          .then((r) => (r.ok ? r.json() : Promise.resolve({})))
-          .catch(() => ({})),
+      const [tArr, gWrapped, pArr] = await Promise.all([
+        utils.task.list.fetch(undefined).catch((): Task[] => []),
+        utils.task.goals
+          .fetch(undefined)
+          .catch((): { goals: GoalRow[] } => ({ goals: [] })),
+        utils.task.missions.fetch().catch((): ProjectRow[] => []),
       ]);
-      // apiHandler wraps every route as { ok, data, meta }. Unwrap to
-      // get the actual payload. /api/tasks + /api/missions return arrays
-      // directly inside data; /api/goals returns { goals: [...] }.
-      const tArr = ((t as { data?: unknown }).data ?? t) as unknown;
       setTasks(Array.isArray(tArr) ? (tArr as Task[]) : []);
-      const gWrapped = (g as { data?: { goals?: unknown } }).data ?? (g as { goals?: unknown });
-      const gArr = (gWrapped as { goals?: unknown }).goals ?? [];
+      const gArr = gWrapped?.goals ?? [];
       setGoals(Array.isArray(gArr) ? (gArr as GoalRow[]) : []);
-      const pArr = ((p as { data?: unknown }).data ?? p) as unknown;
       // v10.0.154 · filter out system-managed inboxes ("Inbox", "Inbox -
       // business", etc.) so Stats matches the Plan view + the user-
       // facing 3-project cap. Inboxes are catch-alls, not chosen
@@ -154,7 +152,7 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
       setProjects(projectsRaw.filter(isUserProject));
     } catch {}
     setLoading(false);
-  }, []);
+  }, [utils]);
 
   useEffect(() => {
     load();
@@ -515,15 +513,9 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
   // ── Per-warning actions ──
   const handleWarningKill = async (taskId: string) => {
     try {
-      const r = await authedFetch(`/api/tasks/${taskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "ARCHIVED" }),
-      });
-      if (r.ok) {
-        toast.success("dropped");
-        notifyDataChanged("tasks", { source: "track:warnings", detail: "kill", id: taskId });
-      }
+      await updateTask.mutateAsync({ id: taskId, fields: { status: "ARCHIVED" } });
+      toast.success("dropped");
+      notifyDataChanged("tasks", { source: "track:warnings", detail: "kill", id: taskId });
     } catch {
       toast.error("couldn't drop it");
     }
@@ -531,15 +523,9 @@ export function KommandoTrack({ onJumpMode, onOpenReview }: KommandoTrackProps =
 
   const handleGoalArchive = async (goalId: string) => {
     try {
-      const r = await authedFetch("/api/goals", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: goalId, status: "paused" }),
-      });
-      if (r.ok) {
-        toast.success("Goal paused");
-        notifyDataChanged("goals", { source: "track:warnings", detail: "pause", id: goalId });
-      }
+      await goalsUpdate.mutateAsync({ id: goalId, status: "paused" });
+      toast.success("Goal paused");
+      notifyDataChanged("goals", { source: "track:warnings", detail: "pause", id: goalId });
     } catch {
       toast.error("Couldn't pause goal");
     }

@@ -16,21 +16,10 @@
  * current mission + ones already linked. Operator can add 5+ links.
  */
 
-import { useEffect, useState, useCallback } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useState } from "react";
+import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 import { Link2, X, Plus, ArrowUpRight, ArrowDownLeft } from "lucide-react";
-
-interface LinkRow {
-  id: string;
-  sourceId: string;
-  targetId: string;
-  relation: string | null;
-  note: string | null;
-  direction: "outbound" | "inbound";
-  otherMission: { id: string; title: string; status: string; domain: string };
-  createdAt: string;
-}
 
 interface MissionOpt { id: string; title: string; status?: string }
 
@@ -51,77 +40,56 @@ const RELATION_TONE: Record<string, string> = {
 };
 
 export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
-  const [links, setLinks] = useState<LinkRow[] | null>(null);
-  const [allMissions, setAllMissions] = useState<MissionOpt[] | null>(null);
   const [picking, setPicking] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
   const [pickerRelation, setPickerRelation] = useState("related");
-  const [busy, setBusy] = useState(false);
 
-  const loadLinks = useCallback(async () => {
-    try {
-      const r = await authedFetch(`/api/missions/${missionId}/links`);
-      if (!r.ok) return;
-      const data = (await r.json()) as { links?: LinkRow[] };
-      setLinks(data.links ?? []);
-    } catch {
-      /* ignore · will retry on next interaction */
-    }
-  }, [missionId]);
+  // Render-time read · keyed on { missionId }. Replaces GET
+  // /api/missions/[id]/links · the panel returns null until the
+  // first fetch settles (matches the legacy `links === null` gate).
+  const linksQuery = trpc.task.missionLinks.useQuery({ missionId });
+  const links = linksQuery.data?.links ?? null;
 
-  const loadMissions = useCallback(async () => {
-    if (allMissions) return;
-    try {
-      const r = await authedFetch(`/api/missions`);
-      if (!r.ok) return;
-      const data = (await r.json()) as MissionOpt[] | { missions?: MissionOpt[] };
-      const list = Array.isArray(data) ? data : (data.missions ?? []);
-      setAllMissions(list);
-    } catch {
-      /* ignore */
-    }
-  }, [allMissions]);
+  // The picker's mission list is fetched lazily · `enabled` flips on
+  // when the operator opens the picker, mirroring the old on-demand
+  // loadMissions() call. listMissions() returns an array directly.
+  const missionsQuery = trpc.task.missions.useQuery(undefined, {
+    enabled: picking,
+  });
+  const allMissions: MissionOpt[] | null = missionsQuery.data ?? null;
 
-  useEffect(() => { void loadLinks(); }, [loadLinks]);
+  const linkCreate = trpc.task.missionLinkCreate.useMutation();
+  const linkDelete = trpc.task.missionLinkDelete.useMutation();
+  const busy = linkCreate.isPending || linkDelete.isPending;
 
   async function addLink(targetId: string) {
     if (busy) return;
-    setBusy(true);
     try {
-      const r = await authedFetch(`/api/missions/${missionId}/links`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ targetId, relation: pickerRelation }),
+      await linkCreate.mutateAsync({
+        sourceId: missionId,
+        targetId,
+        relation: pickerRelation,
       });
-      if (!r.ok) {
-        const err = (await r.json().catch(() => ({}))) as { error?: string };
-        toast.error(`Could not link · ${err.error ?? `HTTP ${r.status}`}`);
-        return;
-      }
       toast.success("Linked");
       setPicking(false);
       setPickerQuery("");
-      await loadLinks();
-    } finally {
-      setBusy(false);
+      await linksQuery.refetch();
+    } catch (err) {
+      toast.error(
+        `Could not link · ${err instanceof Error ? err.message : "failed"}`,
+      );
     }
   }
 
   async function removeLink(linkId: string) {
     if (busy) return;
-    setBusy(true);
     try {
-      const r = await authedFetch(
-        `/api/missions/${missionId}/links/${linkId}`,
-        { method: "DELETE" },
+      await linkDelete.mutateAsync({ linkId });
+      await linksQuery.refetch();
+    } catch (err) {
+      toast.error(
+        `Could not remove · ${err instanceof Error ? err.message : "failed"}`,
       );
-      if (!r.ok) {
-        toast.error(`Could not remove · HTTP ${r.status}`);
-        return;
-      }
-      await loadLinks();
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -130,7 +98,7 @@ export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
   // Build candidates list · all missions minus current + already-linked
   const linkedIds = new Set([
     missionId,
-    ...links.map((l) => l.otherMission.id),
+    ...links.map((l) => l.otherMission?.id).filter((id): id is string => !!id),
   ]);
   const candidates = (allMissions ?? [])
     .filter((m) => !linkedIds.has(m.id))
@@ -153,7 +121,7 @@ export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
         {!picking && (
           <button
             type="button"
-            onClick={() => { setPicking(true); void loadMissions(); }}
+            onClick={() => { setPicking(true); }}
             className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 rounded border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 flex items-center gap-1"
           >
             <Plus size={12} /> link
@@ -171,6 +139,10 @@ export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
       {links.length > 0 && (
         <ul className="space-y-1.5 mb-3">
           {links.map((l) => {
+            // getLinksFor always populates otherMission · the guard
+            // satisfies the optional type on MissionLinkRow.
+            const other = l.otherMission;
+            if (!other) return null;
             const tone = RELATION_TONE[l.relation ?? "related"] ?? RELATION_TONE.related;
             const Arrow = l.direction === "outbound" ? ArrowUpRight : ArrowDownLeft;
             const relLabel = RELATIONS.find((r) => r.value === (l.relation ?? "related"))?.label ?? l.relation ?? "related";
@@ -181,14 +153,14 @@ export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
                   {relLabel}
                 </span>
                 <a
-                  href={`/plan?missionId=${l.otherMission.id}`}
+                  href={`/plan?missionId=${other.id}`}
                   className="flex-1 text-[12px] text-[var(--text-primary)] hover:text-[var(--gold)] truncate"
-                  title={l.otherMission.title}
+                  title={other.title}
                 >
-                  {l.otherMission.title}
+                  {other.title}
                 </a>
                 <span className="text-[9px] font-mono text-[var(--text-tertiary)] shrink-0">
-                  {l.otherMission.status}
+                  {other.status}
                 </span>
                 <button
                   type="button"

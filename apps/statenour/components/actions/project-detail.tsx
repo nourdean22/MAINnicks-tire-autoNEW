@@ -51,6 +51,7 @@ import {
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { createTask } from "@/lib/services/client/tasks";
 import { LinkedMissionsPanel } from "@/components/missions/linked-missions-panel";
 import {
@@ -113,6 +114,15 @@ export function ProjectDetail({
   const [learning, setLearning] = useState<LearningPath | null>(null);
   const [coachEntry, setCoachEntry] = useState<CoachEntry | null>(null);
   const [loading, setLoading] = useState<"learn" | "guide" | null>(null);
+
+  // task.* tRPC mutations · replace the in-domain PATCH /api/tasks,
+  // PATCH /api/missions, POST /api/tasks/:id/check + spawn-tasks
+  // calls. The /api/ai/plan-project calls (learn/guide/plan/replan)
+  // stay on authedFetch — AI domain, migrates in a later slice.
+  const updateTask = trpc.task.update.useMutation();
+  const checkTaskMut = trpc.task.check.useMutation();
+  const missionUpdate = trpc.task.missionUpdate.useMutation();
+  const spawnTasks = trpc.task.spawnTasks.useMutation();
 
   // Inline title edit — PATCH /api/missions/[id] with new title.
   // Parent listens for `notifyDataChanged("projects", ...)` and reloads
@@ -183,15 +193,9 @@ export function ProjectDetail({
     setBulkBusy("complete");
     try {
       const results = await Promise.allSettled(
-        active.map((t) =>
-          authedFetch(`/api/tasks/${t.id}/check`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}),
-          }),
-        ),
+        active.map((t) => checkTaskMut.mutateAsync({ id: t.id })),
       );
-      const ok = results.filter((rr) => rr.status === "fulfilled" && rr.value.ok).length;
+      const ok = results.filter((rr) => rr.status === "fulfilled").length;
       toast.success(`Completed ${ok}/${active.length}`);
       notifyDataChanged("tasks", { source: "project-detail", detail: "bulk-complete", id: missionId });
       notifyDataChanged("projects", { source: "project-detail", detail: "bulk-complete", id: missionId });
@@ -210,14 +214,10 @@ export function ProjectDetail({
     try {
       const results = await Promise.allSettled(
         done.map((t) =>
-          authedFetch(`/api/tasks/${t.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ status: "ARCHIVED" }),
-          }),
+          updateTask.mutateAsync({ id: t.id, fields: { status: "ARCHIVED" } }),
         ),
       );
-      const ok = results.filter((rr) => rr.status === "fulfilled" && rr.value.ok).length;
+      const ok = results.filter((rr) => rr.status === "fulfilled").length;
       toast.success(`Archived ${ok}/${done.length}`);
       notifyDataChanged("tasks", { source: "project-detail", detail: "bulk-archive", id: missionId });
       notifyDataChanged("projects", { source: "project-detail", detail: "bulk-archive", id: missionId });
@@ -245,23 +245,18 @@ export function ProjectDetail({
       next.phases!.splice(to, 0, moved);
       next.updatedAt = new Date().toISOString();
       try {
-        const r = await authedFetch(`/api/missions/${missionId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ planData: next }),
+        await missionUpdate.mutateAsync({
+          id: missionId,
+          fields: { planData: next },
         });
-        if (r.ok) {
-          toast.success("Phase reordered");
-          onPlanUpdated?.(next);
-          notifyDataChanged("projects", { source: "project-detail", detail: "phase-reorder", id: missionId });
-        } else {
-          toast.error("Reorder failed");
-        }
+        toast.success("Phase reordered");
+        onPlanUpdated?.(next);
+        notifyDataChanged("projects", { source: "project-detail", detail: "phase-reorder", id: missionId });
       } catch {
         toast.error("Reorder failed");
       }
     },
-    [planData, missionId, onPlanUpdated],
+    [planData, missionId, onPlanUpdated, missionUpdate],
   );
 
   const clearInbox = useCallback(async () => {
@@ -309,25 +304,20 @@ export function ProjectDetail({
     }
     setSavingRename(true);
     try {
-      const r = await authedFetch(`/api/tasks/${renameTaskId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: next }),
+      await updateTask.mutateAsync({
+        id: renameTaskId,
+        fields: { title: next },
       });
-      if (r.ok) {
-        toast.success("Renamed");
-        notifyDataChanged("tasks", { source: "project-detail", detail: "rename", id: renameTaskId });
-        notifyDataChanged("projects", { source: "project-detail", detail: "rename", id: missionId });
-        cancelRename();
-      } else {
-        toast.error("Rename failed");
-      }
+      toast.success("Renamed");
+      notifyDataChanged("tasks", { source: "project-detail", detail: "rename", id: renameTaskId });
+      notifyDataChanged("projects", { source: "project-detail", detail: "rename", id: missionId });
+      cancelRename();
     } catch {
       toast.error("Rename failed");
     } finally {
       setSavingRename(false);
     }
-  }, [renameTaskId, renameTitle, missionId, cancelRename]);
+  }, [renameTaskId, renameTitle, missionId, cancelRename, updateTask]);
 
   // May 02 · E — per-task manual status switch. PATCH /api/tasks/[id]
   // with { status }. Lets Nour bump a task INBOX→READY→DOING without
@@ -336,23 +326,22 @@ export function ProjectDetail({
   const switchStatus = useCallback(
     async (id: string, nextStatus: string) => {
       try {
-        const r = await authedFetch(`/api/tasks/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: nextStatus }),
+        await updateTask.mutateAsync({
+          id,
+          fields: {
+            status: nextStatus as NonNullable<
+              Parameters<typeof updateTask.mutateAsync>[0]["fields"]["status"]
+            >,
+          },
         });
-        if (r.ok) {
-          toast.success(`→ ${nextStatus.toLowerCase()}`);
-          notifyDataChanged("tasks", { source: "project-detail", detail: "status", id });
-          notifyDataChanged("projects", { source: "project-detail", detail: "status", id: missionId });
-        } else {
-          toast.error("Status change failed");
-        }
+        toast.success(`→ ${nextStatus.toLowerCase()}`);
+        notifyDataChanged("tasks", { source: "project-detail", detail: "status", id });
+        notifyDataChanged("projects", { source: "project-detail", detail: "status", id: missionId });
       } catch {
         toast.error("Status change failed");
       }
     },
-    [missionId],
+    [missionId, updateTask],
   );
 
   const addTask = useCallback(async () => {
@@ -426,25 +415,17 @@ export function ProjectDetail({
     }
     setSavingEdit(true);
     try {
-      const r = await authedFetch(`/api/missions/${missionId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (r.ok) {
-        toast.success("Mission updated");
-        notifyDataChanged("projects", { source: "project-detail", detail: "edit", id: missionId });
-        notifyDataChanged("missions", { source: "project-detail", detail: "edit", id: missionId });
-        setEditing(false);
-      } else {
-        toast.error("Save failed");
-      }
+      await missionUpdate.mutateAsync({ id: missionId, fields: payload });
+      toast.success("Mission updated");
+      notifyDataChanged("projects", { source: "project-detail", detail: "edit", id: missionId });
+      notifyDataChanged("missions", { source: "project-detail", detail: "edit", id: missionId });
+      setEditing(false);
     } catch {
       toast.error("Save failed");
     } finally {
       setSavingEdit(false);
     }
-  }, [editTitle, editDomain, editStatus, title, domain, status, missionId]);
+  }, [editTitle, editDomain, editStatus, title, domain, status, missionId, missionUpdate]);
 
   const plan: ProjectPlanData | null = isProjectPlanData(planData) ? planData : null;
 
@@ -1257,42 +1238,34 @@ export function ProjectDetail({
                     onClick={async (e) => {
                       e.stopPropagation();
                       try {
-                        const r = await authedFetch(`/api/projects/${missionId}/spawn-tasks`,
-                          {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ phaseIndex: pi }),
-                          },
+                        const d = await spawnTasks.mutateAsync({
+                          missionId,
+                          phaseIndex: pi,
+                        });
+                        const spawned = d?.spawned ?? 0;
+                        toast.success(
+                          `Added ${spawned} task${spawned === 1 ? "" : "s"} to NOW`,
                         );
-                        if (r.ok) {
-                          const d = await r.json();
-                          const spawned = d?.data?.spawned ?? d?.spawned ?? 0;
-                          toast.success(
-                            `Added ${spawned} task${spawned === 1 ? "" : "s"} to NOW`,
-                          );
-                          // Cross-page event so NOW refreshes immediately.
-                          window.dispatchEvent(
-                            new CustomEvent("nour:data-changed", {
-                              detail: { domain: "tasks", source: "project-spawn" },
-                            }),
-                          );
-                          // If the parent supplied a plan-updated cb,
-                          // hand it the freshest planData so the UI
-                          // reflects the new taskId back-references
-                          // without a full reload.
-                          if (d?.data?.taskIds && onPlanUpdated && plan) {
-                            const next = JSON.parse(JSON.stringify(plan)) as ProjectPlanData;
-                            // The server has already written the
-                            // back-refs; we don't have the full
-                            // updated plan in the response so just
-                            // bump updatedAt and rely on the parent's
-                            // own refresh path. If the parent reloads
-                            // data, planData comes back fresh from DB.
-                            next.updatedAt = new Date().toISOString();
-                            onPlanUpdated(next);
-                          }
-                        } else {
-                          toast.error("Spawn failed");
+                        // Cross-page event so NOW refreshes immediately.
+                        window.dispatchEvent(
+                          new CustomEvent("nour:data-changed", {
+                            detail: { domain: "tasks", source: "project-spawn" },
+                          }),
+                        );
+                        // If the parent supplied a plan-updated cb,
+                        // hand it the freshest planData so the UI
+                        // reflects the new taskId back-references
+                        // without a full reload.
+                        if (d?.taskIds && onPlanUpdated && plan) {
+                          const next = JSON.parse(JSON.stringify(plan)) as ProjectPlanData;
+                          // The server has already written the
+                          // back-refs; we don't have the full
+                          // updated plan in the response so just
+                          // bump updatedAt and rely on the parent's
+                          // own refresh path. If the parent reloads
+                          // data, planData comes back fresh from DB.
+                          next.updatedAt = new Date().toISOString();
+                          onPlanUpdated(next);
                         }
                       } catch {
                         toast.error("Spawn failed");
