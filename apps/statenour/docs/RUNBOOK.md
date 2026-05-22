@@ -1,6 +1,11 @@
-# Runbook · statenour-os
+# Runbook · statenour
 
 Operational playbook. When something breaks or drifts, start here.
+
+> statenour runs as the `statenour-web` service in the
+> `nourdean22/MAINnicks-tire-autoNEW` monorepo (`apps/statenour/`),
+> deployed by **Railway** from branch `main`. Prod URL:
+> `statenour-web-production.up.railway.app`.
 
 ---
 
@@ -9,9 +14,9 @@ Operational playbook. When something breaks or drifts, start here.
 ```
 something's wrong
      │
-     ├── bdnick.info won't load
-     │       → /api/health   (public)
-     │       → vercel dashboard
+     ├── statenour prod won't load
+     │       → /api/system/heartbeat   (public)
+     │       → Railway dashboard (natural-appreciation project)
      │       → Neon status page
      │
      ├── Nick is silent / errors out
@@ -53,7 +58,7 @@ something's wrong
 
 ## Environment setup checklist
 
-When bringing a new Vercel deployment online or resetting a machine:
+When bringing the Railway service online or resetting a machine:
 
 1. **Required env vars** — all must be set for production:
    ```
@@ -71,9 +76,9 @@ When bringing a new Vercel deployment online or resetting a machine:
    STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
    NEXT_PUBLIC_APP_URL
    ```
-3. **Platform-set** (Vercel/Node supplies automatically — never hand-set):
+3. **Platform-set** (Railway/Node supplies automatically — never hand-set):
    ```
-   NODE_ENV, VERCEL, VERCEL_ENV, VERCEL_URL, VERCEL_GIT_COMMIT_SHA
+   NODE_ENV, RAILWAY_ENVIRONMENT, RAILWAY_GIT_COMMIT_SHA
    ```
 4. Full spec: [`lib/env.ts`](../lib/env.ts). Template: [`.env.example`](../.env.example).
 
@@ -81,10 +86,10 @@ When bringing a new Vercel deployment online or resetting a machine:
 
 ## Cron catalog
 
-Source of truth: [`config/crons.ts`](../config/crons.ts). Updated via
-`pnpm check:crons -- --fix` when the manifest changes. **34 active, 24
-folded (run inside another cron), 5 retired** (deletion windows
-scheduled). 6 slots headroom under Vercel Pro 40-cap.
+Source of truth: [`config/crons.ts`](../config/crons.ts) — the complete
+cron catalog. Verified via `pnpm check:crons` when the manifest
+changes. Each entry is `active` (on a schedule), `folded` (runs inside
+a parent cron — most fold into `mega-evening`), or `retired`.
 
 > The table below covers the high-traffic actives. For the complete
 > manifest with mode (active / folded / retired), schedule, foldedInto
@@ -121,33 +126,30 @@ scheduled). 6 slots headroom under Vercel Pro 40-cap.
 |  | `operating-rhythm` | 12:00, 16:00, 21:00 | thrice-daily rhythm check |
 |  | `daily-report` | 11:30 | yesterday recap |
 |  | `journal-checkin` | 1:00 | proactive journal-ask via Telegram |
-| **device** | `device-command-reap` | every 5m | reap stuck pending commands |
-|  | `device-sync` | every 10m | bridge heartbeat + queue drain |
-| **alert** | `notification-sender` | every 15m | scheduled notification drain |
+| **alert** | `error-telegram-push` | every 5m | fatal/error rows → Telegram |
+|  | `alert-telegram-push` | every 15m | drift/cost/schema alerts → Telegram |
 
-**Folded** (run inside a parent cron, no independent schedule): 24
-crons total. The big mega-evening consolidator absorbs most of them
-(consolidate, learn, voice-clone-train, memory-bloat-watch, image-rot-
-scan, schema-drift-watch, storage-quota-watch, audit-retention,
-creation-spike-detect, update-spike-detect, stale-conversation-archive,
-brain-bus-probe, brain-bus-backfill, etc.). Plus device-health →
-device-command-reap, intelligence → brain-intelligence, trigger
-(manual-trigger surface), brain-bus-consume rolled into mega.
+**Folded** (run inside a parent cron, no independent schedule). The big
+mega-evening consolidator absorbs most of them (consolidate, learn,
+voice-clone-train, memory-bloat-watch, image-rot-scan, schema-drift-
+watch, storage-quota-watch, audit-retention, creation-spike-detect,
+update-spike-detect, stale-conversation-archive, brain-bus-probe,
+brain-bus-backfill, etc.). Plus intelligence → brain-intelligence.
 See `config/crons.ts` for the full `mode: "folded"` set with parent
 references.
 
-**Retired** (deletion windows scheduled in `config/crons.ts`): 5 crons
-past deprecation including `status`. The `verify-crons.ts` script
-warns when any retired cron is past its deletion-window date.
+**Retired** — the device crons (`device-command-reap`, `device-sync`,
+`device-health`, `status`) and `notification-sender` were deleted
+with their route files; the device subsystem retirement was finalized
+earlier. The `verify-crons.ts` script warns when any remaining
+`mode: "retired"` cron is past its deletion-window date.
 
 **Add / change a cron:**
 ```bash
-# 1. edit config/crons.ts
-# 2. regenerate vercel.json
-pnpm check:crons -- --fix
-# 3. if new, scaffold the route
+# 1. edit config/crons.ts (the single source of truth)
+# 2. if new, scaffold the route
 mkdir -p app/api/cron/<name> && touch app/api/cron/<name>/route.ts
-# 4. verify
+# 3. verify the manifest matches the filesystem
 pnpm check:crons
 pnpm typecheck
 ```
@@ -168,7 +170,7 @@ Triage process:
 4. **Quick fixes:**
    - **Prisma schema mismatch** (e.g. `Expected Int, provided String`) — check the model; usually a caller bug.
    - **Venice 5xx** — check `/system/ai-cost` for burn; provider may be degraded; temporarily pin `AI_PROVIDER=openai`.
-   - **Cron auth 401** — CRON_SECRET not set or mismatched; check Vercel env.
+   - **Cron auth 401** — CRON_SECRET not set or mismatched; check Railway env.
    - **Unauthorized on `/api/*`** — user not in `AUTH_ALLOWED_EMAIL` allowlist.
    - **Bridge sync 401** — `STATENOUR_SYNC_KEY` mismatch between nickstire and statenour.
 5. **Resolved errors** — marked via `resolvedAt` field (write pattern still manual; UI button coming in W12).
@@ -184,7 +186,7 @@ Open `/system/ai-cost`:
 - **By model** — Venice vs OpenAI mix. If OpenAI calls dominate → Venice is down → check provider health.
 
 **Knobs available now:**
-- Provider override: set `AI_PROVIDER=openai` env in Vercel.
+- Provider override: set `AI_PROVIDER=openai` env in Railway.
 - Model override: set `VENICE_MODEL=...` or `OPENAI_MODEL=...`.
 - Feature kill: temporarily comment out the feature's system-prompt inclusion.
 
@@ -212,33 +214,35 @@ unexpected:
 
 ## Deploy + rollback
 
+statenour lives in the `nourdean22/MAINnicks-tire-autoNEW` monorepo at
+`apps/statenour/`. Railway watches branch `main` and auto-deploys the
+`statenour-web` service on every push that touches `apps/statenour/**`.
+
 Normal path:
 ```
-1. develop on codex/ollama-local
-2. pre-push hook runs: typecheck + lint + test
-3. push → CI (.github/workflows/ci.yml) verifies
-4. mirror workflow fast-forwards statenour-master
-5. Vercel production deploys from statenour-master → bdnick.info
+1. develop on main (monorepo)
+2. pre-push hook runs: `turbo build` for the affected apps
+   (catches Next.js prerender errors before Railway)
+3. push to origin/main
+4. Railway picks up the push (per-service watch path) and deploys
+   apps/statenour → statenour-web-production.up.railway.app
 ```
 
 **Emergency rollback:**
 ```bash
 # Identify the last known-good SHA from commit history
-git log --oneline origin/statenour-master
+git log --oneline origin/main
 
-# Either:
-# (a) revert the bad commit forward on codex (preferred — preserves history)
-git checkout codex/ollama-local
+# Revert the bad commit forward (preferred — preserves history)
 git revert <bad-sha>
 git push
-
-# (b) hard reset master (only when revert is unsafe — e.g. migration)
-# Requires disabling the mirror workflow temporarily + direct push.
-# Last resort — see Vercel "Promote" in dashboard instead.
 ```
 
-**Vercel "Instant Rollback"** (dashboard · deployments list · older
-deployment · Promote) is faster than git for urgent rollbacks.
+For an urgent rollback that can't wait for a build, use the **Railway
+dashboard**: open the `statenour-web` service → Deployments → pick the
+last known-good deployment → redeploy / roll back to it. Railway keeps
+deployment history, so reverting to a prior build is a dashboard
+action — faster than a git revert + rebuild.
 
 ---
 
@@ -282,7 +286,7 @@ pg_dump $DIRECT_URL > backup-$(date -I).sql
 
 Last-resort recovery from a Neon branch:
 1. Neon dashboard → Branches → create a branch from a PITR timestamp.
-2. Update `DATABASE_URL` + `DIRECT_URL` in Vercel env to point at the branch.
+2. Update `DATABASE_URL` + `DIRECT_URL` in Railway env to point at the branch.
 3. Redeploy. Verify.
 4. Promote the branch to main (Neon UI).
 
@@ -290,8 +294,8 @@ Last-resort recovery from a Neon branch:
 
 ## Auth + secret rotation
 
-- **AUTH_SECRET rotation** — generate new: `openssl rand -hex 32`. Update Vercel + local .env. Every session will need to re-sign-in (JWT strategy).
-- **CRON_SECRET rotation** — generate new, update Vercel. No cron interruption if done < 60s (in-flight crons use header set at start).
+- **AUTH_SECRET rotation** — generate new: `openssl rand -hex 32`. Update Railway + local .env. Every session will need to re-sign-in (JWT strategy).
+- **CRON_SECRET rotation** — generate new, update Railway. No cron interruption if done < 60s (in-flight crons use header set at start).
 - **STATENOUR_SYNC_KEY rotation** — coordinate with nickstire admin env; both sides must match.
 - **Google OAuth client credentials** — `AUTH_GOOGLE_CLIENT_ID` + `AUTH_GOOGLE_CLIENT_SECRET`; new client from Google Cloud Console.
 - **AI provider keys** — rotate independently; app falls back through provider chain.
@@ -302,17 +306,18 @@ Last-resort recovery from a Neon branch:
 
 ## Incident playbook
 
-**Severity 1 — bdnick.info is down.**
-1. `curl https://bdnick.info/api/health` — note the error.
-2. Vercel status dashboard.
+**Severity 1 — statenour prod is down.**
+1. `curl https://statenour-web-production.up.railway.app/api/system/heartbeat` — note the error.
+2. Railway dashboard — check the `statenour-web` service status + logs.
 3. Neon status page (if DB is the problem).
-4. Recent deploy in Vercel → instant rollback if it correlates.
-5. If DB connection pool exhausted (look for `P2024`): redeploy to refresh lambdas.
+4. Recent deploy in the Railway dashboard → roll back to the last
+   known-good deployment if it correlates.
+5. If DB connection pool exhausted (look for `P2024`): redeploy to refresh the service.
 
 **Severity 2 — Nick is broken but UI loads.**
 1. `/system/ai-cost` — is error rate pulsing rose?
 2. `/system/errors` — recent ai-chat route errors?
-3. Try a different provider: Vercel env `AI_PROVIDER=openai`, redeploy (or hot-reload).
+3. Try a different provider: set Railway env `AI_PROVIDER=openai`, redeploy.
 4. If circuit breaker tripped: check `lib/ai/provider.ts` status via logs.
 
 **Severity 3 — a cron is failing.**
@@ -350,14 +355,13 @@ class structurally impossible. New rows go in date-asc.
 
 | Date | Bug class | Where it manifested | What protects against it now |
 |---|---|---|---|
-| 2026-05-04 | Venice `<think>`-burn empty content | suggestions endpoint silently failing 100% (5+ days) | Pre-push gate [12/13] · `disable_thinking` required on every Venice chat-completions call |
+| 2026-05-04 | Venice `<think>`-burn empty content | suggestions endpoint silently failing 100% (5+ days) | `disable_thinking` required on every Venice chat-completions call |
 | 2026-05-04 | Soft-fail tools logged as success | All bridge / GitHub / Drive tools 100% "success" while emitting `{error}` | `lib/services/chat/persist-assistant-turn.ts:474` checks `result.error` not just `call.error` |
-| 2026-05-04 | 8 unauth GET leaks | Conversation history readable by ID enumeration | Pre-push gate [10/13] · per-handler-body auth scope check via `scripts/check-sensitive-get-auth.ts` |
-| 2026-05-04 | Hook drift (copy vs source) | Pre-push gate didn't update on script edit | `.git/hooks/pre-push` is a thin shim · `scripts/install-hooks.sh` reinstalls on `pnpm install` |
+| 2026-05-04 | 8 unauth GET leaks | Conversation history readable by ID enumeration | per-handler-body auth scope check via `scripts/check-sensitive-get-auth.ts` |
 | 2026-05-04 | Image attachment fallback fail | 26 chat-turn `'file part media type ' functionality not supported` / 72h | Single-source `resolveMediaType()` in `lib/ai/chat/message-fields.ts` · always returns valid MIME |
 | 2026-05-04 | AI provider thundering herd | 50% emergency rate on ai-memory at 02 UTC mega-evening | `app/api/cron/mega/route.ts` concurrency limit (6 workers) via `lib/utils/concurrent.ts:withConcurrency` |
 | 2026-05-04 | OpenClaw scaffolding leak | IDENTITY/SOUL/USER.md untracked at repo root | `.gitignore` entries for OpenClaw artifacts |
-| 2026-05-04 | Anti-slop drift (Inter / purple gradients) | Future-risk only; baseline is /brain/link-review (DFII 15) | Pre-push gate [13/13] · git-grep block in `scripts/check-anti-slop.sh` |
+| 2026-05-04 | Anti-slop drift (Inter / purple gradients) | Future-risk only; baseline is /brain/link-review (DFII 15) | git-grep block in `scripts/check-anti-slop.sh` |
 | 2026-05-04 | BrainMemory category abuse | 8 domains crammed into KV store; queries paid for unrelated drift | Phase-1 dual-write playbook · 5 tables extracted (ToolTelemetry, ProviderPing, ToolVerbRatio, AutonomousEvent, SemanticEdge) |
 | 2026-05-04 | isInboxMission TS↔SQL drift | Two regexes for the same predicate | `tests/db/inbox-mission-drift.test.ts` · 15 fixtures asserting parity at CI |
 
@@ -379,4 +383,7 @@ class structurally impossible. New rows go in date-asc.
 
 ---
 
-**Reconciled at v10.0.484** · 2026-05-08 EOD · this doc was reviewed against the live state of the OS in the v10.0.442-484 sprint reconciliation pass. See `docs/cohort-2026-05-08-eod-summary.md` for the sprint summary and which sections of this doc were touched. If a claim in this doc contradicts code reality, the code wins · open an issue.
+**Reconciled 2026-05-21** · infra sweep — incident/deploy/env steps
+rewritten for the Railway monorepo deploy (was Vercel / `bdnick.info` /
+`codex/ollama-local` / `statenour-master`, all retired). If a claim in
+this doc contradicts code reality, the code wins · open an issue.

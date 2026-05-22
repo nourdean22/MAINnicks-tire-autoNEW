@@ -26,9 +26,13 @@ enough.
 
 ## What you're working on
 
-[`statenour-os`](https://github.com/nourdean22/statenour-os) at
-`bdnick.info` — Nour's personal OS. Next.js 16 · Prisma 7 · Neon ·
-Vercel. Companion repo is `nickstire.org` (business). See
+**statenour** — Nour's personal OS. Lives in the
+[`nourdean22/MAINnicks-tire-autoNEW`](https://github.com/nourdean22/MAINnicks-tire-autoNEW)
+monorepo at `apps/statenour/`, branch `main`, deployed by **Railway**
+to `statenour-web-production.up.railway.app`. Next.js 16 · Prisma 7 ·
+Neon. The standalone `statenour-os` repo, the `codex/ollama-local`
+branch, Vercel, and `bdnick.info` are all retired. Companion app
+`nickstire` lives in the same monorepo at `apps/nickstire/`. See
 [`ARCHITECTURE.md`](ARCHITECTURE.md) for the two-ring map.
 
 ---
@@ -37,7 +41,7 @@ Vercel. Companion repo is `nickstire.org` (business). See
 
 **Read these in order. Stop after step 3 if the picture is clear.**
 
-1. `cd C:/Users/nourd/NOUR-OS/apps/statenour-os` (or platform equivalent).
+1. `cd C:/Users/nourd/OneDrive/Desktop/nickstire-repo-staging/apps/statenour` (or platform equivalent).
 2. `git status && git log --oneline -15` — what's uncommitted, what shipped recently?
 3. **READ THIS FIRST:** [`docs/RECONCILIATION.md`](RECONCILIATION.md). It is the
    single source of truth for current reality:
@@ -50,41 +54,34 @@ Vercel. Companion repo is `nickstire.org` (business). See
 5. Quick health (only if you're about to make changes):
    ```bash
    pnpm typecheck                 # expect: 0 errors
-   pnpm test                      # expect: 610/610 passing as of v10.0.40
-   bash scripts/pre-push-check.sh # expect: 9/9 green
+   pnpm test                      # expect: green (current count in RECONCILIATION.md)
+   pnpm verify:hard               # statenour's full local gate
    ```
-   If any fail, **fix before** you add new work. The 9 pre-push gates are a
-   contract — green is non-negotiable.
-
-**Active state as of v10.0.41 (2026-04-30):**
-- Track A · `NICK_PRIME_PROMPT=shadow` soaking; flip to `=1` once
-  `/system/prompt-comparison` shows zero build failures + ±5% delta.
-- Track C · CommandCenterState universal adoption — blocked on Track A flip.
-- v9.2 prompt-builder deletion — also waits on Track A flip.
-- Latest big sweeps: API audit (v10.0.37 · 14 unauth GETs closed),
-  brain wave 2 (v10.0.38 · 7 fixes), cron wave 2 (v10.0.39 · 9 fixes).
+   If any fail, **fix before** you add new work. `verify:hard` runs
+   typecheck · lint · test · raw-SQL audit · cron manifest ·
+   prompt-size · `prisma validate`. The repo-root `.husky/pre-push`
+   hook separately runs `turbo build` for affected apps to catch
+   Next.js prerender errors before Railway.
 
 ---
 
 ## Branch discipline
 
 ```
-codex/ollama-local   ← your working branch. Develop here.
-                       push → pre-push hook runs quality gates.
-                       CI (.github/workflows/ci.yml) verifies.
-                       Mirror workflow fast-forwards master on green.
-
-statenour-master     ← production target. NEVER push directly.
-                       If mirror fails → master diverged.
-                       Investigate before forcing.
+main   ← the one branch. Monorepo: statenour + nickstire share it.
+         push → .husky/pre-push runs `turbo build` for affected apps.
+         Railway watches `main` with per-service watch paths and
+         auto-deploys statenour-web on any push touching
+         apps/statenour/**.
 ```
 
-The pre-push hook at `.git/hooks/pre-push` runs tsc + eslint + tests
-before letting a push leave the laptop. Full build gates only on
-`statenour-master` pushes (the mirror workflow handles that).
+The repo-root pre-push hook (`.husky/pre-push`) runs `turbo build`
+for the affected apps before letting a push leave the laptop — it
+catches the Next.js prerender errors that only surface at build time.
+statenour's own full local gate is `pnpm verify:hard`.
 
-Skip pre-push once: `GIT_PUSH_SKIP_HOOK=1 git push` — but only when
-you know exactly why.
+Skip pre-push once: `git push --no-verify` — but only when you know
+exactly why.
 
 ---
 
@@ -154,7 +151,7 @@ you know exactly why.
 | Cron definitions | [`config/crons.ts`](../config/crons.ts) |
 | Retention rules | [`config/retention.ts`](../config/retention.ts) |
 | Env spec | [`lib/env.ts`](../lib/env.ts) · template `.env.example` |
-| The 69 Prisma models | [`prisma/schema.prisma`](../prisma/schema.prisma) · map in [`DATA-MODEL.md`](DATA-MODEL.md) |
+| The 80 Prisma models | [`prisma/schema.prisma`](../prisma/schema.prisma) · map in [`DATA-MODEL.md`](DATA-MODEL.md) |
 | Nick's tool catalog | `lib/ai/tools.ts` (W6 split pending — will become `lib/ai/tools/`) |
 | System prompt | `lib/ai/system-prompt.ts` (W6.3 split pending — will become `lib/ai/prompt/`) |
 | Chat pipeline | `app/api/ai/chat/route.ts` (W6.2 split pending → `lib/ai/chat/pipeline/*`) |
@@ -292,11 +289,15 @@ Summary so new agents know what NOT to re-attempt:
   repo. `docs/NICKSTIRE-QUERY-CONTRACT.md` has expected shapes.
 
 ### Pending external (cannot be done from here)
-- Vercel env vars: BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID,
-  VERCEL_TOKEN, VERCEL_TEAM_ID, VERCEL_PROJECT_ID
+- Railway env vars: BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID
 - nickstire ships 4 query actions (cars_today, estimates_conversion,
   estimates_aging, drop_off_ratio)
 
 ---
 
-**Reconciled at v10.0.484** · 2026-05-08 EOD · this doc was reviewed against the live state of the OS in the v10.0.442-484 sprint reconciliation pass. See `docs/cohort-2026-05-08-eod-summary.md` for the sprint summary and which sections of this doc were touched. If a claim in this doc contradicts code reality, the code wins · open an issue.
+**Reconciled 2026-05-21** · infra sweep — the "what you're working
+on", startup-checklist, and branch-discipline sections were rewritten
+for the monorepo + Railway reality (was the standalone `statenour-os`
+repo / Vercel / `codex/ollama-local` / `statenour-master`, all
+retired). If a claim in this doc contradicts code reality, the code
+wins · open an issue.

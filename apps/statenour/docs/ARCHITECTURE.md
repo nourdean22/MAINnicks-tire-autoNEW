@@ -1,8 +1,6 @@
-# Architecture · statenour-os
+# Architecture · statenour
 
-v10 (Prime Reliability + Control Layer) · last verified 2026-05-12 (v10.0.529.11
-EOD reconciliation pass · 15-ship sprint · see `cohort-2026-05-12-eod-summary.md`).
-Source of truth for subsystem boundaries.
+Last verified 2026-05-21. Source of truth for subsystem boundaries.
 
 > **Verified counts live in [`docs/RECONCILIATION.md`](RECONCILIATION.md).**
 > If a number here disagrees with that file, RECONCILIATION wins.
@@ -90,8 +88,8 @@ personal ring. Business ops live in the other repo.
 ```
 ┌───────────────────────────── PERSONAL RING ─────────────────────────────┐
 │                                                                         │
-│   statenour-os  (bdnick.info)                                         │
-│   Next.js 16 · Prisma 7 · Neon Postgres · Vercel                        │
+│   statenour  (statenour-web-production.up.railway.app)                  │
+│   Next.js 16 · Prisma 7 · Neon Postgres · Railway                       │
 │                                                                         │
 │   Surfaces:  Ultron · Nick · Brain · Tasks · Journal · Knowledge        │
 │              Devices · Body · Financial · System · Settings             │
@@ -113,7 +111,7 @@ personal ring. Business ops live in the other repo.
 │   Express 4 · tRPC 11 · React 19 · Drizzle · TiDB · Railway             │
 │                                                                         │
 │   statenour bridge:                                                     │
-│     every 4h → POST bdnick.info/api/sync/...                          │
+│     every 4h → POST <statenour Railway URL>/api/sync/...                 │
 │     authenticates via STATENOUR_SYNC_KEY                                │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -125,11 +123,11 @@ bridge is a thin sync + oversight channel.
 
 ---
 
-## statenour-os — internal layers
+## statenour — internal layers
 
 ```
                             ┌─────────────────────────┐
-                            │     Vercel Edge         │
+                            │   Next.js middleware    │
                             │ (middleware.ts auth)    │
                             └───────────┬─────────────┘
                                         │
@@ -162,7 +160,7 @@ bridge is a thin sync + oversight channel.
                                         │
                               ┌─────────▼──────────┐
                               │   Prisma 7         │
-                              │   78 models        │
+                              │   80 models        │
                               └─────────┬──────────┘
                                         │
                               ┌─────────▼──────────┐
@@ -246,23 +244,20 @@ NourState (client context, lib/state/nour-state.tsx)
 
 ## Cron orchestration
 
-Every scheduled job is declared in `config/crons.ts`. `vercel.json`
-is generated from that manifest via `pnpm check:crons --fix`. CI
-guards drift.
+Every scheduled job is declared in `config/crons.ts` — the single
+source of truth. Scheduled jobs run through the mega fan-out + the
+Inngest evening job list, not a `vercel.json` crons block (statenour
+left Vercel for Railway). CI guards manifest-vs-filesystem drift.
 
 ```
 config/crons.ts  (single source of truth)
-  ├── CRONS: CronDef[]           — 68 entries (36 active + 24 folded + 8 retired)
-  ├── buildVercelCronsBlock()    — produces vercel.json.crons
-  ├── buildVercelFunctionsBlock() — produces vercel.json.functions
-  └── expectedCronRouteNames()   — used by verifier
+  ├── CRONS: CronDef[]           — every cron, with mode active/folded/retired
+  └── expectedCronRouteNames()   — used by the verifier
 
 scripts/verify-crons.ts  (CI + local check)
   1. manifest → fs : every CRONS[] has a route.ts
   2. fs → manifest : every /api/cron/*/route.ts is in CRONS[] (no dark)
-  3. manifest → vercel.json : drift detection + --fix rewrite
-  4. retirement window : warns when a retired cron is past deletion date
-  5. budget gate : fails push if active count > 38 (Vercel Pro 40-cap, 2-slot safety)
+  3. retirement window : warns when a retired cron is past deletion date
 
 lib/utils/http.ts → cronHandler(handler)
   Wraps every cron route with:
@@ -272,16 +267,17 @@ lib/utils/http.ts → cronHandler(handler)
     · Error re-throw so apiHandler can surface HTTP failure
 
 /system/crons       → live deck w/ kill-switch + run-now + sparkline
-/system/cron-runs   → all-jobs index (v8.18) sortable + failures-first
-/system/cron-runs/[jobName] → per-job drill-down (v8.14) duration trend
-                              + expandable error preview + run-now button
+/system/cron-runs   → all-jobs index sortable + failures-first
+/system/cron-runs/[jobName] → per-job drill-down (duration trend
+                              + expandable error preview + run-now button)
 /api/system/crons/toggle → flip kill switch (writes BrainMemory).
 /api/system/crons/run    → fire a cron on demand (validates against manifest).
 ```
 
-**36 active** · 24 folded (run inside another cron, mostly mega-evening)
-· 8 retired (3 device crons retired v529.6 · deletion windows scheduled)
-· 0 dark. 4 slots headroom under Vercel Pro 40-cap.
+Each cron is `active` (own schedule), `folded` (runs inside a parent
+cron, mostly mega-evening), or `retired`. The device crons
+(`device-command-reap`, `device-sync`, `device-health`, `status`)
+and `notification-sender` were deleted with their route files.
 
 ---
 
@@ -388,12 +384,12 @@ Rules:
    everything — we never paginate by user, we never cache per-user.
    (v8.5 added a `lib/db/tenant.ts` skeleton with `withTenant` async
    ctx; no propagation yet.)
-2. **Vercel serverless.** No long-lived workers. Anything that needs
-   background work → cron. State lives in Postgres + Redis (L2) +
-   module-level caches (L1). No setInterval on the server. The brain-bus
-   `subscribe()` helper (v8.4) addresses this for the LISTEN/NOTIFY
-   pattern via the `brain-bus-consume` folded cron (v8.23) which runs
-   the subscriber for ~50s per invocation.
+2. **Stateless request model.** Background work goes through crons,
+   not long-lived `setInterval` loops. State lives in Postgres +
+   Redis (L2) + module-level caches (L1). The brain-bus `subscribe()`
+   helper addresses the LISTEN/NOTIFY pattern via the
+   `brain-bus-consume` folded cron, which runs the subscriber for
+   ~50s per invocation.
 
 ---
 
@@ -444,4 +440,8 @@ primitives. Listed here so future work knows what's already there:
 
 ---
 
-**Reconciled at v10.0.529.11** · 2026-05-12 EOD · this doc was reviewed against the live state of the OS in the v10.0.485-529.11 sprint reconciliation pass (15 ships in one day). See `docs/cohort-2026-05-12-eod-summary.md` for the sprint summary. If a claim in this doc contradicts code reality, the code wins · open an issue.
+**Reconciled 2026-05-21** · infra sweep — deploy/cron sections
+rewritten for the Railway monorepo reality (was Vercel / `bdnick.info`
+/ a `vercel.json` cron pipeline, all retired); Prisma model count
+corrected to 80. If a claim in this doc contradicts code reality, the
+code wins · open an issue.

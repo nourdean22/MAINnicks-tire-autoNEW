@@ -1,21 +1,23 @@
 /**
  * Cron manifest — single source of truth for every scheduled job.
  *
- * Generate vercel.json from this file via `pnpm check:crons` (also
- * validated in CI). Never hand-edit `vercel.json`'s crons block.
+ * statenour deploys on Railway (not Vercel) — there is no `vercel.json`.
+ * Scheduled jobs run through the mega fan-out + the Inngest evening
+ * job list (`src/inngest/jobs.ts`). `pnpm check:crons` validates this
+ * manifest against the filesystem (every entry has a route, no dark
+ * routes) — it no longer generates a `vercel.json` crons block.
  *
  * Philosophy:
- *   · `enabled: true`  — scheduled on Vercel, visible on /system/crons
- *   · `enabled: false` — kept in code but NOT in vercel.json (paused)
- *   · `mode: "folded"` — coded but intentionally NOT on a schedule
- *     because it runs inside another cron (e.g. consolidate runs
- *     inside mega?slot=evening). Used by /system/crons to show
+ *   · `mode: "active"` — runs on its own `schedule`, visible on /system/crons
+ *   · `mode: "folded"` — coded but intentionally NOT on a standalone
+ *     schedule because it runs inside another cron (e.g. consolidate
+ *     runs inside mega?slot=evening). Used by /system/crons to show
  *     ancestry.
  *   · `mode: "retired"` — route still exists but scheduled to be
  *     deleted. Warning surfaced.
  *
- * Schedule syntax is standard cron (UTC, Vercel converts to local
- * runtime). Comments on each line document the intent.
+ * Schedule syntax is standard cron in UTC. Comments on each line
+ * document the intent.
  */
 
 export type CronMode = "active" | "folded" | "retired";
@@ -36,7 +38,7 @@ export interface CronDef {
   category: CronCategory;
   description: string;
   memory?: number;               // MB, defaults to 512
-  maxDuration?: number;          // seconds, defaults to 60 (Vercel max 120/300 on Pro)
+  maxDuration?: number;          // seconds, defaults to 60
   foldedInto?: string;           // when mode === "folded"
   retireAfter?: string;          // YYYY-MM-DD, when mode === "retired"
   path?: string;                 // override; defaults to `/api/cron/${name}`

@@ -1,12 +1,10 @@
 # Data Model · statenour-os
 
-v10 (Prime Reliability + Control Layer) · Prisma models in one Neon
-Postgres instance · last verified 2026-05-12 (v10.0.529.11 EOD reconciliation).
-This file is the map — if you're about to write a migration or add a
-feature, read the relevant section first.
+Prisma models in one Neon Postgres instance · model count last
+verified 2026-05-21. This file is the map — if you're about to write a
+migration or add a feature, read the relevant section first.
 
-> **Model count:** 78 (was 69 at v484 · gained `VoiceLatencyEvent` v526
-> + 8 others over the 485-528 window). `grep -c "^model " prisma/schema.prisma`.
+> **Model count:** 80 — verified via `grep -c "^model " prisma/schema.prisma`.
 
 > **v526 prod index migration APPLIED (v529.1 · 2026-05-12):** 8
 > `CREATE INDEX CONCURRENTLY` + 14 `DROP INDEX CONCURRENTLY` ran via
@@ -192,7 +190,7 @@ goes here as a typed key/value pair. Query: `category: "X"`, `key: "Y"`,
 
 ## Relations today · relations coming
 
-The schema is denormalized (78 models, 19 `@relation` declarations as of v529).
+The schema is denormalized (80 models, 27 `@relation` declarations as of 2026-05-21).
 We use string FKs + application-level joins. This is **deliberate** —
 lower write coupling, simpler migrations. But it hurts referential
 integrity.
@@ -500,4 +498,7 @@ Projected growth at current velocity (~30 commits/day, ~80 Nick turns/day):
 
 ---
 
-**Reconciled at v10.0.529.11** · 2026-05-12 EOD · this doc was reviewed against the live state of the OS in the v10.0.485-529.11 sprint reconciliation pass (15 ships in one day). See `docs/cohort-2026-05-12-eod-summary.md` for the sprint summary. If a claim in this doc contradicts code reality, the code wins · open an issue.
+**Reconciled 2026-05-21** · infra sweep — model count corrected to 80
+and `@relation` count to 27 (both verified via `grep` against
+`prisma/schema.prisma`). If a claim in this doc contradicts code
+reality, the code wins · open an issue.

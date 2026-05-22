@@ -1,9 +1,20 @@
 # 3D Scene Briefs · NOUR OS 3D Layer
 
-**v10.0.290 · 2026-05-20 · Wave 53 · React Three Fiber**
+> ## ⚠ SUPERSEDED — the 3D scene scaffold was removed 2026-05-21
+>
+> Dead 3D component files were deleted in commit `a362b1d1`, including
+> the `ai-pulse` and `knowledge-galaxy` scenes (`components/3d/ai-pulse.tsx`,
+> `components/3d/knowledge-galaxy.tsx` and their `scenes/*` files). The
+> 3D layer this document specifies is no longer the live state of the
+> codebase. **Do not treat the scene descriptions below as current.**
+> The file is kept for historical design reference only.
 
-This document is the design spec for the 4 scenes that make up the
-interactive 3D layer. **The layer is built with React Three Fiber
+---
+
+**2026-05-20 · React Three Fiber**
+
+This document is the design spec for the 4 scenes that made up the
+interactive 3D layer. **The layer was built with React Three Fiber
 (R3F)** — `three` + `@react-three/fiber` + `@react-three/drei`.
 
 > **Wave 53 pivot — Spline → R3F.** An earlier step scaffolded this

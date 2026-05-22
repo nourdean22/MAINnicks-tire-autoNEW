@@ -1,21 +1,22 @@
-# statenour-os · bdnick.info
+# statenour
 
 > Nour Dean's personal operating system. Nick (the AI) + Ultron (the
 > cockpit) + Brain (the memory) + Tasks + Journal + Knowledge + Devices
-> + System ops. One repo, one operator, one machine — the surface
-> through which Nour runs everything that isn't Nick's Tire & Auto.
+> + System ops. One operator, one surface — through which Nour runs
+> everything that isn't Nick's Tire & Auto.
 
-**Status:** production · Vercel · Neon Postgres · Next.js 16 · Prisma 7
-· React 19 · Tailwind 4 · deployed from `codex/ollama-local` (mirror
-workflow auto-FFs `statenour-master`).
+**Status:** production · Railway · Neon Postgres · Next.js 16 · Prisma 7
+· React 19 · Tailwind 4. Lives in the `nourdean22/MAINnicks-tire-autoNEW`
+monorepo at `apps/statenour/`, deployed from branch `main` to
+`statenour-web-production.up.railway.app`.
 
 **Verified ground truth:** [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md)
 holds the current reality snapshot — counts, gates, doc hierarchy. Read
 that first. If a number in this README disagrees with RECONCILIATION,
 RECONCILIATION wins (and this file should be patched).
 
-**Companion repo:** [`nickstire`](https://github.com/nourdean22/MAINnicks-tire-autoNEW)
-(the business ring — Express + tRPC + TiDB on Railway). See
+**Companion app:** `nickstire` (the business ring — Express + tRPC +
+TiDB on Railway) lives in the same monorepo at `apps/nickstire/`. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the two-ring map.
 
 ---
@@ -23,8 +24,9 @@ RECONCILIATION wins (and this file should be patched).
 ## Onboard in 5 minutes
 
 ```bash
-# 1. clone + cd
-git clone https://github.com/nourdean22/statenour-os && cd statenour-os
+# 1. clone the monorepo + cd into the statenour app
+git clone https://github.com/nourdean22/MAINnicks-tire-autoNEW
+cd MAINnicks-tire-autoNEW/apps/statenour
 
 # 2. install (pnpm is canonical — locked via packageManager field)
 pnpm install --frozen-lockfile
@@ -46,14 +48,12 @@ Verify environment at any point:
 
 ```bash
 pnpm check:env        # required vs runtime vs platform vars
-pnpm check:crons      # cron manifest vs vercel.json vs filesystem
+pnpm check:crons      # cron manifest vs filesystem
 pnpm typecheck        # tsc --noEmit (0 errors)
 pnpm lint             # eslint . (0 errors, ~430 warnings tolerated)
 pnpm test             # vitest run — current count in RECONCILIATION.md
-bash scripts/pre-push-check.sh   # full 9-gate pre-push (typecheck +
-                                 # lint + tests + raw-sql + cron-budget +
-                                 # AI-catalog + env-secret + mutating-auth +
-                                 # sensitive-GET HARD)
+pnpm verify:hard      # full local gate: typecheck + lint + test +
+                      # raw-sql + cron manifest + prompt-size + prisma validate
 ```
 
 ---
@@ -105,18 +105,18 @@ spot a problem.
 
 ## Architecture in one paragraph
 
-statenour-os is a Next.js 16 App Router app deployed to Vercel. Prisma
+statenour is a Next.js 16 App Router app deployed to Railway. Prisma
 7 talks to Neon Postgres (current model count in RECONCILIATION). Nick
 runs through a pluggable provider chain (Venice primary → Ollama Cloud
 → OpenAI → Anthropic → Gemini fallback) via `lib/ai/provider.ts`, with
-v10 E.5 `streamWithFallback` providing pre-first-token same-turn
-rotation. System prompt assembly + tool selection + output critique
-live in `lib/ai/*`. Scheduled crons manage ingestion (Gmail/Calendar/
-Drive/Fireflies), brain maintenance (memory consolidation, identity
-refresh, skill extraction, semantic dedup, pgvector backfill), and
-hygiene (retention, pin review, stale-conv archive, brain-bus
-backfill). All declared in [`config/crons.ts`](config/crons.ts) with a
-CI drift guard + Vercel Pro 40-cap budget gate. See
+`streamWithFallback` providing pre-first-token same-turn rotation.
+System prompt assembly + tool selection + output critique live in
+`lib/ai/*`. Scheduled crons manage ingestion (Gmail/Calendar/Drive/
+Fireflies), brain maintenance (memory consolidation, identity refresh,
+skill extraction, semantic dedup, pgvector backfill), and hygiene
+(retention, pin review, stale-conv archive, brain-bus backfill). All
+declared in [`config/crons.ts`](config/crons.ts) — the single source
+of truth — with a CI drift guard. See
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full diagram.
 
 ---
@@ -124,32 +124,23 @@ CI drift guard + Vercel Pro 40-cap budget gate. See
 ## Developer workflow
 
 ```
-codex/ollama-local  ← your feature branch (dev + preview + PROD deploy)
+main  ← the one branch (monorepo: statenour + nickstire share it)
        │
-       │  push → pre-push hook (9 gates · v10):
-       │    1. tsc --noEmit
-       │    2. eslint --quiet (warnings tolerated)
-       │    3. vitest run
-       │    4. raw-sql column audit
-       │    5. cron manifest drift + 40-cron budget cap
-       │    6. AI tool-catalog contract
-       │    7. env-secret bypass guard (process.env.X ?? "" patterns)
-       │    8. mutating-route auth gate
-       │    9. sensitive-GET auth gate (HARD mode · v9.1.17)
-       │    (+ full production build on statenour-master)
+       │  push → .husky/pre-push (repo root):
+       │    turbo run build --filter=...[upstream]
+       │    — rebuilds every affected app, catching Next.js
+       │      prerender errors before they reach Railway
+       │
+       │  statenour's own full local gate is `pnpm verify:hard`:
+       │    typecheck · lint · test · raw-sql audit · cron manifest
+       │    · prompt-size · prisma validate
        │
        ▼
-  Vercel production   → bdnick.info (deploys directly from codex/ollama-local)
-       │
-       ▼  CI (.github/workflows/ci.yml) — verify + build + cron-drift
-       │
-       ▼  on green
-  mirror-to-master.yml  ← fast-forwards statenour-master to codex HEAD
+  Railway   ← watches `main` with per-service watch paths; a push
+              touching apps/statenour/** auto-deploys the
+              statenour-web service →
+              statenour-web-production.up.railway.app
 ```
-
-**Never push directly to `statenour-master`** — it's downstream of the
-mirror workflow. If mirror fails, master has diverged (should never
-happen); reconcile manually.
 
 ---
 
@@ -161,7 +152,7 @@ happen); reconcile manually.
 4. [`docs/project/CHANGELOG.md`](docs/project/CHANGELOG.md) — shipped features by wave
 5. [`docs/project/ROADMAP.md`](docs/project/ROADMAP.md) — high-level future horizons (not a wave plan; see UPGRADE-PLAN for execution)
 6. [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — subsystem map + data flow
-7. [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) — 69 Prisma models + retention
+7. [`docs/DATA-MODEL.md`](docs/DATA-MODEL.md) — 80 Prisma models + retention
 8. [`docs/SECURITY.md`](docs/SECURITY.md) — auth, CSP, secrets, boundaries
 9. [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — cron catalog + incident playbook
 10. [`docs/ENDPOINT-HYGIENE.md`](docs/ENDPOINT-HYGIENE.md) — primary vs helper routes
@@ -180,7 +171,7 @@ is "everything degrades gracefully · operator pastes credentials to
 activate each substrate". Status surfaces on `/api/health`:
 
 ```bash
-curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust, agentV2}'
+curl https://statenour-web-production.up.railway.app/api/health | jq '.data | {inngest, braintrust, agentV2}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:
@@ -245,8 +236,7 @@ pnpm test
 
 # system hygiene
 pnpm check:env                   # env health vs lib/env.ts spec
-pnpm check:crons                 # cron manifest vs fs vs vercel.json
-pnpm check:crons -- --fix        # rewrite vercel.json from config/crons.ts
+pnpm check:crons                 # cron manifest (config/crons.ts) vs filesystem
 pnpm prompt:size-check           # system prompt token budget
 pnpm calibrate:dry               # dry-run auto-calibrate cron
 

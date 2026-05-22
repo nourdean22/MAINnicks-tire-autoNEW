@@ -1,8 +1,11 @@
 # Repository map — Nour's GitHub
 
-Living reference for the 8 repos under `github.com/nourdean22/*`
+Living reference for the repos under `github.com/nourdean22/*`
 so future sessions + any agent understand the layering without
-grepping. Last refreshed 2026-05-12 (v10.0.529.11 EOD reconciliation pass · 15-ship sprint · see `cohort-2026-05-12-eod-summary.md`).
+grepping. Last refreshed 2026-05-21 (infra reconciliation — statenour
+moved into the `MAINnicks-tire-autoNEW` monorepo at `apps/statenour/`,
+deployed by Railway; the standalone `statenour-os` repo, the
+`codex/ollama-local` branch, Vercel, and `bdnick.info` are retired).
 
 > **Live source:** [`config/repos.ts`](../config/repos.ts) is now the
 > structured truth — typed entries with `ring`, `tier`, `host`,
@@ -39,12 +42,14 @@ center) — plus a small **desktop layer** for local-only IoT control.
      └─────────┬──────────┘ └───────────────┘   └────────────────────┘
                │ every 4h → statenour-sync
                │
-     ┌─────────▼──────────────────────┐
-     │   bdnick.info                │
-     │   (statenour-os)               │
-     │   Next.js 16 · Prisma · Neon   │
-     │   Vercel · codex/ollama-local  │
-     └────────────┬───────────────────┘
+     ┌─────────▼──────────────────────────┐
+     │   statenour-web-production         │
+     │     .up.railway.app                │
+     │   (MAINnicks-tire-autoNEW          │
+     │    monorepo · apps/statenour/)     │
+     │   Next.js 16 · Prisma · Neon       │
+     │   Railway · main branch            │
+     └────────────┬───────────────────────┘
                   │ Apr 20 — device RPC bridge
                   │ POST /api/devices/command
                   │   ↓ enqueue
@@ -86,8 +91,8 @@ Vercel lambdas don't have to run `setInterval` (saves ~20-30% memory).
   daily-report (7pm) · cleanup (6h) · warranty-alerts (8am) ·
   dashboard-sync (15m Mon-Sat) · abandoned-forms (30m) ·
   stale-lead-followup (2h Mon-Sat) · **statenour-sync (4h)** ←
-  this hits bdnick.info · customer-segmentation (disabled) ·
-  retention-90day (disabled)
+  this hits the statenour Railway service ·
+  customer-segmentation (disabled) · retention-90day (disabled)
 - **Status:** ACTIVE
 
 ### `easy-nickstire` · easy.nickstire.org
@@ -111,19 +116,21 @@ cron schedule, reacts to weather triggers, self-learns from engagement.
 
 ---
 
-## PERSONAL RING — command center (1 repo)
+## PERSONAL RING — command center
 
-### `statenour-os` · bdnick.info ← you are here
+### `statenour` · `apps/statenour/` in the monorepo ← you are here
 Nour's personal OS. Nick chat + brain + pins + situation card +
 goal/project/task bridge + tasks + journal + knowledge + devices.
 
+- **Repo:** `nourdean22/MAINnicks-tire-autoNEW` monorepo, lives at
+  `apps/statenour/` — the standalone `statenour-os` repo is retired.
 - **Stack:** Next.js 16 · Prisma 7 · Neon Postgres · Tailwind 4 ·
-  AI SDK v6 · Venice GLM-4.7-flash-heretic (with v10 same-turn
-  fallback to Ollama/OpenAI/Anthropic via `streamWithFallback`)
-- **Deploy:** Vercel, branch `codex/ollama-local`
-- **Local:** `C:\Users\nourd\NOUR-OS\apps\statenour-os`
-- **Status:** ACTIVE · under heavy development (v10 wave · Prime
-  Reliability + Control Layer · 2026-04-30)
+  AI SDK v6 · Venice GLM-4.7-flash-heretic (with same-turn fallback to
+  Ollama/OpenAI/Anthropic via `streamWithFallback`)
+- **Deploy:** Railway (`statenour-web` service), branch `main` →
+  `statenour-web-production.up.railway.app`
+- **Local:** `C:\Users\nourd\OneDrive\Desktop\nickstire-repo-staging\apps\statenour`
+- **Status:** ACTIVE · under heavy development
 - **Nick write access:** `none`
 - **Monitored:** `true`
 - **Surfaces:** `/` (HQ Ultron) · `/chat` · `/brain` · `/tasks` ·
@@ -155,12 +162,12 @@ goal/project/task bridge + tasks + journal + knowledge + devices.
 - **Scripts:** `scripts/apply-pending-migration.ts` (v529.1 ·
   autocommit pg driver · CONCURRENTLY migration runner that bypasses
   Prisma's implicit transaction wrap)
-- **Crons (36 active):** mega · brain-cycle · ingest-{gmail,calendar,
-  drive,fireflies} · weekly-review · auto-linker · industry-pull ·
-  cost-regression · provider-ping · semantic-dedup · voice-clone-train
-  (v8.1) · decision-replay (v528) · ... (3 device crons retired v529.6 ·
-  `device-command-reap` · `device-sync` · `device-health` · routes
-  preserved for future re-activation)
+- **Crons:** declared in `config/crons.ts` (the single source of
+  truth) — each entry is `active` (own schedule), `folded` (runs
+  inside a parent cron, most fold into `mega-evening`), or `retired`.
+  The device crons (`device-command-reap`, `device-sync`,
+  `device-health`, `status`) and `notification-sender` were deleted
+  with their route files.
 - **ADRs:** `docs/adr/0001-0015-*.md` (0012-0015 added v529.10 ·
   sanitizeError · tool-quota · tool-result-fencing · decision-replay-coach)
 
@@ -180,7 +187,7 @@ automation, daily briefings.
 - **Setup:** `setup.ps1` installs a `nour` CLI alias in the user profile
 - **Status:** ACTIVE · kept for Windows-only control (Ring, Eufy, Tuya,
   Google Home) that the cloud stack can't do.
-- **NEW Apr 20 — bridge to statenour-os:** the desktop agent can
+- **Apr 20 — bridge to statenour:** the desktop agent can
   poll `GET /api/devices/queue` for pending `DeviceCommand` rows,
   execute them locally via its vendor bridges, and PATCH the
   status back. See `docs/DEVICE-RPC.md` for the contract.
@@ -215,22 +222,22 @@ Where the rings actually talk to each other:
 
 | Sync | From | To | Mechanism | Cadence |
 |------|------|-----|-----------|---------|
-| `statenour-sync` | nickstire-cron-worker | nickstire.org → statenour-os | HTTP webhook chain | every 4h |
-| Google OAuth ingest | statenour-os cron | Gmail / Calendar / Drive | OAuth refresh | 8am+8pm / 8:15am / Sun+Wed 2:30am |
-| Device command RPC (NEW 2026-04-20) | statenour-os | nour-os-unified | pending-queue poll + ack | agent polls every 15-30s |
+| `statenour-sync` | nickstire-cron-worker | nickstire.org → statenour | HTTP webhook chain | every 4h |
+| Google OAuth ingest | statenour cron | Gmail / Calendar / Drive | OAuth refresh | 8am+8pm / 8:15am / Sun+Wed 2:30am |
+| Device command RPC (2026-04-20) | statenour | nour-os-unified | pending-queue poll + ack | agent polls every 15-30s |
 | Brain continuity | any chat turn | BrainMemory (Neon) | on onFinish | per reply |
 
 ---
 
 ## Deployment matrix
 
-| Repo | Host | Env | Branch | Auto-deploy |
+| Repo / app | Host | Env | Branch | Auto-deploy |
 |------|------|-----|--------|-------------|
-| MAINnicks-tire-autoNEW | Railway | prod | `main` | yes |
+| MAINnicks-tire-autoNEW (`apps/nickstire/`) | Railway | prod | `main` | yes |
+| MAINnicks-tire-autoNEW (`apps/statenour/`) | Railway | prod | `main` | yes |
 | nickstire-cron-worker | Railway | prod | `main` | yes |
 | easy-nickstire | Vercel | prod | `main` | yes |
 | nicks-tire-social | Railway | prod | `main` | yes |
-| statenour-os | Vercel | prod | `codex/ollama-local` | yes |
 | nour-os-unified | none (local) | desktop | `main` | manual `setup.ps1` |
 
 ---
@@ -238,21 +245,20 @@ Where the rings actually talk to each other:
 ## Key principles
 
 1. **Business ↔ Personal separation is deliberate.** The business
-   runs on Express/Drizzle/TiDB/Railway (matching its operational
-   needs). Personal runs on Next/Prisma/Neon/Vercel (matching its
-   interactive needs). They share data via scheduled sync, not a
-   shared DB.
+   runs on Express/Drizzle/TiDB (matching its operational needs).
+   Personal runs on Next/Prisma/Neon (matching its interactive
+   needs). Both deploy on Railway from the shared monorepo; they
+   share data via scheduled sync, not a shared DB.
 
-2. **Cron workers live on Railway, not Vercel.** Vercel's lambda
-   cold-starts + memory cap make long-running schedulers expensive.
-   Railway runs the cron-worker 24/7 and HTTP-pings Vercel when a
-   job is due. statenour-os has its OWN Vercel cron for stuff it
-   owns (knowledge-sync, ingest-gmail, pin-hygiene, auto-calibrate)
-   — those are fast HTTP triggers not long-polling.
+2. **The whole stack runs on Railway.** `nickstire-cron-worker` runs
+   24/7 and HTTP-pings the nickstire service when a job is due.
+   statenour owns its own crons — declared in `config/crons.ts`,
+   driven by the mega fan-out + the Inngest evening job list.
 
-3. **`codex/ollama-local` is the statenour-os production branch.**
-   Don't push to `statenour-master`. Vercel auto-deploys from
-   `codex/ollama-local`.
+3. **`main` is the production branch for the whole monorepo.**
+   Railway watches `main` with per-service watch paths; a push that
+   touches `apps/statenour/**` auto-deploys the `statenour-web`
+   service.
 
 4. **Legacy tables linger in Neon.** `daily_scores`, `labor_operations`,
    `morning_briefs`, `open_loops`, `projections`, `tires` — dropped
@@ -272,8 +278,9 @@ Where the rings actually talk to each other:
 Before creating a 9th repo, ask:
 
 1. **Does it fit a ring?** Business or personal?
-2. **Could it be a module in statenour-os?** Most new web code should.
-3. **Does it run 24/7?** → Railway. Does it only answer HTTP? → Vercel.
+2. **Could it be an app in the monorepo?** Most new web code should
+   land as `apps/<name>/` alongside `statenour` and `nickstire`.
+3. **Does it deploy?** → Railway, like the rest of the stack.
 4. **Is it a local desktop thing?** → extend `nour-os-unified`, don't spawn new.
 5. **Is it a spike or experiment?** Keep it in a branch, don't
    create a repo until it ships.
@@ -294,4 +301,8 @@ parent ring. Promote to repo only when it has its own deploy.
 
 ---
 
-**Reconciled at v10.0.529.11** · 2026-05-12 EOD · this doc was reviewed against the live state of the OS in the v10.0.485-529.11 sprint reconciliation pass (15 ships in one day). See `docs/cohort-2026-05-12-eod-summary.md` for the sprint summary. If a claim in this doc contradicts code reality, the code wins · open an issue.
+**Reconciled 2026-05-21** · infra sweep — the statenour rows were
+rewritten for the monorepo + Railway reality (was the standalone
+`statenour-os` repo / Vercel / `codex/ollama-local` / `bdnick.info`,
+all retired). If a claim in this doc contradicts code reality, the
+code wins · open an issue.
