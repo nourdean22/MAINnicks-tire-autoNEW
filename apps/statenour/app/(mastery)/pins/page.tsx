@@ -23,10 +23,11 @@ import { cn } from "@/lib/utils/cn";
 import { Pin, PinOff, Plus, Edit3, Save, X, Sparkles, AlertCircle } from "lucide-react";
 
 // Phase YY (2026-05-19 AM) · authedFetch replaced with trpc · 4 sites
-// (list · create · edit · delete) on the brain router. The
-// prompt-cache-flush hot-path stays on authedFetch for now (different
-// system surface · candidate for a future system router phase).
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// (list · create · edit · delete) on the brain router.
+// Phase straggler-pages (2026-05-22) · the last call-site — the
+// prompt-cache-flush hot-path in createNewPin — is migrated onto the
+// existing `system.flushPromptCache` procedure. Zero use-authed-fetch
+// imports remain. Legacy REST route stays mounted.
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
 interface PinRow {
@@ -106,6 +107,8 @@ export default function PinsPage() {
   const createPinMutation = trpc.brain.createPin.useMutation();
   const updatePinMutation = trpc.brain.updatePin.useMutation();
   const deletePinMutation = trpc.brain.deletePin.useMutation();
+  // Phase straggler-pages · the post-write prompt-cache hot-flush.
+  const flushPromptCacheMutation = trpc.system.flushPromptCache.useMutation();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -189,12 +192,8 @@ export default function PinsPage() {
       setNewLabel("");
       // After a write, hot-flush the prompt cache so the next chat turn
       // sees the new pin without waiting for the 45s TTL to expire.
-      // This system endpoint stays on authedFetch · separate router phase.
-      void authedFetch("/api/system/prompt-cache-flush", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "pin write — manual" }),
-      });
+      // Fire-and-forget · a flush failure must not block the pin create.
+      flushPromptCacheMutation.mutate({ reason: "pin write — manual" });
       await load();
       notifyDataChanged("brain", { source: "pins-page", detail: "pin-create" });
     } catch (e) {

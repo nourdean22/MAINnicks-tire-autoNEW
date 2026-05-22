@@ -40,7 +40,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase straggler-pages (2026-05-22) · the GET /api/morning-brief read
+// is migrated off useAuthedFetch onto `operator.morningBrief`. /voice
+// sits outside (mastery) so it has no TRPCProvider — app/voice/layout
+// .tsx supplies one. The POST /api/voice/token mint stays plain fetch
+// (token-mint write · no tRPC procedure needed). Zero use-authed-fetch
+// imports remain. Legacy REST route stays mounted.
+import { trpc } from "@/lib/trpc/client";
 
 type ConnState =
   | "idle"
@@ -60,13 +66,9 @@ interface VoiceToken {
   expiresInSeconds: number;
 }
 
-interface BriefPayload {
-  ready: boolean;
-  date: string;
-  composedAt: string | null;
-  text: string | null;
-  preview: string | null;
-}
+// Phase straggler-pages · the page-local `BriefPayload` interface is
+// removed — the brief shape now flows from the `operator.morningBrief`
+// procedure's return type (`MorningBriefView`).
 
 export default function VoicePage() {
   const [state, setState] = useState<ConnState>("idle");
@@ -184,7 +186,9 @@ export default function VoicePage() {
 // ── Brief section · brief preview + play button ─────────────────────
 
 function BriefSection({ liveCallActive }: { liveCallActive: boolean }) {
-  const { data: brief } = useAuthedFetch<BriefPayload>("/api/morning-brief");
+  const { data: brief } = trpc.operator.morningBrief.useQuery(undefined, {
+    staleTime: 30_000,
+  });
   const [playState, setPlayState] = useState<
     "idle" | "loading" | "playing" | "error"
   >("idle");

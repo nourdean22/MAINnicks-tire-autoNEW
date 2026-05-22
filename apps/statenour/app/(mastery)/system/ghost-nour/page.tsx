@@ -23,7 +23,10 @@ import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase straggler-pages (2026-05-22) · the POST /api/system/ghost-nour
+// call is migrated off authedFetch onto `system.ghostNourPredict` ·
+// the candidate-list read already routed through tRPC (Phase Y.4).
+// Zero use-authed-fetch imports remain. Legacy REST route stays mounted.
 import { trpc } from "@/lib/trpc/client";
 interface Match {
   id: number;
@@ -106,6 +109,12 @@ export default function GhostNourPage() {
     { staleTime: 30_000 },
   );
 
+  // Phase straggler-pages · the prediction POST is a tRPC mutation now.
+  // The page keeps its own `loading` flag (it also gates the button +
+  // textarea disabled state) · `mutateAsync` drives it the same way the
+  // old authedFetch try/finally did.
+  const predictMutation = trpc.system.ghostNourPredict.useMutation();
+
   async function runGhost(situationText?: string) {
     const text = (situationText ?? situation).trim();
     if (text.length < 3) {
@@ -115,14 +124,8 @@ export default function GhostNourPage() {
     }
     setLoading(true);
     try {
-      const res = await authedFetch("/api/system/ghost-nour", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ situation: text }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setPrediction(json.data ?? json);
+      const json = await predictMutation.mutateAsync({ situation: text });
+      setPrediction(json);
       if (situationText) setSituation(situationText);
     } catch (e) {
       console.error("ghost failed", e);

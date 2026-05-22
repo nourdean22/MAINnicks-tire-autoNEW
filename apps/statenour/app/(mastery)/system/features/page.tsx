@@ -13,7 +13,10 @@
  * the activation triggers actionable instead of just documented.
  */
 
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase straggler-pages (2026-05-22) · useAuthedFetch read migrated to
+// trpc · the GET /api/system/feature-status call now routes through
+// `system.featureStatus`. Legacy REST route stays mounted.
+import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
@@ -27,27 +30,16 @@ import {
 
 type FeatureStatus = "LIVE" | "DORMANT" | "PARTIAL";
 
+// Phase straggler-pages · FeatureMeta now flows from the tRPC
+// procedure's return shape (`system.featureStatus`) — the page-local
+// interface mirror is removed. `FeatureMeta` below is re-derived from
+// the query data where the FeatureRow helper needs it.
 interface FeatureMeta {
   name: string;
   endpoint?: string;
   status: FeatureStatus;
   activationTrigger?: string;
   notes?: string;
-}
-
-interface Summary {
-  total: number;
-  live: number;
-  dormant: number;
-  partial: number;
-  livePct: number;
-  activationsNeeded: Array<{ name: string; trigger?: string }>;
-}
-
-interface FeatureStatusPayload {
-  generatedAt: string;
-  summary: Summary;
-  features: FeatureMeta[];
 }
 
 const STATUS_TONE: Record<FeatureStatus, string> = {
@@ -57,10 +49,10 @@ const STATUS_TONE: Record<FeatureStatus, string> = {
 };
 
 export default function FeaturesPage() {
-  const { data, loading, error, reload } = useAuthedFetch<FeatureStatusPayload>(
-    "/api/system/feature-status",
-    { retryOn401: true },
-  );
+  const { data, isLoading, error, refetch } =
+    trpc.system.featureStatus.useQuery(undefined, {
+      staleTime: 30_000,
+    });
 
   return (
     <div className="space-y-4">
@@ -73,7 +65,7 @@ export default function FeaturesPage() {
         </p>
       </div>
 
-      {loading && !data && (
+      {isLoading && !data && (
         <GlassCard>
           <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
             <Loader2 size={12} className="animate-spin" />
@@ -90,11 +82,11 @@ export default function FeaturesPage() {
                 feature-status fetch failed
               </p>
               <p className="text-[10px] text-rose-300/70 mt-0.5 break-words font-mono">
-                {error}
+                {error.message}
               </p>
             </div>
             <button
-              onClick={reload}
+              onClick={() => void refetch()}
               className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
             >
               retry

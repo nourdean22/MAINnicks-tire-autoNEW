@@ -26,8 +26,11 @@ import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
+// Phase straggler-pages (2026-05-22) · the POST /api/judge-eval/run
+// call is migrated off authedFetch onto `system.judgeEvalRun` · the
+// summary + samples reads already routed through tRPC. Zero
+// use-authed-fetch imports remain. Legacy REST route stays mounted.
 import { trpc } from "@/lib/trpc/client";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { toast } from "sonner";
 import {
   Activity,
@@ -479,7 +482,11 @@ function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
   const [v2Reply, setV2Reply] = useState("");
   const [intentClass, setIntentClass] = useState("");
   const [sourceMessageId, setSourceMessageId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+
+  // Phase straggler-pages · the judge-eval run is a tRPC mutation now ·
+  // `isPending` replaces the page-local `submitting` flag.
+  const runMutation = trpc.system.judgeEvalRun.useMutation();
+  const submitting = runMutation.isPending;
 
   const promptOk = prompt.trim().length > 0;
   const v1Ok = v1Reply.trim().length > 0;
@@ -500,29 +507,17 @@ function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
       toast.error(`Required field missing: ${missingLabel}`);
       return;
     }
-    setSubmitting(true);
     try {
-      const res = await authedFetch("/api/judge-eval/run", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          prompt,
-          v1Reply,
-          v2Reply,
-          intentClass: intentClass || undefined,
-          sourceMessageId: sourceMessageId || undefined,
-        }),
+      const result = await runMutation.mutateAsync({
+        prompt,
+        v1Reply,
+        v2Reply,
+        intentClass: intentClass || undefined,
+        sourceMessageId: sourceMessageId || undefined,
       });
-      const json = await res.json();
-      if (!res.ok) {
-        toast.error(json?.error ?? `HTTP ${res.status}`);
-        return;
-      }
-      const winner = (json?.data?.judgment?.winner as string) ?? "unknown";
-      const v2Score = json?.data?.judgment?.v2Score as number | undefined;
-      toast.success(
-        `Judged · ${winner}${v2Score !== undefined ? ` · v2 ${v2Score}` : ""}`,
-      );
+      const winner = result.judgment.winner;
+      const v2Score = result.judgment.v2Score;
+      toast.success(`Judged · ${winner} · v2 ${v2Score}`);
       setPrompt("");
       setV1Reply("");
       setV2Reply("");
@@ -531,8 +526,6 @@ function AdHocCompareForm({ onJudged }: { onJudged: () => void }) {
       onJudged();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSubmitting(false);
     }
   };
 
