@@ -41,7 +41,7 @@
  *     commitment(-12) + aged penalty
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -54,6 +54,7 @@ import {
 import { ActiveTaskCompanion } from "./active-task-companion";
 import { Badge } from "@/components/ui/badge";
 
+import { trpc } from "@/lib/trpc/client";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 // ── Types mirroring /api/ultron/todo-desk response ──────────
 type WorkWindow = "deep" | "ops" | "review" | "rest";
@@ -131,30 +132,29 @@ void Moon; void AlertTriangle; void Archive; void Inbox;
 //   alive without a dead-code warning when those sections drop too.
 
 export function TodoDesk() {
-  const [data, setData] = useState<DeskPayload | null>(null);
-  const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   // showWhy state dropped Apr 19 — the why-this-now expander lived
   // on the active-task row which no longer renders expanders on HQ.
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/ultron/todo-desk");
-      if (!res.ok) return;
-      const raw = (await res.json()) as { data?: DeskPayload };
-      if (raw?.data) setData(raw.data);
-    } catch {
-      // silent — no data is a render state, not an error
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const iv = setInterval(load, 60_000);
-    return () => clearInterval(iv);
-  }, [load]);
+  // Phase B.6a (2026-05-22) · ONLY the todo-desk read migrated off
+  // `authedFetch` onto `trpc.operator.todoDesk`. The task-mutation
+  // calls below (`patchTask` → /api/tasks/[id], `resolveDrift` →
+  // /api/drift) are INTENTIONALLY left on `authedFetch` — they belong
+  // to later sub-slices. React Query's refetchInterval replaces the
+  // manual 60s setInterval; `load` is now `refetch`, so every existing
+  // caller (the onDataChanged listener, post-mutation refresh) keeps
+  // working unchanged. `loading` mirrors the query's initial fetch.
+  const {
+    data,
+    isLoading: loading,
+    refetch,
+  } = trpc.operator.todoDesk.useQuery(undefined, {
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const load = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   useEffect(() => {
     return onDataChanged(["tasks", "any"], (e) => {

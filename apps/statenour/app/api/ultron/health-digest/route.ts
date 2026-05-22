@@ -36,8 +36,7 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/lib/auth-guard";
 import {
   loadLatestHealthDigest,
-  computeHealthDigest,
-  persistHealthDigest,
+  refreshHealthDigest,
   type SystemHealthDigest,
 } from "@/lib/system/health-digest";
 
@@ -50,14 +49,10 @@ interface DigestPayload extends SystemHealthDigest {
   staleFallback?: boolean;
 }
 
-async function recomputeAndPersist(): Promise<SystemHealthDigest> {
-  const fresh = await computeHealthDigest();
-  // Persist is fire-and-forget — we return fresh either way.
-  persistHealthDigest(fresh).catch(() => {
-    /* nightly cron will retry */
-  });
-  return fresh;
-}
+// Phase B.6a (2026-05-22) · `recomputeAndPersist` was hoisted into
+// `lib/system/health-digest.refreshHealthDigest` so the new
+// `operator.refreshHealthDigest` tRPC mutation calls the SAME function.
+const recomputeAndPersist = refreshHealthDigest;
 
 export async function GET() {
   try {

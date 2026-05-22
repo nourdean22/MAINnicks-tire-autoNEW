@@ -68,6 +68,14 @@ import {
   aiConfigPatchSchema,
   skillCurationSchema,
 } from "@/lib/validators/settings";
+import { buildTickerFeed } from "@/lib/services/ultron-ticker";
+import { buildPersonalPulse } from "@/lib/services/personal-pulse";
+import { buildSituation } from "@/lib/services/ultron-situation";
+import { buildTodoDesk } from "@/lib/services/todo-desk";
+import { buildMicroPlan, IntentTooShortError } from "@/lib/services/ultron-plan";
+import { getMit, setMit } from "@/lib/services/mit";
+import { refreshHealthDigest } from "@/lib/system/health-digest";
+import { buildCommandCenterState } from "@/lib/ai/context/command-center-state";
 import { TRPCError } from "@trpc/server";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -409,4 +417,141 @@ export const operatorRouter = router({
         source: "drive_manual_sync",
       }),
     ),
+
+  // ──────────────── Ultron · operator-domain HQ surfaces (B.6a) ────────────────
+
+  /**
+   * Phase B.6a (2026-05-22 · legacy-modernizer REST→tRPC ultron slice)
+   * · owner-only · the ambient awareness feed for the Ultron top strip
+   * (markets · macro · shop pulse · brain pulse · self metrics · ops).
+   * Replaces GET /api/ultron/ticker · delegates to the
+   * `ultron-ticker.buildTickerFeed` shared service the REST route also
+   * calls · drift impossible. The service owns its own 60s `cached()`
+   * window · React Query's 5-min refetchInterval mirrors the legacy
+   * setInterval. No input · the feed is operator-scoped.
+   */
+  ticker: operatorProcedure.query(async () => buildTickerFeed()),
+
+  /**
+   * Phase B.6a · owner-only · the bottom personal-pulse ticker —
+   * rotates PERSONAL state (capture · MIT · tomorrow note · narrator ·
+   * commitments · reflection · wins · contradictions · mind · life ·
+   * wisdom). Replaces GET /api/ultron/personal-pulse · delegates to
+   * `personal-pulse.buildPersonalPulse` · drift impossible. Service
+   * owns its own 90s `cached()` window. No input.
+   */
+  personalPulse: operatorProcedure.query(async () => buildPersonalPulse()),
+
+  /**
+   * Phase B.6a · owner-only · THE unified signal payload for the HQ
+   * SituationCard (the meta-aggregated narrative that replaced the
+   * 7-card stack). Replaces GET /api/ultron/situation · delegates to
+   * `ultron-situation.buildSituation` · drift impossible. Service owns
+   * its own 120s `cached()` window · React Query's 2-min
+   * refetchInterval mirrors the legacy poll. No input.
+   */
+  situation: operatorProcedure.query(async () => buildSituation()),
+
+  /**
+   * Phase B.6a · owner-only · force a live recompute of the system
+   * health digest (the SystemHealthCard "Refresh" button). Replaces
+   * POST /api/ultron/health-digest · delegates to the shared
+   * `health-digest.refreshHealthDigest` the REST POST also calls ·
+   * drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change (recompute +
+   * fire-and-forget persist of a BrainMemory row). No input · the
+   * recompute scans the whole system. The card refetches the GET-side
+   * `useUltronFetch` after this resolves — that read endpoint stays on
+   * REST (out of this sub-slice's scope).
+   */
+  refreshHealthDigest: operatorProcedure.mutation(async () =>
+    refreshHealthDigest(),
+  ),
+
+  /**
+   * Phase B.6a · owner-only · the v9.0 Command Spine unified state
+   * (active command + today's proof ratio + risk counts). Replaces
+   * GET /api/command-center/state · delegates to the same
+   * `buildCommandCenterState` the REST route calls · drift impossible.
+   * No input · React Query's 60s refetchInterval mirrors the legacy
+   * setInterval.
+   */
+  commandCenterState: operatorProcedure.query(async () =>
+    buildCommandCenterState(),
+  ),
+
+  /**
+   * Phase B.6a · owner-only · read today's MIT (the binary daily-focus
+   * anchor · BrainMemory category="daily_mit", key=YYYY-MM-DD).
+   * Replaces GET /api/mit · delegates to the `mit.getMit` shared
+   * service the REST route also calls · drift impossible. Returns
+   * `{ key, text, updatedAt }` · `text` is null when not set today.
+   */
+  mit: operatorProcedure.query(async () => getMit()),
+
+  /**
+   * Phase B.6a · owner-only · set/update today's MIT. Empty/blank
+   * `text` clears it (soft-delete · keeps history). Replaces POST
+   * /api/mit · delegates to `mit.setMit` · drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change (BrainMemory
+   * upsert or soft-delete). `text` is bounded to 200 chars at the
+   * boundary (the MITSlot input has maxLength=120 · the service
+   * slices to 120 anyway · the 200 cap is the tRPC-boundary guard,
+   * generous enough to never reject a legitimate payload).
+   */
+  setMit: operatorProcedure
+    .input(z.object({ text: z.string().max(200) }))
+    .mutation(async ({ input }) => setMit(input.text)),
+
+  /**
+   * Phase B.6a · owner-only · clear today's MIT (the MITSlot "Clear"
+   * button sends an empty-text POST). A dedicated mutation rather than
+   * `setMit("")` so the call-site reads intentionally; delegates to
+   * the SAME `mit.setMit` with an empty string · the service's
+   * empty-text branch soft-deletes · drift impossible.
+   */
+  clearMit: operatorProcedure.mutation(async () => setMit("")),
+
+  /**
+   * Phase B.6a · owner-only · compile a micro-plan from a free-text
+   * intent (the omni-capture /plan path · 3-6 concrete steps).
+   * Replaces POST /api/ultron/plan · delegates to the
+   * `ultron-plan.buildMicroPlan` shared service the REST route also
+   * calls · drift impossible.
+   *
+   * Modeled as a `.query()` despite the legacy POST · the route does
+   * NO DB/state write (the doc explicitly says "No server-side
+   * execution — the client decides what to do, keeping the API
+   * pure") · only an LLM read. The component fires it imperatively
+   * via `utils.operator.plan.fetch`.
+   *
+   * `intent` is bounded 1-2000 at the boundary · `buildMicroPlan`
+   * itself enforces the 3-char floor and throws `IntentTooShortError`
+   * → mapped to BAD_REQUEST so both transports reject identically.
+   */
+  plan: operatorProcedure
+    .input(z.object({ intent: z.string().min(1).max(2000) }))
+    .query(async ({ input }) => {
+      try {
+        return await buildMicroPlan(input.intent);
+      } catch (err) {
+        if (err instanceof IntentTooShortError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.6a · owner-only · the TodoDesk HQ surface payload — active
+   * task + ranked queue + aging backlog + tomorrow preview + counts.
+   * Replaces GET /api/ultron/todo-desk · delegates to the shared
+   * `todo-desk.buildTodoDesk` the REST route also calls · drift
+   * impossible. The service owns its own 60s `cached()` window · React
+   * Query's 60s refetchInterval mirrors the legacy setInterval. No
+   * input · the desk is operator-scoped.
+   */
+  todoDesk: operatorProcedure.query(async () => buildTodoDesk()),
 });

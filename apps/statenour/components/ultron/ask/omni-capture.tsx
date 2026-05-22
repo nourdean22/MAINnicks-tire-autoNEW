@@ -31,6 +31,7 @@ import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import type { UltronMode } from "@/lib/ultron/mode-classifier";
 
+import { trpc } from "@/lib/trpc/client";
 import { authedFetch } from "@/hooks/use-authed-fetch";
 const LAST_RESPONSE_KEY = "ultron:ask:last";
 const LAST_RESPONSE_TTL_MS = 10 * 60 * 1000;
@@ -116,6 +117,10 @@ interface OmniCaptureProps {
 
 export function OmniCapture({ mode }: OmniCaptureProps) {
   const router = useRouter();
+  // Phase B.6a (2026-05-22) · used ONLY for the /plan path below ·
+  // every other authedFetch in this file (tasks · missions · journal
+  // capture · decisions) belongs to later sub-slices and is untouched.
+  const utils = trpc.useUtils();
   const [input, setInput] = useState("");
   const [intent, setIntent] = useState<CaptureIntent | null>(null);
   /** Manual override — when Nour taps the chip to cycle, we pin the
@@ -313,20 +318,19 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
           break;
         }
         case "plan": {
+          // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
+          // `trpc.operator.plan`. Modeled as a query (the route does no
+          // DB write) · fired imperatively via `utils.operator.plan
+          // .fetch`. The procedure returns the PlanResult directly (the
+          // legacy `data` envelope is gone) · a too-short intent throws
+          // a BAD_REQUEST TRPCError which the existing catch surfaces
+          // as the "plan failed" toast, same as the legacy !res.ok path.
           setBusy(true);
           setPlan(null);
           try {
-            const res = await authedFetch("/api/ultron/plan", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ intent: text }),
-            });
-            if (!res.ok) throw new Error();
-            const raw = (await res.json()) as { data?: PlanResult };
-            if (raw?.data) {
-              setPlan(raw.data);
-              setInput("");
-            }
+            const result = await utils.operator.plan.fetch({ intent: text });
+            setPlan(result);
+            setInput("");
           } catch {
             toast.error("plan failed");
           } finally {
@@ -344,7 +348,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
         }
       }
     },
-    [router, sendMessage, setMessages],
+    [router, sendMessage, setMessages, utils],
   );
 
   const handleSubmit = useCallback(

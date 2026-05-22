@@ -27,10 +27,9 @@
  * is ambient, not assertive.
  */
 
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 import { DismissButton } from "@/components/ui/dismiss-button";
 // v10.0.104 audit fix · keep this union in sync with the server's
@@ -53,11 +52,6 @@ interface PulseItem {
   href?: string;
 }
 
-interface PulseData {
-  items: PulseItem[];
-  generatedAt: string;
-}
-
 const TONE_COLORS: Record<PulseItem["tone"], string> = {
   info: "text-[var(--text-secondary)]",
   warn: "text-amber-400",
@@ -73,28 +67,16 @@ const LABEL_COLORS: Record<PulseItem["tone"], string> = {
 };
 
 export function BottomPulseTicker() {
-  const [data, setData] = useState<PulseData | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await authedFetch("/api/ultron/personal-pulse");
-        if (!res.ok) return;
-        const raw = (await res.json()) as { data?: PulseData };
-        if (!alive) return;
-        if (raw?.data) setData(raw.data);
-      } catch {
-        // silent — ticker is ambient
-      }
-    };
-    load();
-    const iv = setInterval(load, 300_000); // 5 min
-    return () => {
-      alive = false;
-      clearInterval(iv);
-    };
-  }, []);
+  // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.operator.personalPulse`. React Query's refetchInterval
+  // replaces the manual setInterval (5-min cadence preserved) · the
+  // query is silent on failure (the ticker is ambient) so no error
+  // branch is wired. `data` is the PulseData payload directly — the
+  // procedure returns it unwrapped (the legacy `data` envelope gone).
+  const { data } = trpc.operator.personalPulse.useQuery(undefined, {
+    refetchInterval: 300_000,
+    retry: false,
+  });
 
   // May 02 · per-item dismissal — same shared hook as top ticker.
   const { dismissed, dismiss } = useDismissedTicker();

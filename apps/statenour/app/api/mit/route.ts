@@ -13,62 +13,23 @@
  *
  * GET returns { key, text, updatedAt } · text is null if not set today.
  * POST { text } sets/updates. Empty/blank text clears today's MIT.
+ *
+ * Phase B.6a (2026-05-22) · the GET/POST handler bodies were extracted
+ * into `lib/services/mit.ts` (getMit / setMit) so the new
+ * `operator.mit` / `operator.setMit` tRPC procedures call the SAME
+ * functions · drift impossible. This route stays mounted as the
+ * rollback path.
  */
 import { apiHandler, readRequestJson } from "@/lib/utils/http";
-import { prisma } from "@/lib/prisma";
+import { getMit, setMit } from "@/lib/services/mit";
 
 export const dynamic = "force-dynamic";
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export const GET = apiHandler(async () => {
-  const key = todayKey();
-  const row = await prisma.brainMemory.findFirst({
-    where: { category: "daily_mit", key, deletedAt: null },
-    select: { content: true, updatedAt: true },
-  });
-  return {
-    key,
-    text: row?.content ?? null,
-    updatedAt: row?.updatedAt?.toISOString() ?? null,
-  };
+  return getMit();
 }, { auth: "owner" });
 
 export const POST = apiHandler(async (req) => {
   const body = (await readRequestJson(req)) as { text?: string };
-  const text = (body.text ?? "").trim();
-  const key = todayKey();
-
-  if (!text) {
-    // Empty text = clear today's MIT (soft-delete · keeps history)
-    await prisma.brainMemory.updateMany({
-      where: { category: "daily_mit", key, deletedAt: null },
-      data: { deletedAt: new Date() },
-    });
-    return { ok: true, cleared: true, key };
-  }
-
-  // 120 char ceiling · MIT is meant to be terse
-  const trimmed = text.slice(0, 120);
-
-  const row = await prisma.brainMemory.upsert({
-    where: { category_key: { category: "daily_mit", key } },
-    update: {
-      content: trimmed,
-      deletedAt: null,
-      lastSeen: new Date(),
-    },
-    create: {
-      category: "daily_mit",
-      key,
-      content: trimmed,
-      confidence: 1,
-      source: "ui:mit-slot",
-      createdBy: "user",
-    },
-  });
-
-  return { ok: true, text: row.content, key };
+  return setMit(body.text ?? "");
 }, { auth: "owner" });

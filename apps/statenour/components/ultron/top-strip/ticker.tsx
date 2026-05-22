@@ -15,11 +15,10 @@
  * next to the wordmark.
  */
 
-import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { UltronMode } from "@/lib/ultron/mode-classifier";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 import { DismissButton } from "@/components/ui/dismiss-button";
 interface TickerItem {
@@ -32,12 +31,6 @@ interface TickerItem {
   domain?: string;
   href?: string;
   at?: string;
-}
-
-interface TickerData {
-  items: TickerItem[];
-  generatedAt: string;
-  softError?: string;
 }
 
 const CATEGORY_COLORS: Record<TickerItem["category"], string> = {
@@ -71,28 +64,17 @@ interface TickerProps {
 }
 
 export function Ticker({ mode, reason }: TickerProps = {}) {
-  const [data, setData] = useState<TickerData | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await authedFetch("/api/ultron/ticker");
-        if (!res.ok) return;
-        const raw = (await res.json()) as { data?: TickerData };
-        if (!alive) return;
-        if (raw?.data) setData(raw.data);
-      } catch {
-        // silent — the ticker is ambient, not critical
-      }
-    };
-    load();
-    const iv = setInterval(load, 300_000); // 5 min
-    return () => {
-      alive = false;
-      clearInterval(iv);
-    };
-  }, []);
+  // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.operator.ticker`. React Query's refetchInterval replaces
+  // the manual setInterval (5-min cadence preserved) · the query is
+  // silent on failure (the ticker is ambient, not critical) so no
+  // error branch is wired. `data` is the TickerData payload directly
+  // — the procedure returns it unwrapped (the legacy route's `data`
+  // envelope is gone).
+  const { data } = trpc.operator.ticker.useQuery(undefined, {
+    refetchInterval: 300_000,
+    retry: false,
+  });
 
   // May 02 · per-item dismissal. localStorage-backed Set; X button on
   // each cell adds to it. STATIC_MACRO fallbacks (Apr 19 hardcoded

@@ -23,9 +23,8 @@
  * Ultron home alongside SystemHealthCard / SinceLastVisitCard.
  */
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Target, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CommandCenterState } from "@/lib/ai/context/command-center-state";
@@ -38,33 +37,18 @@ const PRIORITY_TINT: Record<string, string> = {
 };
 
 export function CommandSpinePulse() {
-  const [state, setState] = useState<CommandCenterState | null>(null);
-  const [error, setError] = useState(false);
+  // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.operator.commandCenterState`. React Query's refetchInterval
+  // replaces the manual setInterval (60s cadence preserved). The
+  // procedure returns the CommandCenterState directly (the legacy
+  // route's `data` envelope is gone). Silent on failure — `isError`
+  // or no data → render null, matching the legacy `error` state.
+  const { data: state, isError } = trpc.operator.commandCenterState.useQuery(
+    undefined,
+    { refetchInterval: 60_000, retry: false },
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await authedFetch("/api/command-center/state");
-        if (!res.ok) throw new Error("fetch failed");
-        const j = (await res.json()) as { data?: CommandCenterState } & CommandCenterState;
-        if (!cancelled) {
-          setState(j.data ?? (j as CommandCenterState));
-          setError(false);
-        }
-      } catch {
-        if (!cancelled) setError(true);
-      }
-    };
-    void load();
-    const i = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(i);
-    };
-  }, []);
-
-  if (error || !state) return null;
+  if (isError || !state) return null;
 
   const totalRisks =
     state.risks.driftAlerts.length +
