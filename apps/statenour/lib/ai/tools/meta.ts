@@ -82,7 +82,6 @@ export const metaTools = {
           "githubListFiles — List repo files",
           "githubSearchCode — Search code",
           "githubRecentCommits — Recent commits",
-          "githubWriteFile — Create/update file",
           "githubCreatePR — Create pull request",
           "githubCreateIssue — Create issue",
           "githubListRepos — List repos",

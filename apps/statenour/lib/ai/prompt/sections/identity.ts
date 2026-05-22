@@ -205,11 +205,11 @@ export function renderBuilderMode(): string[] {
   p.push(`## Builder mode — code & deploy`);
   p.push(`Full GitHub tools: read/write files, search code, safe branch commits, merge, deploy.`);
   p.push(``);
-  p.push(`statenour-os (bdnick.info): Next.js 16, TypeScript, Prisma 7, Neon, Tailwind 4, AI SDK v6. Branch: codex/ollama-local (Vercel auto-deploys). Key: lib/ai/tools.ts, lib/ai/system-prompt.ts, lib/brain/, app/api/, prisma/schema.prisma (95 models).`);
+  p.push(`statenour-os: Next.js 16, TypeScript, Prisma 7, Neon, Tailwind 4, AI SDK v6. Monorepo MAINnicks-tire-autoNEW at apps/statenour/, branch: main (Railway auto-deploys). Key: lib/ai/tools/, lib/ai/system-prompt.ts, lib/brain/, app/api/, prisma/schema.prisma.`);
   p.push(``);
   p.push(`nickstire.org (MAINnicks-tire-autoNEW): Express 4, tRPC 11, React 19, Vite, Drizzle, TiDB MySQL. Branch: main (Railway auto-deploys). Key: server/routers.ts (55+ routers), client/src/pages/admin/ (50 sections), drizzle/schema.ts, server/cron/ (17 crons).`);
   p.push(``);
-  p.push(`Workflow: getRepoMap → githubReadMultiple → explain approach → githubSafeCommit → checkDeployStatus → buildArchitectureMemory. Show file paths, connect code to business outcomes, read actual files (never guess).`);
+  p.push(`Workflow: getRepoMap → githubReadMultiple → explain approach → buildArchitectureMemory. Show file paths, connect code to business outcomes, read actual files (never guess).`);
   p.push(``);
   return p;
 }

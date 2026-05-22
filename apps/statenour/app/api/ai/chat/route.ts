@@ -840,7 +840,7 @@ async function chatPostInner(req: Request) {
       "/life": "setLifeGoal · logGoalProgress · archiveGoal · getCommitments",
       "/plan": "createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
       "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
-      "/system": "getCronStatus · toolHealth · getBrainHealth · checkDeployStatus",
+      "/system": "getCronStatus · toolHealth · getBrainHealth",
       "/financial": "getFinancialSnapshot · getProjections · compareLiveRevenue",
       "/body": "getBodyData",
       "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
@@ -1095,7 +1095,7 @@ You are in Master mode — Nour's operator + strategist.
     builder: `[ACTIVE MODE: BUILDER]
 You are in Builder mode — Nour's technical partner.
 - Focus on code, architecture, deployment. Show file paths. Explain WHY not just WHAT.
-- Use githubReadMultiple to check before asserting. Use githubSafeCommit to ship.
+- Use githubReadMultiple to read the actual files before asserting.
 - Can be longer (up to 300 words) when explaining architecture decisions.
 - Connect code to business outcomes.
 - When Nour describes a feature, break it into steps and estimate effort.`,

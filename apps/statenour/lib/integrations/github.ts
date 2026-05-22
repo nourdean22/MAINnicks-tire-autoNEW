@@ -1,7 +1,14 @@
 /**
- * GitHub Integration — lets Nick AI read/write code, create PRs, manage issues.
- * Uses GitHub REST API with a Personal Access Token.
- * Set GITHUB_TOKEN env var on Vercel.
+ * GitHub Integration — lets Nick AI read code, browse repos, and
+ * manage issues / PRs via the GitHub REST API (GITHUB_TOKEN env var).
+ *
+ * 2026-05-21 · the write/deploy helpers (commitMultipleFiles,
+ * createBranch, mergeBranch, deleteBranch, triggerVercelDeploy,
+ * getDeploymentStatus) were removed — they were wired to the retired
+ * `statenour-os` repo, the dead `codex/ollama-local` branch and
+ * Vercel. statenour now deploys from the monorepo `main` via Railway;
+ * there is no API deploy trigger, and an AI committing straight to
+ * prod `main` would bypass the pre-push gates.
  */
 
 const GITHUB_API = "https://api.github.com";
@@ -72,43 +79,6 @@ export async function getRecentCommits(repo: string, branch?: string, count: num
 
 // ─── WRITE OPERATIONS ───────────────────────────────
 
-export async function createOrUpdateFile(
-  repo: string,
-  path: string,
-  content: string,
-  message: string,
-  branch?: string,
-): Promise<{ sha: string; url: string }> {
-  // Check if file exists to get SHA for update
-  let sha: string | undefined;
-  try {
-    const existing = await getFileContent(repo, path, branch);
-    sha = existing.sha;
-  } catch {
-    // File doesn't exist — creating new
-  }
-
-  const encoded = Buffer.from(content).toString("base64");
-  const body: Record<string, unknown> = { message, content: encoded };
-  if (sha) body.sha = sha;
-  if (branch) body.branch = branch;
-
-  const data = await ghFetch<{ content: { sha: string; html_url: string } }>(`/repos/${OWNER}/${repo}/contents/${path}`, {
-    method: "PUT",
-    body: JSON.stringify(body),
-  });
-  return { sha: data.content.sha, url: data.content.html_url };
-}
-
-export async function createBranch(repo: string, branchName: string, fromBranch: string = "main"): Promise<{ ref: string }> {
-  // Get the SHA of the source branch
-  const data = await ghFetch<{ object: { sha: string } }>(`/repos/${OWNER}/${repo}/git/ref/heads/${fromBranch}`);
-  return ghFetch(`/repos/${OWNER}/${repo}/git/refs`, {
-    method: "POST",
-    body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: data.object.sha }),
-  });
-}
-
 export async function createPullRequest(
   repo: string,
   title: string,
@@ -146,99 +116,6 @@ export async function listOpenIssues(repo: string): Promise<Array<{ number: numb
   return data.map(i => ({ number: i.number, title: i.title, labels: i.labels.map(l => l.name), created_at: i.created_at }));
 }
 
-// ─── MULTI-FILE COMMIT ─────────────────────────────
-// Creates a single commit with multiple file changes (like a real git commit)
-
-export async function commitMultipleFiles(
-  repo: string,
-  files: { path: string; content: string }[],
-  message: string,
-  branch: string = "codex/ollama-local"
-): Promise<{ sha: string; url: string }> {
-  // 1. Get the latest commit SHA for the branch
-  const refData = await ghFetch<{ object: { sha: string } }>(
-    `/repos/${OWNER}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`
-  );
-  const latestCommitSha = refData.object.sha;
-
-  // 2. Get the tree SHA from the latest commit
-  const commitData = await ghFetch<{ tree: { sha: string } }>(
-    `/repos/${OWNER}/${repo}/git/commits/${latestCommitSha}`
-  );
-  const baseTreeSha = commitData.tree.sha;
-
-  // 3. Create blobs for each file
-  const treeEntries = await Promise.all(
-    files.map(async (file) => {
-      const blobData = await ghFetch<{ sha: string }>(
-        `/repos/${OWNER}/${repo}/git/blobs`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            content: Buffer.from(file.content).toString("base64"),
-            encoding: "base64",
-          }),
-        }
-      );
-      return {
-        path: file.path,
-        mode: "100644" as const,
-        type: "blob" as const,
-        sha: blobData.sha,
-      };
-    })
-  );
-
-  // 4. Create a new tree with all file changes
-  const treeData = await ghFetch<{ sha: string }>(
-    `/repos/${OWNER}/${repo}/git/trees`,
-    {
-      method: "POST",
-      body: JSON.stringify({ base_tree: baseTreeSha, tree: treeEntries }),
-    }
-  );
-
-  // 5. Create the commit
-  const newCommit = await ghFetch<{ sha: string; html_url: string }>(
-    `/repos/${OWNER}/${repo}/git/commits`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        message: `${message}\n\nCo-Authored-By: Nick AI <nick@bdnick.info>`,
-        tree: treeData.sha,
-        parents: [latestCommitSha],
-      }),
-    }
-  );
-
-  // 6. Update the branch ref to point to the new commit
-  await ghFetch(
-    `/repos/${OWNER}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({ sha: newCommit.sha }),
-    }
-  );
-
-  return { sha: newCommit.sha, url: newCommit.html_url };
-}
-
-// ─── DEPLOY TRIGGER ────────────────────────────────
-
-export async function triggerVercelDeploy(repo: string): Promise<{ status: string }> {
-  // Vercel auto-deploys on push. The multi-file commit above triggers it.
-  // This function creates an empty commit to force a redeploy if needed.
-  const branch = repo === "statenour-os" ? "codex/ollama-local" : "main";
-  const { sha } = await commitMultipleFiles(
-    repo,
-    [], // No file changes — just a deploy trigger
-    "chore: trigger deployment",
-    branch
-  ).catch(() => ({ sha: "" }));
-
-  return { status: sha ? "deploy_triggered" : "failed" };
-}
-
 // ─── FILE DIFF ─────────────────────────────────────
 
 export async function getFileDiff(repo: string, path: string, branch?: string): Promise<string> {
@@ -270,109 +147,22 @@ export async function readMultipleFiles(
   );
 }
 
-// ─── DEPLOY STATUS (Vercel API) ────────────────────
-
-export async function getDeploymentStatus(): Promise<{
-  status: string;
-  url: string;
-  createdAt: string;
-  buildDuration: number;
-  error?: string;
-}> {
-  // Use Vercel API if token available, otherwise check via GitHub
-  const vercelToken = process.env.VERCEL_TOKEN;
-  const projectId = process.env.VERCEL_PROJECT_ID;
-
-  if (vercelToken && projectId) {
-    try {
-      const res = await fetch(`https://api.vercel.com/v6/deployments?projectId=${projectId}&limit=1`, {
-        headers: { Authorization: `Bearer ${vercelToken}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const deploy = data.deployments?.[0];
-        if (deploy) {
-          return {
-            status: deploy.state ?? deploy.readyState ?? "unknown",
-            url: deploy.url ? `https://${deploy.url}` : "",
-            createdAt: deploy.created ? new Date(deploy.created).toISOString() : "",
-            buildDuration: deploy.buildingAt && deploy.ready
-              ? Math.round((deploy.ready - deploy.buildingAt) / 1000)
-              : 0,
-            error: deploy.state === "ERROR" ? "Build failed" : undefined,
-          };
-        }
-      }
-    } catch { /* fall through */ }
-  }
-
-  // Fallback: check latest commit status via GitHub
-  try {
-    const commits = await getRecentCommits("statenour-os", "codex/ollama-local", 1);
-    return {
-      status: "unknown (no Vercel token — check dashboard)",
-      url: "https://bdnick.info",
-      createdAt: commits[0]?.date ?? "",
-      buildDuration: 0,
-    };
-  } catch {
-    return { status: "unknown", url: "", createdAt: "", buildDuration: 0 };
-  }
-}
-
-// ─── MERGE BRANCH ──────────────────────────────────
-
-export async function mergeBranch(
-  repo: string,
-  head: string,
-  base: string,
-  commitMessage?: string
-): Promise<{ sha: string; merged: boolean }> {
-  try {
-    const data = await ghFetch<{ sha: string }>(`/repos/${OWNER}/${repo}/merges`, {
-      method: "POST",
-      body: JSON.stringify({
-        base,
-        head,
-        commit_message: commitMessage ?? `Merge ${head} into ${base}`,
-      }),
-    });
-    return { sha: data.sha, merged: true };
-  } catch (e) {
-    return { sha: "", merged: false };
-  }
-}
-
-// ─── DELETE BRANCH ─────────────────────────────────
-
-export async function deleteBranch(repo: string, branch: string): Promise<boolean> {
-  try {
-    await ghFetch(`/repos/${OWNER}/${repo}/git/refs/heads/${encodeURIComponent(branch)}`, {
-      method: "DELETE",
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 // ─── REPO CONSTANTS ────────────────────────────────
 
 export const REPO_CONFIG = {
   statenour: {
-    name: "statenour-os",
-    branch: "codex/ollama-local",
+    name: "MAINnicks-tire-autoNEW",
+    branch: "main",
     stack: "Next.js 16, TypeScript, Prisma, Neon PostgreSQL, Tailwind 4",
     keyPaths: {
-      tools: "lib/ai/tools.ts",
-      systemPrompt: "lib/ai/system-prompt.ts",
-      provider: "lib/ai/provider.ts",
-      schema: "prisma/schema.prisma",
-      brain: "lib/brain/",
-      services: "lib/services/",
-      api: "app/api/",
-      pages: "app/(mastery)/",
+      tools: "apps/statenour/lib/ai/tools/",
+      systemPrompt: "apps/statenour/lib/ai/system-prompt.ts",
+      provider: "apps/statenour/lib/ai/provider.ts",
+      schema: "apps/statenour/prisma/schema.prisma",
+      brain: "apps/statenour/lib/brain/",
+      services: "apps/statenour/lib/services/",
+      api: "apps/statenour/app/api/",
+      pages: "apps/statenour/app/(mastery)/",
     },
   },
   nickstire: {

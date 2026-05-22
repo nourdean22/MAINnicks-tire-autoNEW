@@ -168,13 +168,8 @@ export const TOOL_FAMILIES: Readonly<Record<string, ToolMetadata>> = {
   githubSearchCode: { family: "integration-github", description: "Search code across a repo", mutates: false, cost: "medium" },
   githubRecentCommits: { family: "integration-github", description: "Recent commits", mutates: false, cost: "cheap" },
   githubListRepos: { family: "integration-github", description: "List repos owned by user", mutates: false, cost: "cheap" },
-  githubWriteFile: { family: "integration-github", description: "Write a file to a branch", mutates: true, cost: "medium" },
-  githubCommitMultiple: { family: "integration-github", description: "Commit multiple files", mutates: true, cost: "medium" },
-  githubSafeCommit: { family: "integration-github", description: "Commit with safety checks", mutates: true, cost: "medium" },
   githubCreatePR: { family: "integration-github", description: "Open a pull request", mutates: true, cost: "medium" },
   githubCreateIssue: { family: "integration-github", description: "Open an issue", mutates: true, cost: "cheap" },
-  githubDeploy: { family: "integration-github", description: "Trigger a deploy workflow", mutates: true, cost: "cheap" },
-  checkDeployStatus: { family: "integration-github", description: "Check deploy/CI status", mutates: false, cost: "cheap" },
   getRepoMap: { family: "integration-github", description: "Map a repo's top-level structure", mutates: false, cost: "medium" },
 
   // ── Integration · Drive ──

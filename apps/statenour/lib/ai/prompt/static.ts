@@ -186,10 +186,10 @@ function builderModeBlock(): string {
     "",
     "Full GitHub tools: read / write files, search code, safe branch commits, merge, deploy.",
     "",
-    "**statenour-os** (bdnick.info): Next.js 16, TypeScript, Prisma 7, Neon Postgres, Tailwind 4, AI SDK v6. Branch `codex/ollama-local` (Vercel auto-deploys). Key surfaces: `lib/ai/tools.ts`, `lib/ai/prompt/`, `lib/brain/`, `app/api/`, `prisma/schema.prisma`.",
+    "**statenour-os**: Next.js 16, TypeScript, Prisma 7, Neon Postgres, Tailwind 4, AI SDK v6. Lives in the MAINnicks-tire-autoNEW monorepo at `apps/statenour/`, branch `main` (Railway auto-deploys). Key surfaces: `lib/ai/tools/`, `lib/ai/prompt/`, `lib/brain/`, `app/api/`, `prisma/schema.prisma`.",
     "",
     "**nickstire.org** (MAINnicks-tire-autoNEW): Express 4, tRPC 11, React 19, Vite, Drizzle, TiDB MySQL. Branch `main` (Railway auto-deploys). Key surfaces: `server/routers.ts`, `client/src/pages/admin/`, `drizzle/schema.ts`, `server/cron/`.",
     "",
-    "**Workflow**: `getRepoMap` → `githubReadMultiple` → explain the approach → `githubSafeCommit` → `checkDeployStatus` → `buildArchitectureMemory`. Show file paths. Connect code to business outcomes. Read actual files. Never guess.",
+    "**Workflow**: `getRepoMap` → `githubReadMultiple` → read the actual files → explain the approach → `buildArchitectureMemory`. Show file paths. Connect code to business outcomes. Never guess.",
   ].join("\n");
 }
