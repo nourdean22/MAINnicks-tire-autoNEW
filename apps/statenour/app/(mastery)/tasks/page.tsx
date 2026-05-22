@@ -368,13 +368,22 @@ function TasksPageInner() {
           goalId: filterGoalId ?? undefined,
           missionId: filterMissionId ?? undefined,
         })
-        .catch(() => [] as Task[]);
+        .catch((err: unknown) => {
+          reportClientError(err, { source: "tasks.load.tasks" });
+          return [] as Task[];
+        });
       const missionsPromise: Promise<unknown> = utils.task.missions
         .fetch()
-        .catch(() => [] as Project[]);
+        .catch((err: unknown) => {
+          reportClientError(err, { source: "tasks.load.missions" });
+          return [] as Project[];
+        });
       const goalsPromise: Promise<unknown> = utils.task.goals
         .fetch()
-        .catch(() => ({ goals: [] as GoalCacheEntry[] }));
+        .catch((err: unknown) => {
+          reportClientError(err, { source: "tasks.load.goals" });
+          return { goals: [] as GoalCacheEntry[] };
+        });
       const [tasksRaw, missionsRaw, goalsRaw] = await Promise.all([
         tasksPromise,
         missionsPromise,
@@ -596,7 +605,6 @@ function TasksPageInner() {
       const created = await createMissionMutation
         .mutateAsync({
           title: "Inbox",
-          description: "Quick tasks",
           status: "ACTIVE",
         })
         .catch((): unknown => null);
@@ -971,15 +979,25 @@ function TasksPageInner() {
       // Phase SS.1 · adoptAi migrated to createTaskMutation alongside
       // the quick-add path. Same defaults (effort/roiScore/finishCondition)
       // ride through `createTaskFromAPI` server-side.
-      await createTaskMutation.mutateAsync({
+      const created = (await createTaskMutation.mutateAsync({
         title: t.title,
         missionId: mId,
         nextPhysicalAction: t.nextAction || t.title,
         effort: t.priority === "critical" ? "H1" : "M30",
-        roiScore: t.priority === "critical" ? 90 : 50,
+        // roiScore stays at the 50 sentinel so scoreTaskWithAI grades
+        // it — same as the quick-add path. The suggestion's `priority`
+        // still drives effort above; a real 0-100 AI grade beats the
+        // old blind 90/50 hardcode the !== 50 skip-guard locked out.
+        roiScore: 50,
         finishCondition: t.title,
-      });
+      })) as { id?: string; task?: { id?: string } } | null;
       setAiTasks((p) => p.filter((x) => x.title !== t.title));
+      const newId = created?.task?.id ?? created?.id ?? null;
+      if (newId) {
+        void scoreMutation.mutateAsync({ id: newId }).catch(() => {
+          /* non-fatal · AI grading is best-effort */
+        });
+      }
       toast.success("Added");
       load();
     } catch (err) {
