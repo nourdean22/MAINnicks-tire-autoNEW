@@ -54,36 +54,8 @@ import { toast } from "sonner";
 import { PencilLine, X as XIcon, Sparkles, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-
-interface DueRow {
-  id: string;
-  key: string;
-  text: string;
-  metadata: Record<string, unknown> | null;
-  queuedAt: string;
-}
-interface RecentRow {
-  id: string;
-  decisionId: number | null;
-  title: string;
-  choiceMade: string;
-  outcome: string | null;
-  outcomeScore: number | null;
-  lesson: string | null;
-  reviewedAt: string | null;
-  ageDays: number | null;
-}
-interface ApiShape {
-  due?: {
-    unconsumedCount?: number;
-    unconsumed?: DueRow[];
-    consumedTodayCount?: number;
-  };
-  recent?: RecentRow[];
-}
 
 const TOP_N = 3;
 const PREVIEW_CHARS = 90;
@@ -118,10 +90,20 @@ function trimText(s: string | null | undefined, n = PREVIEW_CHARS): string {
 }
 
 export function DecisionReplayCard() {
-  const raw = useUltronFetch<ApiShape>("/api/system/decision-replays", {
-    ttlMs: 300_000,
-    pollMs: 300_000,
+  // Phase B.6c (2026-05-22) · migrated off `useUltronFetch("/api/system/
+  // decision-replays")` + two `authedFetch` POSTs to the `/mark` route
+  // onto `trpc.system.decisionReplays` (reactive read · 5-min
+  // refetchInterval) + `trpc.system.markDecisionReplay` (mutation). The
+  // mark endpoint is dual-mode: the inline lesson form sends a full
+  // body, the tap-to-chat row click fires it with no `outcome` (the
+  // legacy empty-body mark). The procedure returns the result object
+  // directly · the `id` path param now rides in the input object.
+  const replays = trpc.system.decisionReplays.useQuery(undefined, {
+    refetchInterval: 300_000,
+    staleTime: 300_000,
   });
+  const utils = trpc.useUtils();
+  const markMutation = trpc.system.markDecisionReplay.useMutation();
 
   // v529.27 · per-row lesson-form state. Only one row's form is open
   // at a time · clicking a different row's toggle closes the previous
@@ -157,49 +139,35 @@ export function DecisionReplayCard() {
       setSubmitting(true);
       const toastId = toast.loading("logging lesson…");
       try {
-        const body: Record<string, unknown> = { outcome: trimmedOutcome };
-        if (score !== null) body.outcomeScore = SCORE_VALUES[score];
         const trimmedLesson = lesson.trim();
-        if (trimmedLesson.length > 0) body.lesson = trimmedLesson;
-
-        const res = await authedFetch(
-          `/api/system/decision-replays/${encodeURIComponent(rowId)}/mark`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        if (!res.ok) {
-          toast.error("save failed", { id: toastId });
-          return;
-        }
-        const json = (await res.json()) as {
-          data?: { replayWritten?: boolean; lessonStored?: boolean };
-          replayWritten?: boolean;
-          lessonStored?: boolean;
-        };
-        const replayWritten = json.data?.replayWritten ?? json.replayWritten ?? false;
+        const result = await markMutation.mutateAsync({
+          id: rowId,
+          outcome: trimmedOutcome,
+          ...(score !== null ? { outcomeScore: SCORE_VALUES[score] } : {}),
+          ...(trimmedLesson.length > 0 ? { lesson: trimmedLesson } : {}),
+        });
         toast.success(
-          replayWritten ? "lesson logged · brain memory updated" : "marked consumed",
+          result.replayWritten
+            ? "lesson logged · brain memory updated"
+            : "marked consumed",
           { id: toastId },
         );
         closeForm();
-        raw.refetch();
+        await utils.system.decisionReplays.invalidate();
       } catch {
         toast.error("save failed", { id: toastId });
       } finally {
         setSubmitting(false);
       }
     },
-    [outcome, score, lesson, closeForm, raw],
+    [outcome, score, lesson, closeForm, markMutation, utils],
   );
 
-  if (raw.loading && raw.data === null) {
+  if (replays.isLoading && !replays.data) {
     return <ShimmerSkeleton variant="card" className="min-h-[96px]" />;
   }
 
-  const data = raw.data;
+  const data = replays.data;
   const due = data?.due?.unconsumed ?? [];
   const consumedTodayCount = data?.due?.consumedTodayCount ?? 0;
   const recent = data?.recent ?? [];
@@ -239,15 +207,14 @@ export function DecisionReplayCard() {
             const promptPreview = trimText(row.text, PREVIEW_CHARS);
             // v10.0.529.7 · tap-to-act · row click goes to /chat with the
             // replay seeded into the composer. Fire-and-forget the mark
-            // POST so the row drops from this tile without waiting for
-            // the next 5-min poll. refetch() forces an immediate refresh.
+            // mutation (empty-body mode · no `outcome` → consumedAt-only)
+            // so the row drops from this tile without waiting for the
+            // next 5-min poll. The invalidate forces an immediate refresh.
             const handleMarkConsumed = () => {
-              authedFetch(
-                `/api/system/decision-replays/${encodeURIComponent(row.id)}/mark`,
-                { method: "POST" },
-              )
+              markMutation
+                .mutateAsync({ id: row.id })
                 .then(() => {
-                  raw.refetch();
+                  void utils.system.decisionReplays.invalidate();
                 })
                 .catch(() => {
                   // best-effort · the queue will reconcile on next poll

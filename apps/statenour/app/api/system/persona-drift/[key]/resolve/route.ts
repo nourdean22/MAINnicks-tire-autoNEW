@@ -14,16 +14,11 @@
 
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
-import { z } from "zod";
-import {
-  resolveDriftEvent,
-  type DriftResolution,
-} from "@/lib/brain/persona-drift-detector";
-
-const bodySchema = z.object({
-  resolution: z.enum(["dismiss", "snooze", "acknowledge"]),
-  note: z.string().max(200).optional(),
-});
+// Phase B.6c · the resolve wrapper moved to a shared service + the body
+// schema is the SHARED validator the tRPC `system.resolvePersonaDrift`
+// procedure also imports · drift impossible.
+import { resolvePersonaDrift } from "@/lib/services/persona-drift";
+import { personaDriftResolveSchema } from "@/lib/validators/system";
 
 export const POST = apiHandler(
   async (req, ctx) => {
@@ -33,10 +28,10 @@ export const POST = apiHandler(
       throw new ServiceError("key required", 400);
     }
 
-    let body: z.infer<typeof bodySchema>;
+    let body: import("@/lib/validators/system").PersonaDriftResolveInput;
     try {
       const json = await req.json();
-      const parsed = bodySchema.safeParse(json);
+      const parsed = personaDriftResolveSchema.safeParse(json);
       if (!parsed.success) throw new ServiceError("invalid_body", 400);
       body = parsed.data;
     } catch (err) {
@@ -44,14 +39,13 @@ export const POST = apiHandler(
       throw new ServiceError("invalid_json", 400);
     }
 
-    const result = await resolveDriftEvent(
+    // `resolvePersonaDrift` throws ServiceError(404) on a missing key —
+    // apiHandler maps it to the 404 response.
+    return resolvePersonaDrift({
       key,
-      body.resolution as DriftResolution,
-      body.note?.trim() || undefined,
-    );
-    if (!result.ok) throw new ServiceError("not_found", 404);
-
-    return { ok: true, key, resolution: body.resolution };
+      resolution: body.resolution,
+      note: body.note,
+    });
   },
   { auth: "owner" },
 );

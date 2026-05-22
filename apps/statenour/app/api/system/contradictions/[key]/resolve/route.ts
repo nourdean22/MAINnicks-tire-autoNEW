@@ -29,20 +29,11 @@
 
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
-import { z } from "zod";
-import { logger as rootLogger } from "@/lib/logger";
-import { resolveContradiction } from "@/lib/brain/contradiction-surfacer";
-
-const log = rootLogger.withSurface("system/contradictions/resolve");
-
-// Strict on `status` · the four values exactly match the
-// `ContradictionStatus` union (minus "unresolved" which would be a
-// no-op resolve). Note is optional + tight cap · 200 chars covers
-// "the SMB pivot was right" / "context-dependent" type explanations.
-const resolveSchema = z.object({
-  status: z.enum(["current_wins", "old_wins", "both_valid", "dismissed"]),
-  note: z.string().max(200).optional(),
-});
+// Phase B.6c · the resolve wrapper moved to a shared service + the body
+// schema is the SHARED validator the tRPC `system.resolveContradiction`
+// procedure also imports · drift impossible.
+import { resolveContradictionEntry } from "@/lib/services/contradictions";
+import { contradictionResolveSchema } from "@/lib/validators/system";
 
 export const POST = apiHandler(
   async (req, ctx) => {
@@ -52,14 +43,14 @@ export const POST = apiHandler(
       throw new ServiceError("key required", 400);
     }
 
-    let body: z.infer<typeof resolveSchema>;
+    let body: import("@/lib/validators/system").ContradictionResolveInput;
     try {
       const text = await req.text();
       if (text.trim().length === 0) {
         throw new ServiceError("body required", 400);
       }
       const json = JSON.parse(text);
-      const parsed = resolveSchema.safeParse(json);
+      const parsed = contradictionResolveSchema.safeParse(json);
       if (!parsed.success) {
         throw new ServiceError("invalid_body", 400);
       }
@@ -69,32 +60,13 @@ export const POST = apiHandler(
       throw new ServiceError("invalid_json_body", 400);
     }
 
-    const trimmedNote = body.note?.trim() || undefined;
-
-    const result = await resolveContradiction(key, body.status, trimmedNote);
-    if (!result) {
-      // resolveContradiction returns null when:
-      //   · the row doesn't exist (404 territory)
-      //   · the content JSON parse failed (data corruption · 500 territory)
-      // We can't cheaply distinguish the two without re-reading the row
-      // here · return 404 since "row not found" is the dominant case ·
-      // log so /system/errors can surface the rarer corruption mode.
-      log.warn("resolve_returned_null", { key, status: body.status });
-      throw new ServiceError("not_found", 404);
-    }
-
-    log.info("contradiction_resolved", {
+    // `resolveContradictionEntry` throws ServiceError(404) when the row
+    // is missing or its content JSON is corrupt — apiHandler maps it.
+    return resolveContradictionEntry({
       key,
       status: body.status,
-      hasNote: !!trimmedNote,
+      note: body.note,
     });
-
-    return {
-      ok: true,
-      key,
-      status: body.status,
-      resolvedAt: result.resolved_at,
-    };
   },
   { auth: "owner" },
 );

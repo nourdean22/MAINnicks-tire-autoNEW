@@ -30,23 +30,12 @@
 
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
-import { prisma } from "@/lib/prisma";
-import { logger as rootLogger } from "@/lib/logger";
-import { z } from "zod";
-import { markReplayed } from "@/lib/services/decision-replay-coach";
-
-const log = rootLogger.withSurface("system/decision-replays/mark");
-
-// v529.27 · optional body schema · the route is backward-compatible
-// with empty bodies (legacy mark-as-consumed flow) AND with bodies
-// carrying the inline-lesson form payload. Limits are tight on
-// purpose · these get embedded into a BrainMemory.content + a
-// DecisionReplay.lesson column · not user-facing prose surfaces.
-const lessonBodySchema = z.object({
-  outcome: z.string().min(1).max(500),
-  outcomeScore: z.number().int().min(-5).max(5).optional(),
-  lesson: z.string().max(800).optional(),
-});
+// Phase B.6c · the dual-mode mark logic moved to a shared service so
+// the legacy REST route AND the tRPC `system.markDecisionReplay`
+// procedure call the same function · drift impossible. The body schema
+// is the SHARED validator the tRPC procedure also imports.
+import { markDecisionReplay } from "@/lib/services/decision-replays";
+import { decisionReplayMarkSchema } from "@/lib/validators/system";
 
 export const POST = apiHandler(
   async (req, ctx) => {
@@ -56,138 +45,40 @@ export const POST = apiHandler(
       throw new ServiceError("id required", 400);
     }
 
-    // Read the row to confirm it's in the right category + capture the
-    // existing metadata so we don't blow away other fields (e.g. the
-    // wisdom citation the cron stamped).
-    const row = await prisma.brainMemory.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        category: true,
-        metadata: true,
-      },
-    });
-
-    if (!row) {
-      throw new ServiceError("not_found", 404);
-    }
-    if (row.category !== "decision_replay_due") {
-      // Defense-in-depth · the auth gate already restricts to operator
-      // but this guards against accidental updates against the wrong
-      // BrainMemory row (e.g. operator pastes a chat-message id).
-      throw new ServiceError("wrong_category", 400);
-    }
-
-    // v529.27 · best-effort body parse. We accept:
+    // Best-effort body parse · the route is backward-compatible with:
     //   · no body                → legacy consumedAt-only flow
     //   · valid lesson body      → mark + markReplayed dual write
     //   · invalid lesson body    → 400 (be strict when something IS sent
     //                              so silent malformed posts don't drop
     //                              the lesson on the floor)
-    let lesson: z.infer<typeof lessonBodySchema> | null = null;
+    let body: import("@/lib/validators/system").DecisionReplayMarkInput = {};
     let bodyWasSent = false;
     try {
       const text = await req.text();
       if (text.trim().length > 0) {
         bodyWasSent = true;
         const parsedJson = JSON.parse(text);
-        const parsed = lessonBodySchema.safeParse(parsedJson);
+        const parsed = decisionReplayMarkSchema.safeParse(parsedJson);
         if (!parsed.success) {
-          throw new ServiceError(
-            "invalid_lesson_body",
-            400,
-          );
+          throw new ServiceError("invalid_lesson_body", 400);
         }
-        lesson = parsed.data;
+        body = parsed.data;
       }
     } catch (err) {
       if (err instanceof ServiceError) throw err;
-      // JSON.parse failure on a non-empty body = malformed client.
-      // Don't silently drop the operator's lesson capture.
       if (bodyWasSent) {
         throw new ServiceError("invalid_json_body", 400);
       }
     }
 
-    const nowIso = new Date().toISOString();
-    const prevMeta = (row.metadata as Record<string, unknown> | null) ?? {};
-    const consumedVia = lesson ? "ultron-form" : "ultron-tile";
-    const nextMeta = {
-      ...prevMeta,
-      consumedAt: nowIso,
-      consumedVia,
-    };
-
-    try {
-      await prisma.brainMemory.update({
-        where: { id },
-        data: { metadata: nextMeta },
-      });
-    } catch (err) {
-      log.error("mark_failed", {
-        id,
-        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-      });
-      throw new ServiceError("update_failed", 500);
-    }
-
-    // v529.27 · write the DecisionReplay outcome row when the inline
-    // form supplied a lesson. The cron stamps decisionId into
-    // metadata; without it we can't link back to the MasteryDecision
-    // so we degrade to legacy-only mode + log so /system/errors can
-    // surface the data-shape regression.
-    let replayWritten = false;
-    let lessonStored = false;
-    if (lesson) {
-      const decisionIdRaw = prevMeta?.decisionId;
-      const decisionId =
-        typeof decisionIdRaw === "number"
-          ? decisionIdRaw
-          : typeof decisionIdRaw === "string"
-            ? Number(decisionIdRaw)
-            : null;
-      if (decisionId !== null && Number.isFinite(decisionId)) {
-        try {
-          const result = await markReplayed({
-            decisionId,
-            outcome: lesson.outcome,
-            outcomeScore: lesson.outcomeScore,
-            lesson: lesson.lesson,
-          });
-          replayWritten = result.ok;
-          lessonStored = result.lessonStored;
-          if (!result.ok) {
-            log.warn("mark_replay_write_failed", {
-              id,
-              decisionId,
-            });
-          }
-        } catch (err) {
-          log.warn("mark_replay_threw", {
-            id,
-            decisionId,
-            err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-          });
-        }
-      } else {
-        log.warn("mark_lesson_missing_decisionid", { id, prevMetaKeys: Object.keys(prevMeta) });
-      }
-    }
-
-    log.info("decision_replay_marked", {
+    // `markDecisionReplay` throws ServiceError(404 / 400 / 500) on a
+    // missing row / wrong category / failed update — apiHandler maps it.
+    return markDecisionReplay({
       id,
-      consumedVia,
-      replayWritten,
-      lessonStored,
+      outcome: body.outcome,
+      outcomeScore: body.outcomeScore,
+      lesson: body.lesson,
     });
-
-    return {
-      ok: true,
-      id,
-      consumedAt: nowIso,
-      replayWritten,
-      lessonStored,
-    };
   },
   { auth: "owner" },
 );

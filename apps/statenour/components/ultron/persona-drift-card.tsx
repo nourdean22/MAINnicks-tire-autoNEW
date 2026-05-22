@@ -39,26 +39,8 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-
-interface DriftRow {
-  key: string;
-  messageId: string;
-  conversationId: string;
-  similarity: number;
-  drift: number;
-  excerpt: string;
-  detectedAt: string;
-  personaSnapshotAt: string;
-  createdAt: string;
-}
-
-interface ApiShape {
-  items?: DriftRow[];
-  summary?: { total: number; strongest: number | null };
-}
 
 type Resolution = "acknowledge" | "snooze" | "dismiss";
 
@@ -101,10 +83,18 @@ function daysAgo(iso: string): number | null {
 }
 
 export function PersonaDriftCard() {
-  const raw = useUltronFetch<ApiShape>("/api/system/persona-drift", {
-    ttlMs: 300_000,
-    pollMs: 300_000,
+  // Phase B.6c (2026-05-22) · migrated off `useUltronFetch("/api/system/
+  // persona-drift")` + an `authedFetch` POST onto `trpc.system.personaDrift`
+  // (reactive read · 5-min refetchInterval) + `trpc.system.resolvePersonaDrift`
+  // (mutation). The procedure returns `{ items, summary }` directly ·
+  // the legacy envelope unwrap is gone. The `key` path param now rides
+  // in the mutation input object (tRPC has no path).
+  const drift = trpc.system.personaDrift.useQuery(undefined, {
+    refetchInterval: 300_000,
+    staleTime: 300_000,
   });
+  const utils = trpc.useUtils();
+  const resolveMutation = trpc.system.resolvePersonaDrift.useMutation();
 
   const [submittingKey, setSubmittingKey] = useState<string | null>(null);
 
@@ -113,18 +103,7 @@ export function PersonaDriftCard() {
       setSubmittingKey(key);
       const toastId = toast.loading(`${resolution}…`);
       try {
-        const res = await authedFetch(
-          `/api/system/persona-drift/${encodeURIComponent(key)}/resolve`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ resolution }),
-          },
-        );
-        if (!res.ok) {
-          toast.error("resolve failed", { id: toastId });
-          return;
-        }
+        await resolveMutation.mutateAsync({ key, resolution });
         toast.success(
           resolution === "dismiss"
             ? "dismissed · false positive logged"
@@ -133,26 +112,26 @@ export function PersonaDriftCard() {
               : "noted · row stays visible",
           { id: toastId },
         );
-        raw.refetch();
+        await utils.system.personaDrift.invalidate();
       } catch {
         toast.error("resolve failed", { id: toastId });
       } finally {
         setSubmittingKey(null);
       }
     },
-    [raw],
+    [resolveMutation, utils],
   );
 
-  if (raw.loading && raw.data === null) {
+  if (drift.isLoading && !drift.data) {
     return <ShimmerSkeleton variant="card" className="min-h-[96px]" />;
   }
 
-  const items = raw.data?.items ?? [];
+  const items = drift.data?.items ?? [];
   if (items.length === 0) return null;
 
   const shown = items.slice(0, TOP_N);
   const more = Math.max(0, items.length - TOP_N);
-  const strongest = raw.data?.summary?.strongest ?? items[0].drift;
+  const strongest = drift.data?.summary?.strongest ?? items[0].drift;
 
   return (
     <GlassCard

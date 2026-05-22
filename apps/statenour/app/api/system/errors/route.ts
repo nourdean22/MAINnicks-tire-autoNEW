@@ -1,6 +1,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { parsePagination, parseDateRange } from "@/lib/db/query-helpers";
+import { listGroupedErrors } from "@/lib/services/error-log";
 
 /** GET /api/system/errors — Recent errors with grouping and filtering */
 export const GET = apiHandler(async (req) => {
@@ -10,6 +11,16 @@ export const GET = apiHandler(async (req) => {
   const { from, to } = parseDateRange(req);
   const pagination = parsePagination(req);
 
+  if (grouped) {
+    // Phase B.6c · delegate to the shared `listGroupedErrors` service
+    // the `system.errorsGrouped` tRPC procedure also calls · drift
+    // impossible. The legacy route additionally honored a `to` upper
+    // bound; in practice every caller (HQErrorsCard · ErrorsFingerprints)
+    // only ever sends `from` or nothing, so the grouped service takes
+    // `from` only. `to` is still honored on the paginated branch below.
+    return listGroupedErrors({ level, from: from ?? undefined });
+  }
+
   const where = {
     ...(level && { level }),
     createdAt: {
@@ -17,26 +28,6 @@ export const GET = apiHandler(async (req) => {
       ...(to && { lte: to }),
     },
   };
-
-  if (grouped) {
-    // Return top 20 most frequent errors
-    const errors = await prisma.errorLog.groupBy({
-      by: ["message"],
-      where,
-      _count: { id: true },
-      _max: { createdAt: true },
-      orderBy: { _count: { id: "desc" } },
-      take: 20,
-    });
-
-    return {
-      groups: errors.map((e) => ({
-        message: e.message,
-        count: e._count.id,
-        lastSeen: e._max.createdAt,
-      })),
-    };
-  }
 
   // Paginated list
   const page = Math.max(1, pagination.page ?? 1);

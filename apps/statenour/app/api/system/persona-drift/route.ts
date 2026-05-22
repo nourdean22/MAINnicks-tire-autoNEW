@@ -10,28 +10,14 @@
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import { loadActiveDrifts } from "@/lib/brain/persona-drift-detector";
+// Phase B.6c · the read assembly moved to a shared service so the
+// legacy REST route AND the tRPC `system.personaDrift` procedure call
+// the same function · drift impossible.
+import { listPersonaDrifts } from "@/lib/services/persona-drift";
 
 export const GET = apiHandler(
   async () => {
-    const items = await loadActiveDrifts(7);
-    return {
-      items: items.map((d) => ({
-        key: d.key,
-        messageId: d.message_id,
-        conversationId: d.conversation_id,
-        similarity: d.similarity,
-        drift: d.drift,
-        excerpt: d.excerpt,
-        detectedAt: d.detected_at,
-        personaSnapshotAt: d.persona_snapshot_at,
-        createdAt: d.createdAt,
-      })),
-      summary: {
-        total: items.length,
-        strongest: items[0]?.drift ?? null,
-      },
-    };
+    return listPersonaDrifts();
   },
   { auth: "owner" },
 );
