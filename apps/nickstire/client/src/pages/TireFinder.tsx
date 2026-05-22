@@ -928,7 +928,15 @@ export default function TireFinder() {
       <div className="min-h-screen bg-background text-foreground">
 
       {/* ─── HERO ─── */}
-      <section className="pt-8 pb-12 sm:pt-12 sm:pb-16">
+      {/* pt bumped from pt-8 to pt-24 (and sm:pt-12 to sm:pt-28) so the
+          eyebrow ("CLEVELAND TIRE SHOP · ...") clears the fixed navbar's
+          brand-mark when the closed-banner is active. On mobile the
+          banner pushes the nav to top-[56px]; the brand-mark inside the
+          nav reached the lower edge of the eyebrow's first character
+          ("C") in the rendered layout. +64px (mobile) / +64px (sm) of
+          additional top padding solves it without disrupting the
+          centered-text layout. Direct mobile-viewport audit found it. */}
+      <section className="pt-24 pb-12 sm:pt-28 sm:pb-16">
         <div className="container max-w-3xl mx-auto text-center">
           {/* wave-146 — was initial={{opacity:0,y:20}} which hid the H1
               until JS hydrated, delaying measured LCP. Hero H1 is the
