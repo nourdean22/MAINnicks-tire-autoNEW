@@ -278,7 +278,7 @@ export default function SiteFooter() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group flex flex-col items-center text-center px-2 py-3 rounded-lg border border-[#1F1F1F] hover:border-[#FDB913]/30 hover:bg-[#FDB913]/[0.02] transition-all"
-                aria-label={`4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews`}
+                aria-label={`4.9★ · ${BUSINESS.reviews.countDisplay} Google reviews`}
               >
                 <div className="flex items-center gap-1 mb-1.5 text-[#FDB913]">
                   <Star className="w-3.5 h-3.5 fill-[#FDB913]" />

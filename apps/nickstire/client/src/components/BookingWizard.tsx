@@ -93,7 +93,7 @@ export default function BookingWizard(props: BookingWizardProps = {}) {
             <a
               href={BUSINESS.phone.href}
               onClick={() => trackPhoneClick(source)}
-              aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.dashed}`}
+              aria-label={`Call ${BUSINESS.name} at ${BUSINESS.phone.display}`}
               className="flex items-center justify-center gap-2 px-6 py-4 font-bold rounded-lg cta-depth transition-transform active:scale-[0.98]"
               style={{
                 background:
