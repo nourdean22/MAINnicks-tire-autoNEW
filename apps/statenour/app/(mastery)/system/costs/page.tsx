@@ -31,7 +31,7 @@
  * Auth: session cookie. Refresh: 30s.
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -39,7 +39,12 @@ import { cn } from "@/lib/utils/cn";
 import { AlertCircle, Activity, Zap, Image as ImageIcon, Server, Wrench, Gauge, Target, BarChart3 } from "lucide-react";
 import { Sparkline } from "@/components/ui/sparkline";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.costs.useQuery`. React Query
+// keys on `{ days }` so switching the window refetches · 30s
+// `refetchInterval` replaces the prior setInterval poll.
+import { trpc } from "@/lib/trpc/client";
+
 interface ProviderHealth {
   name: "venice" | "ollama" | "openai" | "anthropic" | "emergency";
   configured: boolean;
@@ -142,31 +147,20 @@ function providerTone(p: ProviderHealth): string {
 }
 
 export default function SystemCostsPage() {
-  const [data, setData] = useState<CostsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(7);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(`/api/system/costs?days=${days}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as CostsResponse;
-      setData(json);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [days]);
-
-  useEffect(() => {
-    void load();
-    const i = setInterval(load, 30_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7a · React Query keys on `{ days }` · switching the window
+  // refetches automatically. 30s refetchInterval mirrors the prior
+  // setInterval poll.
+  const costsQuery = trpc.system.costs.useQuery(
+    { days },
+    { refetchInterval: 30_000 },
+  );
+  const data: CostsResponse | null =
+    (costsQuery.data as unknown as CostsResponse | undefined) ?? null;
+  const loading = costsQuery.isPending || costsQuery.isFetching;
+  const error = costsQuery.error ? costsQuery.error.message : null;
+  const load = () => void costsQuery.refetch();
 
   const burnRate = useMemo(() => {
     if (!data) return null;

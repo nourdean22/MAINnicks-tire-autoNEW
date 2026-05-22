@@ -15,11 +15,15 @@
  * Linked from /system/agent-traces (chain rows are clickable).
  */
 
-import { useEffect, useState, useCallback, use } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is now `trpc.system.agentTraceDetail.useQuery`. An
+// unknown traceId surfaces as a NOT_FOUND tRPC error, mapped to the
+// same "stale link" message the prior 404 branch showed.
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   Brain,
@@ -89,33 +93,20 @@ export default function TraceDetailPage({
   params: Promise<{ traceId: string }>;
 }) {
   const { traceId } = use(params);
-  const [data, setData] = useState<DetailPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch(`/api/system/agent-traces/${traceId}`);
-      if (!r.ok) {
-        if (r.status === 404) {
-          throw new Error("trace not found · stale or never persisted");
-        }
-        throw new Error(`HTTP ${r.status}`);
-      }
-      const json = (await r.json()) as { data: DetailPayload };
-      setData(json.data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [traceId]);
-
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Phase B.7a · the single read is now a typed useQuery. A NOT_FOUND
+  // error (the procedure maps a missing trace's ServiceError(404) →
+  // NOT_FOUND) surfaces the same "stale link" copy the prior 404
+  // branch showed.
+  const detailQuery = trpc.system.agentTraceDetail.useQuery({ traceId });
+  const data: DetailPayload | null =
+    (detailQuery.data as DetailPayload | undefined) ?? null;
+  const loading = detailQuery.isPending || detailQuery.isFetching;
+  const error = detailQuery.error
+    ? detailQuery.error.data?.code === "NOT_FOUND"
+      ? "trace not found · stale or never persisted"
+      : detailQuery.error.message
+    : null;
 
   return (
     <div className="space-y-4">

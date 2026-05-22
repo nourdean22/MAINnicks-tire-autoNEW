@@ -14,83 +14,23 @@
  *   · which AutomationPolicy authorized the action
  *
  * Owner-gated. 404 when the traceId doesn't resolve.
+ *
+ * Phase B.7a (2026-05-22) · the chain + envelope assembly moved to the
+ * shared `system-pages.buildAgentTraceDetail` service so the legacy
+ * REST consumer AND the new `system.agentTraceDetail` tRPC procedure
+ * can't drift. This route stays mounted as the coexistence / rollback
+ * path.
  */
 
 import { apiHandler } from "@/lib/utils/http";
-import { getTraceChain } from "@/lib/ai/agent-trace";
-import {
-  extractEnvelope,
-  type ExplanationEnvelope,
-} from "@/lib/automation/envelope";
-import { ServiceError } from "@/lib/utils/service-error";
+import { buildAgentTraceDetail } from "@/lib/services/system-pages";
 
 export const dynamic = "force-dynamic";
 
 export const GET = apiHandler(
   async (_req, { params }) => {
     const { traceId } = await params!;
-    const chain = await getTraceChain(traceId);
-    if (!chain) {
-      throw new ServiceError(`trace "${traceId}" not found`, 404);
-    }
-
-    // Per-row envelope extraction. Rows that pre-date the envelope
-    // contract or stored an incompatible shape return null here —
-    // surfaced as `envelope: null` so the UI can show a "no envelope
-    // available" state instead of failing.
-    const rowsWithEnvelope = chain.children.map((c) => ({
-      ...c,
-      startedAt: c.startedAt.toISOString(),
-      envelope: extractEnvelope(c.metadata),
-    }));
-
-    // Roll up envelopes across the chain so the operator sees a
-    // single consolidated view (union of memories used + facts
-    // assumed + tools called) without having to mentally merge
-    // per-step envelopes.
-    const consolidated: ExplanationEnvelope = {
-      version: 1,
-      policyId:
-        rowsWithEnvelope.find((r) => r.envelope?.policyId != null)?.envelope
-          ?.policyId ?? null,
-      memoriesUsed: dedupeBy(
-        rowsWithEnvelope.flatMap((r) => r.envelope?.memoriesUsed ?? []),
-        (m) => m.id,
-      ),
-      factsAssumed: [
-        ...new Set(rowsWithEnvelope.flatMap((r) => r.envelope?.factsAssumed ?? [])),
-      ],
-      toolsCalled: rowsWithEnvelope.flatMap((r) => r.envelope?.toolsCalled ?? []),
-      reason:
-        rowsWithEnvelope
-          .map((r) => r.envelope?.reason)
-          .filter((x): x is string => !!x)
-          .join(" · ") || null,
-    };
-
-    return {
-      traceId: chain.traceId,
-      startedAt: chain.startedAt.toISOString(),
-      rootLabel: chain.rootLabel,
-      rootSource: chain.rootSource,
-      totalDurationMs: chain.totalDurationMs,
-      totalCostCents: chain.totalCostCents,
-      hasError: chain.hasError,
-      consolidated,
-      rows: rowsWithEnvelope,
-    };
+    return buildAgentTraceDetail(traceId);
   },
   { auth: "owner" },
 );
-
-function dedupeBy<T>(items: T[], keyFn: (t: T) => string): T[] {
-  const seen = new Set<string>();
-  const out: T[] = [];
-  for (const item of items) {
-    const k = keyFn(item);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(item);
-  }
-  return out;
-}

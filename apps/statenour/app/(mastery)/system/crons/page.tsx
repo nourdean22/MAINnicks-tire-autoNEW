@@ -25,7 +25,7 @@
  *   · drift bar turns red when last-run is > 150% of expected gap
  */
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
@@ -37,7 +37,13 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
 import { Stethoscope } from "lucide-react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is `trpc.system.cronDeck.useQuery`; the kill-switch
+// toggle + run-now POSTs are `trpc.system.setCronEnabled` /
+// `trpc.system.runManifestCron` mutations. The 30s poll maps to
+// `refetchInterval`; per-job busy state stays as local Sets.
+import { trpc } from "@/lib/trpc/client";
+
 type CronMode = "active" | "folded" | "retired";
 type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert";
 
@@ -193,8 +199,6 @@ function NextRunCountdown({ iso }: { iso: string }) {
 }
 
 export default function CronsPage() {
-  const [feed, setFeed] = useState<FeedResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<Category | "all">("all");
   const [showFolded, setShowFolded] = useState(false);
   const [pendingRun, setPendingRun] = useState<Set<string>>(new Set());
@@ -202,35 +206,22 @@ export default function CronsPage() {
   // v9.1.26 · removed page-level tick state. The 1s countdown re-render
   // moved to per-row <NextRunCountdown /> leaves so the whole page
   // doesn't re-render every second.
-  const fetchRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async () => {
-    fetchRef.current?.abort();
-    const ac = new AbortController();
-    fetchRef.current = ac;
-    try {
-      const res = await authedFetch("/api/system/crons", { signal: ac.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        console.error("failed to load cron feed", e);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase B.7a · single typed useQuery · 30s refetchInterval mirrors
+  // the prior setInterval poll. React Query handles request
+  // de-duplication so the AbortController the prior code juggled is no
+  // longer needed.
+  const utils = trpc.useUtils();
+  const cronDeckQuery = trpc.system.cronDeck.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const feed: FeedResponse | null =
+    (cronDeckQuery.data as FeedResponse | undefined) ?? null;
+  const loading = cronDeckQuery.isPending || cronDeckQuery.isFetching;
+  const load = () => void cronDeckQuery.refetch();
 
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 30_000);
-    return () => clearInterval(i);
-  }, [load]);
-
-  // v9.1.26 · countdown tick removed from page level — moved into
-  // per-row <NextRunCountdown /> leaves. Page only re-renders on
-  // 30s data poll, not per-second.
+  const toggleMutation = trpc.system.setCronEnabled.useMutation();
+  const runMutation = trpc.system.runManifestCron.useMutation();
 
   const rows = useMemo(() => {
     if (!feed) return [] as CronRow[];
@@ -296,14 +287,9 @@ export default function CronsPage() {
   async function toggle(jobName: string, nextEnabled: boolean) {
     setPendingToggle((s) => new Set(s).add(jobName));
     try {
-      const res = await authedFetch("/api/system/crons/toggle", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jobName, enabled: nextEnabled }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await toggleMutation.mutateAsync({ jobName, enabled: nextEnabled });
       toast.success(`${jobName} ${nextEnabled ? "enabled" : "killed"}`);
-      await load();
+      await utils.system.cronDeck.invalidate();
     } catch (e) {
       toast.error(`toggle failed: ${e instanceof Error ? e.message : e}`);
     } finally {
@@ -318,24 +304,13 @@ export default function CronsPage() {
   async function runNow(jobName: string) {
     setPendingRun((s) => new Set(s).add(jobName));
     try {
-      const res = await authedFetch("/api/system/crons/run", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ jobName }),
-      });
-      // v10.0.529.71 · agent-audit fix · was calling res.json() on
-      // non-ok responses, which threw an unparseable-body error that
-      // skipped the finally block → row stuck in "running..." shimmer.
-      // Matches the res.ok pattern in toggle() above.
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const result = json.data ?? json;
+      const result = await runMutation.mutateAsync({ jobName });
       if (result.ok) {
         toast.success(`${jobName} ran · ${result.durationMs}ms`);
       } else {
         toast.error(`${jobName} failed · ${result.error ?? result.status}`);
       }
-      await load();
+      await utils.system.cronDeck.invalidate();
     } catch (e) {
       toast.error(`run failed: ${e instanceof Error ? e.message : e}`);
     } finally {

@@ -16,13 +16,16 @@
  * at 3am" doesn't require digging in the database.
  */
 
-import { useCallback, useEffect, useMemo, useState, use } from "react";
+import { useCallback, useMemo, useState, use } from "react";
 import { PageHeader } from "@/components/layout/ui";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Sparkline } from "@/components/ui/sparkline";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is `trpc.system.cronRunHistory.useQuery` and the
+// run-now POST is `trpc.system.runManifestCron.useMutation`.
+import { trpc } from "@/lib/trpc/client";
 import { CheckCircle2, XCircle, ChevronDown, ChevronUp, Play, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -83,35 +86,29 @@ interface PageProps {
 export default function CronRunsPage({ params }: PageProps) {
   const { jobName } = use(params);
   const decoded = decodeURIComponent(jobName);
-  const [data, setData] = useState<RunPayload | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [sinceDays, setSinceDays] = useState(7);
   const [expandedRun, setExpandedRun] = useState<string | null>(null);
-  const [running, setRunning] = useState(false);
 
+  // Phase B.7a · React Query keys on `{ jobName, sinceDays }` · changing
+  // the window refetches automatically. `limit:200` matches the legacy
+  // URL.
+  const runsQuery = trpc.system.cronRunHistory.useQuery({
+    jobName: decoded,
+    sinceDays,
+    limit: 200,
+  });
+  const data: RunPayload | null =
+    (runsQuery.data as RunPayload | undefined) ?? null;
+  const loading = runsQuery.isPending || runsQuery.isFetching;
+  const error = runsQuery.error ? runsQuery.error.message : null;
+  const lastFetched =
+    runsQuery.dataUpdatedAt > 0 ? new Date(runsQuery.dataUpdatedAt) : null;
   const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch(
-        `/api/system/cron-runs/${encodeURIComponent(decoded)}?sinceDays=${sinceDays}&limit=200`,
-      );
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: RunPayload } & RunPayload;
-      setData(j.data ?? (j as RunPayload));
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [decoded, sinceDays]);
+    await runsQuery.refetch();
+  }, [runsQuery]);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const runMutation = trpc.system.runManifestCron.useMutation();
+  const running = runMutation.isPending;
 
   // v8.18 · sparkline of successful-run durations, oldest → newest.
   // Failures (duration null) are excluded so the trend isn't dominated
@@ -124,36 +121,20 @@ export default function CronRunsPage({ params }: PageProps) {
       .reverse();
   }, [data]);
 
-  // v8.19 · Run-now action. Posts to /api/system/crons/run which
+  // v8.19 · Run-now action. The `system.runManifestCron` mutation
   // validates the name against the manifest, fires the cron, and
   // returns timing. Refreshes the run list afterward so the new entry
   // appears at the top.
   const runNow = useCallback(async () => {
     if (running) return;
-    setRunning(true);
     try {
-      const res = await authedFetch("/api/system/crons/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ jobName: decoded }),
-      });
-      const json = (await res.json()) as {
-        data?: { ok?: boolean; durationMs?: number; status?: number };
-        error?: string;
-      };
-      if (!res.ok) {
-        toast.error(`run failed: ${json.error ?? res.statusText}`);
-      } else {
-        const ms = json.data?.durationMs ?? 0;
-        toast.success(`${decoded} ran · ${ms}ms`);
-        await load();
-      }
+      const result = await runMutation.mutateAsync({ jobName: decoded });
+      toast.success(`${decoded} ran · ${result.durationMs ?? 0}ms`);
+      await load();
     } catch (err) {
       toast.error(`run failed: ${err instanceof Error ? err.message : err}`);
-    } finally {
-      setRunning(false);
     }
-  }, [decoded, running, load]);
+  }, [decoded, running, load, runMutation]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6">

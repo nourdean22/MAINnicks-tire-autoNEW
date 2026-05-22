@@ -18,6 +18,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { CRONS } from "@/config/crons";
+import { ServiceError } from "@/lib/utils/service-error";
 
 const CATEGORY = "cron_control";
 
@@ -271,4 +273,35 @@ export async function getCronStats(): Promise<
   }
 
   return stats;
+}
+
+// ── manifest-validated manual trigger ──────────────────────────────────
+
+/**
+ * Phase B.7a (2026-05-22) · validate a jobName against the
+ * `config/crons.ts` manifest, then fire it. Lifted verbatim from
+ * `app/api/system/crons/run/route.ts` so the legacy REST endpoint AND
+ * the new `system.runManifestCron` tRPC procedure call the SAME
+ * function · drift between consumers structurally impossible.
+ *
+ * Distinct from `triggerCronByName` (NN · vercel.json catalog) — this
+ * is the `/system/crons` + `/system/cron-runs` deck path which checks
+ * the typed CronDef manifest and rejects retired jobs.
+ *
+ * Throws ServiceError(404) for an unknown job, ServiceError(410) for a
+ * retired one — both transports reject identically.
+ */
+export async function runManifestCron(
+  jobName: string,
+): Promise<CronTriggerResult & { jobName: string }> {
+  const def = CRONS.find((c) => c.name === jobName);
+  if (!def) {
+    throw new ServiceError(`unknown cron: ${jobName}`, 404);
+  }
+  if (def.mode === "retired") {
+    throw new ServiceError(`cron ${jobName} is retired`, 410);
+  }
+  const path = def.path ?? `/api/cron/${jobName}`;
+  const result = await triggerCronByPath(path);
+  return { jobName, ...result };
 }

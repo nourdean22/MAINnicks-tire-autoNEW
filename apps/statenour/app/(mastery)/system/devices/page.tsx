@@ -13,13 +13,18 @@
  *   · auto-refresh 30s
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { cn } from "@/lib/utils/cn";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
+// authedFetch read is `trpc.system.deviceFleet.useQuery`; the
+// retire-stale dry-run + real POSTs are `trpc.system.retireStaleDevices`
+// mutations. The 30s poll maps to `refetchInterval`.
+import { trpc } from "@/lib/trpc/client";
+
 type AgentStatus = "live" | "stale" | "dead" | "never";
 type Staleness = "live" | "stale" | "lost";
 
@@ -137,8 +142,6 @@ function AgentBanner({ agent }: { agent: Feed["summary"]["agent"] }) {
 }
 
 export default function DevicesPage() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [platformFilter, setPlatformFilter] = useState<string | "all">("all");
   const [locationFilter, setLocationFilter] = useState<string | "all">("all");
   // v10.0.437 · sort key · 5 modes · default = name (alphabetical)
@@ -154,24 +157,15 @@ export default function DevicesPage() {
     window.localStorage.setItem("system-devices:sortKey", sortKey);
   }, [sortKey]);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/system/devices", { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      setFeed(json.data ?? json);
-    } catch (e) {
-      console.error("devices load failed", e);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const i = setInterval(load, 30_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7a · single typed useQuery · 30s refetchInterval mirrors
+  // the prior setInterval poll.
+  const fleetQuery = trpc.system.deviceFleet.useQuery(undefined, {
+    refetchInterval: 30_000,
+  });
+  const feed: Feed | null = (fleetQuery.data as Feed | undefined) ?? null;
+  const loading = fleetQuery.isPending || fleetQuery.isFetching;
+  const load = () => void fleetQuery.refetch();
+  const retireMutation = trpc.system.retireStaleDevices.useMutation();
 
   const filtered = useMemo(() => {
     if (!feed) return [];
@@ -242,24 +236,21 @@ export default function DevicesPage() {
             {feed && offlineStaleCount(feed) > 0 && (
               <button
                 onClick={async () => {
-                  const { authedFetch } = await import("@/hooks/use-authed-fetch");
-                  const dry = await authedFetch("/api/devices/retire-stale", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ olderThanDays: 7, dryRun: true }),
+                  // Phase B.7a · dry-run first to populate the confirm
+                  // count, then the real retire — both via the typed
+                  // `system.retireStaleDevices` mutation.
+                  const dry = await retireMutation.mutateAsync({
+                    olderThanDays: 7,
+                    dryRun: true,
                   });
-                  const dryData = await dry.json().catch(() => ({}));
-                  const count = dryData?.data?.count ?? 0;
+                  const count =
+                    "dryRun" in dry && dry.dryRun ? dry.count : 0;
                   if (count === 0) return;
                   const confirmed = confirm(
                     `Retire ${count} stale devices? This deletes the row + all their queued commands + event history. Cannot be undone.`,
                   );
                   if (!confirmed) return;
-                  await authedFetch("/api/devices/retire-stale", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ olderThanDays: 7 }),
-                  });
+                  await retireMutation.mutateAsync({ olderThanDays: 7 });
                   load();
                 }}
                 className="rounded-lg border border-rose-400/40 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300 hover:bg-rose-500/20 transition"

@@ -16,7 +16,7 @@
  * Automation Policies · Brain Categories).
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { Panel } from "@/components/panel";
 import { MetricCard } from "@/components/metric-card";
 import { PageHeader } from "@/components/layout/ui";
@@ -28,7 +28,12 @@ import { SystemHubGrid } from "@/components/system/hub-grid";
 // eval pass rate · OS drift). Relocated from /ultron at v10.0.529.48.
 import { ObservabilityRow } from "@/components/ultron/observability/observability-row";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the three
+// authedFetch reads (diagnostics + brain status + health) are now three
+// typed useQueries. The page polled on a 60s setInterval — each query's
+// `refetchInterval` drives that. `refresh` (pull-to-refresh + the manual
+// Refresh button) now refetches all three.
+import { trpc } from "@/lib/trpc/client";
 
 interface DiagnosticsData {
   db: { connected: boolean; latency_ms: number };
@@ -88,35 +93,43 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function SystemPage() {
-  const [diagnostics, setDiagnostics] = useState<DiagnosticsData | null>(null);
-  const [brain, setBrain] = useState<BrainStatus | null>(null);
-  const [health, setHealth] = useState<HealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  // Phase B.7a · three typed useQueries replace the Promise.all of
+  // authedFetch calls. 60s refetchInterval mirrors the prior setInterval.
+  const diagnosticsQuery = trpc.system.diagnostics.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const brainQuery = trpc.brain.status.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+  const healthQuery = trpc.system.healthSummary.useQuery(undefined, {
+    refetchInterval: 60_000,
+  });
+
+  // The procedure return shapes are wider than these page-local view
+  // interfaces (brain.status' `memories` is a Record<string,unknown>
+  // service shape) · cast through `unknown` to the page's read view.
+  const diagnostics: DiagnosticsData | null =
+    (diagnosticsQuery.data as unknown as DiagnosticsData | undefined) ?? null;
+  const brain: BrainStatus | null =
+    (brainQuery.data as unknown as BrainStatus | undefined) ?? null;
+  const health: HealthData | null =
+    (healthQuery.data as unknown as HealthData | undefined) ?? null;
+  const loading =
+    diagnosticsQuery.isFetching ||
+    brainQuery.isFetching ||
+    healthQuery.isFetching;
+  const lastRefresh =
+    diagnosticsQuery.dataUpdatedAt > 0
+      ? new Date(diagnosticsQuery.dataUpdatedAt)
+      : new Date();
 
   const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [diagRes, brainRes, healthRes] = await Promise.all([
-        authedFetch("/api/system/diagnostics").then((r) => r.json()),
-        authedFetch("/api/brain/status").then((r) => r.json()),
-        authedFetch("/api/health").then((r) => r.json()),
-      ]);
-      setDiagnostics(diagRes.data ?? diagRes);
-      setBrain(brainRes.data ?? brainRes);
-      setHealth(healthRes.data ?? healthRes);
-      setLastRefresh(new Date());
-    } catch (e) {
-      console.error("Failed to load system data", e);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 60_000); // Auto-refresh every 60s
-    return () => clearInterval(interval);
-  }, [refresh]);
+    await Promise.all([
+      diagnosticsQuery.refetch(),
+      brainQuery.refetch(),
+      healthQuery.refetch(),
+    ]);
+  }, [diagnosticsQuery, brainQuery, healthQuery]);
 
   const { refreshing, onTouchStart, onTouchEnd } = usePullRefresh(refresh);
 
