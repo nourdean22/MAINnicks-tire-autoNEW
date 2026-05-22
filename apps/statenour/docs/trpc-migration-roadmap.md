@@ -6,14 +6,17 @@
 > `hooks/use-authed-fetch.ts` is deleted** — you cannot half-delete a
 > function, so that milestone forces the migration to actually finish.
 >
-> **Status (2026-05-22 · Phase B in progress):** 7 domain slices merged
-> to `main`, all build-verified; the 8th (B.6c) is in flight. ~40% of
-> `authedFetch` call-sites migrated. See **Phase B progress** below.
+> **Status (2026-05-22 · Phase B nearly complete):** 16 migration slices
+> merged to `main`, all build-verified. **23 `authedFetch` call-sites
+> remain** across 2 slices (straggler pages · hooks+lib finish). See
+> **Phase B progress** below.
 
 ## Current state
 
-- **Modern layer** — 8 typed tRPC routers in `lib/trpc/routers/`:
-  `nick · operator · system · chat · browser · task · journal · brain`.
+- **Modern layer** — 9 typed tRPC routers in `lib/trpc/routers/`:
+  `nick · operator · system · chat · browser · task · journal · brain ·
+  ai`. React call-sites use the hooks client (`lib/trpc/client.ts`);
+  non-React modules use `lib/trpc/vanilla-client.ts` (`createTRPCClient`).
 - **Legacy layer** — client files still call `authedFetch` /
   `useAuthedFetch` (`hooks/use-authed-fetch.ts`) to hit REST `/api/*`
   routes. REST routes and tRPC routers coexist (the rollback path)
@@ -30,44 +33,56 @@ test suite) · build-verified by the pre-push `turbo build` hook.
 | A    | roadmap (this doc)        | `222bedc4` | ✓ |
 | B.1  | journal                   | `f291eaef` | ✓ merged |
 | B.2  | settings                  | `13201eeb` | ✓ merged · folded into `system`/`operator`/`brain` |
-| B.3a | system widgets            | `7b5c66f4` | ✓ merged · `components/system/*` widgets only |
+| B.3a | system widgets            | `7b5c66f4` | ✓ merged · `components/system/*` widgets |
 | B.4  | actions / task            | `bef2a860` | ✓ merged |
-| B.5  | chat                      | `be2185bd` | ✓ merged · chat-domain calls; cross-domain residuals deferred |
+| B.5  | chat                      | `be2185bd` | ✓ merged · chat-domain calls |
 | B.6a | ultron · operator-domain  | `3c9ce883` | ✓ merged |
 | B.6b | ultron · task-domain      | `5627b8e4` | ✓ merged |
-| B.6c | ultron · system-domain    | —          | in flight |
+| B.6c | ultron · system-domain    | `f3af544b` | ✓ merged |
+| B.7  | brain domain              | `68c3eb7e` | ✓ merged |
+| B.7a | system pages · slice A    | `8e275dfe` | ✓ merged |
+| B.7b | system pages · slice B    | `414c0e3a` | ✓ merged |
+| B.8  | misc pages                | `6046ec50` | ✓ merged |
+| B.9  | hooks · partial           | `09b6230a` | ✓ merged · partial — finished in B.14 |
+| B.10 | cross-domain residuals    | `ac0d71d8` | ✓ merged · chat + ultron + brain stragglers |
+| —    | vanilla tRPC client       | `9452aa84` | ✓ merged · infra · `createTRPCClient` for non-React call-sites |
+| B.11 | actions surface (`components/actions/*`) | `fc218104` | ✓ merged · added the 9th router, `ai` |
+| B.12 | scattered components      | `d7849454` | ✓ merged · 13 files · ultron/goals/chat/brain/ai/etc |
+| B.13 | straggler pages           | —          | next (7 files) |
+| B.14 | hooks + lib finish        | —          | pending (16 files) |
 
-Remaining after B.6c: **brain** · **system pages**
-(`app/(mastery)/system/*` — the largest chunk, ~26 files) · misc pages ·
-`hooks/` · scattered components · chat + ultron cross-domain residuals ·
-then **M-done** (delete the helper).
+Remaining: **23 `authedFetch` call-sites** across B.13–B.14 — straggler
+pages (7 · 4 `system/*` + knowledge + pins + voice) · hooks + non-React
+`lib/` modules (16). Then **M-done**: delete `hooks/use-authed-fetch.ts`.
 
 ## Inventory — `authedFetch` call-sites by domain
 
-| Domain | ~files | Status | Notes |
-|---|---|---|---|
-| journal    | 6  | ✓ done    | proof slice (B.1) |
-| settings   | 6  | ✓ done    | B.2 · folded into `system`/`operator`/`brain` routers |
-| actions    | 18 | ✓ done    | B.4 · `task` router |
-| chat       | 20 | ◐ partial | B.5 · chat-domain done; ~7 cross-domain residuals in `components/chat/` |
-| ultron/HQ  | 21 | ◐ partial | B.6a operator + B.6b task done; B.6c system in flight; brain/audit/decisions/drift stragglers remain |
-| brain      | 22 | ☐ pending | `brain` router · next slice |
-| system     | 48 | ◐ partial | B.3a did `components/system/*` widgets; ~26 `app/(mastery)/system/*` pages remain |
-| hooks      | 12 | ☐ pending | cross-cutting — migrate alongside owning domain |
-| misc pages | 12 | ☐ pending | financial / social / content / body / etc |
+| Domain | Status | Notes |
+|---|---|---|
+| journal    | ✓ done    | B.1 (proof slice) |
+| settings   | ✓ done    | B.2 · folded into `system`/`operator`/`brain` |
+| actions    | ✓ done    | B.4 (task-domain) + B.11 (`components/actions/*`) |
+| chat       | ✓ done    | B.5 + B.10 residuals |
+| ultron/HQ  | ✓ done    | B.6a/b/c + B.10 residuals |
+| brain      | ✓ done    | B.7 + B.10 residuals |
+| scattered components | ✓ done | B.12 (`d7849454`) |
+| system     | ◐ partial | B.3a widgets + B.7a/b pages; 4 `system/*` stragglers → B.13 |
+| misc pages | ◐ partial | B.8; knowledge / pins / voice stragglers → B.13 |
+| hooks      | ◐ partial | B.9 partial; finished in B.14 (+ non-React `lib/` modules) |
 
-Counts are approximate (file-level grep). Non-targets (the
-`useAuthedFetch` helper, `migrate-authed-fetch.ts`, router files, docs,
-contract tests) are excluded.
+Status reflects the `from "@/hooks/use-authed-fetch"` importer grep —
+the reliable signal (loose `authedFetch` text mentions in migrated-file
+comments are not call-sites).
 
 ## Slice order
 
-Smallest-with-router-first, then scale:
+Smallest-with-router-first, then scale. Executed order:
 
-1. journal → 2. settings → 3. actions → 4. chat → 5. ultron/HQ
-(sub-sliced: 6a operator · 6b task · 6c system) → 6. brain →
-7. system pages. Cross-cutting `hooks/` and misc pages migrate with
-their owning domain.
+journal → settings → system widgets → actions/task → chat → ultron
+(6a operator · 6b task · 6c system) → brain → system pages (A · B) →
+misc pages → hooks (partial) → cross-domain residuals → actions surface
+→ scattered components. **Tail:** straggler pages (B.13) → hooks + lib
+finish (B.14) → delete the helper.
 
 ## Per-slice protocol — the strangler-fig discipline
 
@@ -105,11 +120,11 @@ For each domain slice, in order:
 
 ## Milestones
 
-- **M1** ✓ — journal slice merged (`f291eaef`).
-- **M2** ✓ settings · **M3** ✓ actions · **M4** ✓ chat (chat-domain).
-- **M5** — ultron: operator + task done (`3c9ce883`, `5627b8e4`);
-  system-domain (B.6c) in flight.
-- **M6** brain · **M7** system pages — pending.
+- **M1–M5** ✓ — journal, settings, actions, chat, ultron all merged.
+- **M6** ✓ brain (`68c3eb7e`) · **M7** ✓ system pages (`8e275dfe`,
+  `414c0e3a`) + misc pages (`6046ec50`).
+- **M8** — the tail: straggler pages · hooks+lib finish (B.13–B.14 ·
+  23 call-sites).
 - **M-done** — `hooks/use-authed-fetch.ts` deleted. The migration is
   not "done" until the helper is gone.
 
@@ -134,16 +149,15 @@ For each domain slice, in order:
 
 ## Honest progress metric
 
-The debt lives in call-sites, not router count:
+The debt lives in importers, not router count. The reliable signal is
+the import statement, not loose `authedFetch` text mentions:
 
 ```
-grep -rc "authedFetch" apps/statenour/{app,components,hooks,lib}
+grep -rl 'from "@/hooks/use-authed-fetch"' apps/statenour/{app,components,hooks,lib}
 ```
 
-Latest sweep (2026-05-22, mid-B.6c): **148 files / 425 occurrences**
-match — but ~20 are non-targets (this doc, contract tests, the
-migration script, router comment-mentions) and ~15 are migrated files
-carrying only a "migrated off authedFetch" comment. Real remaining
-call-sites: **~100–110 files · ~40% of the migration done**. The
-migration is complete when the grep returns 0 — `use-authed-fetch.ts`
+Latest sweep (2026-05-22, after B.12): **23 files** still import the
+helper (excluding `use-authed-fetch.ts` itself and the
+`migrate-authed-fetch.ts` codemod script). Slices B.13–B.14 clear them.
+The migration is complete when this returns 0 — `use-authed-fetch.ts`
 has no importers and can be deleted.
