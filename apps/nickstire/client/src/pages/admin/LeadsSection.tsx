@@ -2,7 +2,7 @@
  * LeadsSection — extracted from Admin.tsx for maintainability.
  * Includes Kanban board view and traditional list view.
  */
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { SkeletonPanel } from "@/components/admin/AdminSkeletons";
@@ -257,6 +257,167 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
 
 type LeadCategory = "all" | "estimates" | "chat" | "callbacks";
 
+/**
+ * MarkContactedButton — inline "mark lead contacted" control with a notes
+ * input. Replaces a window.prompt() call: prompt() is suppressed in iOS PWA
+ * standalone mode (where the admin is operated), so the old markContacted()
+ * handler silently never fired the mutation — leads were never marked
+ * contacted on the phone. Same native-primitive bug class wave-139/168 fixed
+ * for window.confirm() and the follow-up-call prompt. Mirrors FollowUpButton.
+ */
+function MarkContactedButton({ leadId, variant }: { leadId: number; variant: "banner" | "list" }) {
+  const utils = trpc.useUtils();
+  const [expanded, setExpanded] = useState(false);
+  const [notes, setNotes] = useState("");
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const mutation = trpc.lead.update.useMutation({
+    onSuccess: () => {
+      void utils.lead.list.invalidate();
+      toast.success("Lead marked contacted");
+      setExpanded(false);
+      setNotes("");
+    },
+    onError: (err) => toast.error("Failed: " + err.message),
+  });
+
+  useEffect(() => {
+    if (expanded) inputRef.current?.focus();
+  }, [expanded]);
+
+  const submit = () => {
+    mutation.mutate({
+      id: leadId,
+      status: "contacted",
+      contacted: 1,
+      contactNotes: notes.trim() || "Called, no notes.",
+    });
+  };
+
+  if (expanded) {
+    return (
+      <div className="inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") submit();
+            if (e.key === "Escape") { setExpanded(false); setNotes(""); }
+          }}
+          placeholder="Notes (optional)"
+          aria-label="Contact notes"
+          className="px-2 py-1 bg-card border border-primary/30 text-foreground text-[11px] tracking-wide placeholder:text-foreground/30 focus:outline-none focus:border-primary w-40"
+        />
+        <button
+          onClick={submit}
+          disabled={mutation.isPending}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold tracking-wide hover:bg-emerald-500/25 disabled:opacity-50"
+          aria-label="Save contacted"
+        >
+          {mutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserCheck className="w-3 h-3" />}
+          SAVE
+        </button>
+        <button
+          onClick={() => { setExpanded(false); setNotes(""); }}
+          className="px-2 py-1 text-foreground/40 hover:text-foreground/70 text-[12px] leading-none"
+          aria-label="Cancel"
+        >
+          ×
+        </button>
+      </div>
+    );
+  }
+
+  if (variant === "banner") {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        disabled={mutation.isPending}
+        className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded hover:bg-emerald-500/30 disabled:opacity-50 transition-colors"
+      >
+        Mark Called
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setExpanded(true)}
+      disabled={mutation.isPending}
+      className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
+    >
+      <UserCheck className="w-4 h-4" /> MARK CONTACTED
+    </button>
+  );
+}
+
+const LOST_REASONS = [
+  "Price too high", "Went to competitor", "No response",
+  "Changed mind", "Already fixed elsewhere", "Other",
+] as const;
+
+/**
+ * LostReasonButton — inline "mark lead lost" control with a reason picker.
+ * Replaces a window.prompt() call (suppressed in iOS PWA standalone, so the
+ * old kanban handler silently never persisted) and ALSO adds reason capture
+ * to the list view, which previously sent no reason at all. The reason feeds
+ * Nick AI pattern detection. Mirrors FollowUpButton.
+ */
+function LostReasonButton({ leadId }: { leadId: number }) {
+  const utils = trpc.useUtils();
+  const [expanded, setExpanded] = useState(false);
+
+  const mutation = trpc.lead.update.useMutation({
+    onSuccess: () => {
+      void utils.lead.list.invalidate();
+      toast.success("Lead marked lost");
+      setExpanded(false);
+    },
+    onError: (err) => toast.error("Failed: " + err.message),
+  });
+
+  if (expanded) {
+    return (
+      <div className="flex flex-col gap-1.5 border border-red-500/30 bg-red-500/5 p-2" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] tracking-wider text-red-400/80 font-bold">WHY LOST?</span>
+          <button
+            onClick={() => setExpanded(false)}
+            className="px-1 text-foreground/40 hover:text-foreground/70 text-[12px] leading-none"
+            aria-label="Cancel"
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {LOST_REASONS.map((reason) => (
+            <button
+              key={reason}
+              onClick={() => mutation.mutate({ id: leadId, status: "lost", lostReason: reason })}
+              disabled={mutation.isPending}
+              className="px-2 py-1 bg-card border border-red-500/20 text-red-400/80 text-[10px] tracking-wide hover:bg-red-500/15 hover:text-red-400 disabled:opacity-50 transition-colors"
+            >
+              {reason}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setExpanded(true)}
+      disabled={mutation.isPending}
+      className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50"
+    >
+      <XCircle className="w-4 h-4" /> LOST
+    </button>
+  );
+}
+
 export default function LeadsSection() {
   // 2026-05-06 — URL-persistent filters via useUrlFilter.
   // Reload, back-button, shared links all preserve filter state.
@@ -308,35 +469,14 @@ export default function LeadsSection() {
     return [...sourceSet].sort();
   }, [leadsData]);
 
+  // Kanban drag-drop status handler. The lost-reason capture that used to
+  // live here relied on window.prompt(), which is suppressed in iOS PWA
+  // standalone mode (where the admin is operated) — so a drag to the Lost
+  // column silently never persisted. The reason is now captured by
+  // LostReasonButton in the list view; a kanban drag just sets the status,
+  // consistent with kanban already skipping the contacted-notes step.
   const handleStatusChange = (id: number, status: LeadStatus) => {
-    if (status === "lost") {
-      // Prompt for lost reason — this data feeds Nick AI for pattern detection
-      const REASONS = ["Price too high", "Went to competitor", "No response", "Changed mind", "Already fixed elsewhere", "Other"];
-      const reason = prompt(
-        `Why was this lead lost?\n\n${REASONS.map((r, i) => `${i + 1}. ${r}`).join("\n")}\n\nEnter number or type reason:`
-      );
-      if (!reason) return; // Cancelled
-      const lostReason = REASONS[parseInt(reason) - 1] || reason;
-      updateLead.mutate({ id, status, lostReason });
-    } else {
-      updateLead.mutate({ id, status });
-    }
-  };
-
-  // wave-111 — single source of truth for "mark contacted" with notes prompt.
-  // Was: alert-banner Mark Called button bypassed the prompt and silently
-  // wrote NULL to contactNotes; inline list-view button had its own prompt
-  // block. Two paths, one mutation, one silently-broken. Now both call this.
-  // Kanban drag-drop intentionally skips this (different UX paradigm).
-  const markContacted = (id: number) => {
-    const notes = prompt("Contact notes (what was discussed?):");
-    if (notes === null) return; // Cancelled
-    updateLead.mutate({
-      id,
-      status: "contacted",
-      contacted: 1,
-      contactNotes: notes || "Called, no notes.",
-    });
+    updateLead.mutate({ id, status });
   };
 
   // Category filter helper
@@ -481,12 +621,7 @@ export default function LeadsSection() {
                   {lead.estimatedValueCents && (
                     <span className="text-primary font-mono font-bold">${(lead.estimatedValueCents / 100).toFixed(0)}</span>
                   )}
-                  <button
-                    onClick={() => markContacted(lead.id)}
-                    className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded hover:bg-emerald-500/30 transition-colors"
-                  >
-                    Mark Called
-                  </button>
+                  <MarkContactedButton leadId={lead.id} variant="banner" />
                 </div>
               );
             })}
@@ -750,13 +885,7 @@ export default function LeadsSection() {
                           >
                             <PhoneCall className="w-4 h-4" /> CALL
                           </a>
-                          <button
-                            onClick={() => markContacted(lead.id)}
-                            disabled={updateLead.isPending}
-                            className="flex items-center gap-2 border border-primary/30 text-primary px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/10 disabled:opacity-50"
-                          >
-                            <UserCheck className="w-4 h-4" /> MARK CONTACTED
-                          </button>
+                          <MarkContactedButton leadId={lead.id} variant="list" />
                         </>
                       )}
                       {lead.status === "contacted" && (
@@ -768,13 +897,7 @@ export default function LeadsSection() {
                           >
                             <CheckCircle2 className="w-4 h-4" /> BOOKED
                           </button>
-                          <button
-                            onClick={() => updateLead.mutate({ id: lead.id, status: "lost" })}
-                            disabled={updateLead.isPending}
-                            className="flex items-center gap-2 border border-red-500/30 text-red-400 px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-red-500/10 disabled:opacity-50"
-                          >
-                            <XCircle className="w-4 h-4" /> LOST
-                          </button>
+                          <LostReasonButton leadId={lead.id} />
                         </>
                       )}
                       {(lead.status === "booked" || lead.status === "completed" || lead.status === "closed" || lead.status === "lost") && (

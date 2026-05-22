@@ -171,7 +171,9 @@ function MetricsStrip() {
     { label: "In Progress", value: stats?.inProgress || 0, color: "text-primary" },
     { label: "Ready Queue", value: (stats?.active || 0) - (stats?.inProgress || 0), color: "text-amber-400" },
     { label: "QC Pending", value: qcStats?.qcPending || 0, color: "text-purple-400" },
-    { label: "QC Pass Rate", value: `${qcStats?.passRate || 100}%`, color: "text-emerald-400" },
+    // ?? not || — a real passRate of 0 (every QC check failed) must show
+    // "0%", not fall through to the 100 default. || 0 would fake a green.
+    { label: "QC Pass Rate", value: `${qcStats?.passRate ?? 100}%`, color: "text-emerald-400" },
     { label: "Comebacks (30d)", value: qcStats?.comebacks30d || 0, color: (qcStats?.comebacks30d || 0) > 0 ? "text-red-400" : "text-emerald-400" },
   ];
 
