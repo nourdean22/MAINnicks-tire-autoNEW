@@ -4,12 +4,11 @@
 > strangler-fig migration. This doc is the map: domains, router status,
 > slice order, the per-slice protocol. **"Done" =
 > `hooks/use-authed-fetch.ts` is deleted** — you cannot half-delete a
-> function, so that milestone forces the migration to actually finish.
+> function, so that milestone forced the migration to actually finish.
 >
-> **Status (2026-05-22 · Phase B nearly complete):** 16 migration slices
-> merged to `main`, all build-verified. **23 `authedFetch` call-sites
-> remain** across 2 slices (straggler pages · hooks+lib finish). See
-> **Phase B progress** below.
+> **Status (2026-05-22 · ✅ COMPLETE):** All 18 migration slices merged
+> to `main`, all build-verified. `hooks/use-authed-fetch.ts` is
+> **deleted** — zero importers. The REST→tRPC migration is done.
 
 ## Current state
 
@@ -17,10 +16,11 @@
   `nick · operator · system · chat · browser · task · journal · brain ·
   ai`. React call-sites use the hooks client (`lib/trpc/client.ts`);
   non-React modules use `lib/trpc/vanilla-client.ts` (`createTRPCClient`).
-- **Legacy layer** — client files still call `authedFetch` /
-  `useAuthedFetch` (`hooks/use-authed-fetch.ts`) to hit REST `/api/*`
-  routes. REST routes and tRPC routers coexist (the rollback path)
-  until each domain is 100% migrated and soaked.
+- **Legacy layer — removed.** `hooks/use-authed-fetch.ts` is deleted;
+  no client code calls `authedFetch`/`useAuthedFetch` anymore. The REST
+  `/api/*` routes stay mounted — slimmed to call the same shared
+  `lib/services/` functions the procedures use — as the rollback path
+  until soaked; Phase C decommissions them.
 - The `task` router is the reference implementation (most mature).
 
 ## Phase B progress
@@ -48,12 +48,14 @@ test suite) · build-verified by the pre-push `turbo build` hook.
 | —    | vanilla tRPC client       | `9452aa84` | ✓ merged · infra · `createTRPCClient` for non-React call-sites |
 | B.11 | actions surface (`components/actions/*`) | `fc218104` | ✓ merged · added the 9th router, `ai` |
 | B.12 | scattered components      | `d7849454` | ✓ merged · 13 files · ultron/goals/chat/brain/ai/etc |
-| B.13 | straggler pages           | —          | next (7 files) |
-| B.14 | hooks + lib finish        | —          | pending (16 files) |
+| —    | command-palette prerender fix | `29e48302` | ✓ merged · root-layout scope → vanilla client |
+| B.13 | straggler pages           | `7872709b` | ✓ merged · 7 pages · + `app/voice/layout.tsx` |
+| B.14 | hooks + lib finish        | `2f172174` | ✓ merged · helper DELETED — migration done |
 
-Remaining: **23 `authedFetch` call-sites** across B.13–B.14 — straggler
-pages (7 · 4 `system/*` + knowledge + pins + voice) · hooks + non-React
-`lib/` modules (16). Then **M-done**: delete `hooks/use-authed-fetch.ts`.
+Remaining: **none.** All `authedFetch` call-sites are migrated and
+`hooks/use-authed-fetch.ts` is deleted — **M-done achieved**. Next is
+**Phase C**: decommission the now-unused REST `/api/*` routes after a
+soak.
 
 ## Inventory — `authedFetch` call-sites by domain
 
@@ -66,13 +68,12 @@ pages (7 · 4 `system/*` + knowledge + pins + voice) · hooks + non-React
 | ultron/HQ  | ✓ done    | B.6a/b/c + B.10 residuals |
 | brain      | ✓ done    | B.7 + B.10 residuals |
 | scattered components | ✓ done | B.12 (`d7849454`) |
-| system     | ◐ partial | B.3a widgets + B.7a/b pages; 4 `system/*` stragglers → B.13 |
-| misc pages | ◐ partial | B.8; knowledge / pins / voice stragglers → B.13 |
-| hooks      | ◐ partial | B.9 partial; finished in B.14 (+ non-React `lib/` modules) |
+| system     | ✓ done    | B.3a widgets + B.7a/b pages + B.13 stragglers |
+| misc pages | ✓ done    | B.8 + B.13 (knowledge / pins / voice) |
+| hooks + lib | ✓ done   | B.9 + B.14 (12 hooks + 4 non-React `lib/` modules) |
 
-Status reflects the `from "@/hooks/use-authed-fetch"` importer grep —
-the reliable signal (loose `authedFetch` text mentions in migrated-file
-comments are not call-sites).
+Every domain is migrated; the `from "@/hooks/use-authed-fetch"`
+importer grep returns 0.
 
 ## Slice order
 
@@ -81,8 +82,8 @@ Smallest-with-router-first, then scale. Executed order:
 journal → settings → system widgets → actions/task → chat → ultron
 (6a operator · 6b task · 6c system) → brain → system pages (A · B) →
 misc pages → hooks (partial) → cross-domain residuals → actions surface
-→ scattered components. **Tail:** straggler pages (B.13) → hooks + lib
-finish (B.14) → delete the helper.
+→ scattered components → straggler pages → hooks + lib finish → helper
+deleted.
 
 ## Per-slice protocol — the strangler-fig discipline
 
@@ -121,12 +122,11 @@ For each domain slice, in order:
 ## Milestones
 
 - **M1–M5** ✓ — journal, settings, actions, chat, ultron all merged.
-- **M6** ✓ brain (`68c3eb7e`) · **M7** ✓ system pages (`8e275dfe`,
-  `414c0e3a`) + misc pages (`6046ec50`).
-- **M8** — the tail: straggler pages · hooks+lib finish (B.13–B.14 ·
-  23 call-sites).
-- **M-done** — `hooks/use-authed-fetch.ts` deleted. The migration is
-  not "done" until the helper is gone.
+- **M6** ✓ brain · **M7** ✓ system pages + misc pages.
+- **M8** ✓ — the tail: straggler pages (`7872709b`) + hooks/lib finish
+  (`2f172174`).
+- **M-done** ✅ — `hooks/use-authed-fetch.ts` DELETED (`2f172174`). The
+  migration is done.
 
 ## Risk + rollback
 
@@ -149,15 +149,17 @@ For each domain slice, in order:
 
 ## Honest progress metric
 
-The debt lives in importers, not router count. The reliable signal is
+The debt lived in importers, not router count. The reliable signal was
 the import statement, not loose `authedFetch` text mentions:
 
 ```
 grep -rl 'from "@/hooks/use-authed-fetch"' apps/statenour/{app,components,hooks,lib}
 ```
 
-Latest sweep (2026-05-22, after B.12): **23 files** still import the
-helper (excluding `use-authed-fetch.ts` itself and the
-`migrate-authed-fetch.ts` codemod script). Slices B.13–B.14 clear them.
-The migration is complete when this returns 0 — `use-authed-fetch.ts`
-has no importers and can be deleted.
+Final sweep (2026-05-22, after B.14): the grep returns **0** —
+`hooks/use-authed-fetch.ts` is deleted, along with its test and the
+`migrate-authed-fetch.ts` codemod. **The migration is complete.** ✅
+
+What remains is **Phase C**: the REST `/api/*` routes are still mounted
+as the rollback path. Once soaked, the now-dead routes can be
+decommissioned — separate track.
