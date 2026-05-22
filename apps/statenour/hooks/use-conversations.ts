@@ -12,6 +12,20 @@ import { useEffect, useState, useCallback } from "react";
 import type { UIMessage } from "ai";
 
 import { authedFetch } from "@/hooks/use-authed-fetch";
+// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration. The two
+// chat-domain endpoints that already have a service-backed tRPC
+// procedure are migrated onto it:
+//   · DELETE /api/ai/chat/[id]               → trpc.chat.deleteConversation
+//   · PATCH  /api/ai/chat/conversation/[id]  → trpc.chat.updateConversation
+// Both delegate to the SAME `chat-conversation.{deleteConversation,
+// updateConversation}` service the REST routes call · drift impossible.
+// The remaining `authedFetch` calls here — the conversation-list GET
+// (`/api/ai/chat`), the single-conversation load (`/api/ai/chat/[id]`)
+// and the title rename (`PATCH /api/ai/chat/[id]`) — hit inline route
+// handlers with NO shared service, so migrating them would require a
+// service extraction (out of this hooks-slice's scope · the
+// `authedFetch` import above stays for them).
+import { trpc } from "@/lib/trpc/client";
 export interface Convo {
   id: string;
   title: string | null;
@@ -48,6 +62,13 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const [convos, setConvos] = useState<Convo[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // tRPC mutations for the two service-backed chat-domain writes.
+  // `deleteConversation` is idempotent (always resolves `{ ok: true }`,
+  // even on a missing row) · `updateConversation` throws TRPCError on a
+  // missing conversation / empty patch — both caught below, matching the
+  // legacy `r.ok` / try-catch branches verbatim.
+  const deleteConversationMutation = trpc.chat.deleteConversation.useMutation();
+  const updateConversationMutation = trpc.chat.updateConversation.useMutation();
   // v10.0.187 · pagination state. The API ships hasMore + nextCursor
   // (added in v10.0.186). Pre-fix the hook only consumed the first
   // 50/75 conversations and silently dropped older ones — heavy
@@ -217,19 +238,13 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
   const deleteConvo = useCallback(
     async (id: string, e?: React.MouseEvent) => {
       e?.stopPropagation();
-      // v9.1.24 · check res.ok before optimistic removal. Previously
+      // v9.1.24 · check the result before optimistic removal. Previously
       // the UI removed the conversation immediately even on a 500 or
       // 404, leaving the server row intact. On next reload the conv
       // would reappear — jarring UX, no error surfaced. Now we only
-      // mutate state if the server confirmed the delete.
+      // mutate state if the mutation resolved (it throws on failure).
       try {
-        const res = await authedFetch(`/api/ai/chat/${id}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          onError?.("Couldn't delete conversation.");
-          return;
-        }
+        await deleteConversationMutation.mutateAsync({ id });
       } catch {
         onError?.("Couldn't delete conversation.");
         return;
@@ -240,7 +255,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         setMessages([]);
       }
     },
-    [activeId, setMessages, onError]
+    [activeId, setMessages, onError, deleteConversationMutation]
   );
 
   const newChat = useCallback(() => {
@@ -316,12 +331,18 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         ),
       );
       try {
-        const r = await authedFetch(`/api/ai/chat/conversation/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ [flag]: next }),
+        // `updateConversation`'s typed input is { id, archived?,
+        // starred?, muted?, title? } — build the one-flag patch with an
+        // explicit key so the computed-key narrows cleanly. mutateAsync
+        // throws TRPCError on failure, caught by the catch below.
+        await updateConversationMutation.mutateAsync({
+          id,
+          ...(flag === "starred"
+            ? { starred: next }
+            : flag === "muted"
+              ? { muted: next }
+              : { archived: next }),
         });
-        if (!r.ok) throw new Error(`${r.status}`);
         if (flag === "archived" && next) {
           // Drop the now-archived convo from the visible list.
           setConvos((prev) => prev.filter((c) => c.id !== id));
@@ -342,7 +363,7 @@ export function useConversations({ setMessages, onError }: UseConversationsOptio
         onError?.(`Couldn't ${next ? "set" : "clear"} ${flag}`);
       }
     },
-    [onError],
+    [onError, updateConversationMutation],
   );
 
   return {

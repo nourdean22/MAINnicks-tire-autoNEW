@@ -16,7 +16,13 @@
 
 import { useEffect } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// REST→tRPC hooks slice (2026-05-22) · migrated off `authedFetch
+// ("/api/ai/chat/branches/[parentMessageId]")` onto the existing
+// `trpc.chat.branches` query (Phase DD) · both delegate to the SAME
+// `chat-branches.readChatBranches` service · drift impossible. The
+// listener does a one-shot imperative fetch (`utils.chat.branches
+// .fetch`) so the lazy event-driven shape is preserved.
+import { trpc } from "@/lib/trpc/client";
 // v10.0.313 · generic over the message type so the /chat page can
 // pass its UIMessage[] without an `as unknown as` cast. Only requires
 // the structural minimum: id + optional parentMessageId.
@@ -33,6 +39,7 @@ export function useChatBranchSwap<M extends ChatMessageLike>(
   messages: M[],
   setMessages: SetMessagesFn<M>,
 ): void {
+  const utils = trpc.useUtils();
   useEffect(() => {
     function onSwap(e: Event) {
       const detail = (e as CustomEvent).detail as
@@ -50,13 +57,10 @@ export function useChatBranchSwap<M extends ChatMessageLike>(
 
       void (async () => {
         try {
-          const res = await authedFetch(`/api/ai/chat/branches/${encodeURIComponent(active.parentMessageId!)}`,
-          );
-          if (!res.ok) return;
-          const json = (await res.json()) as {
-            siblings?: Array<Record<string, unknown>>;
-          };
-          const sibling = json.siblings?.find((s) => s.id === siblingId);
+          const result = await utils.chat.branches.fetch({
+            parentMessageId: active.parentMessageId!,
+          });
+          const sibling = result.siblings.find((s) => s.id === siblingId);
           if (!sibling) return;
 
           // Rebuild parts the same way use-conversations does so the
@@ -130,5 +134,5 @@ export function useChatBranchSwap<M extends ChatMessageLike>(
     window.addEventListener("nick-swap-branch", onSwap as EventListener);
     return () =>
       window.removeEventListener("nick-swap-branch", onSwap as EventListener);
-  }, [messages, setMessages]);
+  }, [messages, setMessages, utils]);
 }
