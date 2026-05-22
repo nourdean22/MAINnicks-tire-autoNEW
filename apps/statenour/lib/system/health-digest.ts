@@ -448,6 +448,25 @@ export async function persistHealthDigest(
 }
 
 /**
+ * Recompute the digest live + persist it (fire-and-forget) and return
+ * the fresh result. This is the "force a fresh digest now" path the
+ * SystemHealthCard's manual-refresh button triggers.
+ *
+ * Phase B.6a (2026-05-22) · extracted from the route-local
+ * `recomputeAndPersist` helper in app/api/ultron/health-digest/route.ts
+ * so BOTH the legacy REST POST AND the new `operator.refreshHealthDigest`
+ * tRPC mutation call the SAME function · drift impossible.
+ */
+export async function refreshHealthDigest(): Promise<SystemHealthDigest> {
+  const fresh = await computeHealthDigest();
+  // Persist is fire-and-forget — we return fresh either way.
+  persistHealthDigest(fresh).catch(() => {
+    /* nightly cron will retry */
+  });
+  return fresh;
+}
+
+/**
  * Read the latest persisted digest. Used by HQ to render the card.
  * Returns null if no digest has been written yet (fresh install OR
  * cron hasn't run since feature shipped).

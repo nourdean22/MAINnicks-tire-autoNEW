@@ -34,7 +34,7 @@
  * re-rank. If the pick is wrong, expand → pick a secondary.
  */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import {
@@ -54,7 +54,7 @@ import {
 } from "lucide-react";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import type {
   SituationPayload,
   SituationCandidate,
@@ -130,30 +130,29 @@ interface SituationCardProps {
 }
 
 export function SituationCard({ initial = null }: SituationCardProps) {
-  const [payload, setPayload] = useState<SituationPayload | null>(initial);
   const [expanded, setExpanded] = useState(false);
-  const [loading, setLoading] = useState(!initial);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await authedFetch("/api/ultron/situation");
-      if (!res.ok) throw new Error(`${res.status}`);
-      const data = (await res.json()) as { data?: SituationPayload };
-      if (data.data) setPayload(data.data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "load failed");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    const id = setInterval(load, 120_000);
-    return () => clearInterval(id);
-  }, [load]);
+  // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.operator.situation`. React Query's refetchInterval replaces
+  // the manual setInterval (120s poll preserved). The `initial` prop
+  // seeds React Query's cache via `initialData` so the card renders
+  // server-provided state immediately without a loading flash. The
+  // FreshnessChip's onReload now calls `refetch()`. `error` mirrors
+  // the legacy string-message state via React Query's error object.
+  const {
+    data: payload = null,
+    isLoading,
+    error: queryError,
+    refetch,
+  } = trpc.operator.situation.useQuery(undefined, {
+    refetchInterval: 120_000,
+    ...(initial ? { initialData: initial } : {}),
+  });
+  const loading = isLoading;
+  const error = queryError ? queryError.message : null;
+  const load = () => {
+    void refetch();
+  };
 
   const hasStory = useMemo(
     () =>

@@ -91,6 +91,29 @@ const CLIENT_EMIT_KINDS = [
   "unlinked",
 ] as const satisfies readonly TaskEventKind[];
 
+/**
+ * Shallow, explicit row shape for the task-event read procedures
+ * (`events` + `eventsByKind`). Returning the raw
+ * `prisma.taskEvent.findMany({ select })` type leaks Prisma's
+ * recursive `JsonValue` machinery (the `payload` Json column) into the
+ * AppRouter type. Past a certain total router size that surfaces as
+ * TS2589 ("excessively deep") at consumer `.useQuery` call-sites — the
+ * B.6a operator-router growth tipped it over. Casting the rows to this
+ * flat interface keeps the deep Prisma instantiation contained to this
+ * file; the public procedure type stays shallow. Read components cast
+ * to their own local row type regardless.
+ */
+interface TaskEventRow {
+  id: string;
+  payload: unknown;
+  source: string | null;
+  createdAt: Date;
+  /** selected by `events`; absent on `eventsByKind` rows. */
+  kind?: string;
+  /** selected by `eventsByKind`; absent on `events` rows. */
+  taskId?: string;
+}
+
 export const taskRouter = router({
   /**
    * Phase PP · owner-only · list tasks with optional filters from URL
@@ -201,7 +224,7 @@ export const taskRouter = router({
           createdAt: true,
         },
       });
-      return { taskId: input.taskId, events: rows };
+      return { taskId: input.taskId, events: rows as TaskEventRow[] };
     }),
 
   /**
@@ -244,7 +267,7 @@ export const taskRouter = router({
         kind: input.kind,
         sinceDays: input.sinceDays,
         windowStart: since,
-        events: rows,
+        events: rows as TaskEventRow[],
       };
     }),
 

@@ -16,73 +16,56 @@
  * Persistence via /api/mit (brainMemory category="daily_mit", key by
  * date). Auto-resets at midnight (next day = new key = empty MIT).
  */
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Crosshair, Edit3 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 export function MITSlot() {
-  const [text, setText] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
 
-  const load = async () => {
-    try {
-      const r = await authedFetch("/api/mit");
-      if (r.ok) {
-        const d = await r.json();
-        setText((d.text as string | null) ?? null);
-      }
-    } catch {
-      // best-effort · slot stays loading-then-null
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Phase B.6a (2026-05-22) · migrated all 3 calls off `authedFetch`:
+  //   · GET  /api/mit → operator.mit query
+  //   · POST /api/mit (set)   → operator.setMit mutation
+  //   · POST /api/mit (clear) → operator.clearMit mutation
+  // React Query owns the read; the displayed MIT text is the query's
+  // `data.text`. The mutations invalidate the query on success so the
+  // readout refreshes without a manual setState — same end state as
+  // the legacy `setText(d.text)`. `loading` mirrors the query's
+  // initial fetch · `saving` is true while either mutation is in
+  // flight (a failed save leaves the form open so the operator can
+  // retry, exactly as before · `setMit` only throws on a real error).
+  const utils = trpc.useUtils();
+  const { data: mit, isLoading: loading } = trpc.operator.mit.useQuery();
+  const text = mit?.text ?? null;
 
-  useEffect(() => {
-    load();
-  }, []);
+  const setMutation = trpc.operator.setMit.useMutation({
+    onSuccess: () => {
+      setEditing(false);
+      setDraft("");
+      void utils.operator.mit.invalidate();
+    },
+  });
+  const clearMutation = trpc.operator.clearMit.useMutation({
+    onSuccess: () => {
+      setEditing(false);
+      setDraft("");
+      void utils.operator.mit.invalidate();
+    },
+  });
+  const saving = setMutation.isPending || clearMutation.isPending;
 
   const startEdit = () => {
     setDraft(text ?? "");
     setEditing(true);
   };
 
-  const save = async () => {
-    setSaving(true);
-    try {
-      const r = await authedFetch("/api/mit", {
-        method: "POST",
-        body: JSON.stringify({ text: draft }),
-      });
-      if (r.ok) {
-        const d = await r.json();
-        setText((d.text as string | null) ?? null);
-        setEditing(false);
-        setDraft("");
-      }
-    } catch {
-      // failure leaves form open so operator can retry
-    } finally {
-      setSaving(false);
-    }
+  const save = () => {
+    setMutation.mutate({ text: draft });
   };
 
-  const clear = async () => {
-    setSaving(true);
-    try {
-      await authedFetch("/api/mit", {
-        method: "POST",
-        body: JSON.stringify({ text: "" }),
-      });
-      setText(null);
-      setEditing(false);
-      setDraft("");
-    } finally {
-      setSaving(false);
-    }
+  const clear = () => {
+    clearMutation.mutate();
   };
 
   if (loading) return null;

@@ -37,7 +37,7 @@ import { useUltronFetch } from "@/lib/ultron/client-cache";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 interface HealthDigest {
   generatedAt: string;
   overall: "healthy" | "warning" | "critical";
@@ -91,18 +91,26 @@ export function SystemHealthCard() {
   const [expanded, setExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Phase B.6a (2026-05-22) · the POST recompute migrated off
+  // `authedFetch` onto `trpc.operator.refreshHealthDigest`. The
+  // GET-side read still uses `useUltronFetch` above (that's a separate
+  // endpoint · out of this sub-slice's scope) — so `manualRefresh`
+  // fires the mutation, then refetches the GET to pull the freshly
+  // persisted row, exactly as before.
+  const refreshDigest = trpc.operator.refreshHealthDigest.useMutation();
+
   const manualRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // POST forces the route to recompute live regardless of age.
-      await authedFetch("/api/ultron/health-digest", { method: "POST" });
+      // Forces the route to recompute live regardless of age.
+      await refreshDigest.mutateAsync();
       await refetch?.();
     } catch {
       /* surface via the data error path */
     } finally {
       setRefreshing(false);
     }
-  }, [refetch]);
+  }, [refetch, refreshDigest]);
 
   // Silent when healthy — the whole point of the "push" digest is
   // to flag problems, not to congratulate on a clean run.
