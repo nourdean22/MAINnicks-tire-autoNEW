@@ -11,10 +11,12 @@
  * Purely observability — no mutations. Fire-and-forget poll.
  */
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Wrench, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// tools")` onto `trpc.brain.toolTelemetry` · reactive read.
+import { trpc } from "@/lib/trpc/client";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
 interface ToolStat {
@@ -25,19 +27,6 @@ interface ToolStat {
   failCount: number;
   lastCallAt?: number;
   lastErrors: Array<{ message: string; at: number }>;
-}
-
-interface ApiResponse {
-  data?: {
-    ok?: boolean;
-    total?: number;
-    problem?: string[];
-    stats?: ToolStat[];
-  };
-  ok?: boolean;
-  total?: number;
-  problem?: string[];
-  stats?: ToolStat[];
 }
 
 function formatAgo(ms?: number): string {
@@ -52,35 +41,12 @@ function formatAgo(ms?: number): string {
 }
 
 export function ToolTelemetryPanel() {
-  const [stats, setStats] = useState<ToolStat[]>([]);
-  const [problem, setProblem] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [nonce, setNonce] = useState(0);
+  const toolsQuery = trpc.brain.toolTelemetry.useQuery(undefined);
+  const stats = (toolsQuery.data?.stats as ToolStat[] | undefined) ?? [];
+  const problem = toolsQuery.data?.problem ?? [];
+  const loading = toolsQuery.isLoading;
+  const loadedAt = toolsQuery.dataUpdatedAt || null;
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await authedFetch("/api/brain/tools");
-        if (!res.ok) throw new Error("tools api failed");
-        const raw = (await res.json()) as ApiResponse;
-        const payload = raw.data ?? raw;
-        if (!alive) return;
-        setStats(payload.stats ?? []);
-        setProblem(payload.problem ?? []);
-        setLoadedAt(Date.now());
-      } catch {
-        if (alive) setStats([]);
-      } finally {
-        if (alive) setLoading(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [nonce]);
 
   if (loading) {
     return (
@@ -114,7 +80,7 @@ export function ToolTelemetryPanel() {
           <h2 className="text-[12px] font-bold uppercase tracking-wider text-[var(--text-primary)]">
             Tool telemetry · {stats.length} tracked
           </h2>
-          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => setNonce((n) => n + 1)} />
+          <FreshnessChip lastFetchedAt={loadedAt} source="brain" compact onReload={() => void toolsQuery.refetch()} />
         </div>
         {problem.length > 0 && (
           <span className="inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-wider text-red-400">

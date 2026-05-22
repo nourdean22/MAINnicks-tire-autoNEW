@@ -38,9 +38,15 @@ import { apiHandler } from "@/lib/utils/http";
 import {
   getEntityHistory,
   getActorActivity,
-  getGlobalActivity,
   type AuditAction,
 } from "@/lib/db/entity-audit";
+// Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+// the global-firehose branch delegates to the shared
+// `brain-domain.buildActivityStream` so this route AND the new
+// `trpc.brain.activityStream` procedure call the same function · drift
+// impossible. The per-entity + actor-firehose modes stay route-local
+// (no tRPC consumer in this slice).
+import { buildActivityStream } from "@/lib/services/brain-domain";
 
 const ALLOWED_ACTIONS: ReadonlyArray<AuditAction> = [
   "created",
@@ -78,10 +84,13 @@ export const GET = apiHandler(async (req) => {
   // (?firehose=1 alone), returns the global activity stream — drives
   // /brain/continuity's "what's happening across the system" surface.
   if (firehose) {
-    const entries = actor
-      ? await getActorActivity(actor, { limit, since })
-      : await getGlobalActivity({ limit, since });
-    return { count: entries.length, entries, mode: actor ? "actor-firehose" : "global-firehose" };
+    if (actor) {
+      const entries = await getActorActivity(actor, { limit, since });
+      return { count: entries.length, entries, mode: "actor-firehose" };
+    }
+    // Global firehose · the only mode with a tRPC consumer · routed
+    // through the shared service so both transports can't drift.
+    return buildActivityStream({ limit, since });
   }
 
   // Mode 2: per-entity history (the default).

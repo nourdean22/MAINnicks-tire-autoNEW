@@ -25,8 +25,13 @@
  * style · auto-removes after operator clears the query.
  */
 
-import { useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { useState } from "react";
+// Phase B.6d (2026-05-22) · migrated off `fetch("/api/brain/wisdom/
+// evolution")` (read), `authedFetch("/api/brain/wisdom/[id]")` (POST
+// deprecate) and `fetch("/api/brain/telemetry")` (POST) onto
+// `trpc.brain.wisdomEvolution` + the existing `trpc.brain.actOnWisdom`
+// (reused · the deprecate action) + `trpc.brain.recordTelemetry`.
+import { trpc } from "@/lib/trpc/client";
 import { toast } from "sonner";
 
 interface StaleCandidate {
@@ -71,58 +76,36 @@ interface EvolutionResp {
 }
 
 export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
-  const [data, setData] = useState<EvolutionResp | null>(null);
-  const [loading, setLoading] = useState(true);
+  const utils = trpc.useUtils();
+  const evoQuery = trpc.brain.wisdomEvolution.useQuery(undefined, {
+    staleTime: 0,
+  });
+  const actMutation = trpc.brain.actOnWisdom.useMutation();
+  const telemetryMutation = trpc.brain.recordTelemetry.useMutation();
+
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const r = await fetch("/api/brain/wisdom/evolution", {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (r.ok) {
-        const json = (await r.json()) as EvolutionResp;
-        setData(json);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const data = (evoQuery.data as EvolutionResp | undefined) ?? null;
+  const loading = evoQuery.isLoading;
 
   async function deprecateOne(id: string, label: string) {
     if (busyId) return;
     setBusyId(id);
     // v10.0.415 · telemetry · fire-and-forget so click latency is unchanged
-    void fetch("/api/brain/telemetry", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ event: "evolution_deprecate", tags: { wisdomId: id, key: label } }),
-    }).catch(() => null);
+    telemetryMutation.mutate({
+      event: "evolution_deprecate",
+      tags: { wisdomId: id, key: label },
+    });
     try {
-      const r = await authedFetch(`/api/brain/wisdom/${id}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action: "deprecate" }),
-      });
-      if (r.ok) {
-        toast.success(`Deprecated · ${label}`);
-        // Local optimistic refresh
-        await load();
-        onChange?.();
-      } else {
-        toast.error(`Could not deprecate · HTTP ${r.status}`);
-      }
-    } catch {
-      toast.error("Network error");
+      await actMutation.mutateAsync({ id, action: "deprecate" });
+      toast.success(`Deprecated · ${label}`);
+      // Local optimistic refresh
+      await utils.brain.wisdomEvolution.invalidate();
+      onChange?.();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? `Could not deprecate · ${err.message}` : "Network error",
+      );
     } finally {
       setBusyId(null);
     }

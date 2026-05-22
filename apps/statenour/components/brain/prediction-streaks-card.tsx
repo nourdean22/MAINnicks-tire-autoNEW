@@ -12,12 +12,14 @@
  * D5: shows lastFetchedAt + source via FreshnessChip.
  */
 
-import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// prediction-streaks")` onto `trpc.brain.predictionStreaks` · reactive
+// read.
+import { trpc } from "@/lib/trpc/client";
 import { Flame, AlertTriangle, TrendingUp } from "lucide-react";
 
 interface CategoryStreak {
@@ -38,31 +40,12 @@ interface StreaksReport {
 }
 
 export function PredictionStreaksCard() {
-  const [report, setReport] = useState<StreaksReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // v8.2 · React Query drives the fetch · the card used a one-shot
+  // `load()` (no interval) · same here.
+  const streaksQuery = trpc.brain.predictionStreaks.useQuery(undefined);
+  const report = (streaksQuery.data as StreaksReport | undefined) ?? null;
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/brain/prediction-streaks");
-      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-      const j = (await res.json()) as { data?: StreaksReport } & StreaksReport;
-      // apiHandler envelope unwraps {data: ...}; raw shape also accepted.
-      setReport(j.data ?? (j as StreaksReport));
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (loading && !report) {
+  if (streaksQuery.isLoading && !report) {
     return (
       <GlassCard>
         <p className="text-[11px] text-[var(--text-tertiary)]">loading prediction streaks…</p>
@@ -70,13 +53,15 @@ export function PredictionStreaksCard() {
     );
   }
 
-  if (error && !report) {
+  if (streaksQuery.isError && !report) {
     return (
       <GlassCard>
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-rose-400">streaks unavailable: {error}</p>
+          <p className="text-[11px] text-rose-400">
+            streaks unavailable: {streaksQuery.error.message}
+          </p>
           <button
-            onClick={() => void load()}
+            onClick={() => void streaksQuery.refetch()}
             className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)]"
           >
             retry
@@ -104,7 +89,7 @@ export function PredictionStreaksCard() {
         <FreshnessChip
           lastFetchedAt={report.computedAt}
           source="api/brain/prediction-streaks"
-          onReload={() => void load()}
+          onReload={() => void streaksQuery.refetch()}
           compact
         />
       </div>

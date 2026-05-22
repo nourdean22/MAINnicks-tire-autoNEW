@@ -33,98 +33,19 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/auth-guard";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
-import {
-  KNOWN_BRAIN_CATEGORIES,
-  DEPRECATED_CATEGORY_MAP,
-  CATEGORY_DOMAINS,
-} from "@/lib/brain/categories";
+import { buildCategoryStats } from "@/lib/services/brain-domain";
 
-type StatRow = {
-  category: string;
-  rows: number;
-  permanentRows: number;
-  latestAt: string | null;
-  oldestAt: string | null;
-  avgConfidence: number;
-  domain: string;
-  status: "registered" | "deprecated" | "unregistered";
-  canonicalTarget: string | null;
-};
-
-function domainFor(category: string): string {
-  for (const [domain, cats] of Object.entries(CATEGORY_DOMAINS)) {
-    if (cats.includes(category)) return domain;
-  }
-  return "Unregistered";
-}
-
+// Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+// the inline GROUP BY query + registry-status mapping moved to
+// `lib/services/brain-domain.buildCategoryStats` so this route AND the
+// new `trpc.brain.categoryStats` procedure call the same function ·
+// drift impossible.
 export async function GET(req: Request) {
   await requireSession(req);
   try {
-    // One query pulls every category's full stats — bigint casts are
-    // explicit so we don't have to remember them on the client side.
-    const rows = await prisma.$queryRaw<
-      Array<{
-        category: string;
-        rows: bigint;
-        permanent_rows: bigint;
-        latest_at: Date | null;
-        oldest_at: Date | null;
-        avg_confidence: number | null;
-      }>
-    >`
-      SELECT
-        category,
-        COUNT(*)::bigint AS rows,
-        COUNT(*) FILTER (WHERE expires_at IS NULL)::bigint AS permanent_rows,
-        MAX(created_at) AS latest_at,
-        MIN(created_at) AS oldest_at,
-        AVG(confidence)::float8 AS avg_confidence
-      FROM brain_memories
-      GROUP BY category
-      ORDER BY COUNT(*) DESC
-    `;
-
-    const stats: StatRow[] = rows.map((r) => {
-      const isDeprecated = DEPRECATED_CATEGORY_MAP[r.category] !== undefined;
-      const isKnown = KNOWN_BRAIN_CATEGORIES.has(r.category);
-      return {
-        category: r.category,
-        rows: Number(r.rows),
-        permanentRows: Number(r.permanent_rows),
-        latestAt: r.latest_at?.toISOString() ?? null,
-        oldestAt: r.oldest_at?.toISOString() ?? null,
-        avgConfidence: Number(r.avg_confidence ?? 0),
-        domain: domainFor(r.category),
-        status: isDeprecated
-          ? "deprecated"
-          : isKnown
-            ? "registered"
-            : "unregistered",
-        canonicalTarget: DEPRECATED_CATEGORY_MAP[r.category] ?? null,
-      };
-    });
-
-    const totalRows = stats.reduce((s, x) => s + x.rows, 0);
-
-    return NextResponse.json({
-      data: {
-        totalRows,
-        totalCategories: stats.length,
-        categoriesRegistered: stats.filter((s) => s.status === "registered")
-          .length,
-        categoriesDeprecated: stats.filter((s) => s.status === "deprecated")
-          .length,
-        categoriesUnregistered: stats.filter(
-          (s) => s.status === "unregistered",
-        ).length,
-        stats,
-        generatedAt: new Date().toISOString(),
-      },
-    });
+    return NextResponse.json({ data: await buildCategoryStats() });
   } catch (err) {
     return NextResponse.json(
       {

@@ -38,7 +38,11 @@ import {
   RotateCw,
 } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// pinned")` (GET withStats / POST / PATCH / DELETE) onto the existing
+// `trpc.brain.{pinned,createPin,updatePin,deletePin}` procedures (added
+// in Phase YY) · reactive read + 3 mutations.
+import { trpc } from "@/lib/trpc/client";
 
 interface PinRow {
   id: string;
@@ -92,9 +96,12 @@ function stalenessLabel(days: number) {
 }
 
 export function PinnedContextPanel() {
-  const [pins, setPins] = useState<PinRow[] | null>(null);
-  const [stats, setStats] = useState<PinStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const utils = trpc.useUtils();
+  const pinsQuery = trpc.brain.pinned.useQuery({ withStats: true });
+  const createMutation = trpc.brain.createPin.useMutation();
+  const updateMutation = trpc.brain.updatePin.useMutation();
+  const deleteMutation = trpc.brain.deletePin.useMutation();
+
   const [busyId, setBusyId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   // Short-lived id marker so we can fire a one-shot reinforce pulse
@@ -104,31 +111,20 @@ export function PinnedContextPanel() {
   const [newContent, setNewContent] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await authedFetch("/api/brain/pinned?withStats=1");
-      if (!res.ok) throw new Error(`fetch ${res.status}`);
-      const data = (await res.json()) as { pins?: PinRow[]; stats?: PinStats };
-      setPins(data.pins ?? []);
-      setStats(data.stats ?? null);
-      setLoadedAt(Date.now());
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown";
-      setError(msg);
-      toast.error(`pins load failed: ${msg}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // `listPins` returns `{ pins, count, stats? }` as a loose record · the
+  // panel's local PinRow / PinStats interfaces pin the shape it renders.
+  const pins =
+    (pinsQuery.data?.pins as PinRow[] | undefined) ??
+    (pinsQuery.isError ? [] : null);
+  const stats = (pinsQuery.data?.stats as PinStats | undefined) ?? null;
+  const loading = pinsQuery.isLoading;
+  const loadedAt = pinsQuery.dataUpdatedAt || null;
+  const error = pinsQuery.isError ? pinsQuery.error.message : null;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(() => {
+    void utils.brain.pinned.invalidate();
+  }, [utils]);
 
   // If the user arrives here via Cmd+Shift+P (/brain#pinned-context)
   // or any deep link, scroll the panel into view + open the add-new
@@ -151,48 +147,42 @@ export function PinnedContextPanel() {
     async (id: string) => {
       setBusyId(id);
       try {
-        const res = await authedFetch(`/api/brain/pinned?id=${id}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("unpin failed");
+        await deleteMutation.mutateAsync({ id });
         toast.success("unpinned");
-        await load();
+        await utils.brain.pinned.invalidate();
       } catch (e) {
         toast.error(`unpin failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusyId(null);
       }
     },
-    [load]
+    [deleteMutation, utils]
   );
 
   const reinforce = useCallback(
     async (pin: PinRow) => {
       setBusyId(pin.id);
       try {
-        // POST with same content triggers the reinforcement path —
-        // resets updatedAt + increments seenCount. This is the "still
-        // relevant" confirmation button.
-        const res = await authedFetch("/api/brain/pinned", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            content: pin.content,
-            source: pin.source,
-            label: pin.metadata?.label,
-          }),
+        // createPin with the same content triggers the reinforcement
+        // path — re-pinning the slugified key bumps seenCount + resets
+        // confidence. This is the "still relevant" confirmation button.
+        await createMutation.mutateAsync({
+          content: pin.content,
+          source: pin.source,
+          label: pin.metadata?.label,
         });
-        if (!res.ok) throw new Error("reinforce failed");
         toast.success("reinforced — staleness timer reset");
         // 10.15 — fire a one-shot green pulse on the affected pin
         setReinforcedId(pin.id);
         setTimeout(() => setReinforcedId(null), 950);
-        await load();
+        await utils.brain.pinned.invalidate();
       } catch (e) {
         toast.error(`reinforce failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusyId(null);
       }
     },
-    [load]
+    [createMutation, utils]
   );
 
   const startEdit = useCallback((pin: PinRow) => {
@@ -215,51 +205,45 @@ export function PinnedContextPanel() {
       }
       setBusyId(pin.id);
       try {
-        const res = await authedFetch("/api/brain/pinned", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: pin.id,
-            content: editContent.trim(),
-            label: editLabel.trim() || null,
-          }),
+        // `label` is sent as "" (cleared) or the trimmed value · the
+        // updatePin Zod input is `.optional()` not `.nullable()`, and
+        // the service treats `label !== undefined` as a write — an
+        // empty string clears the label, matching the legacy `|| null`.
+        await updateMutation.mutateAsync({
+          id: pin.id,
+          content: editContent.trim(),
+          label: editLabel.trim(),
         });
-        if (!res.ok) throw new Error("patch failed");
         toast.success("pin updated");
         cancelEdit();
-        await load();
+        await utils.brain.pinned.invalidate();
       } catch (e) {
         toast.error(`update failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusyId(null);
       }
     },
-    [editContent, editLabel, cancelEdit, load]
+    [editContent, editLabel, cancelEdit, updateMutation, utils]
   );
 
   const addPin = useCallback(async () => {
     const text = newContent.trim();
     if (!text) return;
     try {
-      const res = await authedFetch("/api/brain/pinned", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: text,
-          source: "pin:manual",
-          label: newLabel.trim() || undefined,
-        }),
+      await createMutation.mutateAsync({
+        content: text,
+        source: "pin:manual",
+        label: newLabel.trim() || undefined,
       });
-      if (!res.ok) throw new Error("pin failed");
       toast.success("pinned");
       setNewContent("");
       setNewLabel("");
       setAddOpen(false);
-      await load();
+      await utils.brain.pinned.invalidate();
     } catch (e) {
       toast.error(`pin failed: ${e instanceof Error ? e.message : e}`);
     }
-  }, [newContent, newLabel, load]);
+  }, [newContent, newLabel, createMutation, utils]);
 
   // Show stats in a compact header strip. Lights tell Nour at a
   // glance whether his pins need maintenance.

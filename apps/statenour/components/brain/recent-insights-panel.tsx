@@ -17,8 +17,11 @@
  * Auto-hides when there are no insights in the window.
  */
 
-import { useCallback, useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/brain/
+// recent-insights?days=7&limit=30")` onto `trpc.brain.recentInsights` ·
+// reactive read · `cache: "no-store"` semantics preserved via
+// `staleTime: 0`.
+import { trpc } from "@/lib/trpc/client";
 import { TipChip } from "@/components/ui/tip-chip";
 import { BookOpen } from "lucide-react";
 
@@ -36,32 +39,14 @@ const PANEL_TIP =
   "every task that reads like a learning ('researched', 'studied', 'watched', 'figured out') gets saved here. nick enriches each one in the background with the axis it lifts + a thread to pull.";
 
 export function RecentInsightsPanel() {
-  const [insights, setInsights] = useState<Insight[] | null>(null);
-  const [error, setError] = useState(false);
+  const insightsQuery = trpc.brain.recentInsights.useQuery(
+    { days: 7, limit: 30 },
+    { staleTime: 0 },
+  );
+  const insights = (insightsQuery.data?.insights as Insight[] | undefined) ??
+    null;
 
-  const load = useCallback(async () => {
-    try {
-      const r = await authedFetch("/api/brain/recent-insights?days=7&limit=30", {
-        cache: "no-store",
-      });
-      if (!r.ok) {
-        setError(true);
-        return;
-      }
-      const body = await r.json();
-      const payload = (body?.data ?? body) as { insights: Insight[] };
-      setInsights(payload.insights ?? []);
-      setError(false);
-    } catch {
-      setError(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  if (error || !insights) return null;
+  if (insightsQuery.isError || !insights) return null;
   if (insights.length === 0) return null;
 
   // Group by axis (null → "unsorted")

@@ -28,6 +28,18 @@ import { loadGhostAccuracy } from "./ghost-nick";
 import { loadActiveSkills, loadPendingSkills } from "./skill-extractor";
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { brainMemory } from "@/lib/brain/memory-manager";
+
+/**
+ * Stable BrainMemory(nudge_ack) key for a {source, text} pair. Module-
+ * scoped so the dismiss path (`dismissNudge`) and the suppression
+ * filter inside `computeNudges` derive the SAME key — a dismiss can
+ * only land on the nudge it targets.
+ */
+function nudgeKey(source: string, text: string): string {
+  const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
+  return `${source}::${slug}`;
+}
 
 export interface Nudge {
   severity: "high" | "medium" | "low";
@@ -344,10 +356,6 @@ export async function computeNudges(): Promise<Nudge[]> {
     }
     ackedKeys.add(row.key);
   }
-  function nudgeKey(source: string, text: string): string {
-    const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
-    return `${source}::${slug}`;
-  }
   const filtered = nudges.filter((n) => !ackedKeys.has(nudgeKey(n.source, n.text)));
 
   filtered.sort((a, b) => {
@@ -372,4 +380,50 @@ export async function buildNudgeContextBlock(): Promise<string> {
     lines.push(`- ${mark} [${n.source}] ${n.text}`);
   }
   return lines.join("\n");
+}
+
+/** ACK-window choice for a nudge dismissal. */
+export type NudgeDismissUntil = "today" | "7d" | "forever";
+
+/**
+ * Dismiss (ACK) a nudge for a window. Writes a BrainMemory(nudge_ack)
+ * row keyed by {source, text}; `computeNudges` filters out any nudge
+ * whose ack row hasn't expired. Lifted verbatim from
+ * POST /api/brain/nudges/dismiss · the route AND the tRPC
+ * `brain.dismissNudge` procedure both call this · drift impossible.
+ */
+export async function dismissNudge(args: {
+  source: string;
+  text: string;
+  until?: NudgeDismissUntil;
+}): Promise<{ ok: true; key: string; expiresAt: string | null }> {
+  const key = nudgeKey(args.source, args.text);
+  const until = args.until ?? "7d";
+
+  let expiresAt: Date | null;
+  if (until === "today") {
+    const d = new Date();
+    d.setHours(24, 0, 0, 0); // midnight tonight (rough 00:00 local)
+    expiresAt = d;
+  } else if (until === "forever") {
+    expiresAt = null;
+  } else {
+    expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  }
+
+  await brainMemory.remember(
+    "nudge_ack",
+    key,
+    `ACK: ${args.source} · ${args.text.slice(0, 120)}`,
+    "nudge-dismiss",
+    {
+      source: args.source,
+      text: args.text,
+      until,
+      ackAt: new Date().toISOString(),
+      expiresAt: expiresAt ? expiresAt.toISOString() : null,
+    },
+  );
+
+  return { ok: true, key, expiresAt: expiresAt?.toISOString() ?? null };
 }

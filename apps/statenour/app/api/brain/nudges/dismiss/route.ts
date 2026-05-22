@@ -16,9 +16,16 @@
  *
  * Default `until` is "7d" — dismiss for a week unless re-upped by
  * a state change.
+ *
+ * Phase B.6d (2026-05-22 · legacy-modernizer REST→tRPC brain slice) ·
+ * the inline ACK-row write moved to
+ * `lib/brain/cross-system-nudge.dismissNudge` (alongside `computeNudges`
+ * so the key derivation can't drift from the suppression filter) · this
+ * route AND the new `trpc.brain.dismissNudge` procedure call the same
+ * function · drift impossible.
  */
 import { apiHandler, readRequestJson } from "@/lib/utils/http";
-import { brainMemory } from "@/lib/brain/memory-manager";
+import { dismissNudge } from "@/lib/brain/cross-system-nudge";
 import { ServiceError } from "@/lib/utils/service-error";
 
 interface DismissBody {
@@ -27,49 +34,17 @@ interface DismissBody {
   until?: "today" | "7d" | "forever";
 }
 
-function nudgeKey(source: string, text: string): string {
-  const slug = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").slice(0, 60);
-  return `${source}::${slug}`;
-}
-
-function expiryForUntil(until: DismissBody["until"]): Date | null {
-  const now = Date.now();
-  if (until === "today") {
-    // Midnight ET tonight (rough 00:00 local)
-    const d = new Date();
-    d.setHours(24, 0, 0, 0);
-    return d;
-  }
-  if (until === "forever") return null;
-  // default "7d"
-  return new Date(now + 7 * 24 * 60 * 60 * 1000);
-}
-
 export const POST = apiHandler(
   async (req) => {
-    const body = await readRequestJson<DismissBody>(req).catch(() => ({})) as DismissBody;
+    const body = (await readRequestJson<DismissBody>(req).catch(
+      () => ({}),
+    )) as DismissBody;
     const source = body.source;
     const text = body.text;
-    if (!source || !text) throw new ServiceError("source and text required", 400);
-
-    const key = nudgeKey(source, text);
-    const expiresAt = expiryForUntil(body.until);
-
-    await brainMemory.remember(
-      "nudge_ack",
-      key,
-      `ACK: ${source} · ${text.slice(0, 120)}`,
-      "nudge-dismiss",
-      {
-        source,
-        text,
-        until: body.until ?? "7d",
-        ackAt: new Date().toISOString(),
-        expiresAt: expiresAt ? expiresAt.toISOString() : null,
-      },
-    );
-
-    return { ok: true, key, expiresAt: expiresAt?.toISOString() ?? null };
+    if (!source || !text) {
+      throw new ServiceError("source and text required", 400);
+    }
+    return dismissNudge({ source, text, until: body.until });
   },
   { auth: "owner" },
 );

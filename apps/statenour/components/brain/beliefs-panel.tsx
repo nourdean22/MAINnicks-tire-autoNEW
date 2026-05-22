@@ -7,14 +7,18 @@
  * polish the statement. Drop nukes.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ArrowUp, Trash2, Pencil, Check, X, Loader2, Play, BookOpen } from "lucide-react";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/beliefs")`
+// (GET + PATCH) onto `trpc.brain.beliefs` (reactive read) +
+// `trpc.brain.harvestBeliefs` + `trpc.brain.actOnBelief` (mutations) ·
+// the single PATCH `action` discriminator split into two procedures.
+import { trpc } from "@/lib/trpc/client";
 
 interface StoredBelief {
   dbId: string;
@@ -31,74 +35,63 @@ interface StoredBelief {
 }
 
 export function BeliefsPanel() {
-  const [active, setActive] = useState<StoredBelief[] | null>(null);
-  const [candidates, setCandidates] = useState<StoredBelief[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
+  const utils = trpc.useUtils();
+  const beliefsQuery = trpc.brain.beliefs.useQuery(undefined);
+  const harvestMutation = trpc.brain.harvestBeliefs.useMutation();
+  const actMutation = trpc.brain.actOnBelief.useMutation();
+
   const [busy, setBusy] = useState<string | null>(null);
-  const [harvesting, setHarvesting] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editText, setEditText] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/beliefs");
-      if (!res.ok) throw new Error("fetch failed");
-      const raw = (await res.json()) as { data?: { active: StoredBelief[]; candidates: StoredBelief[] } };
-      setActive(raw.data?.active ?? []);
-      setCandidates(raw.data?.candidates ?? []);
-      setLoadedAt(Date.now());
-    } catch (e) {
-      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const active = (beliefsQuery.data?.active as StoredBelief[] | undefined) ??
+    (beliefsQuery.isError ? [] : null);
+  const candidates =
+    (beliefsQuery.data?.candidates as StoredBelief[] | undefined) ??
+    (beliefsQuery.isError ? [] : null);
+  const loading = beliefsQuery.isLoading;
+  const loadedAt = beliefsQuery.dataUpdatedAt || null;
+  const harvesting = harvestMutation.isPending;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(() => {
+    void utils.brain.beliefs.invalidate();
+  }, [utils]);
 
   const harvestNow = useCallback(async () => {
-    setHarvesting(true);
     try {
-      const res = await authedFetch("/api/beliefs", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "harvest_now" }),
-      });
-      if (!res.ok) throw new Error("harvest failed");
-      const raw = (await res.json()) as { data?: { result?: { newCandidates?: number } } };
-      const n = raw.data?.result?.newCandidates ?? 0;
-      toast.success(n > 0 ? `${n} new belief candidate${n > 1 ? "s" : ""}` : "no new candidates");
-      await load();
+      const res = await harvestMutation.mutateAsync();
+      const n = res.result?.newCandidates ?? 0;
+      toast.success(
+        n > 0
+          ? `${n} new belief candidate${n > 1 ? "s" : ""}`
+          : "no new candidates",
+      );
+      await utils.brain.beliefs.invalidate();
     } catch (e) {
       toast.error(`harvest failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setHarvesting(false);
     }
-  }, [load]);
+  }, [harvestMutation, utils]);
 
   const act = useCallback(
-    async (key: string, action: "promote" | "drop", kind?: "belief" | "belief_candidate", statement?: string) => {
+    async (
+      key: string,
+      action: "promote" | "drop",
+      kind?: "belief" | "belief_candidate",
+    ) => {
       setBusy(key);
       try {
-        const res = await authedFetch("/api/beliefs", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, action, kind, statement }),
-        });
-        if (!res.ok) throw new Error(action);
-        toast.success(action === "promote" ? "belief promoted" : "belief dropped");
-        await load();
+        await actMutation.mutateAsync({ key, action, kind });
+        toast.success(
+          action === "promote" ? "belief promoted" : "belief dropped",
+        );
+        await utils.brain.beliefs.invalidate();
       } catch (e) {
         toast.error(`${action} failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusy(null);
       }
     },
-    [load],
+    [actMutation, utils],
   );
 
   const saveEdit = useCallback(
@@ -106,23 +99,23 @@ export function BeliefsPanel() {
       if (!editText.trim()) return;
       setBusy(key);
       try {
-        const res = await authedFetch("/api/beliefs", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key, action: "edit", kind, statement: editText }),
+        await actMutation.mutateAsync({
+          key,
+          action: "edit",
+          kind,
+          statement: editText,
         });
-        if (!res.ok) throw new Error("edit failed");
         toast.success("belief edited");
         setEditKey(null);
         setEditText("");
-        await load();
+        await utils.brain.beliefs.invalidate();
       } catch (e) {
         toast.error(`edit failed: ${e instanceof Error ? e.message : e}`);
       } finally {
         setBusy(null);
       }
     },
-    [editText, load],
+    [editText, actMutation, utils],
   );
 
   const renderRow = (b: StoredBelief, kind: "belief" | "belief_candidate") => {

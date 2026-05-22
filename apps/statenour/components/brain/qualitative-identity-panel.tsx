@@ -7,14 +7,18 @@
  * auto-extracted entries.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Loader2, Plus, X, RefreshCw, Compass } from "lucide-react";
 import { DismissButton } from "@/components/ui/dismiss-button";
 import { toast } from "sonner";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// Phase B.6d (2026-05-22) · migrated off `authedFetch("/api/identity/
+// qualitative")` (GET + POST + PATCH) onto `trpc.brain.qualitativeIdentity`
+// (reactive read) + `trpc.brain.recomputeQualitativeIdentity` +
+// `trpc.brain.editQualitativeIdentity` (mutations).
+import { trpc } from "@/lib/trpc/client";
 
 type Bucket = "values" | "fears" | "operating_style" | "rhythms" | "red_lines";
 
@@ -52,61 +56,47 @@ const BUCKET_COLOR: Record<Bucket, string> = {
 };
 
 export function QualitativeIdentityPanel() {
-  const [identity, setIdentity] = useState<Identity | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadedAt, setLoadedAt] = useState<number | null>(null);
-  const [recomputing, setRecomputing] = useState(false);
+  const utils = trpc.useUtils();
+  const identityQuery = trpc.brain.qualitativeIdentity.useQuery(undefined);
+  const recomputeMutation =
+    trpc.brain.recomputeQualitativeIdentity.useMutation();
+  const editMutation = trpc.brain.editQualitativeIdentity.useMutation();
+
   const [adding, setAdding] = useState<Bucket | null>(null);
   const [addText, setAddText] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await authedFetch("/api/identity/qualitative");
-      if (!res.ok) throw new Error("fetch failed");
-      const raw = (await res.json()) as { data?: { identity?: Identity } };
-      setIdentity(raw.data?.identity ?? null);
-      setLoadedAt(Date.now());
-    } catch (e) {
-      toast.error(`load failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const identity =
+    (identityQuery.data?.identity as Identity | undefined) ?? null;
+  const loading = identityQuery.isLoading;
+  const loadedAt = identityQuery.dataUpdatedAt || null;
+  const recomputing = recomputeMutation.isPending;
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const load = useCallback(() => {
+    void utils.brain.qualitativeIdentity.invalidate();
+  }, [utils]);
 
   const recompute = useCallback(async () => {
-    setRecomputing(true);
     try {
-      const res = await authedFetch("/api/identity/qualitative", { method: "POST" });
-      if (!res.ok) throw new Error("recompute failed");
-      const raw = (await res.json()) as { data?: { identity?: Identity } };
-      setIdentity(raw.data?.identity ?? null);
+      await recomputeMutation.mutateAsync();
+      await utils.brain.qualitativeIdentity.invalidate();
       toast.success("qualitative identity recomputed");
     } catch (e) {
       toast.error(`recompute failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setRecomputing(false);
     }
-  }, []);
+  }, [recomputeMutation, utils]);
 
   const addEntry = useCallback(
     async (bucket: Bucket) => {
       if (!addText.trim()) return;
       setBusy(true);
       try {
-        const res = await authedFetch("/api/identity/qualitative", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "add", bucket, text: addText }),
+        await editMutation.mutateAsync({
+          action: "add",
+          bucket,
+          text: addText,
         });
-        if (!res.ok) throw new Error("add failed");
-        const raw = (await res.json()) as { data?: { identity?: Identity } };
-        setIdentity(raw.data?.identity ?? null);
+        await utils.brain.qualitativeIdentity.invalidate();
         setAdding(null);
         setAddText("");
       } catch (e) {
@@ -115,26 +105,23 @@ export function QualitativeIdentityPanel() {
         setBusy(false);
       }
     },
-    [addText],
+    [addText, editMutation, utils],
   );
 
-  const removeEntry = useCallback(async (bucket: Bucket, text: string) => {
-    setBusy(true);
-    try {
-      const res = await authedFetch("/api/identity/qualitative", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "remove", bucket, text }),
-      });
-      if (!res.ok) throw new Error("remove failed");
-      const raw = (await res.json()) as { data?: { identity?: Identity } };
-      setIdentity(raw.data?.identity ?? null);
-    } catch (e) {
-      toast.error(`remove failed: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const removeEntry = useCallback(
+    async (bucket: Bucket, text: string) => {
+      setBusy(true);
+      try {
+        await editMutation.mutateAsync({ action: "remove", bucket, text });
+        await utils.brain.qualitativeIdentity.invalidate();
+      } catch (e) {
+        toast.error(`remove failed: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [editMutation, utils],
+  );
 
   return (
     <GlassCard>
