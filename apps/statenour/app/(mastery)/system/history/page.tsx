@@ -16,13 +16,13 @@
  * the right view.
  */
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
 import { Panel } from "@/components/panel";
 import { EntityHistoryDrawer } from "@/components/system/entity-history-drawer";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 const ENTITY_TYPES = [
   "task",
   "mission",
@@ -285,6 +285,15 @@ function PickerForm({
   );
 }
 
+// The action-chip values · mirrors the chip set rendered in the
+// firehose panel + the procedure's `action` input enum.
+type FirehoseAction =
+  | "created"
+  | "updated"
+  | "soft_deleted"
+  | "restored"
+  | "purged";
+
 function FirehoseList({
   actor,
   action,
@@ -294,50 +303,50 @@ function FirehoseList({
   action?: string;
   since?: string;
 }) {
-  const [entries, setEntries] = useState<FirehoseEntry[] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // v8.7 BATCH 43 — translate "1h" / "24h" / "7d" / "30d" into the
+  // ISO datetime the procedure expects.
+  const sinceIso = useMemo(() => {
+    if (!since) return undefined;
+    const m = since.match(/^(\d+)([hd])$/);
+    if (!m) return undefined;
+    const n = Number(m[1]);
+    const ms = m[2] === "h" ? n * 3_600_000 : n * 86_400_000;
+    return new Date(Date.now() - ms).toISOString();
+  }, [since]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    // v8.7 BATCH 43 — translate "1h" / "24h" / "7d" / "30d" into the
-    // ISO datetime the API expects.
-    const sinceIso = (() => {
-      if (!since) return null;
-      const m = since.match(/^(\d+)([hd])$/);
-      if (!m) return null;
-      const n = Number(m[1]);
-      const ms = m[2] === "h" ? n * 3_600_000 : n * 86_400_000;
-      return new Date(Date.now() - ms).toISOString();
-    })();
-    const qs = new URLSearchParams({
-      firehose: "1",
+  const VALID_ACTIONS: readonly FirehoseAction[] = [
+    "created",
+    "updated",
+    "soft_deleted",
+    "restored",
+    "purged",
+  ];
+  const actionFilter: FirehoseAction | undefined =
+    action && (VALID_ACTIONS as readonly string[]).includes(action)
+      ? (action as FirehoseAction)
+      : undefined;
+
+  // Phase B.7b · React Query drives the actor-firehose read (was a
+  // manual authedFetch in a useEffect). The input object is the query
+  // key, so changing actor / action / since refetches. `entries`
+  // arrives with `createdAt` ISO-stringified from the procedure,
+  // matching the local `FirehoseEntry` shape.
+  const firehoseQuery = trpc.system.actorActivity.useQuery(
+    {
       actor,
-      limit: "200",
-    });
-    if (action) qs.set("action", action);
-    if (sinceIso) qs.set("since", sinceIso);
-    authedFetch(`/api/audit/entity?${qs.toString()}`)
-      .then((r) => r.json())
-      .then((j: { entries: FirehoseEntry[] }) => {
-        if (cancelled) return;
-        setEntries(Array.isArray(j.entries) ? j.entries : []);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Failed to load");
-        setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [actor, action, since]);
+      action: actionFilter,
+      since: sinceIso,
+      limit: 200,
+    },
+    { staleTime: 30_000 },
+  );
+  const entries: FirehoseEntry[] | null = firehoseQuery.data?.entries ?? null;
+  const loading = firehoseQuery.isLoading;
+  const error = firehoseQuery.error;
 
   if (loading) return <div className="text-sm text-zinc-500">loading…</div>;
-  if (error) return <div className="text-sm text-rose-300">{error}</div>;
+  if (error)
+    return <div className="text-sm text-rose-300">{error.message}</div>;
   if (!entries || entries.length === 0)
     return <div className="text-sm text-zinc-500">No activity by {actor} in recent history.</div>;
 

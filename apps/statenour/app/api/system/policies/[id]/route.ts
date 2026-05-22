@@ -1,11 +1,6 @@
 import { apiHandler, readRequestJson } from "@/lib/utils/http";
-import {
-  getPolicy,
-  setApprovalClass,
-  setEnabled,
-  updateNotes,
-  type ApprovalClass,
-} from "@/lib/automation/policy";
+import { getPolicy, type ApprovalClass } from "@/lib/automation/policy";
+import { updatePolicyFields } from "@/lib/services/system-pages-b";
 import { ServiceError } from "@/lib/utils/service-error";
 
 /**
@@ -23,6 +18,14 @@ import { ServiceError } from "@/lib/utils/service-error";
  * etc. events rather than collapsing them into one mutation.
  *
  * Owner-only. The page that drives this endpoint is /system/policies.
+ *
+ * Phase B.7b (2026-05-22 · legacy-modernizer REST→tRPC system-pages
+ * slice) · the PATCH multi-field-edit logic moved to the shared
+ * `lib/services/system-pages-b.updatePolicyFields` service · this route
+ * AND the new `trpc.system.updatePolicy` procedure call the same
+ * function · drift impossible. The route stays mounted as the rollback
+ * path. (The single-policy GET keeps using `getPolicy` directly · no
+ * tRPC consumer for that mode in this slice.)
  */
 
 export const dynamic = "force-dynamic";
@@ -48,19 +51,12 @@ export const PATCH = apiHandler(
       notes?: string | null;
     };
 
-    let result = await getPolicy(id);
-    if (!result) throw new ServiceError(`policy "${id}" not found`, 404);
-
-    if (typeof body.approvalClass === "string") {
-      result = await setApprovalClass(id, body.approvalClass);
-    }
-    if (typeof body.enabled === "boolean") {
-      result = await setEnabled(id, body.enabled);
-    }
-    if (body.notes !== undefined) {
-      result = await updateNotes(id, body.notes);
-    }
-    return result;
+    return updatePolicyFields({
+      id,
+      approvalClass: body.approvalClass,
+      enabled: body.enabled,
+      notes: body.notes,
+    });
   },
   { auth: "owner" },
 );

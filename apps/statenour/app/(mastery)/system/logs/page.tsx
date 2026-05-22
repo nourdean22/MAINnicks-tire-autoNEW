@@ -37,8 +37,8 @@ import { cn } from "@/lib/utils/cn";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ErrorsFingerprints } from "@/components/system/errors-fingerprints";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 type Level = "error" | "warn" | "info" | "success" | "metric";
 type Source = "errors" | "crons" | "metrics" | "actions" | "requests";
 
@@ -116,14 +116,11 @@ export default function LogsPage() {
 }
 
 function LogsPageInner() {
-  const [feed, setFeed] = useState<Feed | null>(null);
-  const [loading, setLoading] = useState(true);
   const [win, setWin] = useState<Window>("1h");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [levelFilter, setLevelFilter] = useState<Level | "all">("all");
   const [sourceFilter, setSourceFilter] = useState<Set<Source>>(new Set());
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [lastTotal, setLastTotal] = useState(0);
   const [newSince, setNewSince] = useState(0);
   // v10.0.306 · view-mode toggle · STREAM (default chronological) or
   // ERRORS (deduped fingerprint deck, absorbed from deleted
@@ -146,6 +143,48 @@ function LogsPageInner() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("system-logs:sortKey", sortKey);
   }, [sortKey]);
+
+  // Phase B.7b · React Query drives the unified-tail fetch (was a
+  // manual authedFetch with an AbortController + `cache: "no-store"`).
+  // The input object is the query key, so changing the window / level
+  // / source filters refetches; `refetchInterval` reproduces the 10s
+  // auto-refresh poll (only while the toggle is on). The Feed shape
+  // flows from the procedure (SystemMetric/ErrorLog Json columns are
+  // nested under each entry's `meta` bag · TS2589 firewall).
+  const logsQuery = trpc.system.systemLogs.useQuery(
+    {
+      limit: 300,
+      sinceMs: WINDOW_MS[win],
+      level: levelFilter === "all" ? undefined : levelFilter,
+      sources: sourceFilter.size > 0 ? [...sourceFilter] : undefined,
+    },
+    {
+      staleTime: 0,
+      refetchInterval: autoRefresh ? 10_000 : false,
+    },
+  );
+  const feed = logsQuery.data ?? null;
+  const loading = logsQuery.isLoading;
+  const load = () => void logsQuery.refetch();
+
+  // The "N new since last refresh" amber pulse · compares the entry
+  // count against the prior render's count (was a setFeed-time diff).
+  const prevTotalRef = useRef(0);
+  useEffect(() => {
+    if (!feed) {
+      return;
+    }
+    const total = feed.entries.length;
+    if (total > prevTotalRef.current && prevTotalRef.current > 0) {
+      setNewSince(total - prevTotalRef.current);
+      const t = setTimeout(() => setNewSince(0), 5000);
+      prevTotalRef.current = total;
+      return () => clearTimeout(t);
+    }
+    prevTotalRef.current = total;
+    return undefined;
+  }, [feed]);
+
   const LEVEL_RANK: Record<string, number> = { error: 0, warn: 1, info: 2, debug: 3 };
   const sortedEntries = useMemo(() => {
     if (!feed) return [] as LogEntry[];
@@ -170,48 +209,6 @@ function LogsPageInner() {
     }
     return out;
   }, [feed, sortKey, LEVEL_RANK]);
-  const fetchRef = useRef<AbortController | null>(null);
-
-  const load = useCallback(async () => {
-    fetchRef.current?.abort();
-    const ac = new AbortController();
-    fetchRef.current = ac;
-    try {
-      const params = new URLSearchParams({
-        limit: "300",
-        since: String(WINDOW_MS[win]),
-      });
-      if (levelFilter !== "all") params.set("level", levelFilter);
-      if (sourceFilter.size > 0) params.set("source", [...sourceFilter].join(","));
-      const res = await authedFetch(`/api/system/logs?${params}`, { signal: ac.signal, cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      const next = (json.data ?? json) as Feed;
-      if (feed && next.entries.length > lastTotal) {
-        setNewSince(next.entries.length - lastTotal);
-        setTimeout(() => setNewSince(0), 5000);
-      }
-      setFeed(next);
-      setLastTotal(next.entries.length);
-    } catch (e) {
-      if ((e as { name?: string }).name !== "AbortError") {
-        console.error("logs fetch failed", e);
-      }
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [win, levelFilter, sourceFilter]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!autoRefresh) return;
-    const i = setInterval(load, 10_000);
-    return () => clearInterval(i);
-  }, [autoRefresh, load]);
 
   const toggleSource = (s: Source) => {
     setSourceFilter((prev) => {

@@ -17,12 +17,12 @@
  * page.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { Panel } from "@/components/panel";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   CheckCircle2,
   AlertTriangle,
@@ -127,50 +127,32 @@ const RING_LABEL: Record<Ring, string> = {
 };
 
 export default function ReposPage() {
-  const [data, setData] = useState<ReposResponse | null>(null);
-  const [digest, setDigest] = useState<EcosystemDigest | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      // Fetch repo state + briefing in parallel — both are owner-gated
-      // and cached. The briefing endpoint is best-effort: a failure
-      // there should never blank the dashboard.
-      const [reposRes, briefingRes] = await Promise.all([
-        authedFetch("/api/system/repos"),
-        authedFetch("/api/system/repo-briefing").catch(() => null),
-      ]);
-      if (!reposRes.ok)
-        throw new Error(`${reposRes.status} ${reposRes.statusText}`);
-      const j = (await reposRes.json()) as
-        | { data?: ReposResponse }
-        | ReposResponse;
-      setData(("data" in j && j.data ? j.data : (j as ReposResponse)));
-      if (briefingRes && briefingRes.ok) {
-        const b = (await briefingRes.json()) as
-          | { data?: EcosystemDigest }
-          | EcosystemDigest;
-        setDigest(("data" in b && b.data ? b.data : (b as EcosystemDigest)));
-      }
-      setLastFetched(new Date());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-    // 5min poll — repo state changes infrequently. v10 B.1 FIND-08
-    // pattern: don't over-poll for low-frequency data.
-    const i = setInterval(load, 5 * 60_000);
-    return () => clearInterval(i);
-  }, [load]);
+  // Phase B.7b · React Query drives both reads (was a manual
+  // Promise.all over two authedFetch calls). Two independent queries:
+  // the briefing is best-effort — its error never blanks the
+  // dashboard (the page only gates on `reposQuery.error`). The 5-min
+  // refetchInterval reproduces the prior setInterval poll. The
+  // ReposResponse / EcosystemDigest shapes flow from the procedures.
+  const reposQuery = trpc.system.reposOverview.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
+  });
+  const briefingQuery = trpc.system.repoBriefing.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
+  });
+  const data: ReposResponse | null = reposQuery.data ?? null;
+  const digest: EcosystemDigest | null = briefingQuery.data ?? null;
+  const loading = reposQuery.isLoading;
+  const error = reposQuery.error;
+  const load = () => {
+    void reposQuery.refetch();
+    void briefingQuery.refetch();
+  };
+  // The FreshnessChip's last-fetched timestamp tracks the repos query.
+  const lastFetched = reposQuery.dataUpdatedAt
+    ? new Date(reposQuery.dataUpdatedAt)
+    : null;
 
   // v10.0.438 · sort key for repos within each ring
   type RepoSort = "name" | "live-first" | "monitored-first" | "fresh-commit" | "stale-commit";
@@ -248,7 +230,7 @@ export default function ReposPage() {
     >
       {error && !data && (
         <Panel className="border-rose-500/40 bg-rose-500/[0.05]">
-          <p className="p-3 text-[12px] text-rose-200">{error}</p>
+          <p className="p-3 text-[12px] text-rose-200">{error.message}</p>
         </Panel>
       )}
 

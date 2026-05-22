@@ -30,7 +30,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils/cn";
 import {
   Clock,
@@ -58,7 +58,10 @@ interface Policy {
   name: string;
   objective: string;
   trigger: string;
-  inputs: unknown;
+  // Phase B.7b · the AutomationPolicy `inputs` Json column · optional
+  // because the tRPC client types `unknown`-valued procedure fields as
+  // optional (the JSON transformer can omit an explicit `undefined`).
+  inputs?: unknown;
   approvalClass: ApprovalClass;
   rollback: string | null;
   successMetric: string;
@@ -71,10 +74,6 @@ interface Policy {
   tags: string[];
   createdAt: string;
   updatedAt: string;
-}
-
-interface ApiResponse {
-  data: { count: number; policies: Policy[] };
 }
 
 const SURFACE_META: Record<
@@ -129,9 +128,6 @@ function timeAgo(iso: string | null): string {
 }
 
 export default function PoliciesPage() {
-  const [policies, setPolicies] = useState<Policy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [surfaceFilter, setSurfaceFilter] = useState<"all" | Surface>("all");
   const [approvalFilter, setApprovalFilter] = useState<"all" | ApprovalClass>("all");
@@ -156,39 +152,31 @@ export default function PoliciesPage() {
   // between forbidden and auto). Fix uses real type values.
   const APPROVAL_RANK: Record<ApprovalClass, number> = { forbidden: 0, pending: 1, auto: 2 };
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await authedFetch("/api/system/policies");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const json = (await r.json()) as ApiResponse;
-      setPolicies(json.data.policies);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Phase B.7b · React Query drives the registry feed (was a manual
+  // authedFetch). The page-local `Policy` interface matches the
+  // procedure's PolicyView shape (string-typed dates) exactly.
+  const utils = trpc.useUtils();
+  const policiesQuery = trpc.system.policies.useQuery(undefined, {
+    staleTime: 30_000,
+  });
+  const policies: Policy[] = policiesQuery.data?.policies ?? [];
+  const loading = policiesQuery.isLoading;
+  const error = policiesQuery.error;
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Phase B.7b · the multi-field PATCH is now a tRPC mutation. On
+  // success it invalidates the list so the row re-renders with the
+  // server-truth record (was a manual setPolicies splice).
+  const updateMutation = trpc.system.updatePolicy.useMutation();
 
   const patch = useCallback(
-    async (id: string, body: Partial<Pick<Policy, "approvalClass" | "enabled" | "notes">>) => {
+    async (
+      id: string,
+      body: Partial<Pick<Policy, "approvalClass" | "enabled" | "notes">>,
+    ) => {
       setBusyId(id);
       try {
-        const r = await authedFetch(`/api/system/policies/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = (await r.json()) as { data: Policy };
-        setPolicies((prev) =>
-          prev.map((p) => (p.id === id ? json.data : p)),
-        );
+        await updateMutation.mutateAsync({ id, ...body });
+        await utils.system.policies.invalidate();
         toast.success(`policy ${id} updated`);
       } catch (e) {
         toast.error(`update failed: ${e instanceof Error ? e.message : e}`);
@@ -196,7 +184,7 @@ export default function PoliciesPage() {
         setBusyId(null);
       }
     },
-    [],
+    [updateMutation, utils],
   );
 
   const filtered = useMemo(() => {
@@ -362,7 +350,7 @@ export default function PoliciesPage() {
       {error && (
         <Panel>
           <p className="p-3 text-rose-400 text-[12px]">
-            failed to load: {error}
+            failed to load: {error.message}
           </p>
         </Panel>
       )}
@@ -467,25 +455,30 @@ function PolicyRow({
     }>
   >([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const utils = trpc.useUtils();
   const surfaceMeta = SURFACE_META[policy.surface];
   const approvalMeta = APPROVAL_META[policy.approvalClass];
   const SurfaceIcon = surfaceMeta.icon;
   const ApprovalIcon = approvalMeta.icon;
 
+  // Phase B.7b · lazy fire-history fetch via the imperative tRPC
+  // utils.fetch (was authedFetch). Fired once when the operator first
+  // opens the fire-history panel · `firedAt` arrives ISO-stringified
+  // from the procedure, matching the local row shape.
   const loadFireHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
-      const r = await authedFetch(`/api/system/policies/${policy.id}/fires?limit=20`);
-      if (r.ok) {
-        const json = await r.json();
-        setFireHistory(json.fires ?? []);
-      }
-    } catch (e) {
+      const res = await utils.system.policyFires.fetch({
+        policyId: policy.id,
+        limit: 20,
+      });
+      setFireHistory(res.fires ?? []);
+    } catch {
       // best-effort: ignore load failures
     } finally {
       setHistoryLoading(false);
     }
-  }, [policy.id]);
+  }, [policy.id, utils]);
 
   return (
     <Panel className={cn(!policy.enabled && "opacity-60")}>

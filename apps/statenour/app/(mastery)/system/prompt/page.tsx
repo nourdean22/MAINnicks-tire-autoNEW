@@ -18,11 +18,11 @@
  * Hot-flush cache button stays in LIVE view.
  */
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
 import { Panel } from "@/components/panel";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils/cn";
 import { AlertTriangle, RefreshCw, FileText, Cpu, Zap } from "lucide-react";
@@ -99,41 +99,33 @@ function PromptDiagnosticsInner() {
   const [view, setView] = useState<PromptView>(initialView);
   const [tier, setTier] = useState<"core" | "business" | "personal" | "strategy" | "full">("full");
   const [msg, setMsg] = useState("generate today's instagram post for nicks tire");
-  const [data, setData] = useState<PromptDiag | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [flushing, setFlushing] = useState(false);
 
-  const fetchDiag = useCallback(async () => {
-    setLoading(true);
+  // Phase B.7b · React Query drives the prompt-diagnostics rebuild
+  // (was a manual authedFetch). The input object is the query key, so
+  // changing the tier or sample message refetches without a manual
+  // fetchDiag(). The PromptDiag shape flows from the procedure.
+  const diagQuery = trpc.system.promptDiagnostics.useQuery(
+    { tier, msg },
+    { staleTime: 0 },
+  );
+  const data = diagQuery.data ?? null;
+  const loading = diagQuery.isFetching;
+  const fetchDiag = () => void diagQuery.refetch();
+
+  // Phase B.7b · hot-flush is a tRPC mutation now. On success it
+  // refetches the diagnostics so the cache stats reflect the flush.
+  const flushMutation = trpc.system.flushPromptCache.useMutation();
+  const flushing = flushMutation.isPending;
+  const flush = async () => {
     try {
-      const params = new URLSearchParams({ tier, msg });
-      const res = await authedFetch(`/api/system/prompt?${params}`);
-      if (res.ok) {
-        const j = (await res.json()) as PromptDiag;
-        setData(j);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, [tier, msg]);
-
-  useEffect(() => {
-    void fetchDiag();
-  }, [fetchDiag]);
-
-  const flush = useCallback(async () => {
-    setFlushing(true);
-    try {
-      await authedFetch("/api/system/prompt-cache-flush", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "manual flush from /system/prompt" }),
+      await flushMutation.mutateAsync({
+        reason: "manual flush from /system/prompt",
       });
-      await fetchDiag();
-    } finally {
-      setFlushing(false);
+      await diagQuery.refetch();
+    } catch {
+      // best-effort · the cache flush is non-critical
     }
-  }, [fetchDiag]);
+  };
 
   const sizeColor = useMemo(() => {
     if (!data) return "text-[var(--text-tertiary)]";

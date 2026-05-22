@@ -140,6 +140,34 @@ import {
   decidePendingAction,
 } from "@/lib/automation/approval-queue";
 import { tailEvents } from "@/lib/db/brain-bus-tail";
+// Phase B.7b · system-pages sub-slice B · the shared services the
+// REMAINING app/(mastery)/system/* page surfaces delegate to (sub-slice
+// A covered the first ~13 files). Each is also called by the matching
+// legacy REST route — drift structurally impossible. All return
+// explicit shallow shapes (Prisma Json columns projected to `unknown`
+// or scalars inside the service · every Date stringified) so the
+// recursive `JsonValue` type never reaches the AppRouter — TS2589
+// firewall.
+import {
+  buildVapiCallStats,
+  buildToolStats,
+  buildRoutePerformance,
+  listPoliciesView,
+  updatePolicyFields,
+  listPolicyFiresView,
+  applyPowerSetting,
+  buildPromptDiagnostics,
+  buildReposOverview,
+  buildSchemaHistory,
+  buildTireStockRequests,
+  buildActorActivity,
+  buildSystemLogs,
+} from "@/lib/services/system-pages-b";
+import { getPowerSettings } from "@/lib/services/power-panel";
+import { getEcosystemDigest } from "@/lib/system/repo-briefing";
+import { hotFlushPromptCache } from "@/lib/ai/system-prompt-cache";
+import { cached } from "@/lib/utils/cache";
+import type { PowerSettings } from "@/lib/services/power-panel";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -1526,4 +1554,434 @@ export const systemRouter = router({
         throw err;
       }
     }),
+
+  // ═════════════ Phase B.7b · system-pages sub-slice B ═════════════
+  //
+  // The authedFetch call-sites in the REMAINING app/(mastery)/system/*
+  // page files migrated onto trpc.system.*. Every procedure delegates
+  // to a shared lib/services/system-pages-b.ts function the legacy REST
+  // route ALSO calls · drift structurally impossible. Read procedures
+  // return the explicit shallow service shapes (Prisma Json columns
+  // projected to `unknown` / scalars · every Date stringified inside
+  // the service · the public AppRouter type stays shallow · TS2589
+  // firewall).
+
+  /**
+   * Phase B.7b · owner-only · VAPI call analytics · status / endReason
+   * breakdown + avg duration + spend + most-recent call. Replaces GET
+   * /api/system/vapi-calls · delegates to the shared
+   * `system-pages-b.buildVapiCallStats` service (the VAPI key stays
+   * server-side). The legacy `?days` query param (clamped 1-90) is
+   * mirrored as a typed input · VapiCallsPage polls this on a 60s
+   * interval and keys on the input so switching the window refetches.
+   * The legacy route's apiHandler wrapped the payload in `{ data }`;
+   * the procedure returns it unwrapped.
+   */
+  vapiCalls: operatorProcedure
+    .input(
+      z
+        .object({ days: z.number().int().min(1).max(90).optional() })
+        .optional(),
+    )
+    .query(async ({ input }) => buildVapiCallStats({ days: input?.days })),
+
+  /**
+   * Phase B.7b · owner-only · tool registry + family rollup · joins
+   * the static TOOL_FAMILIES metadata with live availability +
+   * BrainMemory-backed telemetry + a registry-drift report. Replaces
+   * GET /api/system/tools/stats · delegates to the shared
+   * `system-pages-b.buildToolStats` service. No input. The legacy
+   * route wrapped the payload in `{ data }`; the procedure returns it
+   * unwrapped and ToolsPage reads the object directly.
+   */
+  toolStats: operatorProcedure.query(async () => buildToolStats()),
+
+  /**
+   * Phase B.7b · owner-only · per-route latency percentiles
+   * (p50/p95/p99 + error rate) over a configurable window. Replaces
+   * GET /api/system/performance · delegates to the shared
+   * `system-pages-b.buildRoutePerformance` service. The legacy
+   * `?hours` (clamped 1-720) / `?minRequests` (floored at 1) query
+   * params are mirrored as typed inputs · PerformancePage keys on the
+   * input so switching the window refetches.
+   */
+  routePerformance: operatorProcedure
+    .input(
+      z
+        .object({
+          hours: z.number().int().min(1).max(720).optional(),
+          minRequests: z.number().int().min(1).max(1000).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildRoutePerformance({
+        hours: input?.hours,
+        minRequests: input?.minRequests,
+      }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · the AutomationPolicy registry feed ·
+   * every cron / tool / slash / webhook with its six governance
+   * fields. Replaces GET /api/system/policies · delegates to the
+   * shared `system-pages-b.listPoliciesView` (which wraps the
+   * `listPolicies` service the legacy route also calls and projects
+   * every `Date` to an ISO string). Returns `{ count, policies }`
+   * mirroring the legacy `data` envelope. The legacy `?surface` /
+   * `?approvalClass` / `?enabledOnly` params are mirrored as typed
+   * optional inputs (PoliciesPage currently sends none · the filters
+   * are client-side · the typed input keeps future server-filtering
+   * cheap).
+   */
+  policies: operatorProcedure
+    .input(
+      z
+        .object({
+          surface: z
+            .enum(["cron", "tool", "slash", "autonomous-action", "webhook"])
+            .optional(),
+          approvalClass: z
+            .enum(["auto", "pending", "forbidden"])
+            .optional(),
+          enabledOnly: z.boolean().optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listPoliciesView({
+        surface: input?.surface,
+        approvalClass: input?.approvalClass,
+        enabledOnly: input?.enabledOnly,
+      }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · operator-facing policy edit · the
+   * multi-field PATCH (approval-class flip · kill-switch toggle ·
+   * notes edit). Replaces PATCH /api/system/policies/[id] · delegates
+   * to the shared `system-pages-b.updatePolicyFields` service (each
+   * field applied sequentially through the policy setters so the
+   * audit log captures separate events · mirrors the route). The
+   * route carried the id as a path param; tRPC has no path, so it
+   * rides in the input object. A missing id throws ServiceError(404)
+   * → NOT_FOUND so both transports reject identically.
+   */
+  updatePolicy: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(160),
+        approvalClass: z
+          .enum(["auto", "pending", "forbidden"])
+          .optional(),
+        enabled: z.boolean().optional(),
+        notes: z.string().max(2000).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await updatePolicyFields({
+          id: input.id,
+          approvalClass: input.approvalClass,
+          enabled: input.enabled,
+          notes: input.notes,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.7b · owner-only · chronological fire history for one
+   * policy. Replaces GET /api/system/policies/[id]/fires · delegates
+   * to the shared `system-pages-b.listPolicyFiresView` (which wraps
+   * `getPolicyFireHistory` and stringifies the `firedAt` Date). The
+   * legacy `?limit` / `?offset` query params + the route's `id` path
+   * param are mirrored as typed inputs. PoliciesPage's PolicyRow
+   * lazy-loads this when the operator opens the fire-history panel.
+   */
+  policyFires: operatorProcedure
+    .input(
+      z.object({
+        policyId: z.string().min(1).max(160),
+        limit: z.number().int().min(1).max(200).optional(),
+        offset: z.number().int().min(0).max(100000).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      listPolicyFiresView({
+        policyId: input.policyId,
+        limit: input.limit,
+        offset: input.offset,
+      }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · the full power-panel settings snapshot.
+   * Replaces GET /api/system/power · delegates to the shared
+   * `getPowerSettings` service (which already returns string-typed
+   * fields). Returns `{ settings }` mirroring the legacy envelope so
+   * PowerPanel's `data.settings` access is unchanged.
+   */
+  powerSettings: operatorProcedure.query(async () => {
+    return { settings: await getPowerSettings() };
+  }),
+
+  /**
+   * Phase B.7b · owner-only · patch a single power-panel setting.
+   * Replaces POST /api/system/power · delegates to the shared
+   * `system-pages-b.applyPowerSetting` service (the `pauseAllCrons`
+   * pseudo-setting also fans out to every active cron's kill-switch ·
+   * mirrors the route). The `key` enum is strict to the 6 mutable
+   * PowerSettings keys (`updatedAt`/`updatedBy` are server-derived,
+   * never client-settable) — the route's `PatchSchema` enum verbatim.
+   * The route's extra `providerPin` / `quietMode` value guards are
+   * hoisted here so a bad value is rejected at the boundary, not
+   * silently persisted. Returns `{ settings }` mirroring the legacy
+   * envelope.
+   */
+  setPowerSetting: operatorProcedure
+    .input(
+      z.object({
+        key: z.enum([
+          "quietMode",
+          "providerPin",
+          "strictMode",
+          "dailyCostCapCents",
+          "pauseAllCrons",
+          "shadowMode",
+        ]),
+        value: z.union([z.string(), z.number(), z.boolean()]),
+        note: z.string().max(280).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      if (input.key === "providerPin") {
+        if (
+          !["venice", "openai", "anthropic", "gemini", "auto"].includes(
+            String(input.value),
+          )
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "invalid providerPin",
+          });
+        }
+      }
+      if (input.key === "quietMode") {
+        if (!["off", "nudges", "all"].includes(String(input.value))) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "invalid quietMode",
+          });
+        }
+      }
+      return applyPowerSetting({
+        key: input.key as keyof PowerSettings,
+        value: input.value,
+        note: input.note,
+      });
+    }),
+
+  /**
+   * Phase B.7b · owner-only · live system-prompt diagnostics · builds
+   * the prompt that WOULD be served right now for a tier + sample
+   * message and breaks it into sections / size / cache / providers.
+   * Replaces GET /api/system/prompt · delegates to the shared
+   * `system-pages-b.buildPromptDiagnostics` service. The legacy
+   * `?tier` / `?msg` query params are mirrored as typed inputs ·
+   * PromptDiagnosticsPage keys on the input so changing the tier or
+   * sample message rebuilds. The legacy route returned the object at
+   * the top level (no `{ data }` envelope) · the procedure does too.
+   */
+  promptDiagnostics: operatorProcedure
+    .input(
+      z.object({
+        tier: z
+          .enum(["core", "business", "personal", "strategy", "full"])
+          .optional(),
+        msg: z.string().max(2000).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildPromptDiagnostics({ tier: input.tier, msg: input.msg }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · hot-flush the system-prompt cache so the
+   * next chat turn rebuilds from scratch. Replaces POST
+   * /api/system/prompt-cache-flush · delegates to the same
+   * `hotFlushPromptCache` helper the legacy route calls. The `reason`
+   * is clamped to 200 chars (mirrors the route). Kept inline (a
+   * single helper call · route-local · YAGNI · no other caller).
+   * Returns the legacy `{ ok, reason, flushedAt }` shape.
+   */
+  flushPromptCache: operatorProcedure
+    .input(
+      z
+        .object({ reason: z.string().max(2000).optional() })
+        .optional(),
+    )
+    .mutation(async ({ input }) => {
+      const reason = (input?.reason ?? "manual flush").slice(0, 200);
+      hotFlushPromptCache(reason);
+      return {
+        ok: true as const,
+        reason,
+        flushedAt: new Date().toISOString(),
+      };
+    }),
+
+  /**
+   * Phase B.7b · owner-only · the live REPO-MAP · every repo grouped
+   * by ring with health color + last-commit age + deploy target.
+   * Replaces GET /api/system/repos · delegates to the shared
+   * `system-pages-b.buildReposOverview` service (60s-cached · reads
+   * config/repos.ts + augments monitored repos with live GitHub
+   * state). No input. ReposPage polls this on a 5-min interval.
+   */
+  reposOverview: operatorProcedure.query(async () => buildReposOverview()),
+
+  /**
+   * Phase B.7b · owner-only · the ecosystem briefing · week/month
+   * commit totals + Nick-readable narrative + flag list. Replaces GET
+   * /api/system/repo-briefing · delegates to the same
+   * `getEcosystemDigest` the legacy route calls, 5-min-cached exactly
+   * as the route did. No input. ReposPage fetches this alongside
+   * `reposOverview`; a failure here must never blank the dashboard,
+   * so the page treats this query's error as non-fatal.
+   */
+  repoBriefing: operatorProcedure.query(async () =>
+    cached("system_repo_briefing", 300, getEcosystemDigest),
+  ),
+
+  /**
+   * Phase B.7b · owner-only · the SchemaChangeLedger operator feed ·
+   * 6-axis summary + recent ledger entries with destructive flag +
+   * rollback plan. Replaces GET /api/system/schema-history ·
+   * delegates to the shared `system-pages-b.buildSchemaHistory`
+   * service (which projects every `Date` to an ISO string). The
+   * legacy `?limit` (clamped 1-200) / `?env` query params are
+   * mirrored as typed inputs · SchemaHistoryPage keys on the input so
+   * switching the env filter refetches.
+   */
+  schemaHistory: operatorProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(1).max(200).optional(),
+          env: z.enum(["local", "preview", "production"]).optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildSchemaHistory({
+        limit: input?.limit,
+        environment: input?.env,
+      }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · the used-tire stock-check log · top-
+   * asked sizes + urgency mix + daily histogram + recent calls.
+   * Replaces GET /api/system/tire-stock-requests · delegates to the
+   * shared `system-pages-b.buildTireStockRequests` service (the
+   * BrainMemory Json `content` column is JSON.parsed + projected to
+   * scalar fields inside the service). The legacy `?days` query param
+   * (clamped 1-365) is mirrored as a typed input · TireStockRequests
+   * Page polls this on a 60s interval and keys on the input so
+   * switching the window refetches.
+   */
+  tireStockRequests: operatorProcedure
+    .input(
+      z
+        .object({ days: z.number().int().min(1).max(365).optional() })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildTireStockRequests({ days: input?.days }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · recent entity-audit activity by one
+   * actor across all entities · the /system/history firehose mode.
+   * Replaces the `?firehose=1&actor=` branch of GET /api/audit/entity
+   * · delegates to the shared `system-pages-b.buildActorActivity`
+   * (which wraps the `getActorActivity` service the legacy route also
+   * calls, drops the `before`/`after` Json columns, and stringifies
+   * `createdAt`). The per-entity + global-firehose modes stay
+   * REST-only · no tRPC consumer in this slice (the history page only
+   * uses the actor-firehose mode here · the per-entity mode is served
+   * by the existing `entityHistory` procedure via EntityHistoryDrawer).
+   *
+   * `since` rides as an ISO string (tRPC has no Date wire type) ·
+   * converted to a Date in the procedure. `action` is accepted for
+   * call-shape parity but, like the legacy firehose, not applied —
+   * `getActorActivity` never took an action filter.
+   */
+  actorActivity: operatorProcedure
+    .input(
+      z.object({
+        actor: z.string().min(1).max(120),
+        action: z
+          .enum(["created", "updated", "soft_deleted", "restored", "purged"])
+          .optional(),
+        since: z.string().datetime().optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildActorActivity({
+        actor: input.actor,
+        action: input.action,
+        since: input.since ? new Date(input.since) : undefined,
+        limit: input.limit,
+      }),
+    ),
+
+  /**
+   * Phase B.7b · owner-only · the unified live log tail · merges
+   * ErrorLog + CronJobLog + SystemMetric + AutonomousAction +
+   * ApiRequestLog into one reverse-chron stream. Replaces GET
+   * /api/system/logs · delegates to the shared
+   * `system-pages-b.buildSystemLogs` service (the SystemMetric `tags`
+   * / ErrorLog `context` Json columns are nested under each entry's
+   * `meta` bag typed `unknown` · TS2589 firewall). The legacy
+   * `?limit` (clamped 10-500) / `?since` (ms · clamped 60s-24h) /
+   * `?level` / `?source` (comma-list) query params are mirrored as
+   * typed inputs — `sinceMs` is a number, `sources` an array. LogsPage
+   * keys on the input + polls on a 10s interval.
+   */
+  systemLogs: operatorProcedure
+    .input(
+      z
+        .object({
+          limit: z.number().int().min(10).max(500).optional(),
+          sinceMs: z.number().int().min(60_000).max(86_400_000).optional(),
+          level: z
+            .enum(["error", "warn", "info", "success", "metric"])
+            .optional(),
+          sources: z
+            .array(
+              z.enum(["errors", "crons", "metrics", "actions", "requests"]),
+            )
+            .max(5)
+            .optional(),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      buildSystemLogs({
+        limit: input?.limit,
+        sinceMs: input?.sinceMs,
+        level: input?.level,
+        sources: input?.sources,
+      }),
+    ),
 });

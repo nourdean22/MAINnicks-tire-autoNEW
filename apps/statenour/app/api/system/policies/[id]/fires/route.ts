@@ -1,5 +1,5 @@
 import { apiHandler } from "@/lib/utils/http";
-import { getPolicyFireHistory } from "@/lib/automation/policy";
+import { listPolicyFiresView } from "@/lib/services/system-pages-b";
 
 /**
  * GET /api/system/policies/[id]/fires — fire history for a specific policy.
@@ -11,6 +11,13 @@ import { getPolicyFireHistory } from "@/lib/automation/policy";
  *   ?offset=0 (default)
  *
  * v10.0.169 — new endpoint for chronological fire history.
+ *
+ * Phase B.7b (2026-05-22 · legacy-modernizer REST→tRPC system-pages
+ * slice) · delegates to the shared
+ * `lib/services/system-pages-b.listPolicyFiresView` service · this
+ * route AND the new `trpc.system.policyFires` procedure call the same
+ * function · drift impossible. The route stays mounted as the rollback
+ * path.
  */
 export const GET = apiHandler(async (req, { params }) => {
   const url = new URL(req.url);
@@ -25,10 +32,5 @@ export const GET = apiHandler(async (req, { params }) => {
     return { fires: [], count: 0 };
   }
 
-  const fires = await getPolicyFireHistory(policyId, { limit, offset });
-
-  return {
-    fires,
-    count: fires.length,
-  };
+  return listPolicyFiresView({ policyId, limit, offset });
 }, { auth: "owner" });
