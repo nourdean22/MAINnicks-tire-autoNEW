@@ -113,9 +113,6 @@ import { useNickMessageActions, postFeedback } from "@/hooks/chat/use-nick-messa
 // collapsible are all removed from the chat page render tree per the
 // Apr 19 Tesla-tier redesign. Kept imports commented in case a future
 // surface needs a specific piece.
-// 2026-05-09 — ContextRail removed from /chat per operator ("crowding the screen up").
-// Component kept at components/chat/context-rail.tsx for future revival.
-// import { ContextRail } from "@/components/chat/context-rail";
 import { NickStreaming } from "@/components/chat/nick-streaming";
 import { NickMessage } from "@/components/chat/nick-message";
 // v10.0.529.106 · Wave 83 · ToolResultCard dynamic import +
