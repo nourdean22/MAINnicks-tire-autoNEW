@@ -44,9 +44,6 @@ const COMMANDS: Record<string, (args: string) => Promise<DirectActionResult>> = 
   "/add": addTask,
   "/done": markTaskDone,
   "/mit": setMit,
-  // Apr 19 · /score retired alongside DailyScore model. The logScore
-  // handler below is kept (unused) in case we reintroduce manual
-  // scoring; remove entirely if we decide scoring is gone for good.
   "/commit": addCommitment,
 };
 
@@ -234,30 +231,6 @@ async function setMit(args: string): Promise<DirectActionResult> {
     toast.error("Failed to set MIT");
     return { handled: true, status: "error" };
   }
-  return { handled: true, status: "ok" };
-}
-
-async function logScore(args: string): Promise<DirectActionResult> {
-  // Expect three numbers: energy, focus, discipline
-  const parts = args.split(/\s+/).map((n) => Number(n));
-  if (parts.length < 3 || parts.some((n) => !Number.isFinite(n) || n < 0 || n > 10)) {
-    toast.error("/score needs 3 numbers 0-10 — try '/score 8 7 9'");
-    return { handled: true };
-  }
-  const [energy, focus, discipline] = parts;
-  const overall = Math.round((energy + focus + discipline) / 3);
-
-  const res = await authedFetch("/api/score-daily", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ energy, focus, overall }),
-  });
-  if (!res.ok) {
-    toast.error("Failed to log score");
-    return { handled: true, status: "error" };
-  }
-  toast.success(`Score: ${overall}/10 · ⚡${energy} 🎯${focus} 💪${discipline}`);
-  notifyDataChanged("score", { source: "chat-direct", detail: "log" });
   return { handled: true, status: "ok" };
 }
 
