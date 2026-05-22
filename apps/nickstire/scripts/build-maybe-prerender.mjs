@@ -25,8 +25,14 @@ if (!shouldRun) {
 }
 
 console.log("[build] PRERENDER_ON_BUILD=true → running full prerender regen…");
+// regen-prerender.mjs's Step 1 re-runs the full `build` script — whose
+// final step is THIS file. Strip PRERENDER_ON_BUILD from the child env
+// so that inner build hits its early-exit branch instead of spawning
+// regen again. Without this, build → prerender → build → prerender
+// recurses forever — the loop that wedged every Railway deploy
+// 2026-05-21 (status "Building" but never completing → Heartbeat timeout).
 const result = spawnSync("node", ["scripts/regen-prerender.mjs"], {
   stdio: "inherit",
-  env: process.env,
+  env: { ...process.env, PRERENDER_ON_BUILD: "false" },
 });
 process.exit(result.status ?? 1);
