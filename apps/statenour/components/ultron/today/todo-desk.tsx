@@ -55,7 +55,6 @@ import { ActiveTaskCompanion } from "./active-task-companion";
 import { Badge } from "@/components/ui/badge";
 
 import { trpc } from "@/lib/trpc/client";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 // ── Types mirroring /api/ultron/todo-desk response ──────────
 type WorkWindow = "deep" | "ops" | "review" | "rest";
 
@@ -156,15 +155,17 @@ export function TodoDesk() {
     void refetch();
   }, [refetch]);
 
-  // Phase B.6b (2026-05-22) · ONLY the `patchTask` helper migrated off
-  // `authedFetch("/api/tasks/[id]")` onto `trpc.task.update`. The
-  // `resolveDrift` call (`/api/drift`) is INTENTIONALLY left on
-  // `authedFetch` — the drift domain migrates in a later sub-slice, so
-  // the `authedFetch` import below stays. `task.update` takes
-  // `{ id, fields }` where `fields` is the shared `taskUpdateSchema`
-  // (`.partial()`) · every `patchTask` caller passes a valid task-field
-  // subset (`{ status }`, `{ status, autoPriorityExplanation }`).
+  // Phase B.6b (2026-05-22) · the `patchTask` helper migrated off
+  // `authedFetch("/api/tasks/[id]")` onto `trpc.task.update`.
+  // scattered-components slice (2026-05-22) · the `resolveDrift` call
+  // (`/api/drift`) now hits `trpc.system.resolveDrift` — the last
+  // `authedFetch` in this file, so the import is gone. `task.update`
+  // takes `{ id, fields }` where `fields` is the shared
+  // `taskUpdateSchema` (`.partial()`) · every `patchTask` caller passes
+  // a valid task-field subset (`{ status }`, `{ status,
+  // autoPriorityExplanation }`).
   const updateTask = trpc.task.update.useMutation();
+  const resolveDriftMut = trpc.system.resolveDrift.useMutation();
 
   useEffect(() => {
     return onDataChanged(["tasks", "any"], (e) => {
@@ -217,11 +218,12 @@ export function TodoDesk() {
   const resolveDrift = async (id: string) => {
     setBusyId(id);
     try {
-      await authedFetch("/api/drift", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resolve", id }),
-      });
+      // scattered-components slice · resolve a drift alert via
+      // trpc.system.resolveDrift. The BacklogItem `id` for a drift row
+      // arrives as a string ("drift-42"-stripped) · the procedure
+      // accepts string|number and coerces, mirroring the legacy route's
+      // Int-column tolerance.
+      await resolveDriftMut.mutateAsync({ id });
       toast.success("resolved");
       load();
     } catch {

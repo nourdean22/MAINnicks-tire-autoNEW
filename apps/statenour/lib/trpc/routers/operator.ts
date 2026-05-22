@@ -77,7 +77,10 @@ import { getMit, setMit } from "@/lib/services/mit";
 import { refreshHealthDigest } from "@/lib/system/health-digest";
 import { buildCommandCenterState } from "@/lib/ai/context/command-center-state";
 import { getFinancialSnapshots } from "@/lib/services/financial-snapshot";
-import { getRevenueStats } from "@/lib/services/business-intel";
+import {
+  getRevenueStats,
+  getDashboardSummary,
+} from "@/lib/services/business-intel";
 import { getContentHistory } from "@/lib/services/content-history";
 import { approveDraft, rejectDraft } from "@/lib/content/drafts";
 import {
@@ -86,8 +89,10 @@ import {
 } from "@/lib/services/decision-detail";
 // actions-surface REST→tRPC slice (2026-05-22) · the decision-log list
 // read · also called by the legacy GET /api/decisions route — drift
-// structurally impossible.
-import { listDecisions } from "@/lib/services/decisions";
+// structurally impossible. The scattered-components slice (2026-05-22)
+// adds `createDecision` — the decision-log WRITE the OmniCapture
+// `/decide` branch fires — also called by the legacy POST handler.
+import { listDecisions, createDecision } from "@/lib/services/decisions";
 import { improvePhoto, MissingImageError } from "@/lib/services/photo-improver";
 import {
   getSocialSchedule,
@@ -614,6 +619,20 @@ export const operatorRouter = router({
     )
     .query(async ({ input }) => getRevenueStats(input?.period ?? "month")),
 
+  /**
+   * scattered-components slice (2026-05-22) · owner-only · the business
+   * dashboard summary (month revenue · customer counts · review stats ·
+   * jobs today · per-card bridge health). Replaces GET
+   * /api/analytics/dashboard · delegates to the SAME
+   * `business-intel.getDashboardSummary` the REST route also calls ·
+   * drift impossible. The CommandPalette "Check Lead Pipeline" probe
+   * reads this. Every field is a flat scalar / nested-scalar object ·
+   * no Prisma Json reaches the AppRouter · no TS2589 firewall needed.
+   */
+  businessDashboard: operatorProcedure.query(async () =>
+    getDashboardSummary(),
+  ),
+
   // ──────────────── Misc pages · /social (2026-05-22) ────────────────
 
   /**
@@ -829,6 +848,31 @@ export const operatorRouter = router({
    */
   decisions: operatorProcedure.query(async () => listDecisions()),
 
+  /**
+   * scattered-components slice (2026-05-22) · owner-only · log a new
+   * decision to the decision journal. Replaces the POST-create branch
+   * of /api/decisions · delegates to `decisions.createDecision` the
+   * REST route also calls · drift impossible. OmniCapture's `/decide`
+   * branch fires this · the route's `title required` guard is hoisted
+   * to the typed `.input()` (`.min(1)`) — the typed-payload-mismatch
+   * guard. Returns `{ ok, id }` mirroring the legacy envelope.
+   */
+  logDecision: operatorProcedure
+    .input(
+      z.object({
+        title: z.string().min(1).max(500),
+        domain: z.string().max(80).optional(),
+        stakes: z.string().max(40).optional(),
+        context: z.string().max(8000).optional(),
+        optionsConsidered: z.array(z.string().max(500)).max(20).optional(),
+        chosen: z.string().max(500).optional(),
+        reasoning: z.string().max(8000).optional(),
+        predictedOutcome: z.string().max(2000).optional(),
+        emotionalState: z.string().max(200).optional(),
+        reviewDate: z.string().max(40).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => createDecision(input)),
 
   /**
    * misc-pages slice (2026-05-22) · owner-only · grade / edit a single

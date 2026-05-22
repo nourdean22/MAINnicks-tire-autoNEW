@@ -19,7 +19,7 @@
  * answers "what happened in Nick's head since yesterday."
  */
 
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { Sparkline } from "@/components/ui/sparkline";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -33,7 +33,7 @@ import {
   Loader2,
   Flame,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { GlobalActivityStream } from "@/components/brain/global-activity-stream";
 
 interface Memory {
@@ -70,9 +70,23 @@ interface ContinuityPayload {
 }
 
 export function BrainContinuityView() {
-  const { data, loading, error, reload } = useAuthedFetch<ContinuityPayload>("/api/brain/continuity", {
-    retryOn401: true,
-  });
+  // scattered-components REST→tRPC slice (2026-05-22) · migrated off
+  // `useAuthedFetch<ContinuityPayload>("/api/brain/continuity")` onto
+  // `trpc.brain.continuityReport.useQuery()`. The procedure delegates
+  // to the same `buildContinuityReport` service the REST route also
+  // calls. `loading` ← `isLoading`, `error` ← the TRPCClientError's
+  // `.message` (the legacy hook surfaced a plain string), `reload` ←
+  // `refetch`.
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = trpc.brain.continuityReport.useQuery();
+  const error = queryError?.message ?? null;
+  const reload = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   if (loading && !data) {
     return (

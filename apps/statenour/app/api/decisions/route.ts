@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { apiHandler } from "@/lib/utils/http";
 import { ServiceError } from "@/lib/utils/service-error";
-import { today } from "@/lib/utils/datetime";
-import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
-import { listDecisions } from "@/lib/services/decisions";
+import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
+import { listDecisions, createDecision } from "@/lib/services/decisions";
 
 /**
  * GET /api/decisions — recent decisions + the pending-review subset.
@@ -48,26 +47,20 @@ export const POST = apiHandler(async (req) => {
   const { title, domain, stakes, context, options_considered, chosen, reasoning, predicted_outcome, emotional_state, review_date } = body;
   if (!title) throw new ServiceError("title required", 400);
 
-  const created = await prisma.masteryDecision.create({
-    data: {
-      date: today(),
-      title,
-      domain: domain || null,
-      stakes: stakes || null,
-      context: context || null,
-      optionsConsidered: JSON.stringify(options_considered || []),
-      chosen: chosen || null,
-      reasoning: reasoning || null,
-      predictedOutcome: predicted_outcome || null,
-      emotionalState: emotional_state || null,
-      reviewDate: review_date || null,
-    },
+  // scattered-components REST→tRPC slice (2026-05-22) · the create
+  // logic moved to the shared `lib/services/decisions.createDecision`
+  // service · this route AND the new `trpc.operator.logDecision`
+  // procedure call the same function · drift impossible.
+  return createDecision({
+    title,
+    domain,
+    stakes,
+    context,
+    optionsConsidered: options_considered || [],
+    chosen,
+    reasoning,
+    predictedOutcome: predicted_outcome,
+    emotionalState: emotional_state,
+    reviewDate: review_date,
   });
-
-  // v8.0 — entity-audit create.
-  void logCreate("masteryDecision", String(created.id), created as unknown as Record<string, unknown>, {
-    source: "api:decisions.POST.create",
-  });
-
-  return { ok: true, id: created.id };
 }, { auth: "owner" });

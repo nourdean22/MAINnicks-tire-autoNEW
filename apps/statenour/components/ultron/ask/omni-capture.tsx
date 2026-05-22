@@ -32,7 +32,6 @@ import { useDraftAutosave } from "@/hooks/use-draft-autosave";
 import type { UltronMode } from "@/lib/ultron/mode-classifier";
 
 import { trpc } from "@/lib/trpc/client";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 const LAST_RESPONSE_KEY = "ultron:ask:last";
 const LAST_RESPONSE_TTL_MS = 10 * 60 * 1000;
 const PINNED_KEY = "ultron:ask:pinned";
@@ -119,13 +118,16 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
   const router = useRouter();
   // Phase B.6a (2026-05-22) · `utils` drives the /plan path (operator
   // domain) · Phase B.6b extends it to the task-domain reads/writes
-  // below (`task.create`, `task.createMission`, `task.missions`). The
-  // journal-capture + decisions authedFetch calls in this file belong
-  // to a later sub-slice and are INTENTIONALLY left on `authedFetch`
-  // (so the import stays).
+  // below (`task.create`, `task.createMission`, `task.missions`).
+  // scattered-components slice (2026-05-22) · the last two authedFetch
+  // calls in this file migrate now — `/dump` → `trpc.brain.captureThought`
+  // (the journal-ingest pipeline) and `/decide` → `trpc.operator.logDecision`
+  // — so the `authedFetch` import is gone.
   const utils = trpc.useUtils();
   const createTask = trpc.task.create.useMutation();
   const createMission = trpc.task.createMission.useMutation();
+  const captureThought = trpc.brain.captureThought.useMutation();
+  const logDecision = trpc.operator.logDecision.useMutation();
   const [input, setInput] = useState("");
   const [intent, setIntent] = useState<CaptureIntent | null>(null);
   /** Manual override — when Nour taps the chip to cycle, we pin the
@@ -262,14 +264,17 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
         case "dump": {
           setBusy(true);
           try {
-            const res = await authedFetch("/api/journal/capture", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text }),
-            });
-            if (!res.ok) throw new Error("capture failed");
-            const raw = (await res.json()) as { data?: { tasksExtracted?: number; summary?: string } };
-            const n = raw?.data?.tasksExtracted ?? 0;
+            // scattered-components slice · /dump runs the journal-
+            // ingest pipeline via trpc.brain.captureThought (the same
+            // `ingestJournal` the legacy POST /api/journal/capture
+            // called). The procedure returns the JournalResult
+            // unwrapped — the legacy `raw?.data?.tasksExtracted` read
+            // was a PRE-EXISTING BUG: that field never existed (the
+            // pipeline returns `tasksCreated`), so the count branch was
+            // dead and the toast always said the bare "captured". The
+            // typed procedure forces the real field name.
+            const result = await captureThought.mutateAsync({ text });
+            const n = result.tasksCreated ?? 0;
             toast.success(
               n > 0
                 ? `captured → ${n} task${n === 1 ? "" : "s"} extracted`
@@ -286,18 +291,19 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
         case "decide": {
           setBusy(true);
           try {
-            const res = await authedFetch("/api/decisions", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: text.slice(0, 120),
-                stakes: "medium",
-                chosen: "pending",
-                reasoning: text,
-                domain: "general",
-              }),
+            // scattered-components slice · /decide logs a decision via
+            // trpc.operator.logDecision (the same `createDecision`
+            // service the legacy POST /api/decisions called). The
+            // legacy body field `options_considered` is `optionsConsidered`
+            // on the typed input · the `/decide` quick-capture sends
+            // none, so it's omitted.
+            await logDecision.mutateAsync({
+              title: text.slice(0, 120),
+              stakes: "medium",
+              chosen: "pending",
+              reasoning: text,
+              domain: "general",
             });
-            if (!res.ok) throw new Error();
             toast.success("decision logged · review later");
             setInput("");
           } catch {
@@ -348,7 +354,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
         }
       }
     },
-    [router, sendMessage, setMessages, utils, createTask],
+    [router, sendMessage, setMessages, utils, createTask, captureThought, logDecision],
   );
 
   const handleSubmit = useCallback(

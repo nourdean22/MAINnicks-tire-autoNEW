@@ -32,9 +32,9 @@
  * sentence + time-aware composition combined.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 
 interface HealthShape {
@@ -72,12 +72,16 @@ function greeting(tod: Tod): string {
 }
 
 export function HomeNarrator() {
-  // 2026-05-18 PM bugfix · useAuthedFetch already auto-unwraps the
-  // {data: ...} envelope that apiHandler routes return. Original
-  // ship declared the type as `{ ok, data: HealthShape }` and then
-  // did `payload?.data` · double-unwrap meant data was always
-  // undefined and HomeNarrator silently returned null on prod.
-  const { data, reload } = useAuthedFetch<HealthShape>("/api/health");
+  // scattered-components REST→tRPC slice (2026-05-22) · migrated off
+  // `useAuthedFetch<HealthShape>("/api/health")` onto
+  // `trpc.system.healthSummary.useQuery()`. The procedure delegates to
+  // the same `buildSystemHealth` service the REST route also calls and
+  // returns `SystemHealthView` — a superset of the local `HealthShape`,
+  // so `composeSentence` reads the same fields. `reload` is now
+  // `refetch`. The legacy double-unwrap bug the prior comment described
+  // is structurally gone — tRPC returns the value directly, no
+  // `{ data }` envelope to unwrap twice.
+  const { data, refetch } = trpc.system.healthSummary.useQuery();
 
   // Re-render at the top of each hour so the time-of-day shifts feel
   // natural without a full reload. Cheap · just a state bump.
@@ -90,10 +94,12 @@ export function HomeNarrator() {
     return () => clearTimeout(t);
   }, [tick]);
 
+  const reload = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+
   // Re-fetch on the same domains the old HomeStrip subscribed to so
   // capture writes (chat tool calls, etc) push-refresh the sentence.
-  // Reuses the reload from the single useAuthedFetch above · the
-  // pre-bugfix duplicate fetch call has been removed.
   useEffect(() => {
     const off = onDataChanged(
       ["tasks", "goals", "score", "brain", "commitments"],

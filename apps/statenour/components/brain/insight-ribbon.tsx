@@ -16,7 +16,7 @@
  * Auto-hides if no insights returned (clean week = no ribbon).
  */
 import { useEffect, useState } from "react";
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 interface BrainInsight {
@@ -48,10 +48,15 @@ const HEADLINE_TONE: Record<BrainInsight["severity"], string> = {
 };
 
 export function InsightRibbon() {
-  const { data, loading } = useAuthedFetch<InsightPayload>(
-    "/api/brain/insights",
-    { retryOn401: false },
-  );
+  // scattered-components REST→tRPC slice (2026-05-22) · migrated off
+  // `useAuthedFetch<InsightPayload>("/api/brain/insights")` onto
+  // `trpc.brain.insightsRibbon.useQuery()`. The procedure delegates to
+  // the same `buildBrainInsights` service the REST route also calls.
+  // `loading` ← `isLoading`. The ribbon auto-hides on any non-data
+  // state so no error surface is needed (the legacy hook's
+  // `retryOn401: false` just meant "don't bounce to sign-in" — React
+  // Query already doesn't redirect).
+  const { data, isLoading: loading } = trpc.brain.insightsRibbon.useQuery();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 

@@ -1,11 +1,16 @@
 /**
  * lib/services/decisions.ts · actions-surface REST→tRPC slice
- * (2026-05-22 · legacy-modernizer · components/actions/* slice).
+ * (2026-05-22 · legacy-modernizer · components/actions/* slice) ·
+ * extended scattered-components slice (2026-05-22 · the `/decide`
+ * branch of OmniCapture's decision-log write).
  *
  * The decision-log list read · lifted verbatim from the GET handler of
  * app/api/decisions/route.ts so the legacy REST endpoint AND the new
  * `operator.decisions` tRPC procedure call the SAME function · drift
- * between consumers structurally impossible.
+ * between consumers structurally impossible. The scattered-components
+ * slice adds `createDecision` — the POST-create branch of the same
+ * route — so the `operator.logDecision` procedure and the REST POST
+ * also call ONE function.
  *
  * `MasteryDecision` carries no Json columns (every field is String /
  * DateTime), but every row is still projected to the explicit, flat
@@ -16,6 +21,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
+import { logCreate } from "@/lib/db/entity-audit";
 
 /** A flat, shallow projection of a MasteryDecision row. */
 export interface DecisionRow {
@@ -67,6 +73,55 @@ export async function listDecisions(): Promise<DecisionsView> {
     decisions: decisions.map(toRow),
     pending_review: pendingReview.map(toRow),
   };
+}
+
+/** Payload for {@link createDecision} · mirrors the legacy POST body. */
+export interface CreateDecisionInput {
+  title: string;
+  domain?: string | null;
+  stakes?: string | null;
+  context?: string | null;
+  optionsConsidered?: string[];
+  chosen?: string | null;
+  reasoning?: string | null;
+  predictedOutcome?: string | null;
+  emotionalState?: string | null;
+  reviewDate?: string | null;
+}
+
+/**
+ * Persist one MasteryDecision row. The REST route's POST-create branch
+ * and the `operator.logDecision` procedure both call this · `date` is
+ * stamped server-side, `optionsConsidered` is JSON-stringified. Fires
+ * the entity-audit create fire-and-forget. Returns the new row id.
+ */
+export async function createDecision(
+  input: CreateDecisionInput,
+): Promise<{ ok: true; id: number }> {
+  const created = await prisma.masteryDecision.create({
+    data: {
+      date: today(),
+      title: input.title,
+      domain: input.domain || null,
+      stakes: input.stakes || null,
+      context: input.context || null,
+      optionsConsidered: JSON.stringify(input.optionsConsidered ?? []),
+      chosen: input.chosen || null,
+      reasoning: input.reasoning || null,
+      predictedOutcome: input.predictedOutcome || null,
+      emotionalState: input.emotionalState || null,
+      reviewDate: input.reviewDate || null,
+    },
+  });
+
+  void logCreate(
+    "masteryDecision",
+    String(created.id),
+    created as unknown as Record<string, unknown>,
+    { source: "api:decisions.POST.create" },
+  );
+
+  return { ok: true as const, id: created.id };
 }
 
 /** Project a Prisma MasteryDecision row to the flat {@link DecisionRow}. */

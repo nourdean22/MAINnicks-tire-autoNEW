@@ -16,7 +16,8 @@
  * Visual surface for the LIVE /api/brain/memory-health endpoint.
  */
 
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+import { useCallback } from "react";
+import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
@@ -62,10 +63,22 @@ const FLAG_TONE: Record<string, { tone: string; label: string }> = {
 };
 
 export function BrainHealthView() {
-  const { data, loading, error, reload } = useAuthedFetch<MemoryHealthPayload>(
-    "/api/brain/memory-health",
-    { retryOn401: true },
-  );
+  // scattered-components REST→tRPC slice (2026-05-22) · migrated off
+  // `useAuthedFetch<MemoryHealthPayload>("/api/brain/memory-health")`
+  // onto `trpc.brain.memoryHealth.useQuery()`. The procedure delegates
+  // to the same `buildMemoryHealth` service the REST route also calls.
+  // `loading` ← `isLoading`, `error` ← the TRPCClientError's `.message`
+  // (the legacy hook surfaced a plain string), `reload` ← `refetch`.
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+    refetch,
+  } = trpc.brain.memoryHealth.useQuery();
+  const error = queryError?.message ?? null;
+  const reload = useCallback(() => {
+    void refetch();
+  }, [refetch]);
 
   return (
     <div className="space-y-4">

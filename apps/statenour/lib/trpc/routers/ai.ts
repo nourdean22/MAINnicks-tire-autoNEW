@@ -1,13 +1,16 @@
 /**
  * lib/trpc/routers/ai.ts · actions-surface REST→tRPC slice
- * (2026-05-22 · legacy-modernizer · components/actions/* slice).
+ * (2026-05-22 · legacy-modernizer · components/actions/* slice) ·
+ * extended scattered-components slice (2026-05-22 · components/goals/*).
  *
  * AI-domain procedures · the 9th domain router (nick · operator ·
  * system · chat · browser · task · journal · brain · ai). The `ai`
  * domain — the /api/ai/* generation endpoints — had no tRPC home; the
  * components/actions/* surface (KommandoLearn · KommandoTrack ·
  * ProjectDetail · ProjectCard · MilestonesFlow) calls four of them, so
- * this router is their natural landing zone.
+ * this router is their natural landing zone. The scattered-components
+ * slice adds the GoalBoard pair — `ai.suggestGoals` (/api/ai/suggest-
+ * goals) + `ai.coachGoal` (/api/ai/coach-goal).
  *
  * Every procedure delegates to a shared `lib/services/ai-*` function
  * the legacy REST route ALSO calls · drift between consumers
@@ -37,6 +40,11 @@ import {
   PlanProjectError,
   type SuggestedMilestone,
 } from "@/lib/services/ai-plan-project";
+import {
+  runSuggestGoals,
+  SUGGEST_GOAL_HORIZONS,
+} from "@/lib/services/ai-suggest-goals";
+import { runCoachGoal, CoachGoalError } from "@/lib/services/ai-coach-goal";
 
 /**
  * THE TS2589 FIREWALL · the shallow wire shape `ai.planProject` returns.
@@ -217,6 +225,54 @@ export const aiRouter = router({
             code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
             message: err.message,
           });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * scattered-components slice · owner-only · suggest 3-5 horizon-
+   * appropriate goals. Replaces POST /api/ai/suggest-goals · delegates
+   * to the shared `ai-suggest-goals.runSuggestGoals` service the REST
+   * route also calls · drift impossible. The input mirrors the route's
+   * `schema` verbatim (`horizon` defaults to "WEEK"). GoalBoard fires
+   * this from its "AI suggest" button. The `goals` field of the result
+   * is `unknown` at the router boundary (the LLM JSON is heterogeneous
+   * · GoalBoard already `Array.isArray`-guards it · TS2589 firewall).
+   */
+  suggestGoals: operatorProcedure
+    .input(
+      z.object({
+        horizon: z.enum(SUGGEST_GOAL_HORIZONS).default("WEEK"),
+        domain: z.string().max(80).optional(),
+        context: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => runSuggestGoals(input)),
+
+  /**
+   * scattered-components slice · owner-only · the goal-level coach —
+   * one-line read + next action + blocker + risks, appended to
+   * LifeGoal.coachLog. Replaces POST /api/ai/coach-goal · delegates to
+   * the shared `ai-coach-goal.runCoachGoal` service the REST route also
+   * calls · drift impossible. `CoachGoalError` carries a 404
+   * (goal-not-found) → mapped to NOT_FOUND so both transports reject
+   * identically. GoalBoard fires this from each goal card's "Ask Nick
+   * to analyze" / "refresh" affordance.
+   */
+  coachGoal: operatorProcedure
+    .input(
+      z.object({
+        goalId: z.string().min(1).max(64),
+        currentState: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await runCoachGoal(input);
+      } catch (err) {
+        if (err instanceof CoachGoalError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
         }
         throw err;
       }
