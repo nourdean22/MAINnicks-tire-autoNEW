@@ -23,10 +23,11 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 
 // Phase ZZ (2026-05-19 AM) · authedFetch reads migrated to trpc · 3
-// sites (list · open · search). The /api/admin/knowledge-refresh
-// mutation stays on REST for now (different system surface · admin
-// fan-out cron · candidate for a future system-router phase).
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// sites (list · open · search).
+// Phase straggler-pages (2026-05-22) · the last call-site — the
+// /api/admin/knowledge-refresh POST in KnowledgeRefreshPanel — is
+// migrated onto `operator.knowledgeRefresh`. Zero use-authed-fetch
+// imports remain. Legacy REST route stays mounted.
 import { trpc } from "@/lib/trpc/client";
 import { onDataChanged } from "@/lib/events/data-change";
 interface KFile {
@@ -328,31 +329,24 @@ export default function KnowledgePage() {
 }
 
 function KnowledgeRefreshPanel() {
-  const [refreshing, setRefreshing] = useState(false);
   const [results, setResults] = useState<RefreshSubsystem[] | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
 
+  // Phase straggler-pages · the knowledge-corpus refresh is a tRPC
+  // mutation now · `isPending` replaces the page-local `refreshing`
+  // flag. The procedure rejects (BAD_REQUEST / INTERNAL_SERVER_ERROR)
+  // on the no-targets / env-missing cases · the catch surfaces the
+  // sanitized message, same as the old `res.ok` guard.
+  const refreshMutation = trpc.operator.knowledgeRefresh.useMutation();
+  const refreshing = refreshMutation.isPending;
+
   const runRefresh = async () => {
-    setRefreshing(true);
     setRefreshError(null);
     try {
-      const res = await authedFetch("/api/admin/knowledge-refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      // v10.0.32 — res.ok before .json(). Pre-v10.0.32 a 5xx
-      // returned an HTML error page; .json() either threw or
-      // produced garbage that hit `if (!json.ok && !json.results)`
-      // and surfaced the wrong error message.
-      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-      const json = await res.json();
-      if (!json.ok && !json.results) throw new Error(json.error ?? "refresh failed");
+      const json = await refreshMutation.mutateAsync();
       setResults(json.results);
     } catch (e) {
       setRefreshError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setRefreshing(false);
     }
   };
 

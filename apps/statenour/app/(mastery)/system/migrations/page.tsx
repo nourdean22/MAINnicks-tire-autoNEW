@@ -12,7 +12,10 @@
  * from reality whenever someone forgot to update one of them.
  */
 
-import { useAuthedFetch } from "@/hooks/use-authed-fetch";
+// Phase straggler-pages (2026-05-22) · useAuthedFetch read migrated to
+// trpc · the GET /api/system/migrations call now routes through
+// `system.migrationsTracker`. Legacy REST route stays mounted.
+import { trpc } from "@/lib/trpc/client";
 import { GlassCard } from "@/components/ui/glass-card";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { cn } from "@/lib/utils";
@@ -67,24 +70,12 @@ interface ResolvedFlag {
   isOn: boolean;
 }
 
-interface FlagSummary {
-  total: number;
-  on: number;
-  off: number;
-  byStatus: Record<FlagStatus, number>;
-}
-
-interface Payload {
-  generatedAt: string;
-  migrations: Migration[];
-  flags: { list: ResolvedFlag[]; summary: FlagSummary };
-  summary: {
-    totalMigrations: number;
-    inProgress: number;
-    stalled: number;
-    completed: number;
-  };
-}
+// Phase straggler-pages · the page-level `Payload` interface is removed
+// — the query data shape now flows from the `system.migrationsTracker`
+// procedure's return type. The Migration / ResolvedFlag / FlagSummary
+// interfaces below stay: the MigrationRow / FlagRow / Counter helpers
+// take them as props and they are structurally identical to the
+// procedure's shapes.
 
 const STATUS_TONE: Record<MigrationStatus, string> = {
   "in-progress": "border-amber-500/30 bg-amber-500/[0.04] text-amber-300",
@@ -100,10 +91,10 @@ const FLAG_TONE: Record<FlagStatus, string> = {
 };
 
 export default function MigrationsPage() {
-  const { data, loading, error, reload } = useAuthedFetch<Payload>(
-    "/api/system/migrations",
-    { retryOn401: true },
-  );
+  const { data, isLoading, error, refetch } =
+    trpc.system.migrationsTracker.useQuery(undefined, {
+      staleTime: 30_000,
+    });
 
   return (
     <div className="space-y-4">
@@ -116,7 +107,7 @@ export default function MigrationsPage() {
         </p>
       </div>
 
-      {loading && !data && (
+      {isLoading && !data && (
         <GlassCard>
           <div className="flex items-center gap-2 text-[11px] text-[var(--text-tertiary)] py-4 justify-center">
             <Loader2 size={12} className="animate-spin" />
@@ -133,11 +124,11 @@ export default function MigrationsPage() {
                 migrations fetch failed
               </p>
               <p className="text-[10px] text-rose-300/70 mt-0.5 break-words font-mono">
-                {error}
+                {error.message}
               </p>
             </div>
             <button
-              onClick={reload}
+              onClick={() => void refetch()}
               className="shrink-0 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded border border-rose-400/40 text-rose-300 hover:bg-rose-400/10"
             >
               retry

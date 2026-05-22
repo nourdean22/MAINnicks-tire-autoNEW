@@ -103,6 +103,21 @@ import {
   SocialImageUrlUnresolvedError,
   SocialScheduleInputError,
 } from "@/lib/services/social-actions";
+// straggler-pages REST→tRPC slice (2026-05-22) · the two shared
+// services the migrated /knowledge + /voice page surfaces delegate to.
+// Each is also called by the matching legacy REST route — drift
+// structurally impossible. Both return explicit flat shapes (the
+// knowledge-refresh result is all scalars; the morning-brief view
+// stringifies its Date) — no Prisma Json reaches the wire.
+import {
+  runKnowledgeRefresh,
+  KnowledgeRefreshError,
+  type KnowledgeRefreshResult,
+} from "@/lib/services/knowledge-refresh";
+import {
+  readMorningBrief,
+  type MorningBriefView,
+} from "@/lib/services/morning-brief-read";
 import { TRPCError } from "@trpc/server";
 
 // The 8 valid identity axes · mirrors `VALID_AXES` in
@@ -945,4 +960,61 @@ export const operatorRouter = router({
         throw err;
       }
     }),
+
+  /**
+   * straggler-pages slice · owner-only · fan out to every knowledge-
+   * pull cron + hot-flush the prompt cache. Replaces POST
+   * /api/admin/knowledge-refresh · delegates to the shared
+   * `knowledge-refresh.runKnowledgeRefresh` the legacy route also
+   * calls · drift impossible. The fan-out targets the project's own
+   * /api/cron/* routes, so the service needs the caller's request
+   * headers (host + forwarded-proto) to build the absolute base URL —
+   * `ctx.headers` is populated by createTRPCContext (the App Router
+   * fetch handler). `KnowledgeRefreshError` carries the no-targets /
+   * env-missing cases the legacy route surfaced as 400/500 — mapped
+   * to BAD_REQUEST / INTERNAL_SERVER_ERROR. The `only` filter mirrors
+   * the route's `RefreshBody.only`. The /knowledge page's "refresh
+   * now" button fires this. All-scalar result · no TS2589 firewall.
+   */
+  knowledgeRefresh: operatorProcedure
+    .input(
+      z
+        .object({ only: z.array(z.string().max(40)).max(20).optional() })
+        .optional(),
+    )
+    .mutation(async ({ ctx, input }): Promise<KnowledgeRefreshResult> => {
+      try {
+        return await runKnowledgeRefresh({
+          headers: ctx.headers ?? new Headers(),
+          only: input?.only,
+        });
+      } catch (err) {
+        if (err instanceof KnowledgeRefreshError) {
+          throw new TRPCError({
+            code:
+              err.status === 400
+                ? "BAD_REQUEST"
+                : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * straggler-pages slice · owner-only · today's morning-brief
+   * metadata + text + sentence-bounded preview. Replaces GET
+   * /api/morning-brief · delegates to the shared
+   * `morning-brief-read.readMorningBrief` the legacy route also calls
+   * · drift impossible. The result is the explicit flat
+   * `MorningBriefView` (the BrainMemory row's `updatedAt` Date is
+   * stringified inside the service) — no Prisma Json reaches the
+   * wire. The /voice page's BriefSection polls this. The rendered
+   * audio (/api/morning-brief/today.mp3) stays REST — tRPC can't
+   * carry a binary mp3 body.
+   */
+  morningBrief: operatorProcedure.query(
+    async (): Promise<MorningBriefView> => readMorningBrief(),
+  ),
 });

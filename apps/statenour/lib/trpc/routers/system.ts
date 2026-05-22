@@ -186,6 +186,27 @@ import type { PowerSettings } from "@/lib/services/power-panel";
 import { probeVeniceStatus } from "@/lib/services/venice-status";
 import { buildAgentTraceByMessage } from "@/lib/services/agent-trace-by-message";
 import { getProviderHealth } from "@/lib/ai/provider-health";
+// straggler-pages REST→tRPC slice (2026-05-22) · the shared services
+// the migrated /system/{features,migrations,ghost-nour,judge-eval}
+// page surfaces delegate to. Each is also called by the matching
+// legacy REST route — drift structurally impossible. feature-status +
+// the migrations tracker return plain registries / scalars; ghost-nour
+// + judge-eval return explicit flat interfaces declared here (Prisma
+// Json columns projected to `unknown`, Dates stringified) — the TS2589
+// firewall.
+import { FEATURE_REGISTRY, summarize } from "@/lib/system/feature-status";
+import type { FeatureMeta } from "@/lib/system/feature-status";
+import {
+  buildMigrationsTracker,
+  type MigrationsPayload,
+} from "@/lib/services/migrations-tracker";
+import {
+  runGhostNourPredict,
+  GhostNourPredictError,
+  type GhostPrediction,
+} from "@/lib/services/ghost-nour-predict";
+import { compareReplies } from "@/lib/ai/judge-eval/comparator";
+import { recordComparison } from "@/lib/ai/judge-eval/persistence";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -2177,4 +2198,106 @@ export const systemRouter = router({
    * toast). Flat scalar shape · no TS2589 firewall needed.
    */
   aiSpend: operatorProcedure.query(async () => checkBudget()),
+
+  /**
+   * straggler-pages slice · owner-only · the honest feature-status
+   * registry (LIVE / PARTIAL / DORMANT + activation triggers).
+   * Replaces GET /api/system/feature-status · reads the same
+   * `FEATURE_REGISTRY` + `summarize()` the legacy route returns ·
+   * drift impossible. Both are plain serializable data (no Prisma) ·
+   * no TS2589 firewall needed. The /system/features page polls this.
+   */
+  featureStatus: operatorProcedure.query(
+    (): {
+      generatedAt: string;
+      summary: ReturnType<typeof summarize>;
+      features: FeatureMeta[];
+    } => ({
+      generatedAt: new Date().toISOString(),
+      summary: summarize(),
+      features: FEATURE_REGISTRY,
+    }),
+  ),
+
+  /**
+   * straggler-pages slice · owner-only · the live migration tracker ·
+   * static registry + scanned source-tree progress + the feature-flag
+   * board. Replaces GET /api/system/migrations · delegates to the
+   * shared `migrations-tracker.buildMigrationsTracker` the legacy
+   * route also calls · drift impossible. The payload is fully typed
+   * (`MigrationsPayload`) — flag list + summary are scalars, no Prisma
+   * Json reaches the wire. The /system/migrations page polls this.
+   */
+  migrationsTracker: operatorProcedure.query(
+    async (): Promise<MigrationsPayload> => buildMigrationsTracker(),
+  ),
+
+  /**
+   * straggler-pages slice · owner-only · predict what past-Nour would
+   * have done · similarity search over MasteryDecision history.
+   * Replaces POST /api/system/ghost-nour · delegates to the shared
+   * `ghost-nour-predict.runGhostNourPredict` the legacy route also
+   * calls · drift impossible. `GhostNourPredictError` (situation
+   * tokenized to nothing) maps to BAD_REQUEST so both transports
+   * reject identically. The result is the explicit flat
+   * `GhostPrediction` interface (Prisma rows projected to scalars
+   * inside the service) — the TS2589 firewall. The /system/ghost-nour
+   * page fires this from its "summon past-Nour" button.
+   */
+  ghostNourPredict: operatorProcedure
+    .input(
+      z.object({
+        situation: z.string().min(3).max(2000),
+        limit: z.number().int().min(1).max(20).default(5),
+      }),
+    )
+    .mutation(async ({ input }): Promise<GhostPrediction> => {
+      try {
+        return await runGhostNourPredict(input);
+      } catch (err) {
+        if (err instanceof GhostNourPredictError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * straggler-pages slice · owner-only · run the AGENT_V1 → AGENT_V2
+   * judge-eval comparator on an operator-supplied {prompt, v1Reply,
+   * v2Reply} pair · runs the LLM judge + persists the row. Replaces
+   * POST /api/judge-eval/run · delegates to the same `compareReplies`
+   * + `recordComparison` helpers the legacy route calls · drift
+   * impossible. The input mirrors the route's `InputSchema` verbatim.
+   * `Judgment` is a flat shape (no Prisma) · `id` is the BrainMemory
+   * key string (`null` on a persistence failure — best-effort, same
+   * as the route). The /system/judge-eval AdHocCompareForm fires this.
+   */
+  judgeEvalRun: operatorProcedure
+    .input(
+      z.object({
+        prompt: z.string().min(1).max(4000),
+        v1Reply: z.string().min(1).max(8000),
+        v2Reply: z.string().min(1).max(8000),
+        intentClass: z.string().max(80).optional(),
+        sourceMessageId: z.string().max(64).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const judgment = await compareReplies({
+        prompt: input.prompt,
+        v1Reply: input.v1Reply,
+        v2Reply: input.v2Reply,
+        intentClass: input.intentClass,
+      });
+      const id = await recordComparison({
+        prompt: input.prompt,
+        v1Reply: input.v1Reply,
+        v2Reply: input.v2Reply,
+        judgment,
+        intentClass: input.intentClass,
+        sourceMessageId: input.sourceMessageId,
+      });
+      return { id, judgment };
+    }),
 });
