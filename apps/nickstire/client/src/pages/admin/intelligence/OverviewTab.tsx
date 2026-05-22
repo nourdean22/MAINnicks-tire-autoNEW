@@ -318,7 +318,7 @@ function NourOsBrainCard() {
       {brain?.automationRules && (
         <div className="mt-3 text-[11px] text-foreground/40">
           {brain.automationRules.active ?? 0} autonomous rules active ·
-          Brain health: {memories?.avgConfidence > 0.3 ? "healthy" : "needs attention"}
+          Brain health: {(memories?.avgConfidence ?? 0) > 0.3 ? "healthy" : "needs attention"}
         </div>
       )}
     </div>
