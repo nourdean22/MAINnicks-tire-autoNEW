@@ -156,6 +156,16 @@ export function TodoDesk() {
     void refetch();
   }, [refetch]);
 
+  // Phase B.6b (2026-05-22) · ONLY the `patchTask` helper migrated off
+  // `authedFetch("/api/tasks/[id]")` onto `trpc.task.update`. The
+  // `resolveDrift` call (`/api/drift`) is INTENTIONALLY left on
+  // `authedFetch` — the drift domain migrates in a later sub-slice, so
+  // the `authedFetch` import below stays. `task.update` takes
+  // `{ id, fields }` where `fields` is the shared `taskUpdateSchema`
+  // (`.partial()`) · every `patchTask` caller passes a valid task-field
+  // subset (`{ status }`, `{ status, autoPriorityExplanation }`).
+  const updateTask = trpc.task.update.useMutation();
+
   useEffect(() => {
     return onDataChanged(["tasks", "any"], (e) => {
       if (e.source === "ultron-desk") return;
@@ -168,12 +178,17 @@ export function TodoDesk() {
     async (id: string, body: Record<string, unknown>, toastText: string) => {
       setBusyId(id);
       try {
-        const res = await authedFetch(`/api/tasks/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+        await updateTask.mutateAsync({
+          id,
+          // `body` is a heterogeneous task-field map ({ status } ·
+          // { status, autoPriorityExplanation }) · `taskUpdateSchema`
+          // is `.partial()` so each shape validates. Cast to the
+          // mutation's `fields` input type at this boundary — the
+          // procedure re-validates against the shared schema anyway.
+          fields: body as Parameters<
+            typeof updateTask.mutateAsync
+          >[0]["fields"],
         });
-        if (!res.ok) throw new Error();
         toast.success(toastText);
         notifyDataChanged("tasks", { source: "ultron-desk", id });
         load();
@@ -184,7 +199,7 @@ export function TodoDesk() {
         setBusyId(null);
       }
     },
-    [load],
+    [load, updateTask],
   );
 
   const start = (id: string) => patchTask(id, { status: "DOING" }, "started");

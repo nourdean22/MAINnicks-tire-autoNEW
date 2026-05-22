@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import {
   MessageSquareText,
   StickyNote,
@@ -107,19 +107,24 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const voiceStartRef = useRef<number>(0);
+  // Phase B.6b (2026-05-22) · migrated off `authedFetch` onto
+  // `trpc.task.*`. The session read fires imperatively (on mount + after
+  // every submit) via `utils.task.session.fetch()`; the event log is a
+  // `task.logSessionEvent` mutation. The tRPC procedure returns the
+  // service result directly · the legacy `raw.data` envelope unwrap is
+  // gone (`getTaskSession` already returns `{ ok, taskId, events }`).
+  const utils = trpc.useUtils();
+  const logSessionEvent = trpc.task.logSessionEvent.useMutation();
 
   // Load existing session events so the strip shows the running log.
   const loadSession = useCallback(async () => {
     try {
-      const res = await authedFetch(`/api/tasks/${task.id}/session`);
-      if (!res.ok) return;
-      const raw = (await res.json()) as { data?: { events?: SessionEvent[] } };
-      const list = raw.data?.events ?? [];
-      setEvents(list);
+      const result = await utils.task.session.fetch({ taskId: task.id });
+      setEvents((result.events ?? []) as SessionEvent[]);
     } catch {
       /* silent — empty is fine */
     }
-  }, [task.id]);
+  }, [task.id, utils]);
 
   useEffect(() => {
     loadSession();
@@ -136,12 +141,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
     }) => {
       setBusy(true);
       try {
-        const res = await authedFetch(`/api/tasks/${task.id}/session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-        if (!res.ok) throw new Error();
+        await logSessionEvent.mutateAsync({ taskId: task.id, ...payload });
         toast.success(
           payload.kind === "photo"
             ? "photo captured"
@@ -159,7 +159,7 @@ export function ActiveTaskCompanion({ task, onSessionChange }: Props) {
         setBusy(false);
       }
     },
-    [task.id, loadSession, onSessionChange],
+    [task.id, loadSession, onSessionChange, logSessionEvent],
   );
 
   // ── Note composer ──────────────────────────────────────────

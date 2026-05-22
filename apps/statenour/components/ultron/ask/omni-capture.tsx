@@ -117,10 +117,15 @@ interface OmniCaptureProps {
 
 export function OmniCapture({ mode }: OmniCaptureProps) {
   const router = useRouter();
-  // Phase B.6a (2026-05-22) · used ONLY for the /plan path below ·
-  // every other authedFetch in this file (tasks · missions · journal
-  // capture · decisions) belongs to later sub-slices and is untouched.
+  // Phase B.6a (2026-05-22) · `utils` drives the /plan path (operator
+  // domain) · Phase B.6b extends it to the task-domain reads/writes
+  // below (`task.create`, `task.createMission`, `task.missions`). The
+  // journal-capture + decisions authedFetch calls in this file belong
+  // to a later sub-slice and are INTENTIONALLY left on `authedFetch`
+  // (so the import stays).
   const utils = trpc.useUtils();
+  const createTask = trpc.task.create.useMutation();
+  const createMission = trpc.task.createMission.useMutation();
   const [input, setInput] = useState("");
   const [intent, setIntent] = useState<CaptureIntent | null>(null);
   /** Manual override — when Nour taps the chip to cycle, we pin the
@@ -240,16 +245,11 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
           // round-trip for the most common capture shape.
           setBusy(true);
           try {
-            const res = await authedFetch("/api/tasks", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: text.slice(0, 200),
-                status: "INBOX",
-                source: "omni-capture",
-              }),
+            await createTask.mutateAsync({
+              title: text.slice(0, 200),
+              status: "INBOX",
+              source: "omni-capture",
             });
-            if (!res.ok) throw new Error("task create failed");
             toast.success("task created");
             setInput("");
           } catch {
@@ -348,7 +348,7 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
         }
       }
     },
-    [router, sendMessage, setMessages, utils],
+    [router, sendMessage, setMessages, utils, createTask],
   );
 
   const handleSubmit = useCallback(
@@ -418,29 +418,33 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
       }
       case "task": {
         try {
-          // Resolve Inbox mission (or create)
+          // Resolve Inbox mission (or create). Phase B.6b · the
+          // missions read + mission/task creates moved to
+          // `trpc.task.{missions,createMission,create}` · the procedures
+          // return the rows directly, so the legacy `data`-envelope
+          // unwrap collapses.
           let inboxId: string | null = null;
-          const missionsRaw = await authedFetch("/api/missions").then((r) => r.json()).catch(() => null);
-          const mRec = missionsRaw as { data?: Array<{ id: string; title: string }> } | null;
-          const missions = mRec?.data ?? missionsRaw;
+          const missions = (await utils.task.missions
+            .fetch()
+            .catch(() => null)) as Array<{ id: string; title: string }> | null;
           if (Array.isArray(missions)) {
-            const inbox = (missions as Array<{ id: string; title: string }>).find((m) => m.title === "Inbox");
+            const inbox = missions.find((m) => m.title === "Inbox");
             inboxId = inbox?.id ?? null;
           }
           if (!inboxId) {
-            const created = await authedFetch("/api/missions", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ title: "Inbox", description: "Ad-hoc tasks", status: "ACTIVE" }),
-            }).then((r) => r.json()).catch(() => null);
-            inboxId = (created as { data?: { id?: string }; id?: string } | null)?.data?.id ?? (created as { id?: string } | null)?.id ?? null;
+            const created = (await createMission
+              .mutateAsync({
+                title: "Inbox",
+                description: "Ad-hoc tasks",
+                status: "ACTIVE",
+              })
+              .catch(() => null)) as { id?: string } | null;
+            inboxId = created?.id ?? null;
           }
           if (!inboxId) { toast.error("no inbox"); return; }
           const title = step.target || step.title;
-          const res = await authedFetch("/api/tasks", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          try {
+            await createTask.mutateAsync({
               title,
               missionId: inboxId,
               nextPhysicalAction: title,
@@ -451,12 +455,10 @@ export function OmniCapture({ mode }: OmniCaptureProps) {
               context: "ANYWHERE",
               finishCondition: "Done",
               autoPriorityExplanation: `from plan: ${plan?.summary ?? "micro-plan"}`,
-            }),
-          });
-          if (res.ok) {
+            });
             toast.success(`task queued: ${title.slice(0, 40)}`);
             notifyDataChanged("tasks", { source: "ultron-plan", detail: "add" });
-          } else {
+          } catch {
             toast.error("task create failed");
           }
         } catch {

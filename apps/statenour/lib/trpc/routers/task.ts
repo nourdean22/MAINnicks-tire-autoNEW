@@ -62,6 +62,7 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEvent, type TaskEventKind } from "@/lib/brain/task-events";
 import { taskUpdateSchema } from "@/lib/validators/tasks";
+import { getTaskSession, logSessionEvent } from "@/lib/services/task-session";
 
 const TaskEventKindSchema = z.enum([
   "created",
@@ -534,6 +535,62 @@ export const taskRouter = router({
         if (err instanceof ServiceError) {
           throw new TRPCError({
             code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.6b (2026-05-22 · legacy-modernizer REST→tRPC ultron slice ·
+   * task-domain sub-slice) · owner-only · read a task's working-session
+   * event trail (notes · photos · voice · progress logs), oldest-first,
+   * capped at 100. Replaces GET /api/tasks/[id]/session · powers the
+   * ActiveTaskCompanion running-log strip on the HQ DESK.
+   *
+   * Delegates to `lib/services/task-session.getTaskSession` shared
+   * service · legacy GET calls the same function · drift impossible.
+   * The service returns the explicit shallow `TaskSessionView` shape
+   * (the BrainMemory Json `metadata` column is projected to scalar
+   * fields inside the service) so the procedure's public type stays
+   * shallow — the same TS2589-prevention discipline as `TaskEventRow`.
+   */
+  session: operatorProcedure
+    .input(z.object({ taskId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => getTaskSession(input.taskId)),
+
+  /**
+   * Phase B.6b · owner-only · log one working-session event against a
+   * task. Replaces POST /api/tasks/[id]/session · the ActiveTaskCompanion
+   * quick-action row (note · photo · voice · log) fires this.
+   *
+   * Delegates to `lib/services/task-session.logSessionEvent` shared
+   * service · legacy POST calls the same function · drift impossible.
+   * The `kind` enum is strict (the route's `["note","photo","voice",
+   * "log"].includes` check, hoisted to the tRPC boundary) so a bad
+   * kind is rejected at `.input()` rather than reaching the service's
+   * `ServiceError(400)`. ServiceError(404) for a missing task →
+   * NOT_FOUND so both transports reject identically.
+   */
+  logSessionEvent: operatorProcedure
+    .input(
+      z.object({
+        taskId: z.string().min(1).max(64),
+        kind: z.enum(["note", "photo", "voice", "log"]),
+        text: z.string().max(20_000).optional(),
+        photoUrl: z.string().max(2_500_000).optional(),
+        audioUrl: z.string().max(2_500_000).optional(),
+        durationMs: z.number().int().min(0).max(86_400_000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await logSessionEvent(input);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
             message: err.message,
           });
         }

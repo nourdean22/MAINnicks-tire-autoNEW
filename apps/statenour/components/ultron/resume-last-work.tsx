@@ -19,7 +19,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Clock } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 
 interface MissionLite {
   id: string;
@@ -51,17 +51,19 @@ function ageLabel(ms: number): string {
 export function ResumeLastWork() {
   const [data, setData] = useState<ResumeData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Phase B.6b (2026-05-22) · migrated off `authedFetch("/api/missions")`
+  // onto `trpc.task.missions`. The read is lazy + interval-driven (not a
+  // render-time query) so it fires imperatively via `utils.task.missions
+  // .fetch()`. The procedure returns the decorated mission array
+  // directly · the legacy `payload.data`/`payload.missions` envelope
+  // unwrap is gone.
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     let alive = true;
     const load = async () => {
       try {
-        const res = await authedFetch("/api/missions");
-        if (!res.ok) return;
-        const payload = await res.json();
-        const missions: MissionLite[] = Array.isArray(payload)
-          ? payload
-          : (payload?.data ?? payload?.missions ?? []);
+        const missions = (await utils.task.missions.fetch()) as MissionLite[];
         // Find the most recently-touched mission that's still active.
         const active = missions.find((m) => {
           const s = (m.status ?? "").toUpperCase();
@@ -90,7 +92,7 @@ export function ResumeLastWork() {
       alive = false;
       clearInterval(id);
     };
-  }, []);
+  }, [utils]);
 
   if (loading || !data) return null;
 
