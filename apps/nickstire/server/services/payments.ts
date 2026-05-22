@@ -69,6 +69,68 @@ export async function createPaymentIntent(params: {
 }
 
 /**
+ * Create a Stripe Checkout Session (hosted payment page) for a tire order.
+ *
+ * The customer is redirected to Stripe's own checkout page — card details
+ * are entered there and never touch nickstire's servers. On success Stripe
+ * fires `checkout.session.completed` (handled in the webhook), which marks
+ * the invoice + tire order paid and triggers the shop hand-off emails.
+ */
+export async function createTireOrderCheckout(params: {
+  amountCents: number;
+  tireOrderNumber: string;
+  invoiceNumber: string;
+  customerName: string;
+  customerEmail?: string;
+  description: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ url: string; sessionId: string } | { error: string }> {
+  const stripe = await getStripe();
+  if (!stripe) {
+    return { error: "Payment processing not configured. Please call (216) 862-0005 to pay." };
+  }
+
+  // Stripe metadata values must be strings — mirror this onto both the
+  // Checkout Session and its PaymentIntent so either webhook event resolves.
+  const metadata = {
+    tireOrderNumber: params.tireOrderNumber,
+    invoiceNumber: params.invoiceNumber,
+    customerName: params.customerName,
+    source: "nickstire.org",
+  };
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: "usd",
+          unit_amount: params.amountCents,
+          product_data: { name: params.description },
+        },
+      }],
+      customer_email: params.customerEmail || undefined,
+      client_reference_id: params.tireOrderNumber,
+      metadata,
+      payment_intent_data: { metadata, description: params.description },
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+    });
+
+    if (!session.url) return { error: "Payment setup failed — Stripe returned no checkout URL." };
+
+    log.info(`Checkout session ${session.id} created for tire order ${params.tireOrderNumber} — $${(params.amountCents / 100).toFixed(2)}`);
+    return { url: session.url, sessionId: session.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("Checkout session creation failed:", { error: msg });
+    return { error: `Payment setup failed: ${msg}` };
+  }
+}
+
+/**
  * Confirm a payment was completed (webhook or polling)
  */
 export async function getPaymentStatus(paymentIntentId: string): Promise<{

@@ -1155,6 +1155,72 @@ ${urls.join("\n")}
         }
       }
 
+      // ─── Tire-order checkout completed ───────────────────
+      // Fired by gatewayTire.createCheckout sessions. Marks the tire
+      // order + invoice paid, then emails the shop the ShopDriver-entry +
+      // Gateway-order hand-off (moeseuclid@gmail.com).
+      if (event.type === "checkout.session.completed") {
+        const session = event.data.object as any;
+        const tireOrderNumber = session.metadata?.tireOrderNumber as string | undefined;
+        const invoiceNumber = session.metadata?.invoiceNumber as string | undefined;
+        if (session.payment_status === "paid" && tireOrderNumber) {
+          const { getDb } = await import("../db");
+          const { tireOrders, invoices } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            const [order] = await d.select().from(tireOrders)
+              .where(eq(tireOrders.orderNumber, tireOrderNumber)).limit(1);
+            // Idempotency — Stripe may deliver the same webhook twice.
+            if (order && order.paymentStatus !== "paid") {
+              await d.update(tireOrders).set({
+                paymentStatus: "paid",
+                paidAt: new Date(),
+                stripeSessionId: session.id,
+                status: order.status === "received" ? "confirmed" : order.status,
+              }).where(eq(tireOrders.orderNumber, tireOrderNumber));
+
+              if (invoiceNumber) {
+                await d.update(invoices).set({ paymentStatus: "paid", paymentMethod: "card" })
+                  .where(eq(invoices.invoiceNumber, invoiceNumber));
+              }
+
+              const amountPaid = (session.amount_total || 0) / 100;
+              serverLog.info(`[Stripe Webhook] Tire order ${tireOrderNumber} PAID — $${amountPaid.toFixed(2)}`);
+
+              // Shop hand-off email — ShopDriver entry + Gateway order.
+              import("../email-notify").then(({ notifyTireOrderPaid }) =>
+                notifyTireOrderPaid({
+                  orderNumber: order.orderNumber,
+                  invoiceNumber: order.invoiceNumber || invoiceNumber || undefined,
+                  customerName: order.customerName,
+                  customerPhone: order.customerPhone,
+                  customerEmail: order.customerEmail || undefined,
+                  vehicleInfo: order.vehicleInfo || undefined,
+                  tireBrand: order.tireBrand,
+                  tireModel: order.tireModel,
+                  tireSize: order.tireSize,
+                  quantity: order.quantity,
+                  amountPaid,
+                  customerNotes: order.customerNotes || undefined,
+                })
+              ).catch(e => serverLog.warn("[Stripe Webhook] tire-order paid email failed:", { error: e instanceof Error ? e.message : String(e) }));
+
+              // Telegram alert to the shop.
+              import("../services/telegram").then(({ sendTelegram }) =>
+                sendTelegram(
+                  `TIRE ORDER PAID — ${tireOrderNumber}\n` +
+                  `${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
+                  `${order.customerName} · ${order.customerPhone}\n` +
+                  `$${amountPaid.toFixed(2)} paid online\n\n` +
+                  `Check moeseuclid@gmail.com — enter in ShopDriver + order from Gateway.`
+                )
+              ).catch(e => serverLog.warn("[Stripe Webhook] tire-order paid telegram failed:", { error: e instanceof Error ? e.message : String(e) }));
+            }
+          }
+        }
+      }
+
       res.sendStatus(200);
     } catch (err) {
       serverLog.error("[Stripe Webhook] Verification failed:", { error: err instanceof Error ? err.message : String(err) });

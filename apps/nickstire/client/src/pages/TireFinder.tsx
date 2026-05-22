@@ -220,6 +220,19 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
     onError: () => toast.error("Something went wrong. Please call us at (216) 862-0005."),
   });
 
+  // Online payment — opens Stripe's hosted checkout in this tab.
+  const checkoutMutation = trpc.gatewayTire.createCheckout.useMutation({
+    onSuccess: (data) => {
+      if ("url" in data && data.url) {
+        window.location.href = data.url;
+      } else {
+        const msg = "error" in data ? data.error : "Couldn't start checkout.";
+        toast.error(`${msg} You can also call (216) 862-0005 to pay.`);
+      }
+    },
+    onError: () => toast.error("Couldn't start checkout. Please call (216) 862-0005 to pay."),
+  });
+
   if (!tire) return null;
 
   const tireTotal = tire.shopPrice * quantity;
@@ -246,16 +259,31 @@ function OrderModal({ tire, quantity, packageValue, onClose }: OrderModalProps) 
           {/* Payment options */}
           {!paymentSubmitted && (
             <div className="bg-primary/5 border border-primary/20 rounded-md p-4 mb-4">
-              <p className="text-xs font-semibold text-primary mb-3">Pay to Confirm Your Order:</p>
+              <p className="text-xs font-semibold text-primary mb-3">Pay for Your Order:</p>
+
+              {/* Primary — pay online via Stripe's hosted secure checkout */}
+              <button
+                onClick={() => checkoutMutation.mutate({ orderNumber: orderResult.orderNumber, phone })}
+                disabled={checkoutMutation.isPending}
+                className="flex items-center justify-center gap-2 w-full bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              >
+                {checkoutMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Starting secure checkout…</>
+                ) : (
+                  <>Pay Now — ${orderResult.totalAmount.toFixed(2)}</>
+                )}
+              </button>
+              <p className="text-[10px] text-muted-foreground text-center mt-2">
+                Secure card payment by Stripe. Your card details never touch our site.
+              </p>
+
+              {/* Secondary — pay by phone */}
               <a
                 href="tel:+12168620005" onClick={() => trackPhoneClick("tire-finder")}
-                className="block w-full text-center bg-primary text-primary-foreground py-3 rounded-md text-sm font-semibold hover:bg-primary/90 transition-colors"
+                className="block w-full text-center border border-border/50 text-foreground py-2.5 rounded-md text-sm font-medium hover:bg-card/80 transition-colors mt-3"
               >
-                Call to Pay — (216) 862-0005
+                Or call to pay — (216) 862-0005
               </a>
-              <p className="text-[10px] text-muted-foreground text-center mt-2">
-                Call us and we'll process your payment securely over the phone.
-              </p>
 
               <div className="border-t border-border/20 mt-4 pt-3">
                 <p className="text-[11px] text-muted-foreground mb-2 text-center">Need financing instead?</p>
@@ -763,6 +791,19 @@ export default function TireFinder() {
       resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [data]);
+
+  // Stripe Checkout return — show the customer a clear result.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const paid = params.get("paid");
+    const order = params.get("order");
+    if (paid === "1" && order) {
+      toast.success(`Payment received — order ${order} is confirmed. We'll be in touch about installation.`);
+    } else if (paid === "0" && order) {
+      toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
+    }
+  }, []);
 
   return (
     <PageLayout showChat={true}>

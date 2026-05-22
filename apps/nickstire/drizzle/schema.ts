@@ -1421,6 +1421,16 @@ export const tireOrders = mysqlTable("tire_orders", {
   /** Whether the shop email notification was sent */
   emailSent: int("emailSent").default(0).notNull(),
 
+  // ─── Online payment (Stripe Checkout) ───
+  /** Linked invoice number — invoice is auto-created at order placement */
+  invoiceNumber: varchar("invoiceNumber", { length: 50 }),
+  /** unpaid | paid | refunded */
+  paymentStatus: varchar("paymentStatus", { length: 20 }).default("unpaid").notNull(),
+  /** Stripe Checkout Session id — audit trail + idempotency */
+  stripeSessionId: varchar("stripeSessionId", { length: 255 }),
+  /** When the customer's online payment cleared */
+  paidAt: timestamp("paidAt"),
+
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
