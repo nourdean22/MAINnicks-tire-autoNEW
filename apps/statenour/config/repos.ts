@@ -63,7 +63,7 @@ export const REPOS: RepoEntry[] = [
     purpose:
       "STATE NOUR · personal OS + AI assistant + command spine. Single source of truth for Nour's life/business operations. Hosts NICK Prime context + brain + crons.",
     host: "railway",
-    branch: "codex/ollama-local",
+    branch: "main",
     productionUrl: "https://bdnick.info",
     status: "active",
     monitored: true,

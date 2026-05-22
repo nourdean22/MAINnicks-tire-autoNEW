@@ -88,7 +88,7 @@ personal ring. Business ops live in the other repo.
 ```
 ┌───────────────────────────── PERSONAL RING ─────────────────────────────┐
 │                                                                         │
-│   statenour  (statenour-web-production.up.railway.app)                  │
+│   statenour  (bdnick.info)                                              │
 │   Next.js 16 · Prisma 7 · Neon Postgres · Railway                       │
 │                                                                         │
 │   Surfaces:  Ultron · Nick · Brain · Tasks · Journal · Knowledge        │
@@ -441,7 +441,7 @@ primitives. Listed here so future work knows what's already there:
 ---
 
 **Reconciled 2026-05-21** · infra sweep — deploy/cron sections
-rewritten for the Railway monorepo reality (was Vercel / `bdnick.info`
-/ a `vercel.json` cron pipeline, all retired); Prisma model count
+rewritten for the Railway monorepo reality (was Vercel / a
+`vercel.json` cron pipeline, all retired); Prisma model count
 corrected to 80. If a claim in this doc contradicts code reality, the
 code wins · open an issue.

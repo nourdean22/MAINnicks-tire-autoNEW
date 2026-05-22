@@ -8,7 +8,7 @@
 **Status:** production · Railway · Neon Postgres · Next.js 16 · Prisma 7
 · React 19 · Tailwind 4. Lives in the `nourdean22/MAINnicks-tire-autoNEW`
 monorepo at `apps/statenour/`, deployed from branch `main` to
-`statenour-web-production.up.railway.app`.
+Railway, served at `bdnick.info`.
 
 **Verified ground truth:** [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md)
 holds the current reality snapshot — counts, gates, doc hierarchy. Read
@@ -139,7 +139,7 @@ main  ← the one branch (monorepo: statenour + nickstire share it)
   Railway   ← watches `main` with per-service watch paths; a push
               touching apps/statenour/** auto-deploys the
               statenour-web service →
-              statenour-web-production.up.railway.app
+              bdnick.info
 ```
 
 ---
@@ -171,7 +171,7 @@ is "everything degrades gracefully · operator pastes credentials to
 activate each substrate". Status surfaces on `/api/health`:
 
 ```bash
-curl https://statenour-web-production.up.railway.app/api/health | jq '.data | {inngest, braintrust, agentV2}'
+curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust, agentV2}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:

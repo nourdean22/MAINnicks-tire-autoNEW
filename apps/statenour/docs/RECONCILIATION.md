@@ -37,7 +37,7 @@
 >
 > **`824e724` · doc infra-sweep · 10 files** — RUNBOOK · REPO-MAP ·
 > AGENT-CONTRACT · README · AGENTS.md · ARCHITECTURE · DATA-MODEL ·
-> tool-catalog · 3d-briefs · crons.ts swept from Vercel / bdnick.info /
+> tool-catalog · 3d-briefs · crons.ts swept from Vercel /
 > codex → monorepo / `main` / Railway. AGENTS.md pre-push gate-count
 > self-conflict resolved (verify:hard = 7 checks). Model count 78 → 80.
 >
@@ -719,7 +719,7 @@
 > here to the end of this file is the v9.1 → v10.0.7x reconciliation
 > ledger, kept for history only. It PRE-DATES the monorepo migration
 > and describes RETIRED infrastructure — the standalone `statenour-os`
-> repo, the `codex/ollama-local` branch, Vercel, and `bdnick.info`.
+> repo, the `codex/ollama-local` branch, and Vercel.
 > Branch names, cron counts, model counts, pre-push gate counts and
 > "active gate task" notes below are frozen at that era and are NOT
 > current — do not trust a number from this section.

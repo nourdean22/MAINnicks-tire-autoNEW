@@ -5,7 +5,7 @@ Operational playbook. When something breaks or drifts, start here.
 > statenour runs as the `statenour-web` service in the
 > `nourdean22/MAINnicks-tire-autoNEW` monorepo (`apps/statenour/`),
 > deployed by **Railway** from branch `main`. Prod URL:
-> `statenour-web-production.up.railway.app`.
+> `bdnick.info`.
 
 ---
 
@@ -225,7 +225,7 @@ Normal path:
    (catches Next.js prerender errors before Railway)
 3. push to origin/main
 4. Railway picks up the push (per-service watch path) and deploys
-   apps/statenour → statenour-web-production.up.railway.app
+   apps/statenour → bdnick.info
 ```
 
 **Emergency rollback:**
@@ -307,7 +307,7 @@ Last-resort recovery from a Neon branch:
 ## Incident playbook
 
 **Severity 1 — statenour prod is down.**
-1. `curl https://statenour-web-production.up.railway.app/api/system/heartbeat` — note the error.
+1. `curl https://bdnick.info/api/system/heartbeat` — note the error.
 2. Railway dashboard — check the `statenour-web` service status + logs.
 3. Neon status page (if DB is the problem).
 4. Recent deploy in the Railway dashboard → roll back to the last
@@ -384,6 +384,6 @@ class structurally impossible. New rows go in date-asc.
 ---
 
 **Reconciled 2026-05-21** · infra sweep — incident/deploy/env steps
-rewritten for the Railway monorepo deploy (was Vercel / `bdnick.info` /
+rewritten for the Railway monorepo deploy (was Vercel /
 `codex/ollama-local` / `statenour-master`, all retired). If a claim in
 this doc contradicts code reality, the code wins · open an issue.
