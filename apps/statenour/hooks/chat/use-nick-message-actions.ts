@@ -1,24 +1,25 @@
 "use client";
 
 import { useCallback } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { haptic } from "@/lib/ui/haptic";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { logger as rootLogger } from "@/lib/logger";
-// REST→tRPC hooks slice (2026-05-22) · PARTIAL migration.
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
+// call-site here is now typed tRPC, the `authedFetch` import is gone.
 //   · onCreateTask  → trpc.task.create   (POST /api/tasks · Phase SS)
 //   · onPinToMemory → trpc.brain.createPin (POST /api/brain/pinned · Phase YY)
-// Both delegate to the SAME service the REST route calls
-// (`task-actions.createTaskFromAPI` · `pins.createPin`) · drift
-// impossible. `onSaveToBrain` (`POST /api/brain/memories`) is NOT
-// migrated — that route requires a `key` field this hook never sent
-// (a pre-existing payload bug · the route 400s on it), has no shared
-// service, and no tRPC procedure · migrating it would change behavior
-// + need a service extraction (out of this hooks-slice's scope · the
-// `authedFetch` import stays for it). `postFeedback` below also stays
-// on `authedFetch` — it is a module-level (non-hook) function called
-// straight from JSX, and there is no vanilla tRPC client in this app.
+//   · onSaveToBrain → trpc.brain.recordMemory (`brain-memories.recordMemory`)
+// `recordMemory` upserts by (category, key) — supplying a content-hash
+// key here FIXES the pre-existing payload bug where the old `POST
+// /api/brain/memories` call omitted the route's required `key` field
+// (the route 400'd · the failure was masked by a generic toast).
+// `postFeedback` below is a module-level (non-hook) function called
+// straight from JSX, so it uses the vanilla tRPC client
+// (`trpcVanilla.chat.messageFeedback`) — the same imperative non-React
+// path `ClientErrorTelemetry` uses. Every procedure delegates to the
+// SAME service its legacy REST route calls · drift impossible.
 import { trpc } from "@/lib/trpc/client";
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 
 /**
  * Per-message action handlers wired into <NickMessage>'s
@@ -38,6 +39,19 @@ import { trpc } from "@/lib/trpc/client";
  */
 const log = rootLogger.withSurface("chat/nick-message");
 
+/**
+ * Stable content-hash key for a save-to-brain memory row. `brainMemory
+ * .remember` upserts by (category, key) — keying on a hash of the
+ * content slice reinforces an existing row instead of duplicating.
+ */
+function memoryKey(content: string): string {
+  let h = 0;
+  for (let i = 0; i < content.length; i++) {
+    h = (h * 31 + content.charCodeAt(i)) | 0;
+  }
+  return (h >>> 0).toString(36);
+}
+
 export type NickMessageActions = {
   onCopy: (text: string) => void;
   onCreateTask: (text: string) => Promise<void>;
@@ -50,10 +64,11 @@ export function useNickMessageActions({
 }: {
   setError: (msg: string | null) => void;
 }): NickMessageActions {
-  // tRPC mutations · both throw TRPCError on failure, caught by the
+  // tRPC mutations · each throws TRPCError on failure, caught by the
   // try/catch below (matching the legacy `!res.ok` branches).
   const createTaskMutation = trpc.task.create.useMutation();
   const createPinMutation = trpc.brain.createPin.useMutation();
+  const recordMemoryMutation = trpc.brain.recordMemory.useMutation();
 
   const onCopy = useCallback((text: string) => {
     navigator.clipboard?.writeText(text).then(() => {
@@ -94,16 +109,17 @@ export function useNickMessageActions({
   const onSaveToBrain = useCallback(
     async (text: string) => {
       try {
-        const res = await authedFetch("/api/brain/memories", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            category: "nick_advice",
-            content: text.slice(0, 500),
-            confidence: 0.8,
-          }),
+        // `recordMemory` upserts by (category, key) · supplying a
+        // content-hash key fixes the pre-existing bug where the old
+        // `POST /api/brain/memories` call omitted the route's required
+        // `key` and silently 400'd. Throws TRPCError on failure.
+        const content = text.slice(0, 500);
+        await recordMemoryMutation.mutateAsync({
+          category: "nick_advice",
+          key: `nick_advice:${memoryKey(content)}`,
+          content,
+          source: "chat:save-to-brain",
         });
-        if (!res.ok) throw new Error(`${res.status}`);
         haptic.success();
       } catch (err) {
         log.error("action.saveToBrain.failed", { error: err instanceof Error ? err.message : String(err) });
@@ -112,7 +128,7 @@ export function useNickMessageActions({
         setTimeout(() => setError(null), 3500);
       }
     },
-    [setError],
+    [setError, recordMemoryMutation],
   );
 
   const onPinToMemory = useCallback(
@@ -178,15 +194,17 @@ export async function postFeedback({
   conversationId: string | null;
 }): Promise<void> {
   try {
-    await authedFetch("/api/ai/chat/feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        messageId,
-        score: positive ? 1 : -1,
-        snippet: snippet.slice(0, 200),
-        conversationId,
-      }),
+    // `postFeedback` is a module-level function (per-mount values · not
+    // stable hook state), so it uses the vanilla tRPC client — the same
+    // imperative non-React path ClientErrorTelemetry uses.
+    // `chat.messageFeedback` delegates to the `chat-feedback.record
+    // MessageFeedback` service the legacy POST /api/ai/chat/feedback
+    // route also calls · drift impossible.
+    await trpcVanilla.chat.messageFeedback.mutate({
+      messageId,
+      score: positive ? 1 : -1,
+      snippet: snippet.slice(0, 200),
+      conversationId: conversationId ?? undefined,
     });
   } catch (err) {
     log.error("action.feedbackSave.failed", { error: err instanceof Error ? err.message : String(err) });

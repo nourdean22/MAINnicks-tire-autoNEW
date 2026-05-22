@@ -23,7 +23,22 @@
 
 import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice. This file
+// is a NON-React module — its handlers are plain async functions
+// dispatched from the chat send path, NOT components or hooks — so it
+// CANNOT use the React-hooks tRPC client. It uses the vanilla (non-
+// hook) client, the same imperative path `ClientErrorTelemetry` uses:
+//   · /api/missions GET   → trpcVanilla.task.missions
+//   · /api/missions POST  → trpcVanilla.task.createMission
+//   · /api/tasks POST     → trpcVanilla.task.create
+//   · /api/tasks GET      → trpcVanilla.task.list
+//   · /api/tasks/[id] PATCH → trpcVanilla.task.update
+//   · /api/commitments POST → trpcVanilla.operator.createCommitment
+// Every procedure delegates to the SAME service its legacy REST route
+// calls · drift impossible. The vanilla client's `.query()`/`.mutate()`
+// throw on failure (no `.ok` to check) — the handlers' try/catch turns
+// a throw into the `status: "error"` toast.
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 
 export interface DirectActionResult {
   /** true if the message was handled locally; false means pass to Nick */
@@ -102,31 +117,40 @@ async function addTask(args: string): Promise<DirectActionResult> {
     return { handled: true };
   }
 
-  // Resolve (or create) the Inbox mission.
-  const missionsRaw = await authedFetch("/api/missions").then((r): Promise<unknown> => r.json()).catch((): null => null);
-  const missions = (missionsRaw as { data?: unknown } | null)?.data ?? missionsRaw;
+  // Resolve (or create) the Inbox mission. `task.missions` returns the
+  // mission array directly (no envelope); `task.create` itself defaults
+  // to the Inbox mission on a missing missionId, but the explicit
+  // lookup preserves the legacy "named Inbox" semantics + lets us
+  // create it if it genuinely doesn't exist.
   let inboxId: string | null = null;
-  if (Array.isArray(missions)) {
-    const inbox = missions.find((m: { title: string; id: string }) => m.title === "Inbox");
+  try {
+    const missions = await trpcVanilla.task.missions.query();
+    const inbox = missions.find(
+      (m: { title: string; id: string }) => m.title === "Inbox",
+    );
     inboxId = inbox?.id ?? null;
+  } catch {
+    inboxId = null;
   }
   if (!inboxId) {
-    const created = await authedFetch("/api/missions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title: "Inbox", description: "Quick tasks", status: "ACTIVE" }),
-    }).then((r): Promise<unknown> => r.json()).catch((): null => null);
-    inboxId = (created as { data?: { id?: string }; id?: string } | null)?.data?.id ?? (created as { id?: string } | null)?.id ?? null;
+    try {
+      const created = await trpcVanilla.task.createMission.mutate({
+        title: "Inbox",
+        description: "Quick tasks",
+        status: "ACTIVE",
+      });
+      inboxId = (created as { id?: string } | null)?.id ?? null;
+    } catch {
+      inboxId = null;
+    }
   }
   if (!inboxId) {
     toast.error("Couldn't find or create Inbox");
     return { handled: true, status: "error" };
   }
 
-  const res = await authedFetch("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  try {
+    await trpcVanilla.task.create.mutate({
       title: args,
       missionId: inboxId,
       nextPhysicalAction: args,
@@ -136,10 +160,8 @@ async function addTask(args: string): Promise<DirectActionResult> {
       energyRequired: "MEDIUM",
       context: "ANYWHERE",
       finishCondition: "Done",
-    }),
-  });
-
-  if (!res.ok) {
+    });
+  } catch {
     toast.error("Failed to add task");
     return { handled: true, status: "error" };
   }
@@ -154,9 +176,15 @@ async function markTaskDone(args: string): Promise<DirectActionResult> {
     return { handled: true };
   }
 
-  // Fetch active tasks, find closest fuzzy match.
-  const raw = await authedFetch("/api/tasks").then((r): Promise<unknown> => r.json()).catch((): null => null);
-  const tasks: Task[] = ((raw as { data?: unknown } | null)?.data ?? raw) as Task[];
+  // Fetch active tasks, find closest fuzzy match. `task.list` returns
+  // the task view-model array directly (no envelope).
+  let tasks: Task[];
+  try {
+    tasks = (await trpcVanilla.task.list.query({})) as unknown as Task[];
+  } catch {
+    toast.error("Couldn't load tasks");
+    return { handled: true, status: "error" };
+  }
   if (!Array.isArray(tasks)) {
     toast.error("Couldn't load tasks");
     return { handled: true, status: "error" };
@@ -184,12 +212,15 @@ async function markTaskDone(args: string): Promise<DirectActionResult> {
   }
 
   const match = scored[0].task;
-  const res = await authedFetch(`/api/tasks/${match.id}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: "DONE" }),
-  });
-  if (!res.ok) {
+  // `task.update`'s input is { id, fields } · `fields` is the shared
+  // `taskUpdateSchema` (partial) — `{ status: "DONE" }` is a valid
+  // partial. Throws TRPCError on failure (caught below).
+  try {
+    await trpcVanilla.task.update.mutate({
+      id: match.id,
+      fields: { status: "DONE" },
+    });
+  } catch {
     toast.error("Failed to complete task");
     return { handled: true, status: "error" };
   }
@@ -239,12 +270,12 @@ async function addCommitment(args: string): Promise<DirectActionResult> {
     toast.error("/commit needs a description — try '/commit no impulse purchases this week'");
     return { handled: true };
   }
-  const res = await authedFetch("/api/commitments", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ description: args, to_whom: "self" }),
-  });
-  if (!res.ok) {
+  // `operator.createCommitment` delegates to the `commitments.create
+  // Commitment` service the legacy POST /api/commitments create branch
+  // was slimmed to call · `toWhom` defaults to "self" in the service.
+  try {
+    await trpcVanilla.operator.createCommitment.mutate({ description: args });
+  } catch {
     toast.error("Failed to add commitment");
     return { handled: true, status: "error" };
   }

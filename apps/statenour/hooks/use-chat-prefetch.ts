@@ -22,7 +22,16 @@
 import { useEffect, useRef } from "react";
 import { readClientId } from "./use-prefetch-client-id";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/ai/chat/prefetch")` onto `trpc.chat.prefetch`
+// · the procedure delegates to the SAME `chat-prefetch.runChatPrefetch`
+// service the legacy REST route also calls · drift impossible. The
+// per-tab `clientId` (sessionStorage) rides in the typed input — it
+// keys the service's rate-limit + draft-dedupe (the legacy route read
+// it from the `X-Prefetch-Client-Id` header). Fire-and-forget · the
+// mutation result is ignored, errors swallowed.
+import { trpc } from "@/lib/trpc/client";
+
 const DEBOUNCE_MS = 300;
 const MIN_LENGTH = 8;
 // Don't re-fire on every keystroke — enforce a minimum time between
@@ -33,6 +42,7 @@ export function useChatPrefetch(draft: string) {
   const lastFiredRef = useRef<number>(0);
   const lastDraftRef = useRef<string>("");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prefetchMutation = trpc.chat.prefetch.useMutation();
 
   useEffect(() => {
     // Clear any pending debounce
@@ -57,17 +67,11 @@ export function useChatPrefetch(draft: string) {
       lastFiredRef.current = Date.now();
       lastDraftRef.current = trimmed;
 
-      // Fire and forget — no await, no error surfacing to UI
-      authedFetch("/api/ai/chat/prefetch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Prefetch-Client-Id": readClientId(),
-        },
-        body: JSON.stringify({ draft: trimmed }),
-        // Abortable if the user sends / navigates away fast
-        keepalive: true,
-      }).catch(() => {});
+      // Fire and forget — no await, no error surfacing to UI.
+      prefetchMutation.mutate(
+        { draft: trimmed, clientId: readClientId() },
+        { onError: () => {} },
+      );
     }, DEBOUNCE_MS);
 
     return () => {
@@ -76,5 +80,9 @@ export function useChatPrefetch(draft: string) {
         timerRef.current = null;
       }
     };
+    // `prefetchMutation.mutate` is referentially stable across renders
+    // (React Query memoizes it) — safe to omit from the dep array;
+    // re-running this effect only on `draft` change is the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft]);
 }

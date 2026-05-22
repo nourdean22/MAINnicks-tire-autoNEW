@@ -27,7 +27,19 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice. `fetchUltron`
+// is a GENERIC URL-keyed request coalescer — `loader()` may target ANY
+// of ~10 Ultron-tree endpoints (/api/ultron/{signal,pulse,work-context},
+// /api/system/{health,ai-cost,anticipated}, /api/actions-brain, …),
+// most of which have no 1:1 tRPC procedure. A generic `fetch(url)`
+// primitive has no typed tRPC equivalent — and synthesising a procedure
+// per URL would explode this slice for zero benefit (YAGNI). So the
+// `authedFetch` import is replaced with a bare `fetch` carrying
+// `credentials: "include"` (the only behaviour `authedFetch` added over
+// `fetch` here) — the same plain-fetch carve-out the prior slice made
+// for endpoints with no procedure. The `use-authed-fetch` import is
+// gone; this stays a generic cache, not a tRPC client.
 
 interface CacheEntry<T = unknown> {
   value: T;
@@ -137,12 +149,15 @@ export function useUltronFetch<T>(
       const data = await fetchUltron<T>(
         url,
         async () => {
-          // v10.0.117 audit fix · was bare fetch(url) — every other
-          // client surface uses authedFetch. On the Ultron home route
-          // this caused /api/ultron/signal + /api/ultron/pulse to fire
-          // unauthenticated, get 401, swallow, leave data:null forever,
-          // and the mode-classifier ran on zeroed inputs.
-          const res = await authedFetch(url);
+          // v10.0.117 audit fix · was bare fetch(url) with no
+          // credentials · /api/ultron/signal + /api/ultron/pulse fired
+          // unauthenticated, got 401, swallowed it, left data:null
+          // forever. `credentials: "include"` sends the session cookie
+          // (the legacy `authedFetch` default · the hooks-lib REST→tRPC
+          // slice replaced the import with this bare fetch — see the
+          // file-level note · this is a generic URL fetcher with no
+          // typed tRPC procedure).
+          const res = await fetch(url, { credentials: "include" });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const raw = (await res.json()) as { data?: T } | T;
           // Unwrap envelope when present

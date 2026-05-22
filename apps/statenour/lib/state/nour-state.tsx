@@ -16,7 +16,21 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice.
+// NourStateProvider's `loadAll` fans out across FOUR heterogeneous
+// composite endpoints in one Promise.all (/api/health · /api/habits ·
+// /api/habits/streaks · /api/command/data) — and the migration's own
+// TS2589 firewall rule forbids `Promise.all`-ing multiple tRPC
+// `utils.*.fetch()` calls. Only /api/health has a procedure today
+// (`system.healthSummary`); the other three are large uncached/cached
+// composites with no procedure, and synthesising three more procedures
+// for one consumer would explode this slice for no benefit (YAGNI).
+// So all five calls drop to a bare `fetch` carrying `credentials:
+// "include"` (the only behaviour `authedFetch` added over `fetch` for
+// these best-effort, error-swallowing reads) — the same plain-fetch
+// carve-out the prior slice made for endpoints with no procedure. The
+// `use-authed-fetch` import is gone.
 
 // ── Types ──
 
@@ -209,10 +223,10 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
       // Parallel fetch ALL data sources (business revenue-aging
       // removed Apr 17 — shop data lives in nickstire)
       const [healthRaw, habitsRaw, streaksRaw, commandRaw] = await Promise.all([
-        authedFetch("/api/health").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        authedFetch(`/api/habits?date=${todayStr}`).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        authedFetch("/api/habits/streaks").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
-        authedFetch("/api/command/data").then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        fetch("/api/health", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        fetch(`/api/habits?date=${todayStr}`, { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        fetch("/api/habits/streaks", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
+        fetch("/api/command/data", { credentials: "include" }).then((r): Promise<unknown> | null => r.ok ? r.json() : null).catch((): null => null),
       ]);
       const agingRaw = null;
 
@@ -343,9 +357,10 @@ export function NourStateProvider({ children }: { children: ReactNode }) {
     }));
 
     // Persist
-    await authedFetch("/api/habits", {
+    await fetch("/api/habits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ date: todayStr, habitKey: key, completed: newCompleted }),
     }).catch(() => {
       // Revert on failure

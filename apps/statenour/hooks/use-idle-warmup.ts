@@ -20,11 +20,20 @@
 import { useEffect, useRef } from "react";
 import { readClientId } from "./use-prefetch-client-id";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice · migrated
+// off `authedFetch("/api/ai/chat/prefetch")` onto `trpc.chat.prefetch`
+// · the same procedure `useChatPrefetch` uses · delegates to the
+// shared `chat-prefetch.runChatPrefetch` service · drift impossible.
+// Fire-and-forget surface-boot warmup. `useIdleWarmup` is consumed by
+// the Ultron cockpit + /brain page — both render inside <TRPCProvider>
+// (the (mastery) layout), so the React-hooks tRPC client is valid here.
+import { trpc } from "@/lib/trpc/client";
+
 const REFIRE_INTERVAL_MS = 45_000;
 
 export function useIdleWarmup(enabled = true) {
   const lastFiredRef = useRef<number>(0);
+  const prefetchMutation = trpc.chat.prefetch.useMutation();
 
   useEffect(() => {
     if (!enabled) return;
@@ -34,17 +43,13 @@ export function useIdleWarmup(enabled = true) {
       const now = Date.now();
       if (now - lastFiredRef.current < REFIRE_INTERVAL_MS) return;
       lastFiredRef.current = now;
-      authedFetch("/api/ai/chat/prefetch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Prefetch-Client-Id": readClientId(),
-        },
-        // Empty-ish draft so the server short-circuits before hitting
-        // the heavy prefetch path but still warms prompt cache.
-        body: JSON.stringify({ draft: "warmup-idle" }),
-        keepalive: true,
-      }).catch(() => {});
+      // Empty-ish draft so the service short-circuits before the heavy
+      // prefetch path but still warms the system-prompt cache.
+      // Fire-and-forget · errors swallowed.
+      prefetchMutation.mutate(
+        { draft: "warmup-idle", clientId: readClientId() },
+        { onError: () => {} },
+      );
     };
 
     // Kick off immediately via idle callback
@@ -65,5 +70,9 @@ export function useIdleWarmup(enabled = true) {
       }
       clearInterval(id);
     };
+    // `prefetchMutation.mutate` is referentially stable (React Query
+    // memoizes it) — re-running this effect only on `enabled` change is
+    // the intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 }

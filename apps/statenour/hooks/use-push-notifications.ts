@@ -18,12 +18,26 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+// hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice — every
+// call-site here is now typed tRPC, the `authedFetch` import is gone:
+//   · GET    /api/notifications/subscribe → trpc.system.pushVapidKey
+//   · POST   /api/notifications/subscribe → trpc.system.pushSubscribe
+//   · DELETE /api/notifications/subscribe → trpc.system.pushUnsubscribe
+// The three procedures call the SAME `lib/notifications/push` helpers
+// (`VAPID_PUBLIC_KEY` · `saveSubscription` · `removeSubscription`) the
+// legacy route also calls · drift impossible. The VAPID key read fires
+// imperatively via `utils.system.pushVapidKey.fetch()`; the subscribe /
+// unsubscribe writes use typed mutations.
+import { trpc } from "@/lib/trpc/client";
+
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false);
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [lastError, setLastError] = useState<string | null>(null);
+  const utils = trpc.useUtils();
+  const subscribeMutation = trpc.system.pushSubscribe.useMutation();
+  const unsubscribeMutation = trpc.system.pushUnsubscribe.useMutation();
 
   useEffect(() => {
     const supported = typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -60,9 +74,10 @@ export function usePushNotifications() {
         return false;
       }
 
-      const keyRes = await authedFetch("/api/notifications/subscribe");
-      const keyJson = await keyRes.json().catch(() => ({}));
-      const publicKey = keyJson?.publicKey;
+      const keyResult = await utils.system.pushVapidKey
+        .fetch()
+        .catch(() => ({ publicKey: "" }));
+      const publicKey = keyResult?.publicKey;
       if (!publicKey || typeof publicKey !== "string" || publicKey.length < 20) {
         setLastError("vapid_public_key_missing");
         console.error("[push] VAPID_PUBLIC_KEY missing on server · set it in Vercel env");
@@ -77,13 +92,22 @@ export function usePushNotifications() {
         applicationServerKey: vapidKey as BufferSource,
       });
 
-      const res = await authedFetch("/api/notifications/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subscription: subscription.toJSON() }),
-      });
-
-      if (!res.ok) {
+      // `PushSubscription.toJSON()` yields { endpoint, keys: { p256dh,
+      // auth }, expirationTime } · the procedure's strict input reads
+      // exactly the endpoint + keys fields. A failed write throws
+      // TRPCError → caught here, surfaced as "server_rejected".
+      const sub = subscription.toJSON();
+      try {
+        await subscribeMutation.mutateAsync({
+          subscription: {
+            endpoint: sub.endpoint ?? "",
+            keys: {
+              p256dh: sub.keys?.p256dh ?? "",
+              auth: sub.keys?.auth ?? "",
+            },
+          },
+        });
+      } catch {
         setLastError("server_rejected");
         return false;
       }
@@ -96,7 +120,7 @@ export function usePushNotifications() {
       console.error("[push] Subscribe failed:", err);
       return false;
     }
-  }, [isSupported]);
+  }, [isSupported, utils, subscribeMutation]);
 
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     setLastError(null);
@@ -107,10 +131,8 @@ export function usePushNotifications() {
 
       await subscription.unsubscribe();
 
-      await authedFetch("/api/notifications/subscribe", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      await unsubscribeMutation.mutateAsync({
+        endpoint: subscription.endpoint,
       });
 
       setIsSubscribed(false);
@@ -120,7 +142,7 @@ export function usePushNotifications() {
       setLastError(`unsubscribe_exception: ${msg}`);
       return false;
     }
-  }, []);
+  }, [unsubscribeMutation]);
 
   return { isSupported, isSubscribed, permission, lastError, subscribe, unsubscribe };
 }

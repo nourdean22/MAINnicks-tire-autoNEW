@@ -77,6 +77,12 @@ export interface EditMessageResult {
   editHistoryCount: number;
 }
 
+export interface DeleteMessageResult {
+  messageId: string;
+  /** Count of rows removed — the target + every subsequent message. */
+  deletedCount: number;
+}
+
 /**
  * Read a single chat message + its edit history view.
  * Throws MessageNotFoundError when missing.
@@ -247,4 +253,51 @@ export async function editChatMessage({
       ? updated.editHistory.length
       : 0,
   };
+}
+
+/**
+ * Hard-delete a chat message AND every subsequent message in the same
+ * conversation. The operator is removing a turn from history; keeping
+ * later messages without their context creates an orphan reply chain
+ * that doesn't make sense on reload — so the cascade truncates from
+ * the target's `createdAt` forward.
+ *
+ * Extracted from the DELETE handler of
+ * `app/api/ai/chat/edit/[messageId]/route.ts` (hooks-lib REST→tRPC
+ * slice · 2026-05-22) so the legacy REST endpoint AND the new
+ * `chat.deleteMessage` tRPC mutation call the same function · drift
+ * impossible. Throws MessageNotFoundError on a missing id.
+ */
+export async function deleteMessageCascade({
+  messageId,
+}: {
+  messageId: string;
+}): Promise<DeleteMessageResult> {
+  const target = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    select: { id: true, conversationId: true, createdAt: true, content: true },
+  });
+  if (!target) {
+    throw new MessageNotFoundError(messageId);
+  }
+
+  const result = await prisma.chatMessage.deleteMany({
+    where: {
+      conversationId: target.conversationId,
+      createdAt: { gte: target.createdAt },
+    },
+  });
+
+  void logUpdate(
+    "chatMessage",
+    target.id,
+    { content: target.content },
+    { content: null },
+    {
+      source: "service:chat-edit.deleteMessageCascade",
+      reason: `user deleted message + ${result.count - 1} subsequent`,
+    },
+  );
+
+  return { messageId, deletedCount: result.count };
 }

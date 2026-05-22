@@ -1,7 +1,14 @@
-import { prisma } from "@/lib/prisma";
-
 import { requireSession } from "@/lib/auth-guard";
 import { deleteConversation } from "@/lib/services/chat-conversation";
+// hooks-lib REST→tRPC slice (2026-05-22) · the conversation read +
+// title-rename services · also called by the new `chat.conversation` +
+// `chat.renameConversation` tRPC procedures · drift impossible.
+import {
+  readConversation,
+  renameConversation,
+  ConversationNotFoundError,
+} from "@/lib/services/chat-conversation-read";
+
 export const maxDuration = 60;
 
 export async function GET(
@@ -16,67 +23,20 @@ export async function GET(
   await requireSession(req);
   const { id } = await params;
 
-  const conversation = await prisma.chatConversation.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      title: true,
-      createdAt: true,
-      updatedAt: true,
-      // v7.6 · Apr 29 · ChatMessage Batch A · C3 — conversation enrichment fields
-      pinnedSummary: true,
-      topicTags: true,
-      archivedAt: true,
-      starredAt: true,
-      mutedAt: true,
-      lastActiveAt: true,
-      messageCount: true,
-      messages: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          role: true,
-          content: true,
-          model: true,
-          // v7.3 · Apr 29 · Image / file attachments back-compat column.
-          attachments: true,
-          // v7.6 · Apr 29 · ChatMessage Batch A · full read.
-          // Hydrate the rich parts tree so file / reasoning / tool-call /
-          // tool-result / source render on reload — not just text.
-          parts: true,
-          // Idempotency / branching / edit metadata
-          clientMessageId: true,
-          parentMessageId: true,
-          branchId: true,
-          editedAt: true,
-          editHistory: true,
-          // Streaming state (drives the partial / errored / aborted UI)
-          streamingState: true,
-          errorDetails: true,
-          // Observability — surfaced in the per-message info dropdown
-          provider: true,
-          routerReason: true,
-          latencyMs: true,
-          firstTokenLatencyMs: true,
-          costCents: true,
-          promptTokens: true,
-          completionTokens: true,
-          // Feedback (thumbs up/down learning loop)
-          feedbackScore: true,
-          // tokenUsage retained for the legacy critic/gate/factCheck/turnSignal
-          // payload that the chat UI already reads.
-          tokenUsage: true,
-          createdAt: true,
-        },
-      },
-    },
-  });
-
-  if (!conversation) {
-    return Response.json({ error: "Not found" }, { status: 404 });
+  // hooks-lib REST→tRPC slice (2026-05-22) · the single-conversation
+  // read (full message history hydration) moved to the shared
+  // `chat-conversation-read.readConversation` so this legacy REST
+  // consumer AND the new `chat.conversation` tRPC procedure can't
+  // drift. `useConversations` now reads tRPC; this stays mounted.
+  try {
+    const conversation = await readConversation({ id });
+    return Response.json({ conversation });
+  } catch (err) {
+    if (err instanceof ConversationNotFoundError) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+    throw err;
   }
-
-  return Response.json({ conversation });
 }
 
 export async function PATCH(
@@ -86,17 +46,22 @@ export async function PATCH(
   await requireSession(req);
   const { id } = await params;
   const body = await req.json().catch((): Record<string, unknown> => ({}));
-  const data: Record<string, unknown> = {};
-  if (typeof body.title === "string") data.title = body.title.slice(0, 200);
-  if (Object.keys(data).length === 0) {
+  if (typeof body.title !== "string") {
     return Response.json({ error: "Nothing to update" }, { status: 400 });
   }
-  const updated = await prisma.chatConversation.update({
-    where: { id },
-    data,
-    select: { id: true, title: true },
-  });
-  return Response.json({ conversation: updated });
+  // hooks-lib REST→tRPC slice (2026-05-22) · the title-rename moved to
+  // the shared `chat-conversation-read.renameConversation` so this
+  // legacy REST consumer AND the new `chat.renameConversation` tRPC
+  // procedure can't drift.
+  try {
+    const conversation = await renameConversation({ id, title: body.title });
+    return Response.json({ conversation });
+  } catch (err) {
+    if (err instanceof ConversationNotFoundError) {
+      return Response.json({ error: "Not found" }, { status: 404 });
+    }
+    throw err;
+  }
 }
 
 export async function DELETE(

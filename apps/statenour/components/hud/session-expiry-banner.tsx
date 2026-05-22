@@ -143,7 +143,7 @@ export function SessionExpiryBanner() {
 
   const remaining = expiresAt - now;
   if (remaining > WARN_MS) return null;
-  if (remaining <= 0) return null; // expired — useAuthedFetch handles bounce
+  if (remaining <= 0) return null; // expired — the next authed request bounces to sign-in
   if (Date.now() < dismissedUntil) return null;
 
   const urgent = remaining <= URGENT_MS;

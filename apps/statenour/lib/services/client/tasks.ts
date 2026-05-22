@@ -9,14 +9,22 @@
  * tweaks. This helper applies sane defaults and lets each callsite
  * override only what's actually different.
  *
- * Returns the raw Response so callers keep ownership of error UX
- * (some show "Failed to add: <title>", some throw, some toast). We
- * deliberately do NOT centralize toasts here — the 6 callsites have
- * different surface contexts (NOW vs PLAN vs project) and matching
- * messaging matters more than dedup of the toast call.
+ * hooks-lib REST→tRPC slice (2026-05-22) · the FINAL slice. This file
+ * is a NON-React module (a plain helper, not a component/hook), so it
+ * uses the vanilla (non-hook) tRPC client — the same imperative path
+ * `ClientErrorTelemetry` uses. `trpcVanilla.task.create` delegates to
+ * the `task-actions.createTaskFromAPI` service the legacy POST
+ * /api/tasks route also calls · drift impossible.
+ *
+ * RETURN SHAPE CHANGE · the legacy helper returned the raw `Response`
+ * so callers could read `r.ok`. The vanilla tRPC `.mutate()` THROWS on
+ * failure instead, so this helper now returns `{ ok: boolean }` —
+ * `{ ok: true }` on success, `{ ok: false }` on a caught throw. The two
+ * `project-detail.tsx` call-sites already branch on `r.ok`, so the
+ * `{ ok }` shape keeps them working unchanged.
  */
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpcVanilla } from "@/lib/trpc/vanilla-client";
 
 export interface CreateTaskInput {
   title: string;
@@ -35,11 +43,17 @@ export interface CreateTaskInput {
   dueDate?: string | null;
 }
 
-export function createTask(input: CreateTaskInput) {
-  return authedFetch("/api/tasks", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+/**
+ * Create a task via tRPC, applying the shared default block. Returns
+ * `{ ok }` — `true` on success, `false` when the mutation threw. The
+ * `task.create` procedure (→ `createTaskFromAPI` → `createTask`)
+ * re-validates the payload against `taskCreateSchema` server-side.
+ */
+export async function createTask(
+  input: CreateTaskInput,
+): Promise<{ ok: boolean }> {
+  try {
+    await trpcVanilla.task.create.mutate({
       // Defaults — quietly applied unless the caller passes its own value
       nextPhysicalAction: input.title,
       effort: "M15",
@@ -51,6 +65,9 @@ export function createTask(input: CreateTaskInput) {
       loopKind: "ONCE",
       // Spread last so caller-provided fields win
       ...input,
-    }),
-  });
+    });
+    return { ok: true };
+  } catch {
+    return { ok: false };
+  }
 }
