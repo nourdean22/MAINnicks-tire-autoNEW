@@ -22,7 +22,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
+
 interface UsePromptSuggestionsOptions {
   /** Draft text from the textarea. */
   draft: string;
@@ -50,6 +51,17 @@ export function usePromptSuggestions(
   const [collapsed, setCollapsed] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Phase B.5 · the autocomplete fetch migrated off `authedFetch` onto
+  // the `trpc.chat.autocomplete` query · fired as a lazy imperative
+  // fetch so the hook keeps owning the 250ms debounce. tRPC's
+  // `utils.*.fetch` (v11) takes no `signal`, so the AbortController is
+  // kept purely as a stale-result guard — a superseded keystroke's
+  // request may still resolve, but `ctrl.signal.aborted` discards its
+  // result (the endpoint is a ~5ms rate-limited heuristic, so the
+  // un-cancelled in-flight request is harmless). Same cancel-flag
+  // pattern smart-replies.tsx uses. `utils` is stable across renders.
+  const utils = trpc.useUtils();
 
   // Reopen the bar when the user starts a fresh draft (cleared input)
   useEffect(() => {
@@ -85,25 +97,17 @@ export function usePromptSuggestions(
       abortRef.current = ctrl;
       setLoading(true);
       try {
-        const res = await authedFetch("/api/ai/autocomplete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ partial: trimmed }),
-          signal: ctrl.signal,
-        });
-        if (!res.ok) {
-          setSuggestions([]);
-          return;
-        }
-        const data = (await res.json()) as { suggestions?: string[] };
+        const data = await utils.chat.autocomplete.fetch({ partial: trimmed });
+        // Stale-result guard · a newer keystroke (or unmount) aborted
+        // this controller while the fetch was in flight · discard.
+        if (ctrl.signal.aborted) return;
         const list = Array.isArray(data.suggestions) ? data.suggestions.slice(0, 3) : [];
         // Drop any suggestion that just echoes the draft verbatim
         setSuggestions(list.filter((s) => s.trim().toLowerCase() !== trimmed.toLowerCase()));
-      } catch (err) {
-        if ((err as { name?: string }).name === "AbortError") return;
-        setSuggestions([]);
+      } catch {
+        if (!ctrl.signal.aborted) setSuggestions([]);
       } finally {
-        setLoading(false);
+        if (!ctrl.signal.aborted) setLoading(false);
       }
     }, debounceMs);
 
@@ -116,7 +120,7 @@ export function usePromptSuggestions(
         abortRef.current = null;
       }
     };
-  }, [draft, debounceMs, minChars, collapsed]);
+  }, [draft, debounceMs, minChars, collapsed, utils]);
 
   return {
     suggestions,

@@ -35,7 +35,6 @@ import { useState } from "react";
 import { Info, ThumbsUp, ThumbsDown, Copy, Check, Cpu, Clock, Coins, Hash, GitBranch, Activity, Brain, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 import { trpc } from "@/lib/trpc/client";
 
 /**
@@ -145,6 +144,12 @@ export function MessageInfoCard({ data, className }: { data: MessageInfoCardData
     }
   };
 
+  // Phase B.5 · feedback POST migrated off `authedFetch` onto the
+  // `trpc.chat.messageFeedback` mutation. The optimistic-then-revert
+  // pattern is unchanged · mutateAsync throws on failure, which the
+  // existing catch translates into a revert.
+  const feedbackMut = trpc.chat.messageFeedback.useMutation();
+
   const setFeedbackOptimistic = async (score: number) => {
     if (feedbackBusy) return;
     const prev = feedback;
@@ -152,10 +157,9 @@ export function MessageInfoCard({ data, className }: { data: MessageInfoCardData
     setFeedback(next);
     setFeedbackBusy(true);
     try {
-      await authedFetch("/api/ai/chat/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId: data.messageId, score: next }),
+      await feedbackMut.mutateAsync({
+        messageId: data.messageId,
+        score: next as -1 | 0 | 1 | null,
       });
     } catch {
       // optimistic UI — silent on failure but revert

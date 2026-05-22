@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 
 import { requireSession } from "@/lib/auth-guard";
 import { checkRateLimit, getClientIp, RATE_LIMITS } from "@/lib/rate-limit";
+import { recordLaneCheckFeedback } from "@/lib/services/chat-lane-check";
 export const runtime = "nodejs";
 
 /**
@@ -58,34 +58,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const msgSample =
-      (body.userMessage || "").slice(-80) +
-      "|" +
-      (body.assistantMessage || "").slice(-80);
-    let h = 0;
-    for (let i = 0; i < msgSample.length; i++) {
-      h = (h * 31 + msgSample.charCodeAt(i)) | 0;
-    }
-    const msgHash = String(h);
-
-    await prisma.systemMetric
-      .create({
-        data: {
-          metric: "lane.chip.feedback",
-          value: body.action === "tapped" ? 1 : 0,
-          unit: "bool",
-          source: "api",
-          tags: {
-            action: body.action,
-            domain: body.domain,
-            severity: body.severity || "unknown",
-            msgHash,
-          } as any,
-        },
-      })
-      .catch(() => {});
-
-    return NextResponse.json({ ok: true });
+    // Phase B.5 · the SystemMetric write lives in the shared
+    // `recordLaneCheckFeedback` service · `trpc.chat.laneCheckFeedback`
+    // calls the same function · drift impossible.
+    return NextResponse.json(
+      await recordLaneCheckFeedback({
+        action: body.action,
+        domain: body.domain,
+        severity: body.severity,
+        userMessage: body.userMessage,
+        assistantMessage: body.assistantMessage,
+      }),
+    );
   } catch (err) {
     return NextResponse.json(
       {

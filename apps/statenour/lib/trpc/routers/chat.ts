@@ -14,6 +14,14 @@
  * `docs/migrations/J-trpc-migration.md` · SSE subscriptions need
  * WebSocket infra (separate phase scope). The chat fork/edit
  * mutations stay on REST per coexistence pattern · separate scope.
+ *
+ * Phase B.5 (2026-05-22 · legacy-modernizer REST→tRPC chat slice)
+ * adds 7 procedures covering the chat-domain component call-sites:
+ *   · updateConversation / deleteConversation (mutations)
+ *   · laneCheckFeedback / messageFeedback     (mutations)
+ *   · suggestions / autocomplete / inspectPrompt (queries · read-shaped)
+ * Each delegates to a shared `lib/services/chat-*` function the
+ * legacy REST route also calls · drift impossible.
  */
 
 import { z } from "zod";
@@ -23,7 +31,10 @@ import { ServiceError } from "@/lib/utils/service-error";
 import { searchChat } from "@/lib/services/chat-search";
 import { readChatBranches } from "@/lib/services/chat-branches";
 import { readMessageProvenance } from "@/lib/services/brain-provenance";
-import { checkLane } from "@/lib/services/chat-lane-check";
+import {
+  checkLane,
+  recordLaneCheckFeedback,
+} from "@/lib/services/chat-lane-check";
 import { sendEmailWithAudit } from "@/lib/services/email-send";
 import {
   upscaleImage,
@@ -40,6 +51,19 @@ import {
   MAX_CONTENT_CHARS,
 } from "@/lib/services/chat-edit";
 import { readClaimWarnings } from "@/lib/services/claim-warnings";
+import {
+  updateConversation,
+  deleteConversation,
+  ConversationNotFoundError,
+} from "@/lib/services/chat-conversation";
+import {
+  recordMessageFeedback,
+  InvalidFeedbackScoreError,
+  MessageFeedbackNotFoundError,
+} from "@/lib/services/chat-feedback";
+import { buildSuggestions } from "@/lib/services/chat-suggestions";
+import { buildAutocomplete } from "@/lib/services/chat-autocomplete";
+import { inspectPrompt } from "@/lib/services/chat-prompt-inspect";
 
 export const chatRouter = router({
   /**
@@ -323,4 +347,238 @@ export const chatRouter = router({
         limit: input.limit,
       }),
     ),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · toggle a conversation's
+   * archive/star/mute flags + rename. Powers the per-result Star /
+   * Archive controls in the ChatHistorySearch (Cmd+F) overlay.
+   *
+   * Delegates to `lib/services/chat-conversation.updateConversation`
+   * shared service · legacy PATCH /api/ai/chat/conversation/[id]
+   * calls the same function · drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change (Date|null writes
+   * on archivedAt/starredAt/mutedAt + a title update).
+   *
+   * Edge cases · missing conversation → NOT_FOUND · an empty patch
+   * (no flag + no title) → BAD_REQUEST · both surface via the
+   * ConversationNotFoundError / "no fields to update" translation
+   * so the component's error toast is preserved.
+   */
+  updateConversation: operatorProcedure
+    .input(
+      z.object({
+        id: z.string().min(1).max(64),
+        archived: z.boolean().optional(),
+        starred: z.boolean().optional(),
+        muted: z.boolean().optional(),
+        title: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await updateConversation(input);
+      } catch (err) {
+        if (err instanceof ConversationNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        if (err instanceof Error && err.message === "no fields to update") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · hard-delete a conversation.
+   * Powers the Trash control in the ChatHistorySearch (Cmd+F) overlay.
+   *
+   * Delegates to `lib/services/chat-conversation.deleteConversation`
+   * shared service · legacy DELETE /api/ai/chat/[id] calls the same
+   * function · drift impossible.
+   *
+   * Modeled as `.mutation()` · genuine state change. Idempotent · a
+   * missing row is swallowed by the service so the result is always
+   * `{ ok: true }` (matches the legacy route's
+   * `.delete().catch(() => null)`).
+   */
+  deleteConversation: operatorProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => deleteConversation({ id: input.id })),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · record a lane-correction
+   * chip tap/dismiss. Powers the LaneCorrectionChip feedback signal
+   * (fired on the action link tap + on the X dismiss).
+   *
+   * Delegates to `lib/services/chat-lane-check.recordLaneCheckFeedback`
+   * shared service — folded into the same module that backs the
+   * `laneCheck` query above (it's the write side of that feature) ·
+   * legacy POST /api/ai/chat/lane-check/feedback calls the same
+   * function · drift impossible.
+   *
+   * Modeled as `.mutation()` · writes a SystemMetric row. NON-FATAL
+   * by contract · the service swallows every error to `{ ok: true }`
+   * (telemetry must never break the chip UI) so this procedure never
+   * throws · the legacy route mirrors this with an HTTP-200 catch.
+   */
+  laneCheckFeedback: operatorProcedure
+    .input(
+      z.object({
+        action: z.enum(["tapped", "dismissed"]),
+        domain: z.string().min(1).max(64),
+        severity: z.string().max(40).optional(),
+        userMessage: z.string().max(8000).optional(),
+        assistantMessage: z.string().max(16000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => recordLaneCheckFeedback(input)),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · record a thumbs up/down on
+   * an assistant message. Powers the good/bad toggle in the
+   * MessageInfoCard `i`-glyph dropdown · feeds the router learning
+   * loop ground truth.
+   *
+   * Delegates to `lib/services/chat-feedback.recordMessageFeedback`
+   * shared service · legacy POST /api/ai/chat/feedback calls the same
+   * function · drift impossible. The service does the 3-tier
+   * messageId resolution (by id → by conversationId → latest
+   * assistant in 60s) + the fire-and-forget BrainMemory + AuditEvent
+   * writes on a non-null score.
+   *
+   * Modeled as `.mutation()` · genuine state change (feedbackScore
+   * write). The component's setFeedbackOptimistic uses a try/catch
+   * that reverts on failure · a thrown TRPCError satisfies that.
+   *
+   * Edge cases · score outside {-1,0,1,null} → BAD_REQUEST · no
+   * message resolvable via any tier → NOT_FOUND.
+   */
+  messageFeedback: operatorProcedure
+    .input(
+      z.object({
+        messageId: z.string().min(1).max(64),
+        score: z.union([
+          z.literal(-1),
+          z.literal(0),
+          z.literal(1),
+          z.null(),
+        ]),
+        reason: z.string().max(1000).optional(),
+        snippet: z.string().max(2000).optional(),
+        conversationId: z.string().min(1).max(64).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await recordMessageFeedback({
+          messageId: input.messageId,
+          score: input.score,
+          reason: input.reason,
+          snippet: input.snippet,
+          conversationId: input.conversationId,
+        });
+      } catch (err) {
+        if (err instanceof InvalidFeedbackScoreError) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: err.message });
+        }
+        if (err instanceof MessageFeedbackNotFoundError) {
+          throw new TRPCError({ code: "NOT_FOUND", message: err.message });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · 3 terse smart-reply chips
+   * for the latest assistant message. Powers the SmartReplies row
+   * below an assistant bubble.
+   *
+   * Delegates to `lib/services/chat-suggestions.buildSuggestions`
+   * shared service · legacy POST /api/ai/chat/suggestions calls the
+   * same function · drift impossible.
+   *
+   * Modeled as a `.query()` despite the legacy POST · it is
+   * read-shaped from the client's perspective (no DB write · the
+   * SystemMetric write inside recordSuggestionMetric is fire-and-
+   * forget telemetry, not the request's purpose) · same reasoning
+   * as the `laneCheck` query above. The component fires it 250ms
+   * after stream-end · React Query's per-input dedup + staleTime
+   * replace the manual setTimeout-gated fetch.
+   *
+   * Never throws · buildSuggestions resolves its own failure path
+   * to the error-fallback triplet.
+   */
+  suggestions: operatorProcedure
+    .input(
+      z.object({
+        userMessage: z.string().max(8000),
+        assistantMessage: z.string().max(16000),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildSuggestions({
+        userMessage: input.userMessage,
+        assistantMessage: input.assistantMessage,
+      }),
+    ),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · ghost-text completions for
+   * the chat composer. Powers the usePromptSuggestions hook (the
+   * "as you type" suggestion bar above the input).
+   *
+   * Delegates to `lib/services/chat-autocomplete.buildAutocomplete`
+   * shared service · legacy POST /api/ai/autocomplete calls the same
+   * function · drift impossible. Heuristic-only · no LLM cost.
+   *
+   * Modeled as a `.query()` despite the legacy POST · pure read,
+   * no DB write. The hook fires it per-keystroke after a 250ms
+   * debounce + aborts the in-flight request on the next keystroke ·
+   * with tRPC the lazy imperative fetch (`utils.chat.autocomplete
+   * .fetch`) keeps the debounce + abort semantics the hook owns.
+   *
+   * `partial` is capped at 200 chars · the service slices it anyway,
+   * the bound is the tRPC-boundary guard.
+   */
+  autocomplete: operatorProcedure
+    .input(
+      z.object({
+        partial: z.string().max(200),
+        recentTopic: z.string().max(200).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildAutocomplete({
+        partial: input.partial,
+        recentTopic: input.recentTopic,
+      }),
+    ),
+
+  /**
+   * Phase B.5 (2026-05-22) · owner-only · inspect the exact system
+   * prompt Nick would receive on the next message. Powers the
+   * PromptInspector modal (cache status · length · truncation
+   * analysis · head/tail preview · "download full").
+   *
+   * Delegates to `lib/services/chat-prompt-inspect.inspectPrompt`
+   * shared service · legacy GET /api/ai/inspect-prompt calls the
+   * same function · drift impossible.
+   *
+   * BEHAVIOUR RESHAPE · the legacy GET supported `?raw=1` to return
+   * the full prompt as a `text/plain` Response. tRPC cannot return
+   * a raw text body, so this procedure returns the structured object
+   * whole — INCLUDING the full effective prompt as the `prompt`
+   * field. The PromptInspector reads `result.prompt` for its
+   * "download full" action instead of a second `?raw=1` fetch. The
+   * REST route keeps its `?raw=1` text/plain path by serving
+   * `result.prompt` verbatim · both transports stay in sync.
+   *
+   * Modeled as a `.query()` · pure read (the prompt-cache write is
+   * a memoization side effect, not the request's purpose).
+   * `fresh: true` bypasses the cache + rebuilds.
+   */
+  inspectPrompt: operatorProcedure
+    .input(z.object({ fresh: z.boolean().optional() }))
+    .query(async ({ input }) => inspectPrompt({ fresh: input.fresh })),
 });
