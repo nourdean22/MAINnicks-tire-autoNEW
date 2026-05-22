@@ -24,20 +24,15 @@
  * top-20 ranked by count which is the more useful default.
  */
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AlertCircle, AlertTriangle, ArrowRight } from "lucide-react";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 interface ErrorGroup {
   message: string;
   count: number;
   lastSeen: string | null;
-}
-
-interface GroupPayload {
-  groups: ErrorGroup[];
 }
 
 function timeAgo(iso: string): string {
@@ -51,34 +46,23 @@ function timeAgo(iso: string): string {
 }
 
 export function HQErrorsCard() {
-  const [data, setData] = useState<GroupPayload | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    async function load() {
-      try {
-        const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-        const res = await authedFetch(
-          `/api/system/errors?from=${since}&grouped=true`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const json = await res.json();
-        if (alive) setData(json.data ?? json);
-      } catch {
-        /* silent — card just stays hidden if fetch fails */
-      }
-    }
-    void load();
-    const id = setInterval(load, 2 * 60_000); // refresh every 2 min
-    return () => {
-      alive = false;
-      clearInterval(id);
-    };
-  }, []);
+  // Phase B.6c (2026-05-22) · migrated off `authedFetch("/api/system/
+  // errors?from=<24h-ago>&grouped=true")` onto `trpc.system.errorsGrouped`.
+  // The legacy `?from=<ISO>` 24h cutoff is now `sinceHours: 24` (the
+  // procedure converts hours → a `from` Date server-side). The
+  // 2-min setInterval is now `refetchInterval`; the legacy
+  // `cache: "no-store"` semantics are preserved by `staleTime: 0` so
+  // every refetch hits the server fresh. The procedure returns
+  // `{ groups }` directly · the legacy `json.data` envelope unwrap
+  // is gone. Fetch failures leave `data` undefined → the card stays
+  // hidden, exactly as the old silent-catch did.
+  const { data } = trpc.system.errorsGrouped.useQuery(
+    { sinceHours: 24 },
+    { refetchInterval: 2 * 60_000, staleTime: 0 },
+  );
 
   if (!data) return null;
-  const groups = Array.isArray(data.groups) ? data.groups : [];
+  const groups: ErrorGroup[] = Array.isArray(data.groups) ? data.groups : [];
   const count24h = groups.reduce((s, g) => s + g.count, 0);
   if (count24h === 0) return null;
 

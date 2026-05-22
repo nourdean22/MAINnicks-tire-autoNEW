@@ -19,10 +19,20 @@
 
 import { prisma } from "@/lib/prisma";
 
-/** Top-20 most-frequent errors, grouped by message. */
-export async function listGroupedErrors(level?: string) {
+/**
+ * Top-20 most-frequent errors, grouped by message.
+ *
+ * `from` (Phase B.6c · ultron HQErrorsCard) is an optional lower-bound
+ * on `createdAt` — the card passes a 24h-ago cutoff so its rose/amber
+ * threshold reads a true 24h window. Omitting it scans the whole log
+ * (the components/system/* ErrorsFingerprints behavior, unchanged).
+ */
+export async function listGroupedErrors(opts?: { level?: string; from?: Date }) {
+  const level = opts?.level;
+  const from = opts?.from;
   const where = {
     ...(level && { level }),
+    ...(from && { createdAt: { gte: from } }),
   };
   const errors = await prisma.errorLog.groupBy({
     by: ["message"],

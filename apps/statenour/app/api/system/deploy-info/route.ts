@@ -22,30 +22,11 @@
  */
 
 import { NextResponse } from "next/server";
-
-const BUILD_TIME =
-  process.env.BUILD_TIME || // set via next.config.ts
-  process.env.VERCEL_DEPLOYMENT_CREATED_AT || // Vercel runtime var (when present)
-  null;
+// Phase B.6c · the env-var read moved to a shared service so the
+// legacy REST route AND the tRPC `system.deployInfo` procedure call the
+// same function · drift impossible.
+import { buildDeployInfo } from "@/lib/services/deploy-info";
 
 export async function GET() {
-  const sha = process.env.VERCEL_GIT_COMMIT_SHA ?? "dev";
-  const commitMessage = process.env.VERCEL_GIT_COMMIT_MESSAGE ?? null;
-  const branch = process.env.VERCEL_GIT_COMMIT_REF ?? "local";
-  const deploymentId = process.env.VERCEL_DEPLOYMENT_ID ?? null;
-  const env = process.env.VERCEL_ENV ?? "development";
-
-  return NextResponse.json({
-    data: {
-      sha,
-      shaShort: sha.slice(0, 7),
-      commitMessage: commitMessage ? commitMessage.slice(0, 140) : null,
-      branch,
-      deploymentId,
-      env,
-      buildTime: BUILD_TIME,
-      // Current server time — client can compute "deployed Xh ago".
-      serverTime: new Date().toISOString(),
-    },
-  });
+  return NextResponse.json({ data: buildDeployInfo() });
 }

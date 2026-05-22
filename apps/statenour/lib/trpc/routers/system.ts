@@ -86,7 +86,33 @@ import { buildEmbeddingCoverage } from "@/lib/services/embedding-coverage";
 import { buildCronTree } from "@/lib/services/cron-tree";
 import { getEntityHistory } from "@/lib/db/entity-audit";
 import { buildSystemHub } from "@/lib/services/system-hub";
-import { antiPatternCreateSchema } from "@/lib/validators/system";
+import {
+  antiPatternCreateSchema,
+  preferenceVectorSaveSchema,
+  personaDriftResolveSchema,
+  contradictionResolveSchema,
+  decisionReplayMarkSchema,
+} from "@/lib/validators/system";
+// Phase B.6c · ultron system-domain sub-slice · the 5 shared services
+// the migrated components/ultron/* cards delegate to (the legacy REST
+// routes call the same functions · drift impossible).
+import {
+  buildPreferenceVectorView,
+  savePreferenceVectorOverride,
+} from "@/lib/services/preference-vector";
+import { buildDeployInfo } from "@/lib/services/deploy-info";
+import {
+  listPersonaDrifts,
+  resolvePersonaDrift,
+} from "@/lib/services/persona-drift";
+import {
+  listContradictions,
+  resolveContradictionEntry,
+} from "@/lib/services/contradictions";
+import {
+  buildDecisionReplaysView,
+  markDecisionReplay,
+} from "@/lib/services/decision-replays";
 
 const HealthRangeSchema = z.enum(["24h", "7d", "30d"]);
 
@@ -628,16 +654,31 @@ export const systemRouter = router({
    * /api/system/errors · delegates to the shared
    * `error-log.listGroupedErrors` service. Optional level filter
    * mirrors the legacy `?level=` param.
+   *
+   * Phase B.6c · `sinceHours` added for the ultron HQErrorsCard, which
+   * needs a true 24h window for its rose/amber severity threshold (the
+   * legacy card sent `?from=<24h-ago ISO>`). The procedure converts the
+   * hours to a `from` Date before delegating. Omitting it scans the
+   * whole log — the components/system/* ErrorsFingerprints behavior,
+   * unchanged.
    */
   errorsGrouped: operatorProcedure
     .input(
       z
         .object({
           level: z.enum(["fatal", "error", "warn"]).optional(),
+          sinceHours: z.number().int().min(1).max(8760).optional(),
         })
         .optional(),
     )
-    .query(async ({ input }) => listGroupedErrors(input?.level)),
+    .query(async ({ input }) =>
+      listGroupedErrors({
+        level: input?.level,
+        from: input?.sinceHours
+          ? new Date(Date.now() - input.sinceHours * 3_600_000)
+          : undefined,
+      }),
+    ),
 
   /**
    * Phase VV · owner-only · paginated recent-errors feed. Replaces the
@@ -782,4 +823,228 @@ export const systemRouter = router({
    * unwrapped and the call-site reads it directly.
    */
   hub: operatorProcedure.query(async () => buildSystemHub()),
+
+  // ════════════ Phase B.6c · ultron system-domain sub-slice ════════════
+  //
+  // The 6 components/ultron/* cards targeting /api/system/* endpoints.
+  // Each procedure delegates to a shared lib/services/ function the
+  // legacy REST route ALSO calls · drift structurally impossible. The
+  // 4 structured-write inputs use SHARED z.object schemas from
+  // @/lib/validators/system (NOT permissive z.record · the
+  // typed-payload-mismatch guard). Read procedures return the explicit
+  // shallow service shapes — the Prisma Json columns the services touch
+  // are projected to scalar / `unknown` inside the service, so the
+  // public AppRouter type stays shallow (TS2589 firewall).
+
+  /**
+   * Phase B.6c · owner-only · the 8-axis preference-vector view ·
+   * current vector + system-prompt addendum + last-tune metadata +
+   * 12-week per-axis trace. Replaces GET /api/system/preference-vector
+   * · delegates to the shared `preference-vector.buildPreferenceVectorView`
+   * service. PreferencesCard polls this on a 5-min interval — React
+   * Query now drives the refetch via refetchInterval. Returns the view
+   * at the top level (the legacy route returned the object directly · no
+   * envelope change).
+   */
+  preferenceVector: operatorProcedure.query(async () =>
+    buildPreferenceVectorView(),
+  ),
+
+  /**
+   * Phase B.6c · owner-only · persist a preference-vector override.
+   * Replaces POST /api/system/preference-vector · delegates to the
+   * shared `preference-vector.savePreferenceVectorOverride` service
+   * (which zeros every axis on `reset`, else merges the partial patch ·
+   * invalidates the style-adapter cache · writes the audit event).
+   *
+   * Input is the SHARED `preferenceVectorSaveSchema` from
+   * @/lib/validators/system — the EXACT schema the REST route's
+   * `overrideSchema.safeParse` uses. The inner `vector` object is
+   * `.strict()` so an unknown axis key is rejected at the boundary,
+   * not silently dropped — the typed-payload-mismatch guard.
+   */
+  savePreferenceVector: operatorProcedure
+    .input(preferenceVectorSaveSchema)
+    .mutation(async ({ input }) =>
+      savePreferenceVectorOverride({
+        vector: input.vector,
+        reset: input.reset,
+      }),
+    ),
+
+  /**
+   * Phase B.6c · owner-only · the current deployment identity (build
+   * SHA · branch · deploy timestamp). Replaces GET
+   * /api/system/deploy-info · delegates to the shared
+   * `deploy-info.buildDeployInfo` service (a pure env-var read). The
+   * DeployChip fetches this once on mount via `utils.system.deployInfo
+   * .fetch()`. The legacy route wrapped the payload in `{ data }`; the
+   * procedure returns it unwrapped and the call-site reads it directly.
+   *
+   * Public on the REST side (build SHA is non-sensitive), but the tRPC
+   * surface is operator-gated like every other procedure here · the
+   * chip only renders inside the authed HQ shell anyway.
+   */
+  deployInfo: operatorProcedure.query(async () => buildDeployInfo()),
+
+  /**
+   * Phase B.6c · owner-only · active persona-drift events for the
+   * PersonaDriftCard (7d window · dismissed + snoozed-not-expired
+   * filtered out). Replaces GET /api/system/persona-drift · delegates
+   * to the shared `persona-drift.listPersonaDrifts` service.
+   * PersonaDriftCard polls this on a 5-min interval — now driven by
+   * refetchInterval.
+   */
+  personaDrift: operatorProcedure.query(async () => listPersonaDrifts()),
+
+  /**
+   * Phase B.6c · owner-only · resolve a persona-drift event (dismiss ·
+   * snooze · acknowledge). Replaces POST
+   * /api/system/persona-drift/[key]/resolve · delegates to the shared
+   * `persona-drift.resolvePersonaDrift` service.
+   *
+   * Input is the SHARED `personaDriftResolveSchema` from
+   * @/lib/validators/system (the EXACT schema the REST route's
+   * `bodySchema` uses) PLUS a `key` scalar — the route carried `key`
+   * as a path param; tRPC has no path, so it rides in the input object.
+   * A missing key throws ServiceError(404) → mapped to NOT_FOUND so
+   * both transports reject identically.
+   */
+  resolvePersonaDrift: operatorProcedure
+    .input(personaDriftResolveSchema.extend({ key: z.string().min(1).max(128) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await resolvePersonaDrift({
+          key: input.key,
+          resolution: input.resolution,
+          note: input.note,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.6c · owner-only · unresolved (+ optionally resolved)
+   * contradictions for the ContradictionsCard, grouped by status with
+   * an unresolved-count badge. Replaces GET /api/system/contradictions
+   * · delegates to the shared `contradictions.listContradictions`
+   * service. ContradictionsCard polls this on a 5-min interval — now
+   * driven by refetchInterval.
+   *
+   * The legacy URL was `?days=14&includeResolved=true`; the typed input
+   * mirrors those two params (`days` clamped 1-180 · default 30, the
+   * route's QuerySchema defaults verbatim).
+   */
+  contradictions: operatorProcedure
+    .input(
+      z
+        .object({
+          days: z.number().int().min(1).max(180).default(30),
+          includeResolved: z.boolean().default(false),
+        })
+        .optional(),
+    )
+    .query(async ({ input }) =>
+      listContradictions({
+        days: input?.days ?? 30,
+        includeResolved: input?.includeResolved ?? false,
+      }),
+    ),
+
+  /**
+   * Phase B.6c · owner-only · resolve a contradiction (current_wins ·
+   * old_wins · both_valid · dismissed) with an optional note. Replaces
+   * POST /api/system/contradictions/[key]/resolve · delegates to the
+   * shared `contradictions.resolveContradictionEntry` service.
+   *
+   * Input is the SHARED `contradictionResolveSchema` from
+   * @/lib/validators/system (the EXACT schema the REST route's
+   * `resolveSchema` uses) PLUS a `key` scalar (the route's path param).
+   * A missing-or-corrupt row throws ServiceError(404) → NOT_FOUND so
+   * both transports reject identically.
+   */
+  resolveContradiction: operatorProcedure
+    .input(
+      contradictionResolveSchema.extend({ key: z.string().min(1).max(128) }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await resolveContradictionEntry({
+          key: input.key,
+          status: input.status,
+          note: input.note,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+  /**
+   * Phase B.6c · owner-only · the decision-replay backlog for the
+   * DecisionReplayCard · `due` (queued, split unconsumed / consumed-
+   * today) + `recent` (last 10 reviewed). Replaces GET
+   * /api/system/decision-replays · delegates to the shared
+   * `decision-replays.buildDecisionReplaysView` service.
+   * DecisionReplayCard polls this on a 5-min interval — now driven by
+   * refetchInterval.
+   */
+  decisionReplays: operatorProcedure.query(async () =>
+    buildDecisionReplaysView(),
+  ),
+
+  /**
+   * Phase B.6c · owner-only · mark a decision-replay row. Replaces POST
+   * /api/system/decision-replays/[id]/mark · delegates to the shared
+   * `decision-replays.markDecisionReplay` service. Dual-mode (matching
+   * the legacy route): omitting `outcome` stamps consumedAt only (the
+   * tap-to-chat row click); supplying it ALSO dual-writes the
+   * DecisionReplay outcome row (the inline lesson form).
+   *
+   * Input is the SHARED `decisionReplayMarkSchema` from
+   * @/lib/validators/system PLUS an `id` scalar (the route's path
+   * param). `outcome` is optional at this layer so the empty-body mark
+   * path validates. A missing row → ServiceError(404) → NOT_FOUND; a
+   * wrong-category row → ServiceError(400) → BAD_REQUEST · both
+   * transports reject identically.
+   */
+  markDecisionReplay: operatorProcedure
+    .input(
+      decisionReplayMarkSchema.extend({ id: z.string().min(1).max(128) }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        return await markDecisionReplay({
+          id: input.id,
+          outcome: input.outcome,
+          outcomeScore: input.outcomeScore,
+          lesson: input.lesson,
+        });
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code:
+              err.status === 404
+                ? "NOT_FOUND"
+                : err.status === 400
+                  ? "BAD_REQUEST"
+                  : "INTERNAL_SERVER_ERROR",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
 });

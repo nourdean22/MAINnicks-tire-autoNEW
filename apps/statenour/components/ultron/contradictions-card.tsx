@@ -81,8 +81,7 @@ import {
 } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 type ContradictionStatus =
@@ -92,29 +91,6 @@ type ContradictionStatus =
   | "both_valid"
   | "dismissed";
 type SignalKind = "negation" | "reversal" | "antonym" | "compound";
-
-interface ContradictionItem {
-  key: string;
-  newExcerpt: string;
-  oldExcerpt: string;
-  daysApart: number;
-  signal: SignalKind;
-  similarity: number;
-  status: ContradictionStatus;
-  resolutionNote: string | null;
-  resolvedAt: string | null;
-  surfacedAt: string;
-  createdAt: string;
-}
-interface ApiShape {
-  items?: ContradictionItem[];
-  summary?: {
-    total: number;
-    unresolved: number;
-    byStatus: Record<string, number>;
-    unresolvedLast14: number;
-  };
-}
 
 type ResolveChoice = Exclude<ContradictionStatus, "unresolved">;
 
@@ -205,13 +181,20 @@ export function buildReconcileSeed(
 }
 
 export function ContradictionsCard() {
-  const raw = useUltronFetch<ApiShape>(
-    "/api/system/contradictions?days=14&includeResolved=true",
-    {
-      ttlMs: 300_000,
-      pollMs: 300_000,
-    },
+  // Phase B.6c (2026-05-22) · migrated off `useUltronFetch("/api/system/
+  // contradictions?days=14&includeResolved=true")` + an `authedFetch`
+  // POST onto `trpc.system.contradictions` (reactive read · 5-min
+  // refetchInterval) + `trpc.system.resolveContradiction` (mutation).
+  // The legacy `?days=14&includeResolved=true` query string is now a
+  // typed input object. The procedure returns `{ items, summary }`
+  // directly · the legacy envelope unwrap is gone. The `key` path param
+  // now rides in the mutation input object (tRPC has no path).
+  const contra = trpc.system.contradictions.useQuery(
+    { days: 14, includeResolved: true },
+    { refetchInterval: 300_000, staleTime: 300_000 },
   );
+  const utils = trpc.useUtils();
+  const resolveMutation = trpc.system.resolveContradiction.useMutation();
 
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -243,22 +226,12 @@ export function ContradictionsCard() {
       setSubmittingKey(key);
       const toastId = toast.loading("resolving…");
       try {
-        const body: Record<string, unknown> = { status };
         const trimmedNote = note.trim();
-        if (trimmedNote.length > 0) body.note = trimmedNote;
-
-        const res = await authedFetch(
-          `/api/system/contradictions/${encodeURIComponent(key)}/resolve`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          },
-        );
-        if (!res.ok) {
-          toast.error("resolve failed", { id: toastId });
-          return;
-        }
+        await resolveMutation.mutateAsync({
+          key,
+          status,
+          ...(trimmedNote.length > 0 ? { note: trimmedNote } : {}),
+        });
         toast.success(
           status === "dismissed"
             ? "dismissed · false positive logged"
@@ -270,23 +243,23 @@ export function ContradictionsCard() {
           { id: toastId },
         );
         closeForm();
-        raw.refetch();
+        await utils.system.contradictions.invalidate();
       } catch {
         toast.error("resolve failed", { id: toastId });
       } finally {
         setSubmittingKey(null);
       }
     },
-    [note, closeForm, raw],
+    [note, closeForm, resolveMutation, utils],
   );
 
   // Sort and split memoized · avoids re-walking the items array on
-  // every state change (form open/close · note typing). useUltronFetch
-  // already memos the data object identity across polls, so this
+  // every state change (form open/close · note typing). React Query
+  // keeps the data object identity stable across polls, so this
   // recomputes only when actual data changes.
   const { shownUnresolved, moreCount, recentResolved, mostRecentResolved } =
     useMemo(() => {
-      const items = raw.data?.items ?? [];
+      const items = contra.data?.items ?? [];
       const unresolved = items
         .filter((c) => c.status === "unresolved")
         .sort((a, b) => {
@@ -307,7 +280,7 @@ export function ContradictionsCard() {
         recentResolved: resolved,
         mostRecentResolved: resolved[0] ?? null,
       };
-    }, [raw.data]);
+    }, [contra.data]);
 
   // v10.0.529.30 · Arc B Phase 3 · auto-open from ticker deep-link.
   // Runs once after data loads · if `?resolve=<key>` is in the URL
@@ -318,7 +291,7 @@ export function ContradictionsCard() {
   // no-op rather than open an empty form.
   useEffect(() => {
     if (autoOpenedRef.current) return;
-    if (!raw.data) return;
+    if (!contra.data) return;
     const resolveKey = searchParams?.get("resolve");
     if (!resolveKey) return;
     const match = shownUnresolved.find((c) => c.key === resolveKey);
@@ -327,9 +300,9 @@ export function ContradictionsCard() {
       setExpandedKey(match.key);
       setNote("");
     }
-  }, [raw.data, searchParams, shownUnresolved]);
+  }, [contra.data, searchParams, shownUnresolved]);
 
-  if (raw.loading && raw.data === null) {
+  if (contra.isLoading && !contra.data) {
     return <ShimmerSkeleton variant="card" className="min-h-[96px]" />;
   }
 

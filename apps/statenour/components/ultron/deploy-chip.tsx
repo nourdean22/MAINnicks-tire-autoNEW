@@ -14,8 +14,8 @@
 import { useEffect, useState } from "react";
 import { GitCommit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/lib/trpc/client";
 
-import { authedFetch } from "@/hooks/use-authed-fetch";
 interface DeployInfo {
   sha: string;
   shaShort: string;
@@ -42,21 +42,26 @@ const GITHUB_REPO = "nourdean22/statenour-os";
 
 export function DeployChip() {
   const [info, setInfo] = useState<DeployInfo | null>(null);
+  // Phase B.6c (2026-05-22) · migrated off `authedFetch("/api/system/
+  // deploy-info")` onto `trpc.system.deployInfo`. The read is a one-shot
+  // on mount, not a render-time query, so it fires imperatively via
+  // `utils.system.deployInfo.fetch()`. The procedure returns the
+  // DeployInfo object directly · the legacy `json.data` envelope unwrap
+  // is gone.
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     let alive = true;
     async function load() {
       try {
-        const res = await authedFetch("/api/system/deploy-info");
-        if (!res.ok) return;
-        const json = await res.json();
-        if (alive) setInfo(json.data);
+        const data = await utils.system.deployInfo.fetch();
+        if (alive) setInfo(data);
       } catch {
         /* silent — dev environment or network hiccup */
       }
     }
     void load();
-  }, []);
+  }, [utils]);
 
   if (!info) return null;
   // Don't render the chip in dev/preview — noise without value.

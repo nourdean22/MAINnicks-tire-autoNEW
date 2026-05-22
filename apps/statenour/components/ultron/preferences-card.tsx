@@ -38,8 +38,7 @@ import { toast } from "sonner";
 import { RotateCcw, Save, Loader2, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { useUltronFetch } from "@/lib/ultron/client-cache";
-import { authedFetch } from "@/hooks/use-authed-fetch";
+import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 
 const AXES = [
@@ -189,10 +188,20 @@ function daysAgo(dateStr: string): number | null {
 }
 
 export function PreferencesCard() {
-  const raw = useUltronFetch<ApiShape>("/api/system/preference-vector", {
-    ttlMs: 300_000,
-    pollMs: 300_000,
+  // Phase B.6c (2026-05-22) · migrated off `useUltronFetch("/api/system/
+  // preference-vector")` + two `authedFetch` POSTs onto `trpc.system.
+  // preferenceVector` (reactive read) + `trpc.system.savePreferenceVector`
+  // (mutation). The legacy 5-min poll is now `refetchInterval`. React
+  // Query keeps `data` defined across background refetches, so the
+  // draft-seed effect + isDirty gate behave exactly as before. The
+  // procedure returns the view object directly (the legacy route also
+  // returned it unwrapped).
+  const pref = trpc.system.preferenceVector.useQuery(undefined, {
+    refetchInterval: 300_000,
+    staleTime: 300_000,
   });
+  const utils = trpc.useUtils();
+  const saveMutation = trpc.system.savePreferenceVector.useMutation();
 
   // Local edit state · seeded from API · isDirty drives the Save gate.
   const [draft, setDraft] = useState<PreferenceVector | null>(null);
@@ -200,12 +209,14 @@ export function PreferencesCard() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [showAddendum, setShowAddendum] = useState(false);
 
+  const data: ApiShape | undefined = pref.data;
+
   // Seed draft from API on first load · subsequent polls don't wipe
   // unsaved edits (operator might be mid-drag when a refetch lands).
   useEffect(() => {
-    if (draft || !raw.data?.vector) return;
-    setDraft(raw.data.vector);
-  }, [raw.data?.vector, draft]);
+    if (draft || !data?.vector) return;
+    setDraft(data.vector);
+  }, [data?.vector, draft]);
 
   // Reset-confirm auto-clears after 4s if not pressed.
   useEffect(() => {
@@ -214,7 +225,7 @@ export function PreferencesCard() {
     return () => clearTimeout(t);
   }, [confirmReset]);
 
-  const apiVector = raw.data?.vector ?? null;
+  const apiVector = data?.vector ?? null;
   const isDirty = draft !== null && apiVector !== null && !vectorsEqual(draft, apiVector);
 
   const setAxis = useCallback((axis: Axis, value: number) => {
@@ -237,23 +248,15 @@ export function PreferencesCard() {
           }
         }
       }
-      const res = await authedFetch("/api/system/preference-vector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vector: patch }),
-      });
-      if (!res.ok) {
-        toast.error("save failed", { id: toastId });
-        return;
-      }
+      await saveMutation.mutateAsync({ vector: patch });
       toast.success("preferences saved · applies to the next chat turn", { id: toastId });
-      raw.refetch();
+      await utils.system.preferenceVector.invalidate();
     } catch {
       toast.error("save failed", { id: toastId });
     } finally {
       setSaving(false);
     }
-  }, [draft, apiVector, isDirty, raw]);
+  }, [draft, apiVector, isDirty, saveMutation, utils]);
 
   const handleReset = useCallback(async () => {
     if (!confirmReset) {
@@ -264,34 +267,26 @@ export function PreferencesCard() {
     setConfirmReset(false);
     const toastId = toast.loading("resetting to neutral…");
     try {
-      const res = await authedFetch("/api/system/preference-vector", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vector: {}, reset: true }),
-      });
-      if (!res.ok) {
-        toast.error("reset failed", { id: toastId });
-        return;
-      }
+      await saveMutation.mutateAsync({ vector: {}, reset: true });
       setDraft({ ...DEFAULT_VECTOR });
       toast.success("preferences reset · all axes neutral", { id: toastId });
-      raw.refetch();
+      await utils.system.preferenceVector.invalidate();
     } catch {
       toast.error("reset failed", { id: toastId });
     } finally {
       setSaving(false);
     }
-  }, [confirmReset, raw]);
+  }, [confirmReset, saveMutation, utils]);
 
-  if (raw.loading && raw.data === null) {
+  if (pref.isLoading && !data) {
     return <ShimmerSkeleton variant="card" className="min-h-[180px]" />;
   }
 
   const vector = draft ?? apiVector ?? DEFAULT_VECTOR;
-  const lastTune = raw.data?.lastTune ?? null;
+  const lastTune = data?.lastTune ?? null;
   const tuneAge = lastTune ? daysAgo(lastTune.date) : null;
-  const addendum = raw.data?.addendum ?? "";
-  const trace = raw.data?.trace ?? [];
+  const addendum = data?.addendum ?? "";
+  const trace = data?.trace ?? [];
   const hasTrace = trace.length >= 2;
 
   return (
