@@ -22,8 +22,8 @@ const DEFAULT_PROMISES = [
   },
   {
     icon: Lock,
-    heading: "Price locked at approval",
-    detail: "If we discover something unexpected, we call you first. No surprises on your bill.",
+    heading: "Price locked when you say yes",
+    detail: "If we find something else mid-job, we stop and call you. You see the cost before we touch the car.",
   },
   {
     icon: Phone,

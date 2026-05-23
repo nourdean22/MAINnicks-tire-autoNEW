@@ -187,7 +187,7 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
           const priceResult = detectServiceAndPrice(parsed.extractedData?.question || "");
           if (priceResult) {
             const { sendSms } = await import("../sms");
-            await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free inspection -- no appointment needed. (216) 862-0005`);
+            await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free check -- no appointment needed. (216) 862-0005`);
             log.info("Auto-responded with price quote", { phone: phone.slice(-4), service: priceResult.service });
 
             // Create a lead from this SMS inquiry
@@ -236,7 +236,7 @@ const SERVICE_PRICES: Array<{ key: string; pattern: RegExp; service: string; pri
   { key: "brakes", pattern: /brake|brakes|brake\s*pad|rotor/i, service: "Brake service", price: "$129/axle" },
   { key: "tires", pattern: /tire|tires|new tire/i, service: "Tire installation", price: "$20/tire (mount & balance)" },
   { key: "alignment", pattern: /alignment|align/i, service: "A wheel alignment", price: "$89.99" },
-  { key: "diagnostic", pattern: /diagnos|check\s*engine|engine\s*light|scan|code/i, service: "A diagnostic scan", price: "$49.99" },
+  { key: "diagnostic", pattern: /diagnos|check\s*engine|engine\s*light|scan|code/i, service: "A code scan + live data", price: "$49.99" },
   { key: "rotation", pattern: /rotat|tire\s*rotation/i, service: "A tire rotation", price: "$24.99" },
   { key: "battery", pattern: /battery|batteries/i, service: "Battery replacement", price: "$129.99 (installed)" },
   { key: "suspension", pattern: /strut|shock|suspension/i, service: "Suspension work", price: "$199/corner" },

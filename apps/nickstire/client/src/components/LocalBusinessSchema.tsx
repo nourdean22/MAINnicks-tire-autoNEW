@@ -102,7 +102,7 @@ export default function LocalBusinessSchema({
       name: area,
     })),
     description:
-      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free premium installation package — mount, balance, valve stems, alignment check. Brake, diagnostic, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} reviews. Walk-ins 7 days, payment programs on the spot.`,
+      `Cleveland's Euclid Ave new and used tire shop and full-service auto repair. Buy tires online with free install package — mount, balance, valve stems, alignment check. Brake, check-engine, Ohio E-Check, alignment, AC, transmission, electrical, exhaust. ${BUSINESS.reviews.rating} stars across ${BUSINESS.reviews.countDisplay} reviews. Walk-ins 7 days, payment programs on the spot.`,
     knowsAbout: [
       "New tire sales and installation",
       "Used tire sales and installation",
@@ -131,12 +131,12 @@ export default function LocalBusinessSchema({
       itemListElement: [
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "New Tire Sales & Installation", description: "Free premium installation package with every tire purchase." },
+          itemOffered: { "@type": "Service", name: "New Tire Sales & Installation", description: "Free install package with every tire purchase." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Installation FREE with tire purchase" },
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Used Tires", description: "Quality-inspected used tires starting at $40 installed." },
+          itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires starting at $40 installed (4-point check: tread, sidewall, DOT date, plug history)." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "40" },
         },
         {
@@ -146,12 +146,12 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Brake Repair", description: "Pads, rotors, calipers, ABS. Free brake inspection." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Free inspection · written estimate before any work" },
+          itemOffered: { "@type": "Service", name: "Brake Repair", description: "Pads, rotors, calipers, ABS. Free brake check." },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Free check · written quote · you don't pay until you say yes" },
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, multi-point inspection, and tire pressure check." },
+          itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, 20-point check, and tire pressure check." },
           priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "45", description: "Conventional oil change from $45" },
         },
         {
@@ -161,8 +161,8 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Engine Diagnostics", description: "OBD-II code reading, diagnostic fee credited toward repair." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Diagnostic fee credited toward repair · free if we do the work" },
+          itemOffered: { "@type": "Service", name: "Engine Diagnostics", description: "OBD-II code reading + live data, fee credited toward repair if you say yes." },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", description: "Check fee credited toward repair · free if we do the work" },
         },
         {
           "@type": "Offer",
