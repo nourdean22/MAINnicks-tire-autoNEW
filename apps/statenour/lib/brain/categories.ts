@@ -228,6 +228,22 @@ export const BRAIN_CATEGORIES = {
   PROJECT_MANAGEMENT: "project_management",
   STRATEGIC_PLAN: "strategic_plan",
   STRATEGY: "strategy",
+  /** 2026-05-23 · task #17 · raw per-task observation lane · written
+   *  by auto-learn (LLM + heuristic), brain-domain, today-compound.
+   *  3-5 rows/day at steady state. Reflection cron synthesizes these
+   *  into higher-level task_pattern rows weekly. Was hand-typed in 4+
+   *  files for months — registering closes the typo-protection gap. */
+  TASK_INSIGHT: "task_insight",
+  /** 2026-05-23 · task #17 · synthesized pattern lane · written by
+   *  pattern-clusterer + nick-suggestions. Read by next-move +
+   *  NickSuggestions UI. Cross-pattern meta-themes (e.g. "your
+   *  morning patterns all converge on review-then-deep-block") get
+   *  surfaced by the reflection cron. */
+  TASK_PATTERN: "task_pattern",
+  /** 2026-05-23 · task #17 · stale-loop nudge marker · per-loop key ·
+   *  written by nick-suggestions when an active loop hasn't moved in
+   *  N days. Already in production · registering closes the gap. */
+  ORPHAN_TASKS_NUDGE: "orphan_tasks_nudge",
 
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
@@ -463,6 +479,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   ],
   "Tasks + strategy": [
     "planning", "project_management", "strategic_plan", "strategy",
+    "task_insight", "task_pattern", "orphan_tasks_nudge",
   ],
   "Legacy / deprecated": [
     "relationship", "skills", "business_read", "business_write",
