@@ -155,6 +155,15 @@ import {
   reflectOnCategory,
   type ReflectionResult,
 } from "@/lib/services/reflection";
+// Reflection viewer read-side (task #13 · 2026-05-23) · the
+// /brain/reflections surface. A future REST route could call the same
+// function · drift impossible. Returns the explicit flat
+// `ReflectionView` (`metadata` Json projected to scalar + string[]
+// inside the service · TS2589 firewall).
+import {
+  listRecentReflections,
+  type ReflectionView,
+} from "@/lib/services/reflection-read";
 
 export const brainRouter = router({
   /**
@@ -1303,5 +1312,35 @@ export const brainRouter = router({
         windowDays: input.windowDays,
         maxInsights: input.maxInsights,
       }),
+    ),
+
+  /**
+   * CoALA reflection viewer · owner-only · the read-side complement to
+   * `brain.reflect`. Lists recent `reflection`-category BrainMemory rows
+   * (newest first) projected to the flat `ReflectionView` shape — the
+   * known metadata fields (`sourceCategory` · `derivedFrom` ·
+   * `reflectionWindow` · `confidence`) hoisted to top-level scalars +
+   * string[] · `metadata` Json never reaches the AppRouter. TS2589
+   * firewall satisfied trivially.
+   *
+   * Optional `sourceCategory` filter — passing "all" or omitting
+   * returns every category. The /brain/reflections page renders the
+   * category-filter dropdown over the five cron-iterated source
+   * categories (`decision_log` · `pattern` · `belief` · `lesson` ·
+   * `learning_journal`) plus "all".
+   */
+  recentReflections: operatorProcedure
+    .input(
+      z.object({
+        sourceCategory: z.string().min(1).max(80).optional(),
+        limit: z.number().int().min(1).max(100).default(50),
+      }),
+    )
+    .query(
+      async ({ input }): Promise<{ reflections: ReflectionView[] }> =>
+        listRecentReflections({
+          sourceCategory: input.sourceCategory,
+          limit: input.limit,
+        }),
     ),
 });
