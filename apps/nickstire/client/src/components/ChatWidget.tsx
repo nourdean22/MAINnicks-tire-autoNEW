@@ -6,6 +6,7 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, X, Send, Wrench, Phone } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 
@@ -85,6 +86,12 @@ export default function ChatWidget() {
     onSuccess: () => {
       setLeadSubmitted(true);
       setShowLeadCapture(false);
+    },
+    // 2026-05-23 · was silent on failure. Chat-funnel lead is a hot
+    // lead (user already engaged 4+ turns); a network blip should not
+    // leave them thinking the front desk has their number.
+    onError: () => {
+      toast.error("Couldn't reach the front desk — call (216) 862-0005.");
     },
   });
 

@@ -852,6 +852,10 @@ export default function TireFinder() {
   }, [data]);
 
   // Stripe Checkout return — show the customer a clear result.
+  // 2026-05-23 · gate the success toast on the SERVER-confirmed result.
+  // Previously we fired toast.success the moment ?paid=1 landed, before
+  // confirmCheckout resolved. Bad URL tampering OR a still-open Stripe
+  // session would show a green success while the order was unpaid.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
@@ -861,8 +865,18 @@ export default function TireFinder() {
       // Webhook is the primary path; this is the fallback so a paid order
       // is never stuck "unpaid" if the webhook is slow or misconfigured.
       // Idempotent server-side — safe even if the webhook also fires.
-      confirmCheckout.mutate({ orderNumber: order });
-      toast.success(`Payment received — order ${order} is confirmed. We'll be in touch about installation.`);
+      confirmCheckout.mutate({ orderNumber: order }, {
+        onSuccess: (r) => {
+          if (r?.ok) {
+            toast.success(`Payment received — order ${order} is confirmed. We'll be in touch about installation.`);
+          } else {
+            toast.error(`We couldn't verify payment for order ${order}. Call (216) 862-0005 — we'll sort it out.`);
+          }
+        },
+        onError: () => {
+          toast.error(`We couldn't verify payment for order ${order}. Call (216) 862-0005 — we'll sort it out.`);
+        },
+      });
     } else if (paid === "0" && order) {
       toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
     }
