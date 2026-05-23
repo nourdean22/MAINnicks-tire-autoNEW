@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 PM · post subtask wave (#22 closed · migration applied to prod Neon + 4 UI slices implementing ADR-0017 amended Rules 1-6 · parent inheritance · effort-weighted rollup · visual indent + chip · cascade-with-confirm). On top of: multi-advisor board (#23/#24 · ADR-0018) · Todoist/Evernote hierarchy follow-ups (#19/#20/#21) · /tasks upgrade quartet (#7/#15/#16/#17/#18). Monorepo branch `main`.
+> **Last refreshed:** 2026-05-23 EVE · post LeCun-lens consolidation (slices 5.3 / 5.4 / 5.5 / 5.6 closing task #22 wave 2 · explicit operator-state model + /system/operator-state diagnostic + judge-eval ground-truth calibration + ADR-0019 · no schema changes · pure substrate). On top of: subtask wave (#22 · ADR-0017 amended) · multi-advisor board (#23/#24 · ADR-0018) · Todoist/Evernote hierarchy (#19/#20/#21) · /tasks upgrade quartet (#7/#15/#16/#17/#18). Monorepo branch `main`. **Tests:** 2768 across 181 vitest files.
 
 ---
 
@@ -107,15 +107,16 @@ Detection regex lives in [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/ac
 
 ---
 
-## 5 · Active backlog (priority order · updated v10.0.485)
+## 5 · Active backlog (priority order · updated 2026-05-23 EVE)
 
-1. **Apply parked schema migration** — `prisma/migrations-pending/20260508001336_add_updated_at_to_8_mutable_models/` adds `updatedAt @updatedAt` to 8 mutable models. Schema reverted in v10.0.473 because `prisma migrate status` proved migration never reached prod Neon. Apply when prod connectivity confirms — README in that directory has the exact procedure.
-2. **Phase 0 prerequisites for v2 prompt cutover** — see `docs/v2-prompt-cutover-plan.md`. Need: `scripts/prompt-shadow-summary.ts` (criterion 1+2+3 evidence), `scripts/prompt-judge-comparator.ts` (criterion 4 evidence), `/system/prompt-parity` route. Estimated: 2-3 versions.
-3. **Phase 1 v2 prompt-builder canary** — flip `NICK_PRIME_PROMPT=on` for 10% of turns via deterministic hash. 24h soak. Halt triggers documented.
-4. **Per-lens cost telemetry** — pre-task fan-out (`lib/ai/pretask-fanout.ts`) tracks gated-vs-ungated split at orchestrator level but not per-lens cost breakdown. Useful for tuning which lenses are worth their spend (ADR-0009 open item).
-5. **Box-shadow → opacity-on-pseudo for remaining keyframes** — 17 keyframes converted in v10.0.466-469; `state-aura` reverted in v10.0.474 due to containing-block trap. Audit remaining keyframes for safe conversion candidates.
-6. **Calibration plot on `/brain`** — math layer (`lib/brain/calibration.ts`) shipped; UI deferred until ≥10 resolved binary predictions exist.
-7. **Per-policy fire history view** — `/system/policies` shows `lastFiredAt` + `fireCount` only; full chronological history not yet rendered.
+1. **Pick the first AI surface to opt into operator-state** — substrate landed in slices 5.3/5.4 (ADR-0019). Candidates: daily morning brief (low blast radius · high payoff), `/api/ai/page-insight` (small surface), NickSuggestions chip generator (heavy state sensitivity). Chat path remains off-limits per operator directive. **Owner: operator-side call.**
+2. **Watch judge-eval calibration verdict** — `/system/judge-eval` now shows the agreement % between judge and operator. Verdict will read "preliminary" until n≥30 comparisons with operator feedback accumulate. Re-check before promoting the V2 canary further.
+3. **Phase 0 prerequisites for v2 prompt cutover** — see `docs/v2-prompt-cutover-plan.md`. Need: `scripts/prompt-shadow-summary.ts` (criterion 1+2+3 evidence), `scripts/prompt-judge-comparator.ts` (criterion 4 evidence), `/system/prompt-parity` route.
+4. **Phase 1 v2 prompt-builder canary** — flip `NICK_PRIME_PROMPT=on` for 10% of turns via deterministic hash. 24h soak. Halt triggers documented.
+5. **Per-lens cost telemetry** — pre-task fan-out (`lib/ai/pretask-fanout.ts`) tracks gated-vs-ungated split at orchestrator level but not per-lens cost breakdown. Useful for tuning which lenses are worth their spend (ADR-0009 open item).
+6. **Box-shadow → opacity-on-pseudo for remaining keyframes** — 17 keyframes converted in v10.0.466-469; `state-aura` reverted in v10.0.474 due to containing-block trap. Audit remaining keyframes for safe conversion candidates.
+7. **Calibration plot on `/brain`** — math layer (`lib/brain/calibration.ts`) shipped; UI deferred until ≥10 resolved binary predictions exist.
+8. **Per-policy fire history view** — `/system/policies` shows `lastFiredAt` + `fireCount` only; full chronological history not yet rendered.
 
 ---
 
