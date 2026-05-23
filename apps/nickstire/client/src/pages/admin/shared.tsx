@@ -452,6 +452,107 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
   );
 }
 
+// \u2500\u2500\u2500 ROW PRIMITIVES \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+// 2026-05-23 \u00b7 extracted after fixing 5+ "row looks tappable but isn't"
+// bugs across the admin. Every list surface (priority queue \u00b7 pickup
+// queue \u00b7 at-risk whales \u00b7 snap apps \u00b7 etc.) was rebuilding the same
+// pattern: a div with cursor-pointer + onClick + inner action buttons
+// that needed e.stopPropagation. The exact set of bugs varied \u2014 some
+// rows had only the icon clickable, some had no keyboard nav, some
+// had action buttons that ALSO triggered the row click.
+//
+// ClickableRow standardizes the row container \u00b7 RowAction standardizes
+// the inline action button/anchor with built-in stopPropagation.
+// Together they make the bug class impossible to reintroduce.
+
+interface ClickableRowProps {
+  /** Called on tap, Enter, or Space. Omit for a non-interactive row
+   *  (no cursor pointer, no focus ring, no event handlers). */
+  onClick?: () => void;
+  /** aria-label for the row (when interactive). */
+  ariaLabel?: string;
+  /** Extra classes appended to the base row styling. */
+  className?: string;
+  children: React.ReactNode;
+}
+
+/** Standard clickable list-row. Whole row is the tap target (44pt+ on
+ *  mobile). Action buttons inside should use `<RowAction>` so taps on
+ *  them don't ALSO trigger the row's onClick. */
+export function ClickableRow({ onClick, ariaLabel, className = "", children }: ClickableRowProps) {
+  if (!onClick) {
+    return (
+      <div className={`flex items-center gap-3 px-3 py-2.5 ${className}`}>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40 ${className}`}
+      aria-label={ariaLabel}
+    >
+      {children}
+    </div>
+  );
+}
+
+type RowActionCommon = {
+  icon: React.ReactNode;
+  title: string;
+  /** Tailwind hover classes for the icon + bg. Defaults to primary tint. */
+  hoverClass?: string;
+  /** aria-label override. Defaults to `title`. */
+  ariaLabel?: string;
+  /** Extra classes appended to the base button/anchor styling. */
+  className?: string;
+};
+
+type RowActionProps =
+  | (RowActionCommon & { onClick: (e: React.MouseEvent) => void; disabled?: boolean; href?: never })
+  | (RowActionCommon & { href: string; onClick?: never; disabled?: never });
+
+/** Standard row-action icon (call \u00b7 sms \u00b7 mark done \u00b7 delete \u00b7 etc).
+ *  stopPropagation is built in so taps on the action don't trigger
+ *  the parent ClickableRow's onClick. */
+export function RowAction(props: RowActionProps) {
+  const hover = props.hoverClass ?? "hover:text-primary hover:bg-primary/10";
+  const baseClass = `p-1.5 text-foreground/40 ${hover} rounded transition-all disabled:opacity-30 ${props.className ?? ""}`;
+  const aria = props.ariaLabel ?? props.title;
+  if ("href" in props && props.href) {
+    return (
+      <a
+        href={props.href}
+        onClick={(e) => e.stopPropagation()}
+        className={baseClass}
+        title={props.title}
+        aria-label={aria}
+      >
+        {props.icon}
+      </a>
+    );
+  }
+  // After the href branch above, TS still sees props as the union.
+  // Cast to the click-variant so destructure narrows cleanly.
+  const clickProps = props as Extract<RowActionProps, { onClick: (e: React.MouseEvent) => void }>;
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); clickProps.onClick(e); }}
+      disabled={clickProps.disabled}
+      className={baseClass}
+      title={props.title}
+      aria-label={aria}
+    >
+      {props.icon}
+    </button>
+  );
+}
+
 export function UrgencyBadge({ score }: { score: number }) {
   const config = score >= 4
     ? { label: `URGENT (${score}/5)`, color: "text-red-400 bg-red-500/10 border-red-500/20" }
