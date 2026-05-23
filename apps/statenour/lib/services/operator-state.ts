@@ -299,6 +299,48 @@ export async function currentOperatorState(
   };
 }
 
+/**
+ * 2026-05-23 · task #22 step 5.4 · format the operator state into a
+ * system-prompt-ready block. Used by AI surfaces that want to give
+ * Nick explicit grounding in the operator's current state INSTEAD
+ * of having him infer it from chat text (the autoregressive trap
+ * the LeCun-lens consolidation is correcting).
+ *
+ * Block shape · ~5 lines · ~120 chars · cheap to include in the
+ * system prompt. Numbers are presented as percentages because that's
+ * how operators reason about state.
+ *
+ * Confidence is included so Nick can soften his use of the block
+ * when the model is uncertain (e.g. fresh-install · no data yet).
+ *
+ * NOT wired into `lib/ai/system-prompt.ts` in this slice. The chat
+ * path is off-limits per the operator's standing directive. This
+ * formatter is consumed by:
+ *   · /api/system/operator-state (this slice · diagnostic)
+ *   · A future opt-in slice that adds operator-state to a SPECIFIC
+ *     AI surface (e.g. /api/ai/page-insight) when the operator
+ *     greenlights it
+ */
+export function formatOperatorStateBlock(state: OperatorState): string {
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+  const confLabel =
+    state.confidence < 0.3
+      ? "low"
+      : state.confidence < 0.7
+        ? "moderate"
+        : "high";
+  return [
+    `OPERATOR STATE (${confLabel}-confidence snapshot · use this instead of inferring state from text):`,
+    `  mood: ${state.mood}`,
+    `  focus: ${pct(state.focus)}   capacity: ${pct(state.capacity)}   drift: ${pct(state.drift)}   momentum: ${pct(state.momentum)}`,
+    `Tone rules:`,
+    `  · mood=depleted → no discipline lectures · no pep-talk cheerleading · steady · short reply`,
+    `  · mood=scattered → cut the list · one concrete next thing · don't enumerate`,
+    `  · mood=energized → match the energy · move fast · skip preamble`,
+    `  · mood=neutral → default editorial tone`,
+  ].join("\n");
+}
+
 /** Exported for tests · all the pure functions in one place. */
 export const __testInternals = {
   clamp01,
