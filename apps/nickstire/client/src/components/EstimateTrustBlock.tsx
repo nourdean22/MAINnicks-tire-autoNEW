@@ -1,7 +1,7 @@
 /**
  * EstimateTrustBlock — The antidote to sticker shock.
  * Shows the actual estimate promise: price locked before work starts,
- * no surprise add-ons, and what happens if something unexpected comes up.
+ * cost told before we touch anything, and what happens if something unexpected comes up.
  * Place this immediately before or after the booking form on service pages.
  */
 import { Lock, Phone, FileText } from "lucide-react";

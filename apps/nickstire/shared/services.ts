@@ -18,7 +18,7 @@ export interface ServiceData {
   heroCTA?: string;
   /** Turnaround time messaging (e.g., "Most brake jobs completed same day") */
   turnaround?: string;
-  /** Pricing transparency note (e.g., "Free brake inspection · No diagnostic fee with repair") */
+  /** Pricing transparency note (e.g., "Free brake check · No diagnostic fee with repair") */
   pricingNote?: string;
   /** Urgency/safety note for critical services */
   urgencyNote?: string;
@@ -192,10 +192,10 @@ export const SERVICES: ServiceData[] = [
     metaTitle: "Brake Repair Cleveland · We Hand You The Flashlight | Nick's",
     metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free inspection, written estimate first, same-day repair. (216) 862-0005.",
     heroHeadline: "We show you the worn pads\nbefore we touch a thing.",
-    heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. No guesswork, no surprises.",
+    heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. No guesswork, we tell you the cost before we touch anything.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
     turnaround: "Most brake jobs completed same day. Drop off in the morning, drive home by afternoon.",
-    pricingNote: "Free brake inspection · We show you the problem before quoting · No surprise charges",
+    pricingNote: "Free brake check · We show you the problem before quoting · No surprise charges",
     urgencyNote: "Grinding brakes get more expensive every mile. Metal-on-metal contact damages rotors and can compromise stopping distance.",
     signs: [
       "High-pitched squealing when you press the brake pedal",
@@ -242,7 +242,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How much does brake repair cost in Cleveland?",
-        answer: "Brake pad replacement in Cleveland typically costs between $150 and $350 per axle. If rotors need resurfacing or replacement, the total can range from $300 to $600 per axle. At Nick's Tire & Auto, we provide a free brake inspection and written estimate before any work begins. Call (216) 862-0005."
+        answer: "Brake pad replacement in Cleveland typically costs between $150 and $350 per axle. If rotors need resurfacing or replacement, the total can range from $300 to $600 per axle. At Nick's Tire & Auto, we provide a free brake check and written estimate before any work begins. Call (216) 862-0005."
       },
       {
         question: "How do I know if my brakes need replacing?",
@@ -258,7 +258,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find brake repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake inspections, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake checks, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -668,7 +668,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does auto repair cost in Cleveland?",
-        answer: "Auto repair costs in Cleveland vary widely by service. Oil changes run $30 to $90, brake jobs $150 to $600 per axle, and suspension work $200 to $1,500 depending on the component. At Nick's Tire & Auto, we provide a written estimate before any work begins so there are no surprises on the bill."
+        answer: "Auto repair costs in Cleveland vary widely by service. Oil changes run $30 to $90, brake jobs $150 to $600 per axle, and suspension work $200 to $1,500 depending on the component. At Nick's Tire & Auto, we provide a written estimate before any work begins so there are we tell you the cost before we touch anything on the bill."
       },
       {
         question: "Why is my car making a strange noise?",
@@ -698,7 +698,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Varies — we'll call with estimate",
     startingPrice: "FREE estimates",
     priceRange: "",
-    whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no surprise charges, and a 36-month warranty. Open 7 days with same-day service for most repairs.",
+    whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no checkout-math charges, and a 36-month warranty. Open 7 days with same-day service for most repairs.",
     commonSymptoms: [
       "Car making clunking noise over bumps",
       "Steering wheel vibrating while driving",
@@ -764,7 +764,7 @@ export const SERVICES: ServiceData[] = [
       { step: "Test & Inspect", detail: "Check refrigerant pressure on both high and low sides, test compressor engagement, measure vent temperatures at every vent, inspect belts, hoses, and all visible AC components." },
       { step: "Leak Detection", detail: "UV dye injection and electronic refrigerant sniffer to find any leaks in the system. We check the compressor shaft seal, condenser, evaporator, hose connections, and service ports." },
       { step: "Diagnose", detail: "Identify the exact failed component — compressor, condenser, evaporator, expansion valve, blend door actuator, or blower motor. We explain what failed and why." },
-      { step: "Written Estimate", detail: "You get a written estimate with the exact cost before we touch anything. No surprises." },
+      { step: "Written Estimate", detail: "You get a written estimate with the exact cost before we touch anything. We tell you the cost before we touch anything." },
       { step: "Repair & Recharge", detail: "Replace the failed part, evacuate the system, pull a vacuum to remove moisture, recharge with the exact manufacturer-specified refrigerant amount, and verify cold air output at every vent." },
     ],
     whyUs: [
@@ -774,7 +774,7 @@ export const SERVICES: ServiceData[] = [
       "Heater core and blower motor service",
       "Cabin air filter replacement and evaporator cleaning",
       "Climate control and blend door actuator diagnostics",
-      "Written estimates before any work — no surprises",
+      "Written estimates before any work — we tell you the cost before we touch anything",
       "Same-day service for most AC repairs",
     ],
     keywords: ["AC repair Cleveland", "auto AC recharge Cleveland", "car heater repair", "AC not blowing cold Cleveland", "auto climate control repair", "car AC cost Cleveland", "AC compressor replacement Cleveland", "auto AC leak repair"],
