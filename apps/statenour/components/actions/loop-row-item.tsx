@@ -459,6 +459,23 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         )}
       </button>
       <div className="flex-1 min-w-0">
+        {/* 2026-05-23 · task #21 · mission eyebrow ABOVE the title
+            (Todoist "Project · task" pattern). The mission name reads
+            as scannable context before the title line itself. Skipped
+            when mission is "Inbox" (the un-categorized bucket · adding
+            an eyebrow there would be noise on every capture row).
+            Lower-cased + tracked-uppercase to match the editorial
+            vocabulary the kind-section eyebrows in #7/#19 + status
+            eyebrows in #20 use. `leading-tight` keeps the row's
+            vertical density acceptable on mobile (the eyebrow adds
+            ~12px above each row · 8 rows still fit above the fold
+            on iPhone-14 width). Truncates so a long mission name
+            never wraps and pushes the layout. */}
+        {task.mission?.title && task.mission.title !== "Inbox" && (
+          <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-zinc-500 truncate leading-tight mb-0.5">
+            {task.mission.title.toLowerCase()}
+          </div>
+        )}
         <div className="flex items-center gap-1.5 flex-wrap">
           <KindIcon kind={kind} size={10} />
           {/* Apr 26 · F7 — title is now a tap target. Clicking
@@ -762,11 +779,13 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               return null;
             })()}
           </div>
-        ) : task.mission?.title && task.mission.title !== "Inbox" ? (
-          <p className="text-[9px] text-zinc-700 mt-0.5 truncate">
-            ↳ {task.mission.title}
-          </p>
         ) : null}
+        {/* 2026-05-23 · task #21 · the mission-fallback chip that
+            used to sit here (when no goal was linked) is removed ·
+            the mission name is now shown in the eyebrow ABOVE the
+            row title at the top of <LoopRowItem>. Keeping the
+            fallback would double-stamp the mission on goal-less
+            rows · Todoist doesn't, and we don't either. */}
 
         {/* ── ACTUAL MINUTES — shows when non-zero. Gives
             Nour feedback on how long things really take so
