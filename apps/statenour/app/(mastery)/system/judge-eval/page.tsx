@@ -41,6 +41,7 @@ import {
   Copy,
   Loader2,
   Scale,
+  ThumbsUp,
   Eye,
   Sparkles,
 } from "lucide-react";
@@ -84,6 +85,14 @@ export default function JudgeEvalPage() {
     });
   const samplesQ = trpc.system.judgeEvalSamples.useQuery(
     { take: 10, sinceDays: 7 },
+    { staleTime: 60_000 },
+  );
+  // task #22 slice 5.5 · ground-truth feedback metric · separate
+  // query so the calibration card renders independently of the
+  // main summary (it can show "preliminary" while the verdict chip
+  // already has a 7d result).
+  const calibrationQ = trpc.system.judgeEvalCalibration.useQuery(
+    { sinceDays: 30 },
     { staleTime: 60_000 },
   );
 
@@ -196,6 +205,12 @@ export default function JudgeEvalPage() {
               v2WinPct={data.last24h.v2WinPct}
             />
           </div>
+
+          {/* task #22 slice 5.5 · ground-truth calibration · how often
+              the LLM judge agrees with the operator's real thumbs
+              reaction. The LeCun-lens "is your AI judge actually
+              measuring what you think it's measuring?" check. */}
+          <CalibrationCard data={calibrationQ.data} loading={calibrationQ.isLoading} />
 
           {/* Per-intent breakdown */}
           {data.byIntent.length > 0 && (
@@ -664,6 +679,145 @@ interface BucketProps {
   v1Wins: number;
   ties: number;
   v2WinPct: number;
+}
+
+// task #22 slice 5.5 · ground-truth calibration card · operator-side
+// view of "judge vs operator agreement". This is the LeCun-lens
+// check: the V1→V2 verdict above is an LLM judging an LLM · here we
+// confirm that judge against actual operator thumbs reactions.
+type CalibrationCell = {
+  judge: "v1" | "v2";
+  human: "thumbs_up" | "thumbs_down";
+  count: number;
+};
+type CalibrationReport = {
+  totalScored: number;
+  noOperatorReaction: number;
+  noSourceMessage: number;
+  ties: number;
+  sinceDays: number;
+  agreementPct: number;
+  matrix: CalibrationCell[];
+  verdict: "well-calibrated" | "moderate" | "miscalibrated" | "preliminary";
+  verdictReason: string;
+};
+
+const CALIBRATION_TONE: Record<CalibrationReport["verdict"], string> = {
+  "well-calibrated":
+    "border-emerald-500/30 bg-emerald-500/[0.05] text-emerald-300",
+  moderate: "border-amber-500/30 bg-amber-500/[0.05] text-amber-300",
+  miscalibrated: "border-rose-500/40 bg-rose-500/[0.08] text-rose-300",
+  preliminary:
+    "border-[var(--border-default)] bg-[var(--bg-base)]/40 text-[var(--text-secondary)]",
+};
+
+function CalibrationCard({
+  data,
+  loading,
+}: {
+  data?: CalibrationReport;
+  loading: boolean;
+}) {
+  return (
+    <GlassCard>
+      <div className="flex items-baseline justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <ThumbsUp size={13} className="text-[var(--gold)]" />
+          <span className="section-label">
+            Ground-truth calibration · {data?.sinceDays ?? 30}d
+          </span>
+        </div>
+        {loading ? (
+          <Loader2
+            size={12}
+            className="animate-spin text-[var(--text-tertiary)]"
+          />
+        ) : data ? (
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wider",
+              CALIBRATION_TONE[data.verdict],
+            )}
+          >
+            {data.verdict}
+          </span>
+        ) : null}
+      </div>
+      {data ? (
+        <>
+          <div className="grid grid-cols-3 gap-1.5">
+            <Cell label="scored" value={data.totalScored} tone="tertiary" />
+            <div className="rounded bg-[var(--bg-base)]/40 border border-[var(--border-default)] px-1.5 py-1.5 text-center">
+              <div
+                className={cn(
+                  "text-base font-bold tabular-nums",
+                  data.agreementPct < 0
+                    ? "text-[var(--text-secondary)]"
+                    : data.agreementPct >= 70
+                      ? "text-emerald-300"
+                      : data.agreementPct >= 50
+                        ? "text-amber-300"
+                        : "text-rose-300",
+                )}
+              >
+                {data.agreementPct >= 0 ? `${data.agreementPct}%` : "—"}
+              </div>
+              <p className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mt-0.5">
+                agreement
+              </p>
+            </div>
+            <Cell
+              label="excluded"
+              value={
+                data.noOperatorReaction + data.noSourceMessage + data.ties
+              }
+              tone="tertiary"
+            />
+          </div>
+          {data.totalScored > 0 && (
+            <div className="mt-3 grid grid-cols-2 gap-1.5">
+              {data.matrix.map((c) => {
+                const isAgree =
+                  (c.judge === "v2" && c.human === "thumbs_up") ||
+                  (c.judge === "v1" && c.human === "thumbs_down");
+                return (
+                  <div
+                    key={`${c.judge}-${c.human}`}
+                    className={cn(
+                      "rounded border px-2.5 py-1.5 text-[10px]",
+                      isAgree
+                        ? "border-emerald-500/20 bg-emerald-500/[0.04]"
+                        : "border-rose-500/20 bg-rose-500/[0.04]",
+                    )}
+                  >
+                    <div className="text-[var(--text-tertiary)] uppercase tracking-wider">
+                      judge: {c.judge} · human:{" "}
+                      {c.human === "thumbs_up" ? "+1" : "−1"}
+                    </div>
+                    <div
+                      className={cn(
+                        "mt-0.5 font-mono tabular-nums",
+                        isAgree ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {c.count} · {isAgree ? "agree" : "disagree"}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <p className="mt-3 text-[10px] text-[var(--text-tertiary)]">
+            {data.verdictReason}
+          </p>
+        </>
+      ) : (
+        <p className="text-[11px] text-[var(--text-tertiary)] italic">
+          loading…
+        </p>
+      )}
+    </GlassCard>
+  );
 }
 
 function BucketCard({ label, total, v2Wins, v1Wins, ties, v2WinPct }: BucketProps) {
