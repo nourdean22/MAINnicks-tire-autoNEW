@@ -294,25 +294,18 @@ async function checkGatewayTire(): Promise<VendorHealthResult> {
   }
 
   try {
-    const res = await withTimeout(
-      fetch("https://b2b.dktire.com/auth-signin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Origin": "https://b2b.dktire.com",
-          "Referer": "https://b2b.dktire.com/auth-signin",
-        },
-        body: JSON.stringify({ username, password }),
-        redirect: "manual",
-      }),
-      5000
-    );
-
-    const setCookies = res.headers.getSetCookie?.() || [];
-    const hasCookie = setCookies.some(c => c.length > 10);
-    const isSuccess = hasCookie || res.status === 302 || res.status === 200;
+    // As of 2026-05 b2b.dktire.com migrated to api-b2b.dktire.com with
+    // OAuth2 password grant. We probe the new /token endpoint through
+    // the shared gatewayClient (which caches the JWT and surfaces a
+    // structured failure reason if auth is broken).
+    const { getGatewayToken, invalidateGatewaySession, getLastGatewayFailure } = await import("./gatewayClient");
+    // Force a fresh probe — don't reuse a cached token that pre-dates
+    // a credential rotation; we want to know if /token works RIGHT NOW.
+    invalidateGatewaySession();
+    const token = await withTimeout(getGatewayToken(), 8000);
     const latency = Date.now() - start;
+    const isSuccess = !!token;
+    const failure = getLastGatewayFailure();
 
     trackApiCost("Gateway Tire B2B", 0);
     updateSLA("Gateway Tire B2B", isSuccess, latency);
@@ -322,7 +315,7 @@ async function checkGatewayTire(): Promise<VendorHealthResult> {
       status: isSuccess ? "healthy" : "degraded",
       checks: [
         { name: "credentials", passed: true, latencyMs: 0 },
-        { name: "auth_probe", passed: isSuccess, latencyMs: latency, error: isSuccess ? undefined : `Auth returned ${res.status}, no session cookie` },
+        { name: "auth_probe", passed: isSuccess, latencyMs: latency, error: isSuccess ? undefined : (failure?.reason || "Auth returned no token") },
       ],
       checkedAt: new Date().toISOString(),
     };

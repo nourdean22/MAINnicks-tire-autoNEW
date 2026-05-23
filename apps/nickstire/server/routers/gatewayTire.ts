@@ -126,174 +126,17 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
 }
 
 // ─── Gateway Tire B2B Session ─────────────────────────
-// As of 2026-05 D&K Tire migrated their B2B portal from server-rendered
-// auth (POST b2b.dktire.com/auth-signin with username + password →
-// session cookie) to a SPA backed by api-b2b.dktire.com with OAuth2
-// password grant → bearer JWT. The old auth URL is now a static S3-
-// served HTML page (Server: AmazonS3, Cache-Control: s-maxage=1yr).
-// This module now talks exclusively to the new API host using the
-// Authorization: Bearer <jwt> header. The portal hostname is kept
-// separate for status-page links + customer-facing references.
-let gatewaySession: { token: string; expiresAt: number } | null = null;
-const GATEWAY_API_BASE = "https://api-b2b.dktire.com";
-const GATEWAY_PORTAL_BASE = "https://b2b.dktire.com";
+// Shared client lives at server/services/gatewayClient.ts. We re-export
+// getLastAuthFailure under its historical name so the admin status
+// endpoint signature doesn't change.
+import {
+  GATEWAY_PORTAL_BASE,
+  searchTiresBySize as gatewaySearchTires,
+  pickWholesaleCost,
+  getLastGatewayFailure,
+} from "../services/gatewayClient";
 
-// Track the most-recent auth-failure reason so the admin status endpoint
-// can surface it.
-let lastAuthFailure: { at: string; reason: string; detail?: string } | null = null;
-export function getLastAuthFailure() { return lastAuthFailure; }
-
-async function getGatewaySession(): Promise<string | null> {
-  if (gatewaySession && Date.now() < gatewaySession.expiresAt) {
-    return gatewaySession.token;
-  }
-
-  const username = process.env.GATEWAY_TIRE_USERNAME;
-  const password = process.env.GATEWAY_TIRE_PASSWORD;
-  if (!username || !password) {
-    const reason = "GATEWAY_TIRE_USERNAME / GATEWAY_TIRE_PASSWORD env vars not set";
-    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. Tire search will fall through to the static catalog (size-agnostic pricing). Set both env vars on Railway.`);
-    lastAuthFailure = { at: new Date().toISOString(), reason };
-    return null;
-  }
-
-  try {
-    // OAuth2 password grant. application/x-www-form-urlencoded body.
-    // Response: { access_token, token_type: "bearer", created_at }.
-    const res = await fetch(`${GATEWAY_API_BASE}/token`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json",
-      },
-      body: `grant_type=password&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (!res.ok) {
-      const reason = `Auth /token returned HTTP ${res.status}`;
-      let detail = "";
-      try { detail = (await res.text()).slice(0, 240); } catch { /* body read failed */ }
-      log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. ${detail}`);
-      lastAuthFailure = { at: new Date().toISOString(), reason, detail };
-      return null;
-    }
-
-    const data = await res.json() as { access_token?: string; token_type?: string };
-    if (!data.access_token) {
-      const reason = "Auth /token returned 200 but no access_token in response";
-      log.error(`[GatewayTire] AUTH BLOCKED — ${reason}`);
-      lastAuthFailure = { at: new Date().toISOString(), reason };
-      return null;
-    }
-
-    // OAuth2 tokens from this endpoint don't carry an `expires_in` field.
-    // The SPA caches them indefinitely until rejected; we cap at 30 min
-    // to bound the staleness in case the token is silently revoked.
-    gatewaySession = { token: data.access_token, expiresAt: Date.now() + 30 * 60 * 1000 };
-    lastAuthFailure = null;
-    return data.access_token;
-  } catch (err) {
-    const reason = "Auth request threw";
-    const detail = err instanceof Error ? err.message : String(err);
-    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}: ${detail}`);
-    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
-    return null;
-  }
-}
-
-async function gatewayFetch(path: string, options: RequestInit = {}): Promise<Response | null> {
-  const token = await getGatewaySession();
-  if (!token) return null;
-
-  try {
-    return await fetch(`${GATEWAY_API_BASE}${path}`, {
-      ...options,
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Accept": "application/json",
-        ...options.headers,
-      },
-    });
-  } catch (err) {
-    log.error("[GatewayTire] Fetch error:", err);
-    return null;
-  }
-}
-
-// Search the Gateway live for tires by size via the new /quicksearch/cache
-// endpoint that replaced the old GET /api/products/search. The endpoint
-// requires an account-specific `ship_to` (global_address_id UUID) — the
-// API rejects requests without it. The UUID is account-specific and is
-// surfaced in the b2b.dktire.com dashboard URL state after login; set
-// GATEWAY_TIRE_SHIP_TO in Railway env.
-async function gatewaySearchTires(sizeFormatted: string): Promise<Record<string, unknown>[] | null> {
-  const shipTo = process.env.GATEWAY_TIRE_SHIP_TO;
-  if (!shipTo) {
-    const reason = "GATEWAY_TIRE_SHIP_TO env var not set";
-    const detail = "The new /quicksearch/cache endpoint requires the account's global_address_id (UUID) in the ship_to field. Find it in the b2b.dktire.com dashboard state after signing in, or contact D&K support. Set GATEWAY_TIRE_SHIP_TO on Railway.";
-    log.error(`[GatewayTire] SEARCH BLOCKED — ${reason}. ${detail}`);
-    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
-    return null;
-  }
-
-  const res = await gatewayFetch("/quicksearch/cache", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      dk_size_number: sizeFormatted,
-      ship_to: shipTo,
-      sorting_order: "default",
-      dk_part_number: null,
-      dk_major_rec_id: null,
-      search_category: null,
-      rim_size: null,
-      search_on: null,
-      dk_part_number_list: [],
-      user_agent: null,
-      user_agent_os: null,
-      user_agent_browser: null,
-      add_to_search_history: null,
-    }),
-    signal: AbortSignal.timeout(15000),
-  });
-
-  if (!res) return null;
-  if (!res.ok) {
-    log.warn(`[GatewayTire] /quicksearch/cache returned HTTP ${res.status} for ${sizeFormatted}`);
-    // Re-auth on 401 in case the JWT was revoked mid-session; one retry.
-    if (res.status === 401) {
-      gatewaySession = null;
-      lastAuthFailure = { at: new Date().toISOString(), reason: "Search 401 — token expired/revoked, retry on next call" };
-    }
-    return null;
-  }
-
-  try {
-    const data = await res.json();
-    if (!Array.isArray(data)) {
-      log.warn("[GatewayTire] /quicksearch/cache returned non-array shape");
-      return null;
-    }
-    return data as Record<string, unknown>[];
-  } catch (err) {
-    log.error("[GatewayTire] /quicksearch/cache JSON parse failed:", err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-// Pull wholesale cost from a D&K tire result. The endpoint nests pricing
-// under `pricing_data[]` (one element per shipping location). We pick the
-// first entry's cost_price as the wholesale cost to apply markup to.
-function pickWholesaleCost(item: Record<string, unknown>): number {
-  const pricing = item.pricing_data;
-  if (Array.isArray(pricing) && pricing.length > 0) {
-    const first = pricing[0] as Record<string, unknown>;
-    const cost = first.cost_price;
-    if (typeof cost === "number" && cost > 0) return cost;
-  }
-  return 0;
-}
+export const getLastAuthFailure = getLastGatewayFailure;
 
 // ─── Pricing: 100% markup (cost × 2) ─────────────────
 async function getTireMarkup(): Promise<number> {
@@ -1400,16 +1243,17 @@ export const gatewayTireRouter = router({
       };
     }
 
-    const session = await getGatewaySession();
+    const { getGatewayToken } = await import("../services/gatewayClient");
+    const token = await getGatewayToken();
     return {
-      connected: !!session,
+      connected: !!token,
       portal: GATEWAY_PORTAL_BASE,
       accountId: username,
-      error: session ? null : "Could not authenticate with Gateway Tire",
-      // when session is null this carries the SPECIFIC failure reason
-      // (env vars missing / portal-migrated / wrong creds / network) so
-      // the operator doesn't have to grep Railway logs to diagnose.
-      authFailure: session ? null : getLastAuthFailure(),
+      error: token ? null : "Could not authenticate with Gateway Tire",
+      // when token is null this carries the SPECIFIC failure reason
+      // (env vars missing / wrong creds / network) so the operator
+      // doesn't have to grep Railway logs to diagnose.
+      authFailure: token ? null : getLastAuthFailure(),
       lastLiveFetch: lastLiveFetchAt,
       lastLiveFetchSuccess,
       cachedSearches: searchCache.size,
