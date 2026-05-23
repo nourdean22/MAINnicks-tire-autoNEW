@@ -94,6 +94,10 @@ import {
   currentOperatorState,
   formatOperatorStateBlock,
 } from "@/lib/services/operator-state";
+// task #22 slice 5.5 · ground-truth feedback for judge-eval ·
+// joins judge verdicts with operator thumbs reactions and surfaces
+// a calibration metric on /system/judge-eval.
+import { buildJudgeCalibration } from "@/lib/services/judge-calibration";
 // scattered-components REST→tRPC slice (2026-05-22) · shared functions
 // the migrated components/{ultron/today,hud,ui}/* surfaces delegate to
 // for their /api/{drift,auth/expires,errors} calls. Each is also called
@@ -2450,4 +2454,20 @@ export const systemRouter = router({
       promptBlock: formatOperatorStateBlock(snapshot),
     };
   }),
+
+  /**
+   * task #22 slice 5.5 · judge-eval calibration metric.
+   *
+   * Returns agreement % between the LLM judge's verdicts and the
+   * operator's real thumbs-up / -down on V2 replies. Closes the
+   * LeCun ground-truth gap: a judge that's an LLM scoring an LLM
+   * can share blind spots with V2 · operator reactions can't.
+   *
+   * Defaults to a 30d window · the dashboard can override.
+   */
+  judgeEvalCalibration: operatorProcedure
+    .input(z.object({ sinceDays: z.number().int().min(1).max(365).optional() }).optional())
+    .query(async ({ input }) => {
+      return buildJudgeCalibration({ sinceDays: input?.sinceDays });
+    }),
 });
