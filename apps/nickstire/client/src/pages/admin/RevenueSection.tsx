@@ -36,7 +36,7 @@ import {
 
 // 2026-05-19 · PageHeader removed from import + render (Move 4 of audit ·
 // reclaims ~80px of mobile viewport · topbar already shows "Money").
-import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, useUrlFilter } from "./shared";
+import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, useUrlFilter, ClickableRow, RowAction } from "./shared";
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
@@ -919,9 +919,10 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               </p>
             </div>
           )}
-          {/* At-risk whales · 2026-05-23 · added call/SMS action buttons.
-              These are the highest-LTV customers going quiet — operator
-              needed a one-tap way to act on them from the Money page. */}
+          {/* At-risk whales · 2026-05-23 · uses ClickableRow + RowAction
+              primitives from shared.tsx. Whales are non-clickable rows
+              for now (the cust drawer doesn't take name+phone yet —
+              future enhancement); inline Call/SMS via RowAction. */}
           {custIntel.atRiskWhales.length > 0 && (
             <div>
               <p className="text-[10px] text-foreground/40 font-bold uppercase mb-2">High-Value Customers Going Quiet</p>
@@ -930,32 +931,32 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                   const phone = (w as AtRiskWhaleRev & { phone?: unknown }).phone;
                   const phoneStr = typeof phone === "string" && phone.length >= 7 ? phone : null;
                   return (
-                    <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
+                    <ClickableRow key={i} className="py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
                       <span className="text-xs font-medium text-foreground flex-1 truncate">{w.name}</span>
                       <span className="text-xs font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
                       <span className="text-[10px] text-foreground/40 hidden sm:inline">{w.visits} visits</span>
                       <span className="text-[10px] text-red-400 font-bold">{w.daysSince}d ago</span>
                       {phoneStr && (
                         <>
-                          <a
+                          <RowAction
+                            icon={<Phone className="w-3.5 h-3.5" />}
                             href={`tel:${phoneStr}`}
-                            className="p-1 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
                             title={`Call ${phoneStr}`}
-                            aria-label={`Call ${w.name}`}
-                          >
-                            <Phone className="w-3.5 h-3.5" />
-                          </a>
-                          <a
+                            ariaLabel={`Call ${w.name}`}
+                            hoverClass="hover:text-emerald-400 hover:bg-emerald-500/10"
+                            className="p-1"
+                          />
+                          <RowAction
+                            icon={<MessageSquare className="w-3.5 h-3.5" />}
                             href={`sms:${phoneStr}?body=${encodeURIComponent(`Hi ${w.name.split(" ")[0]}, it's Nick's Tire — checking in. Anything we can help with?`)}`}
-                            className="p-1 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                             title="Send SMS"
-                            aria-label={`Send SMS to ${w.name}`}
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" />
-                          </a>
+                            ariaLabel={`Send SMS to ${w.name}`}
+                            hoverClass="hover:text-blue-400 hover:bg-blue-500/10"
+                            className="p-1"
+                          />
                         </>
                       )}
-                    </div>
+                    </ClickableRow>
                   );
                 })}
               </div>
