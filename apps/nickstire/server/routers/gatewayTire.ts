@@ -126,21 +126,26 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
 }
 
 // ─── Gateway Tire B2B Session ─────────────────────────
-let gatewaySession: { cookie: string; expiresAt: number } | null = null;
-const GATEWAY_BASE = "https://b2b.dktire.com";
+// As of 2026-05 D&K Tire migrated their B2B portal from server-rendered
+// auth (POST b2b.dktire.com/auth-signin with username + password →
+// session cookie) to a SPA backed by api-b2b.dktire.com with OAuth2
+// password grant → bearer JWT. The old auth URL is now a static S3-
+// served HTML page (Server: AmazonS3, Cache-Control: s-maxage=1yr).
+// This module now talks exclusively to the new API host using the
+// Authorization: Bearer <jwt> header. The portal hostname is kept
+// separate for status-page links + customer-facing references.
+let gatewaySession: { token: string; expiresAt: number } | null = null;
+const GATEWAY_API_BASE = "https://api-b2b.dktire.com";
+const GATEWAY_PORTAL_BASE = "https://b2b.dktire.com";
 
 // Track the most-recent auth-failure reason so the admin status endpoint
-// can surface it. The old code returned null silently for every failure
-// mode — env vars missing, endpoint dead (DK Tire's 2026 SPA migration
-// turned /auth-signin into a static S3 page), wrong creds, etc. — all
-// indistinguishable. This lets the operator tell at a glance what's
-// actually wrong without trawling Railway logs.
+// can surface it.
 let lastAuthFailure: { at: string; reason: string; detail?: string } | null = null;
 export function getLastAuthFailure() { return lastAuthFailure; }
 
 async function getGatewaySession(): Promise<string | null> {
   if (gatewaySession && Date.now() < gatewaySession.expiresAt) {
-    return gatewaySession.cookie;
+    return gatewaySession.token;
   }
 
   const username = process.env.GATEWAY_TIRE_USERNAME;
@@ -152,85 +157,42 @@ async function getGatewaySession(): Promise<string | null> {
     return null;
   }
 
-  // Probe the auth endpoint shape FIRST. DK Tire migrated their B2B
-  // portal in 2026 to a SPA hosted from S3; the old /auth-signin URL
-  // now returns a static HTML page with `Server: AmazonS3` (max-age=1yr).
-  // POSTing creds to it returns the HTML body and zero Set-Cookie
-  // headers — every "auth" attempt silently fails and the router falls
-  // back to the catalog. This probe catches that case explicitly so the
-  // log message names the real cause, instead of "no cookie returned"
-  // which sounded like a creds problem.
   try {
-    const probe = await fetch(`${GATEWAY_BASE}/auth-signin`, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(8000),
+    // OAuth2 password grant. application/x-www-form-urlencoded body.
+    // Response: { access_token, token_type: "bearer", created_at }.
+    const res = await fetch(`${GATEWAY_API_BASE}/token`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json",
+      },
+      body: `grant_type=password&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+      signal: AbortSignal.timeout(10000),
     });
-    const server = probe.headers.get("server") || "";
-    const ct = probe.headers.get("content-type") || "";
-    if (/AmazonS3/i.test(server) && /text\/html/i.test(ct)) {
-      const reason = "DK Tire B2B portal migrated to static SPA";
-      const detail = `${GATEWAY_BASE}/auth-signin now returns Server=${server}, Content-Type=${ct} — POST credentials no longer accepted. The old SSR auth endpoint is gone. The new API URL needs to be discovered by logging into b2b.dktire.com via browser and inspecting the network tab during sign-in (or by contacting DK Tire support for the updated B2B API docs).`;
+
+    if (!res.ok) {
+      const reason = `Auth /token returned HTTP ${res.status}`;
+      let detail = "";
+      try { detail = (await res.text()).slice(0, 240); } catch { /* body read failed */ }
       log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. ${detail}`);
       lastAuthFailure = { at: new Date().toISOString(), reason, detail };
       return null;
     }
-  } catch (probeErr) {
-    // Probe is best-effort; if it fails (network blip, DK Tire briefly
-    // down) fall through to the real auth attempt. Don't bail just on a
-    // probe failure.
-    log.warn("[GatewayTire] Auth-endpoint probe failed:", probeErr instanceof Error ? probeErr.message : String(probeErr));
-  }
 
-  try {
-    const res = await fetch(`${GATEWAY_BASE}/auth-signin`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": GATEWAY_BASE,
-        "Referer": `${GATEWAY_BASE}/auth-signin`,
-      },
-      body: JSON.stringify({ username, password }),
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const setCookies = res.headers.getSetCookie?.() || [];
-    const cookieStr = setCookies.map(c => c.split(";")[0]).join("; ");
-
-    if (cookieStr) {
-      gatewaySession = { cookie: cookieStr, expiresAt: Date.now() + 30 * 60 * 1000 };
-      lastAuthFailure = null;
-      return cookieStr;
+    const data = await res.json() as { access_token?: string; token_type?: string };
+    if (!data.access_token) {
+      const reason = "Auth /token returned 200 but no access_token in response";
+      log.error(`[GatewayTire] AUTH BLOCKED — ${reason}`);
+      lastAuthFailure = { at: new Date().toISOString(), reason };
+      return null;
     }
 
-    const formRes = await fetch(`${GATEWAY_BASE}/auth-signin`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Origin": GATEWAY_BASE,
-        "Referer": `${GATEWAY_BASE}/auth-signin`,
-      },
-      body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-    });
-
-    const formCookies = formRes.headers.getSetCookie?.() || [];
-    const formCookieStr = formCookies.map(c => c.split(";")[0]).join("; ");
-
-    if (formCookieStr) {
-      gatewaySession = { cookie: formCookieStr, expiresAt: Date.now() + 30 * 60 * 1000 };
-      lastAuthFailure = null;
-      return formCookieStr;
-    }
-
-    const reason = "Auth endpoint accepted POST but returned no Set-Cookie";
-    const detail = `JSON POST status=${res.status}, form POST status=${formRes.status}. Most likely cause: DK Tire changed their auth API shape (the endpoint may now expect a different payload, a CSRF token, or a different URL entirely). Check the b2b.dktire.com login flow in a browser dev-tools Network tab.`;
-    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. ${detail}`);
-    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
-    return null;
+    // OAuth2 tokens from this endpoint don't carry an `expires_in` field.
+    // The SPA caches them indefinitely until rejected; we cap at 30 min
+    // to bound the staleness in case the token is silently revoked.
+    gatewaySession = { token: data.access_token, expiresAt: Date.now() + 30 * 60 * 1000 };
+    lastAuthFailure = null;
+    return data.access_token;
   } catch (err) {
     const reason = "Auth request threw";
     const detail = err instanceof Error ? err.message : String(err);
@@ -241,16 +203,15 @@ async function getGatewaySession(): Promise<string | null> {
 }
 
 async function gatewayFetch(path: string, options: RequestInit = {}): Promise<Response | null> {
-  const cookie = await getGatewaySession();
-  if (!cookie) return null;
+  const token = await getGatewaySession();
+  if (!token) return null;
 
   try {
-    return await fetch(`${GATEWAY_BASE}${path}`, {
+    return await fetch(`${GATEWAY_API_BASE}${path}`, {
       ...options,
       headers: {
-        "Cookie": cookie,
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json, text/html, */*",
+        "Authorization": `Bearer ${token}`,
+        "Accept": "application/json",
         ...options.headers,
       },
     });
@@ -258,6 +219,80 @@ async function gatewayFetch(path: string, options: RequestInit = {}): Promise<Re
     log.error("[GatewayTire] Fetch error:", err);
     return null;
   }
+}
+
+// Search the Gateway live for tires by size via the new /quicksearch/cache
+// endpoint that replaced the old GET /api/products/search. The endpoint
+// requires an account-specific `ship_to` (global_address_id UUID) — the
+// API rejects requests without it. The UUID is account-specific and is
+// surfaced in the b2b.dktire.com dashboard URL state after login; set
+// GATEWAY_TIRE_SHIP_TO in Railway env.
+async function gatewaySearchTires(sizeFormatted: string): Promise<Record<string, unknown>[] | null> {
+  const shipTo = process.env.GATEWAY_TIRE_SHIP_TO;
+  if (!shipTo) {
+    const reason = "GATEWAY_TIRE_SHIP_TO env var not set";
+    const detail = "The new /quicksearch/cache endpoint requires the account's global_address_id (UUID) in the ship_to field. Find it in the b2b.dktire.com dashboard state after signing in, or contact D&K support. Set GATEWAY_TIRE_SHIP_TO on Railway.";
+    log.error(`[GatewayTire] SEARCH BLOCKED — ${reason}. ${detail}`);
+    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
+    return null;
+  }
+
+  const res = await gatewayFetch("/quicksearch/cache", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      dk_size_number: sizeFormatted,
+      ship_to: shipTo,
+      sorting_order: "default",
+      dk_part_number: null,
+      dk_major_rec_id: null,
+      search_category: null,
+      rim_size: null,
+      search_on: null,
+      dk_part_number_list: [],
+      user_agent: null,
+      user_agent_os: null,
+      user_agent_browser: null,
+      add_to_search_history: null,
+    }),
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res) return null;
+  if (!res.ok) {
+    log.warn(`[GatewayTire] /quicksearch/cache returned HTTP ${res.status} for ${sizeFormatted}`);
+    // Re-auth on 401 in case the JWT was revoked mid-session; one retry.
+    if (res.status === 401) {
+      gatewaySession = null;
+      lastAuthFailure = { at: new Date().toISOString(), reason: "Search 401 — token expired/revoked, retry on next call" };
+    }
+    return null;
+  }
+
+  try {
+    const data = await res.json();
+    if (!Array.isArray(data)) {
+      log.warn("[GatewayTire] /quicksearch/cache returned non-array shape");
+      return null;
+    }
+    return data as Record<string, unknown>[];
+  } catch (err) {
+    log.error("[GatewayTire] /quicksearch/cache JSON parse failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
+// Pull wholesale cost from a D&K tire result. The endpoint nests pricing
+// under `pricing_data[]` (one element per shipping location). We pick the
+// first entry's cost_price as the wholesale cost to apply markup to.
+function pickWholesaleCost(item: Record<string, unknown>): number {
+  const pricing = item.pricing_data;
+  if (Array.isArray(pricing) && pricing.length > 0) {
+    const first = pricing[0] as Record<string, unknown>;
+    const cost = first.cost_price;
+    if (typeof cost === "number" && cost > 0) return cost;
+  }
+  return 0;
 }
 
 // ─── Pricing: 100% markup (cost × 2) ─────────────────
@@ -584,68 +619,79 @@ export const gatewayTireRouter = router({
         }
       } catch (e) { log.warn("[gatewayTire:search] pipeline cache lookup failed, falling through to live:", e); }
 
-      // Try live Gateway Tire API
-      const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(sizeClean)}`);
+      // Try live Gateway Tire API via the new POST /quicksearch/cache
+      // endpoint (replaced the old GET /api/products/search after the
+      // 2026-05 SPA migration). gatewaySearchTires handles the auth +
+      // POST + JSON parse + 401 retry handling; we just map the response
+      // shape to our PublicTire interface here.
+      const rawTires = await gatewaySearchTires(sizeFormatted);
 
-      if (res && res.ok) {
+      if (rawTires && rawTires.length > 0) {
         try {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Gateway response shape varies across endpoints; narrowing here is brittler than `any`
-            let tires: PublicTire[] = data.map((item: any, idx: number) => {
-              const cost = parseFloat(item.cost || item.price || "0");
-              // 100% markup: customer pays 2× wholesale
-              const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
-              const pricePerTireCents = Math.round(shopPrice * 100);
-              const cat = cost < 60 ? "budget" : cost < 90 ? "mid" : "premium";
-              return {
-                id: `gw-${idx}-${item.partNumber || sizeClean}`,
-                name: `${item.brand || ""} ${item.model || item.name || ""}`.trim(),
-                brand: (item.brand || "").toUpperCase(),
-                model: item.model || item.name || "",
-                size: item.size || sizeFormatted,
-                category: cat as "budget" | "mid" | "premium",
-                shopPrice,
-                pricePerTireCents,
-                warranty: item.warranty || "",
-                features: [],
-                speedRating: item.speedRating || "",
-                loadIndex: item.loadRating || "",
-                inStock: (item.localQty || item.localOnHand || "0") !== "0",
-                estimatedDelivery: (item.localQty || item.localOnHand || "0") !== "0" ? "Same day" : "1-2 business days",
-              };
-            });
-
-            if (input.category !== "all") {
-              tires = tires.filter(t => t.category === input.category);
-            }
-
-            tires.sort((a, b) => {
-              switch (input.sortBy) {
-                case "price-low": return a.shopPrice - b.shopPrice;
-                case "price-high": return b.shopPrice - a.shopPrice;
-                case "warranty": return (b.warranty || "").localeCompare(a.warranty || "");
-                case "brand": return a.brand.localeCompare(b.brand);
-                default: return 0;
-              }
-            });
-
-            lastLiveFetchAt = new Date().toISOString();
-            lastLiveFetchSuccess = true;
-            const liveResult = {
-              tires,
-              source: "live" as const,
-              serviceFee: 0,
-              sizeFormatted,
-              package: NICKS_PACKAGE,
-              packageValue: PACKAGE_VALUE_PER_SET,
-              dataFreshness: lastLiveFetchAt,
+          let tires: PublicTire[] = rawTires.map((item, idx) => {
+            const cost = pickWholesaleCost(item);
+            // 100% markup: customer pays 2× wholesale
+            const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
+            const pricePerTireCents = Math.round(shopPrice * 100);
+            const cat = cost < 60 ? "budget" : cost < 90 ? "mid" : "premium";
+            // brand = item.make (e.g. "LANDSAIL").
+            // model = item.minor_name stripped of "BRAND - " prefix
+            //   (e.g. "LAND - LS388" → "LS388").
+            const brandRaw = String(item.make || "").toUpperCase();
+            const modelRaw = String(item.minor_name || "");
+            const model = modelRaw.replace(/^[A-Z]+\s*-\s*/, "");
+            // Speed + load are concatenated in invent_lrsr (e.g. "95H").
+            const lrsr = String(item.invent_lrsr || "");
+            const loadIdx = lrsr.match(/^\d+/)?.[0] || "";
+            const speedRating = lrsr.replace(/^\d+/, "");
+            const onHand = typeof item.on_hand === "number" ? item.on_hand : 0;
+            return {
+              id: `gw-${idx}-${item.dk_part_number || sizeClean}`,
+              name: String(item.display_name || `${brandRaw} ${model}`).trim(),
+              brand: brandRaw,
+              model,
+              size: String(item.invent_size || sizeFormatted),
+              category: cat as "budget" | "mid" | "premium",
+              shopPrice,
+              pricePerTireCents,
+              warranty: "",
+              features: [],
+              speedRating,
+              loadIndex: loadIdx,
+              inStock: onHand > 0,
+              estimatedDelivery: onHand > 0 ? "Same day" : "1-2 business days",
             };
-            setCachedSearch(cacheKey, liveResult, "live");
-            return liveResult;
+          });
+
+          if (input.category !== "all") {
+            tires = tires.filter(t => t.category === input.category);
           }
+
+          tires.sort((a, b) => {
+            switch (input.sortBy) {
+              case "price-low": return a.shopPrice - b.shopPrice;
+              case "price-high": return b.shopPrice - a.shopPrice;
+              case "warranty": return (b.warranty || "").localeCompare(a.warranty || "");
+              case "brand": return a.brand.localeCompare(b.brand);
+              default: return 0;
+            }
+          });
+
+          lastLiveFetchAt = new Date().toISOString();
+          lastLiveFetchSuccess = true;
+          const liveResult = {
+            tires,
+            source: "live" as const,
+            serviceFee: 0,
+            sizeFormatted,
+            package: NICKS_PACKAGE,
+            packageValue: PACKAGE_VALUE_PER_SET,
+            dataFreshness: lastLiveFetchAt,
+          };
+          setCachedSearch(cacheKey, liveResult, "live");
+          return liveResult;
         } catch (err) {
-          log.error("[GatewayTire] Live tire search failed, falling through to catalog:", err instanceof Error ? (err as Error).message : err);
+          log.error("[GatewayTire] Live tire search mapping failed, falling through to catalog:", err instanceof Error ? (err as Error).message : err);
         }
       }
 
@@ -1338,7 +1384,7 @@ export const gatewayTireRouter = router({
       return {
         connected: false,
         error: "Gateway Tire credentials not configured",
-        portal: GATEWAY_BASE,
+        portal: GATEWAY_PORTAL_BASE,
         // surface the structured failure for the admin UI
         authFailure: { at: new Date().toISOString(), reason: "GATEWAY_TIRE_USERNAME / GATEWAY_TIRE_PASSWORD env vars not set", detail: "Set both env vars on Railway and redeploy." },
         lastLiveFetch: lastLiveFetchAt,
@@ -1350,7 +1396,7 @@ export const gatewayTireRouter = router({
     const session = await getGatewaySession();
     return {
       connected: !!session,
-      portal: GATEWAY_BASE,
+      portal: GATEWAY_PORTAL_BASE,
       accountId: username,
       error: session ? null : "Could not authenticate with Gateway Tire",
       // when session is null this carries the SPECIFIC failure reason
@@ -1370,35 +1416,44 @@ export const gatewayTireRouter = router({
     }))
     .query(async ({ input }) => {
       const markup = await getTireMarkup();
-      const res = await gatewayFetch(`/api/products/search?q=${encodeURIComponent(input.sizeQuery)}`);
+      // sizeQuery may arrive cleaned ("21560R16") or formatted ("215/60R16");
+      // the new D&K endpoint expects the formatted variant.
+      const clean = input.sizeQuery.replace(/[\/Rr\s-]/g, "");
+      const formatted = clean.length >= 7
+        ? `${clean.slice(0, 3)}/${clean.slice(3, 5)}R${clean.slice(5)}`
+        : input.sizeQuery;
+      const rawTires = await gatewaySearchTires(formatted);
 
-      if (res && res.ok) {
+      if (rawTires && rawTires.length > 0) {
         try {
-          const data = await res.json();
-          if (Array.isArray(data)) {
-            const tires = data.map((item: Record<string, any>) => {
-              const cost = parseFloat(item.cost || item.price || "0");
-              const retail = parseFloat(item.retail || item.msrp || "0");
-              const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
-              return {
-                name: `${item.brand || ""} ${item.model || item.name || ""}`.trim(),
-                brand: item.brand || "",
-                model: item.model || "",
-                size: item.size || input.sizeQuery,
-                partNumber: item.partNumber || item.sku || "",
-                costPrice: cost,
-                retailPrice: retail,
-                shopPrice,
-                margin: shopPrice - cost,
-                marginPercent: cost > 0 ? ((shopPrice - cost) / shopPrice) * 100 : 0,
-                localInventory: item.localQty || item.localOnHand || "N/A",
-                regionalInventory: item.regionalQty || item.regionalOnHand || "N/A",
-              };
-            });
-            return { tires, source: "live" as const, markup };
-          }
+          const tires = rawTires.map((item) => {
+            const cost = pickWholesaleCost(item);
+            const pricing = Array.isArray(item.pricing_data) && item.pricing_data.length > 0
+              ? (item.pricing_data[0] as Record<string, unknown>) : null;
+            const retail = typeof pricing?.selling_price === "number" ? pricing.selling_price as number : 0;
+            const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
+            const brandRaw = String(item.make || "");
+            const modelRaw = String(item.minor_name || "").replace(/^[A-Z]+\s*-\s*/, "");
+            const onHand = typeof item.on_hand === "number" ? item.on_hand : 0;
+            const totalQty = typeof item.total_qty === "number" ? item.total_qty : 0;
+            return {
+              name: String(item.display_name || `${brandRaw} ${modelRaw}`).trim(),
+              brand: brandRaw,
+              model: modelRaw,
+              size: String(item.invent_size || input.sizeQuery),
+              partNumber: String(item.dk_part_number || ""),
+              costPrice: cost,
+              retailPrice: retail,
+              shopPrice,
+              margin: shopPrice - cost,
+              marginPercent: cost > 0 ? ((shopPrice - cost) / shopPrice) * 100 : 0,
+              localInventory: onHand,
+              regionalInventory: totalQty,
+            };
+          });
+          return { tires, source: "live" as const, markup };
         } catch (err) {
-          log.error("[GatewayTire] Admin tire search failed:", err instanceof Error ? (err as Error).message : err);
+          log.error("[GatewayTire] Admin tire search mapping failed:", err instanceof Error ? (err as Error).message : err);
         }
       }
 
@@ -1406,7 +1461,7 @@ export const gatewayTireRouter = router({
         tires: [] as any[],
         source: "portal" as const,
         markup,
-        portalUrl: `${GATEWAY_BASE}/products?search=${encodeURIComponent(input.sizeQuery)}`,
+        portalUrl: `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(input.sizeQuery)}`,
       };
     }),
 
@@ -1448,8 +1503,8 @@ export const gatewayTireRouter = router({
   portalUrl: adminProcedure
     .input(z.object({ path: z.string().default("/"), search: z.string().optional() }).optional())
     .query(({ input }) => {
-      let url = GATEWAY_BASE + (input?.path || "/");
-      if (input?.search) url = `${GATEWAY_BASE}/products?search=${encodeURIComponent(input.search)}`;
+      let url = GATEWAY_PORTAL_BASE + (input?.path || "/");
+      if (input?.search) url = `${GATEWAY_PORTAL_BASE}/dashboard?search=${encodeURIComponent(input.search)}`;
       return { url, accountId: process.env.GATEWAY_TIRE_USERNAME || "" };
     }),
 });
