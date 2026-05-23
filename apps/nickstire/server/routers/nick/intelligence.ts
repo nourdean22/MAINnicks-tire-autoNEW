@@ -490,6 +490,11 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS event_dlq (id INT AUTO_INCREMENT PRIMARY KEY, eventType VARCHAR(64) NOT NULL, destination VARCHAR(64) NOT NULL, error VARCHAR(500) NOT NULL, payload JSON, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, alertedAt TIMESTAMP NULL DEFAULT NULL, INDEX idx_event_dlq_pattern (eventType, destination, createdAt DESC), INDEX idx_event_dlq_alerted (alertedAt, createdAt DESC))`,
       // 2026-05-23 · drizzle/0053_event_dlq_lifecycle.sql — multi-pod lifecycle tracker
       `CREATE TABLE IF NOT EXISTS lifecycle_tracker_events (phone10 VARCHAR(10) PRIMARY KEY, customerName VARCHAR(255) DEFAULT NULL, events JSON NOT NULL, convertedAt TIMESTAMP NULL DEFAULT NULL, firstSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, lastSeenAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_lifecycle_last_seen (lastSeenAt DESC), INDEX idx_lifecycle_unconverted (convertedAt, lastSeenAt DESC))`,
+      // 2026-05-23 · drizzle/0054_tire_markup_100.sql — force tire markup to 100% (cost × 2)
+      // Bug: admin UI defaulted to "50" — operator save = silent 50% markup. Backend default is 100.
+      // Idempotent: INSERT IGNORE then UPDATE force-syncs the value regardless of current state.
+      `INSERT IGNORE INTO shop_settings (\`key\`, value, category, label, updatedBy) VALUES ('tireMarkup', '100', 'pricing', 'Tire Markup %', 'system-migration-0054')`,
+      `UPDATE shop_settings SET value = '100', updatedBy = 'system-migration-0054' WHERE \`key\` = 'tireMarkup'`,
     ];
 
     let applied = 0;
