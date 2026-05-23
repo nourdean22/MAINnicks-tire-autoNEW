@@ -244,7 +244,7 @@ function TasksPageInner() {
     if (typeof window === "undefined") return "urgency";
     const saved = localStorage.getItem("tasks:sortKey");
     const valid: TaskSortKey[] = [
-      "urgency", "title-asc", "title-desc",
+      "urgency", "by-status", "title-asc", "title-desc",
       "due-soonest", "due-latest",
       "created-newest", "created-oldest",
       "effort-shortest", "effort-longest",

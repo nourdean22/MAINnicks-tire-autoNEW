@@ -490,6 +490,11 @@ export function NowPanel({
           ariaLabel="Sort tasks"
           options={[
             { value: "urgency", label: "urgency · default" },
+            // 2026-05-23 · task #20 · groups rows by status (DOING →
+            // READY → INBOX → WAITING → DONE) with sticky status-
+            // section eyebrows. Secondary key is urgency desc within
+            // each status bucket.
+            { value: "by-status", label: "by status · doing first" },
             { value: "title-asc", label: "title · A→Z" },
             { value: "title-desc", label: "title · Z→A" },
             { value: "due-soonest", label: "due · soonest" },

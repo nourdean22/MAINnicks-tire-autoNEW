@@ -141,7 +141,12 @@ export type TaskSortKey =
   | "created-newest"
   | "created-oldest"
   | "effort-shortest"
-  | "effort-longest";
+  | "effort-longest"
+  // 2026-05-23 · task #20 · second grouping axis · sorts by status
+  // rank (DOING → READY → INBOX → WAITING → DONE) AND inserts status-
+  // section eyebrows the same way "urgency" inserts kind-section
+  // eyebrows. Mutually exclusive — only one section axis at a time.
+  | "by-status";
 
 const EFFORT_RANK: Record<string, number> = {
   M5: 0,
@@ -149,6 +154,31 @@ const EFFORT_RANK: Record<string, number> = {
   M30: 2,
   H1: 3,
   H2PLUS: 4,
+};
+
+/**
+ * 2026-05-23 · task #20 · status rank for "by-status" sort.
+ * DOING (active) at the top, DONE/CANCELLED at the bottom — the
+ * order an operator working the queue actually wants to see.
+ * Unknown statuses sink to 99 so they don't crowd the top.
+ */
+const STATUS_RANK: Record<string, number> = {
+  DOING: 0,
+  READY: 1,
+  INBOX: 2,
+  WAITING: 3,
+  DONE: 4,
+  CANCELLED: 5,
+};
+
+/** Lowercase human-readable label for the status section header. */
+const STATUS_HEADER_LABEL: Record<string, string> = {
+  DOING: "doing · in flight",
+  READY: "ready · next up",
+  INBOX: "inbox · uncategorized",
+  WAITING: "waiting · blocked",
+  DONE: "done",
+  CANCELLED: "cancelled",
 };
 
 interface LoopRow {
@@ -676,6 +706,7 @@ export function LoopStream({
     const dueAt = (r: LoopRow) => r.task.dueDate ? new Date(r.task.dueDate).getTime() : null;
     const createdAt = (r: LoopRow) => r.task.createdAt ? new Date(r.task.createdAt).getTime() : 0;
     const effort = (r: LoopRow) => EFFORT_RANK[r.task.effort ?? "M30"] ?? 2;
+    const statusRank = (r: LoopRow) => STATUS_RANK[r.task.status] ?? 99;
     const cmpNullable = (a: number | null, b: number | null, asc: boolean) => {
       if (a === null && b === null) return 0;
       if (a === null) return 1; // nulls last
@@ -706,6 +737,15 @@ export function LoopStream({
         break;
       case "effort-longest":
         filtered.sort((a, b) => effort(b) - effort(a));
+        break;
+      case "by-status":
+        // Primary key: STATUS_RANK (DOING → READY → INBOX → WAITING).
+        // Secondary key inside a status bucket: urgency desc, so within
+        // "doing" the highest-urgency rows still float to the top.
+        filtered.sort((a, b) => {
+          const s = statusRank(a) - statusRank(b);
+          return s !== 0 ? s : b.urgency - a.urgency;
+        });
         break;
       case "urgency":
       default:
@@ -1024,9 +1064,15 @@ export function LoopStream({
       <div className={cn("space-y-0.5", selectedIds.size > 0 && "pb-16")}>
         {(() => {
           const showKindSections = (sortKey ?? "urgency") === "urgency";
+          // 2026-05-23 · task #20 · second grouping axis. Mutually
+          // exclusive with kind-section grouping (sortKey is either
+          // "urgency" → kind axis OR "by-status" → status axis OR any
+          // other sort → no section dividers).
+          const showStatusSections = sortKey === "by-status";
           // Track the previous emitted main-row kind across the map
           // closure. Pinned rows skip section emission (handled below).
           let prevMainKind: LoopKind | null = null;
+          let prevMainStatus: string | null = null;
           return [...pinnedRows, ...mainRows].map((row, idx) => {
           // Skip the nextMove's DOUBLE render — it's already shown in
           // the hero card above. Apr 27 · HERO-EXPAND — when Nour taps
@@ -1049,27 +1095,53 @@ export function LoopStream({
           // is a manual override; kind-segmenting it would fight
           // Nour's pin intent).
           const isMainRow = idx >= pinnedRows.length;
-          const showSectionHeader =
+          const showKindHeader =
             showKindSections &&
             isMainRow &&
             kindFilter === "all" &&
             kind !== prevMainKind;
-          if (isMainRow) prevMainKind = kind;
-          const sectionHeader = showSectionHeader ? (
-            // 2026-05-23 · task #19 · sticky · the eyebrow pins to the
-            // top of the scroll container so the operator always knows
-            // which kind-cluster the rows below belong to. `bg-[var(
-            // --bg-base)]` (#0A0A0A — the page background) masks row
-            // content scrolling under it · `z-10` sits above rows but
-            // below modals/menus · `top-0` sticks to the page scroll
-            // container (no fixed app shell to offset against).
+          // 2026-05-23 · task #20 · status section header. Same gates
+          // as the kind header except keyed off task.status. No
+          // kindFilter gate — status grouping is its own axis and the
+          // operator already explicitly selected sortKey "by-status".
+          const showStatusHeader =
+            showStatusSections &&
+            isMainRow &&
+            task.status !== prevMainStatus;
+          if (isMainRow) {
+            prevMainKind = kind;
+            prevMainStatus = task.status;
+          }
+          // 2026-05-23 · task #19 · sticky · the eyebrow pins to the
+          // top of the scroll container so the operator always knows
+          // which cluster the rows below belong to. `bg-[var(--bg-base)]`
+          // (#0A0A0A — the page background) masks row content scrolling
+          // under it · `z-10` sits above rows but below modals/menus ·
+          // `top-0` sticks to the page scroll container (no fixed app
+          // shell to offset against).
+          const sectionHeader = showKindHeader ? (
             <div
-              key={`section-${kind}-${idx}`}
+              key={`section-kind-${kind}-${idx}`}
               className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
               aria-hidden
             >
               <KindIcon kind={kind} size={8} />
               <span>{kind === "DAILY" ? "daily · habits" : kind === "PROMISE" ? "promises" : "once · tasks"}</span>
+              <div className="flex-1 h-px bg-zinc-800/40" />
+            </div>
+          ) : showStatusHeader ? (
+            // 2026-05-23 · task #20 · status section header · same
+            // editorial-minimalist eyebrow as the kind header, only the
+            // label vocabulary changes. No KindIcon — status doesn't
+            // have a clean glyph and a colored dot would noise the row.
+            <div
+              key={`section-status-${task.status}-${idx}`}
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
+              aria-hidden
+            >
+              <span>
+                {STATUS_HEADER_LABEL[task.status] ?? task.status.toLowerCase()}
+              </span>
               <div className="flex-1 h-px bg-zinc-800/40" />
             </div>
           ) : null;
