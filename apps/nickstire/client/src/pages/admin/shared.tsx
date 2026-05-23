@@ -440,8 +440,13 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
     );
   }
 
+  // 2026-05-23 \u00b7 drop `stat-card-interactive` here. That class applies
+  // cursor:pointer + hover-lift + active-scale (index.css:848) which
+  // made EVERY non-clickable stat look + feel like a button \u2014 operator
+  // taps, nothing happens. Plain card affordance only when there is
+  // no action to take.
   return (
-    <div className={`stat-card stat-card-interactive group glow-on-hover card-enter${className ? ` ${className}` : ""}`}>
+    <div className={`stat-card group card-enter${className ? ` ${className}` : ""}`}>
       {inner}
     </div>
   );
