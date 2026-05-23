@@ -1125,7 +1125,7 @@ export default function Home() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Service",
-            name: "Premium Tire Installation Package",
+            name: "Tire Install Package (Free with Every Set)",
             description:
               "Free with every tire purchase. Includes professional mounting, computer balancing, new valve stems, TPMS reset, alignment check, 20-point safety inspection, rim cleaning, and tire disposal. $289+ value.",
             provider: {
