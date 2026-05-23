@@ -2843,3 +2843,26 @@ export const voiceLatencyEvents = mysqlTable("voice_latency_events", {
 
 export type VoiceLatencyEvent = typeof voiceLatencyEvents.$inferSelect;
 export type InsertUserRole = typeof userRoles.$inferInsert;
+
+/**
+ * 2026-05-23 · paid-order alert backlog.
+ *
+ * Written when finalizeTireOrderPayment claims an order paid but BOTH
+ * downstream notification channels (shop hand-off email + Telegram)
+ * fail. Without this surface a dual-channel outage hid paid-but-
+ * unfulfillable orders. Admin polls the unresolved rows to render a
+ * Today-dashboard banner.
+ *
+ * Apply migration: drizzle/0052_payment_alert_backlog.sql
+ */
+export const paymentAlertBacklog = mysqlTable("payment_alert_backlog", {
+  id: int("id").autoincrement().primaryKey(),
+  tireOrderNumber: varchar("tireOrderNumber", { length: 64 }),
+  invoiceNumber: varchar("invoiceNumber", { length: 64 }),
+  amountCents: int("amountCents").notNull(),
+  summary: varchar("summary", { length: 500 }).notNull(),
+  failureReason: mysqlEnum("failureReason", ["email_failed", "telegram_failed", "both_failed"]).notNull(),
+  resolvedAt: timestamp("resolvedAt"),
+  resolvedBy: varchar("resolvedBy", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
