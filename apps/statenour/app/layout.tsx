@@ -38,6 +38,19 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "NOUR OS",
   },
+  // 2026-05-23 · Wave A · iOS Safari ignores the manifest's icons
+  // array for the homescreen tile · it strictly requires
+  // <link rel="apple-touch-icon">. Without this the install icon
+  // is blank or a screenshot thumbnail. PNG is generated from
+  // public/icon-nour.svg via scripts/generate-pwa-icons.ts.
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icon-nour.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
 };
 
 export const viewport: Viewport = {

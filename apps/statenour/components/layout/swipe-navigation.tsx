@@ -70,8 +70,14 @@ export function SwipeNavigation() {
     }
 
     // Pull-to-refresh detection
+    //
+    // 2026-05-23 · Wave A · was window.location.reload() · in iOS PWA
+    // standalone mode that's a full app-cold-restart · blew away the
+    // operator's chat draft + streaming response + optimistic UI on
+    // every accidental pull. router.refresh() re-fetches server
+    // components without touching client state.
     if (pullRef.current.pulling && dy > 120 && Math.abs(dy) > Math.abs(dx) * 2) {
-      window.location.reload();
+      router.refresh();
     }
 
     touchStartRef.current = null;

@@ -473,7 +473,14 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         onClick={() => onComplete(task.id)}
         disabled={isCompleting}
         className={cn(
-          "mt-0.5 shrink-0 transition-colors",
+          // 2026-05-23 · Wave A · the complete button was a bare 13px
+          // icon · operator on iPhone routinely missed it and tapped
+          // the title (which expands the row), turning a 1-tap into
+          // a 2-step. Apple HIG calls for ≥44pt touch targets · the
+          // icon stays 13px but the surrounding hit-box is now 44.
+          // -mt-1.5 + -ml-2 cancels the visual padding so the row
+          // layout is unchanged.
+          "-mt-1.5 -ml-2 flex h-11 w-11 shrink-0 items-center justify-center transition-colors",
           isCompleting
             ? "text-emerald-400"
             : doneToday
