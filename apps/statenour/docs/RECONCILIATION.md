@@ -1,6 +1,87 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 (post multi-advisor board · 2 slices) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2712 across 178 vitest files (`.next-prod` excluded · +20 board consult tests since the 11AM reconcile) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-23 PM (post subtask wave · migration applied to prod Neon + 4 UI slices) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2720 across 178 vitest files (`.next-prod` excluded · +8 tests since AM reconcile · 4 parent-inheritance + 4 effort-weighting) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-23 PM · subtask wave · migration + 4 UI slices · task #22 closed
+>
+> The parked `Task.parentTaskId` migration ran successfully against
+> prod Neon at 13:35 ET (5/5 SQL statements ok via `apply-pending-
+> migration.ts` · autocommit driver handled CREATE INDEX CONCURRENTLY
+> outside the BEGIN/COMMIT transaction). `prisma migrate status`
+> shows clean · 29 migrations applied. Subsequent slices implemented
+> all 6 ADR-0017 amended semantic rules (Elon's-lens critique
+> versions). Railway env vars rotated to the new neondb_owner
+> password (the previous one leaked once in this chat session ·
+> rotated immediately · old password dead).
+>
+> **`dff36255` · subtask schema + migration applied to prod Neon
+> (task #22 step 3)** — schema.prisma Task model gains parentTaskId
+> (String? · @map "parent_task_id") + self-relation "TaskChildren"
+> (onDelete: SetNull · matches goalId pattern) + @@index. Task
+> TypeScript interface in components/actions/shared.ts gains optional
+> parentTaskId. `pnpm prisma generate` refreshed client. Migration
+> SQL moved from migrations-pending/ to migrations/ + recorded via
+> `prisma migrate resolve --applied`. The schema now matches the
+> applied DB state · the v10.0.462 incident is intentionally avoided
+> (schema-ahead-of-migration would have re-created it).
+>
+> **`73549556` · createTask accepts parentTaskId + inherits goalId
+> from parent (task #22 step 4.1 · Rule 2)** — taskCreateSchema in
+> validators/tasks.ts adds optional parentTaskId. createTask service
+> precedence: explicit payload.goalId wins → parent.goalId wins over
+> sibling-scan → sibling-scan fallback (existing heuristic preserved
+> for goal-less parents). +4 contract tests covering the 4 branches.
+>
+> **`e139fca1` (sibling-bundled · my 4.2 changes were rolled into a
+> nickstire batch commit by cross-session contamination · diff
+> verified mine) · MissionScoreboard rollup re-weighted by EFFORT_RANK
+> (task #22 step 4.2 · amended Rule 6)** — EFFORT_WEIGHT map
+> (M5=1 · M15=2 · M30=3 · H1=4 · H2PLUS=5) replaces the old
+> `done / all` formula. Missing-effort defaults to middle weight (3 ·
+> safe migration · legacy tasks without estimates still count without
+> dominating). +4 tests cover heavy/light asymmetry · 32 total
+> derive-mission-matrix tests pass. Decision-quality grip: missions
+> with hidden hard OPEN work now read lower · operator can't be
+> fooled by an 50% reading.
+>
+> **`db962ace` · subtask visual indent + child-count chip on /tasks
+> (task #22 step 4.3 · Rule 3 + 4)** — LoopRowItem gains
+> indentLevel?: number + childCount?: number | null props.
+> indentLevel > 0 adds ml-6 (24px · matches existing eyebrow rhythm).
+> childCount > 0 renders "+N sub" chip on parent rows (same vocabulary
+> as effort/fit/morning chips). LoopStream computes
+> childCountByParent map in O(N) once per tasks change · passes per
+> row. indentLevel capped at 1 per Rule 4 · raw-SQL grand-children
+> degrade to indent=1 (graceful). Children render in their natural
+> sort position (no structural re-ordering · sort/filter behavior
+> unchanged from earlier waves).
+>
+> **`ae8305e2` · cascade-on-complete with confirm prompt (task #22
+> step 4.4 · amended Rule 1 Option A)** — when operator completes a
+> parent with open children, native window.confirm "Complete N
+> subtasks too?" fires · yes triggers atomic
+> prisma.task.updateMany cascade · no preserves parent-only behavior.
+> checkTask service gains cascadeChildren?: boolean parameter ·
+> CheckTaskResult returns childrenCascaded count. tRPC task.check
+> Zod accepts the flag. LoopStream computes openChildCountByParent ·
+> drives the prompt only when work is left (vs total childCount that
+> drives the chip). /tasks page does optimistic local cascade for UI
+> consistency · server is source of truth on next load. Cascade
+> failure logged + degraded · doesn't fail the primary parent
+> completion.
+>
+> **Flagged · NOT shipped (intentional · later slice candidates):**
+> - "+ subtask" creation button on parent rows · operator can't
+>   create a subtask via UI yet · API supports parentTaskId though
+>   (createTask service · tRPC task.create) · workaround: capture +
+>   manual parentTaskId via API/chat-fast-path · proper UI is
+>   pending operator green-light
+> - Collapsible chevron · children always visible · the amended
+>   Rule 3 "collapsible" word remains for the polished UX
+> - Inline-nested rendering · children appear in their natural
+>   sort position rather than under their parent · the polished
+>   "Todoist-style under-parent visual nesting" is a separate slice
+>   (more invasive · changes sort order semantics)
 
 > ## 2026-05-23 · multi-advisor board · strategic-intelligence amplifier · 2 ships + ADR
 >

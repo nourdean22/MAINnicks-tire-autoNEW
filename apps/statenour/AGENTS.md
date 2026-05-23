@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 · post multi-advisor board (#23 foundation · #24 surface · ADR-0018) — strategic-intelligence amplifier that complements (NOT replaces) the existing strategic-frameworks lens-injection. On top of: Todoist/Evernote hierarchy follow-ups (#19/#20/#21) · subtask ADR-0017 + parked migration (#22) · /tasks upgrade quartet (#7/#15/#16/#17/#18). Monorepo branch `main`.
+> **Last refreshed:** 2026-05-23 PM · post subtask wave (#22 closed · migration applied to prod Neon + 4 UI slices implementing ADR-0017 amended Rules 1-6 · parent inheritance · effort-weighted rollup · visual indent + chip · cascade-with-confirm). On top of: multi-advisor board (#23/#24 · ADR-0018) · Todoist/Evernote hierarchy follow-ups (#19/#20/#21) · /tasks upgrade quartet (#7/#15/#16/#17/#18). Monorepo branch `main`.
 
 ---
 
@@ -24,7 +24,7 @@
 | Reconciliation campaign | v10.0.166 → v10.0.236 | Cron audit waves · API auth audit · component layer audit · Wave A ghost-feeder migration | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 | Post-audit consolidation | v10.0.148 → v10.0.166 | AutomationPolicy registry · explainability envelope · Brier scoring · approval queue · fabrication-defense L1-L5 stack · prompt library scaffold | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 
-**Tests:** 2712 tests across 178 vitest files (2026-05-23 PM · `.next-prod` excluded · +20 board consult tests from the multi-advisor wave). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
+**Tests:** 2720 tests across 178 vitest files (2026-05-23 PM · `.next-prod` excluded · +20 board consult tests from the multi-advisor wave · +4 parent-inheritance + +4 effort-weighting tests from the subtask wave). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
 
 ---
 
