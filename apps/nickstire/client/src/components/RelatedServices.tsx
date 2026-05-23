@@ -49,7 +49,7 @@ const ICON_BY_SLUG: Record<string, React.ReactNode> = {
 // These are short, punchy, Title Case versions for the cross-link grid only.
 const TITLE_OVERRIDES: Record<string, string> = {
   brakes: "Brake Repair",
-  diagnostics: "Engine Diagnostics",
+  diagnostics: "Check Engine Light",
   electrical: "Electrical Repair",
   exhaust: "Exhaust Repair",
   emissions: "Emissions & E-Check",

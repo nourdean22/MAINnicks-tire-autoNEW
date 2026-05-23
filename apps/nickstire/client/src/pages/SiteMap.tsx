@@ -37,7 +37,7 @@ const FEATURED_SERVICES: LinkItem[] = [
   { label: "Brake Repair", href: "/brakes", note: "From $149 per axle" },
   { label: "Synthetic Oil Change", href: "/synthetic-oil-change", note: "From $69" },
   { label: "Wheel Alignment", href: "/alignment" },
-  { label: "Check Engine Light / Diagnostics", href: "/diagnostics", note: "Free code scan" },
+  { label: "Check Engine Light", href: "/diagnostics", note: "Free code scan" },
   { label: "Tires (New & Used)", href: "/tires", note: "From $60" },
   { label: "Auto Repair (All Makes)", href: "/auto-repair-near-me" },
   { label: "Tire Shop Near Me", href: "/tire-shop-near-me" },
@@ -182,7 +182,7 @@ export default function SiteMap() {
             </h1>
             <p className="text-foreground/60 mt-3 max-w-2xl">
               Every page on Nick&apos;s Tire &amp; Auto in one place. {totalPages} pages
-              covering services, locations, diagnostic guides, tools, and articles. Find
+              covering services, locations, repair guides, tools, and articles. Find
               what you need or call <a href="tel:+12168620005" className="text-primary hover:underline">(216) 862-0005</a>.
             </p>
           </div>
@@ -214,7 +214,7 @@ export default function SiteMap() {
             <Section
               icon={<AlertTriangle className="w-5 h-5" />}
               title="Problem &amp; Symptom Guides"
-              description="Diagnostic deep-dives for common car problems. What&apos;s actually wrong, real fix costs, when it&apos;s urgent."
+              description="Deep-dives for common car problems. What&apos;s actually wrong, real fix costs, when it&apos;s urgent."
               items={PROBLEM_PAGES}
             />
 
@@ -230,7 +230,7 @@ export default function SiteMap() {
             <Section
               icon={<PhoneCall className="w-5 h-5" />}
               title="Customer Tools"
-              description="Booking, estimating, diagnostic tools — everything you can do without picking up the phone."
+              description="Booking, estimating, symptom-check tools — everything you can do without picking up the phone."
               items={CUSTOMER_TOOLS}
             />
 
