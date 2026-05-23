@@ -13,14 +13,18 @@
  */
 
 import { createLogger } from "../lib/logger";
+import { searchTiresBySize, pickWholesaleCost } from "./gatewayClient";
 
 const log = createLogger("data-pipelines");
 
-const GATEWAY_BASE = "https://b2b.dktire.com";
-
 // ─── 1. GATEWAY TIRE PRICE REFRESH ──────────────────────
 // Auto-fetch current wholesale prices for our popular sizes
-// so the website always shows accurate pricing
+// so the website always shows accurate pricing.
+//
+// As of 2026-05 this routes through services/gatewayClient.ts which
+// talks to api-b2b.dktire.com (OAuth2 password grant → JWT bearer).
+// The old cookie-based b2b.dktire.com/auth-signin flow is dead — that
+// URL now serves a static S3 HTML page.
 
 interface CachedPrice {
   size: string;
@@ -41,29 +45,6 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
     "245/70R16", "265/70R17", "265/70R18", "275/60R20", "195/65R15",
   ];
 
-  const username = process.env.GATEWAY_TIRE_USERNAME;
-  const password = process.env.GATEWAY_TIRE_PASSWORD;
-  if (!username || !password) return { recordsProcessed: 0, details: "No Gateway credentials" };
-
-  // Authenticate
-  let cookie: string | null = null;
-  try {
-    const res = await fetch(`${GATEWAY_BASE}/auth-signin`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "User-Agent": "Mozilla/5.0" },
-      body: JSON.stringify({ username, password }),
-      redirect: "manual",
-      signal: AbortSignal.timeout(10000),
-    });
-    const cookies = res.headers.getSetCookie?.() || [];
-    cookie = cookies.map((c: string) => c.split(";")[0]).join("; ");
-  } catch (e) {
-    log.warn("[services/dataPipelines] operation failed:", e);
-    return { recordsProcessed: 0, details: "Gateway auth failed" };
-  }
-
-  if (!cookie) return { recordsProcessed: 0, details: "No session cookie" };
-
   let totalFetched = 0;
   let sizesUpdated = 0;
   const priceChanges: string[] = [];
@@ -71,25 +52,23 @@ export async function refreshGatewayPrices(): Promise<{ recordsProcessed: number
   for (const size of POPULAR_SIZES) {
     const sizeClean = size.replace(/[\/Rr\s-]/g, "");
     try {
-      const res = await fetch(`${GATEWAY_BASE}/api/products/search?q=${encodeURIComponent(sizeClean)}`, {
-        headers: { "Cookie": cookie, "User-Agent": "Mozilla/5.0", "Accept": "application/json" },
-        signal: AbortSignal.timeout(10000),
-      });
-
-      if (!res.ok) continue;
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) continue;
+      const data = await searchTiresBySize(size);
+      if (!data || data.length === 0) continue;
 
       const oldPrices = priceCache.get(sizeClean) || [];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- external API response shape
-      const newPrices: CachedPrice[] = data.slice(0, 15).map((item: Record<string, any>) => ({
-        size,
-        brand: (item.brand || "").toUpperCase(),
-        model: item.model || item.name || "",
-        wholesaleCost: parseFloat(item.cost || item.price || "0"),
-        localQty: parseInt(item.localQty || item.localOnHand || "0", 10),
-        fetchedAt: Date.now(),
-      }));
+      const newPrices: CachedPrice[] = data.slice(0, 15).map((item) => {
+        const modelRaw = String(item.minor_name || "");
+        const model = modelRaw.replace(/^[A-Z]+\s*-\s*/, "");
+        const cost = pickWholesaleCost(item);
+        return {
+          size,
+          brand: String(item.make || "").toUpperCase(),
+          model,
+          wholesaleCost: cost,
+          localQty: typeof item.on_hand === "number" ? item.on_hand : 0,
+          fetchedAt: Date.now(),
+        };
+      });
 
       // Detect price changes
       for (const newP of newPrices) {
