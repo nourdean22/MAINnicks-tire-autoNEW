@@ -1,0 +1,41 @@
+{
+  "id": "multi-turn-coherence",
+  "name": "Multi-turn coherence · follow-up reference",
+  "description": "Two-turn conversation where the second turn refers obliquely to the first. Tests that Nick maintains context across turns instead of treating each turn independently.",
+  "category": "multi-turn",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "I'm thinking about hiring a part-time service writer · current capture rate is around 60%, I think it could be higher with someone dedicated"
+      },
+      {
+        "role": "assistant",
+        "content": "What's your back-of-envelope on the ROI? If the writer costs $X/week and you lift capture from 60% to 75%, the math has to clear by Y."
+      },
+      {
+        "role": "user",
+        "content": "yeah · maybe $400/week. let's say it lifts to 72%."
+      }
+    ]
+  },
+  "judgeCriteria": [
+    {
+      "id": "uses-prior-context",
+      "description": "Reply actually USES the 60% baseline and the service-writer framing from turn 1 · does not treat turn 3 as a fresh question",
+      "weight": 2.0
+    },
+    {
+      "id": "does-math",
+      "description": "Reply attempts the actual ROI math ($400/wk × 4-ish weeks vs incremental margin on a 12-pt capture lift)",
+      "weight": 1.5
+    },
+    {
+      "id": "gives-lean",
+      "description": "Reply leans one way (worth it / not worth it / break-even) instead of restating the inputs",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'rough math · $1600/mo cost · 12pt lift on ~250 jobs would need ~$13/job margin to clear · doable if your AOV is north of $X · lean yes if you can afford the 6-week ramp'. Failure: ignores turn 1 framing or just repeats the numbers without computing.",
+  "tags": ["multi-turn", "business-decision", "math"]
+}

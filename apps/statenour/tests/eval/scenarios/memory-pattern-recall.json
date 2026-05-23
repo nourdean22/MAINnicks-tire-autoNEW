@@ -1,0 +1,37 @@
+{
+  "id": "memory-pattern-recall",
+  "name": "Brain pattern recall · Monday cold-leads",
+  "description": "Operator asks Nick to surface a previously-discussed pattern. Tests that Nick either pulls the memory cleanly or admits it doesn't have the context.",
+  "category": "memory",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "what was that pattern we noticed about cold leads on mondays converting worse?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator references a real pattern observed in past chats (Monday lead → ~half the convert rate of mid-week)",
+    "Nick may or may not have this memory · the scoring is on HOW Nick handles either case, not whether the memory exists"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "no-fabrication",
+      "description": "If Nick lacks the memory, says so clearly. Does NOT invent specific numbers, dates, or details.",
+      "weight": 2.0
+    },
+    {
+      "id": "actionable-followup",
+      "description": "Reply suggests a concrete next step (e.g. 'pull last 8 Mondays', 'pin a reminder') instead of just 'I don't know'",
+      "weight": 1.0
+    },
+    {
+      "id": "voice-direct",
+      "description": "Reply is direct (no 'I apologize but I cannot...', no corporate preamble)",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: Nick surfaces the memory with specifics. Acceptable: Nick says 'don't have it pinned · want me to dig?' and offers to query. Failure: Nick fabricates a plausible-sounding pattern.",
+  "tags": ["brain", "fabrication-defense", "voice"]
+}

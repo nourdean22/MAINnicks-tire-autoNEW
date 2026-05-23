@@ -1,0 +1,37 @@
+{
+  "id": "decision-pricing-push",
+  "name": "Pricing push decision",
+  "description": "Operator weighing a price increase. Expects a grounded recommendation that names the trade-off, not a generic 'depends'.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "should I push price up on the front-brake job from 320 to 360? competitor across the street is at 340. last month we did 47 of those."
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator runs an independent tire/brake shop · margin-led, not volume-led",
+    "Recent reps have generally pushed for higher capture per job over more jobs"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "names-tradeoff",
+      "description": "Reply names the actual trade-off (volume vs margin) instead of generic 'depends'",
+      "weight": 1.5
+    },
+    {
+      "id": "uses-numbers",
+      "description": "Reply uses the 320/340/360/47-jobs numbers concretely (not generic ranges)",
+      "weight": 1.0
+    },
+    {
+      "id": "gives-recommendation",
+      "description": "Reply ends with a clear lean ('push', 'hold', 'test') rather than punting back to the operator",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Nick reasons about volume × margin, references the competitor delta, and recommends either a push, a hold-and-test, or a discriminated price ladder. Should NOT say 'it depends on your goals'.",
+  "tags": ["voice", "business-decision", "pricing"]
+}
