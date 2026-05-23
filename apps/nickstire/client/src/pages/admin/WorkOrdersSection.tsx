@@ -688,8 +688,20 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
     <div className="space-y-2">
       <div className="text-xs text-foreground/40">{queue.length} vehicles ready for pickup</div>
       {queue.map((wo: WOListItem) => (
-        <div key={wo.id} className="bg-card border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3">
-          <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onSelectWO(String(wo.id))}>
+        // 2026-05-23 · whole card is the open-WO target (was just the
+        // left text column). Right action stack (price + "Picked Up"
+        // button) stopPropagation so the inline mutation doesn't ALSO
+        // open the drawer.
+        <div
+          key={wo.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelectWO(String(wo.id))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectWO(String(wo.id)); } }}
+          className="bg-card border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-colors"
+          aria-label={`Open work order ${wo.orderNumber}`}
+        >
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs font-mono font-semibold">{wo.orderNumber}</span>
               <span className={`text-[10px] font-medium ${STATUS_COLORS[wo.status]}`}>{STATUS_LABELS[wo.status]}</span>
@@ -706,7 +718,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
               {wo.financingUsed && <div className="text-[9px] text-amber-400">FINANCED</div>}
             </div>
             <button
-              onClick={() => advance.mutate({ id: String(wo.id), status: "picked_up" })}
+              onClick={(e) => { e.stopPropagation(); advance.mutate({ id: String(wo.id), status: "picked_up" }); }}
               disabled={advance.isPending}
               className="text-[11px] font-medium px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors"
             >

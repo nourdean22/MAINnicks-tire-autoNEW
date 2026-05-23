@@ -19,6 +19,12 @@ import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
 
 // ── Lead type ──
+// 2026-05-23 · widened to match drizzle/schema.ts. The JSX already
+// renders `lead.recommendedService` / `lead.urgencyReason` /
+// `lead.contactedBy` (lines 841-871) and tsc accepts them because
+// tRPC infers the wider DB shape — but the explicit interface was
+// missing them, making it look like dead JSX. Now declared so the
+// interface matches reality.
 interface LeadItem {
   id: number;
   name: string;
@@ -29,6 +35,9 @@ interface LeadItem {
   status: string;
   source?: string | null;
   urgencyScore?: number | null;
+  urgencyReason?: string | null;
+  recommendedService?: string | null;
+  contactedBy?: string | null;
   estimatedValueCents?: number | null;
   contactNotes?: string | null;
   createdAt: string | Date;

@@ -19,7 +19,7 @@
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 
 type RecentSend = NonNullable<RouterOutputs["smsPerformance"]["recentSends"]>[number];
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { BarChart3, MessageSquare, CheckCircle2, XCircle, Loader2 } from "lucide-react";
 import { PageHeader, LoadingState, EmptyState, formatDateTime } from "./shared";
 
@@ -39,6 +39,19 @@ export default function SmsPerformanceSection() {
   );
 
   const [tierFilter, setTierFilter] = useState<string | undefined>(undefined);
+  // 2026-05-23 · scroll-target for the recent-sends drill-in card.
+  // On phone, tapping a tier row had no visible response because the
+  // drill-in is below the fold. Now the filtered list scrolls into
+  // view + receives a brief highlight so the connection is obvious.
+  const drillInRef = useRef<HTMLDivElement | null>(null);
+  function handleTierClick(tierKey: string) {
+    const next = tierFilter === tierKey ? undefined : tierKey;
+    setTierFilter(next);
+    if (next) {
+      // setTimeout so the DOM updates with the filter pill first.
+      setTimeout(() => drillInRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+    }
+  }
   const { data: recent, isLoading: recentLoading, isError: recentError } = trpc.smsPerformance.recentSends.useQuery(
     { limit: 50, tier: tierFilter },
     { refetchInterval: 60_000 },
@@ -123,7 +136,7 @@ export default function SmsPerformanceSection() {
                 <tr
                   key={t.key}
                   className={`border-b border-border/20 hover:bg-foreground/[0.02] cursor-pointer ${tierFilter === t.key ? "bg-primary/[0.04]" : ""}`}
-                  onClick={() => setTierFilter(tierFilter === t.key ? undefined : t.key)}
+                  onClick={() => handleTierClick(t.key)}
                   title="Click to filter the recent-sends drill-in below"
                 >
                   <td className="px-4 py-2.5">{t.tier}</td>
@@ -141,7 +154,7 @@ export default function SmsPerformanceSection() {
       </div>
 
       {/* Recent-sends drill-in */}
-      <div className="bg-card border border-border/30 rounded-md overflow-hidden">
+      <div ref={drillInRef} className="bg-card border border-border/30 rounded-md overflow-hidden">
         <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-foreground/60" />
