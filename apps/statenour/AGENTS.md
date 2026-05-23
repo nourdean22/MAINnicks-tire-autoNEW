@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 · post /tasks upgrade quartet (#7 visual hierarchy · #15 MissionScoreboard · #16 schedule-keeper · #17 task_loop reflection · #18 task-flow eval scenarios) · monorepo branch `main`
+> **Last refreshed:** 2026-05-23 · post Todoist/Evernote hierarchy follow-ups (#19 sticky kind headers · #20 status grouping axis · #21 mission eyebrow above title · #22 subtasks BLOCKED on operator decisions) on top of the /tasks upgrade quartet earlier today · monorepo branch `main`
 
 ---
 

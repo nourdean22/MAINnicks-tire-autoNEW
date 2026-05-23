@@ -1,6 +1,47 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 (post /tasks upgrade quartet + ComparisonMatrix consumer trio) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2692 across 177 vitest files (`.next-prod` excluded · +18 files +728 tests since 2026-05-21 reconcile, spanning the 2026-05-22 autonomous wave + this 2026-05-23 wave) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-23 (post Todoist/Evernote hierarchy follow-ups · 3 ships) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2692 across 177 vitest files (`.next-prod` excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-23 · Todoist/Evernote hierarchy follow-ups on /tasks · 3 ships
+>
+> Three surgical follow-ups to the /tasks upgrade quartet that landed
+> earlier today — each one a direct ask from the agent's `#7` open-
+> questions list. All shipped with kaizen-grade blast radius (5-60 LOC
+> per slice · no schema · no new components · all four gates green).
+> A fourth ask (true subtasks via `Task.parentTaskId` self-FK) was
+> filed as task #22 but is BLOCKED on operator's call across 6
+> semantic questions before any Prisma migration can land.
+>
+> **`b957008e` · sticky kind-section headers (task #19)** — pure CSS ·
+> the kind-section eyebrows the agent shipped in #7 now pin to the
+> top of the scroll container via `sticky top-0 z-10
+> bg-[var(--bg-base)]`. On a long stream the operator never loses
+> sight of which kind-cluster they're reading. ~8 LOC.
+>
+> **`792a02e3` · status grouping axis (task #20)** — second grouping
+> axis alongside the kind axis. `TaskSortKey` gains `"by-status"` ·
+> `STATUS_RANK` (DOING=0 → CANCELLED=5) drives the primary sort with
+> urgency desc as the secondary key inside each bucket. Status-
+> section sticky eyebrows insert at each status boundary using the
+> same editorial vocabulary as the kind eyebrows. SortDropdown
+> surfaces "by status · doing first" in #2 position. Mutually
+> exclusive with kind sections — one axis at a time. ~30 LOC.
+>
+> **`2a3514cd` · mission-name eyebrow ABOVE row title (task #21)** —
+> Todoist "Project · task" pattern. Each row in LoopRowItem now
+> carries the mission name as a `text-[10px] font-mono uppercase
+> tracking-[0.18em] text-zinc-500` eyebrow above the title line.
+> Skipped when mission is "Inbox" (un-categorized bucket · would
+> noise capture rows). The bottom mission-fallback chip (which
+> rendered when no goal was linked) is REMOVED — its job is now
+> the top eyebrow's, and double-stamping would clutter goal-less
+> rows. Goal chip below remains untouched. ~23 LOC.
+>
+> **Flagged · NOT fixed:**
+> - Task #22 — true subtasks via Prisma migration · BLOCKED on 6
+>   operator decisions: completion cascade · field inheritance · UI
+>   surfacing · depth limit · mixed-kind nesting · scoreboard rollup.
+>   Cannot touch the schema until these are answered.
 
 > ## 2026-05-23 · /tasks upgrade quartet · ComparisonMatrix consumer trio completed · 5 ships
 >
