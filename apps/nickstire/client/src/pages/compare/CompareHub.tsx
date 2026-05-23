@@ -61,7 +61,7 @@ export default function CompareHub() {
   return (
     <PageLayout activeHref="/compare" showChat={true}>
       <SEOHead
-        title="Tire Shop Comparisons Cleveland · Honest Side-by-Side | Nick's"
+        title="Tire Shop Comparisons Cleveland · Honest Side-by-Side"
         description="Honest, in-writing comparisons of every major Cleveland tire shop. Mavis, Conrad's, Firestone, Discount Tire, NTB, Monro, Big O — vs Nick's Tire & Auto."
         canonicalPath="/compare"
       />
@@ -78,7 +78,8 @@ export default function CompareHub() {
             <p className="mt-5 text-lg sm:text-xl text-foreground/75 max-w-2xl font-light leading-relaxed">
               We did the homework so you don't have to. Mavis, Conrad's, Firestone,
               Discount Tire, Monro, Big O, NTB — side-by-side with Nick's Tire & Auto.
-              Honest about where the chains win. Honest about where we win. You decide.
+              Honest about where the chains win. Honest about where we win.
+              You decide. Walk in any day to compare for yourself.
             </p>
             <div className="mt-6 flex flex-wrap gap-2 text-sm">
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-sm">

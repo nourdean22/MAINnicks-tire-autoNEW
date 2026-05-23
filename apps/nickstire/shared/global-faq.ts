@@ -10,7 +10,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "Can I buy tires online from Nick's Tire & Auto?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free Premium Installation Package ($289+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
+      text: "Yes. Visit nickstire.org/tires to search by tire size, compare options from major brands, and place your order online. Every tire purchase includes our free install package ($289+ value) with mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check.",
     },
   },
   {
@@ -26,7 +26,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "Do you sell used tires?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. We carry a large selection of quality used tires. Every used tire is inspected for tread depth, sidewall condition, and safety before it goes on your vehicle. Used tires include the same professional installation service. Walk-ins welcome — inventory changes daily.",
+      text: "Yes. We carry a large selection of checked used tires from $40 installed. Every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on your car. Used tires include the same install package. Walk-ins welcome — inventory changes daily.",
     },
   },
   {
@@ -34,7 +34,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "What is included in the free installation package?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Nick's Premium Installation Package includes 15 services at no extra charge: professional mounting, computer balancing, new rubber valve stems, TPMS sensor reset, alignment check, 20-point safety inspection, rim cleaning and degreasing, tire disposal and recycling, lug nut torque to spec, tire pressure optimization, brake visual inspection, suspension visual check, tread depth documentation, free flat repair for the first 12 months, and free tire rotation for the first year.",
+      text: "Nick's install package includes 15 services at no extra charge: professional mounting, computer balancing, new rubber valve stems, TPMS sensor reset, alignment check, 20-point safety check, rim cleaning and degreasing, tire disposal and recycling, lug nut torque to spec, tire pressure optimization, brake visual check, suspension visual check, tread depth documentation, free flat repair for the first 12 months, and free tire rotation for the first year.",
     },
   },
   {

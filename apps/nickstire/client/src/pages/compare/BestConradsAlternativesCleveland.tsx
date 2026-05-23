@@ -15,7 +15,7 @@ export default function BestConradsAlternativesCleveland() {
       seoTitle="Best Conrad's Tire Alternatives Cleveland · 6 Honest Picks | Nick's"
       seoDescription="Looking for Conrad's Tire alternatives in Cleveland? 6 ranked options — Nick's Tire & Auto, Mavis, Discount Tire, Firestone, Monro, Big O. Honest comparison."
       h1="Best Conrad's Tire alternatives in Cleveland"
-      intro="Conrad's Tire Express has been Cleveland's tire chain since 1934 — established, reliable in a chain way, 37 locations across Greater Cleveland. Plenty of reasons to shop them. Plenty of reasons to look elsewhere too: closed Sunday, appointment-preferred, no used tires, the occasional surprise on the final invoice. If you're researching Conrad's alternatives, here are the six honest options Cleveland drivers compare. Nick's Tire & Auto leads on walk-in policy + Sunday hours + used tire access. The chains lead on location count. You decide."
+      intro="Conrad's Tire Express has been Cleveland's tire chain since 1934 — established, reliable in a chain way, 37 locations across Greater Cleveland. Plenty of reasons to shop them. Plenty of reasons to look elsewhere too: closed Sunday, appointment-preferred, no used tires, and the occasional checkout-math surprise. If you're researching Conrad's alternatives, here are the six honest options Cleveland drivers compare. Nick's Tire & Auto leads on walk-in policy + Sunday hours + used tire access. The chains lead on location count. You decide. Free check. Written quote. You don't pay until you say yes."
       roundupCompetitors={[
         COMPETITORS.mavis,
         COMPETITORS["discount-tire"],

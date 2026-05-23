@@ -11,9 +11,9 @@ export default function MonroAlternative() {
       format="alternative"
       primary={COMPETITORS.monro}
       slug="monro-mr-tire-alternative-cleveland"
-      seoTitle="Monro / Mr. Tire Alternative Cleveland · One Shop, One Standard | Nick's"
-      seoDescription="Monro and Mr. Tire quality varies wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written estimate up front."
-      intro="Monro Inc. owns Monro Auto Service, Mr. Tire, Tread Quarters, and Car-X. Same parent, same coupon books, wildly different store-to-store experience. Read the reviews on any Cleveland-area Mr. Tire and you'll see two camps: customers who love their specific manager, and customers who got hard-upsold. The brand sign doesn't tell you which camp you'll land in. Nick's Tire & Auto on Euclid Ave is one location, one crew, one standard. Same shop every visit. Walk in 7 days including Sunday. Used tires from $40. The estimate in writing before the wrench moves."
+      seoTitle="Monro Tire Alternative Cleveland · One Shop One Standard | Nick's"
+      seoDescription="Monro and Mr. Tire reviews vary wildly store-to-store. Nick's Tire & Auto on Euclid Ave: one shop, one crew, one standard. Walk-in 7 days, written quote up front."
+      intro="Monro Inc. owns Monro Auto Service, Mr. Tire, Tread Quarters, and Car-X. Same parent, same coupon books, wildly different store-to-store experience. Read the reviews on any Cleveland-area Mr. Tire and you'll see two camps: customers who love their specific manager, and customers who got hard-upsold. The brand sign doesn't tell you which camp you'll land in. Nick's Tire & Auto on Euclid Ave is one location, one crew, one standard. Same shop every visit. Walk in 7 days including Sunday. Used tires from $40. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Why does Monro / Mr. Tire quality vary so much store-to-store?",

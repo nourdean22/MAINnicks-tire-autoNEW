@@ -13,7 +13,7 @@ export default function NicksVsConrads() {
       slug="nicks-tire-vs-conrads-cleveland"
       seoTitle="Nick's Tire & Auto vs Conrad's Cleveland · Honest Compare"
       seoDescription="Conrad's vs Nick's Tire & Auto in Cleveland. Hours, pricing, walk-in policy, used tires, written estimates — head-to-head, no spin."
-      intro="Conrad's has been Cleveland's tire chain since 1934. Family-grown into 37 locations. Established. Reliable in a chain way. Nick's Tire & Auto opened on Euclid Ave in 2018. One location. Mechanic-owned. First-come-first-served. Same job, two ways of running it. Conrad's gives you 37 lots to pick from and a chain process. Nick's gives you one yellow sign on Euclid Ave and an actual person on the phone. Read the comparison. You'll know which one fits."
+      intro="Conrad's has been Cleveland's tire chain since 1934. Family-grown into 37 locations. Established. Reliable in a chain way. Nick's Tire & Auto opened on Euclid Ave in 2018. One location. Mechanic-owned. First-come-first-served. Same job, two ways of running it. Conrad's gives you 37 lots to pick from and a chain process. Nick's gives you one yellow sign on Euclid Ave and an actual person on the phone. Free check. Written quote. You don't pay until you say yes — and we'd rather you compare than wonder."
       extraFaqs={[
         {
           question: "Conrad's has 37 locations. Nick's has 1. Why does that matter?",
