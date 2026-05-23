@@ -22,14 +22,20 @@ export default function CouponsSection() {
     expiresAt: "",
   });
 
+  // 2026-05-23 · added onError to all three. Money-impacting toggle
+  // (homepage hero promo) previously failed silently — same class as
+  // the updateMarkup fix.
   const createCoupon = trpc.coupons.create.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); setShowForm(false); setForm({ title: "", description: "", code: "", discountType: "dollar", discountValue: 0, applicableServices: "all", terms: "", isFeatured: 0, expiresAt: "" }); toast.success("Coupon created"); },
+    onError: (err) => toast.error(`Create failed: ${err.message}`),
   });
   const toggleCoupon = trpc.coupons.update.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); toast.success("Coupon updated"); },
+    onError: (err) => toast.error(`Update failed: ${err.message}`),
   });
   const deleteCoupon = trpc.coupons.delete.useMutation({
     onSuccess: () => { utils.coupons.all.invalidate(); toast.success("Coupon deleted"); },
+    onError: (err) => toast.error(`Delete failed: ${err.message}`),
   });
 
   return (

@@ -71,8 +71,17 @@ export default function CampaignsSection() {
     { template: selectedTemplate, segment: selectedSegment, customMessage: customMessage || undefined },
     { enabled: false }
   );
-  const createMutation = trpc.campaigns.create.useMutation();
-  const sendMutation = trpc.campaigns.send.useMutation();
+  // 2026-05-23 · added onSuccess invalidation. Previously, if create
+  // succeeded but the immediately-following send threw, the new draft
+  // never appeared in the list (refetchCampaigns was only called after
+  // sendResult.success). Invalidate at the source so the list is right.
+  const utilsForCampaigns = trpc.useUtils();
+  const createMutation = trpc.campaigns.create.useMutation({
+    onSuccess: () => utilsForCampaigns.campaigns.list.invalidate(),
+  });
+  const sendMutation = trpc.campaigns.send.useMutation({
+    onSuccess: () => utilsForCampaigns.campaigns.list.invalidate(),
+  });
 
   async function handlePreview() {
     setPreviewLoading(true);

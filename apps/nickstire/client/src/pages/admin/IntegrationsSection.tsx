@@ -50,11 +50,19 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
 
 // ─── VENDOR HEALTH STRIP ────────────────────────────────
 function VendorHealthStrip() {
+  const utils = trpc.useUtils();
   const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.syncHealth.useQuery(undefined, {
     refetchInterval: 60_000,
   });
+  // 2026-05-23 · was missing both invalidate + onError. Click was
+  // toasting "refreshed" while the cards on the page kept their old
+  // state until the 60s refetch interval, and any 5xx silently passed.
   const refreshMut = trpc.adminDashboard.refreshHealth.useMutation({
-    onSuccess: () => toast.success("Health checks refreshed"),
+    onSuccess: () => {
+      utils.adminDashboard.syncHealth.invalidate();
+      toast.success("Health checks refreshed");
+    },
+    onError: (err) => toast.error(`Refresh failed: ${err.message}`),
   });
   const [expanded, setExpanded] = useState(false);
 
@@ -204,7 +212,11 @@ function TireSearchTab() {
     { enabled: sizeQuery.length >= 5 }
   );
 
-  const calcMargin = trpc.gatewayTire.calculateMargin.useMutation();
+  // 2026-05-23 · was bare. Operator clicked CALCULATE PRICING, network
+  // error swallowed silently, result panel just never appeared.
+  const calcMargin = trpc.gatewayTire.calculateMargin.useMutation({
+    onError: (err) => toast.error(`Calculation failed: ${err.message}`),
+  });
   const updateMarkup = trpc.gatewayTire.updateMarkup.useMutation({
     onSuccess: () => toast.success("Markup updated"),
     // 2026-05-23 · was silently failing on the operator. Markup is a
@@ -537,7 +549,11 @@ function LaborGuideTab() {
     { enabled: searchQuery.length >= 2 }
   );
 
-  const calculateLabor = trpc.autoLabor.calculateLabor.useMutation();
+  // 2026-05-23 · was bare. ALG network errors hid the failure;
+  // operator just saw the result panel never render.
+  const calculateLabor = trpc.autoLabor.calculateLabor.useMutation({
+    onError: (err) => toast.error(`Labor calc failed: ${err.message}`),
+  });
 
   const handleCalc = (name: string, hours: number) => {
     setCalcJob({ name, hours });

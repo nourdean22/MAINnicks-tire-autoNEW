@@ -168,7 +168,23 @@ function ThreadView({
     { conversationId: conversation.id, limit: 200 },
     { refetchInterval: 15_000 },
   );
-  const markRead = trpc.smsConversations.markRead.useMutation();
+  // 2026-05-23 · markRead invalidates moved INTO onSuccess so they
+  // only fire after the server actually acknowledges. Previously the
+  // local invalidate raced the server call — if the server rejected
+  // (network blip), the unread badge stayed at 0 locally even though
+  // the DB still had unread messages, hiding new incoming texts from
+  // the operator. onError refetches the conversation list to restore
+  // server truth.
+  const markRead = trpc.smsConversations.markRead.useMutation({
+    onSuccess: () => {
+      void utils.smsConversations.list.invalidate();
+      void utils.smsConversations.unreadCount.invalidate();
+    },
+    onError: () => {
+      void utils.smsConversations.list.invalidate();
+      void utils.smsConversations.unreadCount.invalidate();
+    },
+  });
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: () => {
       void messagesQ.refetch();
@@ -176,6 +192,7 @@ function ThreadView({
       void utils.smsConversations.unreadCount.invalidate();
       setReply("");
     },
+    onError: (e) => toast.error(`Send failed: ${e.message}`),
   });
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -183,8 +200,6 @@ function ThreadView({
   useEffect(() => {
     if ((conversation.unreadCount ?? 0) > 0) {
       markRead.mutate({ conversationId: conversation.id });
-      void utils.smsConversations.list.invalidate();
-      void utils.smsConversations.unreadCount.invalidate();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id]);
