@@ -31,6 +31,13 @@ const MAX_CONTENT_LEN = 220;
 
 // Categories worth pulling into chat context. Anti-list: telemetry,
 // markers, alerts (those don't help the conversation).
+//
+// 2026-05-23 · Wave B · Q3 · added `domain_knowledge` (the most
+// information-dense category in the brain · CoALA semantic-kind ·
+// fed by lib/brain/domain-knowledge-extractor.ts with tire margins,
+// tax rates, shop-specific business facts). Pre-fix it was pulled
+// by KNN then silently filtered out at line ~175 before scoring ·
+// the entire semantic CoALA lane was dead on arrival for recall.
 const CONTEXT_CATEGORIES = new Set([
   "wisdom",
   "insight",
@@ -50,6 +57,7 @@ const CONTEXT_CATEGORIES = new Set([
   "conversation_summary",
   "brain_dump",
   "reflection",
+  "domain_knowledge",
 ]);
 
 export interface RecallHit {

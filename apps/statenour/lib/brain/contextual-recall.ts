@@ -86,6 +86,11 @@ const CATEGORY_SCORES: Record<string, number> = {
   wisdom: 0.9,
   business_alert: 0.85,
   contradiction: 0.85,
+  // 2026-05-23 · Wave B · Q3 · weighted ABOVE pattern/insight ·
+  // domain_knowledge rows are extracted business facts (tire
+  // margins · tax rates · shop-specific quantitative facts) ·
+  // they're the most information-dense category by design.
+  domain_knowledge: 0.75,
   pattern: 0.7,
   insight: 0.6,
   routine: 0.5,
