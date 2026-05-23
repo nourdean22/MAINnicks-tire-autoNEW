@@ -413,21 +413,21 @@ export default function DiagnosePage() {
         urgency: "moderate",
         urgencyScore: 3,
         title: "We Need to Take a Closer Look",
-        summary: "Based on the symptoms you described, we recommend bringing your vehicle in for a professional diagnostic inspection. Our technicians use advanced OBD-II diagnostic equipment to pinpoint the exact cause.",
+        summary: "From what you described, we want to look at it in person. We'll hook up the OBD-II, walk through what it shows, and tell you exactly what's wrong before we touch anything.",
         likelyCauses: [
           {
-            cause: "Professional diagnosis required",
-            explanation: "The combination of symptoms you described could have multiple causes. An in-person inspection with diagnostic equipment will identify the exact issue.",
+            cause: "Needs a closer look in the shop",
+            explanation: "In-person check with the OBD-II will tell us the exact issue.",
             likelihood: "High",
           },
         ],
-        recommendedService: "Diagnostics",
-        estimatedCostRange: "Call for estimate",
-        safetyNote: "If you are experiencing any safety-related symptoms (brake issues, steering problems, warning lights), we recommend having the vehicle inspected as soon as possible.",
+        recommendedService: "Check Engine",
+        estimatedCostRange: "Free check · written quote",
+        safetyNote: "If you are experiencing any safety-related symptoms (brake issues, steering problems, warning lights), we want to look at the car as soon as possible.",
         nextSteps: [
-          `Call ${BUSINESS.phone.display} to schedule a diagnostic appointment`,
-          "Our technicians will use professional equipment to identify the exact cause",
-          "We will explain the findings and provide a repair estimate before any work begins",
+          `Call ${BUSINESS.phone.display} or just walk in — we'll check it`,
+          "We'll hook up the scanner and tell you exactly what's wrong",
+          "You see the written quote before we touch anything. You don't pay until you say yes.",
         ],
       });
       setShowResults(true);
@@ -451,8 +451,8 @@ export default function DiagnosePage() {
   return (
     <PageLayout activeHref="/diagnose" showChat={true}>
       <SEOHead
-        title="Free Car Diagnostic Tool · Tell Us The Symptom | Nick's Cleveland"
-        description="Describe your car problem like you'd explain it to a friend — we'll tell you what's likely wrong, how urgent it is, and what fixing it usually involves. Check engine light, weird noise, brakes grinding, anything. Walk in or call (216) 862-0005"
+        title="Cleveland Auto Symptom Checker · Tell Us What's Wrong | Nick's"
+        description="Describe your car problem like you'd explain it to a friend — we'll tell you what's likely wrong, how urgent it is, and what fixing it usually involves."
         canonicalPath="/diagnose"
       />
 
@@ -474,7 +474,7 @@ export default function DiagnosePage() {
               "@context": "https://schema.org",
               "@type": "Service",
               "name": "Automotive Diagnostics Service",
-              "description": "AI-powered diagnostic tool to identify car problems and symptoms",
+              "description": "Tell us the symptom, we tell you what's likely wrong + how urgent.",
               "provider": {
                 "@type": "LocalBusiness",
                 "name": BUSINESS.name,
@@ -802,7 +802,7 @@ export default function DiagnosePage() {
                 <div className="bg-[#141414]/50 border border-[#2A2A2A] rounded-xl p-4">
                   <p className="text-xs text-white/40 leading-relaxed">
                     <Shield className="w-3.5 h-3.5 inline mr-1 text-white/30" />
-                    This is a preliminary assessment based on the symptoms you described. A proper diagnosis requires an in-person inspection by our certified technicians using professional diagnostic equipment. Costs may vary based on actual findings.
+                    This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-trained hands, OBD-II tools, written quote before anyone touches a wrench.
                   </p>
                 </div>
 
@@ -829,7 +829,7 @@ export default function DiagnosePage() {
                 {!diagLeadSubmitted ? (
                   <div className="bg-white/5 border border-white/10 rounded-xl p-5">
                     <h4 className="font-heading text-white text-sm tracking-wider mb-1">WANT US TO LOOK AT IT?</h4>
-                    <p className="text-white/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick inspections are free.</p>
+                    <p className="text-white/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick checks are free.</p>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input type="text" placeholder="Your name" value={diagLeadName} onChange={e => setDiagLeadName(e.target.value)}
                         className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/50" />
@@ -844,7 +844,7 @@ export default function DiagnosePage() {
                               name: diagLeadName,
                               phone: diagLeadPhone,
                               vehicle: `${vehicle.year} ${vehicle.make} ${vehicle.model}`.trim() || undefined,
-                              problem: `Diagnosis: ${result?.recommendedService || "inspection"} — ${result?.urgency || "unknown"} urgency. ${symptomText.slice(0, 200)}`,
+                              problem: `Symptom: ${result?.recommendedService || "check"} — ${result?.urgency || "unknown"} urgency. ${symptomText.slice(0, 200)}`,
                               source: "popup",
                             });
                             setDiagLeadSubmitted(true);
@@ -868,7 +868,7 @@ export default function DiagnosePage() {
                 ) : (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 text-center">
                     <p className="font-bold text-emerald-400 text-sm">We'll have a look when you come in!</p>
-                    <p className="text-white/50 text-xs mt-1">Quick inspections are free — just walk in.</p>
+                    <p className="text-white/50 text-xs mt-1">Quick checks are free — just walk in.</p>
                   </div>
                 )}
 

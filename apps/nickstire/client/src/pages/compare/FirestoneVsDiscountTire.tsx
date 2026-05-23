@@ -17,7 +17,7 @@ export default function FirestoneVsDiscountTire() {
       seoTitle="Firestone vs Discount Tire Cleveland · Honest Compare + 3rd Option"
       seoDescription="Firestone vs Discount Tire in Cleveland. Tires, brakes, alignment, pricing — head-to-head. Plus the third option that does Sunday + walk-in + used tires."
       h1="Firestone vs Discount Tire — Cleveland honest compare"
-      intro="Firestone is corporate Bridgestone — full-service tires + brakes + alignment, premium chain pricing, appointment-required, lifetime alignment program. Discount Tire is the national tire-only specialist — free flat repair, free balance, free rotation lifetime, no mechanical work. Two completely different models. Both close Sunday. Both want an appointment. The third option Cleveland drivers actually use when neither fits: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $40 installed, full mechanical repair under one roof. The yellow sign you've driven past."
+      intro="Firestone is corporate Bridgestone — full-service tires + brakes + alignment, chain-tier pricing, appointment-required, lifetime alignment program. Discount Tire is the national tire-only specialist — free flat repair, free balance, free rotation lifetime, no mechanical work. Two completely different models. Both close Sunday. Both want an appointment. The third option Cleveland drivers actually use when neither fits: Nick's Tire & Auto on Euclid Ave — open 7 days including Sunday, walk-in any time, used tires from $40 installed, full mechanical repair under one roof. The yellow sign you've driven past."
       extraFaqs={[
         {
           question: "Firestone vs Discount Tire — which is better?",
@@ -29,7 +29,7 @@ export default function FirestoneVsDiscountTire() {
         },
         {
           question: "Is Nick's pricing closer to Firestone or Discount Tire?",
-          answer: "Closer to Discount Tire's competitive market-rate on tire prices, but with full-service mechanical Firestone-style. Different cost structure: Firestone is premium chain labor rates, Discount Tire is competitive tire-only pricing, Nick's is honest mechanic-owned single-location pricing with everything quoted in writing before the wrench moves.",
+          answer: "Closer to Discount Tire's competitive market-rate on tire prices, but with full-service mechanical Firestone-style. Different cost structure: Firestone is chain-level labor rates, Discount Tire is competitive tire-only pricing, Nick's is honest mechanic-owned single-location pricing with everything quoted in writing before the wrench moves.",
         },
         {
           question: "Does Nick's offer Discount Tire's lifetime free services?",
