@@ -9,6 +9,7 @@
 import { useState, useMemo } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // tRPC-inferred types — replaces `any` annotations on map/filter callbacks.
 type SyncHealth = RouterOutputs["adminDashboard"]["syncHealth"];
@@ -206,6 +207,9 @@ function TireSearchTab() {
   const calcMargin = trpc.gatewayTire.calculateMargin.useMutation();
   const updateMarkup = trpc.gatewayTire.updateMarkup.useMutation({
     onSuccess: () => toast.success("Markup updated"),
+    // 2026-05-23 · was silently failing on the operator. Markup is a
+    // money-affecting setting; if the save fails the operator must see it.
+    onError: (err) => toast.error(`Save failed: ${err.message}`),
   });
 
   const handleCalculate = () => {
@@ -944,7 +948,18 @@ function QuickEstimateTab() {
                     COPY ESTIMATE
                   </button>
                   <button
-                    onClick={() => { setLines([]); }}
+                    onClick={async () => {
+                      // 2026-05-23 · was destroying multi-line estimates
+                      // with one tap right under the green COPY button.
+                      // Confirm before wiping.
+                      const ok = await confirmDialog({
+                        title: "Clear estimate?",
+                        message: `Remove all ${lines.length} line${lines.length === 1 ? "" : "s"} from this estimate. This cannot be undone.`,
+                        confirmLabel: "Clear",
+                        tone: "danger",
+                      });
+                      if (ok) setLines([]);
+                    }}
                     className="w-full flex items-center justify-center gap-2 bg-foreground/10 text-foreground/50 hover:text-foreground px-4 py-2 font-bold text-xs tracking-wide transition-colors"
                   >
                     CLEAR ALL

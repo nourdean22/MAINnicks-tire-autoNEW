@@ -56,7 +56,14 @@ export default function OutreachHubSection() {
     "outreachTab",
     "sms",
     {
-      validate: (raw) => (VALID_OUTREACH_TABS.includes(raw as OutreachTab) ? (raw as OutreachTab) : null),
+      // 2026-05-23 · honor legacy reengage aliases (per the comments
+      // at the top of the file). Without this, ?outreachTab=reengage
+      // bookmarks silently fell back to default ("sms"). Now they
+      // resolve to "winback" which IS the re-engagement surface.
+      validate: (raw) => {
+        if (raw === "reengage" || raw === "reengagement" || raw === "re-engagement") return "winback";
+        return VALID_OUTREACH_TABS.includes(raw as OutreachTab) ? (raw as OutreachTab) : null;
+      },
     },
   );
 

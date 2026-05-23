@@ -37,7 +37,14 @@ export default function ReviewRequestsSection() {
       toast.success("Settings updated");
       utils.reviewRequests.getSettings.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    // 2026-05-23 · optimistic setFormEnabled at the click site means a
+    // failed save left the toggle in the WRONG state visually (UI said
+    // "enabled" while DB stayed disabled). Rollback to server truth on
+    // error so the toggle reflects reality.
+    onError: (err) => {
+      toast.error(err.message);
+      setFormEnabled(settings?.enabled ?? null);
+    },
   });
 
   const processQueue = trpc.reviewRequests.processQueue.useMutation({

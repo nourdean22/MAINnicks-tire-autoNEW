@@ -575,7 +575,18 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                 <span className="font-bold text-lg text-foreground/20 w-8">{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <span className="font-bold text-sm text-foreground">{c.name}</span>
-                  {c.phone && <span className="font-mono text-[10px] text-foreground/30 ml-2">{c.phone}</span>}
+                  {/* 2026-05-23 · phone was display-only mono text. Now a
+                      real tel: anchor so operator can one-tap call from
+                      the top-customers leaderboard. */}
+                  {c.phone && (
+                    <a
+                      href={`tel:${c.phone}`}
+                      className="font-mono text-[10px] text-foreground/40 ml-2 hover:text-emerald-400 transition-colors"
+                      title={`Call ${c.phone}`}
+                    >
+                      {c.phone}
+                    </a>
+                  )}
                 </div>
                 <div className="text-right">
                   <span className="font-bold text-sm text-primary">{formatCents(c.total)}</span>
@@ -908,19 +919,45 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               </p>
             </div>
           )}
-          {/* At-risk whales */}
+          {/* At-risk whales · 2026-05-23 · added call/SMS action buttons.
+              These are the highest-LTV customers going quiet — operator
+              needed a one-tap way to act on them from the Money page. */}
           {custIntel.atRiskWhales.length > 0 && (
             <div>
               <p className="text-[10px] text-foreground/40 font-bold uppercase mb-2">High-Value Customers Going Quiet</p>
               <div className="space-y-1">
-                {custIntel.atRiskWhales.map((w: AtRiskWhaleRev, i: number) => (
-                  <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
-                    <span className="text-xs font-medium text-foreground flex-1">{w.name}</span>
-                    <span className="text-xs font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
-                    <span className="text-[10px] text-foreground/40">{w.visits} visits</span>
-                    <span className="text-[10px] text-red-400 font-bold">{w.daysSince}d ago</span>
-                  </div>
-                ))}
+                {custIntel.atRiskWhales.map((w: AtRiskWhaleRev, i: number) => {
+                  const phone = (w as AtRiskWhaleRev & { phone?: unknown }).phone;
+                  const phoneStr = typeof phone === "string" && phone.length >= 7 ? phone : null;
+                  return (
+                    <div key={i} className="flex items-center gap-3 py-1.5 px-2 rounded bg-red-500/5 border border-red-500/10">
+                      <span className="text-xs font-medium text-foreground flex-1 truncate">{w.name}</span>
+                      <span className="text-xs font-bold text-primary">${w.totalSpent.toLocaleString()}</span>
+                      <span className="text-[10px] text-foreground/40 hidden sm:inline">{w.visits} visits</span>
+                      <span className="text-[10px] text-red-400 font-bold">{w.daysSince}d ago</span>
+                      {phoneStr && (
+                        <>
+                          <a
+                            href={`tel:${phoneStr}`}
+                            className="p-1 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
+                            title={`Call ${phoneStr}`}
+                            aria-label={`Call ${w.name}`}
+                          >
+                            <Phone className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={`sms:${phoneStr}?body=${encodeURIComponent(`Hi ${w.name.split(" ")[0]}, it's Nick's Tire — checking in. Anything we can help with?`)}`}
+                            className="p-1 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
+                            title="Send SMS"
+                            aria-label={`Send SMS to ${w.name}`}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

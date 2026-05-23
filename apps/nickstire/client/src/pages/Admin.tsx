@@ -218,6 +218,30 @@ const COMPOUND_REDIRECTS: Record<string, { section: AdminSection; innerKey: stri
   snap: { section: "revenue", innerKey: "moneyTab", innerValue: "financing" },
 };
 
+/**
+ * 2026-05-23 · Single resolver used by every navigation entry point.
+ *
+ * Pre-fix: boot-time URL resolution honored TAB_ALIASES, but the
+ * event-bridge (`admin:navigate-section` handler) and the CustomerDrawer
+ * prop callback both did `setSection(raw as AdminSection)` — a bare
+ * cast that bypassed aliases entirely. Any legacy slug dispatched at
+ * runtime (e.g. `navigateToAdminSection("sms")` from a drawer button)
+ * landed on an invalid section, silently blanking the right pane.
+ *
+ * This function is the chokepoint: every navigation request — URL,
+ * event-bus, drawer callback — flows through here. Returns null only
+ * when the slug is genuinely unrecognized.
+ */
+function resolveSection(raw: string): AdminSection | null {
+  const slug = (raw || "").toLowerCase().trim();
+  if (!slug) return null;
+  if (slug in TAB_ALIASES) return TAB_ALIASES[slug];
+  for (const valid of VALID_SECTIONS) {
+    if (valid.toLowerCase() === slug) return valid;
+  }
+  return null;
+}
+
 function resolveInitialSection(): AdminSection {
   if (typeof window === "undefined") return "overview";
   const params = new URLSearchParams(window.location.search);
@@ -237,13 +261,7 @@ function resolveInitialSection(): AdminSection {
     return r.section;
   }
 
-  if (raw in TAB_ALIASES) return TAB_ALIASES[raw];
-  // Accept exact AdminSection names (case-insensitive so ?tab=Overview works).
-  for (const valid of VALID_SECTIONS) {
-    if (valid.toLowerCase() === raw) return valid;
-  }
-  // Unknown · fall back to overview rather than blank panel.
-  return "overview";
+  return resolveSection(raw) ?? "overview";
 }
 
 export default function Admin() {
@@ -293,12 +311,20 @@ export default function Admin() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail as { section?: string; highlightId?: number } | undefined;
-      if (detail?.section) {
-        setSection(detail.section as AdminSection);
-        if (typeof window !== "undefined") {
-          // Scroll to top so the user sees the destination section
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        }
+      if (!detail?.section) return;
+      // 2026-05-23 · run the requested slug through TAB_ALIASES before
+      // setSection. Bare cast `as AdminSection` was silently blanking
+      // the pane whenever a caller dispatched a legacy alias like
+      // `"sms"`, `"workorders"`, or `"vapi"`.
+      const resolved = resolveSection(detail.section);
+      if (!resolved) {
+        console.warn("[admin:navigate-section] unknown section slug:", detail.section);
+        return;
+      }
+      setSection(resolved);
+      if (typeof window !== "undefined") {
+        // Scroll to top so the user sees the destination section
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     };
     window.addEventListener("admin:navigate-section", handler);
@@ -567,7 +593,13 @@ export default function Admin() {
       <CustomerDrawer
         customerId={drawerCustomerId}
         onClose={() => setDrawerCustomerId(null)}
-        onNavigateToSection={(s) => setSection(s as AdminSection)}
+        onNavigateToSection={(s) => {
+          // 2026-05-23 · same resolver as the event-bridge — legacy
+          // slugs like "sms"/"workorders" now route correctly instead
+          // of silently blanking the right pane.
+          const resolved = resolveSection(s);
+          if (resolved) setSection(resolved);
+        }}
       />
 
       {/* 2026-05-06 — Global drilldown drawer (event-bus triggered) */}

@@ -241,15 +241,12 @@ export default function CampaignsSection() {
               <div className="text-xs text-foreground/40 mt-1">{customMessage.length}/160</div>
             </div>
 
-            {/* Preview Button */}
-            <button
-              onClick={handlePreview}
-              disabled={previewLoading}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-card/50 border border-border/30 text-foreground rounded hover:bg-card transition-colors disabled:opacity-50"
-            >
-              {previewLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-              Preview Messages
-            </button>
+            {/* 2026-05-23 · removed standalone "Preview Messages" button.
+                It called handlePreview but stayed on the editor view —
+                the preview content is only rendered when view==="preview",
+                so the standalone click did invisible work. The action-row
+                "Preview" below already calls handlePreview AND advances
+                the view. One button, no duplicate. */}
 
             {/* Action Buttons */}
             <div className="flex gap-3">
@@ -264,7 +261,7 @@ export default function CampaignsSection() {
                 disabled={previewLoading || !campaignName.trim()}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary/10 border border-primary/30 text-primary rounded hover:bg-primary/15 transition-colors disabled:opacity-50"
               >
-                <Eye className="w-4 h-4" />
+                {previewLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                 Preview
               </button>
             </div>

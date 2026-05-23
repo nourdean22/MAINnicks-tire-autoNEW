@@ -455,7 +455,7 @@ export default function VoiceReceptionistSection() {
           their position in the 5-state flow (greeted → intent → tool →
           confirmed → ended). 5s refetch interval. Hides itself when
           zero calls are in flight so quiet hours stay clean. */}
-      <LiveCallsCard />
+      <LiveCallsCard onSelectCall={setSelectedCallId} />
 
       {/* ─── Wave-102: free-form outbound call trigger ─ */}
       <OutboundCallCard />
@@ -1272,7 +1272,7 @@ function FollowUpTransferCard() {
 //   intent_captured  blue    · agent has read shop info / customer
 //   tool_called      amber   · agent is writing (booking, callback)
 //   confirmed        emerald · sendConfirmationSms fired · success
-function LiveCallsCard() {
+function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => void }) {
   const { data, isLoading } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     {
@@ -1352,7 +1352,12 @@ function LiveCallsCard() {
           return (
             <div
               key={s.callId}
-              className="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)] border border-[var(--border-default)]"
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectCall(s.callId)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectCall(s.callId); } }}
+              className="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)] border border-[var(--border-default)] cursor-pointer hover:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-violet-400/40 transition-colors"
+              aria-label={`Open call details for ${s.callId}`}
             >
               <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${c.bg} ${c.text}`}>
                 {(s.latestState || "").replace("_", " ")}
@@ -1365,12 +1370,18 @@ function LiveCallsCard() {
                   ? `${s.stateAgeSeconds}s`
                   : `${Math.floor(s.stateAgeSeconds / 60)}m`}
               </span>
+              {/* 2026-05-23 · whole row now opens the in-app CallDetailsDrawer
+                  (matches the main calls table behavior immediately below).
+                  External link stopPropagation so the VAPI dashboard link
+                  still works without ALSO triggering the drawer. */}
               <a
                 href={VAPI_LINKS.callDetail(s.callId)}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
                 className="text-[var(--text-tertiary)] hover:text-violet-300 transition-colors"
                 title="Open in VAPI dashboard"
+                aria-label="Open in VAPI dashboard (external)"
               >
                 <ExternalLink size={11} />
               </a>
