@@ -31,13 +31,13 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
     metaTitle: "Cleveland Brake Shop · Free Inspection · 36mo | Nick's",
     metaDescription: "Cleveland's top brake shop. Pads, rotors, calipers, ABS. 36-month warranty, same-day service, free estimate. Walk-ins welcome. Call (216) 862-0005.",
     heroHeadline: "BRAKE REPAIR\nCLEVELAND OH",
-    heroSubline: "Looking for brake repair in Cleveland? Our Euclid Ave brake shop has served Cleveland drivers since 2018 — with 1,700+ verified Google reviews behind it. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, no surprises.",
+    heroSubline: "Looking for brake repair in Cleveland? Our Euclid Ave brake shop has served Cleveland drivers since 2018 — with 1,700+ verified Google reviews behind it. We inspect the entire braking system, show you the worn parts, and explain your options before any work begins. Free estimate, we tell you the cost before we touch anything.",
     category: "service",
     parentService: "brakes",
     sections: [
       {
         title: "How We Diagnose Brake Problems",
-        content: "Every brake inspection at Nick's Tire & Auto — Cleveland's brake repair shop on Euclid Ave — starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything. Whether you searched for brakes Cleveland or brake repair Cleveland, you will get the same thorough inspection."
+        content: "Every brake check at Nick's Tire & Auto — Cleveland's brake repair shop on Euclid Ave — starts with a visual check of all four wheels. We measure pad thickness with a caliper gauge, check rotor surfaces for scoring and minimum thickness, inspect calipers for leaks and sticking, and test brake fluid condition. We also road test the vehicle to feel for pulsation, pulling, or noise that might not show up on a lift. If your vehicle has ABS, we scan the ABS module for stored codes. You see every measurement before we recommend anything. Whether you searched for brakes Cleveland or brake repair Cleveland, you will get the same thorough inspection."
       },
       {
         title: "Brake Pad and Rotor Replacement",
@@ -69,7 +69,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
     faqs: [
       {
         question: "How much does brake repair cost in Cleveland?",
-        answer: "Brake pad replacement typically ranges from $150 to $350 per axle depending on your vehicle and pad type. If rotors need replacement, expect $250 to $500 per axle. We provide an exact quote after inspection — no surprises."
+        answer: "Brake pad replacement typically ranges from $150 to $350 per axle depending on your vehicle and pad type. If rotors need replacement, expect $250 to $500 per axle. We provide an exact quote after inspection — we tell you the cost before we touch anything."
       },
       {
         question: "How long do brake pads last?",
@@ -89,7 +89,7 @@ export const SEO_SERVICE_PAGES: SEOServicePage[] = [
   {
     slug: "check-engine-light-cleveland",
     metaTitle: "Check Engine Light Cleveland · Free OBD-II Scan | Nick's",
-    metaDescription: "Searching for check engine light service near me in Cleveland? Free diagnostic scan with repair. OBD-II experts. Walk-ins 7 days. Call (216) 862-0005.",
+    metaDescription: "Searching for check engine light service near me in Cleveland? Free code scan with repair. OBD-II experts. Walk-ins 7 days. Call (216) 862-0005.",
     heroHeadline: "CHECK ENGINE LIGHT\nSERVICE NEAR ME",
     heroSubline: "If you are searching for check engine light service near me in Cleveland, you found the right shop. A check engine light can mean anything from a loose gas cap to a failing catalytic converter. We read the codes, run live data tests, and tell you exactly what is wrong before recommending any repair.",
     category: "service",
@@ -418,7 +418,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Odyssey", years: "2005-2013", issue: "Transmission Problems", description: "Honda Odyssey transmissions from this era are known for premature wear. Symptoms include harsh shifting, slipping, and shudder. We diagnose transmission condition and recommend fluid exchange, solenoid replacement, or rebuild depending on severity." },
       { model: "Pilot", years: "2009-2015", issue: "VCM System Issues", description: "Honda's Variable Cylinder Management system can cause excessive oil consumption and spark plug fouling. We diagnose VCM-related problems and can install VCM disabler devices to prevent cylinder deactivation issues." }
     ],
-    services: ["Oil changes with Honda-spec 0W-20 synthetic", "Brake service and ABS diagnostics", "Timing belt and water pump replacement", "Transmission fluid service", "Power steering system repair", "AC compressor and system service", "Suspension and CV axle replacement", "Honda-specific diagnostic scanning"],
+    services: ["Oil changes with Honda-spec 0W-20 synthetic", "Brake service and ABS diagnostics", "Timing belt and water pump replacement", "Transmission fluid service", "Power steering system repair", "AC compressor and system service", "Suspension and CV axle replacement", "Honda-specific code scanning"],
     faqs: [
       { question: "When should I replace the timing belt on my Honda?", answer: "Honda recommends timing belt replacement at 105,000 miles or 7 years, whichever comes first. This applies to V6 Accords, Pilots, Odysseys, and Ridgelines. The 4-cylinder engines use timing chains that do not require scheduled replacement." },
       { question: "Why is my Honda making a rattling noise on cold start?", answer: "This is commonly the VTC actuator, especially on 4-cylinder models from 2008 to 2015. The rattle lasts a few seconds after starting and goes away once oil pressure builds. It should be repaired to prevent timing chain damage." },
@@ -464,7 +464,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Cruze", years: "2011-2016", issue: "Coolant Leak (1.4T)", description: "The 1.4L turbo Cruze commonly develops coolant leaks from the water outlet housing, thermostat housing, and turbo coolant lines. These are all plastic components that become brittle with age and heat cycles. We replace them with updated parts." },
       { model: "Traverse", years: "2009-2017", issue: "Timing Chain Stretch (3.6L)", description: "The 3.6L V6 in the Traverse can develop timing chain stretch, causing a check engine light and rough running. We replace all three timing chains, guides, and tensioners as a complete job." }
     ],
-    services: ["Oil changes with GM Dexos-approved oil", "Brake and ABS service", "Transmission fluid exchange and repair", "AFM/DFM lifter replacement", "Timing chain service", "4WD transfer case and differential service", "AC and heating repair", "GM-specific diagnostic scanning"],
+    services: ["Oil changes with GM Dexos-approved oil", "Brake and ABS service", "Transmission fluid exchange and repair", "AFM/DFM lifter replacement", "Timing chain service", "4WD transfer case and differential service", "AC and heating repair", "GM-specific code scanning"],
     faqs: [
       { question: "What is the AFM lifter problem on Silverados?", answer: "Active Fuel Management deactivates cylinders to save fuel, but the special lifters it uses can collapse and fail. This causes a misfire, ticking noise, and check engine light. The repair involves replacing the failed lifters and often disabling the AFM system to prevent it from happening again." },
       { question: "Do you use Dexos-approved oil for Chevy oil changes?", answer: "Yes. All GM vehicles require Dexos-certified oil. We use Dexos-approved synthetic oil for every Chevy oil change to maintain warranty compliance and engine protection." },
@@ -478,7 +478,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
     metaTitle: "Nissan Repair Cleveland · Altima, Rogue, Sentra | Nick's",
     metaDescription: "Nissan repair in Cleveland. Altima, Rogue, Sentra, Pathfinder, Maxima service and repair. Expert CVT transmission service. Call (216) 862-0005.",
     heroHeadline: "NISSAN REPAIR\nIN CLEVELAND",
-    heroSubline: "Nissan vehicles are reliable and efficient, but they have specific maintenance needs that require experienced technicians. We know Nissan engineering and service them right.",
+    heroSubline: "Nissan vehicles are reliable and efficient, but they have specific maintenance needs that require ASE-trained hands. We know Nissan engineering and service them right.",
     intro: "Nissan is one of the most popular brands on Cleveland roads, and we service them daily at Nick's Tire & Auto. We work on Altima, Rogue, Sentra, Pathfinder, Maxima, Murano, Frontier, Titan, Versa, and Kicks models. Our technicians understand Nissan's CVT transmissions, VQ and QR engine families, and the specific maintenance intervals these vehicles require.",
     commonIssues: [
       { model: "Altima", years: "2013-2019", issue: "CVT Transmission Shudder/Failure", description: "Nissan's CVT (Continuously Variable Transmission) in the Altima is known for developing shudder, hesitation, and eventual failure. Early symptoms include a whining noise and jerky acceleration. We diagnose CVT problems and can perform fluid exchange or recommend rebuild/replacement depending on severity." },
@@ -487,7 +487,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Pathfinder", years: "2013-2019", issue: "Coolant Leak from Radiator", description: "The Pathfinder can develop coolant leaks from the radiator or transmission cooler lines. In severe cases, coolant can mix with transmission fluid through the integrated cooler. We inspect for cross-contamination during any coolant leak repair." },
       { model: "Maxima", years: "2016-2023", issue: "Brake Rotor Warping", description: "The Maxima's heavier weight and performance-oriented braking can lead to premature rotor warping, especially with city driving. We replace rotors with quality aftermarket parts and use proper torque specifications on lug nuts to prevent recurrence." }
     ],
-    services: ["CVT transmission fluid exchange with NS-3 fluid", "Brake and ABS service", "Engine diagnostics and repair", "Oil changes with Nissan-spec oil", "Catalytic converter diagnosis and replacement", "Cooling system service", "Suspension and steering repair", "Nissan-specific diagnostic scanning"],
+    services: ["CVT transmission fluid exchange with NS-3 fluid", "Brake and ABS service", "Engine diagnostics and repair", "Oil changes with Nissan-spec oil", "Catalytic converter diagnosis and replacement", "Cooling system service", "Suspension and steering repair", "Nissan-specific code scanning"],
     faqs: [
       { question: "How often should Nissan CVT fluid be changed?", answer: "We recommend CVT fluid exchange every 30,000-60,000 miles depending on driving conditions. Nissan originally said their CVT was sealed for life, but experience has shown regular fluid changes significantly extend CVT life. We use genuine Nissan NS-3 CVT fluid." },
       { question: "Is the Nissan CVT transmission reliable?", answer: "With proper maintenance, Nissan CVTs can last well over 100,000 miles. The key is regular fluid changes and addressing any shudder or hesitation early. Ignoring early symptoms leads to expensive repairs." },
@@ -510,7 +510,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Santa Fe", years: "2013-2019", issue: "Steering Coupler Noise", description: "A clunking or popping noise when turning the steering wheel is common in the Santa Fe. The intermediate steering shaft coupler wears and develops play. We replace the coupler to eliminate the noise." },
       { model: "Kona", years: "2018-2023", issue: "Turbo Oil Leak", description: "The 1.6T Kona can develop oil leaks from the turbocharger oil feed and return lines. We inspect turbo connections and replace seals or lines as needed to prevent oil loss and potential turbo damage." }
     ],
-    services: ["Engine diagnostics and recall verification", "Oil change with Hyundai-spec oil", "Brake and ABS service", "DCT and automatic transmission service", "Steering and suspension repair", "Cooling system service", "Turbocharger inspection and repair", "Hyundai-specific diagnostic scanning"],
+    services: ["Engine diagnostics and recall verification", "Oil change with Hyundai-spec oil", "Brake and ABS service", "DCT and automatic transmission service", "Steering and suspension repair", "Cooling system service", "Turbocharger inspection and repair", "Hyundai-specific code scanning"],
     faqs: [
       { question: "Is my Hyundai covered by the engine recall?", answer: "Many 2011-2019 Hyundai models with Theta II engines are covered by extended warranty for engine bearing failure. We can check your VIN to determine if your vehicle is affected and help you navigate the warranty process." },
       { question: "How often should I change oil in my Hyundai?", answer: "Hyundai recommends oil changes every 7,500 miles with synthetic oil for most models. However, for Theta II engines with known oil consumption issues, we recommend checking oil level monthly and changing every 5,000 miles." },
@@ -533,7 +533,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Sorento", years: "2016-2021", issue: "Timing Chain Rattle", description: "The 2.4L and 3.3L engines in the Sorento can develop timing chain rattle on cold starts. This indicates chain stretch and should be addressed before it causes engine damage. We replace timing chains, guides, and tensioners as a complete job." },
       { model: "Soul", years: "2014-2019", issue: "Catalytic Converter Theft", description: "The Kia Soul is a frequent target for catalytic converter theft due to its ground clearance and converter accessibility. We replace stolen converters and can install protective shields to deter future theft." }
     ],
-    services: ["Engine diagnostics and recall verification", "Oil change with manufacturer-spec oil", "Brake and ABS service", "Transmission service (automatic and DCT)", "Timing chain replacement", "GDI carbon cleaning", "Catalytic converter replacement", "Kia-specific diagnostic scanning"],
+    services: ["Engine diagnostics and recall verification", "Oil change with manufacturer-spec oil", "Brake and ABS service", "Transmission service (automatic and DCT)", "Timing chain replacement", "GDI carbon cleaning", "Catalytic converter replacement", "Kia-specific code scanning"],
     faqs: [
       { question: "Is my Kia affected by the engine recall?", answer: "Many 2011-2019 Kia models with Theta II engines are covered. We check your VIN against the recall database and can help you understand your coverage options. Even if the recall has been performed, we monitor for ongoing issues." },
       { question: "What is GDI carbon buildup?", answer: "Gasoline Direct Injection engines spray fuel directly into the cylinder instead of onto the intake valves. Without fuel washing over the valves, carbon deposits build up and can cause rough idle, misfires, and reduced power. We perform intake valve cleaning to restore performance." },
@@ -556,7 +556,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Compass", years: "2017-2022", issue: "Oil Consumption (2.4L)", description: "The 2.4L Tigershark engine in the Compass can consume oil between changes. Regular oil level monitoring is important. We check consumption rates and can perform internal repairs if consumption is excessive." },
       { model: "Wrangler", years: "2018-2023", issue: "eTorque Mild Hybrid Issues", description: "The eTorque system on newer Wranglers can develop issues with the belt-driven starter-generator, causing rough idle or stalling. We diagnose eTorque system faults and repair or replace components as needed." }
     ],
-    services: ["4WD system service and repair", "Transfer case fluid exchange", "Differential service (front and rear)", "Brake service for heavy Jeep vehicles", "Suspension lift and leveling kit installation", "Exhaust manifold bolt repair", "Engine diagnostics and repair", "Jeep-specific diagnostic scanning"],
+    services: ["4WD system service and repair", "Transfer case fluid exchange", "Differential service (front and rear)", "Brake service for heavy Jeep vehicles", "Suspension lift and leveling kit installation", "Exhaust manifold bolt repair", "Engine diagnostics and repair", "Jeep-specific code scanning"],
     faqs: [
       { question: "What is Jeep death wobble?", answer: "Death wobble is a violent steering oscillation that occurs at highway speed, usually triggered by hitting a bump. It is caused by worn steering or suspension components. The most common culprits are the track bar bushing, ball joints, and tie rod ends. We diagnose the specific worn part and replace it." },
       { question: "How often should I service my Jeep's 4WD system?", answer: "We recommend transfer case and differential fluid changes every 30,000-50,000 miles. If you drive in severe conditions (off-road, towing, or frequent 4WD use), service more frequently. Clean fluid prevents expensive drivetrain repairs." },
@@ -579,7 +579,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "5 Series", years: "2011-2017", issue: "VANOS Solenoid Failure", description: "The Variable Valve Timing (VANOS) solenoids can fail or become clogged with oil sludge, causing rough idle, reduced power, and check engine lights. We clean or replace VANOS solenoids and verify proper timing." },
       { model: "All Models", years: "2010-2023", issue: "Brake Sensor and Pad Wear", description: "BMW uses electronic brake wear sensors that trigger a dashboard warning when pads are thin. We replace pads, rotors, and sensors together for a complete brake service. BMW brakes wear faster than average due to vehicle weight and performance." }
     ],
-    services: ["BMW-specific diagnostic scanning", "Oil service with BMW LL-01 approved oil", "Brake service with sensor replacement", "Cooling system repair and expansion tank replacement", "Timing chain service (N20, N55)", "VANOS and Valvetronic repair", "Suspension repair including electronic dampers", "Transmission fluid service (ZF 8-speed)"],
+    services: ["BMW-specific code scanning", "Oil service with BMW LL-01 approved oil", "Brake service with sensor replacement", "Cooling system repair and expansion tank replacement", "Timing chain service (N20, N55)", "VANOS and Valvetronic repair", "Suspension repair including electronic dampers", "Transmission fluid service (ZF 8-speed)"],
     faqs: [
       { question: "Is it cheaper to repair a BMW at an independent shop?", answer: "Significantly. Independent shops like ours typically charge 30-50% less than BMW dealers for the same repair using equivalent quality parts. We have the same diagnostic equipment and technical knowledge without the dealer overhead." },
       { question: "Do you use BMW-approved oil?", answer: "Yes. We use BMW LL-01 approved synthetic oil for all BMW oil services. Using the correct oil specification is critical for BMW engines, especially turbocharged models." },
@@ -602,7 +602,7 @@ export const VEHICLE_MAKE_PAGES: VehicleMakePage[] = [
       { model: "Grand Caravan", years: "2011-2020", issue: "Transmission Solenoid Pack", description: "The 62TE transmission in the Grand Caravan can develop shifting problems from a failing solenoid pack. Symptoms include harsh shifts, delayed engagement, and limp mode. We replace the solenoid pack without a full transmission rebuild." },
       { model: "Ram 2500/3500", years: "2007-2023", issue: "Cummins DEF System Issues", description: "The 6.7L Cummins diesel uses a DEF (Diesel Exhaust Fluid) system that can develop sensor failures, injector clogs, and heater problems. We diagnose DEF system codes and repair the specific failed component." }
     ],
-    services: ["Hemi engine service and repair", "Exhaust manifold bolt extraction", "MDS lifter replacement", "ZF 8-speed transmission service", "4WD transfer case and differential service", "Brake service for heavy trucks", "Cummins diesel maintenance", "Dodge/Ram-specific diagnostic scanning"],
+    services: ["Hemi engine service and repair", "Exhaust manifold bolt extraction", "MDS lifter replacement", "ZF 8-speed transmission service", "4WD transfer case and differential service", "Brake service for heavy trucks", "Cummins diesel maintenance", "Dodge/Ram-specific code scanning"],
     faqs: [
       { question: "What causes the Hemi tick?", answer: "The Hemi tick is almost always caused by broken exhaust manifold bolts. The cast iron manifold expands and contracts with heat, fatiguing the bolts over time until they break. The exhaust leak creates the ticking sound. We extract the broken bolts and install new gaskets." },
       { question: "How often should I change the oil in my Hemi?", answer: "We recommend every 5,000-6,000 miles with full synthetic 5W-20 oil. The Hemi's MDS system and tight tolerances benefit from fresh oil. We also recommend checking oil level between changes as some Hemis consume a small amount." },
