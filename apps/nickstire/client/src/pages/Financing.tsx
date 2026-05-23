@@ -590,8 +590,8 @@ export default function Financing() {
           operator voice rules. Renamed to "Payment Programs" —
           same lender stack, same product, FCFS-affirming wording. */}
       <SEOHead
-        title="Auto Repair Payment Programs Cleveland · $10 Down, Drive Today | Nick's"
-        description="Cleveland auto repair payment programs — four lenders compete for your business. Soft pre-qualification (no hard credit pull), drive today, pay over time. Acima · Snap · Koalafi · American First. (216) 862-0005"
+        title="Auto Repair Payment Programs · Cleveland · $10 Down | Nick's"
+        description="Cleveland auto repair payment programs — four lenders compete for your business. Soft pre-qualification (no hard credit pull). Acima · Snap · Koalafi · American First. (216) 862-0005"
         canonicalPath="/financing"
       />
       <Breadcrumbs items={[{ label: "Payment Programs", href: "/financing" }]} />

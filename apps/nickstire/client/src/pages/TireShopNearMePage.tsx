@@ -27,12 +27,12 @@ const CONFIG: ServicePageConfig = {
   pricingTitle: "TIRE OPTIONS",
   pricingSub: "Walk in or call — we quote your exact size live with current inventory. Free installation package included with every tire (mount, balance, valve stem, disposal).",
   tiers: [
-    { name: "Used Tires", price: "Free quote", sub: "hand-inspected, mounted & balanced", use: "Budget-friendly option — every used tire passes our tread + sidewall + dry-rot inspection" },
+    { name: "Used Tires", price: "Free quote", sub: "hand-checked, mounted & balanced", use: "Budget-friendly option — every used tire passes our tread + sidewall + dry-rot check" },
     { name: "New Economy", price: "Free quote", sub: "name-brand tires, installed", use: "Solid daily-driver tires from name-brand manufacturers (Goodyear, Cooper, Hankook, etc)", featured: true },
     { name: "Premium / Performance", price: "Free quote", sub: "Michelin, Bridgestone, Continental", use: "Long warranty, best wet/snow handling, premium feel" },
   ],
   includedTitle: "EVERY TIRE PURCHASE INCLUDES",
-  includedSub: "No surprise fees. The sticker price covers the full install.",
+  includedSub: "The sticker price covers the full install — we tell you the cost before we touch anything.",
   included: [
     "Mounting and balancing on new or used tires",
     "Valve stem replacement (standard rubber)",

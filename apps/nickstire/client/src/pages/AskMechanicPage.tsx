@@ -83,7 +83,10 @@ export default function AskMechanicPage() {
                 <span className="text-primary">MECHANIC</span>
               </h1>
               <p className="mt-4 text-foreground/70 text-lg max-w-2xl leading-relaxed">
-                Got a car question? Ask our experienced technicians. We answer questions publicly so every driver can benefit from the knowledge.
+                Got a car question? Ask the shop. We answer it publicly so every driver gets the same straight answer.
+              </p>
+              <p className="mt-3 text-foreground/60 text-sm max-w-2xl leading-relaxed">
+                Got a car already? Free check. Written quote. <span className="text-primary font-semibold">You don't pay until you say yes.</span>
               </p>
               <button
                 onClick={() => setShowForm(true)}
