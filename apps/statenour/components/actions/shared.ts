@@ -146,6 +146,12 @@ export interface Task {
    *  "journal-ingest", "ai-suggest", "auto-extract:chat".
    *  Null for legacy tasks created before the TaskEvent log. */
   originSource?: string | null;
+  /** 2026-05-23 · task #22 · self-FK for subtask hierarchy. Nullable ·
+   *  top-level tasks have null · subtasks point at their parent. The
+   *  UI gates "new subtask" creation on rows where parentTaskId is
+   *  null (per ADR-0017 amended Rule 4 · 1-level depth). Companion
+   *  schema field at prisma/schema.prisma line 348. */
+  parentTaskId?: string | null;
 }
 
 /**
