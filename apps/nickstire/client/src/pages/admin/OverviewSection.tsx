@@ -352,8 +352,16 @@ export default function OverviewSection() {
     }
   }
   function handleOpenSection(item: ActionItem) {
-    const sectionMap: Record<ActionItem["type"], AdminSection> = {
-      booking: "overview",     // bookings live in overview's queue
+    // 2026-05-23 · bookings live on the overview already — dispatching
+    // "go to overview" while on overview was a no-op (the user's
+    // "nothing happens" complaint). Open the drilldown instead so the
+    // tap surfaces actionable detail. Other types navigate to their
+    // home section.
+    if (item.type === "booking") {
+      openDrilldown({ kind: "today_bookings" });
+      return;
+    }
+    const sectionMap: Record<Exclude<ActionItem["type"], "booking">, AdminSection> = {
       lead: "leads",
       callback: "callTrackingView",
       workOrder: "customers",  // work orders live under customers
@@ -765,29 +773,28 @@ export default function OverviewSection() {
         ) : (
           <div className="space-y-1.5 max-h-[400px] overflow-y-auto">
             {filteredQueue.slice(0, 15).map((item) => (
+              // 2026-05-23 · whole row is the navigate target (mobile · the
+              // icon was a 14px button which is half iOS min touch target).
+              // Inner anchors + action buttons stopPropagation so taps on
+              // call/sms/done/delete don't ALSO trigger the row navigate.
               <div
                 key={item.id}
-                className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-primary/30 transition-all group"
+                role="button"
+                tabIndex={0}
+                onClick={() => handleOpenSection(item)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOpenSection(item); } }}
+                className="flex items-center gap-3 px-3 py-2.5 bg-background/50 border border-border/20 hover:border-primary/30 transition-all group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/40"
+                aria-label={`Open ${item.type}: ${item.name}`}
               >
-                <button
-                  type="button"
-                  onClick={() => handleOpenSection(item)}
-                  className="shrink-0 cursor-pointer hover:scale-110 transition-transform"
-                  title={`Open ${item.type} in ${item.type === "callback" ? "overview" : item.type + "s"} section`}
-                >
+                <span className="shrink-0">
                   {typeIcons[item.type]}
-                </button>
+                </span>
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleOpenSection(item)}
-                      className="text-sm font-medium text-foreground truncate hover:text-primary transition-colors text-left cursor-pointer"
-                      title="Open in section"
-                    >
+                    <span className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
                       {item.name}
-                    </button>
+                    </span>
                     <span className={`text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded ${typeBadgeColors[item.type]}`}>
                       {typeLabels[item.type]}
                     </span>
@@ -816,6 +823,7 @@ export default function OverviewSection() {
                   {item.phone && (
                     <a
                       href={`tel:${item.phone}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="p-1.5 text-foreground/40 hover:text-emerald-400 hover:bg-emerald-500/10 rounded transition-all"
                       title={`Call ${item.phone}`}
                     >
@@ -827,6 +835,7 @@ export default function OverviewSection() {
                       href={`sms:${item.phone}?body=${encodeURIComponent(
                         `Hi ${item.name.split(" ")[0]}, it's Nick's Tire. Following up on your ${item.type}.`
                       )}`}
+                      onClick={(e) => e.stopPropagation()}
                       className="p-1.5 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
                       title="Send SMS"
                     >
@@ -835,7 +844,7 @@ export default function OverviewSection() {
                   )}
                   <button
                     type="button"
-                    onClick={() => handleMarkDone(item)}
+                    onClick={(e) => { e.stopPropagation(); handleMarkDone(item); }}
                     disabled={
                       (bookingUpdateStatus.isPending && bookingUpdateStatus.variables?.id === item.entityId) ||
                       (leadUpdate.isPending && leadUpdate.variables?.id === item.entityId) ||
@@ -848,7 +857,7 @@ export default function OverviewSection() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(item)}
+                    onClick={(e) => { e.stopPropagation(); handleDelete(item); }}
                     disabled={bookingDelete.isPending || leadDelete.isPending || callbackUpdateStatus.isPending}
                     className="p-1.5 text-foreground/40 hover:text-red-400 hover:bg-red-500/10 rounded transition-all disabled:opacity-30"
                     title="Delete / remove from queue"

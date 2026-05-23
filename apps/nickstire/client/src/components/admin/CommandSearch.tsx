@@ -46,6 +46,10 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   // Money & Customers
   { id: "revenue", label: "Money", keywords: ["revenue", "money", "income", "sales", "declined", "walked", "snap", "financing", "acima", "koalafi"], group: "Money" },
   { id: "callTrackingView", label: "Call Tracking", keywords: ["call", "phone", "tracking", "missed", "callback"], group: "Money" },
+  // 2026-05-23 · added back to Cmd+K so VAPI is searchable. The wave 181
+  // sidebar removal claimed Cmd+K accessibility but the entry was never
+  // here, leaving no way to find Voice Receptionist from the phone.
+  { id: "voiceReceptionist", label: "Voice Receptionist (Nick)", keywords: ["vapi", "voice", "nick", "receptionist", "ai", "agent", "incoming calls", "phone agent"], group: "Money" },
   { id: "customers", label: "Customer Database", keywords: ["customer", "client", "database", "lookup", "loyalty", "winback", "referral"], group: "Revenue" },
 
   // Outreach + Intelligence

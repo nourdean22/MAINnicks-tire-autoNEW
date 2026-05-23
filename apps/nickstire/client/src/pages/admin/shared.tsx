@@ -128,6 +128,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: "customers", label: "Customers", icon: <UserCheck className="w-4 h-4" /> },
       { id: "campaigns", label: "Outreach", icon: <Send className="w-4 h-4" /> },
       { id: "revenue", label: "Money", icon: <DollarSign className="w-4 h-4" /> },
+      // 2026-05-23 · added Voice back. Wave 181.92 dropped it claiming
+      // Cmd+K accessibility, but it was never actually wired into
+      // CommandSearch — leaving operator with no way to find it from
+      // the phone. VAPI / "Nick" handles inbound shop calls; the
+      // operator needs to see call activity + transcripts on a glance.
+      { id: "voiceReceptionist", label: "Voice (Nick)", icon: <PhoneCall className="w-4 h-4" /> },
       { id: "settings", label: "Settings", icon: <Settings className="w-4 h-4" /> },
     ],
   },
