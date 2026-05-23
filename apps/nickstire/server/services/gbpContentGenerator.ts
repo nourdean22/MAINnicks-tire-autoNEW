@@ -168,7 +168,7 @@ const PROOF_SCENARIOS = [
   {
     problem: "a flashing check engine light and a no-start panic",
     solution: "Bad coil pack. $215 with the diagnosis credited toward the fix.",
-    quote: "They told me what was wrong before I even paid the diagnostic. Other shops would've kept me guessing.",
+    quote: "They told me what was wrong before I even paid for the check. Other shops would've kept me guessing.",
     timeWindow: "Came in Tuesday morning. Drove home at lunch.",
     imageHint: "OBD-II scanner on the dashboard — caught mid-read",
   },
@@ -219,13 +219,13 @@ ${BUSINESS.address.full} · ${BUSINESS.phone.display}`;
 
 // ─────────────────────────────────────────────────────────
 // ARCHETYPE 2 — ANTI-POST
-// "We won't replace pads that pass inspection."
+// "We won't replace pads that pass the check."
 // ─────────────────────────────────────────────────────────
 
 const ANTI_PROMISE_SETS = [
   {
     promises: [
-      "We won't replace pads that pass inspection.",
+      "We won't replace pads that pass the check.",
       "We won't quote a fix without showing you the broken part.",
       "We won't add a fee at pickup that wasn't on the written estimate.",
     ],
@@ -294,7 +294,7 @@ const MATH_ARGUMENTS = [
     today: { amount: "$79", thing: "synthetic oil change today" },
     later: { amount: "$4,000+", thing: "engine rebuild in 60K miles if you skip oil changes" },
     explanation: "Sludge from old oil destroys engines. The math is brutal but the maintenance is cheap.",
-    finance: "Walk in any day. 30 minutes. Free 27-point inspection while you wait.",
+    finance: "Walk in any day. 30 minutes. Free 27-point check while you wait.",
     imageHint: "drained black oil pan vs clean new oil — same engine, 90 days apart",
   },
   {
@@ -358,7 +358,7 @@ function pickSeasonalContext(): SeasonalContext {
     return {
       title: "First 90° day means AC season started.",
       consequence: "What we see on the bay: refrigerant leaks from winter-cracked O-rings, blower motor failure, moldy cabin filters that 3 hot days will reveal.",
-      service: "Free AC inspection — pressure test, leak check, vent temperature reading. Walk in.",
+      service: "Free AC check — pressure test, leak check, vent temperature reading. Walk in.",
       imageHint: "AC service technician with refrigerant gauges hooked up",
     };
   }
@@ -367,7 +367,7 @@ function pickSeasonalContext(): SeasonalContext {
     return {
       title: "Labor Day road-trip prep.",
       consequence: "Cleveland to Pittsburgh is 130 miles. Cleveland to Detroit is 170. Cleveland to NYC is 460. Each one is a long ride to find out your tires are bald or your battery is dying.",
-      service: "Free pre-trip inspection: tires, brakes, battery, fluids, lights. 20 minutes. Walk in.",
+      service: "Free pre-trip check: tires, brakes, battery, fluids, lights. 20 minutes. Walk in.",
       imageHint: "a Cleveland-plated car heading down I-90 with the lake on the right",
     };
   }
@@ -385,7 +385,7 @@ function pickSeasonalContext(): SeasonalContext {
     return {
       title: "Cleveland salt is doing its work right now.",
       consequence: "Brake lines corrode. Frame rust accelerates. Tire pressure tanks. The salt brine that keeps roads safe is also what kills brake hardware.",
-      service: "Free underbody inspection: brake lines, exhaust, frame. We'll show you what's rotting before it strands you.",
+      service: "Free underbody check: brake lines, exhaust, frame. We'll show you what's rotting before it strands you.",
       imageHint: "underbody photo showing salt-pitted brake lines",
     };
   }
@@ -393,7 +393,7 @@ function pickSeasonalContext(): SeasonalContext {
   return {
     title: "Routine maintenance is cheaper than emergencies.",
     consequence: "The $50 belt prevents a $500 tow. The $79 oil change prevents a $4,000 engine. Cleveland weather doesn't care about your schedule.",
-    service: "Free 27-point inspection on any visit. No appointment needed.",
+    service: "Free 27-point check on any visit. No appointment needed.",
     imageHint: "the workshop bay floor with multi-bay activity",
   };
 }
