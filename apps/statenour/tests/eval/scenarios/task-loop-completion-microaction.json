@@ -1,0 +1,37 @@
+{
+  "id": "task-loop-completion-microaction",
+  "name": "Loop completion · micro-action confirmation",
+  "description": "Operator confirms a daily loop done in 5 words. Tests that Nick handles the micro-action without escalating it into a coaching moment.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "did the gym · mark it"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator has a DAILY loop kind named 'gym' in active rotation",
+    "Tone is curt · operator is mid-stride · they want acknowledgment, not a victory speech"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "minimal-friction-ack",
+      "description": "Reply confirms the loop is marked done in ≤20 words · no preamble, no 'great job', no follow-up questions",
+      "weight": 2.0
+    },
+    {
+      "id": "matches-tone",
+      "description": "Reply tone matches the operator's curt 5-word input · not a 4-sentence pep talk",
+      "weight": 1.5
+    },
+    {
+      "id": "no-coaching-spiral",
+      "description": "Reply does NOT spin off into 'what's the next loop' or 'how did it feel' · respects that confirmation is the entire ask",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'gym loop done · streak up'. Acceptable: 'marked · done for today'. Failure: 'Amazing work on hitting the gym! Consistency builds compound momentum — want me to log how you felt afterwards?'",
+  "tags": ["voice", "task-management", "tone-matching", "loops"]
+}

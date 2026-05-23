@@ -1,0 +1,43 @@
+{
+  "id": "task-overload-one-thing",
+  "name": "Task · explicit overload, asks for reduction not sequencing",
+  "description": "Operator is in overload and asks for ONE thing — not a sequence, not a triage. Tests that Nick cuts the list to a single item without re-listing everything first.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "everything is too much right now · just tell me the ONE thing to do in the next 30 min · don't list the rest"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator has 7+ open items across tasks · missions · loops · pulses",
+    "The explicit ask is reduction (cut to one) not sequencing (order all)",
+    "Distinct from task-ambiguous-priorities which asks for sequencing of named items"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "respects-the-cut",
+      "description": "Reply names ONE concrete action · does NOT enumerate the other items the operator told it not to list",
+      "weight": 2.5
+    },
+    {
+      "id": "fits-30min-window",
+      "description": "The pick is doable in 30min · not a 2-hour deep block disguised as one task",
+      "weight": 1.5
+    },
+    {
+      "id": "no-acknowledgment-monologue",
+      "description": "Reply does NOT open with 'I hear you, that sounds really overwhelming' · operator wanted execution, not empathy bath",
+      "weight": 1.0
+    },
+    {
+      "id": "gives-reasoning-in-one-line",
+      "description": "Reply explains WHY this is the one thing in ONE sentence max · not a paragraph",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'callback the overdue customer · 8 min · clears the highest-friction item · rest waits'. Failure: 'I understand you're overwhelmed. Let me walk through your 7 items and we can decide together which to start with...'",
+  "tags": ["voice", "task-prioritization", "overload", "reduction", "decisiveness"]
+}

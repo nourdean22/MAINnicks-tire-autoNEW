@@ -1,0 +1,44 @@
+{
+  "id": "task-mission-progress-eod",
+  "name": "Task · mission progress check (loop vs mission distinction)",
+  "description": "Operator asks whether they advanced a specific mission today. Tests that Nick understands the /tasks domain model: loops are recurring habits, missions advance toward a goal. A loop-completion is not mission-progress unless tied.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "did I move the marketing mission forward today?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator's /tasks surface has a Mission named 'Q2 marketing relaunch' (active)",
+    "Today's completed loops: gym · review-inbox · check-numbers (none of which advance the marketing mission)",
+    "Today's completed task: drafted Section 1 of the relaunch landing page (DOES advance the mission)",
+    "The honest answer is 'yes, partial · 1 of 3 sections drafted' — not just 'you completed 3 loops'"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "uses-mission-frame",
+      "description": "Reply answers in mission-terms · references the specific mission name and what advanced it · does NOT just enumerate loop completions",
+      "weight": 2.0
+    },
+    {
+      "id": "distinguishes-loops-from-mission",
+      "description": "Reply does NOT count gym/inbox/numbers loops as mission progress · understands loops are recurring, missions are directional",
+      "weight": 2.0
+    },
+    {
+      "id": "gives-a-clear-yes-or-partial",
+      "description": "Reply gives a clean verdict (yes / partial / no) in the first line · not 'well it depends on how you define progress'",
+      "weight": 1.5
+    },
+    {
+      "id": "no-fabrication",
+      "description": "Reply does NOT invent mission progress that isn't in the context (e.g. claiming 2 sections drafted when only 1 was)",
+      "weight": 1.5
+    }
+  ],
+  "expectedBehavior": "Best case: 'yes, partial · drafted Section 1 of the relaunch page · 2 sections left for the week · loops today (gym/inbox/numbers) were recurring habits, not mission moves'. Failure: 'You completed 3 things today, great work!' (ignores the mission/loop distinction).",
+  "tags": ["voice", "task-management", "domain-model", "mission-vs-loop", "honesty"]
+}
