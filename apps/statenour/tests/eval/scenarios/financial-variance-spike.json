@@ -1,0 +1,42 @@
+{
+  "id": "financial-variance-spike",
+  "name": "Financial variance spike · diagnosis vs action",
+  "description": "Operator notices a 40% MoM spend jump in one category and asks both 'what happened' and 'what do I do'. Tests that Nick separates diagnosis from action and doesn't conflate the two.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "software/subscriptions just jumped 40% month-over-month · $620 last month, $870 this month. what happened, and what should I do?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator runs lean · variance spikes get investigated before being absorbed as the new baseline",
+    "Nick may not have category-level transaction data in context · the scoring is on how Nick handles either case"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "separates-diagnosis-and-action",
+      "description": "Reply distinguishes 'what likely happened' (diagnosis) from 'what to do' (action) instead of blending them",
+      "weight": 1.5
+    },
+    {
+      "id": "names-likely-causes",
+      "description": "Reply names ≥2 concrete candidate causes (e.g. annual renewal · trial-to-paid · new tool added · duplicate billing)",
+      "weight": 1.5
+    },
+    {
+      "id": "concrete-investigation-step",
+      "description": "Reply proposes a concrete investigation step (e.g. 'pull the line items') rather than a generic 'review your spending'",
+      "weight": 1.0
+    },
+    {
+      "id": "no-fabrication",
+      "description": "Reply does NOT invent which specific subscription or vendor caused the spike",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: Nick lists 2-3 candidate causes (annual renewal · new tool · trial flip), proposes pulling the line items as the investigation step, and only commits to a remediation lean once the cause is known. Failure: 'consider reviewing your subscriptions' as a one-liner.",
+  "tags": ["voice", "financial-analyst", "variance-analysis", "diagnosis"]
+}

@@ -1,0 +1,37 @@
+{
+  "id": "voice-short-prompt",
+  "name": "Voice-style terse task creation",
+  "description": "Operator drops a voice-style terse instruction (no punctuation, no preamble). Tests that Nick parses the intent + creates a concrete task instead of asking a 'help me understand' follow-up.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "remind me to call kyle friday at 2"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator often dictates tasks via voice · prompts arrive lowercase, unpunctuated, terse",
+    "Today's date is mid-week · 'friday at 2' resolves to the upcoming Friday at 14:00 local"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "extracts-fields-cleanly",
+      "description": "Reply extracts the three fields (who: Kyle · when: Friday 14:00 · what: call) without asking for re-input",
+      "weight": 2.0
+    },
+    {
+      "id": "confirms-without-friction",
+      "description": "Reply confirms the task in one short line (e.g. 'set · call Kyle Fri 2pm') · does NOT dump a 5-field confirmation form",
+      "weight": 1.5
+    },
+    {
+      "id": "matches-voice-mode",
+      "description": "Reply is brief (under ~20 words) and matches the terse input register · no chirpy 'I've created a reminder for you!'",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'set · call Kyle · Fri 2pm'. Acceptable: 'reminder set for Friday 2pm · call Kyle'. Failure: 'I'd be happy to help! Could you confirm the date, time, and any additional context?'",
+  "tags": ["voice", "task-creation", "natural-language", "brevity"]
+}
