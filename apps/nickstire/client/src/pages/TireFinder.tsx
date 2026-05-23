@@ -1112,6 +1112,41 @@ export default function TireFinder() {
                     <span className="hidden sm:inline">✓ All major brands</span>
                     <span className="hidden sm:inline">✓ Same-day installation</span>
                   </div>
+                  {/* Catalog-fallback disclaimer — DK Tire migrated their
+                      B2B portal to a static SPA in 2026; the old auth
+                      endpoint we POST credentials to is gone, so the live
+                      Gateway feed is dead until the new API is wired. When
+                      that's down the server falls back to a curated catalog
+                      with FIXED prices that don't vary by tire size. Without
+                      this banner a customer searching e.g. 225/60R18 would
+                      see the same $96 starting price as a 215/60R16 —
+                      misleading and a margin loss if they order. The banner
+                      keeps them in the flow but routes any size-sensitive
+                      decision to a phone quote until live pricing is back. */}
+                  {data.source === "catalog" && (
+                    <div className="mb-6 flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4">
+                      <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="text-sm leading-relaxed">
+                        <p className="font-semibold text-amber-200 mb-1">
+                          Live wholesale pricing is temporarily unavailable
+                        </p>
+                        <p className="text-foreground/80">
+                          The tires below are estimates and the price you see
+                          may not reflect your exact tire size.{" "}
+                          <a
+                            href={BUSINESS.phone.href}
+                            onClick={() => trackPhoneClick("tire-finder-catalog")}
+                            className="text-amber-300 font-semibold underline"
+                          >
+                            Call {BUSINESS.phone.display}
+                          </a>{" "}
+                          for a real-time quote on{" "}
+                          <span className="font-semibold">{data.sizeFormatted}</span>{" "}
+                          before ordering — we'll honor the size-correct price.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <PackageBanner packageData={packageData} />
 
                   {/* Results header */}
