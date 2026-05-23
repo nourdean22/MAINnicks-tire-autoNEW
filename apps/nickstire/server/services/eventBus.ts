@@ -614,9 +614,18 @@ export async function dispatch(
         if (!dest.softFail) {
           log.error(`Event bus hard failure: ${dest.name}`, { type, error: errMsg });
         }
-        // Dead letter queue — store failed events for analysis
+        // 2026-05-23 · DLQ persisted to DB. Pre-fix: 50-item in-memory
+        // array cleared on every Railway restart. A subscriber failing
+        // silently across restarts was invisible. Now: written to
+        // event_dlq with eventType/destination/error/payload so the
+        // operator can query + a periodic check (recordDlqAndMaybeAlert)
+        // can Telegram-alert when same (type, dest) fails ≥3 times in
+        // 10 min.
         deadLetterQueue.push({ event, destination: dest.name, error: errMsg, timestamp: Date.now() });
         if (deadLetterQueue.length > MAX_DLQ) deadLetterQueue.shift();
+        recordDlqAndMaybeAlert(event.type, dest.name, errMsg, event.data).catch(e =>
+          log.warn("[eventBus] DLQ persist failed:", e)
+        );
       } finally {
         if (timer) clearTimeout(timer);
       }
@@ -706,66 +715,178 @@ export function getEventBusStatus(): {
 }
 
 // ─── EVENT LIFECYCLE CORRELATION ─────────────────────
-// Track customer journeys: lead → booking → invoice → payment
+// 2026-05-23 · Rewrote to use the lifecycle_tracker_events table
+// (migration 0053). The previous in-memory Map approach was process-
+// local — on a multi-pod Railway deploy, lead+payment landed on
+// different pods and the "FULL CONVERSION" memory write never fired
+// for ~half of journeys. DB upsert keyed by phone10 means any pod
+// can extend the journey. Fire-and-forget so dispatch latency
+// doesn't grow.
 
-const lifecycleTracker = new Map<string, { events: string[]; firstSeen: number; lastSeen: number }>();
-const MAX_LIFECYCLES = 200;
+interface LifecycleEvent { type: string; at: number }
 
-/** Called internally on every dispatch to build customer journeys */
-function trackLifecycle(type: BusinessEvent, data: Record<string, any>): void {
-  // Use phone or customer name as the correlation key
+async function recordLifecycleEvent(type: BusinessEvent, data: Record<string, any>): Promise<void> {
   const phone = (data.phone || data.customerPhone || "").replace(/\D/g, "").slice(-10);
-  const name = data.name || data.customerName || "";
-  const key = phone || name;
-  if (!key || key.length < 3) return;
+  if (!phone || phone.length !== 10) return; // Phone-keyed only · no name fallback (DB primary key)
+  const name = data.name || data.customerName || null;
 
-  const now = Date.now();
-  const existing = lifecycleTracker.get(key);
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return;
+    const { lifecycleTrackerEvents } = await import("../../drizzle/schema");
+    const { eq, sql } = await import("drizzle-orm");
 
-  if (existing) {
-    if (!existing.events.includes(type)) {
-      existing.events.push(type);
+    // Read current row (read-modify-write · race is benign · at worst a
+    // duplicate journey loses one duplicate event)
+    const existing = await d.select().from(lifecycleTrackerEvents)
+      .where(eq(lifecycleTrackerEvents.phone10, phone)).limit(1);
+
+    const now = Date.now();
+    const newEvent: LifecycleEvent = { type, at: now };
+
+    if (existing.length === 0) {
+      await d.insert(lifecycleTrackerEvents).values({
+        phone10: phone,
+        customerName: name,
+        events: [newEvent],
+        firstSeenAt: new Date(now),
+        lastSeenAt: new Date(now),
+      });
+      return;
     }
-    existing.lastSeen = now;
-  } else {
-    // Evict oldest if at cap
-    if (lifecycleTracker.size >= MAX_LIFECYCLES) {
-      let oldestKey = "";
-      let oldestTime = Infinity;
-      for (const [k, v] of lifecycleTracker) {
-        if (v.lastSeen < oldestTime) { oldestTime = v.lastSeen; oldestKey = k; }
-      }
-      if (oldestKey) lifecycleTracker.delete(oldestKey);
-    }
-    lifecycleTracker.set(key, { events: [type], firstSeen: now, lastSeen: now });
-  }
 
-  // Detect complete lifecycle: lead → booking → invoice → payment
-  const journey = lifecycleTracker.get(key);
-  if (journey && journey.events.includes("lead_captured") && journey.events.includes("invoice_paid")) {
-    // Full conversion! Learn from it.
-    import("./nickMemory").then(({ remember }) =>
-      remember({
-        type: "pattern",
-        content: `FULL CONVERSION: Customer "${name || phone}" completed full journey: ${journey.events.join(" → ")}. Duration: ${Math.round((journey.lastSeen - journey.firstSeen) / 3600000)}h. This is what success looks like — study this path.`,
-        source: "lifecycle_tracker",
-        confidence: 0.95,
-      })
-    ).catch(e => log.warn("[eventBus:lifecycle] full conversion memory save failed:", e));
-    lifecycleTracker.delete(key);
+    const row = existing[0];
+    // Skip if already converted (memory already written)
+    if (row.convertedAt) return;
+
+    const events = Array.isArray(row.events) ? row.events as LifecycleEvent[] : [];
+    if (!events.some(e => e.type === type)) events.push(newEvent);
+    const typeSet = new Set(events.map(e => e.type));
+    const isFullConversion = typeSet.has("lead_captured") && typeSet.has("invoice_paid");
+
+    await d.update(lifecycleTrackerEvents).set({
+      customerName: row.customerName ?? name,
+      events,
+      lastSeenAt: new Date(now),
+      ...(isFullConversion ? { convertedAt: sql`CURRENT_TIMESTAMP` } : {}),
+    }).where(eq(lifecycleTrackerEvents.phone10, phone));
+
+    if (isFullConversion) {
+      const firstSeen = new Date(row.firstSeenAt).getTime();
+      const hours = Math.round((now - firstSeen) / 3600000);
+      import("./nickMemory").then(({ remember }) =>
+        remember({
+          type: "pattern",
+          content: `FULL CONVERSION: Customer "${name || phone}" completed full journey: ${events.map(e => e.type).join(" → ")}. Duration: ${hours}h. This is what success looks like — study this path.`,
+          source: "lifecycle_tracker",
+          confidence: 0.95,
+        })
+      ).catch(e => log.warn("[eventBus:lifecycle] full conversion memory save failed:", e));
+    }
+  } catch (err) {
+    log.warn("[eventBus:lifecycle] DB persist failed:", err instanceof Error ? err.message : String(err));
   }
 }
 
-/** Get active customer journeys for dashboard display */
-export function getActiveJourneys(): Array<{ customer: string; events: string[]; hoursActive: number }> {
-  const now = Date.now();
-  return Array.from(lifecycleTracker.entries())
-    .filter(([_, v]) => now - v.lastSeen < 24 * 60 * 60 * 1000) // Last 24h
-    .map(([key, v]) => ({
-      customer: key,
-      events: v.events,
-      hoursActive: Math.round((v.lastSeen - v.firstSeen) / 3600000),
-    }))
-    .sort((a, b) => b.events.length - a.events.length)
-    .slice(0, 10);
+/** Called internally on every dispatch — fires the async DB write in
+ *  the background so dispatch latency isn't blocked. */
+function trackLifecycle(type: BusinessEvent, data: Record<string, any>): void {
+  recordLifecycleEvent(type, data).catch(e => log.warn("[eventBus:lifecycle] trackLifecycle threw:", e));
 }
+
+/** Get active customer journeys for dashboard display (DB-backed) */
+export async function getActiveJourneys(): Promise<Array<{ customer: string; events: string[]; hoursActive: number }>> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return [];
+    const { lifecycleTrackerEvents } = await import("../../drizzle/schema");
+    const { sql, isNull, gte, and } = await import("drizzle-orm");
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    type LifecycleRow = typeof lifecycleTrackerEvents.$inferSelect;
+    const rows = await d.select().from(lifecycleTrackerEvents)
+      .where(and(isNull(lifecycleTrackerEvents.convertedAt), gte(lifecycleTrackerEvents.lastSeenAt, since)))
+      .orderBy(sql`JSON_LENGTH(events) DESC`)
+      .limit(10) as LifecycleRow[];
+    return rows.map((row: LifecycleRow) => {
+      const events = (Array.isArray(row.events) ? row.events : []) as LifecycleEvent[];
+      const first = new Date(row.firstSeenAt).getTime();
+      const last = new Date(row.lastSeenAt).getTime();
+      return {
+        customer: row.customerName || row.phone10,
+        events: events.map((e: LifecycleEvent) => e.type),
+        hoursActive: Math.round((last - first) / 3600000),
+      };
+    });
+  } catch (err) {
+    log.warn("[eventBus:lifecycle] getActiveJourneys failed:", err instanceof Error ? err.message : String(err));
+    return [];
+  }
+}
+
+/**
+ * 2026-05-23 · DLQ persistence + threshold-based Telegram alert.
+ *
+ * Replaces the in-memory `deadLetterQueue` array (still maintained for
+ * the legacy getEventBusStatus surface). Writes every dispatch failure
+ * to event_dlq; if the same (eventType, destination) pair has failed
+ * ≥3 times in the last 10 minutes AND we haven't alerted since the
+ * window started, fires a Telegram alert + marks the rows as alerted.
+ */
+async function recordDlqAndMaybeAlert(eventType: string, destination: string, errMsg: string, payload: unknown): Promise<void> {
+  try {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return;
+    const { eventDlq } = await import("../../drizzle/schema");
+    const { and, eq, gte, isNull, sql } = await import("drizzle-orm");
+
+    await d.insert(eventDlq).values({
+      eventType,
+      destination,
+      error: errMsg.slice(0, 500),
+      payload: payload as object,
+    });
+
+    // Threshold check · last 10 minutes · same (type, dest)
+    const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const recent = await d.select({ c: sql<number>`count(*)` })
+      .from(eventDlq)
+      .where(and(
+        eq(eventDlq.eventType, eventType),
+        eq(eventDlq.destination, destination),
+        gte(eventDlq.createdAt, tenMinAgo),
+        isNull(eventDlq.alertedAt),
+      ));
+    const count = Number(recent[0]?.c || 0);
+    if (count >= 3) {
+      // Mark this batch as alerted so we don't spam Telegram every event
+      await d.update(eventDlq).set({ alertedAt: sql`CURRENT_TIMESTAMP` })
+        .where(and(
+          eq(eventDlq.eventType, eventType),
+          eq(eventDlq.destination, destination),
+          gte(eventDlq.createdAt, tenMinAgo),
+          isNull(eventDlq.alertedAt),
+        ));
+      import("./telegram").then(({ sendTelegram }) =>
+        sendTelegram(
+          `⚠️ EVENT-BUS DLQ THRESHOLD\n\n` +
+          `Pattern: ${eventType} → ${destination}\n` +
+          `Failures (last 10m): ${count}\n` +
+          `Latest error: ${errMsg.slice(0, 200)}\n\n` +
+          `Check event_dlq table for full payloads.`
+        )
+      ).catch((e) => log.warn("[eventBus:dlq] telegram alert failed:", e));
+    }
+  } catch (err) {
+    // DLQ persistence MUST NOT throw — that would amplify the original
+    // failure. Just log and continue.
+    log.warn("[eventBus:dlq] recordDlqAndMaybeAlert failed:", err instanceof Error ? err.message : String(err));
+  }
+}
+
+// Legacy in-memory `lifecycleTracker` Map was removed in this commit.
+// `deadLetterQueue` array above remains populated for the existing
+// getEventBusStatus surface (recent-failures view); future session
+// can retire that too once the admin reads event_dlq directly.

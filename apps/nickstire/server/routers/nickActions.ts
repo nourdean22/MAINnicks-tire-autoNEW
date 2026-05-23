@@ -120,6 +120,49 @@ export const nickActionsRouter = router({
     }))
     .mutation(async ({ input }) => handleSetCamera(input)),
 
+  // ─── Payment alert backlog · 2026-05-23 ───────────────
+  // Reads unresolved paid-but-unfulfillable orders so the Today
+  // dashboard can render a banner. Mark-resolved updates the row
+  // when operator manually fulfils the order.
+  paymentAlertBacklog: adminProcedure.query(async () => {
+    const { db } = await import("../lib/db-helper");
+    const { paymentAlertBacklog } = await import("../../drizzle/schema");
+    const { isNull, desc } = await import("drizzle-orm");
+    const d = await db();
+    if (!d) return { count: 0, items: [] as Array<{ id: number; summary: string; amountCents: number; failureReason: string; tireOrderNumber: string | null; invoiceNumber: string | null; createdAt: string }> };
+    type BacklogRow = typeof paymentAlertBacklog.$inferSelect;
+    const rows = await d.select().from(paymentAlertBacklog)
+      .where(isNull(paymentAlertBacklog.resolvedAt))
+      .orderBy(desc(paymentAlertBacklog.createdAt))
+      .limit(20) as BacklogRow[];
+    return {
+      count: rows.length,
+      items: rows.map((r: BacklogRow) => ({
+        id: r.id,
+        summary: r.summary,
+        amountCents: r.amountCents,
+        failureReason: r.failureReason,
+        tireOrderNumber: r.tireOrderNumber,
+        invoiceNumber: r.invoiceNumber,
+        createdAt: r.createdAt.toISOString(),
+      })),
+    };
+  }),
+  resolvePaymentAlert: adminProcedure
+    .input(z.object({ id: z.number().int(), resolvedBy: z.string().max(255).optional() }))
+    .mutation(async ({ input }) => {
+      const { db } = await import("../lib/db-helper");
+      const { paymentAlertBacklog } = await import("../../drizzle/schema");
+      const { eq, sql } = await import("drizzle-orm");
+      const d = await db();
+      if (!d) throw new Error("DB unavailable");
+      await d.update(paymentAlertBacklog).set({
+        resolvedAt: sql`CURRENT_TIMESTAMP`,
+        resolvedBy: input.resolvedBy || "admin",
+      }).where(eq(paymentAlertBacklog.id, input.id));
+      return { ok: true };
+    }),
+
   // ─── Shop Status ──────────────────────────────────────
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
   shopDriverStatus: adminProcedure.query(async () => handleShopDriverStatus()),
