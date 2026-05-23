@@ -54,40 +54,18 @@ export async function pushTireOrder(order: {
   totalAmount: number;
   installPreference: string;
 }): Promise<{ success: boolean; method: "api" | "telegram"; error?: string }> {
-  // Try API first
-  const session = await getSession();
-  if (session) {
-    try {
-      // Attempt to create work order via ShopDriver API
-      const res = await fetch(`${SHOPDRIVER_BASE}/api/workorders`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Cookie": session,
-          "User-Agent": "Mozilla/5.0",
-        },
-        signal: AbortSignal.timeout(10000),
-        body: JSON.stringify({
-          customerName: order.customerName,
-          customerPhone: order.customerPhone,
-          vehicleInfo: order.vehicleInfo || "",
-          description: `ONLINE TIRE ORDER ${order.orderNumber}\n${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\nInstall: ${order.installPreference}\nTotal: $${order.totalAmount.toFixed(2)}`,
-          status: "pending",
-          source: "online",
-        }),
-      });
+  // 2026-05-23 · stopped attempting the dead ShopDriver API path. The
+  // `secure.autolaborexperts.com/api/auth/login` endpoint was retired
+  // in the wave-100 ALG migration (see scheduler.ts:540 comment) — every
+  // call to it silently 404s, the catch fell through to Telegram, but
+  // the dispatch metrics + retry timing all suggested the API was the
+  // primary path. Now we go straight to Telegram (the actual working
+  // path) which makes the success metrics honest and skips ~3s wasted
+  // per tire order on the dead session call.
+  // If the new ALG GUID-subdomain API is ever discovered, restore the
+  // API attempt block here pointing at shopDriverMirror.ts:SHOPDRIVER_API.
 
-      if (res.ok) {
-        log.info(`Pushed tire order ${order.orderNumber} to ShopDriver via API`);
-        recordPush();
-        return { success: true, method: "api" };
-      }
-    } catch (err) {
-      log.warn("ShopDriver API push failed, falling back to Telegram", { error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  // Fallback: Send via Telegram for manual entry
+  // Send via Telegram (the actual working channel) for manual entry
   try {
     const { sendTelegram } = await import("./telegram");
     await sendTelegram(
@@ -124,42 +102,10 @@ export async function pushInvoice(invoice: {
   paymentStatus: string;
   paymentMethod: string;
 }): Promise<{ success: boolean; method: "api" | "telegram" }> {
-  const session = await getSession();
-  if (session) {
-    try {
-      const res = await fetch(`${SHOPDRIVER_BASE}/api/invoices`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Cookie": session,
-          "User-Agent": "Mozilla/5.0",
-        },
-        signal: AbortSignal.timeout(10000),
-        body: JSON.stringify({
-          invoiceNumber: invoice.invoiceNumber,
-          customerName: invoice.customerName,
-          customerPhone: invoice.customerPhone,
-          vehicleInfo: invoice.vehicleInfo || "",
-          serviceDescription: invoice.serviceDescription || "",
-          laborCost: invoice.laborCost,
-          partsCost: invoice.partsCost,
-          taxAmount: invoice.taxAmount,
-          totalAmount: invoice.totalAmount,
-          paymentStatus: invoice.paymentStatus,
-          paymentMethod: invoice.paymentMethod,
-        }),
-      });
-      if (res.ok) {
-        log.info(`Pushed invoice ${invoice.invoiceNumber} to ShopDriver via API`);
-        recordPush();
-        return { success: true, method: "api" };
-      }
-    } catch (err) {
-      log.warn("ShopDriver API invoice push failed, falling back to Telegram", { error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  // Fallback: Telegram
+  // 2026-05-23 · same dead-API skip as pushTireOrder above.
+  // `secure.autolaborexperts.com/api/invoices` is the wave-100-retired
+  // endpoint. Going straight to Telegram (the channel operator actually
+  // reads) so metrics + retry timing are honest.
   try {
     const { sendTelegram } = await import("./telegram");
     await sendTelegram(

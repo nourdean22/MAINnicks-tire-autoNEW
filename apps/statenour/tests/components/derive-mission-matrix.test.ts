@@ -110,6 +110,71 @@ describe("computeMissionMetrics · progress math", () => {
     expect(m[0].progressPct).toBeNull();
     expect(m[0].totalTasks).toBe(0);
   });
+
+  // ── 2026-05-23 · task #22 · ADR-0017 amended Rule 6 · effort-weighted rollup
+  it("weights heavy tasks more than light ones (task #22 · Rule 6)", () => {
+    // 1 easy M5 (weight 1) DONE · 1 heavy H2PLUS (weight 5) OPEN
+    // Old formula: 1/2 = 50%
+    // New formula: 1/(1+5) = 16.67% → 17%
+    // The heavy open task SHOULD pull the percent way below 50%.
+    const m = computeMissionMetrics(
+      [mission("m1")],
+      [
+        task("t1", "m1", { status: "DONE", effort: "M5", lastTouchedAt: iso(-1) }),
+        task("t2", "m1", { status: "OPEN", effort: "H2PLUS" }),
+      ],
+      NOW,
+    );
+    expect(m[0].progressPct).toBe(17);
+  });
+
+  it("flips the inverse · heavy DONE + easy OPEN reads HIGH not 50%", () => {
+    // 1 heavy H2PLUS (weight 5) DONE · 1 easy M5 (weight 1) OPEN
+    // Old formula: 1/2 = 50%
+    // New formula: 5/(5+1) = 83.33% → 83%
+    const m = computeMissionMetrics(
+      [mission("m1")],
+      [
+        task("t1", "m1", { status: "DONE", effort: "H2PLUS", lastTouchedAt: iso(-1) }),
+        task("t2", "m1", { status: "OPEN", effort: "M5" }),
+      ],
+      NOW,
+    );
+    expect(m[0].progressPct).toBe(83);
+  });
+
+  it("defaults missing-effort to middle weight (3 · M30) · legacy tasks still count", () => {
+    // 1 DONE without explicit effort · 2 OPEN without explicit effort
+    // All weights default to 3 · 3/(3+3+3) = 33% · matches the pre-fix
+    // formula when no effort estimates exist · safe migration.
+    const m = computeMissionMetrics(
+      [mission("m1")],
+      [
+        task("t1", "m1", { status: "DONE", lastTouchedAt: iso(-1) }),
+        task("t2", "m1"),
+        task("t3", "m1"),
+      ],
+      NOW,
+    );
+    expect(m[0].progressPct).toBe(33);
+  });
+
+  it("handles all 5 EFFORT_RANK levels correctly", () => {
+    // One DONE of each of the 5 effort bands · weights 1+2+3+4+5 = 15
+    // All DONE · so progressPct = 15/15 = 100%
+    const m = computeMissionMetrics(
+      [mission("m1")],
+      [
+        task("a", "m1", { status: "DONE", effort: "M5", lastTouchedAt: iso(-1) }),
+        task("b", "m1", { status: "DONE", effort: "M15", lastTouchedAt: iso(-1) }),
+        task("c", "m1", { status: "DONE", effort: "M30", lastTouchedAt: iso(-1) }),
+        task("d", "m1", { status: "DONE", effort: "H1", lastTouchedAt: iso(-1) }),
+        task("e", "m1", { status: "DONE", effort: "H2PLUS", lastTouchedAt: iso(-1) }),
+      ],
+      NOW,
+    );
+    expect(m[0].progressPct).toBe(100);
+  });
 });
 
 describe("computeMissionMetrics · velocity (doneTodayCount)", () => {

@@ -740,5 +740,10 @@ export function stopContinuousMonitoring(): void {
   }
 }
 
-// Auto-start continuous monitoring
-startContinuousMonitoring();
+// 2026-05-23 · removed top-level auto-start. The tiered cron scheduler
+// (server/cron/scheduler.ts) ALREADY registers `vendor-health` in the
+// pulse tier — auto-starting here meant two parallel paths firing the
+// same probes on different cadences (one cron-tracked + observable,
+// one orphan setInterval with no observability + no tier-skip
+// awareness). startContinuousMonitoring is still exported for tests
+// or manual control, just not invoked at module load.
