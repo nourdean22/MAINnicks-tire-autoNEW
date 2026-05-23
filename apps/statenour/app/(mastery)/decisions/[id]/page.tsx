@@ -34,6 +34,12 @@ import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import {
+  ComparisonMatrix,
+  type MatrixCell,
+  type MatrixCriterion,
+  type MatrixOption,
+} from "@/components/ui/comparison-matrix";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ChevronLeft, AlertCircle, BookOpen } from "lucide-react";
@@ -211,6 +217,80 @@ export default function DecisionDetailPage() {
     siblingGrades.length > 0
       ? siblingGrades.reduce((a, b) => a + b, 0) / siblingGrades.length
       : null;
+
+  // ─── ComparisonMatrix data · current + siblings × 4 criteria ──────
+  // The "options" are the current decision and its same-domain siblings ·
+  // the "criteria" are the dimensions an operator wants to scan across
+  // a domain (grade · how-fresh · review-status · has-outcome). The
+  // current decision is pinned to row 1 with a "(this)" label so the
+  // operator can locate it inside the sort.
+  const matrixOptions: MatrixOption[] = [
+    {
+      id: `current-${d.id}`,
+      label: `${d.title.slice(0, 48)} · (this)`,
+      _grade: d.grade,
+      _ageDays: timeline.ageDays,
+      _reviewDueDays: timeline.reviewDueDays,
+      _hasOutcome: !!d.actualOutcome,
+    },
+    ...lineage.siblings.map((s) => {
+      const ageDays = Math.max(
+        0,
+        Math.round((Date.now() - new Date(s.date).getTime()) / 86_400_000),
+      );
+      const reviewDueDays = s.reviewDate
+        ? Math.round(
+            (new Date(s.reviewDate).getTime() - Date.now()) / 86_400_000,
+          )
+        : null;
+      return {
+        id: `sib-${s.id}`,
+        label: s.title.slice(0, 48),
+        _grade: s.grade,
+        _ageDays: ageDays,
+        _reviewDueDays: reviewDueDays,
+        _hasOutcome: !!s.actualOutcome,
+      };
+    }),
+  ];
+
+  const matrixCriteria: MatrixCriterion[] = [
+    { id: "grade", label: "grade", higherIsBetter: true },
+    { id: "age", label: "age (days)", higherIsBetter: false },
+    { id: "review", label: "review (days)", higherIsBetter: true },
+    { id: "outcome", label: "outcome", higherIsBetter: true },
+  ];
+
+  const matrixCells = (
+    opt: MatrixOption,
+    crit: MatrixCriterion,
+  ): MatrixCell => {
+    const grade = opt._grade as string | null;
+    const ageDays = opt._ageDays as number;
+    const reviewDueDays = opt._reviewDueDays as number | null;
+    const hasOutcome = opt._hasOutcome as boolean;
+
+    switch (crit.id) {
+      case "grade":
+        return grade
+          ? { value: grade, score: gradeToNumeric(grade), display: grade }
+          : { value: null };
+      case "age":
+        return { value: ageDays, score: ageDays };
+      case "review":
+        return reviewDueDays === null
+          ? { value: null, display: "no date" }
+          : { value: reviewDueDays, score: reviewDueDays };
+      case "outcome":
+        return {
+          value: hasOutcome ? "yes" : "no",
+          score: hasOutcome ? 1 : 0,
+          display: hasOutcome ? "yes" : "no",
+        };
+      default:
+        return { value: null };
+    }
+  };
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-3 py-4 sm:px-4 sm:py-6">
@@ -528,6 +608,34 @@ export default function DecisionDetailPage() {
               </Link>
             ))}
           </div>
+        </section>
+      )}
+
+      {/* ── ComparisonMatrix · domain scan view ────────────────────
+       *   Shipped 2026-05-23 · task #8 from operator backlog. Renders
+       *   current decision + siblings as a dense grid keyed by 4 criteria
+       *   so the operator can scan a domain in one glance instead of
+       *   reading individual sibling cards. Per-column color-coding
+       *   surfaces outliers (the F in a string of A's, the 200-day-old
+       *   unreviewed decision in a domain with 30-day cadence). Only
+       *   rendered when there's at least one sibling — with just the
+       *   current decision the matrix is 1 × N, which is just a label
+       *   row and contributes no signal.
+       */}
+      {lineage.siblings.length > 0 && (
+        <section className="space-y-2">
+          <header>
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
+              domain scan · {d.domain ?? "all"}
+            </p>
+          </header>
+          <ComparisonMatrix
+            options={matrixOptions}
+            criteria={matrixCriteria}
+            cells={matrixCells}
+            caption="current decision + siblings · per-column color-coding · click a header to sort"
+            defaultSortCriterion="grade"
+          />
         </section>
       )}
 
