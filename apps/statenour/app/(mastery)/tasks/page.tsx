@@ -74,6 +74,10 @@ import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 // failures to /api/errors → /system/logs. lib/logger is console-only
 // on the client, so log.error() here never reached the operator.
 import { reportClientError } from "@/components/ui/client-error-telemetry";
+// 2026-05-23 OVERDRIVE · iOS-PWA-safe replacement for window.prompt.
+// Native prompt() returns undefined in iOS Safari standalone mode ·
+// the "+ subtask" UX silently no-ops on iPhone homescreen.
+import { usePromptDialog } from "@/components/ui/confirm-dialog";
 // KommandoShell dismantle · Phase 3 (2026-05-21) · <ProjectsPanel> was
 // the PLAN-tab Missions block · removed with the shell, and the
 // projects-panel.tsx file was deleted in the 2026-05-21 dead-code
@@ -182,6 +186,9 @@ export default function TasksPage() {
 
 function TasksPageInner() {
   const nourState = useNourState();
+  // 2026-05-23 OVERDRIVE · iOS-PWA-safe replacement for window.prompt.
+  // Renders null when closed · cost-free outside the addSubtask flow.
+  const { prompt: subtaskPrompt, dialog: subtaskDialog } = usePromptDialog();
   // v10.0.529.17 · `driftOverride` was aspirational dead state ·
   // pre-fix it lived as `useState(false)` with a `setDriftOverride`
   // setter that was destructured but never called anywhere. The
@@ -812,16 +819,21 @@ function TasksPageInner() {
    *
    * Wired to LoopRowItem's Plus button on top-level rows (where
    * task.parentTaskId is null · per ADR-0017 amended Rule 4). The
-   * native window.prompt is intentional · 1-line UX path · 0 deps ·
-   * ships fast. A polished editor flow can come later. The created
-   * subtask inherits missionId from the parent (passed explicitly)
-   * and goalId via the createTask service's parent-precedence logic
-   * (task #22 step 4.1 · Rule 2).
+   * created subtask inherits missionId from the parent (passed
+   * explicitly) and goalId via the createTask service's parent-
+   * precedence logic (task #22 step 4.1 · Rule 2).
+   *
+   * 2026-05-23 OVERDRIVE · was window.prompt() · iOS PWA standalone
+   * mode silently suppresses prompt/confirm/alert · the "+ subtask"
+   * button no-op'd on iPhone homescreen. Replaced with
+   * usePromptDialog · same `if (!title)` cancel semantics preserved.
    */
   async function addSubtask(parent: Task) {
-    // eslint-disable-next-line no-alert
-    const titleRaw = window.prompt(`Subtask of "${parent.title}":`);
-    const title = (titleRaw ?? "").trim();
+    const title = await subtaskPrompt({
+      title: `Subtask of "${parent.title}":`,
+      placeholder: "subtask title",
+      confirmLabel: "Add subtask",
+    });
     if (!title) return;
     try {
       const created = (await createTaskMutation.mutateAsync({
@@ -1243,6 +1255,10 @@ function TasksPageInner() {
     // notch. Pure CSS · no JS · zero layout impact on desktop because
     // env(safe-area-inset-bottom) resolves to 0 there.
     <div className="space-y-3 max-w-3xl pb-[env(safe-area-inset-bottom,0px)]">
+      {/* 2026-05-23 OVERDRIVE · iOS-PWA-safe prompt dialog · mounted at
+       *   page root so addSubtask() can await its result. Renders null
+       *   when closed · no perf cost. */}
+      {subtaskDialog}
       {/* Phase B (2026-05-18) · cross-link filter banner. Renders when
           operator arrives from /goals or /scoreboard via ?goalId or
           ?missionId · X-to-clear returns to unfiltered view. */}

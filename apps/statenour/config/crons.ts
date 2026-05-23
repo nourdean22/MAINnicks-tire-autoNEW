@@ -268,6 +268,22 @@ export const CRONS: CronDef[] = [
       "v10.0.529.82 · Wave 26 · B1 · flips status WAITING → READY for tasks whose snoozedUntil <= now. Closes the snooze broken-promise bug (UI shipped snooze affordance but tasks never came back). Idempotent: snoozedUntil clear is the lock.",
     addedAt: "2026-05-15",
   },
+  // 2026-05-23 OVERDRIVE · subtask-usage-audit · 30-day check-in
+  // self-fires on/after 2026-06-22 (migration applied 2026-05-23 PM).
+  // Computes parentTaskId usage % and writes the result as a
+  // nudge_pin_hygiene row · idempotent · upserts so subsequent runs
+  // show fresh stats. Folded into mega-morning · runs daily but
+  // gated by an inline date check so pre-window runs are no-ops.
+  {
+    name: "subtask-usage-audit",
+    schedule: null,
+    mode: "folded",
+    foldedInto: "mega",
+    category: "review",
+    description:
+      "2026-05-23 OVERDRIVE · 30-day check-in on parent_task_id wave (task #22 · ADR-0017 amended A1 gate). On/after 2026-06-22 computes total tasks + tasks-with-parent + usage % and upserts a BrainMemory(nudge_pin_hygiene, subtask_usage_audit_30d) row. Below 5% usage = ADR amendment A1 gate fires = candidate for revert. Idempotent · daily · pre-window runs are date-gated no-ops.",
+    addedAt: "2026-05-23",
+  },
   {
     name: "learn",
     schedule: null,

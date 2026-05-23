@@ -76,6 +76,12 @@ import {
 } from "@/components/actions/loop-row-item";
 
 import { trpc } from "@/lib/trpc/client";
+// 2026-05-23 OVERDRIVE · iOS-PWA-safe replacement for window.confirm.
+// Native confirm() returns undefined in iOS Safari standalone mode ·
+// the cascade prompt silently took the "cancelled" branch every time
+// on iPhone homescreen installs. Promise-based hook keeps the
+// `const ok = await confirm(...)` call-site shape minimal.
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface LoopStreamProps {
   tasks: Task[];
@@ -296,6 +302,10 @@ export function LoopStream({
   onAddSubtask,
   sortKey,
 }: LoopStreamProps) {
+  // 2026-05-23 OVERDRIVE · iOS-PWA-safe confirm dialog · hoisted here
+  // (top of component body) so both bulkDelete and onRowComplete can
+  // share the same hook instance · dialog mounted once near root.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   // 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask child-count
   // maps. Built once per `tasks` array change · O(N) bucketing.
   //
@@ -443,10 +453,24 @@ export function LoopStream({
     notifyDataChanged("tasks", { source: "loop-stream", detail: "bulk-snooze" });
     await onReviewChange?.();
   }, [runBulk, onReviewChange, updateTask]);
+  // 2026-05-23 OVERDRIVE · iOS-PWA-safe bulk-delete confirmation.
+  // Was `confirm(...)` · the global window.confirm also silently
+  // suppresses in iOS PWA standalone mode · before this fix, the
+  // bulk-delete on iPhone never confirmed and the early-return
+  // ALWAYS fired (operator hits Delete · nothing happens).
   const bulkDelete = useCallback(async () => {
-    if (selectedIds.size > 5 && !confirm(`Delete ${selectedIds.size} tasks?`)) return;
+    if (selectedIds.size > 5) {
+      const ok = await confirm({
+        title: `Delete ${selectedIds.size} tasks?`,
+        body: "This action cannot be undone.",
+        confirmLabel: "Delete",
+        cancelLabel: "Keep",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
     await runBulk(onDelete);
-  }, [selectedIds.size, runBulk, onDelete]);
+  }, [confirm, selectedIds.size, runBulk, onDelete]);
   // v10.0.529.14 · useCallback for stable ref across renders so the
   // memoized LoopRowItem doesn't re-render when sibling state ticks.
   const handleCompleteWithSpinner = useCallback(
@@ -474,19 +498,24 @@ export function LoopStream({
   //
   // 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · cascade-confirm
   // prompt. When completing a row that has open children, show a
-  // native confirm "complete N subtasks too?" · operator's yes passes
+  // confirm "complete N subtasks too?" · operator's yes passes
   // cascadeChildren=true down the chain · server cascades atomically.
-  // Native confirm() is intentional · keeps the UX path 1-line · a
-  // polished modal can come later. The prompt only fires for ONCE +
-  // PROMISE parents · DAILY loops don't cascade (Rule 1 carve-out).
+  //
+  // 2026-05-23 OVERDRIVE · cascade prompt was window.confirm() ·
+  // silently suppressed in iOS Safari standalone mode (PWA install)
+  // so the prompt never blocked + the cascade ALWAYS took the
+  // "cancelled" branch on iPhone homescreen. Now uses the
+  // hoisted `confirm` from useConfirmDialog() at top of component.
   const onRowComplete = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const openChildren = openChildCountByParent.get(id) ?? 0;
       if (openChildren > 0) {
-        // eslint-disable-next-line no-alert
-        const ok = window.confirm(
-          `This task has ${openChildren} open subtask${openChildren === 1 ? "" : "s"}. Complete ${openChildren === 1 ? "it" : "them"} too?`,
-        );
+        const ok = await confirm({
+          title: `Complete ${openChildren} subtask${openChildren === 1 ? "" : "s"} too?`,
+          body: `This task has ${openChildren} open subtask${openChildren === 1 ? "" : "s"}. Tap confirm to complete ${openChildren === 1 ? "it" : "them all"} in one shot. Cancel to leave ${openChildren === 1 ? "it" : "them"} open.`,
+          confirmLabel: "Complete all",
+          cancelLabel: "Leave children open",
+        });
         if (ok) {
           void handleCompleteWithSpinner(id, { cascadeChildren: true });
           return;
@@ -497,7 +526,7 @@ export function LoopStream({
       }
       void handleCompleteWithSpinner(id);
     },
-    [handleCompleteWithSpinner, openChildCountByParent],
+    [confirm, handleCompleteWithSpinner, openChildCountByParent],
   );
 
   // v10.0.529.14 · stable callbacks for the LoopRowItem boundary.
@@ -926,6 +955,11 @@ export function LoopStream({
 
   return (
     <div className="space-y-3">
+      {/* 2026-05-23 OVERDRIVE · cascade-confirm modal · iOS-PWA-safe
+       *   replacement for window.confirm() · renders null when closed
+       *   so no perf cost in the steady-state. See useConfirmDialog
+       *   hook for the call-site shape. */}
+      {confirmDialog}
       {/* ── BREAK PROMISE MODAL — inline reason capture ──
        *
        * v10.0.529.13 a11y · added role="dialog" + aria-modal +
