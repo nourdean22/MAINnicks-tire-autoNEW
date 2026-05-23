@@ -2866,3 +2866,37 @@ export const paymentAlertBacklog = mysqlTable("payment_alert_backlog", {
   resolvedBy: varchar("resolvedBy", { length: 255 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
+
+/**
+ * 2026-05-23 · event-bus dead-letter queue.
+ *
+ * Persists subscriber failures so they survive Railway pod restart.
+ * Pre-fix: 50-item in-memory array, cleared on restart, silently lost.
+ * Apply migration: drizzle/0053_event_dlq_lifecycle.sql
+ */
+export const eventDlq = mysqlTable("event_dlq", {
+  id: int("id").autoincrement().primaryKey(),
+  eventType: varchar("eventType", { length: 64 }).notNull(),
+  destination: varchar("destination", { length: 64 }).notNull(),
+  error: varchar("error", { length: 500 }).notNull(),
+  payload: json("payload"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  alertedAt: timestamp("alertedAt"),
+});
+
+/**
+ * 2026-05-23 · customer lifecycle journey tracker.
+ *
+ * Replaces the in-memory Map<phone10, events[]> that didn't survive
+ * Railway pod restart and couldn't share across multi-pod deploys.
+ * Apply migration: drizzle/0053_event_dlq_lifecycle.sql
+ */
+export const lifecycleTrackerEvents = mysqlTable("lifecycle_tracker_events", {
+  phone10: varchar("phone10", { length: 10 }).primaryKey(),
+  customerName: varchar("customerName", { length: 255 }),
+  // JSON array of { type: string; at: number }
+  events: json("events").notNull(),
+  convertedAt: timestamp("convertedAt"),
+  firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
+  lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
+});
