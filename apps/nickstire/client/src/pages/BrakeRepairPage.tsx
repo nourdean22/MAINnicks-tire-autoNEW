@@ -26,23 +26,23 @@ const CONFIG: ServicePageConfig = {
   // Cleveland" competitors. Adding the $149/axle price anchor — no
   // local competitor lists a price in their SERP snippet, so this is
   // the cheapest way to get the click without ranking improvements.
-  title: "Brake Repair Cleveland · From $149/Axle · Same-Day | Nick's",
-  description: "Brake repair in Cleveland from $149/axle. Free check · written estimate before any wrench moves · same-day on most jobs · 4.9★ from 1,700+ reviews. Call (216) 862-0005 or just pull up.",
+  title: "Brake Repair Cleveland · Free Check · No Pay Til Yes | Nick's",
+  description: "Cleveland brake repair without the surprise. Free check, written quote, you don't pay until you say yes. 4.9★ from 1,700+ drivers. Walk in 7 days. (216) 862-0005",
   eyebrow: "BRAKE REPAIR CLEVELAND · BRING YOUR EARS",
   h1: "CLEVELAND BRAKE REPAIR\nTHAT HANDS YOU THE FLASHLIGHT.",
-  sub: "Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest brake shop — serving Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and every neighborhood between. We lift the car, hand you the flashlight, and walk you under it so you SEE what's worn. We don't replace what doesn't need replacing. Most brake jobs out the door before lunch. Cheaper than the dealer. More honest than the chain. Free written estimate before any wrench moves. 4.9★ from 1,700+ Cleveland drivers who came in skeptical and left with a car that stops.",
-  startingPrice: "Pads from $149 per axle · written before the wrench moves",
+  sub: "Squealing? Grinding? Pedal soft like Cleveland weather in March? Nick's Tire & Auto on Euclid Ave — serving Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and every neighborhood between. We lift the car, hand you the flashlight, and walk you under it so you SEE what's worn. We don't replace what doesn't need replacing. Free check. Written quote. You don't pay until you say yes. 4.9★ from 1,700+ Cleveland drivers.",
+  startingPrice: "Free check · written quote · you don't pay until you say yes",
   pricingTitle: "BRAKE SERVICE — THREE LEVELS, ONE PROMISE",
-  pricingSub: "Every estimate is written before the wrench moves and explained in human English. We show you the worn part before we touch the bill — bring binoculars if you want.",
+  pricingSub: "Every estimate is written before the wrench moves and explained in human English. We show you the worn part on the lift before we touch the bill.",
   tiers: [
     { name: "Pad Replacement", price: "From $149", sub: "per axle, most vehicles · written estimate up front", use: "Pads worn, rotors still within spec. The cheapest stop-pedal fix that exists. Out the door in 90 minutes." },
     { name: "Pads + Rotors", price: "From $279", sub: "per axle, most vehicles · written estimate up front", use: "Rotors scored from a winter of too many late-stops. The most common Cleveland brake job by a country mile.", featured: true },
     { name: "Full Brake Job", price: "From $499", sub: "per axle, includes calipers if needed", use: "Calipers seized, lines leaking, full system refresh. The once-a-decade reset that buys you another 60K miles." },
   ],
   includedTitle: "WHAT'S INCLUDED",
-  includedSub: "Every brake service at Nick's comes with this — no surprise add-ons.",
+  includedSub: "Every brake service at Nick's comes with this — we tell you the cost before we touch anything.",
   included: [
-    "Free visual inspection (no obligation)",
+    "Free brake check (no obligation)",
     "Measurement of pad thickness and rotor wear",
     "Quality brake pads (ceramic or semi-metallic per vehicle spec)",
     "New rotors if measured below minimum thickness",
@@ -63,7 +63,7 @@ const CONFIG: ServicePageConfig = {
   bookingService: "brakes",
   serviceType: "Brake Repair",
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
-  ctaSub: "Free inspection, up-front pricing, same-day service. Call or walk in — 17625 Euclid Ave, Cleveland OH.",
+  ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland OH.",
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {

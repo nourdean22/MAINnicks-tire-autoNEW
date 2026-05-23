@@ -144,7 +144,7 @@ function IncludedSection() {
     "Complete drain and refill",
     "Top-off all fluids (washer, power steering, coolant)",
     "Tire pressure check and adjustment",
-    "Multi-point safety inspection (brakes, belts, lights, battery)",
+    "20-point safety check — brakes, belts, lights, battery",
     "Courtesy reset of oil life monitor",
     "Printed service record + sticker reminder",
   ];
@@ -153,7 +153,7 @@ function IncludedSection() {
       <div className="container max-w-4xl">
         <FadeIn>
           <h2 className="font-bold text-3xl text-foreground tracking-tight">WHAT&apos;S INCLUDED</h2>
-          <p className="text-foreground/60 mt-2">Every synthetic oil change at Nick&apos;s comes with this full package — no surprise add-ons.</p>
+          <p className="text-foreground/60 mt-2">Every synthetic oil change at Nick&apos;s comes with this full package — we tell you the cost before we touch anything.</p>
         </FadeIn>
         <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3">
           {items.map((item, i) => (
@@ -248,8 +248,8 @@ export default function SyntheticOilChangePage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Synthetic Oil Change Cleveland | From $69 | Same Day | Nick's Tire & Auto"
-        description="Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. 30-minute service, walk-ins 7 days. 10,000 mile intervals. (216) 862-0005"
+        title="Synthetic Oil Change Cleveland · From $69 · Walk-In 7 Days | Nick's"
+        description="Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. Walk-ins 7 days. 10,000-mile intervals. (216) 862-0005"
         canonicalPath="/synthetic-oil-change"
       />
       {/* v1.7 SEO · BreadcrumbList */}

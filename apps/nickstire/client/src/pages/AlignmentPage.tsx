@@ -30,7 +30,7 @@ const HERO_IMAGE = "/photos/busy-shop-action-mechanics.webp";
 const ALIGNMENT_FAQS = [
   {
     question: "How much does a wheel alignment cost?",
-    answer: "Two-wheel alignment from $89. Four-wheel alignment from $129. Free alignment inspection so you know exactly what your vehicle needs before any work begins — if your alignment is within spec, we tell you and you owe nothing. Specialty vehicles (large SUV, AWD performance, or vehicles with adjustable rear camber) may run higher; we'll quote that in writing before any wrench moves.",
+    answer: "Pull-check is free — we put the car on the Hunter rack and measure camber, caster, and toe. If the alignment is in spec, you owe nothing. If it needs work, we put the price in writing before any wrench moves — you don't pay until you say yes.",
   },
   {
     question: "How long does an alignment take?",
@@ -50,11 +50,11 @@ const ALIGNMENT_FAQS = [
   },
   {
     question: "Where can I get wheel alignment near me in Cleveland?",
-    answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers professional wheel alignment at competitive prices. We use computerized alignment equipment and adjust all wheels to manufacturer specifications. Walk-ins welcome 7 days a week, same-day service on most alignments. Call (216) 862-0005.",
+    answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112. Hunter alignment rack, all wheels adjusted to manufacturer spec. Walk-ins welcome 7 days a week. Call (216) 862-0005.",
   },
   {
     question: "How much does wheel alignment cost in Cleveland?",
-    answer: "Nick's Tire & Auto on Euclid Ave: two-wheel alignment from $89, four-wheel alignment from $129. Cleveland dealerships typically charge $129-$179 for the same service. Free alignment inspection — if your alignment is within spec, you owe nothing and we'll tell you so.",
+    answer: "Pull-check is free at Nick's on Euclid Ave — we put the car on the Hunter rack and measure. If alignment is needed, we put the price in writing before any wrench moves. You don't pay until you say yes.",
   },
 ];
 
@@ -122,7 +122,7 @@ function AlignmentHero() {
             </div>
             <div className="flex items-center gap-2 stagger-in bg-primary/10 border border-primary/20 rounded-md px-4 py-2">
               <CheckCircle className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-foreground/80 text-[12px]">Affordable alignment — free estimate before work</span>
+              <span className="text-foreground/80 text-[12px]">Free pull-check · written quote · you don't pay until you say yes</span>
             </div>
           </div>
           <div className="flex items-center gap-2 stagger-in bg-emerald-500/5 border border-emerald-500/20 rounded-md px-4 py-2">
@@ -305,12 +305,12 @@ function BookingSection() {
             <div>
               <span className="font-mono text-primary text-sm tracking-wide">Get Started</span>
               <h2 className="font-bold text-3xl lg:text-5xl text-foreground mt-3 tracking-tight leading-[1.05]">
-                SCHEDULE YOUR
+                DROP IT OFF
                 <br />
-                <span className="text-primary">ALIGNMENT SERVICE</span>
+                <span className="text-primary">FOR ALIGNMENT</span>
               </h2>
               <p className="mt-6 text-foreground/70 leading-relaxed text-lg">
-                Fill out the form and we will call you to confirm your appointment. Or call us directly at {BUSINESS.phone.display} — walk-ins are always welcome.
+                Fill out below and we'll text you back fast. Or just pull up — walk-ins always welcome, 7 days at 17625 Euclid Ave. Or call {BUSINESS.phone.display}.
               </p>
 
               <div className="mt-8 space-y-6">
@@ -398,8 +398,8 @@ export default function AlignmentPage() {
           SERP, hiding the phone + free-check offer. Trimmed to 152
           chars so the value props all survive. */}
       <SEOHead
-        title="Wheel Alignment Cleveland · Pothole Survivors Welcome | Nick's"
-        description="Cleveland wheel alignment on Euclid Ave. Hunter rack, camber/caster/toe printout, free check every visit. Walk in 7 days. (216) 862-0005"
+        title="Wheel Alignment Cleveland · Free Pull-Check · No Pay Til Yes | Nick's"
+        description="Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any work. You don't pay until you say yes. Walk in 7 days."
         canonicalPath="/alignment"
       />
       <LocalBusinessSchema additionalSchema={{ "hasOfferCatalog": { "@type": "OfferCatalog", "name": "Wheel Alignment", "itemListElement": [{ "@type": "Offer", "itemOffered": { "@type": "Service", "name": "Wheel Alignment", "serviceType": "Wheel Alignment" } }] } }} />

@@ -20,8 +20,8 @@ const CONFIG: ServicePageConfig = {
   // improved from 51.8 but CTR is still 0% — title isn't differentiated
   // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
   // (no competitor leads with FREE), price anchor for the full diag.
-  title: "Car Diagnostic Cleveland · FREE Code Pull · From $89",
-  description: "Cleveland car diagnostic from $89 (free OBD code pull) · plain-English explanation · credited back if we fix it · 4.9★ from 1,700+ reviews · just pull up to 17625 Euclid Ave. (216) 862-0005",
+  title: "Check Engine Light Cleveland · Free Scan · No Pay Til Yes",
+  description: "Cleveland check-engine-light shop. Free scan, plain-English read, written quote before any wrench moves. You don't pay until you say yes. 4.9★ from 1,700+ drivers. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.
   // H1 had ZERO keyword target ("THE LIGHT'S ON. WE FIND OUT *WHY*").
@@ -31,25 +31,25 @@ const CONFIG: ServicePageConfig = {
   // as primary H1 + keeping the "find out why, not guess" brand voice
   // as secondary line. Sub adds neighborhood mentions for local signal.
   h1: "CLEVELAND CAR DIAGNOSTIC\nTHAT FINDS THE WHY — NOT GUESSES.",
-  sub: "Check engine light on, flashing, or playing peek-a-boo? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest diagnostic shop — serving Euclid, Cleveland Heights, Parma, Lakewood, Lyndhurst, East Cleveland and every neighborhood between. Free OBD-II code pull. We tell you what the code means in real English — not engineer-speak — and what the fix actually costs before you authorize a single wrench. Most scans wrap up before your coffee's cold. Most codes fixed same day. 30+ years diagnosing every weird Cleveland-car symptom you can name — and a few we still can't.",
-  startingPrice: "Free code scan · diagnostic from $89 · credited back if we fix it",
+  sub: "Check engine light on, flashing, or playing peek-a-boo? Nick's Tire & Auto on Euclid Ave — Cleveland's check-engine-light translator. We serve Euclid, Cleveland Heights, Parma, Lakewood, Lyndhurst, East Cleveland and every neighborhood between. Free OBD-II code pull. We'll tell you what the code means in real English — not engineer-speak — and what the fix actually costs before any wrench moves. Free check. Written quote. You don't pay until you say yes. 30+ years reading every weird Cleveland-car symptom you can name.",
+  startingPrice: "Free code scan · written quote · you don't pay until you say yes",
   pricingTitle: "DIAGNOSTIC LEVELS",
-  pricingSub: "Starts free. Concrete starting prices below — credited back to your invoice if we do the repair. No 'diagnostic fee' line item shows up at checkout unless we already told you up front.",
+  pricingSub: "Starts free. Deeper checks get a written quote first, credited back to your invoice if we do the repair.",
   tiers: [
     { name: "Code Scan", price: "FREE", sub: "OBD-II pull + code lookup · plain-English explanation", use: "You want to know what triggered the light" },
     { name: "Full Diagnostic", price: "From $89", sub: "live data + component testing · credited toward repair", use: "Tough intermittent problem requiring live data + component testing", featured: true },
     { name: "Electrical / Wiring", price: "From $149", sub: "complex harness, CAN bus, parasitic draw · credited if fixed", use: "Harness damage, CAN bus faults, parasitic battery drain" },
   ],
   includedTitle: "WHAT'S INCLUDED",
-  includedSub: "Honest diagnosis, clear explanation. No fear tactics.",
+  includedSub: "We tell you what's wrong, in plain English. No fear tactics.",
   included: [
     "OBD-II code pull (all stored + pending codes)",
     "Freeze-frame data review",
     "Live sensor data analysis when needed",
-    "Visual engine bay + under-car inspection",
+    "Visual engine bay + under-car check",
     "Honest explanation of what the code means",
     "Written estimate of repair cost (if needed)",
-    "Diagnostic fee credited toward approved repair",
+    "Fee credited to the job if you say yes to the repair",
     "No pressure upsell — you decide what to fix",
   ],
   faqs: [
@@ -63,8 +63,8 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "diagnostics",
   serviceType: "Vehicle Diagnostics",
-  ctaHeadline: "BOOK A DIAGNOSTIC",
-  ctaSub: "Free code scan, honest diagnosis. Walk in or book below — 17625 Euclid Ave, Cleveland OH.",
+  ctaHeadline: "BRING IT IN · WE'LL TELL YOU WHAT'S WRONG",
+  ctaSub: "Free code scan, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland OH.",
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {
