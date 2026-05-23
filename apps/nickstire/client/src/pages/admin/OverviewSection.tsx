@@ -328,7 +328,12 @@ export default function OverviewSection() {
         callbackUpdateStatus.mutate({ id: item.entityId, status: "completed" });
         break;
       case "workOrder":
-        toast.info("Open Work Orders section to manage WO status");
+        // 2026-05-23 · wave 181.92 moved work-order management under
+        // Customers. Rather than toast-stranding the operator, take them
+        // there directly with the WO highlighted so they can finish the
+        // mark-done flow.
+        navigateToAdminSection("customers");
+        toast.info(`Marking WO done — finish in Customers section`);
         break;
     }
   }
@@ -347,7 +352,10 @@ export default function OverviewSection() {
         callbackUpdateStatus.mutate({ id: item.entityId, status: "completed" });
         break;
       case "workOrder":
-        toast.info("Open Work Orders section to delete WO");
+        // 2026-05-23 · same as mark-done — navigate to where the WO
+        // actually lives rather than dead-end the operator.
+        navigateToAdminSection("customers");
+        toast.info(`Deleting WO — finish in Customers section`);
         break;
     }
   }
@@ -982,14 +990,27 @@ export default function OverviewSection() {
                   <div className="text-lg font-bold text-red-400">{shopPulse?.today?.customersWalked ?? 0}</div>
                   <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Walked</div>
                 </button>
-                <div className="p-2">
+                <button
+                  type="button"
+                  onClick={() => openDrilldown({ kind: "revenue_today" })}
+                  className="text-left p-2 rounded hover:bg-blue-500/5 transition-colors"
+                  aria-label="Open today's revenue detail"
+                >
                   <div className="text-lg font-bold text-blue-400">${algFloor.avgTicket}</div>
                   <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Avg Ticket</div>
-                </div>
-                <div className="p-2">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openDrilldown({ kind: "fresh_leads" })}
+                  className={`text-left p-2 rounded transition-colors ${
+                    algFloor.conversionRate >= 50 ? "hover:bg-emerald-500/5" :
+                    algFloor.conversionRate >= 30 ? "hover:bg-amber-500/5" : "hover:bg-red-500/5"
+                  }`}
+                  aria-label="Open leads conversion detail"
+                >
                   <div className={`text-lg font-bold ${algFloor.conversionRate >= 50 ? "text-emerald-400" : algFloor.conversionRate >= 30 ? "text-amber-400" : "text-red-400"}`}>{algFloor.conversionRate}%</div>
                   <div className="text-[9px] text-muted-foreground tracking-wider uppercase">Conversion</div>
-                </div>
+                </button>
               </div>
 
               {/* Week / Month rollup */}
@@ -1101,22 +1122,42 @@ export default function OverviewSection() {
                 )}
               </div>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-                <div className="text-center p-2 rounded-md bg-primary/5 border border-primary/15">
+                <button
+                  type="button"
+                  onClick={() => navigateToAdminSection("customers")}
+                  className="text-center p-2 rounded-md bg-primary/5 border border-primary/15 hover:bg-primary/10 transition-colors"
+                  aria-label="Open customers"
+                >
                   <p className="text-base font-bold text-primary">{custIntel.spendTiers.whales.count}</p>
                   <p className="text-[8px] text-muted-foreground mt-0.5">Whales ($2K+)</p>
-                </div>
-                <div className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/15">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateToAdminSection("customers")}
+                  className="text-center p-2 rounded-md bg-blue-500/5 border border-blue-500/15 hover:bg-blue-500/10 transition-colors"
+                  aria-label="Open customers"
+                >
                   <p className="text-base font-bold text-blue-400">{custIntel.spendTiers.regulars.count}</p>
                   <p className="text-[8px] text-muted-foreground mt-0.5">Regulars</p>
-                </div>
-                <div className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateToAdminSection("customers")}
+                  className="text-center p-2 rounded-md bg-emerald-500/5 border border-emerald-500/15 hover:bg-emerald-500/10 transition-colors"
+                  aria-label="Open customers"
+                >
                   <p className="text-base font-bold text-emerald-400">{custIntel.spendTiers.oneTimers.count}</p>
                   <p className="text-[8px] text-muted-foreground mt-0.5">One-Timers</p>
-                </div>
-                <div className="text-center p-2 rounded-md bg-red-500/5 border border-red-500/15">
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openDrilldown({ kind: "lapsed_vips" })}
+                  className="text-center p-2 rounded-md bg-red-500/5 border border-red-500/15 hover:bg-red-500/10 transition-colors"
+                  aria-label="Open churn risk detail"
+                >
                   <p className="text-base font-bold text-red-400">{custIntel.churnRisk.atRisk}</p>
                   <p className="text-[8px] text-muted-foreground mt-0.5">Churn Risk</p>
-                </div>
+                </button>
               </div>
               {custIntel.churnRisk.winbackTargets > 0 && (
                 <div className="flex items-center gap-2 p-2 rounded bg-amber-500/5 border border-amber-500/15 text-xs">

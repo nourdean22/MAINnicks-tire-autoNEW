@@ -51,6 +51,11 @@ export function MiniTable({ headers, rows }: {
   headers: string[];
   rows: (string | number | React.ReactNode)[][];
 }) {
+  // 2026-05-23 · dropped row hover state. MiniTable is reused across 7
+  // Intelligence tabs (churn / risk / repeat-visit / ltv segments / etc.)
+  // and rows are NOT clickable — a hover affordance signals "click me"
+  // when there's nothing to click. Intelligence is a report surface;
+  // the actionable queue lives on the Today dashboard.
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-[12px]">
@@ -63,7 +68,7 @@ export function MiniTable({ headers, rows }: {
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/10 hover:bg-foreground/[0.02] transition-colors">
+            <tr key={i} className="border-b border-border/10">
               {row.map((cell, j) => (
                 <td key={j} className="py-2 pr-3 text-foreground/70">{cell}</td>
               ))}
