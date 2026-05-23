@@ -77,7 +77,7 @@ export function ReasoningTraceModal({ open, messageId, onClose }: Props) {
       aria-labelledby="reasoning-trace-title"
     >
       <div
-        className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg max-w-2xl w-full mx-4 my-8 max-h-[calc(100vh-4rem)] overflow-y-auto"
+        className="bg-[var(--bg-base)] border border-[var(--border-default)] rounded-lg max-w-2xl w-full mx-4 my-8 max-h-[calc(100dvh-4rem)] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

@@ -248,8 +248,12 @@ export function ConversationDrawer({
           "sm:shadow-none shadow-[0_20px_60px_rgba(0,0,0,0.6)]",
         )}
         style={{
-          // Mobile-only — let it fill the visual viewport minus header
-          maxHeight: "calc(100vh - 80px)",
+          // Mobile-only — let it fill the visual viewport minus header.
+          // 2026-05-23 · Wave A · was 100vh · on iOS Safari that includes
+          // the collapsed URL bar in the height calc, so the drawer
+          // extended UNDER it · last history row was unreachable. 100dvh
+          // tracks the dynamic visual viewport · iOS-correct.
+          maxHeight: "calc(100dvh - 80px)",
           animation: "slideUpHistory 0.28s ease-out",
         }}
       >
