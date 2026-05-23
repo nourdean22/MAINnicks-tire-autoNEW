@@ -10,8 +10,10 @@ import {
   type BookingStatus, type LeadStatus,
 } from "./shared";
 import {
-  Loader2, Trophy, Gift, Star, Phone, Award, TrendingUp, BarChart3
+  Loader2, Trophy, Gift, Star, Phone, Award, TrendingUp, BarChart3,
+  ToggleLeft, ToggleRight,
 } from "lucide-react";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 interface RewardItem {
   id: number;
@@ -54,6 +56,16 @@ export default function LoyaltyAdminSection() {
   const createReward = trpc.loyalty.createReward.useMutation({
     onSuccess: () => { utils.loyalty.rewards.invalidate(); setShowRewardForm(false); setRewardForm({ title: "", description: "", pointsCost: "", discountValue: "" }); toast.success("Reward created"); },
     onError: (err: { message: string }) => toast.error(err.message),
+  });
+
+  // 2026-05-23 · reward lifecycle management. Previously the admin could
+  // CREATE rewards but had no UI to DEACTIVATE or DELETE — they piled up
+  // in the catalog forever. Server has updateReward with isActive flag;
+  // wire toggle + (soft-delete via isActive=0) here. Hard delete left
+  // for a future server mutation; isActive=0 is the practical equivalent.
+  const toggleReward = trpc.loyalty.updateReward.useMutation({
+    onSuccess: () => { utils.loyalty.rewards.invalidate(); toast.success("Reward updated"); },
+    onError: (err: { message: string }) => toast.error(`Update failed: ${err.message}`),
   });
 
   const rewardStats = useMemo(() => {
@@ -161,21 +173,59 @@ export default function LoyaltyAdminSection() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(rewards ?? []).map((r: RewardItem) => (
-              <div key={r.id} className="bg-card border border-border/30 p-4 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-foreground text-sm">{r.title}</span>
-                  <p className="text-[12px] text-foreground/40">{r.description}</p>
+            {(rewards ?? []).map((r: RewardItem) => {
+              const isInactive = r.isActive === 0;
+              return (
+                <div
+                  key={r.id}
+                  className={`bg-card border p-4 flex items-center justify-between gap-3 ${
+                    isInactive ? "border-border/15 opacity-50" : "border-border/30"
+                  }`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-foreground text-sm">{r.title}</span>
+                      {isInactive && (
+                        <span className="text-[9px] font-bold tracking-wider px-1.5 py-0.5 rounded text-foreground/50 bg-foreground/5">
+                          INACTIVE
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-foreground/40">{r.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-bold text-primary text-sm">{r.pointsCost} pts</span>
+                    {/* wave-143 — was $r.discountValue which doesn't exist in
+                        schema (form submits rewardValue, DB stores rewardValue).
+                        Rendered "$undefined off". */}
+                    <p className="text-[12px] text-foreground/40">${r.rewardValue ?? r.discountValue ?? 0} off</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!isInactive) {
+                        const ok = await confirmDialog({
+                          title: "Deactivate reward?",
+                          message: `Hide "${r.title}" from the loyalty catalog. Customers will no longer be able to redeem it. You can reactivate any time.`,
+                          confirmLabel: "Deactivate",
+                        });
+                        if (!ok) return;
+                      }
+                      toggleReward.mutate({ id: r.id, isActive: isInactive ? 1 : 0 });
+                    }}
+                    disabled={toggleReward.isPending}
+                    className="p-2 hover:bg-foreground/5 rounded transition-colors disabled:opacity-40"
+                    title={isInactive ? "Reactivate reward" : "Deactivate reward"}
+                    aria-label={isInactive ? `Reactivate ${r.title}` : `Deactivate ${r.title}`}
+                  >
+                    {isInactive
+                      ? <ToggleLeft className="w-5 h-5 text-foreground/40" />
+                      : <ToggleRight className="w-5 h-5 text-emerald-400" />
+                    }
+                  </button>
                 </div>
-                <div className="text-right">
-                  <span className="font-bold text-primary text-sm">{r.pointsCost} pts</span>
-                  {/* wave-143 — was $r.discountValue which doesn't exist in
-                      schema (form submits rewardValue, DB stores rewardValue).
-                      Rendered "$undefined off". */}
-                  <p className="text-[12px] text-foreground/40">${r.rewardValue ?? r.discountValue ?? 0} off</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
