@@ -1,0 +1,38 @@
+{
+  "id": "specialist-routing-decision",
+  "name": "Decision-coach specialist routing target",
+  "description": "Decision-shaped message with explicit trade-off framing. Validates that the response (specialist or general) names the trade-off, weighs the criteria, and lands a lean rather than 'it depends'.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "should I take the harder higher-impact project or the easier safer one this quarter? what's the actual trade-off and what would past Nour do?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator runs MasteryDecision tracking + grades past decisions",
+    "'Past Nour' lens is part of the brain — ghost predictions surface what past Nour chose in similar situations",
+    "ENABLE_SPECIALIST_ROUTING may be off (default) — eval still applies to general Nick"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "names-tradeoff",
+      "description": "Reply names the actual trade-off (impact vs safety / growth vs preservation) rather than restating the question",
+      "weight": 1.5
+    },
+    {
+      "id": "applies-past-nour-lens",
+      "description": "Reply references past patterns or past-Nour-style preferences — not just generic decision-theory abstractions",
+      "weight": 1.0
+    },
+    {
+      "id": "lands-a-lean",
+      "description": "Reply ends with a clear lean (lean A, lean B, hold-and-test) — never closes with 'it depends' or 'up to you'",
+      "weight": 1.5
+    }
+  ],
+  "expectedBehavior": "When specialist routing is enabled, this message routes to decision-coach. Either way the reply names the trade-off concretely, considers past-Nour, and recommends a leaning direction with a brief recovery-path note.",
+  "tags": ["voice", "specialist-routing", "decision-coach", "business-decision"]
+}
