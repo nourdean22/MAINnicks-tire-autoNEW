@@ -307,7 +307,7 @@ export default function SeasonalPage() {
                       <Snowflake className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Inspect Your Brakes Before Ice Season</h3>
-                        <p className="text-foreground/70 leading-relaxed">Stopping distances double on wet and icy roads. Worn <Link href="/brakes" className="text-nick-blue-light hover:underline">brake pads</Link> make it even worse. If you hear squealing or feel pulsation when braking, don't wait. A brake inspection takes 20 minutes and could save you from a winter collision.</p>
+                        <p className="text-foreground/70 leading-relaxed">Stopping distances double on wet and icy roads. Worn <Link href="/brakes" className="text-nick-blue-light hover:underline">brake pads</Link> make it even worse. If you hear squealing or feel pulsation when braking, don't wait. A brake check takes 20 minutes and could save you from a winter collision.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -328,7 +328,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Get Your AC Checked Before the Heat Hits</h3>
-                        <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair-cleveland" className="text-nick-blue-light hover:underline">AC inspection</Link> in spring before every shop in Cleveland has a two-week wait.</p>
+                        <p className="text-foreground/70 leading-relaxed">If your AC blew weak last summer, it won't magically fix itself. Low refrigerant, a failing compressor, or a clogged cabin filter all reduce cooling. Get an <Link href="/ac-repair-cleveland" className="text-nick-blue-light hover:underline">AC check</Link> in spring before every shop in Cleveland has a two-week wait.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -364,7 +364,7 @@ export default function SeasonalPage() {
                       <Sun className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                       <div>
                         <h3 className="font-bold text-foreground text-lg mb-2">Get an Oil Change If You're Overdue</h3>
-                        <p className="text-foreground/70 leading-relaxed">Heat breaks down oil faster. If you're past your change interval, old oil can't protect your engine from the extra thermal stress of summer driving. A quick <Link href="/oil-change" className="text-nick-blue-light hover:underline">oil change</Link> with a courtesy inspection takes about 30 minutes and is the cheapest insurance against engine damage.</p>
+                        <p className="text-foreground/70 leading-relaxed">Heat breaks down oil faster. If you're past your change interval, old oil can't protect your engine from the extra thermal stress of summer driving. A quick <Link href="/oil-change" className="text-nick-blue-light hover:underline">oil change</Link> with a courtesy 20-point check takes about 30 minutes and is the cheapest insurance against engine damage.</p>
                       </div>
                     </div>
                   </FadeIn>
@@ -373,7 +373,7 @@ export default function SeasonalPage() {
             </div>
             <FadeIn delay={0.3}>
               <p className="mt-8 text-foreground/60 text-sm">
-                Not sure what your car needs? <Link href="/diagnose" className="text-nick-blue-light hover:underline">Use our online diagnosis tool</Link> or call us at {BUSINESS.phone.display}. Walk-ins welcome {BUSINESS.hours.display}.
+                Not sure what your car needs? <Link href="/diagnose" className="text-nick-blue-light hover:underline">Use our online tool to describe the symptoms</Link>, or call us at {BUSINESS.phone.display}. Walk-ins welcome {BUSINESS.hours.display}.
               </p>
             </FadeIn>
           </div>

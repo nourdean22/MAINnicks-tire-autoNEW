@@ -23,11 +23,11 @@ const CONFIG: ServicePageConfig = {
   // Wrench" — the actual differentiator. Sub rewritten with operator
   // 3 (useful absurd: "phone bill that never breaks") + operator 4
   // (anti-pattern: chains' diagnostic fee).
-  title: "Auto Repair Near Me Cleveland · Estimate Before Wrench | Nick's",
-  description: "Cleveland auto shop where the written estimate hits the counter before any wrench moves. Brakes, tires, oil, diagnostics, alignment, AC. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  title: "Auto Repair Near Me Cleveland · Free Check · No Pay Til Yes | Nick's",
+  description: "Cleveland auto shop. Free check. Written quote. You don't pay until you say yes. Brakes, tires, oil, alignment, AC. Walk in 7 days. 4.9★ from 1,700+ drivers.",
   eyebrow: "LOCAL AUTO REPAIR",
   h1: "AUTO REPAIR THAT EXPLAINS ITSELF\nBEFORE IT BILLS YOU.",
-  sub: "Cleveland mechanic near me. Walk in to Nick's on Euclid Ave with a noise, a light, or a bad feeling about something — we put it on a lift, take pictures of what's worn, and hand you a written estimate before any wrench touches a bolt. The chains call that 'a $99 diagnostic fee.' We call it Tuesday. 4.9★ from 1,700+ Cleveland drivers, walk-ins 7 days, every make and model including the European stuff your buddy said you have to drive to the dealer for.",
+  sub: "Cleveland mechanic near me. Walk in to Nick's on Euclid Ave with a noise, a light, or a bad feeling about something — we put it on a lift, take pictures of what's worn, and hand you a written quote before any wrench touches a bolt. The chains call that 'a $99 check-out fee.' We call it Tuesday. Free check. Written quote. You don't pay until you say yes. 4.9★ from 1,700+ Cleveland drivers, walk-ins 7 days, every make and model including the European stuff your buddy said you have to drive to the dealer for.",
   startingPrice: "Free estimates",
   pricingTitle: "COMMON REPAIR LEVELS",
   pricingSub: "Free written estimate before any work. Labor comparable to local shops, lower than dealers. Parts at fair markup — no games.",
@@ -45,13 +45,13 @@ const CONFIG: ServicePageConfig = {
     "12-month / 12,000-mile warranty on parts and labor",
     "Walk-ins welcome 7 days a week — most repairs same or next day",
     "$10 down financing via Snap, Acima, Koalafi",
-    "Free multi-point inspection with every oil change",
+    "Free multi-point check with every oil change",
     "30+ years of experience on domestic, Asian, and European vehicles",
   ],
   faqs: [
     { q: "Do you work on my type of car?", a: "Almost certainly yes. Domestic (Ford, Chevy, Dodge, GMC, Jeep), Asian (Toyota, Honda, Nissan, Hyundai, Kia, Mazda, Subaru, Lexus, Acura), European (BMW, Mercedes, Audi, VW, Volvo), trucks and SUVs. If we can't work on something specific, we'll tell you up front and refer you to someone who can." },
-    { q: "How much is a full diagnostic?", a: "Free code scan on the spot. Anything beyond that — full diagnostic (live data, component testing, wiring) — gets a written estimate before we start, and the diagnostic fee applies to the repair if you have us fix it. Complex electrical or intermittent issues are quoted firm up front — never open-ended." },
-    { q: "Can I get an estimate before you start?", a: "Always. Every repair over $100 gets a written estimate — we don't touch anything else without your approval. If we find something additional while working, we stop and call you with the new number. No 'surprise' bills." },
+    { q: "How much is a full diagnostic?", a: "Free code scan on the spot. If it needs deeper checking — live data, component testing, wiring — we write you a quote first. If you fix it with us, the check fee comes off the bill. Free check. Written quote. You don't pay until you say yes." },
+    { q: "Can I get an estimate before you start?", a: "Always. Every repair over $100 gets a written quote — we don't touch anything else until you say yes. If we find something additional while working, we stop and call you with the new number. We tell you the cost before we touch anything." },
     { q: "Do you offer financing?", a: "Yes — $10 down financing through Snap Finance, Acima, and Koalafi. Pre-approval takes 2 minutes with no hard credit check. Most customers qualify for $500-$5,000. Payments as low as $89/mo. Great if you need a repair today but the money's tight until next paycheck." },
     { q: "How long will my repair take?", a: "Depends on the job. Basic stuff (oil change, tire, brake pads): 30-90 minutes. Medium repairs (alternator, water pump, brakes + rotors): 2-4 hours. Major work (timing chain, transmission): 1-3 days. We give you an estimated completion time up front and text updates." },
     { q: "Do I need to make an appointment?", a: "Not usually. Walk-ins welcome 7 days a week. If you're dropping off, show up before 10 AM for best chance of same-day turnaround. Call ahead at (216) 862-0005 if it's a specific repair — that way we can confirm parts availability." },

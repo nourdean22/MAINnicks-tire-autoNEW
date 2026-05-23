@@ -47,12 +47,12 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Diagnostics",
     question: "My check engine light is on. What should I do?",
-    answer: "A check engine light can indicate anything from a loose gas cap to a serious engine problem. We recommend bringing your vehicle in for a diagnostic scan. Our technicians use advanced OBD-II equipment to read the exact trouble codes and pinpoint the issue, so you only pay for what actually needs to be fixed."
+    answer: "A check engine light can indicate anything from a loose gas cap to a serious engine problem. Walk in and we'll plug in the scanner to read the trouble codes — same code reader the dealer uses. Free scan, written quote if it needs deeper checking. You don't pay until you say yes."
   },
   {
     category: "Diagnostics",
     question: "How much does a diagnostic scan cost?",
-    answer: `Our diagnostic service is competitively priced and includes a full scan of your vehicle's computer system, code interpretation, and a clear explanation of what the codes mean and what repairs are needed. Call us at ${BUSINESS.phone.display} for current pricing.`
+    answer: `Code scan is free on every visit. If it needs deeper checking — live data, component testing — we write you a quote first. Free check. Written quote. You don't pay until you say yes. Call ${BUSINESS.phone.display} if you want details before you walk in.`
   },
   // Emissions
   {
@@ -69,18 +69,18 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Brakes",
     question: "How do I know if my brakes need to be replaced?",
-    answer: "Common signs include squealing or grinding noises when braking, a soft or spongy brake pedal, the vehicle pulling to one side during braking, or a vibrating steering wheel. If you notice any of these symptoms, we recommend having your brakes inspected promptly for your safety."
+    answer: "Common signs include squealing or grinding noises when braking, a soft or spongy brake pedal, the vehicle pulling to one side during braking, or a vibrating steering wheel. If you notice any of these — come in and we'll check the brakes. Sooner the better, squealing turns to metal-on-metal fast."
   },
   {
     category: "Brakes",
     question: "Do you show me the brake problem before doing the repair?",
-    answer: "Absolutely. We walk every customer through the diagnosis. We show you the worn parts, explain what needs to be replaced and why, and give you a clear estimate before any work begins. No surprises."
+    answer: "Yes. We walk every customer under the car, show you the worn parts, and tell you what needs to be replaced. Free check. Written quote. You don't pay until you say yes."
   },
   // Tires
   {
     category: "Tires",
     question: "Do you sell new and used tires?",
-    answer: "Yes. We carry a full selection of new tires from major brands at competitive prices, and we also have quality used tires for budget-conscious drivers. All tires include professional mounting and balancing."
+    answer: "Yes. New tires from major brands — Goodyear, Cooper, Michelin, Bridgestone — and used tires from $40 installed. Mount, balance, valve stems, alignment check included with every set."
   },
   {
     category: "Tires",
@@ -97,7 +97,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Pricing & Warranty",
     question: "Do you provide written estimates before starting work?",
-    answer: "Yes. We always provide a clear, written estimate before beginning any repair. If we discover additional issues during the repair, we will contact you and get your approval before proceeding. The price we quote is the price you pay."
+    answer: "Yes. Written estimate before any wrench moves. If we find something else while we're in there, we stop and call you — you say yes or no on the new number. Free check. Written quote. You don't pay until you say yes."
   },
   {
     category: "Pricing & Warranty",
@@ -260,8 +260,8 @@ export default function FAQ() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Auto Repair FAQ Cleveland · The Questions Everyone Forgets To Ask | Nick's"
-        description="Honest answers about brakes, tires, oil change, diagnostics, and the strange noises Cleveland cars make. Walk-ins welcome 7 days, free estimates, payment programs on the spot. (216) 862-0005"
+        title="Auto Repair FAQ Cleveland · Honest Answers | Nick's"
+        description="Honest answers about brakes, tires, oil change, and the strange noises Cleveland cars make. Free check. Written quote. You don't pay until you say yes. Walk in 7 days. (216) 862-0005"
         canonicalPath="/faq"
       />
       <FAQSchema />

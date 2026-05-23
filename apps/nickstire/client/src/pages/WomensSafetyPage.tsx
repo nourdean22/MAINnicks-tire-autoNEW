@@ -74,8 +74,8 @@ export default function WomensSafetyPage() {
   return (
     <PageLayout>
       <SEOHead
-        title="Women's Safety at Nick's Tire & Auto | Cleveland's Safest Auto Shop"
-        description="Stay in your car or drop off and go. Nick's Tire & Auto in Cleveland is built around your comfort and safety — no pressure, full transparency, Uber drop-off available."
+        title="Women's Safety at Nick's Tire & Auto · Cleveland | Stay In Your Car"
+        description="Stay in your car or drop off and Uber out. Nick's Cleveland — no pressure, no pushy mechanics. Free check. Written quote. You don't pay until you say yes. Walk-ins 7 days."
         canonicalPath="/womens-safety"
       />
       {/* v1.7 SEO · BreadcrumbList */}
@@ -103,6 +103,9 @@ export default function WomensSafetyPage() {
             You should never feel uncomfortable getting your car serviced. At Nick's,
             you're in control — stay in your car, drop off and Uber out, or wait in
             a clean, welcoming space. Your call, every time.
+          </p>
+          <p className="text-foreground/80 text-base sm:text-lg leading-relaxed max-w-xl mx-auto mt-6">
+            Free check. Written quote. <span className="text-[#FDB913] font-semibold">You don't pay until you say yes.</span>
           </p>
         </div>
       </section>

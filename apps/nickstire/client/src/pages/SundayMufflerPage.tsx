@@ -34,8 +34,8 @@ const CONFIG: ServicePageConfig = {
   includedSub: "Most Cleveland shops close Sunday. We don't. Here's why drivers come to us.",
   included: [
     "Open Sunday 9 AM – 4 PM. No appointment needed.",
-    "Free exhaust inspection on a lift — we show you the leak, not just describe it",
-    "Written estimate before any wrench moves — no surprise bills",
+    "Free exhaust check on a lift — we show you the leak, not just describe it",
+    "Written estimate before any wrench moves — you see the cost before we touch the car",
     "Most muffler repairs done in 60–90 minutes",
     "Welding done in-house — no waiting for a third-party welder",
     "Catalytic converter work with written estimate, OEM-spec parts available",
@@ -47,14 +47,14 @@ const CONFIG: ServicePageConfig = {
     { q: "Can I get a muffler replaced today?", a: "Most muffler replacements take 60–90 minutes once we're under the car. If we have your part in stock or it's a common-fit muffler, you're driving home today. If we need to order an OEM-specific part, it's usually next-day from a local supplier. Walk in or call (216) 862-0005 with your year/make/model and we'll confirm timing on the spot." },
     { q: "How much does a muffler cost in Cleveland?", a: "Most muffler replacements run $189–$450 depending on vehicle, muffler grade (universal vs. OEM-fit), and whether the pipes/clamps need to be replaced too. Full exhaust system work (manifold to tailpipe) is $400–$1,200. Catalytic converter work is significantly more — $600–$2,500 — depending on whether OEM or aftermarket. We quote every job in writing before we start, so you'll know your number before any work begins." },
     { q: "What if I just need a weld, not a full replacement?", a: "Weld jobs are common — pinhole leaks, broken hangers, cracked flex pipes — and usually $80–$180 depending on access and weld time. We do welding in-house so there's no waiting on a third-party shop. Walk in and we'll inspect free; if it's weldable, we tell you. If it's rotted past welding, we tell you that too." },
-    { q: "My car failed E-Check — can you fix that?", a: "Yes — most E-Check failures are catalytic converter, oxygen sensor, EVAP, or exhaust-leak related. We're state-certified for emissions repair. Free initial diagnostic to identify the failure cause, then a written estimate before any work. We back our emissions repair: pass guaranteed or we keep working." },
+    { q: "My car failed E-Check — can you fix that?", a: "Yes — most E-Check failures are catalytic converter, oxygen sensor, EVAP, or exhaust-leak related. We're state-certified for emissions repair. Free check to find what's failing, then a written quote before any work. You don't pay until you say yes." },
     { q: "Can I finance an exhaust repair?", a: "Yes — $10 down, no credit check, approved in 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most exhaust jobs ($200–$800) fit comfortably in financing terms. Drive away today, pay over time." },
     { q: "Do you do work on diesel exhaust?", a: "We service light-duty gas and diesel exhaust — passenger cars, light trucks, vans. Heavy-duty commercial diesel (semi tractors, large box trucks) and DPF/DEF system work on heavy diesel is outside our scope; we'll refer you to a specialist if your vehicle falls in that category." },
   ],
   bookingService: "general-repair",
   serviceType: "Muffler & Exhaust Repair",
   ctaHeadline: "LOUD EXHAUST? PULL UP TODAY.",
-  ctaSub: "Open Sunday 9 AM–4 PM. Walk in or call (216) 862-0005. Free inspection, written estimate before any work, $10-down financing available.",
+  ctaSub: "Open Sunday 9 AM–4 PM. Walk in or call (216) 862-0005. Free check, written quote, you don't pay until you say yes. $10-down financing available.",
 
   fearStats: {
     heading: "What waiting on an exhaust leak actually costs.",

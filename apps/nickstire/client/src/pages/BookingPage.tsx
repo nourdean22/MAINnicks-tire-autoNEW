@@ -38,6 +38,9 @@ export default function BookingPage() {
               we&apos;ll get to your car in line. If you can&apos;t, drop it off — we
               text you the second it&apos;s ready.
             </p>
+            <p className="mt-4 text-[15px] text-foreground/80 leading-relaxed max-w-2xl mx-auto">
+              Repair work? Free check. Written quote. <span className="text-[#FDB913] font-semibold">You don&apos;t pay until you say yes.</span>
+            </p>
           </div>
 
           <BookingWizard source="booking-page" />

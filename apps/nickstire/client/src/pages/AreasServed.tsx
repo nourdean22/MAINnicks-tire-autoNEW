@@ -179,8 +179,7 @@ export default function AreasServed() {
             Don't See Your Area? We Still Serve You.
           </h2>
           <p className="text-foreground/60 mb-8">
-            Nick's Tire & Auto welcomes drivers from all over Northeast Ohio. Walk-ins are welcome
-            7 days a week, or schedule a drop-off online.
+            Nick's Tire & Auto welcomes drivers from all over Northeast Ohio. Walk in 7 days. Free check. Written quote. You don't pay until you say yes. Or schedule a drop-off online.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 stagger-in justify-center">
             <Link
