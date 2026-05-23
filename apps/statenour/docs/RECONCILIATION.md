@@ -1,6 +1,55 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 PM (post subtask wave · migration applied to prod Neon + 4 UI slices) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2720 across 178 vitest files (`.next-prod` excluded · +8 tests since AM reconcile · 4 parent-inheritance + 4 effort-weighting) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-23 EVE (post LeCun-lens consolidation · operator-state model + judge-eval calibration) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2768 across 181 vitest files (+48 since post-subtask reconcile · 27 operator-state + 15 judge-calibration + 6 misc) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-23 EVE · LeCun-lens consolidation · operator-state model + judge-eval ground truth · 3 ships
+>
+> Three slices closing the LeCun-lens consolidation pass on the AI
+> quality stack. Each slice is a structural addition · zero schema
+> changes · zero deletion · pure substrate the rest of the codebase
+> can opt into incrementally.
+>
+> **Slice 5.3 · explicit operator-state model** (`495e35c9`)
+> Pure 5-dim model (focus · capacity · drift · momentum · mood) at
+> `lib/services/operator-state.ts` · computes deterministically from
+> 3 Prisma queries against TaskEvent + Task counts · degrades to
+> zero-confidence defaults on DB error. 27 vitest cases cover each
+> component function + integration smoke. Replaces autoregressive
+> mood inference at the substrate level — Nick can now be opted in
+> per-surface instead of guessing from chat text.
+>
+> **Slice 5.4 · /system/operator-state diagnostic surface** (`d2373d63`)
+> `formatOperatorStateBlock(state)` formatter (the exact ~5-line
+> system-prompt fragment any AI surface can include) + `system.operatorState`
+> tRPC procedure + `/system/operator-state` page (mood chip, 4 numeric
+> dimensions with AnimatedCounter, signal breakdown, exact prompt block
+> shown for inspection). Chat path remains untouched per operator
+> directive · substrate proves out first.
+>
+> **Slice 5.5 · ground-truth judge-eval calibration** (`4e0938dc`)
+> `lib/services/judge-calibration.ts` joins PROMPT_COMPARISON_RUN rows
+> against ChatMessage.feedbackScore via sourceMessageId · 4-cell
+> confusion matrix · 4-band verdict (well-calibrated / moderate /
+> miscalibrated / preliminary) · operator-side check on the V1→V2
+> cutover plan. `system.judgeEvalCalibration` tRPC procedure + card
+> on /system/judge-eval. 15 vitest cases cover empty / exclusions /
+> each cell / mixed agreement / each verdict band.
+>
+> **Slice 5.6 · ADR-0019 + this entry**
+> `docs/adr/0019-explicit-operator-state-model.md` records the
+> decision · context (autoregressive failure mode) · 5-dim choice ·
+> alternatives considered · open items.
+>
+> **Gates** · 181 vitest files / 2768 tests · 0 lint errors · 0
+> typecheck errors · next build green · each slice pushed
+> individually (5.3 → 5.4 → 5.5).
+>
+> **Flagged · NOT fixed**
+> - Operator-state has NO consumer yet (substrate only). First-surface
+>   pick deferred to a future ADR · candidates listed in ADR-0019.
+> - Calibration sample size will read "preliminary" for weeks · this is
+>   expected (operator gives feedback on a small fraction of turns).
+>   No action needed · the metric needs to exist BEFORE samples accumulate.
 
 > ## 2026-05-23 PM · subtask wave · migration + 4 UI slices · task #22 closed
 >
