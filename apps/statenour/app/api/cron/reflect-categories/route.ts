@@ -35,18 +35,24 @@ export const maxDuration = 300;
  *   · belief           — held beliefs → "these beliefs all assume W"
  *   · lesson           — captured lessons → "the recurring lesson is V"
  *   · learning_journal — journal entries → "this week you kept circling on U"
+ *   · task_insight     — per-task observations → "your task patterns share T" (task #17)
+ *   · task_pattern     — synthesized task patterns → "the morning-routine theme is S" (task #17)
  *
  * Skipped intentionally:
  *   · domain_knowledge — already curated facts, not raw observations
  *   · wisdom           — already meta-tier, reflecting on reflections drifts
  *   · reflection       — never reflect on reflections (would compound noise)
+ *   · orphan_tasks_nudge — UI-side nudge marker, not signal for synthesis
  */
-const REFLECT_CATEGORIES: readonly string[] = [
+export const REFLECT_CATEGORIES: readonly string[] = [
   BRAIN_CATEGORIES.DECISION_LOG,
   BRAIN_CATEGORIES.PATTERN,
   BRAIN_CATEGORIES.BELIEF,
   BRAIN_CATEGORIES.LESSON,
   BRAIN_CATEGORIES.LEARNING_JOURNAL,
+  // ── task #17 · task-pattern reflection layer ──
+  BRAIN_CATEGORIES.TASK_INSIGHT,
+  BRAIN_CATEGORIES.TASK_PATTERN,
 ];
 
 interface CategoryRunSummary {
