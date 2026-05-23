@@ -113,7 +113,7 @@ export default function RevenueTab() {
             {anomaly.data.anomalies?.length > 0 ? (
               <MiniTable
                 headers={["DATE", "REVENUE", "EXPECTED", "TYPE"]}
-                rows={anomaly.data.anomalies.slice(0, 6).map((a: any) => [
+                rows={anomaly.data.anomalies.slice(0, 6).map((a) => [
                   <span className="text-foreground/70 font-mono">{a.date}</span>,
                   <span className="font-mono font-bold text-foreground">{fmt(a.revenue)}</span>,
                   <span className="font-mono text-foreground/50">{fmt(a.expected)}</span>,
@@ -162,7 +162,7 @@ export default function RevenueTab() {
             {margins.data.byService?.length > 0 ? (
               <MiniTable
                 headers={["SERVICE", "REVENUE", "MARGIN %"]}
-                rows={margins.data.byService.slice(0, 8).map((s: any) => [
+                rows={margins.data.byService.slice(0, 8).map((s) => [
                   <span className="text-foreground capitalize font-medium">{s.service}</span>,
                   <span className="font-mono">{fmt(s.revenue)}</span>,
                   <span className={`font-mono font-semibold ${s.marginPercent >= 50 ? "text-emerald-400" : s.marginPercent >= 30 ? "text-amber-400" : "text-red-400"}`}>{s.marginPercent}%</span>,
@@ -181,7 +181,7 @@ export default function RevenueTab() {
             {payments.data.methods?.length > 0 ? (
               <MiniTable
                 headers={["METHOD", "COUNT", "REVENUE", "%", "TREND"]}
-                rows={payments.data.methods.map((m: any) => [
+                rows={payments.data.methods.map((m) => [
                   <span className="text-foreground/70 capitalize font-medium">{m.method}</span>,
                   <span className="font-mono">{m.count}</span>,
                   <span className="font-mono">{fmt(m.revenue)}</span>,
@@ -214,7 +214,7 @@ export default function RevenueTab() {
             </div>
             {ticket.data.monthly?.length > 0 && (
               <div className="space-y-1">
-                {ticket.data.monthly.slice(-6).map((m: any, i: number) => (
+                {ticket.data.monthly.slice(-6).map((m, i) => (
                   <div key={i} className="flex items-center justify-between py-1 text-[12px]">
                     <span className="text-foreground/60 font-mono">{m.month}</span>
                     <div className="flex items-center gap-4">
@@ -273,7 +273,9 @@ function WeatherImpactCard() {
 
   const impact = weather.businessImpact;
   const current = weather.current;
-  const forecast = weather.forecast || [];
+  // 2026-05-23 · explicit type so the .map below infers `d` (weather.forecast
+  // comes from a loosely-typed analyzer function, hence the inline shape).
+  const forecast: Array<{ date: string; tempHigh: number; description: string }> = weather.forecast || [];
 
   const demandColor = impact.demandForecast === "surge" ? "text-emerald-400"
     : impact.demandForecast === "high" ? "text-emerald-400"
@@ -322,7 +324,7 @@ function WeatherImpactCard() {
 
       {/* 3-day forecast */}
       <div className="flex gap-2 mt-3 pt-3 border-t border-border/20">
-        {forecast.slice(1, 4).map((d: any) => (
+        {forecast.slice(1, 4).map((d) => (
           <div key={d.date} className="flex-1 text-center">
             <div className="text-[10px] text-foreground/40">{d.date.slice(5)}</div>
             <div className="text-[11px] font-mono text-foreground/70">{d.tempHigh}°</div>

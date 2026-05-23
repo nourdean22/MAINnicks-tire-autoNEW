@@ -64,7 +64,7 @@ export default function OverviewTab() {
               Score Breakdown — 13 signals
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
-              {data.summary.scoreBreakdown.map((c: any, i: number) => (
+              {data.summary.scoreBreakdown.map((c, i) => (
                 <ScoreComponentRow key={i} component={c} />
               ))}
             </div>

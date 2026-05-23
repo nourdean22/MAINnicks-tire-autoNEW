@@ -44,7 +44,7 @@ export default function CustomersTab() {
               </div>
               <MiniTable
                 headers={["NAME", "RISK", "DAYS GONE", "REASON"]}
-                rows={[...(churn.data.highRisk || []).slice(0, 5), ...(churn.data.mediumRisk || []).slice(0, 3)].map((c: any) => [
+                rows={[...(churn.data.highRisk || []).slice(0, 5), ...(churn.data.mediumRisk || []).slice(0, 3)].map((c) => [
                   <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
                   <span className={`font-mono font-bold ${c.churnProbability >= 70 ? "text-red-400" : "text-amber-400"}`}>{c.churnProbability}%</span>,
                   <span className="font-mono">{c.daysSinceVisit}d</span>,
@@ -65,7 +65,7 @@ export default function CustomersTab() {
                 <div className="text-[12px] text-foreground/50 mb-3">{risk.data.totalAtRisk} at risk of {risk.data.totalCustomers} total</div>
                 <MiniTable
                   headers={["CUSTOMER", "SCORE", "FACTORS"]}
-                  rows={risk.data.highRisk.slice(0, 8).map((c: any) => [
+                  rows={risk.data.highRisk.slice(0, 8).map((c) => [
                     <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
                     <span className={`font-mono font-bold ${c.riskScore >= 70 ? "text-red-400" : c.riskScore >= 40 ? "text-amber-400" : "text-emerald-400"}`}>{c.riskScore}</span>,
                     <span className="text-[10px] text-foreground/40">{(c.factors || []).join(", ") || "-"}</span>,
@@ -84,7 +84,7 @@ export default function CustomersTab() {
                 <div className="text-[12px] text-foreground/50 mb-3">{repeat.data.overdueCount} overdue</div>
                 <MiniTable
                   headers={["CUSTOMER", "PREDICTED", "GAP", "CONFIDENCE"]}
-                  rows={repeat.data.dueSoon.slice(0, 8).map((c: any) => [
+                  rows={repeat.data.dueSoon.slice(0, 8).map((c) => [
                     <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
                     <span className="font-mono text-foreground/60">{c.predictedDate}</span>,
                     <span className="font-mono">{c.avgGapDays}d avg</span>,
@@ -113,7 +113,7 @@ export default function CustomersTab() {
             </div>
             {value.data.growing?.length > 0 && (
               <div className="space-y-1">
-                {value.data.growing.slice(0, 5).map((c: any, i: number) => (
+                {value.data.growing.slice(0, 5).map((c, i) => (
                   <div key={i} className="flex items-center justify-between py-1 text-[12px]">
                     <span className="text-foreground/70 font-medium">{c.name || "Unknown"}</span>
                     <span className="font-mono text-emerald-400">+{c.trend}% trend</span>
@@ -130,7 +130,7 @@ export default function CustomersTab() {
             {affinity.data.affinities?.length > 0 ? (
               <MiniTable
                 headers={["CUSTOMER", "TOP SERVICES", "PREDICTED NEXT"]}
-                rows={affinity.data.affinities.slice(0, 6).map((a: any) => [
+                rows={affinity.data.affinities.slice(0, 6).map((a) => [
                   <span className="text-foreground font-medium">{a.name}</span>,
                   <span className="text-[10px] text-foreground/50">{(a.topServices || []).join(", ")}</span>,
                   <span className="text-primary font-medium capitalize">{a.predictedNext}</span>,
@@ -158,7 +158,7 @@ export default function CustomersTab() {
             {firstVisit.data.bySource?.length > 0 && (
               <MiniTable
                 headers={["SOURCE", "FIRST", "REPEATED", "RATE"]}
-                rows={firstVisit.data.bySource.slice(0, 5).map((s: any) => [
+                rows={firstVisit.data.bySource.slice(0, 5).map((s) => [
                   <span className="text-foreground capitalize font-medium">{s.source}</span>,
                   <span className="font-mono">{s.firstVisits}</span>,
                   <span className="font-mono text-emerald-400">{s.repeated}</span>,
@@ -174,7 +174,7 @@ export default function CustomersTab() {
           <EngineCard title="TOP LTV CUSTOMERS" icon={<Star className="w-4 h-4 text-violet-400" />}>
             <MiniTable
               headers={["NAME", "LTV", "SPENT", "CHURN"]}
-              rows={ltv.data.topCustomers.slice(0, 6).map((c: any) => [
+              rows={ltv.data.topCustomers.slice(0, 6).map((c: { name?: string | null; ltvScore: number; totalSpent: number; churnRisk?: string | null }) => [
                 <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
                 <span className={`font-mono font-bold ${c.ltvScore >= 70 ? "text-violet-400" : c.ltvScore >= 40 ? "text-blue-400" : "text-foreground/60"}`}>{c.ltvScore}</span>,
                 <span className="font-mono">{fmt(c.totalSpent)}</span>,
