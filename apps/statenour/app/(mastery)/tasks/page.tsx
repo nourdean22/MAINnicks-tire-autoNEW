@@ -810,8 +810,16 @@ function TasksPageInner() {
   /**
    * Complete a loop — routes to the new kind-aware /check endpoint.
    * Handles optimistic UI for speed.
+   *
+   * 2026-05-23 · task #22 · the optional `opts.cascadeChildren` is
+   * set by LoopStream when the operator confirmed the "complete N
+   * subtasks too?" prompt (ADR-0017 Rule 1 Option A). The flag is
+   * passed through to the check mutation · server cascades atomically.
    */
-  async function completeLoop(id: string) {
+  async function completeLoop(
+    id: string,
+    opts?: { cascadeChildren?: boolean },
+  ) {
     const t = tasks.find((x) => x.id === id);
     const isDaily = t?.loopKind === "DAILY";
     // Optimistic update
@@ -829,12 +837,30 @@ function TasksPageInner() {
       );
     } else {
       setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: "DONE" } : x)));
+      // 2026-05-23 · task #22 · also optimistically flip open children
+      // when cascade is on · keeps the UI consistent with what the
+      // server will commit. Server is source of truth on next load.
+      if (opts?.cascadeChildren) {
+        setTasks((prev) =>
+          prev.map((x) =>
+            x.parentTaskId === id &&
+            x.status !== "DONE" &&
+            x.status !== "CANCELLED"
+              ? { ...x, status: "DONE" }
+              : x,
+          ),
+        );
+      }
     }
     try {
       // Phase RR · tRPC migration · typed result envelope means we
       // can read autoLearn directly off the response without the
       // `body?.data?.autoLearn ?? body?.autoLearn` fallback dance.
-      const result = await checkMutation.mutateAsync({ id, action: "complete" });
+      const result = await checkMutation.mutateAsync({
+        id,
+        action: "complete",
+        cascadeChildren: opts?.cascadeChildren,
+      });
       const autoLearn = result?.autoLearn ?? null;
       // v10.0.529.77 · Wave 22 · adaptive mastery bump + wisdom
       // citation. The /check endpoint now returns enriched cross-
