@@ -10,7 +10,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 // ContentSection cleanups).
 type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
-import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime } from "./shared";
+import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import {
@@ -120,11 +120,7 @@ export default function CallTrackingSection() {
   const callTracking = stats?.callTracking;
 
   if (statsLoading || callsLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingState label="Loading call tracking..." />;
   }
 
   return (

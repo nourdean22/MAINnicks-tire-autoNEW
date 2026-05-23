@@ -126,7 +126,7 @@ export default function CustomersTab() {
 
         {/* Service Affinity — affinities: {customerId, name, topServices, predictedNext}[] */}
         {affinity.isLoading ? <SectionSpinner /> : affinity.data ? (
-          <EngineCard title="SERVICE PREFERENCES" icon={<Heart className="w-4 h-4 text-pink-400" />}>
+          <EngineCard title="SERVICE PREFERENCES" icon={<Heart className="w-4 h-4 text-primary" />}>
             {affinity.data.affinities?.length > 0 ? (
               <MiniTable
                 headers={["CUSTOMER", "TOP SERVICES", "PREDICTED NEXT"]}

@@ -8,7 +8,7 @@ import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
-import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips } from "./shared";
+import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
@@ -402,9 +402,7 @@ export default function DeclinedEstimatesSection() {
 
       {/* Table */}
       {isLoading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <LoadingState label="Loading declined estimates..." />
       ) : estimates.length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <DollarSign className="w-8 h-8 mx-auto mb-3 opacity-30" />

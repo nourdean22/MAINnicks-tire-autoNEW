@@ -9,7 +9,7 @@ type Coupon = NonNullable<RouterOutputs["coupons"]["all"]>[number];
 import {
   Calendar, CheckCircle2, Loader2, Power, Star, XCircle, Zap, Gift
 } from "lucide-react";
-import { PageHeader } from "./shared";
+import { PageHeader, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 export default function CouponsSection() {
@@ -104,7 +104,7 @@ export default function CouponsSection() {
       )}
 
       {isLoading ? (
-        <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+        <LoadingState label="Loading coupons..." />
       ) : (coupons ?? []).length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <Zap className="w-8 h-8 mx-auto mb-3 opacity-30" />
