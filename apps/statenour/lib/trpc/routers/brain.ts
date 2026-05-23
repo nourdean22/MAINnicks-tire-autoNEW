@@ -148,6 +148,13 @@ import {
 import { buildMemoryHealth } from "@/lib/services/brain-health";
 import { buildBrainInsights } from "@/lib/services/brain-insights";
 import { buildContinuityReport } from "@/lib/services/brain-continuity";
+// CoALA reflection layer (task #12 · 2026-05-23) · operator-triggered
+// per-category synthesis. The cron at /api/cron/reflect-categories
+// calls the same service · drift impossible.
+import {
+  reflectOnCategory,
+  type ReflectionResult,
+} from "@/lib/services/reflection";
 
 export const brainRouter = router({
   /**
@@ -1258,4 +1265,43 @@ export const brainRouter = router({
   continuityReport: operatorProcedure.query(async () =>
     buildContinuityReport(),
   ),
+
+  // ═══════════ CoALA reflection layer · task #12 (2026-05-23) ═══════════
+  //
+  // Operator-triggered per-category synthesis. The cron at
+  // /api/cron/reflect-categories calls the same service · drift
+  // impossible. The result shape is flat (`ReflectionResult` is already
+  // scalar · `derivedFrom: string[]`) so no Prisma `JsonValue` reaches
+  // the AppRouter — TS2589 firewall satisfied trivially.
+
+  /**
+   * CoALA reflection layer · owner-only · synthesize 3-5 higher-level
+   * insights across recent BrainMemory rows of the given source
+   * category. Persists each insight as a new `reflection`-category
+   * BrainMemory row with `metadata.derivedFrom` citing the source ids.
+   *
+   * Returns `skipped` when nothing was written:
+   *   · `insufficient-source`     · fewer than `minSourceCount` rows
+   *   · `recent-reflection-exists` · same category reflected on within
+   *                                  the last 24h (idempotency guard)
+   *
+   * Modeled as a `.mutation()` · genuine write work (LLM call +
+   * BrainMemory inserts). Operator triggers ad-hoc from the brain
+   * dashboard "reflect now" affordance.
+   */
+  reflect: operatorProcedure
+    .input(
+      z.object({
+        category: z.string().min(1).max(80),
+        windowDays: z.number().int().min(1).max(90).optional(),
+        maxInsights: z.number().int().min(1).max(10).optional(),
+      }),
+    )
+    .mutation(async ({ input }): Promise<ReflectionResult> =>
+      reflectOnCategory({
+        category: input.category,
+        windowDays: input.windowDays,
+        maxInsights: input.maxInsights,
+      }),
+    ),
 });
