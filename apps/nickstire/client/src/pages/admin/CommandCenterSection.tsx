@@ -52,8 +52,15 @@ export default function CommandCenterSection() {
     refetchInterval: 60_000,
   });
 
+  const utils = trpc.useUtils();
   const pushMutation = trpc.nourOsBridge.pushShopFloor.useMutation({
-    onSuccess: () => toast.success("Shop floor pushed to NOUR OS"),
+    onSuccess: () => {
+      // 2026-05-23 · invalidate the bridge status query so the
+      // lastError/timestamp display refreshes immediately instead of
+      // showing the previous state until manual refresh.
+      utils.nourOsBridge.status.invalidate();
+      toast.success("Shop floor pushed to NOUR OS");
+    },
     onError: (err) => toast.error(`Push failed: ${err.message}`),
   });
 

@@ -547,6 +547,7 @@ function CreateQcButton({ workOrderId }: { workOrderId: string }) {
   const utils = trpc.useUtils();
   const createMut = trpc.dispatch.createQcChecklist.useMutation({
     onSuccess: () => utils.dispatch.getQcChecklist.invalidate(),
+    onError: (e) => toast.error(`QC checklist create failed: ${e.message}`),
   });
 
   return (
@@ -565,11 +566,16 @@ function TechManager() {
   const { data: load, isLoading } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
   const utils = trpc.useUtils();
 
+  // 2026-05-23 · added onError. Tech believes they're clocked in,
+  // network blip on shop-floor tablet meant DB never updated — payroll
+  // discrepancy with no signal. Now any failure surfaces to the tech.
   const clockInMut = trpc.dispatch.clockIn.useMutation({
     onSuccess: () => utils.dispatch.load.invalidate(),
+    onError: (e) => toast.error(`Clock in failed: ${e.message}`),
   });
   const clockOutMut = trpc.dispatch.clockOut.useMutation({
     onSuccess: () => utils.dispatch.load.invalidate(),
+    onError: (e) => toast.error(`Clock out failed: ${e.message}`),
   });
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;

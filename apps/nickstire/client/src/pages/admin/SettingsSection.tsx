@@ -101,9 +101,17 @@ export default function SettingsSection() {
   // Invoice + customer counts
   const { data: invoiceStats } = trpc.adminDashboard.stats.useQuery(undefined, { staleTime: 60_000 });
 
-  // Sync mutations
-  const syncInvoicesMut = trpc.shopdriver.syncInvoices.useMutation();
-  const syncCustomersMut = trpc.shopdriver.syncCustomers.useMutation();
+  // Sync mutations · 2026-05-23 · added onSuccess invalidation so the
+  // invoice/customer count cards on this same page refresh immediately
+  // instead of staying stale until full nav. Errors are already handled
+  // by the try/catch in handleSync.
+  const utilsForSync = trpc.useUtils();
+  const syncInvoicesMut = trpc.shopdriver.syncInvoices.useMutation({
+    onSuccess: () => utilsForSync.adminDashboard.stats.invalidate(),
+  });
+  const syncCustomersMut = trpc.shopdriver.syncCustomers.useMutation({
+    onSuccess: () => utilsForSync.adminDashboard.stats.invalidate(),
+  });
 
   // ALG probe
   const { refetch: runProbe, isFetching: probing } = trpc.autoLabor.probeEndpoints.useQuery(undefined, {

@@ -53,7 +53,14 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   const [creating, setCreating] = useState(false);
 
   const { data: customerStats } = trpc.customers.stats.useQuery();
-  const createMutation = trpc.winback.create.useMutation();
+  // 2026-05-23 · was bare. Caught by try/catch at the call site
+  // (mutateAsync) which is fine for errors, but onSuccess was never
+  // invalidating the campaigns list. Created campaign was invisible
+  // from the list view until manual nav. Errors still bubble.
+  const createMutationUtils = trpc.useUtils();
+  const createMutation = trpc.winback.create.useMutation({
+    onSuccess: () => createMutationUtils.winback.campaigns.invalidate(),
+  });
 
   // wave-112 — was `as any`; now honest cast. customers.stats only
   // exposes 4 of the 8 win-back segment keys (lapsed, recent, vipCount,
@@ -237,31 +244,44 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
   const { data: preview } = trpc.winback.preview.useQuery({ campaignId });
   const { data: recentSends } = trpc.winback.recentSends.useQuery({ campaignId, limit: 20 });
 
+  // 2026-05-23 · 4 mutations send actual SMS to customers. Silent
+  // failure here = real money risk (operator believes campaign is
+  // active, no SMS goes out). Added onSuccess toasts + onError so
+  // any failure surfaces.
   const activateMutation = trpc.winback.activate.useMutation({
     onSuccess: () => {
       utils.winback.campaignDetail.invalidate({ id: campaignId });
       utils.winback.campaigns.invalidate();
       utils.winback.campaignStats.invalidate();
+      toast.success("Campaign activated");
     },
+    onError: (e) => toast.error(`Activate failed: ${e.message}`),
   });
   const pauseMutation = trpc.winback.pause.useMutation({
     onSuccess: () => {
       utils.winback.campaignDetail.invalidate({ id: campaignId });
       utils.winback.campaigns.invalidate();
+      toast.success("Campaign paused");
     },
+    onError: (e) => toast.error(`Pause failed: ${e.message}`),
   });
   const resumeMutation = trpc.winback.resume.useMutation({
     onSuccess: () => {
       utils.winback.campaignDetail.invalidate({ id: campaignId });
       utils.winback.campaigns.invalidate();
+      toast.success("Campaign resumed");
     },
+    onError: (e) => toast.error(`Resume failed: ${e.message}`),
   });
   const processMutation = trpc.winback.processPending.useMutation({
-    onSuccess: () => {
+    onSuccess: (r) => {
       utils.winback.campaignDetail.invalidate({ id: campaignId });
       utils.winback.recentSends.invalidate({ campaignId });
       utils.winback.campaignStats.invalidate();
+      const sent = (r as { sent?: number } | undefined)?.sent ?? 0;
+      toast.success(`Queue processed — ${sent} SMS sent`);
     },
+    onError: (e) => toast.error(`Process failed: ${e.message}`),
   });
 
   if (isLoading || !data) {
