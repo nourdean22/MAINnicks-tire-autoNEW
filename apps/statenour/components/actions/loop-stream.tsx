@@ -79,7 +79,15 @@ import { trpc } from "@/lib/trpc/client";
 
 interface LoopStreamProps {
   tasks: Task[];
-  onComplete: (id: string) => void | Promise<void>;
+  // 2026-05-23 · task #22 · opts.cascadeChildren carries the
+  // operator's yes to "complete N subtasks too?" prompt that
+  // LoopStream shows when completing a parent with open children.
+  // Existing callers pass id only · the second arg defaults to
+  // undefined · legacy behavior preserved.
+  onComplete: (
+    id: string,
+    opts?: { cascadeChildren?: boolean },
+  ) => void | Promise<void>;
   onDelete: (id: string) => void | Promise<void>;
   onStart?: (id: string) => void | Promise<void>;
   onPin?: (id: string) => void;
@@ -279,19 +287,34 @@ export function LoopStream({
   onEditTaskMission,
   sortKey,
 }: LoopStreamProps) {
-  // 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask child-count map.
-  // Built once per `tasks` array change · O(N) bucketing. Used by the
-  // per-row render to pass `childCount` into LoopRowItem so parent
-  // rows show "+N sub" and child rows render at indentLevel=1.
+  // 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask child-count
+  // maps. Built once per `tasks` array change · O(N) bucketing.
+  //
+  //   childCountByParent     · total children regardless of status ·
+  //                            drives the "+N sub" chip on parent rows
+  //   openChildCountByParent · children where status NOT IN [DONE,
+  //                            CANCELLED, ARCHIVED] · drives the
+  //                            cascade-confirm prompt when completing
+  //                            a parent (ADR-0017 Rule 1 Option A)
+  //
   // Rebuilt only when the underlying tasks list changes · doesn't
-  // depend on filter/sort state (the count of children is global).
-  const childCountByParent = useMemo(() => {
-    const map = new Map<string, number>();
+  // depend on filter/sort state (the counts are global).
+  const { childCountByParent, openChildCountByParent } = useMemo(() => {
+    const total = new Map<string, number>();
+    const open = new Map<string, number>();
     for (const t of tasks) {
       const pid = t.parentTaskId;
-      if (pid) map.set(pid, (map.get(pid) ?? 0) + 1);
+      if (!pid) continue;
+      total.set(pid, (total.get(pid) ?? 0) + 1);
+      if (
+        t.status !== "DONE" &&
+        t.status !== "CANCELLED" &&
+        t.status !== "ARCHIVED"
+      ) {
+        open.set(pid, (open.get(pid) ?? 0) + 1);
+      }
     }
-    return map;
+    return { childCountByParent: total, openChildCountByParent: open };
   }, [tasks]);
 
   // When set, shows an inline modal to capture the break reason.
@@ -418,10 +441,10 @@ export function LoopStream({
   // v10.0.529.14 · useCallback for stable ref across renders so the
   // memoized LoopRowItem doesn't re-render when sibling state ticks.
   const handleCompleteWithSpinner = useCallback(
-    async (id: string) => {
+    async (id: string, opts?: { cascadeChildren?: boolean }) => {
       setCompletingIds((prev) => new Set(prev).add(id));
       try {
-        await onComplete(id);
+        await onComplete(id, opts);
       } finally {
         // Defer clearing so the row isn't briefly back-to-circle if
         // the parent reload is fast — doneToday flips first.
@@ -439,11 +462,33 @@ export function LoopStream({
   // Adapter to fit LoopRowItem's `onComplete: (id) => void` signature
   // — the row doesn't care about the promise, the parent does (via the
   // spinner-clearing setTimeout).
+  //
+  // 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · cascade-confirm
+  // prompt. When completing a row that has open children, show a
+  // native confirm "complete N subtasks too?" · operator's yes passes
+  // cascadeChildren=true down the chain · server cascades atomically.
+  // Native confirm() is intentional · keeps the UX path 1-line · a
+  // polished modal can come later. The prompt only fires for ONCE +
+  // PROMISE parents · DAILY loops don't cascade (Rule 1 carve-out).
   const onRowComplete = useCallback(
     (id: string) => {
+      const openChildren = openChildCountByParent.get(id) ?? 0;
+      if (openChildren > 0) {
+        // eslint-disable-next-line no-alert
+        const ok = window.confirm(
+          `This task has ${openChildren} open subtask${openChildren === 1 ? "" : "s"}. Complete ${openChildren === 1 ? "it" : "them"} too?`,
+        );
+        if (ok) {
+          void handleCompleteWithSpinner(id, { cascadeChildren: true });
+          return;
+        }
+        // Operator chose to leave children open · per amended Rule 1
+        // this is allowed (the prompt is opt-out) · existing legacy
+        // behavior takes over below.
+      }
       void handleCompleteWithSpinner(id);
     },
-    [handleCompleteWithSpinner],
+    [handleCompleteWithSpinner, openChildCountByParent],
   );
 
   // v10.0.529.14 · stable callbacks for the LoopRowItem boundary.

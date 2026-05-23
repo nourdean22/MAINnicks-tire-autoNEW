@@ -388,11 +388,20 @@ export const taskRouter = router({
       z.object({
         id: z.string().min(1).max(64),
         action: z.enum(["complete", "break"]).optional(),
+        // 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · the UI
+        // prompts the operator when completing a parent with open
+        // children · this flag carries the operator's yes. False or
+        // undefined preserves the legacy behavior (parent-only).
+        cascadeChildren: z.boolean().optional(),
       }),
     )
     .mutation(async ({ input }) => {
       try {
-        return await checkTask({ id: input.id, action: input.action });
+        return await checkTask({
+          id: input.id,
+          action: input.action,
+          cascadeChildren: input.cascadeChildren,
+        });
       } catch (err) {
         if (err instanceof ServiceError) {
           throw new TRPCError({

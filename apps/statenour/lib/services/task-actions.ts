@@ -61,6 +61,11 @@ export interface CheckTaskResult {
   broken?: boolean;
   timeAdded?: number;
   autoLearn?: AutoLearnReport | null;
+  /** 2026-05-23 · task #22 · count of subtasks marked DONE via the
+   *  cascade · 0 when cascadeChildren was false or no open children
+   *  existed. Client uses this for toast messaging ("completed parent
+   *  + 3 subtasks"). */
+  childrenCascaded?: number;
 }
 
 /**
@@ -78,9 +83,21 @@ export interface CheckTaskResult {
 export async function checkTask(args: {
   id: string;
   action?: string;
+  /** 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · when the
+   *  operator completes a parent task with open children, the UI
+   *  prompts "complete N subtasks too?" and passes cascadeChildren
+   *  on yes. The cascade happens AFTER the parent is marked DONE ·
+   *  finds all children where parentTaskId === id and status NOT IN
+   *  [DONE, ARCHIVED] and marks them DONE atomically (TaskStatus
+   *  enum has no CANCELLED · DONE + ARCHIVED are the terminal states).
+   *  When undefined or false, the legacy behavior holds (parent only ·
+   *  children stay open · half-state allowed). Skipped for DAILY
+   *  (DAILY just bumps streak · cascade semantics don't apply). */
+  cascadeChildren?: boolean;
 }): Promise<CheckTaskResult> {
   const { id } = args;
   const action: CheckAction = args.action === "break" ? "break" : "complete";
+  const cascadeChildren = args.cascadeChildren === true;
 
   const task = await prisma.task.findUnique({
     where: { id },
@@ -230,6 +247,44 @@ export async function checkTask(args: {
     select: { id: true, status: true, loopKind: true, actualMinutes: true, effort: true },
   });
 
+  // 2026-05-23 · task #22 · ADR-0017 Rule 1 Option A · cascade
+  // children when the operator opted in via UI prompt. Single
+  // updateMany so all open subtasks transition to DONE in one query
+  // (atomic · idempotent · re-running with already-DONE children is
+  // a no-op because the WHERE clause excludes them).
+  //
+  // NOT cascading: status="ARCHIVED" + soft-deleted rows · operator
+  // may have already chosen those terminal states intentionally ·
+  // cascade respects that. (TaskStatus has no CANCELLED · DONE +
+  // ARCHIVED are the only terminal states in the enum.)
+  let childrenCascaded = 0;
+  if (cascadeChildren) {
+    try {
+      const cascadeResult = await prisma.task.updateMany({
+        where: {
+          parentTaskId: id,
+          status: { notIn: ["DONE", "ARCHIVED"] },
+          deletedAt: null,
+        },
+        data: {
+          status: "DONE",
+          lastTouchedAt: now,
+          lastCompletedAt: now,
+        },
+      });
+      childrenCascaded = cascadeResult.count;
+    } catch (e) {
+      // Cascade failure shouldn't fail the parent completion · the
+      // operator clicked "complete parent" first, "cascade subtasks"
+      // is the bonus. Log + degrade.
+      log.warn("subtask_cascade_failed", {
+        parentId: id,
+        err: e instanceof Error ? e.message.slice(0, 200) : String(e),
+      });
+    }
+  }
+  void childrenCascaded; // surfaced via return below
+
   void emitTaskCompleted({
     taskId: id,
     title: task.title ?? "(untitled)",
@@ -348,7 +403,13 @@ export async function checkTask(args: {
     }
   })();
 
-  return { ok: true, task: updated, timeAdded: timeBump, autoLearn: autoLearnReport };
+  return {
+    ok: true,
+    task: updated,
+    timeAdded: timeBump,
+    autoLearn: autoLearnReport,
+    childrenCascaded,
+  };
 }
 
 // ─── startTask ─────────────────────────────────────────────────
