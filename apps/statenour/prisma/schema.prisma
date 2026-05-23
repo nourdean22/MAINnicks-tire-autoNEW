@@ -339,6 +339,15 @@ model Task {
   /// goal fetches + cascading nulls on goal deletion.
   goalId                  String?
   goal                    LifeGoal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  /// 2026-05-23 · task #22 · self-FK for subtask hierarchy (1 level
+  /// per ADR-0017 amended Rule 4). Nullable · top-level tasks have
+  /// NULL · subtasks point at their parent. ON DELETE SET NULL so a
+  /// deleted parent leaves children as orphans rather than cascade-
+  /// deleting (matches the goalId pattern · operator re-categorizes).
+  /// Companion · prisma/migrations/20260523_task_parent_task_id/.
+  parentTaskId            String?     @map("parent_task_id")
+  parent                  Task?       @relation("TaskChildren", fields: [parentTaskId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  children                Task[]      @relation("TaskChildren")
   /// For project-linked tasks: the phase name from the project plan.
   /// Populated when a task is created from ProjectPlanData.phases.
   phaseName               String?
@@ -381,6 +390,10 @@ model Task {
   //   WHERE status='WAITING' AND snoozedUntil <= NOW() · this
   // composite makes it index-only.
   @@index([status, snoozedUntil])
+  // 2026-05-23 · task #22 · subtask lookup index · "give me all
+  // direct children of this parent" is the hot path for the
+  // LoopStream indent renderer. Built CONCURRENTLY in the migration.
+  @@index([parentTaskId])
 }
 
 /// Apr 26 · TaskEvent — append-only log of meaningful state changes
