@@ -740,6 +740,13 @@ export const gatewayTireRouter = router({
         package: NICKS_PACKAGE,
         packageValue: PACKAGE_VALUE_PER_SET,
         dataFreshness: null as string | null,
+        // TEMP DIAG · expose the Gateway auth/search failure reason on the
+        // public response so we can root-cause why live pricing is falling
+        // through to the catalog without needing admin auth or Railway log
+        // access. Contents are operational state (HTTP status / env-var
+        // marker / error message slice) — no credentials. Revert once
+        // the new api-b2b.dktire.com integration is verified live.
+        _diag: getLastAuthFailure(),
       };
       setCachedSearch(cacheKey, catalogResult, "catalog");
       return catalogResult;
