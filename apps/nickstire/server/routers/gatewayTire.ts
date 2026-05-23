@@ -129,6 +129,15 @@ async function autoCreateInvoiceFromTireOrder(d: ReturnType<typeof import("drizz
 let gatewaySession: { cookie: string; expiresAt: number } | null = null;
 const GATEWAY_BASE = "https://b2b.dktire.com";
 
+// Track the most-recent auth-failure reason so the admin status endpoint
+// can surface it. The old code returned null silently for every failure
+// mode — env vars missing, endpoint dead (DK Tire's 2026 SPA migration
+// turned /auth-signin into a static S3 page), wrong creds, etc. — all
+// indistinguishable. This lets the operator tell at a glance what's
+// actually wrong without trawling Railway logs.
+let lastAuthFailure: { at: string; reason: string; detail?: string } | null = null;
+export function getLastAuthFailure() { return lastAuthFailure; }
+
 async function getGatewaySession(): Promise<string | null> {
   if (gatewaySession && Date.now() < gatewaySession.expiresAt) {
     return gatewaySession.cookie;
@@ -136,7 +145,41 @@ async function getGatewaySession(): Promise<string | null> {
 
   const username = process.env.GATEWAY_TIRE_USERNAME;
   const password = process.env.GATEWAY_TIRE_PASSWORD;
-  if (!username || !password) return null;
+  if (!username || !password) {
+    const reason = "GATEWAY_TIRE_USERNAME / GATEWAY_TIRE_PASSWORD env vars not set";
+    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. Tire search will fall through to the static catalog (size-agnostic pricing). Set both env vars on Railway.`);
+    lastAuthFailure = { at: new Date().toISOString(), reason };
+    return null;
+  }
+
+  // Probe the auth endpoint shape FIRST. DK Tire migrated their B2B
+  // portal in 2026 to a SPA hosted from S3; the old /auth-signin URL
+  // now returns a static HTML page with `Server: AmazonS3` (max-age=1yr).
+  // POSTing creds to it returns the HTML body and zero Set-Cookie
+  // headers — every "auth" attempt silently fails and the router falls
+  // back to the catalog. This probe catches that case explicitly so the
+  // log message names the real cause, instead of "no cookie returned"
+  // which sounded like a creds problem.
+  try {
+    const probe = await fetch(`${GATEWAY_BASE}/auth-signin`, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(8000),
+    });
+    const server = probe.headers.get("server") || "";
+    const ct = probe.headers.get("content-type") || "";
+    if (/AmazonS3/i.test(server) && /text\/html/i.test(ct)) {
+      const reason = "DK Tire B2B portal migrated to static SPA";
+      const detail = `${GATEWAY_BASE}/auth-signin now returns Server=${server}, Content-Type=${ct} — POST credentials no longer accepted. The old SSR auth endpoint is gone. The new API URL needs to be discovered by logging into b2b.dktire.com via browser and inspecting the network tab during sign-in (or by contacting DK Tire support for the updated B2B API docs).`;
+      log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. ${detail}`);
+      lastAuthFailure = { at: new Date().toISOString(), reason, detail };
+      return null;
+    }
+  } catch (probeErr) {
+    // Probe is best-effort; if it fails (network blip, DK Tire briefly
+    // down) fall through to the real auth attempt. Don't bail just on a
+    // probe failure.
+    log.warn("[GatewayTire] Auth-endpoint probe failed:", probeErr instanceof Error ? probeErr.message : String(probeErr));
+  }
 
   try {
     const res = await fetch(`${GATEWAY_BASE}/auth-signin`, {
@@ -157,6 +200,7 @@ async function getGatewaySession(): Promise<string | null> {
 
     if (cookieStr) {
       gatewaySession = { cookie: cookieStr, expiresAt: Date.now() + 30 * 60 * 1000 };
+      lastAuthFailure = null;
       return cookieStr;
     }
 
@@ -178,12 +222,20 @@ async function getGatewaySession(): Promise<string | null> {
 
     if (formCookieStr) {
       gatewaySession = { cookie: formCookieStr, expiresAt: Date.now() + 30 * 60 * 1000 };
+      lastAuthFailure = null;
       return formCookieStr;
     }
 
+    const reason = "Auth endpoint accepted POST but returned no Set-Cookie";
+    const detail = `JSON POST status=${res.status}, form POST status=${formRes.status}. Most likely cause: DK Tire changed their auth API shape (the endpoint may now expect a different payload, a CSRF token, or a different URL entirely). Check the b2b.dktire.com login flow in a browser dev-tools Network tab.`;
+    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}. ${detail}`);
+    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
     return null;
   } catch (err) {
-    log.error("[GatewayTire] Auth error:", err);
+    const reason = "Auth request threw";
+    const detail = err instanceof Error ? err.message : String(err);
+    log.error(`[GatewayTire] AUTH BLOCKED — ${reason}: ${detail}`);
+    lastAuthFailure = { at: new Date().toISOString(), reason, detail };
     return null;
   }
 }
@@ -1283,7 +1335,16 @@ export const gatewayTireRouter = router({
     const password = process.env.GATEWAY_TIRE_PASSWORD;
 
     if (!username || !password) {
-      return { connected: false, error: "Gateway Tire credentials not configured", portal: GATEWAY_BASE };
+      return {
+        connected: false,
+        error: "Gateway Tire credentials not configured",
+        portal: GATEWAY_BASE,
+        // surface the structured failure for the admin UI
+        authFailure: { at: new Date().toISOString(), reason: "GATEWAY_TIRE_USERNAME / GATEWAY_TIRE_PASSWORD env vars not set", detail: "Set both env vars on Railway and redeploy." },
+        lastLiveFetch: lastLiveFetchAt,
+        lastLiveFetchSuccess,
+        cachedSearches: searchCache.size,
+      };
     }
 
     const session = await getGatewaySession();
@@ -1292,6 +1353,10 @@ export const gatewayTireRouter = router({
       portal: GATEWAY_BASE,
       accountId: username,
       error: session ? null : "Could not authenticate with Gateway Tire",
+      // when session is null this carries the SPECIFIC failure reason
+      // (env vars missing / portal-migrated / wrong creds / network) so
+      // the operator doesn't have to grep Railway logs to diagnose.
+      authFailure: session ? null : getLastAuthFailure(),
       lastLiveFetch: lastLiveFetchAt,
       lastLiveFetchSuccess,
       cachedSearches: searchCache.size,
