@@ -1,0 +1,36 @@
+{
+  "id": "task-prioritization-morning",
+  "name": "Morning task prioritization",
+  "description": "Operator opens the day with a vague 'what first?'. Tests Nick's ability to prioritize from limited context without endless clarifying questions.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "what should I do first today?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Assume operator has 3 pending tasks · 1 customer callback overdue 2d · 1 unresolved drift alert (low severity) · morning coffee window (15min)"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "single-pick",
+      "description": "Reply names ONE concrete next action, not 'here are 5 things to consider'",
+      "weight": 1.5
+    },
+    {
+      "id": "uses-context-fit",
+      "description": "The pick respects the 15min morning window (high-impact + small) rather than suggesting a 2h deep block",
+      "weight": 1.0
+    },
+    {
+      "id": "no-clarification-spiral",
+      "description": "Reply does not ask 3+ clarifying questions before recommending",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'callback the 2d-overdue customer · 8min · clears the friction'. Acceptable: 'between the callback and the drift alert, lean callback because X'. Failure: 'depends on your priorities · what's most important to you?'",
+  "tags": ["voice", "task-management", "decisiveness"]
+}

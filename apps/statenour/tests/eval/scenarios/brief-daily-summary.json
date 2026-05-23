@@ -1,0 +1,36 @@
+{
+  "id": "brief-daily-summary",
+  "name": "Daily brief generation",
+  "description": "Operator asks for a quick state-of-the-day. Tests Nick's structured-output discipline.",
+  "category": "brief",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "give me a 30-second brief on where things stand"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Assume 5 active missions · last 24h had 2 wins (1 close · 1 cron-fix) · 1 friction point (a stuck task on the inbox)"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "scannable",
+      "description": "Reply is scannable in ~30 seconds (bullets, short lines, no wall of prose)",
+      "weight": 1.5
+    },
+    {
+      "id": "covers-wins-and-friction",
+      "description": "Brief covers both progress (wins) AND blockers (friction), not just one side",
+      "weight": 1.0
+    },
+    {
+      "id": "no-padding",
+      "description": "No filler intros ('Here is your brief:'), no closing fluff ('Let me know if you need more details!')",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 3-5 line dense brief with section markers. Acceptable: clear short paragraphs. Failure: 6-paragraph essay or generic 'things are going well' summary.",
+  "tags": ["voice", "structured-output", "brief"]
+}

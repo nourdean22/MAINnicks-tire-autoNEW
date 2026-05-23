@@ -35,6 +35,8 @@
     "inngest:dev": "inngest-cli dev -u http://localhost:3001/api/inngest",
     "test": "vitest run",
     "test:watch": "vitest",
+    "eval": "tsx tests/eval/run-suite.ts",
+    "eval:live": "tsx tests/eval/run-suite.ts --live",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:install": "playwright install --with-deps chromium",
