@@ -20,8 +20,8 @@ const TYPE_CONFIG: Record<string, { icon: React.ReactNode; color: string; label:
   booking_confirmed: { icon: <CheckCircle2 className="w-3.5 h-3.5" />, color: "text-emerald-400 bg-emerald-500/10", label: "CONFIRMED" },
   booking_completed: { icon: <CheckCircle2 className="w-3.5 h-3.5" />, color: "text-emerald-400 bg-emerald-500/10", label: "COMPLETED" },
   maintenance_reminder: { icon: <Clock className="w-3.5 h-3.5" />, color: "text-amber-400 bg-amber-500/10", label: "REMINDER" },
-  special_offer: { icon: <Send className="w-3.5 h-3.5" />, color: "text-purple-400 bg-purple-500/10", label: "OFFER" },
-  status_update: { icon: <RefreshCw className="w-3.5 h-3.5" />, color: "text-cyan-400 bg-cyan-500/10", label: "STATUS" },
+  special_offer: { icon: <Send className="w-3.5 h-3.5" />, color: "text-primary bg-primary/10", label: "OFFER" },
+  status_update: { icon: <RefreshCw className="w-3.5 h-3.5" />, color: "text-primary bg-primary/10", label: "STATUS" },
 };
 
 const STATUS_STYLES: Record<string, string> = {

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Loader2, User, MapPin, Play, CheckCircle2, XCircle, Clock, Wrench, Shield, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, ErrorState } from "./shared";
+import { PageHeader, ErrorState, LoadingState } from "./shared";
 
 type Tab = "bays" | "queue" | "qc" | "techs";
 
@@ -42,11 +42,7 @@ function WaitStatusToggle() {
   const waitMinutes = waitTimeSetting?.value || "30";
 
   if (isLoading) {
-    return (
-      <div className="bg-card border border-border/40 p-6 flex items-center justify-center">
-        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingState label="Loading dispatch..." />;
   }
 
   return (

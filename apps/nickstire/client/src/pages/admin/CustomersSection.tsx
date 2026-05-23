@@ -83,14 +83,19 @@ function daysSinceStr(days: number | null | undefined): string {
   return `${Math.floor(days / 365)}yr ago`;
 }
 
+// 2026-05-23 · palette pass · canonicalized 5 colors that were drifting
+// off the documented 3-signal palette (emerald/amber/red/primary).
+// Was: purple (call) · cyan (workorder) · green (invoice) · yellow (review).
+// Blue stays — it's the established info-color for "lead just arrived"
+// even though shared.tsx doesn't strictly canonicalize it.
 const JOURNEY_ICONS: Record<string, { icon: string; color: string }> = {
   lead: { icon: "📥", color: "border-blue-500/50" },
   booking: { icon: "📅", color: "border-emerald-500/50" },
   callback: { icon: "📞", color: "border-amber-500/50" },
-  call: { icon: "☎️", color: "border-purple-500/50" },
-  workorder: { icon: "🔧", color: "border-cyan-500/50" },
-  invoice: { icon: "💰", color: "border-green-500/50" },
-  review: { icon: "⭐", color: "border-yellow-500/50" },
+  call: { icon: "☎️", color: "border-primary/50" },
+  workorder: { icon: "🔧", color: "border-primary/50" },
+  invoice: { icon: "💰", color: "border-emerald-500/50" },
+  review: { icon: "⭐", color: "border-amber-500/50" },
 };
 
 function CustomerJourney({ phone }: { phone: string }) {
