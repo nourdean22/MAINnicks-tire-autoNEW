@@ -121,13 +121,13 @@ function TableOfContents({ sections }: { sections: { heading: string }[] }) {
  * cost-of-waiting/anchor copy. Keeps the in-content CTA contextual.
  */
 const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: string }> = {
-  Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake inspection. Pads from $129/axle. Pictures of worn parts before any replacement." },
+  Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake check. Pads from $129/axle. Pictures of worn parts before any replacement." },
   Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + quality used tires from $40/installed. Walk-ins welcome." },
-  Diagnostics: { slug: "diagnostics", label: "Diagnostics", pitch: "Free OBD-II code scan. $95 full diagnostic credited to repair. We test before we replace." },
-  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point inspection every visit." },
+  Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $95 deeper check credited to repair if you say yes. We test before we replace." },
+  Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point check every visit." },
   Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free pre-test before you waste a state appointment. We catch the actual cause, not just the code." },
-  Electrical: { slug: "diagnostics", label: "Electrical Diagnostics", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
-  Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full diagnostic before any major work — we tell you if a rebuild beats a repair." },
+  Electrical: { slug: "diagnostics", label: "Electrical Check", pitch: "Battery, alternator, starter testing free with any repair. Wiring + parasitic-draw work at $120/hr." },
+  Transmission: { slug: "transmission", label: "Transmission Service", pitch: "Fluid + filter from $179. Full check before any major work — we tell you if a rebuild beats a repair." },
 };
 
 /* ─── PILLAR CALLOUT — hub-and-spoke topology activator ─────────
@@ -156,7 +156,7 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Diagnostics": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "Check engine light, transmission fluid vs gearbox, battery vs alternator — the diagnostic-vs-parts-cannon distinction.",
+    subtitle: "Check engine light, transmission fluid vs gearbox, battery vs alternator — the check-vs-parts-cannon distinction.",
   },
   "Engine Repair": {
     slug: "cleveland-auto-repair-owners-manual",
@@ -166,7 +166,7 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Emissions": {
     slug: "cleveland-auto-repair-owners-manual",
     title: "The Cleveland Auto Repair Owner's Manual",
-    subtitle: "How to read a check-engine-light quote, the diagnostic-vs-parts-cannon distinction, and the full 3,000-word repair pillar.",
+    subtitle: "How to read a check-engine-light quote, the check-vs-parts-cannon distinction, and the full 3,000-word repair pillar.",
   },
   "Transmission": {
     slug: "cleveland-auto-repair-owners-manual",
@@ -181,7 +181,7 @@ const CATEGORY_TO_PILLAR: Record<string, { slug: string; title: string; subtitle
   "Cleveland-Specific": {
     slug: "cleveland-pothole-salt-damage-guide",
     title: "The Cleveland Pothole + Salt Damage Guide",
-    subtitle: "What 30,000 tons of road salt + freeze-thaw + lake-effect actually do to cars — the visual diagnostic guide.",
+    subtitle: "What 30,000 tons of road salt + freeze-thaw + lake-effect actually do to cars — the visual diagnose-it-yourself guide.",
   },
   "Fleet Services": {
     slug: "cleveland-auto-repair-owners-manual",
