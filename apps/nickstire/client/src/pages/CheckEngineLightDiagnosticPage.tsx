@@ -21,11 +21,11 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/check-engine-light-diagnostic",
   // 2026-05-06 copy wave: title now names the anti-pattern that's
   // this page's whole positioning. Operators 4 + 5.
-  title: "Check Engine Light Cleveland · No Parts-Swap Roulette | Nick's",
-  description: "Cleveland diagnostic shop that tests instead of swapping parts. Live data, freeze-frame review, written estimate before any wrench moves. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
-  eyebrow: "DIAGNOSTIC AUTHORITY",
-  h1: "REAL DIAGNOSIS.\nNO PARTS-SWAP ROULETTE.",
-  sub: "If you've been to a shop that 'tried a sensor, then another, then another' — you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost — before you authorize anything.",
+  title: "Check Engine Light Cleveland · No Parts-Swap · No Pay Til Yes | Nick's",
+  description: "Cleveland shop that tests instead of swapping parts. Free scan, written quote before any wrench moves. You don't pay until you say yes. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
+  eyebrow: "WE TEST · WE DON'T GUESS",
+  h1: "WE'LL TELL YOU WHAT'S WRONG.\nNO PARTS-SWAP ROULETTE.",
+  sub: "If you've been to a shop that 'tried a sensor, then another, then another' — you've been parts-swapped. We don't guess. We test. Live data, freeze-frame review, component isolation. You leave knowing what's actually wrong and what it'll cost — free check, written quote, you don't pay until you say yes.",
   startingPrice: "Free code scan",
   pricingTitle: "DIAGNOSTIC LEVELS",
   pricingSub: "Free start. Deeper testing gets a written estimate before we touch anything — and credits toward the repair.",
@@ -34,16 +34,16 @@ const CONFIG: ServicePageConfig = {
     { name: "Full Diagnostic", price: "Free estimate", sub: "live data + component isolation, credited to repair", use: "Persistent or intermittent issue — we find the actual failed component, not a list of suspects", featured: true },
     { name: "Electrical / CAN Bus", price: "Free estimate", sub: "harness, modules, parasitic draw", use: "Modern car electronics where parts-swap shops give up" },
   ],
-  includedTitle: "WHY 'DIAGNOSTIC AUTHORITY' MEANS SOMETHING",
+  includedTitle: "WHY 'WE TEST · WE DON'T GUESS' MEANS SOMETHING",
   includedSub: "What we do that the parts-swap shops skip.",
   included: [
     "OBD-II code pull with all stored, pending, AND permanent codes",
     "Freeze-frame data review (the conditions when the code triggered)",
     "Live data analysis — we watch the sensor while the engine runs",
     "Component isolation testing before any part is replaced",
-    "Visual under-hood + under-car inspection (cracks, leaks, rodent damage)",
+    "Visual under-hood + under-car check (cracks, leaks, rodent damage)",
     "Manufacturer-specific scan tools for European, Asian, and domestic vehicles",
-    "Written diagnostic report — exact part, exact reason, exact cost",
+    "Written report — exact part, exact reason, exact cost",
     "30+ years of pattern recognition — we've seen this code on this car before",
   ],
   faqs: [
@@ -57,8 +57,8 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "diagnostics",
   serviceType: "Diagnostic Service",
-  ctaHeadline: "BOOK A REAL DIAGNOSTIC",
-  ctaSub: "Free code scan, expert diagnosis, written estimate before any work. Walk-ins welcome — 17625 Euclid Ave, Cleveland OH.",
+  ctaHeadline: "BRING IT IN · WE'LL TELL YOU WHAT'S WRONG",
+  ctaSub: "Free code scan, written quote before any work, you don't pay until you say yes. Walk-ins welcome — 17625 Euclid Ave, Cleveland OH.",
 
   // ─── CONVERSION ARCHITECTURE ──────────────────────────
   anchorTable: {

@@ -33,14 +33,14 @@ import { Car, Wrench, Activity } from "lucide-react";
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/wheel-alignment-cleveland",
   heroImage: "/photos/busy-shop-action-mechanics.webp",
-  title: "Wheel Alignment Cleveland · Same-Day · Free Pull-Check | Nick's",
-  description: "Wheel alignment in Cleveland · same-day four-wheel laser alignment, walk-in 7 days. Free pull-check before any work. 1,700★ from 1,700+ Cleveland drivers. (216) 862-0005",
+  title: "Wheel Alignment Cleveland · Free Pull-Check · No Pay Til Yes | Nick's",
+  description: "Cleveland wheel alignment on Euclid Ave. Hunter rack, free pull-check first, written quote before any wrench moves. You don't pay until you say yes. 4.9★ from 1,700+ drivers.",
   eyebrow: "WHEEL ALIGNMENT CLEVELAND · WALK-IN 7 DAYS",
-  h1: "WHEEL ALIGNMENT CLEVELAND.\nSAME-DAY · FREE PULL-CHECK FIRST.",
-  sub: "Car pulling left like it has somewhere to be? Steering wheel crooked when you're going straight? Tires wearing on the inside edge? Nick's Tire & Auto on Euclid Ave runs Cleveland's most honest wheel-alignment shop — computerized four-wheel alignment, $89 typical, 45 minutes start to finish, walk-in 7 days. We pull-check free first so you know whether the car actually needs alignment or whether it's something else (tire pressure, suspension, balance). Serving Cleveland, Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and the surrounding metro — same-day every day we're open.",
-  startingPrice: "$89 typical · 45 min · walk-in 7 days",
+  h1: "WHEEL ALIGNMENT CLEVELAND.\nFREE PULL-CHECK · YOU DON'T PAY UNTIL YOU SAY YES.",
+  sub: "Car pulling left like it has somewhere to be? Steering wheel crooked when you're going straight? Tires wearing on the inside edge? Nick's Tire & Auto on Euclid Ave — Hunter rack, computerized four-wheel alignment, 45 minutes start to finish, walk-in 7 days. We pull-check free first so you know whether the car actually needs alignment or whether it's something else (tire pressure, suspension, balance). Serving Cleveland, Euclid, Cleveland Heights, Parma, East Cleveland, Lakewood, Lyndhurst, and the surrounding metro — pull up any day we're open.",
+  startingPrice: "Free pull-check · written quote · walk-in 7 days",
   pricingTitle: "ALIGNMENT PRICING — STRAIGHTFORWARD",
-  pricingSub: "Pull-check is free. If alignment is needed, you get the price in writing before we touch the wheels. No surprise add-ons.",
+  pricingSub: "Pull-check is free. If alignment is needed, you get the price in writing before we touch the wheels — you don't pay until you say yes.",
   tiers: [
     {
       name: "Two-Wheel Alignment",
@@ -63,9 +63,9 @@ const CONFIG: ServicePageConfig = {
     },
   ],
   includedTitle: "WHAT EVERY ALIGNMENT AT NICK'S INCLUDES",
-  includedSub: "No bare-minimum work. The alignment includes the diagnostics it depends on.",
+  includedSub: "No bare-minimum work. The alignment includes the checks it depends on.",
   included: [
-    "Free pull-check + visual inspection BEFORE we lift the car",
+    "Free pull-check + visual check BEFORE we lift the car",
     "Tire pressure check + adjustment (correct pressure is required for proper alignment)",
     "Suspension component visual check (worn tie rods or ball joints = bad alignment results)",
     "Computerized four-wheel laser alignment to manufacturer specs",

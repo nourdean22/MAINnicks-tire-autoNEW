@@ -43,7 +43,7 @@ const CONFIG: ServicePageConfig = {
     "New valve stems — $5/tire elsewhere",
     "TPMS sensor reset (where equipped) — $40 service charge elsewhere",
     "Alignment check — $35 elsewhere (full alignment service is separate if needed)",
-    "20-point safety inspection — brakes, suspension, fluid levels, lights, wipers",
+    "20-point safety check — brakes, suspension, fluid levels, lights, wipers",
     "Disposal of old tires — $5/tire fee elsewhere",
     "Wheel cleaning before re-mount — they look how they should",
     "Torque to spec with calibrated torque wrench (not impact gun) — protects studs + rotors",
