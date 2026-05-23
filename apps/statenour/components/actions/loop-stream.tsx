@@ -1009,9 +1009,25 @@ export function LoopStream({
           v10.0.529.14 · row body extracted to memoized LoopRowItem.
           Per-row state is derived from the parent's Sets/IDs into
           BOOLEANS at this layer, so the memo bails out for every
-          row whose flags didn't change. */}
+          row whose flags didn't change.
+
+          2026-05-23 · Todoist/Evernote-style kind-section dividers.
+          When the stream is sorted by urgency (default), insert a
+          tiny eyebrow header between consecutive rows of different
+          loopKind so DAILY · PROMISE · ONCE clusters read as
+          separate sections. The data + order are untouched — this
+          is a pure render-time visual grouping. Skipped for non-
+          urgency sorts (title / due / created / effort) since
+          kind-mixing is expected there. Also skipped inside the
+          pinned band — pinned rows are a manual override band
+          where kind shouldn't be re-segmented. */}
       <div className={cn("space-y-0.5", selectedIds.size > 0 && "pb-16")}>
-        {[...pinnedRows, ...mainRows].map((row) => {
+        {(() => {
+          const showKindSections = (sortKey ?? "urgency") === "urgency";
+          // Track the previous emitted main-row kind across the map
+          // closure. Pinned rows skip section emission (handled below).
+          let prevMainKind: LoopKind | null = null;
+          return [...pinnedRows, ...mainRows].map((row, idx) => {
           // Skip the nextMove's DOUBLE render — it's already shown in
           // the hero card above. Apr 27 · HERO-EXPAND — when Nour taps
           // the hero card title we set expandedId = hero.task.id. We
@@ -1020,6 +1036,36 @@ export function LoopStream({
           // row, no duplication).
           if (row === nextMove && expandedId !== row.task.id) return null;
           const { task, kind, urgency, overdue, doneToday, daysUntilDeadline } = row;
+          // 2026-05-23 · Kind-section eyebrow header.
+          // Emit a header before this row when:
+          //   · sortKey is urgency (default)
+          //   · this row is a MAIN row (idx >= pinnedRows.length)
+          //   · its kind differs from the previously emitted main-row
+          //     kind (so consecutive same-kind rows get ONE header)
+          //   · a kindFilter isn't active (no point segmenting when
+          //     the user has narrowed to a single kind already)
+          // The header carries no semantic state — it's purely
+          // visual hierarchy. Skip for pinned rows (the pinned band
+          // is a manual override; kind-segmenting it would fight
+          // Nour's pin intent).
+          const isMainRow = idx >= pinnedRows.length;
+          const showSectionHeader =
+            showKindSections &&
+            isMainRow &&
+            kindFilter === "all" &&
+            kind !== prevMainKind;
+          if (isMainRow) prevMainKind = kind;
+          const sectionHeader = showSectionHeader ? (
+            <div
+              key={`section-${kind}-${idx}`}
+              className="flex items-center gap-1.5 px-2 pt-2 pb-0.5 text-[8px] font-mono uppercase tracking-wider text-zinc-600"
+              aria-hidden
+            >
+              <KindIcon kind={kind} size={8} />
+              <span>{kind === "DAILY" ? "daily · habits" : kind === "PROMISE" ? "promises" : "once · tasks"}</span>
+              <div className="flex-1 h-px bg-zinc-800/40" />
+            </div>
+          ) : null;
           const fit = classifyFit(task, liveSignals);
           const checked = selectedIds.has(task.id);
           const rowItem = (
@@ -1090,8 +1136,9 @@ export function LoopStream({
               onDrop={onRowDrop}
             />
           );
-          if (!selectMode) return <div key={task.id}>{rowItem}</div>;
-          return (
+          const rowWrap = !selectMode ? (
+            <div key={task.id}>{rowItem}</div>
+          ) : (
             <div key={task.id} className="flex items-start gap-2">
               <button type="button" role="checkbox" aria-checked={checked} aria-label={`Select ${task.title}`} onClick={() => toggleSelect(task.id)} className={cn("mt-2 shrink-0 w-7 h-7 grid place-items-center rounded border transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/60", checked ? "bg-[var(--gold)]/15 border-[var(--gold)]/60 text-[var(--gold)]" : "border-zinc-700/60 text-transparent hover:border-zinc-500")}>
                 <Check size={14} strokeWidth={3} />
@@ -1099,7 +1146,12 @@ export function LoopStream({
               <div className="flex-1 min-w-0">{rowItem}</div>
             </div>
           );
-        })}
+          // 2026-05-23 · React accepts array-of-children inside a
+          // map slot; each entry needs its own key. Filter the null
+          // header so a non-rendering header doesn't leave a hole.
+          return sectionHeader ? [sectionHeader, rowWrap] : rowWrap;
+        });
+        })()}
       </div>
 
       {/* v10.0.530 · BULK-SELECT sticky action bar. Sequential awaits
