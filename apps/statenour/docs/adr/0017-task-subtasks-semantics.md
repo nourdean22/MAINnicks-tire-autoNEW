@@ -1,7 +1,127 @@
 # ADR-0017 · Task subtasks · semantic decisions
 
-**Status:** ACCEPTED · 2026-05-23 · operator-deferred-but-documented
+**Status:** AMENDED · 2026-05-23 (PM · post Elon's-lens critique)
 **Companion:** `prisma/migrations-pending/20260523_task_parent_task_id/`
+
+## ⚠ Amendment (2026-05-23 PM)
+
+Elon's-lens critique (via `/elon-musk`) surfaced 3 real issues with
+the original ADR. Each is addressed below before the original
+decisions section. **Do not apply the parked migration until items
+1-3 have been resolved.**
+
+### A1. Question the requirement BEFORE migrating · the gate
+
+The original ADR jumped to step 3 of the 5-step engineering process
+(simplify the design) without doing step 1 (question whether
+subtasks need to exist at all). Tasks already have `missionId` ·
+Missions already have `goalId` · that's two hierarchy levels paid
+for. The agent's #7 work flagged subtasks as a hypothetical
+follow-up, not a proven need.
+
+**Gate (must clear before applying the migration):** find TWO
+specific recent tasks in the operator's brain where a subtask would
+have helped. Real ones · with task ids · written down here:
+
+- [ ] Real subtask candidate 1: `<task id> · why a subtask helped`
+- [ ] Real subtask candidate 2: `<task id> · why a subtask helped`
+
+If both can be found · the feature is justified · apply the migration
+and proceed to Rule fixes below.
+
+If they can't be found in 20 minutes of looking · DELETE this ADR
++ the parked migration. Saves 4-6 commits of UI work · the existing
+mission/goal hierarchy is sufficient. The schema migration is
+trivial · the build effort isn't.
+
+### A2. Rule 1 reverses · the half-state is incoherent
+
+Original Rule 1 said "no completion cascade · children stay open
+when parent is DONE." The lens flagged this as a data-integrity bug:
+if parent says DONE and 5 children say OPEN, what does the data
+actually MEAN? The operator's intent is ambiguous · and the
+scoreboard rollup (Rule 6) breaks in the same incoherent way.
+
+**Amended Rule 1:** Either CASCADE or FORBID the half-state · pick
+one · stop sitting on the fence:
+
+- **Option A · cascade with confirm:** Completing a parent triggers
+  a UI prompt "complete N open children too?" · default yes ·
+  operator can cancel-and-just-mark-parent if they actually mean
+  to leave the children open (rare case). The data is always
+  consistent · the model handles the rare divergence.
+
+- **Option B · forbid the half-state:** A parent cannot transition
+  to DONE while any child is in {OPEN, READY, DOING, WAITING}.
+  The complete action on parent surfaces a "complete children
+  first" or "cancel children" prompt. The data is always
+  consistent · the operator handles the divergence.
+
+Pick **Option A** as the default unless implementation surfaces a
+reason to prefer B. Option A respects operator workflow (one click
+to close a chunk of work) while keeping data coherent.
+
+### A3. Rule 6 formula fixes · weight by effort or drop
+
+Original Rule 6 said scoreboard rollup = `done / all`. The lens
+flagged this as misleading: a parent with one easy DONE child +
+one hard OPEN child would claim 50% complete · the operator's
+mental model of "this parent is half-done" is wrong because the
+hard work is the work that matters.
+
+**Amended Rule 6 · effort-weighted rollup:**
+```
+parent.progressPct =
+  sum(EFFORT_RANK[child.effort] · (child.status === DONE ? 1 : 0))
+  / sum(EFFORT_RANK[child.effort])
+```
+where `EFFORT_RANK` is the existing `{M5:1, M15:2, M30:3, H1:4,
+H2PLUS:5}` map from `lib/ai/strategic-frameworks/frameworks/` (or
+the equivalent existing constant). A heavy child counts more in
+the denominator than a light one · finishing a hard child moves
+the needle further than finishing an easy one.
+
+If implementation finds the effort-weighted formula too noisy
+(missing effort estimates · operator preference for raw count),
+**drop the rollup entirely** · show only direct task status on the
+scoreboard. Half-measure rollups (the original `done / all`) are
+worse than no rollup because they look authoritative while being
+silently wrong.
+
+### A4. Implementation checklist collapses · 9 → 4 items
+
+The original 9-item checklist was process worship. A self-FK is
+fundamentally one column. Collapsed:
+
+1. Write the migration SQL (done · `migrations-pending/20260523_task_parent_task_id/`)
+2. Apply the migration to prod (operator-run)
+3. Add field to `prisma/schema.prisma` + `Task` TypeScript interface · `pnpm prisma generate`
+4. Ship the UI slice in ONE PR · `parentTaskId` input on `task.create` mutation · indented children in `loop-row-item.tsx` · effort-weighted rollup in `derive-mission-matrix.ts` · tests for cascade + inheritance + rollup
+
+The old 9-step list (in the Implementation checklist section below)
+stays for reference but is superseded by this 4-step version.
+
+### A5. Original decisions kept (rules 2 · 3 · 4 · 5)
+
+- Rule 2 (field inheritance · missionId + goalId at create only ·
+  dueDate + loopKind don't inherit) · KEEP
+- Rule 3 (inline-nested UI with collapsible chevron) · KEEP
+- Rule 4 (1-level depth) · KEEP
+- Rule 5 (mixed-kind nesting allowed) · KEEP
+
+The original critique on hedge-frequency stands · the "reversible at
+code layer" phrasing appears 6 times below · post-implementation
+each rule should be encoded with conviction (not toggles). But
+during DESIGN (now) hedging is appropriate because the operator
+hasn't decided yet.
+
+---
+
+(original ADR-0017 follows · do not edit · the amendment above is
+the authoritative current state · the section below documents what
+the agent originally proposed)
+
+---
 
 ## Context
 
