@@ -110,6 +110,11 @@ import { NickSuggestions } from "@/components/chat/nick-suggestions";
 // axis · reads like prose ("Today · 3 tasks compounded · Business
 // ↑0.3 · 2 goals lifted").
 import { CompoundChain } from "@/components/operator/compound-chain";
+// Task #15 (2026-05-23) · MissionScoreboard · ComparisonMatrix surface #3
+// (sibling to /decisions/[id] · /system/providers). Active missions ×
+// {progress, velocity, overdue, days-idle, deadline}. Self-hides when
+// the operator has no active missions with tasks.
+import { MissionScoreboard } from "@/components/actions/mission-scoreboard";
 import { useGoalProjectBridge } from "@/hooks/use-goal-project-bridge";
 import { useTaskDerivedState } from "@/hooks/use-task-derived-state";
 import { useOncePerSession } from "@/hooks/use-once-per-session";
@@ -1228,6 +1233,12 @@ function TasksPageInner() {
         <NickSuggestions />
         <OperatorPulse surface="tasks" className="px-0" />
         <TodaysCompound />
+        {/* Task #15 · MissionScoreboard slots here — the "missions
+            panorama" beat after today's signal but before the multi-
+            day compound view. Renders nothing when there are no
+            active missions, so it stays out of the way on fresh-start
+            days. */}
+        <MissionScoreboard />
         <CompoundChain surface="tasks" className="px-0 mx-0" />
         <ActionsContextBand />
       </IntelPanel>
