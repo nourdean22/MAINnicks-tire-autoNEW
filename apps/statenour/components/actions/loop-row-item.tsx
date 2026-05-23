@@ -400,7 +400,15 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
         "group relative flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors",
         isDoing && "bg-blue-500/5 border-l-2 border-blue-500/40",
         doneToday && "opacity-45",
-        overdue && "bg-red-500/5",
+        // 2026-05-23 · Todoist-style priority left-stripe for overdue
+        // PROMISEs. Pre-fix overdue rows got only `bg-red-500/5` — no
+        // stripe — so they read as "tinted background" rather than
+        // "priority signal." Matches the existing isDoing (blue) and
+        // isStale (amber) stripe pattern so the visual language for
+        // urgency is consistent across all three states. Stripe wins
+        // over isStale's amber stripe when both are true (an overdue
+        // task can also be stale; the deadline matters more).
+        overdue && "bg-red-500/5 border-l-2 border-red-500/40",
         isStale && !overdue && "bg-amber-500/[0.03] border-l-2 border-amber-500/20",
         // Apr 26 · F6 — wrong-moment rows desaturate so they
         // visually fall back without disappearing. Helps Nour's
