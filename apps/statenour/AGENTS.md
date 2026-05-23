@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 · post Todoist/Evernote hierarchy follow-ups (#19 sticky kind headers · #20 status grouping axis · #21 mission eyebrow above title · #22 subtask ADR-0017 + parked migration · code lands after operator applies SQL) on top of the /tasks upgrade quartet earlier today · monorepo branch `main`
+> **Last refreshed:** 2026-05-23 · post multi-advisor board (#23 foundation · #24 surface · ADR-0018) — strategic-intelligence amplifier that complements (NOT replaces) the existing strategic-frameworks lens-injection. On top of: Todoist/Evernote hierarchy follow-ups (#19/#20/#21) · subtask ADR-0017 + parked migration (#22) · /tasks upgrade quartet (#7/#15/#16/#17/#18). Monorepo branch `main`.
 
 ---
 
@@ -24,7 +24,7 @@
 | Reconciliation campaign | v10.0.166 → v10.0.236 | Cron audit waves · API auth audit · component layer audit · Wave A ghost-feeder migration | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 | Post-audit consolidation | v10.0.148 → v10.0.166 | AutomationPolicy registry · explainability envelope · Brier scoring · approval queue · fabrication-defense L1-L5 stack · prompt library scaffold | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 
-**Tests:** 2692 tests across 177 vitest files (2026-05-23 · `.next-prod` excluded · +728 tests +31 files since 2026-05-21 reconcile spanning the 2026-05-22 + 2026-05-23 waves). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
+**Tests:** 2712 tests across 178 vitest files (2026-05-23 PM · `.next-prod` excluded · +20 board consult tests from the multi-advisor wave). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
 
 ---
 
