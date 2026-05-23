@@ -16,6 +16,14 @@ flag to enable it.
 | `general`            | Default · the existing Nick chat path · unchanged                   |
 | `financial-analyst`  | Net worth · savings rate · spending categories · cash flow · debt   |
 | `decision-coach`     | Trade-offs · weighing options · past-Nour patterns · recovery paths |
+| `schedule-keeper`    | Calendar shape · free blocks · day rhythm · reschedules (task #16)  |
+
+Distinguishing schedule-keeper from decision-coach is the
+trickiest call: schedule-keeper is "WHERE in time" (placement) ·
+decision-coach is "WHICH option" (choice). "Should I reschedule the
+meeting?" → decision-coach (framing a choice). "Reschedule my meeting
+to Thursday" → schedule-keeper (committing a placement). When the
+classifier is uncertain the LLM tiebreak handles it.
 
 ## How to enable
 
@@ -38,14 +46,18 @@ Default behavior with the flag off is unchanged from before task
 Two-pass classifier in `lib/ai/agents/router.ts`:
 
 1. **Keyword pre-filter** — zero-cost regex scan on the latest user
-   message. Anchored to high-intent phrases only (e.g. `net worth`,
-   `savings rate`, `should i`, `trade-off`, `past nour`). If exactly
-   one family matches → route immediately. If neither matches →
-   route to general immediately. If both match → fall through.
-2. **LLM classifier** — only fires when both keyword families match
-   the same message. Cheap `taskType: "classify"` call with a strict
-   JSON output and `extract-structured` parsing. Malformed output
-   silently falls back to general.
+   message. Anchored to high-intent phrases per specialist family
+   (`net worth`, `savings rate`, `should i`, `trade-off`, `past nour`,
+   `when can i`, `reschedule`, `free block`, etc.). Decision logic
+   based on hit cardinality: exactly one family matches → route
+   immediately · zero matches → general immediately · two or more
+   families match → fall through to LLM tiebreak.
+2. **LLM classifier** — only fires when two-plus keyword families
+   match the same message (genuinely ambiguous · e.g. "when should
+   I schedule my savings review?" hits schedule + financial +
+   decision). Cheap `taskType: "classify"` call with a strict JSON
+   output and `extract-structured` parsing. Malformed output silently
+   falls back to general.
 
 Every failure mode (provider down · LLM throws · bogus JSON · bogus
 route name) coerces back to general so routing never blocks the chat
