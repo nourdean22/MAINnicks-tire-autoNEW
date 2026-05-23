@@ -52,11 +52,22 @@ export async function getGatewayToken(): Promise<string | null> {
   }
 
   try {
+    // 2026-05 NOTE — D&K's API has a server bug where /token returns
+    // HTTP 500 "Internal Server Error" instead of a clean 401/422 when
+    // the request lacks an Origin header. The same body that 500s
+    // without Origin returns a valid access_token WITH Origin set.
+    // The Origin header is required by their CORS/security layer even
+    // for server-to-server callers — without it auth silently breaks
+    // and our search falls through to the curated catalog.
+    // Discovered: 2026-05-23 after a 2-hour root-cause hunt.
     const res = await fetch(`${GATEWAY_API_BASE}/token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
         "Accept": "application/json",
+        "Origin": GATEWAY_PORTAL_BASE,
+        "Referer": `${GATEWAY_PORTAL_BASE}/`,
+        "User-Agent": "Mozilla/5.0 (compatible; NicksTire/1.0; +https://nickstire.org)",
       },
       body: `grant_type=password&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
       signal: AbortSignal.timeout(10000),
@@ -102,6 +113,13 @@ export async function gatewayFetch(path: string, options: RequestInit = {}): Pro
       headers: {
         "Authorization": `Bearer ${token}`,
         "Accept": "application/json",
+        // Mirror the same browser-context headers we send to /token —
+        // D&K's API layer rejects non-browser-shaped requests at every
+        // endpoint, not just /token. Search calls without Origin
+        // return HTTP 500 the same way auth does.
+        "Origin": GATEWAY_PORTAL_BASE,
+        "Referer": `${GATEWAY_PORTAL_BASE}/`,
+        "User-Agent": "Mozilla/5.0 (compatible; NicksTire/1.0; +https://nickstire.org)",
         ...options.headers,
       },
     });
