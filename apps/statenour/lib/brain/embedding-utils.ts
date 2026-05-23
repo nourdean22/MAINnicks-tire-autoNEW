@@ -135,13 +135,27 @@ export async function storeGenericEmbedding(
   content: string
 ): Promise<void> {
   try {
-    const vec = await getEmbedding(content);
-    if (vec.length === 0) return; // Embedding provider unavailable
-
+    // 2026-05-23 · Wave B · C2 · skip-on-identical-content gate.
+    // Pre-fix: getEmbedding() ran on EVERY call · 8 call sites
+    // (memory-manager × 2, auto-learn, auto-learn-llm, pins × 2,
+    // conversation-memory, blind-spot-pinner) re-embedded identical
+    // content on every "touch" (remember(), pin update, recall
+    // bookkeeping). Cheapest correct path: check existing row's
+    // content FIRST · if byte-identical, return immediately.
+    // Saves both the embedding-provider call AND the Prisma write.
     const existing = await prisma.vectorEmbedding.findFirst({
       where: { sourceType, sourceId },
-      select: { id: true },
+      select: { id: true, content: true },
     });
+
+    if (existing && existing.content === content) {
+      // Identical content · no-op. The vector + native pgvector
+      // column already represent this string.
+      return;
+    }
+
+    const vec = await getEmbedding(content);
+    if (vec.length === 0) return; // Embedding provider unavailable
 
     if (existing) {
       await prisma.vectorEmbedding.update({

@@ -32,6 +32,11 @@
 
 import { withGuardian } from "@/lib/tools/guardian";
 import { logger as rootLogger } from "@/lib/logger";
+// 2026-05-23 · Wave B · C1 · was a raw fetch("api.openai.com") at
+// gpt-4o-mini · bypassed Venice/Ollama free tier entirely. Routes
+// through aiChat with taskType="fast" · gets the project's provider
+// chain + fallback for free · same model class, no quality regression.
+import { aiChat, type AiMessage } from "@/lib/ai/provider";
 
 const log = rootLogger.withSurface("ai/adversarial-critic");
 
@@ -102,59 +107,42 @@ interface CriticArgs {
 }
 
 async function _criticize(args: CriticArgs): Promise<AdversarialReport | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    // v10.0.448 · silent-failure-hunter audit · was returning null
-    // without any signal, so a missing/rotated key would silently
-    // disable the entire adversarial layer with no operator visibility.
-    // Logged as warn (rate-limited at logger level) so the daily eval
-    // harness + observability dashboard can surface "critic is no-op'ing."
-    log.warn("adversarial_critic_no_op", {
-      reason: "OPENAI_API_KEY missing",
-      messageHint: args.userQuery.slice(0, 60),
-    });
-    return null;
-  }
   const startedAt = Date.now();
 
   const userPrompt = `OPERATOR ASKED: ${args.userQuery.slice(0, 800)}
 
 RECOMMENDATION TO ATTACK: ${args.recommendation.slice(0, 1500)}
 
-Find the strongest objection.`;
+Find the strongest objection.
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: ADVERSARIAL_SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      // Slight temperature lift · adversarial outputs benefit from
-      // some divergence · purely deterministic returns canned objections
-      temperature: 0.4,
-      max_tokens: 250,
-      response_format: { type: "json_object" },
-    }),
-  });
+Respond with a JSON object only · no prose · shape: {"objection": "<≤320 chars>", "severity": 1|2|3, "foundFlaw": true|false}.`;
 
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err: Error & { status?: number } = new Error(
-      `adversarial ${res.status}: ${body.slice(0, 200)}`,
-    );
-    err.status = res.status;
-    throw err;
+  // 2026-05-23 · Wave B · C1 · was a raw fetch to OpenAI gpt-4o-mini
+  // · bypassed Venice/Ollama free tier · adversarial calls on every
+  // recommendation-shaped reply paid $ for what could route free.
+  // aiChat() routes through the project provider chain + fallback
+  // chain (Venice → Ollama → OpenAI → Anthropic) · "fast" taskType
+  // is exactly the 250-token quick-critic profile.
+  const messages: AiMessage[] = [
+    { role: "system", content: ADVERSARIAL_SYSTEM },
+    { role: "user", content: userPrompt },
+  ];
+
+  const response = await aiChat(messages, "fast");
+  const text = response.content?.trim();
+
+  // Pre-fix the OPENAI_API_KEY guard logged "critic no-op" when the
+  // key was missing. With the provider chain, "no-op" surfaces as
+  // `provider === "none"` (every provider tried and failed). Surface
+  // it the same way so observability stays informed.
+  if (!text || response.provider === "none") {
+    log.warn("adversarial_critic_no_op", {
+      reason: response.provider === "none" ? "all_providers_failed" : "empty_response",
+      provider: response.provider,
+      messageHint: args.userQuery.slice(0, 60),
+    });
+    return null;
   }
-
-  const data = await res.json();
-  const text = data.choices?.[0]?.message?.content?.trim();
-  if (!text) return null;
 
   let parsed: { objection?: unknown; severity?: unknown; foundFlaw?: unknown };
   try {
