@@ -244,6 +244,13 @@ export const BRAIN_CATEGORIES = {
    *  written by nick-suggestions when an active loop hasn't moved in
    *  N days. Already in production · registering closes the gap. */
   ORPHAN_TASKS_NUDGE: "orphan_tasks_nudge",
+  /** 2026-05-23 · task #23/#24 · multi-advisor board consultation
+   *  record. Written by brain.consultBoard tRPC mutation. Key shape:
+   *  `board:<boardId>:<ranAtIso>`. Metadata carries the full
+   *  consultation (takes + synthesis + boardId + question) so the
+   *  /brain/board surface can replay any past consultation. Read by
+   *  a future "board history" card. */
+  BOARD_CONSULTATION: "board_consultation",
 
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
@@ -480,6 +487,7 @@ export const CATEGORY_DOMAINS: Readonly<Record<string, readonly string[]>> = {
   "Tasks + strategy": [
     "planning", "project_management", "strategic_plan", "strategy",
     "task_insight", "task_pattern", "orphan_tasks_nudge",
+    "board_consultation",
   ],
   "Legacy / deprecated": [
     "relationship", "skills", "business_read", "business_write",

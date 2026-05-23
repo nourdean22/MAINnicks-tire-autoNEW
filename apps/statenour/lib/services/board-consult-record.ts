@@ -1,0 +1,224 @@
+/**
+ * lib/services/board-consult-record.ts · persist + read board
+ * consultations (task #24).
+ *
+ * Composition layer over `lib/ai/board/consult.ts` (the pure
+ * consultation service) + `brainMemory.remember` (the storage). Keeps
+ * the tRPC procedure thin · keeps the service unit-testable without a
+ * tRPC harness.
+ *
+ * Why a separate file (not folded into consult.ts) · the consult
+ * service is the PURE pattern · no Prisma · no brainMemory imports.
+ * Adding persistence to it would couple the strategic pattern to the
+ * storage layer. This file is the COMPOSITION · it knows about both.
+ *
+ * Read-side helper `listRecentBoardConsultations` is the equivalent
+ * of `listRecentReflections` (#13 ADR) · returns flat projected views
+ * so the metadata Json never crosses the tRPC boundary (TS2589
+ * firewall).
+ */
+
+import { prisma } from "@/lib/prisma";
+import { brainMemory } from "@/lib/brain/memory-manager";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { consultBoard as runConsultBoard } from "@/lib/ai/board/consult";
+import type {
+  AdvisorTake,
+  BoardConsultation,
+  BoardId,
+  BoardSynthesis,
+} from "@/lib/ai/board/types";
+
+/**
+ * Run a consultation AND persist it. Returns the full consultation
+ * + the BrainMemory.id of the persisted record (so the caller can
+ * link to it · `/brain/board/<id>` deep-links land later).
+ */
+export async function consultBoardAndPersist(
+  boardId: BoardId,
+  question: string,
+): Promise<{ consultation: BoardConsultation; recordId: string }> {
+  const consultation = await runConsultBoard(boardId, question);
+
+  // Persist as a BrainMemory row · key encodes the (board, time)
+  // tuple so re-running the same board on the same instant collides
+  // intentionally (idempotency via the (category, key) unique index ·
+  // same pattern as reflection rows · #12 ADR).
+  const key = `board:${consultation.boardId}:${consultation.ranAt}`;
+  // Content is a short human-readable summary · what an operator
+  // sees in /brain/recall when this row surfaces in unrelated chat.
+  // 200-char cap on the recommendation keeps the row content scannable.
+  const recoPreview = consultation.synthesis.recommendation.slice(0, 240);
+  const questionPreview = consultation.question.slice(0, 120);
+  const content =
+    `${consultation.boardName} on "${questionPreview}" → ${recoPreview}`.slice(0, 800);
+
+  const row = await brainMemory.remember(
+    BRAIN_CATEGORIES.BOARD_CONSULTATION,
+    key,
+    content,
+    "board",
+    {
+      boardId: consultation.boardId,
+      boardName: consultation.boardName,
+      question: consultation.question,
+      ranAt: consultation.ranAt,
+      durationMs: consultation.durationMs,
+      // Compact projection of takes · keeps Json column under a few KB
+      // even for full boards. Full take detail can be re-derived from
+      // the BoardConsultation that the caller still holds in memory
+      // (tRPC returns it alongside the recordId).
+      takes: consultation.takes.map((t) => ({
+        advisorId: t.advisorId,
+        advisorName: t.advisorName,
+        lensOneLine: t.lensOneLine,
+        recommendation: t.recommendation,
+        confidence: t.confidence,
+        divergenceFlag: t.divergenceFlag ?? null,
+        provider: t.provider,
+        error: t.error ?? null,
+      })),
+      synthesis: {
+        consensus: consultation.synthesis.consensus,
+        divergences: consultation.synthesis.divergences,
+        tension: consultation.synthesis.tension ?? null,
+        recommendation: consultation.synthesis.recommendation,
+        confidence: consultation.synthesis.confidence,
+      },
+    },
+  );
+
+  return { consultation, recordId: row.id };
+}
+
+// ── Read-side projection ─────────────────────────────────────────
+
+/** Flat, shallow projection of a board_consultation BrainMemory row. */
+export interface BoardConsultationView {
+  id: string;
+  boardId: string;
+  boardName: string;
+  question: string;
+  ranAt: string;
+  /** Synthesis recommendation · the highest-signal field for a list view. */
+  recommendation: string;
+  /** Convergence count · derived from synthesis.consensus.length. */
+  consensusCount: number;
+  /** Divergence count · 0 means board agreed, ≥1 means real tension. */
+  divergenceCount: number;
+  /** Synthesis confidence · 0-1. */
+  confidence: number;
+  /** Optional tension axis · null when board agreed cleanly. */
+  tension: string | null;
+  /** Number of advisors who actually produced takes (vs errored). */
+  advisorCount: number;
+  /** Created timestamp (the row's createdAt). */
+  createdAt: string;
+}
+
+/**
+ * Loose shape of the persisted metadata · the read helper validates
+ * each field before projecting so an old/malformed row degrades
+ * instead of crashing the dashboard.
+ */
+interface PersistedMetadata {
+  boardId?: unknown;
+  boardName?: unknown;
+  question?: unknown;
+  ranAt?: unknown;
+  takes?: unknown;
+  synthesis?: unknown;
+}
+
+interface PersistedSynthesisShape {
+  consensus?: unknown;
+  divergences?: unknown;
+  tension?: unknown;
+  recommendation?: unknown;
+  confidence?: unknown;
+}
+
+function arrLen(raw: unknown): number {
+  return Array.isArray(raw) ? raw.length : 0;
+}
+
+function coerceBoardConsultationView(row: {
+  id: string;
+  createdAt: Date;
+  metadata: unknown;
+}): BoardConsultationView | null {
+  const meta = (row.metadata ?? {}) as PersistedMetadata;
+  if (typeof meta.boardId !== "string" || meta.boardId.length === 0) return null;
+  if (typeof meta.boardName !== "string" || meta.boardName.length === 0) return null;
+  if (typeof meta.question !== "string") return null;
+
+  const synth = (meta.synthesis ?? {}) as PersistedSynthesisShape;
+  const recommendation =
+    typeof synth.recommendation === "string"
+      ? synth.recommendation
+      : "(no recommendation)";
+  const consensusCount = arrLen(synth.consensus);
+  const divergenceCount = arrLen(synth.divergences);
+  const confidence =
+    typeof synth.confidence === "number" && Number.isFinite(synth.confidence)
+      ? Math.max(0, Math.min(1, synth.confidence))
+      : 0;
+  const tension = typeof synth.tension === "string" && synth.tension.length > 0
+    ? synth.tension
+    : null;
+  const advisorCount = arrLen(meta.takes);
+  const ranAt =
+    typeof meta.ranAt === "string" ? meta.ranAt : row.createdAt.toISOString();
+
+  return {
+    id: row.id,
+    boardId: meta.boardId,
+    boardName: meta.boardName,
+    question: meta.question,
+    ranAt,
+    recommendation,
+    consensusCount,
+    divergenceCount,
+    confidence,
+    tension,
+    advisorCount,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * List the N most recent board consultations · flat projection ·
+ * newest first. The metadata Json is opened INSIDE this function so
+ * the recursive Prisma `JsonValue` type never reaches the AppRouter
+ * — same TS2589 firewall pattern as `listRecentReflections` (#13).
+ */
+export async function listRecentBoardConsultations(
+  input: { limit?: number } = {},
+): Promise<{ consultations: BoardConsultationView[] }> {
+  const limit = Math.max(1, Math.min(50, input.limit ?? 20));
+
+  const rows = await prisma.brainMemory.findMany({
+    where: {
+      category: BRAIN_CATEGORIES.BOARD_CONSULTATION,
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      createdAt: true,
+      metadata: true,
+    },
+  });
+
+  const projected: BoardConsultationView[] = [];
+  for (const row of rows) {
+    const view = coerceBoardConsultationView(row);
+    if (view) projected.push(view);
+  }
+  return { consultations: projected };
+}
+
+// ── Re-export helpers the tRPC layer needs ─────────────────────
+
+export type { AdvisorTake, BoardSynthesis };

@@ -164,6 +164,18 @@ import {
   listRecentReflections,
   type ReflectionView,
 } from "@/lib/services/reflection-read";
+// Multi-advisor board consultation (task #24 · 2026-05-23) ·
+// composition layer over `lib/ai/board/consult.ts` (pure pattern) +
+// `brainMemory.remember` (persistence). Read-side projects metadata
+// Json to flat `BoardConsultationView` scalars so the recursive
+// Prisma `JsonValue` type never reaches the AppRouter (TS2589
+// firewall · same pattern as listRecentReflections).
+import {
+  consultBoardAndPersist,
+  listRecentBoardConsultations,
+  type BoardConsultationView,
+} from "@/lib/services/board-consult-record";
+import { BOARD_IDS } from "@/lib/ai/board/boards";
 
 export const brainRouter = router({
   /**
@@ -1342,5 +1354,78 @@ export const brainRouter = router({
           sourceCategory: input.sourceCategory,
           limit: input.limit,
         }),
+    ),
+
+  /**
+   * Task #24 (2026-05-23) · owner-only · runs a multi-advisor board
+   * consultation. Fans out to N advisors in parallel, synthesizes,
+   * persists the result as a `board_consultation` BrainMemory row,
+   * returns both the consultation + the recordId. Caller-side cost
+   * proxy = members.length advisor aiChat calls + 1 synthesizer call
+   * (default 5-member board = 6 calls · taskType: "reason" routes
+   * to Venice/Ollama first).
+   *
+   * Throws BAD_REQUEST on unknown boardId · throws INTERNAL_SERVER_
+   * ERROR on storage failure (consultation completed but write failed).
+   */
+  consultBoard: operatorProcedure
+    .input(
+      z.object({
+        // BOARD_IDS is a const tuple · use refine to type-narrow the
+        // input to a known board id rather than z.enum (which would
+        // need a tuple). String-with-includes-check keeps the
+        // boards.ts as the single source of truth for board ids.
+        boardId: z.string().refine(
+          (s): s is (typeof BOARD_IDS)[number] =>
+            (BOARD_IDS as ReadonlyArray<string>).includes(s),
+          { message: "boardId must be one of: " + BOARD_IDS.join(", ") },
+        ),
+        question: z
+          .string()
+          .min(8, "question must be at least 8 chars")
+          .max(4000, "question must be under 4000 chars"),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const result = await consultBoardAndPersist(
+          input.boardId,
+          input.question,
+        );
+        return result;
+      } catch (err) {
+        if (err instanceof Error && /Unknown board/.test(err.message)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            err instanceof Error
+              ? `consultBoard failed: ${err.message.slice(0, 120)}`
+              : "consultBoard failed",
+        });
+      }
+    }),
+
+  /**
+   * Task #24 · owner-only · list recent board consultations · flat
+   * projected view (metadata Json opened inside the service · TS2589
+   * firewall). Read by the /brain/board surface to render the
+   * "recent consultations" rail.
+   */
+  recentBoardConsultations: operatorProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(50).default(20),
+      }),
+    )
+    .query(
+      async ({
+        input,
+      }): Promise<{ consultations: BoardConsultationView[] }> =>
+        listRecentBoardConsultations({ limit: input.limit }),
     ),
 });
