@@ -204,3 +204,84 @@ Re-extract from the VAPI prompt every ~30 days. The VAPI prompt evolves faster t
 ---
 
 *This file is the canonical brand voice for customer-facing nickstire surfaces. It does not cover the admin / operator interface (different audience, different voice — covered by `apps/nickstire/CLAUDE.md`'s operator directive). It does not cover statenour-OS (different brand entirely).*
+
+---
+
+## 11. Amendment · 2026-05-23 · the Eagerness Beat (operator-explicit)
+
+Operator confirmation in this session surfaces a beat that was **implicit
+in the existing exemplars** but never named as a principle. Naming it
+now so future copy edits anchor here.
+
+### The principle
+
+> **Confident operator + visibly eager to help.**
+
+The two beats run together — never one without the other:
+- **Confidence** = "we know what we're doing" (already documented in §2)
+- **Eagerness** = "and we actually want you here" *(this amendment)*
+
+The eagerness beat is what separates Nick's from every other shop in
+Cleveland. Other shops gatekeep with appointment walls, "we're booked
+till Monday," "you should have called ahead." Nick's voice signals,
+through copy: **yes, come in, we'll figure it out.** Friction goes on
+our side, not the customer's.
+
+### Why this matters
+
+The kill list (§3) tells you what to avoid. The customer language list
+(§4) tells you how to phrase things. The eagerness beat tells you what
+the line should make the customer **feel** — leaned-toward, welcomed,
+zero-friction.
+
+A line can pass every other check in this doc and still be wrong if it
+fails the eagerness beat. Example:
+
+| Line | Voice constants ✓? | Kill-list ✓? | Eagerness ✓? | Verdict |
+|---|---|---|---|---|
+| "Walk-ins welcome." | ✓ | ✓ | ✓ | Ships. |
+| "Appointments recommended for best service." | ✓ | ✓ | ❌ | Reject — gatekeepy. |
+| "We schedule around you, not the other way around." | ✓ | ✓ | ✓ | Ships. |
+| "Please call ahead during peak hours." | ✓ | ✓ | ❌ | Reject — friction on customer's side. |
+| "Just show up — we'll make it work." | ✓ | ✓ | ✓ | Ships. |
+
+### Signals that carry the eagerness beat
+
+Use these phrasings (and family-of) to signal eagerness explicitly:
+
+- "Walk-ins welcome" / "Walk in any day" / "Just show up"
+- "We'll figure it out" / "Bring it in, we'll work it out"
+- "Call us · text us · just show up" *(multiple low-friction options)*
+- "Open 7 days" *(never "by appointment only")*
+- "Same-day install" / "Done today" *(when it's actually true)*
+- "First-come-first-served — pull up today" *(already in VAPI prompt)*
+- "We're at 17625 Euclid · come in any time during business hours"
+- "Got a weird symptom? Drive it over, we'll listen to it together"
+
+### Signals that BREAK the eagerness beat (kill-list addition)
+
+In addition to the kill list in §3, the following phrasings break the
+eagerness beat and should be avoided:
+
+- ❌ "Appointment required" / "Appointments only"
+- ❌ "We recommend calling ahead" *(as a hedge, not as info)*
+- ❌ "Currently booked" / "First availability"
+- ❌ "We'll get back to you within X hours" *(without specifying X under 1)*
+- ❌ "Standard business hours" *(say the actual hours, every time)*
+- ❌ "Please be patient" / "Thank you for your patience"
+- ❌ Any framing that puts the customer's question into a queue
+
+### Where to apply
+
+This amendment doesn't change the haikus, kill list, customer language
+list, tone matrix, or critical rules — those all stand. It adds one
+filter on top: **every customer-facing line, every channel, every
+context, also gets checked for the eagerness beat.**
+
+If a line is dry-confident but reads as friction-on-the-customer's-side
+(even subtly), rewrite it to signal "we want you here."
+
+**Confidence:** HIGH. Operator-explicit · 2026-05-23 session · cross-
+verified against existing exemplars that already carry the beat
+implicitly (Repair Haiku · "Walk-ins always welcome" · "First-come-
+first-served").

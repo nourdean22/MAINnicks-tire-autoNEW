@@ -78,10 +78,10 @@ export default function About() {
             <div>
               <h2 className="text-3xl font-bold text-foreground mb-6">Built from the ground up on Euclid Ave.</h2>
               <p className="text-foreground/70 mb-4">
-                Nick's Tire & Auto opened in 2018 with a straightforward mission: give East Side Cleveland drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest diagnostics, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
+                Nick's Tire & Auto opened in 2018 with a straightforward mission: give East Side Cleveland drivers a shop they could actually trust. No pressure sales. No mystery invoices. Just honest answers, fair prices, and the respect of showing you exactly what's wrong before we touch your car.
               </p>
               <p className="text-foreground/70 mb-4">
-                What started as a small independent shop has grown into one of Cleveland's top-rated auto repair shops, with over {totalReviews.toLocaleString()} five-star Google reviews from real customers across the city.
+                What started as a small independent shop has grown into Cleveland's 4.9★, {totalReviews.toLocaleString()}-review East Side shop — real customers, real reviews, no marketing budget.
               </p>
               <p className="text-foreground/70">
                 We're not a chain. We're not a dealership. We're your neighbors — and we treat your car like it belongs to one.
@@ -126,7 +126,7 @@ export default function About() {
             {[
               { stat: "30+", label: "Years combined tech experience", sub: "Master + journeyman techs across the floor" },
               { stat: "4 bays", label: "Operating capacity", sub: "Two lifts, two flat-bay drive-ons; ~32 jobs/day max" },
-              { stat: "OBD-II + live data", label: "Diagnostic equipment", sub: "Snap-on / Autel scan tools, manufacturer-grade" },
+              { stat: "OBD-II + live data", label: "Scan tools, manufacturer-grade", sub: "Snap-on / Autel — same tools the dealer uses" },
               { stat: "12-mo", label: "Parts + labor warranty", sub: "12,000-mile or 12-month — whichever comes first, in writing" },
             ].map((item, i) => (
               <FadeIn key={item.label} delay={i * 0.08}>
@@ -165,13 +165,13 @@ export default function About() {
                   We show you the problem <span className="text-primary">before we fix it.</span>
                 </h2>
                 <p className="mt-6 text-foreground/50 text-lg leading-relaxed">
-                  Most shops hand you a bill and hope you don't ask questions. We walk you through the diagnosis, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
+                  Most shops hand you a bill and hope you don't ask questions. We walk you under the car, show you the worn parts, explain your options, and let you decide. No pressure. No upselling.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
                   The price we quote is the price you pay. That approach has earned us {totalReviews.toLocaleString()}+ five-star reviews from Cleveland drivers who keep coming back.
                 </p>
                 <p className="mt-4 text-foreground/50 text-lg leading-relaxed">
-                  We even built a free AI-powered Diagnose tool so you can describe your car's symptoms before you even come in — no pressure, no obligation.
+                  We even built a free Diagnose tool — describe your car's symptoms before you come in, no pressure, no obligation.
                 </p>
               </div>
             </FadeIn>
@@ -317,9 +317,9 @@ export default function About() {
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
-              { title: "Honest Diagnostics", text: "We use advanced OBD-II scanners and live data analysis. We test before we replace, so you never pay for parts you don't need." },
-              { title: "Fair Pricing", text: "No hidden fees. No surprise charges. The price we quote is the price you pay, and we explain every line item." },
-              { title: "Full-Service Shop", text: "Tires, brakes, diagnostics, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
+              { title: "Honest Answers", text: "OBD-II scanners and live data on every car. We test before we replace — so you never pay for parts you don't need." },
+              { title: "Fair Pricing", text: "The price we quote is the price you pay. Every line item explained. We tell you the cost before we touch anything." },
+              { title: "Full-Service Shop", text: "Tires, brakes, check-engine light, emissions, oil changes, suspension, steering, exhaust — one shop for everything." },
               { title: "Since 2018", text: `${new Date().getFullYear() - 2018} years of serving East Cleveland with zero corporate pressure. We answer to our customers, not shareholders.` },
             ].map((item, i) => (
               <FadeIn key={item.title} delay={i * 0.1}>
@@ -478,7 +478,7 @@ export default function About() {
               </div>
               <div>
                 <h3 className="font-bold text-foreground mb-1">Payment Options Available</h3>
-                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? Lease-to-own and payment programs available — $10 down, four providers, no credit check. Ask us how.</p>
+                <p className="text-foreground/60 text-sm">Need tires or major repairs but can't pay all at once? Lease-to-own and payment programs on the spot — $10 down, four providers, no credit check. We'll walk you through it.</p>
               </div>
             </div>
           </FadeIn>

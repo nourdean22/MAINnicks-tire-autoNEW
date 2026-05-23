@@ -474,7 +474,7 @@ const HERO_SERVICES = [
     slug: "/brakes",
     desc: "Pads, rotors, calipers, lines, ABS. We hand you a flashlight and walk you under your own car so you can see the worn part. The metal doesn't lie. Neither do we.",
     img: BRAKES_IMG,
-    price: "Free brake inspection",
+    price: "Free brake check",
   },
   {
     title: "Diagnostics",
@@ -593,7 +593,7 @@ function WhyUs() {
 
               <div className="mt-8 flex flex-wrap gap-3">
                 <a href={BUSINESS.phone.href} onClick={() => trackPhoneClick('whyus-cta')} className="inline-flex items-center gap-2 bg-foreground text-background px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/90 transition-colors">
-                  Call for Free Estimate
+                  Call for Your Free Check
                 </a>
                 <Link href="/financing" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-6 py-3 rounded-full font-medium text-sm hover:bg-foreground/5 transition-colors">
                   See Payment Programs
@@ -817,7 +817,7 @@ function TriageGrid() {
               Pick your symptom — we'll fix it today.
             </h2>
             <p className="mt-3 text-foreground/50 text-sm sm:text-base max-w-2xl mx-auto">
-              Honest diagnosis before any work. Free inspection in under an hour. Most repairs done same day. Payment programs approved on the spot — drive away today, sleep tonight.
+              Honest answer before any work. Free check in under an hour. Most fixes done today — first-come, first-served. Payment programs approved on the spot — drive away today, sleep tonight.
             </p>
           </div>
         </FadeIn>
@@ -828,7 +828,7 @@ function TriageGrid() {
             icon={<Disc className="w-5 h-5" />}
             symptom="Grinding or squealing brakes?"
             consequence="Worn pads eat rotors with every stop. Wait too long, a pads-only job becomes pads + rotors + caliper — multiplying the bill."
-            relief="Free brake inspection. Written estimate before we touch anything."
+            relief="Free brake check. Written quote — you don't pay until you say yes."
             ctaLabel="STOP THE DAMAGE"
             ctaHref="/brakes"
           />
@@ -837,7 +837,7 @@ function TriageGrid() {
             icon={<Activity className="w-5 h-5" />}
             symptom="Check engine light on?"
             consequence="A $200 oxygen sensor untreated typically becomes a $4,000 catalytic converter in 30 days. Damage compounds every mile."
-            relief="Free 5-minute code scan. Deeper diagnostic gets a written estimate before any work."
+            relief="Free 5-minute code scan. If we need to dig deeper, we tell you the cost before we touch anything."
             ctaLabel="DIAGNOSE NOW"
             ctaHref="/diagnostics"
           />
@@ -855,7 +855,7 @@ function TriageGrid() {
             icon={<Zap className="w-5 h-5" />}
             symptom="AC weak or not cold?"
             consequence="Once it stops working, repairs typically run $400-$1,500 industry-wide. Catching it early often means a simple recharge."
-            relief="Free AC inspection. Written estimate before any work."
+            relief="Free AC check. Written quote — you don't pay until you say yes."
             ctaLabel="FIX AC NOW"
             ctaHref="/ac-repair"
           />
@@ -864,7 +864,7 @@ function TriageGrid() {
             icon={<Clock className="w-5 h-5" />}
             symptom="Failed Ohio E-Check?"
             consequence="30-day deadline. Day 31 = parking tickets, impound risk, criminal charges for expired registration."
-            relief="State-certified emissions repair. Same-day fix — pass guaranteed or we keep working."
+            relief="State-certified emissions repair. Pull up today — we'll get you legal."
             ctaLabel="GET LEGAL"
             ctaHref="/emissions"
           />
@@ -873,7 +873,7 @@ function TriageGrid() {
             icon={<Wrench className="w-5 h-5" />}
             symptom="Just need the basics?"
             consequence="Routine oil + filter prevents engine sludge that destroys engines after 60K miles."
-            relief="Free 27-point inspection on every oil change. Walk-ins welcome 7 days."
+            relief="Free 27-point check on every oil change. Walk-ins welcome 7 days."
             ctaLabel="SCHEDULE DROP-OFF"
             ctaHref="/oil-change"
           />
@@ -1086,7 +1086,7 @@ export default function Home() {
           phone CTA survives + "$40 used tires" hooks earlier. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
-        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $40. Walk in 7 days. Free estimate every job. (216) 862-0005"
+        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $40. Walk in 7 days. Free check, written quote, you don't pay until you say yes. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />
