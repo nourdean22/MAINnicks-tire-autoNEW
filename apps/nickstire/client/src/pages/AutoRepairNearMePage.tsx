@@ -41,7 +41,7 @@ const CONFIG: ServicePageConfig = {
   included: [
     "Free written estimate before any work begins",
     "Pictures of worn parts before replacement (no 'trust me' nonsense)",
-    "Quality parts — OEM or name-brand aftermarket",
+    "OE-spec parts — OEM or name-brand aftermarket",
     "12-month / 12,000-mile warranty on parts and labor",
     "Walk-ins welcome 7 days a week — most repairs same or next day",
     "$10 down financing via Snap, Acima, Koalafi",
@@ -56,7 +56,7 @@ const CONFIG: ServicePageConfig = {
     { q: "How long will my repair take?", a: "Depends on the job. Basic stuff (oil change, tire, brake pads): 30-90 minutes. Medium repairs (alternator, water pump, brakes + rotors): 2-4 hours. Major work (timing chain, transmission): 1-3 days. We give you an estimated completion time up front and text updates." },
     { q: "Do I need to make an appointment?", a: "Not usually. Walk-ins welcome 7 days a week. If you're dropping off, show up before 10 AM for best chance of same-day turnaround. Call ahead at (216) 862-0005 if it's a specific repair — that way we can confirm parts availability." },
     { q: "What's your warranty?", a: "12 months / 12,000 miles on parts and labor for most repairs. If a part fails early or the fix didn't take, bring it back — we do it again for free. Real warranty, not 'good luck getting someone to honor it' corporate stuff." },
-    { q: "Will you beat a dealer price?", a: "On most jobs, yes — dealers run $180-$220/hr labor plus OEM-only parts. Independent shops like ours run lower labor rates and use OEM or quality aftermarket parts. The honest answer: bring your dealer quote in, we'll give you a free written estimate side-by-side. Same brand pads and rotors, same warranty, lower bill — but you decide after seeing the numbers, not before." },
+    { q: "Will you beat a dealer price?", a: "On most jobs, yes — dealers run $180-$220/hr labor plus OEM-only parts. Independent shops like ours run lower labor rates and use OEM or OE-spec aftermarket parts. The honest answer: bring your dealer quote in, we'll give you a free written quote side-by-side. Same brand pads and rotors, same warranty, lower bill — but you decide after seeing the numbers, not before." },
   ],
   bookingService: "general-repair",
   serviceType: "Auto Repair",
@@ -71,7 +71,7 @@ const CONFIG: ServicePageConfig = {
       { label: "National chain shop", price: "$485" },
       { label: "Nick's Tire & Auto", price: "Free estimate", ours: true },
     ],
-    source: "Representative quote, alternator replacement on a typical Cleveland-fleet sedan. Independent-shop labor rate vs dealer; OEM-quality parts. Your exact number comes from a free written estimate after we look at the car.",
+    source: "Representative quote, alternator replacement on a typical Cleveland-fleet sedan. Independent-shop labor rate vs dealer; OE-spec parts. Your exact number comes from a free written quote after we look at the car.",
   },
   fearStats: {
     heading: "Why \"I'll get to it next month\" is the most expensive sentence in car ownership.",
@@ -88,7 +88,7 @@ const CONFIG: ServicePageConfig = {
       },
       {
         value: "5×",
-        consequence: "How much more a major repair costs vs. catching the same problem on a multi-point inspection. The free inspection at every oil change exists exactly to avoid this multiplier.",
+        consequence: "How much more a major repair costs vs. catching the same problem on a multi-point check. The free check at every oil change exists exactly to avoid this multiplier.",
       },
     ],
   },

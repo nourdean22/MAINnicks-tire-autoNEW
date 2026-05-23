@@ -462,7 +462,7 @@ export default function CityPage() {
                 <div className="flex items-start gap-4 stagger-in bg-card/30 border border-border/50 rounded-lg p-6">
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
-                    <h3 className="font-bold text-foreground text-lg mb-2">Transparent Pricing, No Surprises</h3>
+                    <h3 className="font-bold text-foreground text-lg mb-2">Transparent Pricing · Written Quote First</h3>
                     <p className="text-foreground/70 leading-relaxed">We quote you a price before we start any work. If something changes during the repair, we call you first. No hidden fees, no upsells, no pressure. What we quote is what you pay.</p>
                   </div>
                 </div>

@@ -173,8 +173,8 @@ export const PRICE_FACTORS: Record<string, PriceFactor[]> = {
       impact: "low",
     },
     {
-      label: "New vs. quality used",
-      detail: "Quality used tires are available for budget-conscious customers.",
+      label: "New vs. checked used",
+      detail: "4-point-checked used tires are available for budget-conscious customers.",
       impact: "high",
     },
   ],

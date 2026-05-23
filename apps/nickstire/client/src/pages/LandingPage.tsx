@@ -111,7 +111,7 @@ const VARIANTS: Record<string, LandingVariant> = {
       "Computer code scan identifies the exact issue",
       "We translate what it means in plain English — no acronym soup",
       "Honest recommendation for repair",
-      "Diagnostic fee credited toward service if you book with us",
+      "Check fee credited toward service if you say yes to the repair",
     ],
     reviews: [
       {
