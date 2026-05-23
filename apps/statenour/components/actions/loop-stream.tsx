@@ -279,6 +279,21 @@ export function LoopStream({
   onEditTaskMission,
   sortKey,
 }: LoopStreamProps) {
+  // 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask child-count map.
+  // Built once per `tasks` array change · O(N) bucketing. Used by the
+  // per-row render to pass `childCount` into LoopRowItem so parent
+  // rows show "+N sub" and child rows render at indentLevel=1.
+  // Rebuilt only when the underlying tasks list changes · doesn't
+  // depend on filter/sort state (the count of children is global).
+  const childCountByParent = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of tasks) {
+      const pid = t.parentTaskId;
+      if (pid) map.set(pid, (map.get(pid) ?? 0) + 1);
+    }
+    return map;
+  }, [tasks]);
+
   // When set, shows an inline modal to capture the break reason.
   // Always the primary flow for PROMISE breakage — the old two-tap
   // confirm fallback was removed since onBreakPromise is now wired
@@ -1147,6 +1162,13 @@ export function LoopStream({
           ) : null;
           const fit = classifyFit(task, liveSignals);
           const checked = selectedIds.has(task.id);
+          // 2026-05-23 · task #22 · ADR-0017 Rule 3 + Rule 4. Children
+          // (rows where task.parentTaskId is set) render at indent 1.
+          // The UI never goes beyond 1 · grand-children (operator
+          // raw-SQL bypass) degrade to indent 1 too so they still
+          // render as direct children visually.
+          const indentLevel = task.parentTaskId ? 1 : 0;
+          const childCount = childCountByParent.get(task.id) ?? null;
           const rowItem = (
             <LoopRowItem
               task={task}
@@ -1156,6 +1178,8 @@ export function LoopStream({
               doneToday={doneToday}
               daysUntilDeadline={daysUntilDeadline}
               isPinned={pinnedIds?.has(task.id) ?? false}
+              indentLevel={indentLevel}
+              childCount={childCount}
               isCompleting={completingIds.has(task.id)}
               isExpanded={expandedId === task.id}
               isEditing={editingId === task.id}

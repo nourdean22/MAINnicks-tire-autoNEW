@@ -158,6 +158,20 @@ export interface LoopRowItemProps {
   /** Sibling pin metadata — read-only here. */
   isPinned: boolean;
 
+  /** 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask visual indent.
+   *  0 = top-level row (default · same as pre-#22 rendering).
+   *  1 = direct child · row is shifted right by 24px so the hierarchy
+   *  is scannable. Per Rule 4 the UI never sets >1 · grand-children
+   *  (operator-created via raw SQL bypass) render at indent 1 too
+   *  (graceful degradation · they appear as direct children of their
+   *  immediate parent in the LoopStream walk). */
+  indentLevel?: number;
+  /** 2026-05-23 · task #22 · count of direct children · null when this
+   *  row is itself a child or has no children. When > 0, a small
+   *  "+N sub" chip renders on the row so the operator sees that
+   *  expanding into the child rendering exists. */
+  childCount?: number | null;
+
   /** Per-row state booleans derived from parent Sets/IDs. */
   isCompleting: boolean;
   isExpanded: boolean;
@@ -269,6 +283,8 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
     doneToday,
     daysUntilDeadline,
     isPinned,
+    indentLevel = 0,
+    childCount = null,
     isCompleting,
     isExpanded,
     isEditing,
@@ -398,6 +414,11 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
       }}
       className={cn(
         "group relative flex items-start gap-2 py-1.5 px-2 rounded-lg transition-colors",
+        // 2026-05-23 · task #22 · subtask visual indent. ml-6 = 24px ·
+        // matches the existing eyebrow + pinned-band visual rhythm.
+        // Conditional ternary so indent === 0 emits no class (no
+        // wasted cn() output).
+        indentLevel > 0 && "ml-6",
         isDoing && "bg-blue-500/5 border-l-2 border-blue-500/40",
         doneToday && "opacity-45",
         // 2026-05-23 · Todoist-style priority left-stripe for overdue
@@ -593,6 +614,18 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
             <Badge className={cn("h-3 text-[7px] border-0 shrink-0", domainClass(task.mission.domain))}>
               {task.mission.domain.toLowerCase().slice(0, 3)}
             </Badge>
+          )}
+          {/* 2026-05-23 · task #22 · child-count chip · renders on
+              parent rows so the operator sees the hierarchy at a
+              glance. Children themselves render with indentLevel > 0 ·
+              this chip never shows on a child row. */}
+          {childCount !== null && childCount > 0 && (
+            <span
+              title={`${childCount} subtask${childCount === 1 ? "" : "s"} below`}
+              className="text-[8px] text-zinc-500 font-mono shrink-0 px-1 rounded border border-zinc-700 bg-zinc-800/30"
+            >
+              +{childCount} sub
+            </span>
           )}
           {/* Apr 26 · F5 — origin-source chip. Only renders
               when source maps to a non-default label. Manual
