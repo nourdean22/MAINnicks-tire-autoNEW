@@ -808,6 +808,45 @@ function TasksPageInner() {
   }
 
   /**
+   * 2026-05-23 · task #22 step 5.2 · "+ subtask" handler.
+   *
+   * Wired to LoopRowItem's Plus button on top-level rows (where
+   * task.parentTaskId is null · per ADR-0017 amended Rule 4). The
+   * native window.prompt is intentional · 1-line UX path · 0 deps ·
+   * ships fast. A polished editor flow can come later. The created
+   * subtask inherits missionId from the parent (passed explicitly)
+   * and goalId via the createTask service's parent-precedence logic
+   * (task #22 step 4.1 · Rule 2).
+   */
+  async function addSubtask(parent: Task) {
+    // eslint-disable-next-line no-alert
+    const titleRaw = window.prompt(`Subtask of "${parent.title}":`);
+    const title = (titleRaw ?? "").trim();
+    if (!title) return;
+    try {
+      const created = (await createTaskMutation.mutateAsync({
+        title,
+        missionId: parent.missionId,
+        parentTaskId: parent.id,
+        // Inherit the parent's loopKind only when it's PROMISE · DAILY
+        // parent + ONCE child is a real pattern (ADR-0017 Rule 5
+        // mixed-kind allowed) so the default is the schema default
+        // (ONCE) regardless of parent. Operator can switch via edit.
+        loopKind: "ONCE",
+        roiScore: 50,
+        effort: parent.effort ?? "M15",
+      })) as { id?: string; task?: { id?: string } } | null;
+      const newId = created?.task?.id ?? created?.id ?? null;
+      void newId;
+      toast.success(`Subtask added under "${parent.title.slice(0, 40)}"`);
+      await load();
+    } catch (err) {
+      reportClientError(err, { source: "tasks.addSubtask" });
+      toast.error("Failed to add subtask");
+    }
+  }
+
+  /**
    * Complete a loop — routes to the new kind-aware /check endpoint.
    * Handles optimistic UI for speed.
    *
@@ -1185,6 +1224,7 @@ function TasksPageInner() {
       setWizardOpen={setWizardOpen}
       projectsCount={projects.length}
       onComplete={completeLoop}
+      onAddSubtask={addSubtask}
       onDelete={deleteTask}
       onStart={startTask}
       onPin={togglePin}

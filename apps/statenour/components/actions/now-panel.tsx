@@ -171,7 +171,14 @@ export interface NowPanelProps {
 
   // ── LoopStream + parent-action callbacks · signatures match the
   //    LoopStream prop contract exactly so we can pass-through. ──
-  onComplete: (id: string) => void | Promise<void>;
+  onComplete: (
+    id: string,
+    opts?: { cascadeChildren?: boolean },
+  ) => void | Promise<void>;
+  /** 2026-05-23 · task #22 step 5.2 · "+ subtask" handler · opens a
+   *  prompt + calls createTask with parentTaskId set. Optional ·
+   *  graceful when not wired. */
+  onAddSubtask?: (parent: Task) => void;
   onDelete: (id: string) => void | Promise<void>;
   onStart: (id: string) => void | Promise<void>;
   onPin: (id: string) => void;
@@ -223,6 +230,7 @@ export function NowPanel({
   setWizardOpen,
   projectsCount,
   onComplete,
+  onAddSubtask,
   onDelete,
   onStart,
   onPin,
@@ -524,6 +532,7 @@ export function NowPanel({
         goalLineage={goalLineage}
         onReviewChange={onReload}
         onEditTaskGoal={openGoalEdit}
+        onAddSubtask={onAddSubtask}
         onEditTaskMission={openProjectEdit}
       />
 

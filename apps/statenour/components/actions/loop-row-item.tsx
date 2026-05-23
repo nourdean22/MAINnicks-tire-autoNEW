@@ -53,6 +53,7 @@ import {
   Loader2,
   GripVertical,
   Briefcase,
+  Plus,
 } from "lucide-react";
 import {
   domainClass,
@@ -227,6 +228,15 @@ export interface LoopRowItemProps {
   /** Rename button on the collapsed row (opens edit mode + expands). */
   onOpenEditFromRow: (task: Task) => void;
 
+  /** 2026-05-23 · task #22 step 5.2 · "+ subtask" button on parent
+   *  rows. The parent passes (parent.id, parent.missionId) so the
+   *  page handler can call createTaskMutation with the right
+   *  parentTaskId + inherited mission. Only renders on rows where
+   *  task.parentTaskId is null (enforces Rule 4 · 1-level depth ·
+   *  no creating sub-of-sub via UI). Optional · graceful when not
+   *  wired (e.g. demo mode). */
+  onAddSubtask?: (parent: Task) => void;
+
   /** Edit panel field changes. */
   onChangeEditTitle: (v: string) => void;
   onChangeEditAction: (v: string) => void;
@@ -314,6 +324,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
     onEditTaskMission,
     onToggleExpand,
     onOpenEditFromRow,
+    onAddSubtask,
     onChangeEditTitle,
     onChangeEditAction,
     onChangeEditEffort,
@@ -530,6 +541,27 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
           >
             <Edit3 size={12} className="sm:w-3 sm:h-3" />
           </button>
+          {/* 2026-05-23 · task #22 step 5.2 · "+ subtask" button. Only
+              on top-level rows (task.parentTaskId === null) per
+              ADR-0017 amended Rule 4 (1-level depth · UI never enables
+              sub-of-sub). Matches the rename pencil's discoverability
+              pattern · hover-only on desktop · always-visible-44px on
+              mobile. Calls onAddSubtask with the parent task so the
+              page handler can pre-populate missionId. */}
+          {!task.parentTaskId && onAddSubtask && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubtask(task);
+              }}
+              className="shrink-0 w-11 h-11 sm:w-6 sm:h-6 rounded sm:rounded-sm flex items-center justify-center text-zinc-600 hover:text-amber-400 hover:bg-zinc-800/50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+              title="Add subtask"
+              aria-label="Add subtask"
+            >
+              <Plus size={12} className="sm:w-3 sm:h-3" />
+            </button>
+          )}
           {kind === "DAILY" && (task.streakCount ?? 0) > 0 && (
             <span className="text-[9px] text-amber-400 font-mono shrink-0">
               🔥{task.streakCount}
