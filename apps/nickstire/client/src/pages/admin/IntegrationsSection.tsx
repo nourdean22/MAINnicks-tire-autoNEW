@@ -506,14 +506,14 @@ function TireSearchTab() {
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  value={customMarkup || "50"}
+                  value={customMarkup || "100"}
                   onChange={e => setCustomMarkup(e.target.value)}
                   className="w-20 px-2 py-1.5 bg-background border border-border/30 text-foreground text-[13px] text-center focus:border-primary/50 focus:outline-none"
                 />
                 <span className="text-foreground/40 text-[13px]">%</span>
                 <button
                   onClick={() => {
-                    const val = parseFloat(customMarkup || "50");
+                    const val = parseFloat(customMarkup || "100");
                     if (!isNaN(val)) updateMarkup.mutate({ markup: val });
                   }}
                   className="px-3 py-1.5 bg-foreground/10 text-foreground/60 hover:text-foreground font-bold text-[10px] tracking-wider transition-colors"
