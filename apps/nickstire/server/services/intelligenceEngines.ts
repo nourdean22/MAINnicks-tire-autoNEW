@@ -360,15 +360,24 @@ export async function scoreLeads() {
     return { id: lead.id, name: lead.name, phone: lead.phone, score: Math.max(0, Math.min(100, score)), factors, vehicle: lead.vehicle, problem: lead.problem };
   });
 
-  // Batch UPDATE urgencyScore — one query per score value instead of one per lead
+  // Batch UPDATE urgencyScore — one query per score value instead of one per lead.
+  // 2026-05-23 · chunk the IN list to keep each UPDATE under TiDB's 64MB
+  // query-size limit. With ~50 score buckets and chunks of 500 ids, the
+  // worst-case UPDATE is ~500 × 8-byte ids = 4KB — well under any limit.
+  // Pre-fix: unbounded IN clause silently broke the urgency-scoring loop
+  // once total open-lead count crossed ~10k.
   const scoreGroups = new Map<number, number[]>();
   for (const s of scored) {
     const ids = scoreGroups.get(s.score) || [];
     ids.push(s.id);
     scoreGroups.set(s.score, ids);
   }
+  const CHUNK_SIZE = 500;
   for (const [score, ids] of scoreGroups) {
-    await d.execute(sql`UPDATE leads SET urgencyScore = ${score} WHERE id IN (${sql.raw(ids.join(","))})`);
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      const chunk = ids.slice(i, i + CHUNK_SIZE);
+      await d.execute(sql`UPDATE leads SET urgencyScore = ${score} WHERE id IN (${sql.raw(chunk.join(","))})`);
+    }
   }
 
   type ScoredLead = typeof scored[number];
@@ -539,25 +548,35 @@ export async function predictCustomerLTV() {
     });
 
     // Batch UPDATE customer_metrics by churnRisk group (eliminates N+1)
+    // 2026-05-23 · was detached Promise.resolve().then(...) — if the
+    // inner execute threw, the cron's recordsProcessed=200 + "completed"
+    // status hid the metrics-write failure, dashboard showed wrong
+    // churnRisk for weeks. Now awaited + chunked. Same DB, no reason
+    // to detach.
     const dbRef = await db();
-    Promise.resolve().then(async () => {
-      try {
-        const groups: Record<string, { ids: number[]; isVip: number }> = {};
-        for (const s of scored.slice(0, 200)) {
-          const key = `${s.churnRisk}:${s.ltvScore >= 70 ? 1 : 0}`;
-          if (!groups[key]) groups[key] = { ids: [], isVip: s.ltvScore >= 70 ? 1 : 0 };
-          groups[key].ids.push(s.id);
-        }
-        for (const [key, group] of Object.entries(groups)) {
-          const risk = key.split(":")[0] as "low" | "medium" | "high";
-          if (group.ids.length > 0) {
-            await dbRef.execute(sql`UPDATE customer_metrics SET churnRisk = ${risk}, isVip = ${group.isVip} WHERE customerId IN (${sql.raw(group.ids.join(","))})`);
-          }
-        }
-      } catch (e) {
-        log.error("[intelligence:ltv] background metrics update failed:", e);
+    try {
+      const groups: Record<string, { ids: number[]; isVip: number }> = {};
+      for (const s of scored.slice(0, 200)) {
+        const key = `${s.churnRisk}:${s.ltvScore >= 70 ? 1 : 0}`;
+        if (!groups[key]) groups[key] = { ids: [], isVip: s.ltvScore >= 70 ? 1 : 0 };
+        groups[key].ids.push(s.id);
       }
-    });
+      const CHUNK_SIZE = 500;
+      for (const [key, group] of Object.entries(groups)) {
+        const risk = key.split(":")[0] as "low" | "medium" | "high";
+        if (group.ids.length === 0) continue;
+        for (let i = 0; i < group.ids.length; i += CHUNK_SIZE) {
+          const chunk = group.ids.slice(i, i + CHUNK_SIZE);
+          await dbRef.execute(sql`UPDATE customer_metrics SET churnRisk = ${risk}, isVip = ${group.isVip} WHERE customerId IN (${sql.raw(chunk.join(","))})`);
+        }
+      }
+    } catch (e) {
+      log.error("[intelligence:ltv] customer_metrics update failed:", e);
+      // Re-throw so the outer catch (line 586) marks the whole
+      // predictCustomerLTV call as failed instead of returning a
+      // half-completed result.
+      throw e;
+    }
 
     type ScoredCustomer = typeof scored[number];
     const sorted = scored.sort((a: ScoredCustomer, b: ScoredCustomer) => b.ltvScore - a.ltvScore);
