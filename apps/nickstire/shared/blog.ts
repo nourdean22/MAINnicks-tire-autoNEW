@@ -86,17 +86,17 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What We Do at Nick's Tire & Auto",
-        content: "When you bring your vehicle in for a brake inspection, we measure pad thickness, check rotor condition, inspect brake lines and calipers, and test the hydraulic system. We show you exactly what we find and explain your options before any work begins. No surprises, no upselling — just honest brake repair at a fair price. Serving Cleveland, Euclid, and Northeast Ohio drivers."
+        content: "When you bring your vehicle in for a brake check, we measure pad thickness, check rotor condition, inspect brake lines and calipers, and test the hydraulic system. We show you exactly what we find and explain your options before any work begins. We tell you the cost before we touch anything, no upselling — just honest brake repair at a fair price. Serving Cleveland, Euclid, and Northeast Ohio drivers."
       }
     ],
     relatedServices: ["/brakes"],
-    tags: ["brake repair", "brake pads", "brake rotors", "Cleveland auto repair", "brake inspection"]
+    tags: ["brake repair", "brake pads", "brake rotors", "Cleveland auto repair", "brake check"]
   },
   {
     slug: "check-engine-light-common-causes",
     title: "Check Engine Light On? Here Are the Most Common Causes",
     metaTitle: "Check Engine Light Common Causes | Nick's Tire & Auto Cleveland",
-    metaDescription: "Check engine light on? Learn the most common causes and why proper OBD-II diagnostics matter. From Cleveland's Euclid Ave diagnostic shop.",
+    metaDescription: "Check engine light on? Learn the most common causes and why proper OBD-II diagnostics matter. From Cleveland's Euclid Ave honest shop.",
     category: "Diagnostics",
     publishDate: "2026-02-15",
     readTime: "5 min read",
@@ -105,7 +105,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why the Check Engine Light Comes On",
-        content: "Your vehicle's onboard computer monitors dozens of sensors and systems. When it detects a reading outside normal parameters, it stores a diagnostic trouble code (DTC) and turns on the check engine light. The light itself does not tell you what is wrong — it only tells you that something needs attention. That is why proper diagnostics matter."
+        content: "Your vehicle's onboard computer monitors dozens of sensors and systems. When it detects a reading outside normal parameters, it stores a diagnostic trouble code (DTC) and turns on the check engine light. The light itself does not tell you what is wrong — it only tells you that something needs attention. That is why proper check matters."
       },
       {
         heading: "Oxygen Sensor Failure",
@@ -113,7 +113,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Loose or Damaged Gas Cap",
-        content: "A loose, cracked, or missing gas cap can trigger the check engine light because it allows fuel vapors to escape from the fuel system. This is the simplest and cheapest fix — but you still need a diagnostic scan to confirm it is the actual cause and not something more serious."
+        content: "A loose, cracked, or missing gas cap can trigger the check engine light because it allows fuel vapors to escape from the fuel system. This is the simplest and cheapest fix — but you still need a code scan to confirm it is the actual cause and not something more serious."
       },
       {
         heading: "Catalytic Converter Problems",
@@ -129,7 +129,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How We Diagnose at Nick's Tire & Auto",
-        content: "We use advanced OBD-II diagnostic scanners to read the specific trouble codes stored in your vehicle's computer. But we do not just read codes and replace parts — we perform a complete diagnosis to find the root cause. A code tells us where to look, not what to replace. This approach saves you money by fixing the actual problem the first time. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We use OBD-II + live data scanners to read the specific trouble codes stored in your vehicle's computer. But we do not just read codes and replace parts — we perform a complete diagnosis to find the root cause. A code tells us where to look, not what to replace. This approach saves you money by fixing the actual problem the first time. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     relatedServices: ["/diagnostics", "/emissions"],
@@ -168,7 +168,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Nick's Tire & Auto — Cleveland E-Check Repair Specialists",
-        content: "We diagnose and repair emissions problems for Cleveland, Euclid, and Northeast Ohio drivers. Our technicians use advanced OBD-II diagnostics to find the exact cause of your E-Check failure. We repair the issue and make sure all emissions monitors complete so your vehicle passes inspection. Call us at (216) 862-0005 or schedule a drop-off online."
+        content: "We figure out and repair emissions problems for Cleveland, Euclid, and Northeast Ohio drivers. Our technicians use OBD-II + live datas to find the exact cause of your E-Check failure. We repair the issue and make sure all emissions monitors complete so your vehicle passes inspection. Call us at (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/emissions", "/diagnostics"],
@@ -249,7 +249,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Schedule Your Spring Checkup",
-        content: "At Nick's Tire & Auto, we offer a complete spring vehicle inspection that covers all of these items and more. We check your vehicle from top to bottom and let you know what needs attention now and what can wait. No pressure, no upselling — just honest advice from experienced technicians. Serving Cleveland, Euclid, and Northeast Ohio. Call (216) 862-0005 or schedule a drop-off online."
+        content: "At Nick's Tire & Auto, we offer a complete spring vehicle check that covers all of these items and more. We check your vehicle from top to bottom and let you know what needs attention now and what can wait. No pressure, no upselling — just honest advice from ASE-trained hands. Serving Cleveland, Euclid, and Northeast Ohio. Call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     // wave-178: spring article body covers "vehicle pulling to one side"
@@ -287,7 +287,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Oil Changes at Nick's Tire & Auto",
-        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter and a basic vehicle inspection. We use the correct oil type and viscosity for your specific vehicle — no shortcuts, no generic substitutions. Quick, affordable, done right. Serving Cleveland, Euclid, and Northeast Ohio."
+        content: "We offer both conventional and full synthetic oil changes at fair prices. Every oil change includes a new filter and a basic vehicle check (20-point). We use the correct oil type and viscosity for your specific vehicle — no shortcuts, no generic substitutions. Quick, affordable, done right. Serving Cleveland, Euclid, and Northeast Ohio."
       }
     ],
     relatedServices: ["/oil-change"],
@@ -323,11 +323,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What to Do If You Fail E-Check",
-        content: "If your vehicle fails, you have 30 days to make repairs and retest at no additional cost. Do NOT simply clear the codes and try again — the monitors will be incomplete and you will fail for that reason instead. The key is to diagnose the actual problem, repair it, then drive the vehicle through the specific drive cycle needed for all monitors to complete. At Nick's Tire & Auto, we specialize in E-Check failures and know the exact drive cycles for every vehicle. We fix the root cause so you pass the first time back."
+        content: "If your vehicle fails, you have 30 days to make repairs and retest at no additional cost. Do NOT simply clear the codes and try again — the monitors will be incomplete and you will fail for that reason instead. The key is to figure out the actual problem, repair it, then drive the vehicle through the specific drive cycle needed for all monitors to complete. At Nick's Tire & Auto, we specialize in E-Check failures and know the exact drive cycles for every vehicle. We fix the root cause so you pass the first time back."
       },
       {
         heading: "How Much Does E-Check Repair Cost?",
-        content: "E-Check repair costs vary widely depending on the problem. A loose gas cap is free to fix. An oxygen sensor replacement runs $150 to $400. Catalytic converter replacement costs $500 to $2,000 depending on the vehicle. EVAP system repairs range from $100 to $600. At Nick's Tire & Auto, we diagnose the specific failure cause and give you a written estimate before any work. We also offer financing through Acima, Koalafi, Snap Finance, and American First Finance if the repair is more than expected."
+        content: "E-Check repair costs vary widely depending on the problem. A loose gas cap is free to fix. An oxygen sensor replacement runs $150 to $400. Catalytic converter replacement costs $500 to $2,000 depending on the vehicle. EVAP system repairs range from $100 to $600. At Nick's Tire & Auto, we figure out the specific failure cause and give you a written estimate before any work. We also offer financing through Acima, Koalafi, Snap Finance, and American First Finance if the repair is more than expected."
       },
       {
         heading: "Pro Tips for Passing E-Check",
@@ -448,7 +448,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Used Tires + Free Installation at Nick's",
-        content: "When you buy used tires from Nick's Tire & Auto, you get the same premium installation package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety inspection. No other used tire shop in Cleveland includes all of this. That is why Cleveland drivers choose Nick's for both new and used tires."
+        content: "When you buy used tires from Nick's Tire & Auto, you get the same install package that comes with new tires: professional mounting, computer balancing, new valve stems, TPMS reset, and a safety check. No other used tire shop in Cleveland includes all of this. That is why Cleveland drivers choose Nick's for both new and used tires."
       }
     ],
     relatedServices: ["/tires"],
@@ -557,7 +557,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Why Brake Repair Costs Vary So Much",
-        content: "If you have ever called around for brake repair quotes in Cleveland, you know the prices can be confusing. One shop says $99, another says $600, and neither explains what is actually included. The truth is that brake repair is not one job — it is a range of services, and the cost depends on what your vehicle actually needs. A basic pad replacement is a completely different job from a full brake system overhaul with new rotors, calipers, and hardware. The type of vehicle matters too. Brake parts for a Honda Civic cost significantly less than parts for a Ford F-250 or a BMW 3 Series. Where you go also matters — dealerships charge premium labor rates ($150-200 per hour), national chains mark up parts heavily, and independent shops like Nick's Tire & Auto offer the best value because we use quality parts at fair prices with experienced technicians who specialize in brake work."
+        content: "If you have ever called around for brake repair quotes in Cleveland, you know the prices can be confusing. One shop says $99, another says $600, and neither explains what is actually included. The truth is that brake repair is not one job — it is a range of services, and the cost depends on what your vehicle actually needs. A basic pad replacement is a completely different job from a full brake system overhaul with new rotors, calipers, and hardware. The type of vehicle matters too. Brake parts for a Honda Civic cost significantly less than parts for a Ford F-250 or a BMW 3 Series. Where you go also matters — dealerships charge premium labor rates ($150-200 per hour), national chains mark up parts heavily, and independent shops like Nick's Tire & Auto offer the best value because we use quality parts at fair prices with ASE-trained hands who specialize in brake work."
       },
       {
         heading: "Brake Pad Replacement Only: $149 to $249",
@@ -565,7 +565,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brake Pads and Rotors: $249 to $449",
-        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors — the metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together ensures even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. The $249 to $449 per axle range covers most vehicles. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no surprises."
+        content: "This is the most common brake repair we perform at our Cleveland shop. When brake pads wear down, they often damage the rotors — the metal discs the pads clamp against to stop your vehicle. Replacing pads and rotors together ensures even braking, eliminates pulsation and vibration, and gives you the longest-lasting repair. The $249 to $449 per axle range covers most vehicles. This service includes new premium brake pads, new or resurfaced rotors, cleaning and lubricating caliper slides, inspecting brake lines and hardware, and a test drive to verify everything works correctly. Some shops advertise low pad prices but then tell you the rotors need replacing after they have already taken your wheels off. At Nick's, we inspect everything before we quote a price, so there are no checkout math."
       },
       {
         heading: "Full Brake Job: $449 to $699",
@@ -577,15 +577,15 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "When Do You Actually Need Brake Repair?",
-        content: "Not every noise means you need new brakes, but some signs should not be ignored. Squealing when braking is usually the wear indicator tab contacting the rotor — this means your pads are getting thin and you should schedule service within a few weeks. Grinding or metal-on-metal sounds mean the pads are completely worn through and the metal backing plate is damaging the rotors. This needs immediate attention because it gets more expensive every day you drive on it. A soft or spongy brake pedal that sinks toward the floor can indicate a brake fluid leak, air in the lines, or a failing master cylinder. This is a safety issue — get it checked immediately. Vibration or pulsation when braking usually means warped rotors. The vehicle is still safe to drive but the condition will worsen over time. Pulling to one side during braking often indicates a stuck caliper or uneven pad wear. Our free brake inspection takes about 20 minutes and tells you exactly what condition your brakes are in. We measure pad thickness, check rotor condition, inspect lines and hoses, and test the hydraulic system. No appointment needed."
+        content: "Not every noise means you need new brakes, but some signs should not be ignored. Squealing when braking is usually the wear indicator tab contacting the rotor — this means your pads are getting thin and you should schedule service within a few weeks. Grinding or metal-on-metal sounds mean the pads are completely worn through and the metal backing plate is damaging the rotors. This needs immediate attention because it gets more expensive every day you drive on it. A soft or spongy brake pedal that sinks toward the floor can indicate a brake fluid leak, air in the lines, or a failing master cylinder. This is a safety issue — get it checked immediately. Vibration or pulsation when braking usually means warped rotors. The vehicle is still safe to drive but the condition will worsen over time. Pulling to one side during braking often indicates a stuck caliper or uneven pad wear. Our free brake check takes about 20 minutes and tells you exactly what condition your brakes are in. We measure pad thickness, check rotor condition, inspect lines and hoses, and test the hydraulic system. No appointment needed."
       },
       {
         heading: "Payment Programs for Brake Repair",
         content: "We understand that an unexpected brake repair bill can strain your budget. That is why Nick's Tire & Auto offers flexible payment programs to help you get the repair done now and pay over time. We work with multiple providers to offer plans that fit different credit situations. Some plans offer 0% interest for qualified buyers. The important thing is that you do not delay brake repair because of cost — brakes are your primary safety system, and putting off repairs always makes them more expensive. A $200 pad job today becomes a $600 full brake job next month if you keep driving on worn pads. Visit our payment programs page or ask about options when you bring your vehicle in."
       },
       {
-        heading: "Schedule Your Free Brake Inspection",
-        content: "Whether you are hearing a noise, feeling a vibration, or just want peace of mind, bring your vehicle to Nick's Tire & Auto for a free brake inspection. We will measure everything, show you what we find, and give you an honest price before any work begins. No appointment needed — walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Northeast Ohio. Honest work, fair prices, every time."
+        heading: "Schedule Your Free Brake Check",
+        content: "Whether you are hearing a noise, feeling a vibration, or just want peace of mind, bring your vehicle to Nick's Tire & Auto for a free brake check. We will measure everything, show you what we find, and give you an honest price before any work begins. No appointment needed — walk-ins welcome 7 days a week. We serve Cleveland, East Cleveland, Euclid, South Euclid, Cleveland Heights, and all of Northeast Ohio. Honest work, fair prices, every time."
       }
     ],
     relatedServices: ["/brakes", "/financing", "/diagnostics"],
@@ -709,8 +709,8 @@ export const BLOG_ARTICLES: BlogArticle[] = [
         content: "Antifreeze (coolant) does two critical jobs: it prevents the engine from overheating in summer and prevents the coolant from freezing in winter. If the antifreeze concentration is too low, the coolant can freeze inside the engine block, which can crack the block and destroy the engine — a repair that costs more than most vehicles are worth. Cleveland winter temperatures regularly drop below zero with wind chill, and actual air temperatures below 10 degrees are common. Your coolant should be a 50/50 mix of antifreeze and water, which protects to about minus 35 degrees Fahrenheit. We test the freeze point of your coolant with a refractometer (much more accurate than the floating ball testers) and check the condition of the coolant itself. Coolant breaks down over time and loses its corrosion protection, which can lead to radiator leaks, heater core leaks, and water pump failure. Most manufacturers recommend a coolant flush every 30,000 to 60,000 miles or every 5 years. If your coolant is due for replacement, fall is the ideal time to do it — before the temperatures drop."
       },
       {
-        heading: "Brake Inspection for Winter Conditions",
-        content: "Your brakes work harder in winter than any other season. Wet, icy, and snow-covered roads require more frequent braking, and the stopping distances are already longer due to reduced traction. Brake pads that are marginal in summer can become dangerous in winter when every foot of stopping distance matters. Road salt is also corrosive to brake components. It gets into caliper slide pins, causing them to stick. It attacks brake rotors, causing accelerated rust and pitting. And it degrades brake hardware (springs, clips, and anti-rattle shims), which can cause noise and uneven pad wear. We recommend a thorough brake inspection before winter. At Nick's Tire & Auto, we measure pad thickness on all four wheels, check rotor condition and thickness, inspect caliper operation and slide pins, check brake lines and hoses for cracks or leaks, and test the brake fluid moisture content. If your brake fluid has absorbed too much moisture, it can boil during heavy braking and cause temporary brake fade — a terrifying experience on an icy Cleveland road."
+        heading: "Brake Check for Winter Conditions",
+        content: "Your brakes work harder in winter than any other season. Wet, icy, and snow-covered roads require more frequent braking, and the stopping distances are already longer due to reduced traction. Brake pads that are marginal in summer can become dangerous in winter when every foot of stopping distance matters. Road salt is also corrosive to brake components. It gets into caliper slide pins, causing them to stick. It attacks brake rotors, causing accelerated rust and pitting. And it degrades brake hardware (springs, clips, and anti-rattle shims), which can cause noise and uneven pad wear. We recommend a thorough brake check before winter. At Nick's Tire & Auto, we measure pad thickness on all four wheels, check rotor condition and thickness, inspect caliper operation and slide pins, check brake lines and hoses for cracks or leaks, and test the brake fluid moisture content. If your brake fluid has absorbed too much moisture, it can boil during heavy braking and cause temporary brake fade — a terrifying experience on an icy Cleveland road."
       },
       {
         heading: "Windshield Wipers, Washer Fluid, and Visibility",
@@ -824,7 +824,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "What Tire Rotation Costs in Cleveland",
-        content: "At independent shops around Cleveland, tire rotation runs $25 to $50. Dealerships charge $40 to $75. Quick-lube chains like Valvoline charge $25 to $40. At Nick's Tire & Auto, rotation is free for life if you bought your tires from us. For everyone else, our rotation price is competitive and includes a brake inspection and tire pressure check — things some shops charge extra for."
+        content: "At independent shops around Cleveland, tire rotation runs $25 to $50. Dealerships charge $40 to $75. Quick-lube chains like Valvoline charge $25 to $40. At Nick's Tire & Auto, rotation is free for life if you bought your tires from us. For everyone else, our rotation price is competitive and includes a brake check and tire pressure check — things some shops charge extra for."
       },
       {
         heading: "What Skipping Rotation Actually Costs You",
@@ -949,7 +949,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Brakes Checked Free at Nick's",
-        content: "Any brake noise deserves an inspection. At Nick's Tire & Auto, brake inspections are free and take about 20 minutes. We measure pad thickness, check rotor condition, inspect calipers, and test the hydraulic system. We show you what we find and explain your options before any wrench turns. No appointment needed. Call (216) 862-0005 or stop in."
+        content: "Any brake noise deserves an inspection. At Nick's Tire & Auto, brake checks are free and take about 20 minutes. We measure pad thickness, check rotor condition, inspect calipers, and test the hydraulic system. We show you what we find and explain your options before any wrench turns. No appointment needed. Call (216) 862-0005 or stop in."
       }
     ],
     relatedServices: ["/brakes"],
@@ -984,7 +984,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Save Money: Replace Pads Before They Kill Rotors",
-        content: "Here is the expensive lesson we see every week: someone drives on squealing brakes for three months until the pads wear through completely. Now the metal backing plates are grinding the rotors. A $150 to $250 pad replacement becomes a $400 to $600 pad and rotor job. The extra $200 to $350 was completely avoidable. When you hear the squeal, that is your chance to save money. Bring it in now, not next month. Free brake inspections at Nick's Tire & Auto, every day. Call (216) 862-0005."
+        content: "Here is the expensive lesson we see every week: someone drives on squealing brakes for three months until the pads wear through completely. Now the metal backing plates are grinding the rotors. A $150 to $250 pad replacement becomes a $400 to $600 pad and rotor job. The extra $200 to $350 was completely avoidable. When you hear the squeal, that is your chance to save money. Bring it in now, not next month. Free brake checks at Nick's Tire & Auto, every day. Call (216) 862-0005."
       }
     ],
     relatedServices: ["/brakes"],
@@ -1015,11 +1015,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How Often to Flush Brake Fluid",
-        content: "Most manufacturers recommend every 2 to 3 years regardless of mileage. Honda and Toyota recommend 3 years. BMW and Mercedes recommend 2 years. If nobody has flushed your brake fluid since you bought the car, it is overdue. We test moisture content with an electronic tester during every brake inspection. If the moisture is above 3%, we recommend a flush. It is a cheap preventive service compared to replacing corroded brake calipers or a seized master cylinder."
+        content: "Most manufacturers recommend every 2 to 3 years regardless of mileage. Honda and Toyota recommend 3 years. BMW and Mercedes recommend 2 years. If nobody has flushed your brake fluid since you bought the car, it is overdue. We test moisture content with an electronic tester during every brake check. If the moisture is above 3%, we recommend a flush. It is a cheap preventive service compared to replacing corroded brake calipers or a seized master cylinder."
       },
       {
         heading: "Schedule Your Brake Fluid Flush",
-        content: "Walk in or call (216) 862-0005 to schedule. If you are already getting brake pads or a brake inspection, adding a fluid flush at the same time saves you a separate trip. No appointment needed. Nick's Tire & Auto serves Cleveland, Euclid, and all of Northeast Ohio."
+        content: "Walk in or call (216) 862-0005 to schedule. If you are already getting brake pads or a brake check, adding a fluid flush at the same time saves you a separate trip. No appointment needed. Nick's Tire & Auto serves Cleveland, Euclid, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/brakes"],
@@ -1089,7 +1089,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Stop Grinding — Come to Nick's Today",
-        content: "If your brakes are grinding right now, do not drive across town to save $20. Come to the closest reputable shop. If you are near the East Side — Cleveland, Euclid, South Euclid, Cleveland Heights — Nick's Tire & Auto can inspect and repair your brakes the same day in most cases. Free inspection, honest pricing, no surprises. Call (216) 862-0005."
+        content: "If your brakes are grinding right now, do not drive across town to save $20. Come to the closest reputable shop. If you are near the East Side — Cleveland, Euclid, South Euclid, Cleveland Heights — Nick's Tire & Auto can inspect and repair your brakes the same day in most cases. Free inspection, honest pricing, no checkout math. Call (216) 862-0005."
       }
     ],
     relatedServices: ["/brakes"],
@@ -1268,7 +1268,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Fixed at Nick's",
-        content: "Free brake inspection. We measure rotor thickness and runout (the measurement that confirms warping). We show you the numbers and explain your options. Most rotor replacements are done same-day. Call (216) 862-0005 or walk in. Serving Cleveland, Euclid, Cleveland Heights, and all of Northeast Ohio."
+        content: "Free brake check. We measure rotor thickness and runout (the measurement that confirms warping). We show you the numbers and explain your options. Most rotor replacements are done same-day. Call (216) 862-0005 or walk in. Serving Cleveland, Euclid, Cleveland Heights, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/brakes"],
@@ -1303,7 +1303,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Come See for Yourself",
-        content: "Read our Google reviews, then come see the shop in person. Walk-ins welcome 7 days a week. Free estimates on most services. Free brake inspections. Free battery testing. Free tire pressure checks. We earn your trust by doing good work at fair prices and treating you like a neighbor, not a transaction. Nick's Tire & Auto — call (216) 862-0005 or schedule a drop-off online."
+        content: "Read our Google reviews, then come see the shop in person. Walk-ins welcome 7 days a week. Free estimates on most services. Free brake checks. Free battery testing. Free tire pressure checks. We earn your trust by doing good work at fair prices and treating you like a neighbor, not a transaction. Nick's Tire & Auto — call (216) 862-0005 or schedule a drop-off online."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/oil-change", "/diagnostics", "/general-repair"],
@@ -1396,7 +1396,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     sections: [
       {
         heading: "Oil Change Prices in Cleveland (2026)",
-        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $35, full synthetic starts at $65. Every oil change includes a new filter, a basic vehicle inspection, and a tire pressure check. No appointment needed, and we are usually done in 20 to 30 minutes."
+        content: "Conventional oil change at quick-lube chains: $30 to $50. At dealerships: $50 to $80. Full synthetic at chains: $60 to $90. At dealerships: $80 to $120. At Nick's Tire & Auto: conventional starts at $35, full synthetic starts at $65. Every oil change includes a new filter, a basic vehicle check (20-point), and a tire pressure check. No appointment needed, and we are usually done in 20 to 30 minutes."
       },
       {
         heading: "The Quick-Lube Upsell Problem",
@@ -1412,7 +1412,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Oil Changes at Nick's — Quick, Cheap, Honest",
-        content: "Walk in any day of the week. We do conventional and synthetic oil changes while you wait. No appointment, no upsell, no surprises. If your car needs something else, we will mention it — but we will never pressure you. We are here to take care of your vehicle, not empty your wallet. Nick's Tire & Auto, Cleveland East Side. Call (216) 862-0005."
+        content: "Walk in any day of the week. We do conventional and synthetic oil changes while you wait. No appointment, no upsell, no checkout math. If your car needs something else, we will mention it — but we will never pressure you. We are here to take care of your vehicle, not empty your wallet. Nick's Tire & Auto, Cleveland East Side. Call (216) 862-0005."
       }
     ],
     relatedServices: ["/oil-change"],
@@ -1439,7 +1439,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Might Need to Wait",
-        content: "Some repairs require parts that we may not have in stock on a Sunday — specific sensors, control modules, or unusual parts for European vehicles. In those cases, we diagnose the problem Sunday, order the part, and finish the repair Monday or Tuesday. At least you know what is wrong and whether the car is safe to drive in the meantime. We will always tell you the truth about timing."
+        content: "Some repairs require parts that we may not have in stock on a Sunday — specific sensors, control modules, or unusual parts for European vehicles. In those cases, we figure out the problem Sunday, order the part, and finish the repair Monday or Tuesday. At least you know what is wrong and whether the car is safe to drive in the meantime. We will always tell you the truth about timing."
       },
       {
         heading: "No Appointment Needed",
@@ -1482,7 +1482,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed Right the First Time",
-        content: "The worst thing you can do is guess. Replacing a battery when the alternator is bad wastes $200. Replacing an alternator when the battery is the problem wastes even more. At Nick's Tire and Auto, we diagnose it correctly the first time — no parts-swapping, no guessing. Drive in or call (216) 862-0005. We are at 17625 Euclid Ave, Euclid — serving Cleveland, Euclid, and all of Northeast Ohio."
+        content: "The worst thing you can do is guess. Replacing a battery when the alternator is bad wastes $200. Replacing an alternator when the battery is the problem wastes even more. At Nick's Tire and Auto, we figure out it correctly the first time — no parts-swapping, no guessing. Drive in or call (216) 862-0005. We are at 17625 Euclid Ave, Euclid — serving Cleveland, Euclid, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -1509,7 +1509,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Common Power Steering Repairs and Costs",
-        content: "Power steering fluid leak repair is the most common fix. A leaking hose or O-ring runs $150 to $350. A failing power steering pump causes whining noise and reduced assist — pump replacement runs $300 to $600 depending on the vehicle. The most expensive repair is the steering rack itself. A leaking or worn rack requires replacement, which typically costs $700 to $1,400 with parts and labor. For electric power steering systems, the motor or control module can fail — these repairs range from $400 to $900. We diagnose the exact cause before recommending any repair so you are not paying for parts you do not need."
+        content: "Power steering fluid leak repair is the most common fix. A leaking hose or O-ring runs $150 to $350. A failing power steering pump causes whining noise and reduced assist — pump replacement runs $300 to $600 depending on the vehicle. The most expensive repair is the steering rack itself. A leaking or worn rack requires replacement, which typically costs $700 to $1,400 with parts and labor. For electric power steering systems, the motor or control module can fail — these repairs range from $400 to $900. We figure out the exact cause before recommending any repair so you are not paying for parts you do not need."
       },
       {
         heading: "Can You Drive with Bad Power Steering?",
@@ -1517,7 +1517,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Power Steering Repair at Nick's Tire & Auto",
-        content: "We diagnose and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 36-month, 36,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
+        content: "We figure out and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 36-month, 36,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1762,7 +1762,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get an Honest AC Diagnosis at Nick's",
-        content: "We diagnose the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 36-month, 36,000-mile warranty."
+        content: "We figure out the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 36-month, 36,000-mile warranty."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1929,7 +1929,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How It Works — $10 Down, Same-Day Approval",
-        content: "The process is simple. We diagnose your vehicle and give you the repair estimate. You apply with one or more providers — applications take 5 minutes on your phone. Most approvals come back in minutes. Once approved, we perform the repair and you make payments according to the plan terms. Most providers require as little as $10 down. Payment terms range from 3 to 24 months depending on the provider and the amount. Interest rates vary — some providers offer promotional 0 percent APR, others have higher rates for higher-risk borrowers. We explain all the terms before you commit."
+        content: "The process is simple. We figure out your vehicle and give you the repair estimate. You apply with one or more providers — applications take 5 minutes on your phone. Most approvals come back in minutes. Once approved, we perform the repair and you make payments according to the plan terms. Most providers require as little as $10 down. Payment terms range from 3 to 24 months depending on the provider and the amount. Interest rates vary — some providers offer promotional 0 percent APR, others have higher rates for higher-risk borrowers. We explain all the terms before you commit."
       },
       {
         heading: "What You Can Cover With a Payment Program",
@@ -1960,7 +1960,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Factor In What Else the Car Needs",
-        content: "One repair in isolation might make sense. But if the transmission needs rebuilding and the car also needs brakes, tires, and has a check engine light — the total cost changes the equation. We always give you the full picture. When we diagnose a major repair, we also check for other issues that are coming soon. If the car needs $2,000 in transmission work but also needs $1,500 in other repairs over the next 6 months, the real decision is whether to spend $3,500 on a car worth $5,000. That changes the math."
+        content: "One repair in isolation might make sense. But if the transmission needs rebuilding and the car also needs brakes, tires, and has a check engine light — the total cost changes the equation. We always give you the full picture. When we figure out a major repair, we also check for other issues that are coming soon. If the car needs $2,000 in transmission work but also needs $1,500 in other repairs over the next 6 months, the real decision is whether to spend $3,500 on a car worth $5,000. That changes the math."
       },
       {
         heading: "Compare to the Cost of Replacing",
@@ -2042,7 +2042,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Other Causes — Worn Suspension and Tire Defects",
-        content: "Worn suspension components — ball joints, tie rods, control arm bushings — can allow the wheel to shift under load, causing a pull. A tire with a shifted belt or internal defect can also pull the car. We diagnose this by swapping the front tires side to side — if the pull switches direction, the tire is the problem. If it stays the same, the issue is alignment or suspension. Cleveland's combination of potholes, salt, and freeze-thaw cycles wear suspension components faster than most cities."
+        content: "Worn suspension components — ball joints, tie rods, control arm bushings — can allow the wheel to shift under load, causing a pull. A tire with a shifted belt or internal defect can also pull the car. We figure out this by swapping the front tires side to side — if the pull switches direction, the tire is the problem. If it stays the same, the issue is alignment or suspension. Cleveland's combination of potholes, salt, and freeze-thaw cycles wear suspension components faster than most cities."
       },
       {
         heading: "Get It Diagnosed at Nick's",
@@ -2151,7 +2151,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Do Not Ignore New Noises",
-        content: "New noises mean something changed. The sooner you identify what changed, the cheaper the fix. A worn CV joint caught early is $250. Caught late, it is a tow plus $500. A brake pad indicator caught early is a $250 pad replacement. Caught late, it is $500 with new rotors. Bring your clicking car to Nick's Tire and Auto. We will listen, diagnose, and give you a straight answer. Call (216) 862-0005 — 17625 Euclid Ave, Euclid. Cleveland's honest diagnostic shop."
+        content: "New noises mean something changed. The sooner you identify what changed, the cheaper the fix. A worn CV joint caught early is $250. Caught late, it is a tow plus $500. A brake pad indicator caught early is a $250 pad replacement. Caught late, it is $500 with new rotors. Bring your clicking car to Nick's Tire and Auto. We will listen, figure it out, and give you a straight answer. Call (216) 862-0005 — 17625 Euclid Ave, Euclid. Cleveland's honest shop."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -2501,7 +2501,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Honest Rotor Assessment at Nick's",
-        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our $89 brake special includes pads, rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 17625 Euclid Ave, Euclid for a [brake inspection](/brakes)."
+        content: "We measure every rotor with a micrometer during brake service. If your rotors are above minimum thickness and can be resurfaced to a flat, smooth surface, we will tell you and save you the cost of new rotors. If they are at or near minimum, or too deeply scored to machine, we will recommend replacement and explain why. No guessing, no unnecessary parts. Our $89 brake special includes pads, rotor inspection, and all the honest information you need to make the right call. If rotors need replacing, we price them fairly and install them as part of the brake job. Call (216) 862-0005 or come to 17625 Euclid Ave, Euclid for a [brake check](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2536,7 +2536,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Caliper Repair and Replacement Costs",
-        content: "At Nick's Tire and Auto, caliper service depends on what is wrong. If the slide pins are corroded but the caliper itself is fine, cleaning, lubricating, and re-booting the pins is part of a standard brake job — no extra charge on our $89 brake service. If the caliper piston is sticking and needs to be rebuilt, or if the caliper is seized or leaking, replacement is the repair. Caliper replacement typically runs $150 to $350 per caliper depending on the vehicle, including parts and labor. We always replace calipers in pairs — both fronts or both rears — to maintain even braking. Call (216) 862-0005 to get a quote for your specific vehicle, or bring it in to 17625 Euclid Ave, Euclid for a [brake inspection](/brakes)."
+        content: "At Nick's Tire and Auto, caliper service depends on what is wrong. If the slide pins are corroded but the caliper itself is fine, cleaning, lubricating, and re-booting the pins is part of a standard brake job — no extra charge on our $89 brake service. If the caliper piston is sticking and needs to be rebuilt, or if the caliper is seized or leaking, replacement is the repair. Caliper replacement typically runs $150 to $350 per caliper depending on the vehicle, including parts and labor. We always replace calipers in pairs — both fronts or both rears — to maintain even braking. Call (216) 862-0005 to get a quote for your specific vehicle, or bring it in to 17625 Euclid Ave, Euclid for a [brake check](/brakes)."
       }
     ],
     relatedServices: ["/brakes"],
@@ -2711,7 +2711,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Diagnostics Before Replacement",
-        content: "We never just replace an O2 sensor because a code scanner says O2 sensor. A code tells you the computer detected a problem in that circuit — it does not tell you the sensor itself is bad. A vacuum leak, exhaust leak, or fuel system problem can trigger O2 sensor codes without the sensor being at fault. Our $49 diagnostic service includes code reading, live data analysis of sensor waveforms, and system testing to verify the sensor is actually the problem before we replace it. This saves you money and prevents the frustration of replacing a sensor only to have the light come back. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [diagnostic appointment](/diagnostics). E-Check failure? We fix those too — [general repair](/general-repair)."
+        content: "We never just replace an O2 sensor because a code scanner says O2 sensor. A code tells you the computer detected a problem in that circuit — it does not tell you the sensor itself is bad. A vacuum leak, exhaust leak, or fuel system problem can trigger O2 sensor codes without the sensor being at fault. Our $49 code scan + live data service includes code reading, live data analysis of sensor waveforms, and system testing to verify the sensor is actually the problem before we replace it. This saves you money and prevents the frustration of replacing a sensor only to have the light come back. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [drop-off](/diagnostics). E-Check failure? We fix those too — [general repair](/general-repair)."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2756,7 +2756,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "car-wont-accelerate-causes",
     title: "Car Won't Accelerate? Cleveland Mechanic Guide",
     metaTitle: "Car Won't Accelerate · 4 Causes (Cheap to Brutal) | Nick's",
-    metaDescription: "Car sluggish or won't accelerate? 4 causes ranked cheap to brutal — MAF sensor, fuel filter, transmission slip, timing chain. Cleveland diagnostic mechanic.",
+    metaDescription: "Car sluggish or won't accelerate? 4 causes ranked cheap to brutal — MAF sensor, fuel filter, transmission slip, timing chain. Cleveland honest mechanic.",
     category: "Diagnostics",
     publishDate: "2026-02-25",
     readTime: "5 min read",
@@ -2781,7 +2781,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get It Diagnosed Properly",
-        content: "Poor acceleration has dozens of possible causes, and guessing is expensive. A $49 diagnostic at Nick's Tire and Auto tells you exactly what is wrong before you spend money on parts. We read codes, analyze live sensor data, check fuel pressure, test ignition components, and inspect the intake and exhaust systems. We find the actual cause — not just the code — and give you an honest repair estimate. No guessing, no throwing parts at it, no unnecessary work. If it is a $10 air filter or a $200 fuel pump, we tell you straight. Come to 17625 Euclid Ave, Euclid or call (216) 862-0005. Walk-ins welcome 7 days a week. [Diagnostics start at $49](/diagnostics) and we handle all [general repairs](/general-repair)."
+        content: "Poor acceleration has dozens of possible causes, and guessing is expensive. A $49 code scan + live data at Nick's Tire and Auto tells you exactly what is wrong before you spend money on parts. We read codes, analyze live sensor data, check fuel pressure, test ignition components, and inspect the intake and exhaust systems. We find the actual cause — not just the code — and give you an honest repair estimate. No guessing, no throwing parts at it, no unnecessary work. If it is a $10 air filter or a $200 fuel pump, we tell you straight. Come to 17625 Euclid Ave, Euclid or call (216) 862-0005. Walk-ins welcome 7 days a week. [Diagnostics start at $49](/diagnostics) and we handle all [general repairs](/general-repair)."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2812,11 +2812,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Cleveland Cold Weather and Head Gasket Diagnosis",
-        content: "Diagnosing head gasket problems in Cleveland winter is trickier because the normal condensation lasts longer in cold weather. At 15 degrees, normal exhaust vapor can persist for several minutes even after the engine is warm. The key tests are: a combustion gas test — we hold a chemical tester over the coolant reservoir to detect combustion gases in the cooling system. A cooling system pressure test — we pressurize the system and watch for pressure loss. Cylinder leakdown test — we pressurize each cylinder and measure how much pressure it holds. These tests give definitive answers regardless of outside temperature. At Nick's, our $49 diagnostic includes these tests when head gasket failure is suspected."
+        content: "Diagnosing head gasket problems in Cleveland winter is trickier because the normal condensation lasts longer in cold weather. At 15 degrees, normal exhaust vapor can persist for several minutes even after the engine is warm. The key tests are: a combustion gas test — we hold a chemical tester over the coolant reservoir to detect combustion gases in the cooling system. A cooling system pressure test — we pressurize the system and watch for pressure loss. Cylinder leakdown test — we pressurize each cylinder and measure how much pressure it holds. These tests give definitive answers regardless of outside temperature. At Nick's, our $49 code scan + live data includes these tests when head gasket failure is suspected."
       },
       {
         heading: "Head Gasket Repair Cost and Options",
-        content: "A head gasket replacement is a major repair — typically $1,200 to $2,500 depending on the vehicle. The gasket itself is $30 to $100 but the labor to remove the cylinder head, machine it flat, and reassemble the engine is 8 to 15 hours. On some vehicles — V6 engines where the rear head is against the firewall, or Subaru boxer engines where both heads are difficult to access — the labor is even more. For older or high-mileage vehicles, a head gasket repair may not make financial sense. We always give you the honest math — repair cost vs vehicle value — so you can make an informed decision. If the repair costs more than the car is worth, we will tell you that. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [diagnostic evaluation](/diagnostics). Honest answers, fair prices, 7 days a week."
+        content: "A head gasket replacement is a major repair — typically $1,200 to $2,500 depending on the vehicle. The gasket itself is $30 to $100 but the labor to remove the cylinder head, machine it flat, and reassemble the engine is 8 to 15 hours. On some vehicles — V6 engines where the rear head is against the firewall, or Subaru boxer engines where both heads are difficult to access — the labor is even more. For older or high-mileage vehicles, a head gasket repair may not make financial sense. We always give you the honest math — repair cost vs vehicle value — so you can make an informed decision. If the repair costs more than the car is worth, we will tell you that. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005 for a [check](/diagnostics). Honest answers, fair prices, 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2843,7 +2843,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Dirty Throttle Body",
-        content: "The throttle body controls how much air enters the engine. Over time, carbon deposits build up on the throttle plate and bore, restricting airflow at idle. The engine computer tries to compensate by adjusting the idle air control, but eventually the deposits get bad enough that the idle becomes rough or erratic. You might notice the car idling too low, surging between high and low RPM, or stalling when you come to a stop. Throttle body cleaning is one of the simplest and most effective fixes for rough idle — it takes about 30 minutes and costs far less than replacing parts. We clean throttle bodies as part of our diagnostic process when carbon buildup is the issue."
+        content: "The throttle body controls how much air enters the engine. Over time, carbon deposits build up on the throttle plate and bore, restricting airflow at idle. The engine computer tries to compensate by adjusting the idle air control, but eventually the deposits get bad enough that the idle becomes rough or erratic. You might notice the car idling too low, surging between high and low RPM, or stalling when you come to a stop. Throttle body cleaning is one of the simplest and most effective fixes for rough idle — it takes about 30 minutes and costs far less than replacing parts. We clean throttle bodies as part of our check process when carbon buildup is the issue."
       },
       {
         heading: "Engine and Transmission Mounts",
@@ -2851,7 +2851,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Diagnose It Right at Nick's",
-        content: "A shaking car at idle has multiple possible causes, and the right diagnosis saves you from wasting money on wrong guesses. Our $49 diagnostic checks for misfire codes and live engine data, tests for vacuum leaks with a smoke machine, inspects the throttle body for carbon buildup, evaluates engine and transmission mount condition, and checks all related sensors and systems. We find the actual problem and give you a clear repair estimate before any work starts. Most rough idle causes are fixable for a few hundred dollars or less. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005. We do [diagnostics](/diagnostics), [general repair](/general-repair), [brakes](/brakes), and [tires](/tires) — all under one roof, 7 days a week."
+        content: "A shaking car at idle has multiple possible causes, and the right answer saves you from wasting money on wrong guesses. Our $49 code scan + live data checks for misfire codes and live engine data, tests for vacuum leaks with a smoke machine, inspects the throttle body for carbon buildup, evaluates engine and transmission mount condition, and checks all related sensors and systems. We find the actual problem and give you a clear repair estimate before any work starts. Most rough idle causes are fixable for a few hundred dollars or less. Come to Nick's Tire and Auto at 17625 Euclid Ave, Euclid or call (216) 862-0005. We do [diagnostics](/diagnostics), [general repair](/general-repair), [brakes](/brakes), and [tires](/tires) — all under one roof, 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair"],
@@ -2956,7 +2956,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Your Car to Nick's After the Tow",
-        content: "Tell your tow driver to bring the car to Nick's Tire and Auto at 17625 Euclid Ave, Euclid, OH 44112. We are open 7 days a week and handle everything from [tire blowouts](/tires) to [engine diagnostics](/diagnostics) to [full mechanical repair](/general-repair). If you break down after hours, the tow truck can drop the car in our lot and we will get to it first thing in the morning. Call (216) 862-0005 to let us know it is coming. We diagnose the problem, give you an honest estimate, and get you back on I-90 — this time with a car that works."
+        content: "Tell your tow driver to bring the car to Nick's Tire and Auto at 17625 Euclid Ave, Euclid, OH 44112. We are open 7 days a week and handle everything from [tire blowouts](/tires) to [engine diagnostics](/diagnostics) to [full mechanical repair](/general-repair). If you break down after hours, the tow truck can drop the car in our lot and we will get to it first thing in the morning. Call (216) 862-0005 to let us know it is coming. We figure out the problem, give you an honest estimate, and get you back on I-90 — this time with a car that works."
       }
     ],
     relatedServices: ["/diagnostics", "/general-repair", "/tires"],
@@ -3088,7 +3088,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Brakes — Stop Fast in School Zones",
-        content: "School zones mean more stopping, more pedestrians, more unpredictable situations. Kids dart into streets. Buses stop suddenly. Other parents cut you off in the drop-off line. Your brakes need to be sharp. If you hear any noise when braking, feel any pulsation, or notice the pedal is softer than it used to be, get a [brake inspection](/brakes) before the first day of school. Brake pad replacement at Nick's starts at $149.99 per axle. That is cheap insurance when you need to stop fast for a kid on a bike."
+        content: "School zones mean more stopping, more pedestrians, more unpredictable situations. Kids dart into streets. Buses stop suddenly. Other parents cut you off in the drop-off line. Your brakes need to be sharp. If you hear any noise when braking, feel any pulsation, or notice the pedal is softer than it used to be, get a [brake check](/brakes) before the first day of school. Brake pad replacement at Nick's starts at $149.99 per axle. That is cheap insurance when you need to stop fast for a kid on a bike."
       },
       {
         heading: "Lights — Be Visible During Early Morning Drop-offs",
@@ -3100,7 +3100,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "If Your Teen Is Driving to School",
-        content: "If you have a 16 or 17 year old driving to school, bring their car in for a full safety inspection. Check the tires, brakes, lights, and fluids. Make sure the spare tire is inflated and they know how to change it — or at least have roadside assistance set up on their phone. We see a lot of teens driving on bald tires with a check engine light they have been ignoring for months. A $49 [diagnostic check](/diagnostics) at Nick's catches the serious problems. Come to 17625 Euclid Ave, Euclid or call (216) 862-0005. Open 7 days a week. [Tires](/tires), [brakes](/brakes), [diagnostics](/diagnostics), and [general repair](/general-repair)."
+        content: "If you have a 16 or 17 year old driving to school, bring their car in for a full safety check. Check the tires, brakes, lights, and fluids. Make sure the spare tire is inflated and they know how to change it — or at least have roadside assistance set up on their phone. We see a lot of teens driving on bald tires with a check engine light they have been ignoring for months. A $49 [diagnostic check](/diagnostics) at Nick's catches the serious problems. Come to 17625 Euclid Ave, Euclid or call (216) 862-0005. Open 7 days a week. [Tires](/tires), [brakes](/brakes), [diagnostics](/diagnostics), and [general repair](/general-repair)."
       }
     ],
     relatedServices: ["/tires", "/brakes", "/diagnostics"],
@@ -3170,7 +3170,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Keeping Your Civic Running Long in Cleveland",
-        content: "The Honda Civic is one of the most reliable cars on the road — which is why so many Cleveland drivers depend on them. With regular maintenance, a Civic can easily hit 200,000 to 300,000 miles. The key is staying on top of oil changes, brake inspections, and not ignoring warning signs. At Nick's Tire and Auto, we work on more Hondas than any other brand. We know the common issues, we stock the common parts, and we get the work done fast. Bring your Civic to 17625 Euclid Ave, Euclid or call (216) 862-0005. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), and [general repair](/general-repair) — open 7 days a week."
+        content: "The Honda Civic is one of the most reliable cars on the road — which is why so many Cleveland drivers depend on them. With regular maintenance, a Civic can easily hit 200,000 to 300,000 miles. The key is staying on top of oil changes, brake checks, and not ignoring warning signs. At Nick's Tire and Auto, we work on more Hondas than any other brand. We know the common issues, we stock the common parts, and we get the work done fast. Bring your Civic to 17625 Euclid Ave, Euclid or call (216) 862-0005. [Diagnostics](/diagnostics), [brakes](/brakes), [tires](/tires), and [general repair](/general-repair) — open 7 days a week."
       }
     ],
     relatedServices: ["/diagnostics", "/brakes", "/general-repair"],
@@ -3240,7 +3240,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Bring Your Camry to Nick's",
-        content: "The Camry is one of the cars we work on most frequently. We know every generation's quirks, common issues, and the right parts to use. Whether you need a [brake inspection](/brakes), [tire replacement](/tires), [oil change](/general-repair), or [diagnostic work](/diagnostics), we handle it all. Nick's Tire and Auto at 17625 Euclid Ave, Euclid. Call (216) 862-0005 or walk in. Open 7 days a week."
+        content: "The Camry is one of the cars we work on most frequently. We know every generation's quirks, common issues, and the right parts to use. Whether you need a [brake check](/brakes), [tire replacement](/tires), [oil change](/general-repair), or [diagnostic work](/diagnostics), we handle it all. Nick's Tire and Auto at 17625 Euclid Ave, Euclid. Call (216) 862-0005 or walk in. Open 7 days a week."
       }
     ],
     relatedServices: ["/brakes", "/diagnostics"],
@@ -3355,7 +3355,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
     slug: "cheapest-way-to-fix-check-engine-light",
     title: "Cheapest Way to Fix a Check Engine Light",
     metaTitle: "Cheapest Way to Fix Check Engine Light | Nick's Tire & Auto Cleveland",
-    metaDescription: "Check engine light on? Do not panic. A Cleveland mechanic explains the triage approach to fixing it without overspending. Start with a $49 diagnostic.",
+    metaDescription: "Check engine light on? Do not panic. A Cleveland mechanic explains the triage approach to fixing it without overspending. Start with a $49 code scan + live data.",
     category: "Money-Saving",
     publishDate: "2026-04-15",
     readTime: "5 min read",
@@ -3368,7 +3368,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Step 2 — Get the Code Read (Free or $49)",
-        content: "Most auto parts stores — AutoZone, O'Reilly, Advance Auto — will read your check engine code for free. This gives you the diagnostic trouble code — P0420, P0171, P0301, etc. Knowing the code is useful but it does not tell you the root cause. A P0420 code means catalytic converter efficiency is below threshold — but the cause could be the cat itself, an oxygen sensor, an exhaust leak, or even an engine misfire. At Nick's, our $49 diagnostic goes deeper — we read the code, check freeze frame data, run live sensor tests, and pinpoint the actual problem. The $49 is worth it because it prevents you from throwing parts at a code and hoping something sticks."
+        content: "Most auto parts stores — AutoZone, O'Reilly, Advance Auto — will read your check engine code for free. This gives you the diagnostic trouble code — P0420, P0171, P0301, etc. Knowing the code is useful but it does not tell you the root cause. A P0420 code means catalytic converter efficiency is below threshold — but the cause could be the cat itself, an oxygen sensor, an exhaust leak, or even an engine misfire. At Nick's, our $49 code scan + live data goes deeper — we read the code, check freeze frame data, run live sensor tests, and pinpoint the actual problem. The $49 is worth it because it prevents you from throwing parts at a code and hoping something sticks."
       },
       {
         heading: "Step 3 — Start with the Cheapest Possible Fix",
@@ -3403,14 +3403,14 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Estimates on Repairs",
-        content: "Before you commit to any repair, you deserve to know the cost. At Nick's, we provide free verbal estimates for most standard repairs — brakes, tires, oil changes, belts, hoses, and common maintenance. If the issue requires diagnostic time — check engine light, electrical problems, intermittent issues — there is a $49 diagnostic fee. But for straightforward repairs where you already know what is wrong, we will tell you the cost upfront at no charge. Call (216) 862-0005 and describe the issue. We can often give you a ballpark over the phone in 2 minutes."
+        content: "Before you commit to any repair, you deserve to know the cost. At Nick's, we provide free verbal estimates for most standard repairs — brakes, tires, oil changes, belts, hoses, and common maintenance. If the issue requires diagnostic time — check engine light, electrical problems, intermittent issues — there is a $49 code scan + live data fee. But for straightforward repairs where you already know what is wrong, we will tell you the cost upfront at no charge. Call (216) 862-0005 and describe the issue. We can often give you a ballpark over the phone in 2 minutes."
       },
       {
         heading: "Free Tire Pressure Check and Fill",
         content: "Low tire pressure wastes gas, wears tires unevenly, and reduces braking performance. Gas station air machines charge $1.50 to $2.00 and half of them are broken. At Nick's, we check and set your tire pressure for free — all four tires plus the spare if you want. We set it to the manufacturer's recommended PSI, not the maximum pressure on the sidewall. This takes 5 minutes, no appointment needed, and you do not have to be getting any other work done. Just pull in and ask."
       },
       {
-        heading: "Free Visual Brake Inspection",
+        heading: "Free Visual Brake Check",
         content: "Wondering if your brakes need attention but not ready to pay for a full inspection? We do a free visual brake check by looking through the wheel spokes to assess pad thickness and rotor condition. It takes 2 minutes per wheel. This is not as thorough as pulling the wheels off, but it catches obvious problems — severely worn pads, deeply grooved rotors, and leaking calipers. If we spot something concerning, we will tell you. If everything looks fine, you are on your way. No charge, no pressure, no appointment."
       },
       {
@@ -3576,7 +3576,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Compressor Problems", content: "The AC compressor is the heart of the system — it pressurizes and circulates refrigerant. A failing compressor may make grinding or squealing noises, or the AC clutch may not engage at all. Compressor failure is a more expensive repair, but catching it early can prevent metal debris from contaminating the entire system, which would require flushing all the lines and replacing the expansion valve and dryer." },
       { heading: "Electrical Issues", content: "AC systems rely on multiple electrical components: the compressor clutch relay, pressure switches, blower motor resistor, and control module. A blown fuse, faulty relay, or corroded connector can stop the system from working even though all the mechanical components are fine. We check the electrical system first because these are often the cheapest and quickest fixes." },
       { heading: "Clogged Condenser or Cabin Filter", content: "The condenser sits in front of the radiator and dissipates heat from the refrigerant. If it is clogged with bugs, leaves, or road debris, the system cannot cool efficiently. Similarly, a clogged cabin air filter restricts airflow through the vents. Replacing the cabin filter is a quick and inexpensive fix that many shops overlook." },
-      { heading: "What AC Repair Costs in Cleveland", content: "Simple recharges run $100-$200. Leak repairs vary from $150 for a hose to $800+ for an evaporator replacement. Compressor replacement typically runs $600-$1,200 depending on the vehicle. At Nick's Tire & Auto, we diagnose first and give you the full picture before any work starts. No surprise charges." }
+      { heading: "What AC Repair Costs in Cleveland", content: "Simple recharges run $100-$200. Leak repairs vary from $150 for a hose to $800+ for an evaporator replacement. Compressor replacement typically runs $600-$1,200 depending on the vehicle. At Nick's Tire & Auto, we figure out first and give you the full picture before any work starts. No surprise charges." }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
     tags: ["AC repair Cleveland", "car AC not cold", "AC recharge", "compressor repair", "auto AC service near me"]
@@ -3635,7 +3635,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       { heading: "Signs of a Power Steering Leak", content: "Whining or groaning noise when turning the steering wheel (gets louder the harder you turn). Difficulty turning the wheel, especially at low speeds or when parking. Red, brown, or amber fluid puddle on the driver side of the vehicle. Low fluid level in the power steering reservoir (check it like you check oil — there is a dipstick in the reservoir cap). Foamy or bubbly fluid when you check the reservoir (air getting into the system through the leak)." },
       { heading: "Common Leak Locations", content: "Power steering hoses (high-pressure and return lines) are the most common leak source — they deteriorate from heat and age. The rack and pinion steering gear develops internal seal leaks over time. The power steering pump shaft seal can leak where the drive belt pulley attaches. Connections and fittings loosen from vibration. O-rings in the reservoir or lines harden and crack." },
       { heading: "Why You Should Not Ignore It", content: "Running a power steering pump without adequate fluid destroys the pump quickly — air in the system causes cavitation that scores the internal surfaces. A pump replacement is $300-$600 versus $50-$150 for a hose repair. Complete power steering rack replacement can run $800-$1,500. Catching a small hose leak early saves hundreds." },
-      { heading: "Repair Cost Expectations", content: "Hose replacement: $100-$250. Pump replacement: $300-$600. Rack and pinion: $800-$1,500. Fluid flush and refill: $80-$120. At Nick's Tire & Auto, we diagnose the exact leak location before recommending repairs. Sometimes a simple hose clamp tightening is all that is needed." }
+      { heading: "Repair Cost Expectations", content: "Hose replacement: $100-$250. Pump replacement: $300-$600. Rack and pinion: $800-$1,500. Fluid flush and refill: $80-$120. At Nick's Tire & Auto, we figure out the exact leak location before recommending repairs. Sometimes a simple hose clamp tightening is all that is needed." }
     ],
     relatedServices: ["/general-repair"],
     tags: ["power steering leak", "steering fluid leak", "whining steering", "power steering repair Cleveland", "hard to turn steering wheel"]
@@ -4039,7 +4039,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Check engine light — diagnostic, not parts-cannon",
-        content: "The check engine light tells you the car's computer detected something outside parameters. It does not tell you what part is broken. The chain pattern is to read the code and replace the part the code points at. That works ~50% of the time. The other 50%: a code that says 'oxygen sensor' is actually a vacuum leak that's reading false-lean to the sensor; a code that says 'misfire cylinder 3' is actually a fuel injector on cylinder 1 starving cylinder 3 of fuel; a code that says 'catalytic converter inefficiency' is an upstream oxygen sensor that's slowly degrading. Real diagnostic work means the shop reads the codes, then verifies the actual cause with live data, smoke testing, swap testing, or visual inspection. That takes 30-60 minutes of labor. A code-reader-and-replace shop charges you for the part and labor. A real diagnostic shop charges you for the diagnostic time and tells you the actual fix. We do the second kind at Nick's."
+        content: "The check engine light tells you the car's computer detected something outside parameters. It does not tell you what part is broken. The chain pattern is to read the code and replace the part the code points at. That works ~50% of the time. The other 50%: a code that says 'oxygen sensor' is actually a vacuum leak that's reading false-lean to the sensor; a code that says 'misfire cylinder 3' is actually a fuel injector on cylinder 1 starving cylinder 3 of fuel; a code that says 'catalytic converter inefficiency' is an upstream oxygen sensor that's slowly degrading. Real diagnostic work means the shop reads the codes, then verifies the actual cause with live data, smoke testing, swap testing, or visual inspection. That takes 30-60 minutes of labor. A code-reader-and-replace shop charges you for the part and labor. A real honest shop charges you for the diagnostic time and tells you the actual fix. We do the second kind at Nick's."
       },
       {
         heading: "Transmission — fluid, not gearbox (usually)",
