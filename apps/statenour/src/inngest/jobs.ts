@@ -48,6 +48,9 @@ export const MORNING_JOBS: readonly string[] = [
   "/api/cron/persona-drift",
   "/api/cron/orphan-task-nudge",
   "/api/cron/task-resurface",
+  // 2026-05-23 OVERDRIVE · 30-day subtask-usage audit · self-gated to
+  // fire only on/after 2026-06-22 · pre-window runs are no-ops.
+  "/api/cron/subtask-usage-audit",
   "/api/cron/refresh-identity",
   "/api/cron/auto-linker",
   "/api/cron/backlog-triage",
