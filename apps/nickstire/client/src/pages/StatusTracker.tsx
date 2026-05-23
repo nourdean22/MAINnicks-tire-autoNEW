@@ -53,6 +53,11 @@ export default function StatusTracker() {
 
   const results = searchType === "phone" ? phoneQuery.data : refQuery.data;
   const isLoading = searchType === "phone" ? phoneQuery.isLoading : refQuery.isLoading;
+  // 2026-05-23 · branch on isError separately so network/5xx failures
+  // surface QueryError instead of the empty-state lie. Previously a
+  // network blip rendered "Nothing under that number" to a customer
+  // who legitimately had a booking.
+  const isError = searchType === "phone" ? phoneQuery.isError : refQuery.isError;
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,6 +150,8 @@ export default function StatusTracker() {
                 <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-foreground/60 text-[13px]">Searching...</p>
               </div>
+            ) : isError ? (
+              <QueryError onRetry={() => searchType === "phone" ? phoneQuery.refetch() : refQuery.refetch()} />
             ) : !results || results.length === 0 ? (
               <div className="text-center py-12 bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-8">
                 <AlertTriangle className="w-12 h-12 text-primary/60 mx-auto mb-4" />

@@ -42,6 +42,12 @@ export function EmergencyMode() {
         setFormData({ name: "", phone: "", vehicle: "", issue: "", urgency: "emergency" });
       }, 3000);
     },
+    // 2026-05-23 · was silent on failure — worst possible class on the
+    // emergency form (after-hours stuck customer · most stakes). Now
+    // routes the customer to the phone line if the submit fails.
+    onError: () => {
+      toast.error("Couldn't submit emergency request — call (216) 862-0005 right now.");
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -52,6 +58,14 @@ export function EmergencyMode() {
       // a missing-field submit produced no visible feedback. Same
       // native-primitive bug class fixed in wave-139/168 admin work.
       toast.error("Please fill in all required fields");
+      return;
+    }
+    // 2026-05-23 · 10-digit phone validation. Truthy-only check let a
+    // single-character "5" pass; SMS confirmation then went nowhere
+    // and the emergency was lost. Matches CallbackModal/Financing pattern.
+    const digits = formData.phone.replace(/\D/g, "");
+    if (digits.length < 10) {
+      toast.error("Please enter a 10-digit phone so we can reach you.");
       return;
     }
     submitEmergency.mutate({

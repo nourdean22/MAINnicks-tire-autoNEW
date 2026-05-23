@@ -9,6 +9,7 @@ import ResponsivePhoto from "@/components/ResponsivePhoto";
 import { useState, useRef } from "react";
 import { Link } from "wouter";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import {
   Phone, AlertTriangle, Zap,
@@ -847,8 +848,16 @@ export default function DiagnosePage() {
                               source: "popup",
                             });
                             setDiagLeadSubmitted(true);
-                          } catch {}
-                          setDiagLeadSaving(false);
+                          } catch {
+                            // 2026-05-23 · was a bare `catch {}` that swallowed
+                            // all errors. Customer rapid-clicks Send on a
+                            // network blip → button keeps reverting to "Send"
+                            // with no feedback → they walk away thinking it
+                            // went through. Route them to the phone.
+                            toast.error("Couldn't reach the shop — call (216) 862-0005.");
+                          } finally {
+                            setDiagLeadSaving(false);
+                          }
                         }}
                         className="px-6 py-2.5 rounded bg-[#FDB913] text-black font-bold text-sm hover:bg-[#FDB913]/90 transition-colors disabled:opacity-40 whitespace-nowrap"
                       >
