@@ -52,7 +52,7 @@ WE DO NOT GUESS. WE VERIFY.`,
 
 Bring this estimate back, call ahead, or stop by and we will pick up where we left off.
 
-Honest diagnostics.
+Honest answers.
 Fair prices.
 Real repairs.
 
