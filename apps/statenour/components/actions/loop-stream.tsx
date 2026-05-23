@@ -128,6 +128,14 @@ interface LoopStreamProps {
    */
   onEditTaskMission?: (taskId: string) => void;
   /**
+   * 2026-05-23 · task #22 step 5.2 · fired when the operator clicks
+   * the "+ subtask" button on a parent row. The parent (`/tasks`
+   * page) opens a quick prompt and calls createTask with the
+   * parent's missionId + parentTaskId. Optional · graceful when not
+   * wired (button hidden when handler is undefined).
+   */
+  onAddSubtask?: (parent: Task) => void;
+  /**
    * v10.0.429 · sort key. Default is "urgency" (auto-priority +
    * pace bump · the historical behavior). Operator can override
    * via the toolbar control on /tasks. Valid keys:
@@ -285,6 +293,7 @@ export function LoopStream({
   onReviewChange,
   onEditTaskGoal,
   onEditTaskMission,
+  onAddSubtask,
   sortKey,
 }: LoopStreamProps) {
   // 2026-05-23 · task #22 · ADR-0017 Rule 3 · subtask child-count
@@ -1225,6 +1234,7 @@ export function LoopStream({
               isPinned={pinnedIds?.has(task.id) ?? false}
               indentLevel={indentLevel}
               childCount={childCount}
+              onAddSubtask={onAddSubtask}
               isCompleting={completingIds.has(task.id)}
               isExpanded={expandedId === task.id}
               isEditing={editingId === task.id}
