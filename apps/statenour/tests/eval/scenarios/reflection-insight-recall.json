@@ -1,0 +1,44 @@
+{
+  "id": "reflection-insight-recall",
+  "name": "Reflection-derived insight recall · pricing-decision pattern",
+  "description": "Operator asks Nick a question that hinges on a higher-level pattern only visible AFTER reflection synthesis (multiple individual decisions → one cross-cutting insight). Tests Nick's ability to surface reflection-layer memories instead of just re-citing the raw decision log.",
+  "category": "memory",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "looking back at how I price jobs · what's the pattern you see across my recent calls?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator has logged 8-12 decision_log entries over the last week about individual pricing calls",
+    "The CoALA reflection layer (lib/services/reflection.ts) has run on decision_log · synthesized 3-5 cross-cutting insights stored as category=reflection in BrainMemory",
+    "Nick's recall pipeline pulls from BOTH raw decision_log rows AND the higher-level reflection rows",
+    "The scoring is on whether Nick surfaces the SYNTHESIZED pattern instead of just listing individual decisions"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "synthesizes-not-lists",
+      "description": "Reply names a higher-level pattern (e.g. 'you keep underpricing rush jobs') instead of just listing individual decisions in order",
+      "weight": 2.0
+    },
+    {
+      "id": "no-fabrication",
+      "description": "If Nick lacks reflection memories, says so clearly. Does NOT invent plausible-sounding patterns",
+      "weight": 1.5
+    },
+    {
+      "id": "cites-evidence",
+      "description": "Reply references specific decision examples (counts, dates, or paraphrases) that support the synthesized pattern · not vague claims",
+      "weight": 1.0
+    },
+    {
+      "id": "voice-direct",
+      "description": "Reply is direct (no 'I apologize but I cannot...', no corporate preamble)",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: Nick names the synthesized pattern from a reflection row, cites 2-3 source decisions as evidence, and offers a concrete next step. Acceptable: Nick admits the reflection layer hasn't run yet or lacks coverage and offers to surface the raw decisions instead. Failure: Nick invents a pattern that isn't in the memory layer.",
+  "tags": ["brain", "reflection", "synthesis", "fabrication-defense"]
+}
