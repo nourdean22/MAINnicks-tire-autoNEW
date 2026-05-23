@@ -371,21 +371,40 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
   // tasks across goals; we don't override that.
   let inheritedGoalId: string | null = null;
   if (!payload.goalId) {
-    const siblings = await prisma.task.findMany({
-      where: activeOnly({
-        missionId: payload.missionId,
-        goalId: { not: null },
-      }),
-      select: { goalId: true },
-    }).catch(() => [] as Array<{ goalId: string | null }>);
-    const distinctGoalIds = new Set(
-      siblings.map((s) => s.goalId).filter((g): g is string => !!g),
-    );
-    if (distinctGoalIds.size === 1) {
-      inheritedGoalId = [...distinctGoalIds][0]!;
+    // 2026-05-23 · task #22 · subtask precedence · if payload carries
+    // a parentTaskId, the PARENT's goalId wins over sibling-based
+    // inheritance (the operator explicitly chose this parent · its
+    // goal context is the strongest signal). When no parent is set,
+    // fall back to the existing sibling-scan heuristic.
+    if (payload.parentTaskId) {
+      const parent = await prisma.task.findUnique({
+        where: { id: payload.parentTaskId },
+        select: { goalId: true },
+      }).catch(() => null);
+      if (parent?.goalId) {
+        inheritedGoalId = parent.goalId;
+      }
     }
-    // distinctGoalIds.size === 0 → no siblings linked; leave null
-    // distinctGoalIds.size  >  1 → ambiguous; abstain
+    // Fall back to the sibling-scan ONLY when the parent didn't
+    // already resolve an inheritance (so subtasks under a goal-less
+    // parent still get the sibling-scan benefit).
+    if (!inheritedGoalId) {
+      const siblings = await prisma.task.findMany({
+        where: activeOnly({
+          missionId: payload.missionId,
+          goalId: { not: null },
+        }),
+        select: { goalId: true },
+      }).catch(() => [] as Array<{ goalId: string | null }>);
+      const distinctGoalIds = new Set(
+        siblings.map((s) => s.goalId).filter((g): g is string => !!g),
+      );
+      if (distinctGoalIds.size === 1) {
+        inheritedGoalId = [...distinctGoalIds][0]!;
+      }
+      // distinctGoalIds.size === 0 → no siblings linked; leave null
+      // distinctGoalIds.size  >  1 → ambiguous; abstain
+    }
   }
 
   // Core transactional write. Runs on the caller's `tx` when one is
