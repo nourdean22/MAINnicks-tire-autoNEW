@@ -65,17 +65,17 @@ const FAQ_ITEMS = [
   {
     question: "Why do repair costs vary so much?",
     answer:
-      "Labor rates differ by shop, vehicle complexity, and the condition of surrounding parts. We use Cleveland-area rates at our facility.",
+      "Labor rates differ by shop, vehicle complexity, and what we find when we get under the hood. Our rate is the Cleveland-market rate — same every car.",
   },
   {
     question: "What's included in the estimate?",
     answer:
-      "Parts and labor at our standard rates. Actual price may vary if additional repairs are needed after inspection.",
+      "Parts and labor at our standard rates. Actual price may vary if additional repairs are needed after the check.",
   },
   {
     question: "How accurate are these estimates?",
     answer:
-      "Our estimates are based on typical Cleveland-market pricing. An in-shop inspection may reveal additional needed work.",
+      "Our estimates are based on typical Cleveland-market pricing. An in-shop check may turn up additional work.",
   },
   {
     question: "Can you match competitor pricing?",
@@ -90,7 +90,7 @@ const FAQ_ITEMS = [
   {
     question: "What if I need emergency service?",
     answer:
-      "Same-day emergency repairs available. Call (216) 862-0005 to confirm availability before arriving.",
+      "Pull up — we'll tell you the wait when you arrive. (216) 862-0005 if you want to call ahead and we'll tell you what the line looks like.",
   },
   {
     question: "Can you estimate without the exact year?",
@@ -100,7 +100,7 @@ const FAQ_ITEMS = [
   {
     question: "Do you work on imports?",
     answer:
-      "Absolutely—we service most brands including BMW, Audi, Lexus, Subaru, Honda, and more.",
+      "Yes — most brands including BMW, Audi, Lexus, Subaru, Honda.",
   },
 ];
 
@@ -458,7 +458,7 @@ export default function CostEstimator() {
                   <div className="space-y-3 pt-4">
                     <Link href="/booking">
                       <button className="w-full py-4 rounded-lg bg-primary text-black font-bold hover:bg-primary/90 transition-all">
-                        Lock In This Price — Book Now
+                        Drop It Off — See the Final Number
                       </button>
                     </Link>
 
@@ -475,8 +475,8 @@ export default function CostEstimator() {
                   {/* Lead Capture — warm prospect, capture them */}
                   {!leadSubmitted ? (
                     <div className="mt-6 bg-white/5 border border-white/10 rounded-lg p-5">
-                      <h4 className="font-bold text-white text-sm mb-1">Want us to hold this price?</h4>
-                      <p className="text-white/50 text-xs mb-4">Drop your name and number — we'll have everything ready when you arrive. No appointment needed.</p>
+                      <h4 className="font-bold text-white text-sm mb-1">Want us to set up your file?</h4>
+                      <p className="text-white/50 text-xs mb-4">Drop your name and number — we'll have your info ready when you walk in. No appointment needed.</p>
                       <div className="space-y-2">
                         <input
                           type="text"
@@ -513,7 +513,7 @@ export default function CostEstimator() {
                           className="w-full py-3 rounded-lg bg-emerald-500 text-black font-bold text-sm hover:bg-emerald-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {leadSaving ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                          {leadSaving ? "Saving..." : "Lock In My Estimate"}
+                          {leadSaving ? "Saving..." : "Save My Info"}
                         </button>
                       </div>
                     </div>
@@ -521,7 +521,7 @@ export default function CostEstimator() {
                     <div className="mt-6 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-5 text-center">
                       <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
                       <p className="font-bold text-emerald-400 text-sm">You're all set!</p>
-                      <p className="text-white/50 text-xs mt-1">We'll have your estimate ready. Just walk in — no appointment needed.</p>
+                      <p className="text-white/50 text-xs mt-1">We'll have your file ready. Just walk in — we'll re-check at the shop and confirm the number then.</p>
                     </div>
                   )}
 

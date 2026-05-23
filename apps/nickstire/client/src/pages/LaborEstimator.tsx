@@ -105,8 +105,8 @@ export default function LaborEstimator() {
   return (
     <PageLayout activeHref="/estimate" showChat={true}>
       <SEOHead
-        title="AI Repair Estimator | Nick's Tire & Auto — Cleveland, OH"
-        description="Get a detailed repair cost estimate for your vehicle. Enter your year, make, model, and repair needed. AI-powered labor and parts breakdown from Nick's Tire & Auto in Cleveland."
+        title="Cleveland Repair Estimator · Written Quote First | Nick's"
+        description="Cleveland repair estimator. Year/make/model + the symptom → labor + parts breakdown. Free check, written quote, you don't pay until you say yes."
         canonicalPath="/estimate"
       />
       <Breadcrumbs items={[{ label: "Repair Estimator", href: "/estimate" }]} />
@@ -120,7 +120,7 @@ export default function LaborEstimator() {
             REPAIR <span className="text-primary">COST ESTIMATOR</span>
           </h1>
           <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
-            Enter your vehicle and repair details for a detailed cost breakdown. Labor hours, parts pricing, and total estimate — all transparent, no surprises.
+            Enter your vehicle and repair details for a detailed cost breakdown. Labor hours, parts pricing, total. Free check, written quote, you don't pay until you say yes.
           </p>
           <div className="mt-4 flex items-center justify-center gap-2 text-foreground/50 text-sm">
             <Calculator className="w-4 h-4 text-nick-teal" />
@@ -529,7 +529,7 @@ export default function LaborEstimator() {
               <div>
                 <Wrench className="w-8 h-8 text-nick-teal mx-auto mb-3" />
                 <h4 className="font-bold text-foreground text-sm tracking-wide">Real Mechanics</h4>
-                <p className="text-foreground/60 text-xs mt-1">Advanced OBD-II diagnostics and certified repairs.</p>
+                <p className="text-foreground/60 text-xs mt-1">OBD-II tools, ASE-trained hands. We tell you what's wrong, no jargon.</p>
               </div>
               <div>
                 <Car className="w-8 h-8 text-primary mx-auto mb-3" />

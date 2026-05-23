@@ -60,8 +60,8 @@ export default function PriceEstimator() {
   return (
     <PageLayout activeHref="/pricing" showChat={true}>
       <SEOHead
-        title="Auto Repair Pricing — Nick's Tire & Auto Cleveland"
-        description="Transparent auto repair pricing at Nick's Tire & Auto, Cleveland. Get estimates for brakes, tires, oil changes, diagnostics, and more."
+        title="Cleveland Auto Repair Pricing · No Hidden Fees | Nick's"
+        description="Cleveland auto repair pricing made plain. Free check, written quote, you don't pay until you say yes. Brakes, tires, oil — see typical ranges, walk in any day."
         canonicalPath="/pricing"
       />
       <Breadcrumbs items={[{ label: "Cost Estimator", href: "/estimate" }]} />
@@ -75,7 +75,7 @@ export default function PriceEstimator() {
             INSTANT <span className="text-primary">PRICE ESTIMATE</span>
           </h1>
           <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
-            Select your service and vehicle type for a ballpark estimate. No surprises. No hidden fees.
+            Pick your service. Pick your car. Get the ballpark. Free check at the shop, written quote, you don't pay until you say yes.
           </p>
         </div>
       </section>
@@ -210,8 +210,8 @@ export default function PriceEstimator() {
                     <div className="text-sm text-foreground/70">
                       <p className="font-semibold text-foreground mb-1">This is a ballpark estimate only.</p>
                       <p>
-                        Final pricing depends on your specific vehicle, the exact parts needed, and what our technicians find during inspection.
-                        We always explain the diagnosis and get your approval before starting any work. No surprises.
+                        Final pricing depends on your specific vehicle, the exact parts needed, and what we find during the check.
+                        We tell you what's wrong, hand you the written quote, and don't touch the car until you say yes.
                       </p>
                     </div>
                   </div>
@@ -277,8 +277,8 @@ export default function PriceEstimator() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
             {([
               { title: "No Hidden Fees", desc: "The price we quote is the price you pay. Period." },
-              { title: "Approval First", desc: "We explain the diagnosis and get your OK before any work starts." },
-              { title: "Fair Parts Pricing", desc: "We use quality parts at competitive prices. No markups on markups." },
+              { title: "You Say Yes First", desc: "We tell you what's wrong, hand you the written quote, and don't touch the car until you say yes." },
+              { title: "Fair Parts Pricing", desc: "OE-spec parts at honest prices. No markup on markup." },
               { title: "Acima Lease-to-Own Accepted", desc: "Get repairs done today for $10 initial payment. No credit history needed. 90-day early purchase option.", accent: true },
             ] as { title: string; desc: string; accent?: boolean }[]).map((item) => (
               <div key={item.title} className={`text-center ${item.accent ? "bg-emerald-500/5 border border-emerald-500/20 rounded-lg p-4" : ""}`}>
