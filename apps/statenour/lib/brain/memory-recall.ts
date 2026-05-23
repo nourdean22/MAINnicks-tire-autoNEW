@@ -76,6 +76,11 @@ export interface RecallReport {
   durationMs: number;
   scanned: number;
   hits: RecallHit[];
+  // 2026-05-23 · Wave C · Q1 · mean knnDistance across returned hits.
+  // The whole 3-lane RRF + Cohere rerank pipeline existed but quality
+  // was unmeasured — `hitCount` was logged, the actual distance signal
+  // was computed (per-hit) and discarded. -1 when no hits.
+  avgKnnDistance: number;
 }
 
 function padToTargetDim(arr: number[]): number[] {
@@ -99,7 +104,7 @@ export async function recallMemoriesForQuery(
   const limit = Math.max(1, Math.min(opts.limit ?? FINAL_TOP, 20));
 
   if (!query?.trim()) {
-    return { query, durationMs: 0, scanned: 0, hits: [] };
+    return { query, durationMs: 0, scanned: 0, hits: [], avgKnnDistance: -1 };
   }
 
   // 1. Get embedding for the query
@@ -109,7 +114,7 @@ export async function recallMemoriesForQuery(
   }
   if (!queryEmb || queryEmb.length === 0) {
     log.warn("recall_no_embedding", { queryLen: query.length });
-    return { query, durationMs: Date.now() - t0, scanned: 0, hits: [] };
+    return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
   }
 
   const padded = padToTargetDim(queryEmb);
@@ -121,7 +126,7 @@ export async function recallMemoriesForQuery(
   for (let i = 0; i < padded.length; i++) {
     if (!Number.isFinite(padded[i])) {
       log.warn("recall_invalid_embedding", { idx: i, val: padded[i] });
-      return { query, durationMs: Date.now() - t0, scanned: 0, hits: [] };
+      return { query, durationMs: Date.now() - t0, scanned: 0, hits: [], avgKnnDistance: -1 };
     }
   }
   const vecLit = `[${padded.join(",")}]`;
@@ -219,11 +224,50 @@ export async function recallMemoriesForQuery(
       });
   }
 
+  // 2026-05-23 · Wave C · Q1 · compute + persist avg KNN distance.
+  // Lower = more semantically similar to the query. Surfaces in
+  // SystemMetric as metric="brain.recall.avg_distance" so the
+  // /system observability dashboard can plot recall quality over
+  // time. Pre-fix this signal was computed per-hit then discarded.
+  // Fire-and-forget · best-effort · doesn't block the chat path.
+  const avgKnnDistance =
+    scored.length === 0
+      ? -1
+      : Number(
+          (
+            scored.reduce((s, h) => s + h.knnDistance, 0) / scored.length
+          ).toFixed(4),
+        );
+
+  if (scored.length > 0) {
+    void prisma.systemMetric
+      .create({
+        data: {
+          metric: "brain.recall.avg_distance",
+          value: avgKnnDistance,
+          unit: "cosine-distance",
+          source: "memory-recall",
+          tags: {
+            hitCount: scored.length,
+            scanned: rows.length,
+            queryLen: query.length,
+          },
+        },
+      })
+      .catch((err) => {
+        recordError("brain:memory-recall", err, {
+          phase: "metric-write",
+          count: scored.length,
+        });
+      });
+  }
+
   return {
     query,
     durationMs: Date.now() - t0,
     scanned: rows.length,
     hits: scored,
+    avgKnnDistance,
   };
 }
 
