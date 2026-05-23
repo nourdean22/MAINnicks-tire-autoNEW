@@ -37,11 +37,18 @@
 > the top eyebrow's, and double-stamping would clutter goal-less
 > rows. Goal chip below remains untouched. ~23 LOC.
 >
-> **Flagged · NOT fixed:**
-> - Task #22 — true subtasks via Prisma migration · BLOCKED on 6
->   operator decisions: completion cascade · field inheritance · UI
->   surfacing · depth limit · mixed-kind nesting · scoreboard rollup.
->   Cannot touch the schema until these are answered.
+> **Flagged · awaiting operator-applied migration:**
+> - Task #22 — true subtasks via Prisma migration · all 6 semantic
+>   decisions locked in `docs/adr/0017-task-subtasks-semantics.md`
+>   (no cascade · selective inheritance · inline-nested UI · 1-level
+>   depth · mixed-kind allowed · scoreboard counts descendants).
+>   Migration SQL parked at `prisma/migrations-pending/20260523_
+>   task_parent_task_id/migration.sql` — runs via
+>   `scripts/apply-pending-migration.ts` when operator confirms prod
+>   connectivity. Schema + UI code intentionally NOT shipped (the
+>   v10.0.462 lesson · schema/DB-state must stay in sync · code
+>   lands AFTER migration applies). Implementation checklist in
+>   the ADR.
 
 > ## 2026-05-23 · /tasks upgrade quartet · ComparisonMatrix consumer trio completed · 5 ships
 >
