@@ -49,7 +49,7 @@ export default function OperationsTab() {
           {tech.data.rankings?.length > 0 ? (
             <MiniTable
               headers={["TECH", "$/HR", "JOBS/DAY", "COMEBACK", "SCORE"]}
-              rows={tech.data.rankings.slice(0, 10).map((t: any) => [
+              rows={tech.data.rankings.slice(0, 10).map((t) => [
                 <span className="text-foreground font-medium">{t.name || "Unknown"}</span>,
                 <span className="font-mono">{fmt(t.revenuePerHour)}</span>,
                 <span className="font-mono">{t.jobsPerDay}</span>,
@@ -107,7 +107,7 @@ export default function OperationsTab() {
             {turnaround.data.byService?.length > 0 ? (
               <MiniTable
                 headers={["SERVICE", "AVG", "TARGET", "STATUS"]}
-                rows={turnaround.data.byService.slice(0, 8).map((s: any) => [
+                rows={turnaround.data.byService.slice(0, 8).map((s) => [
                   <span className="text-foreground capitalize font-medium">{s.service}</span>,
                   <span className={`font-mono font-semibold ${s.avgHours > s.targetHours ? "text-red-400" : "text-emerald-400"}`}>{s.avgHours}h</span>,
                   <span className="font-mono text-foreground/40">{s.targetHours}h</span>,
@@ -141,7 +141,7 @@ export default function OperationsTab() {
             {parts.data.outliers?.length > 0 && (
               <MiniTable
                 headers={["SERVICE", "PARTS %", "TOTAL"]}
-                rows={parts.data.outliers.slice(0, 5).map((o: any) => [
+                rows={parts.data.outliers.slice(0, 5).map((o) => [
                   <span className="text-foreground capitalize">{o.service}</span>,
                   <span className="font-mono text-red-400">{pct(o.partsPercent)}</span>,
                   <span className="font-mono">{fmt(o.totalAmount)}</span>,
@@ -191,7 +191,7 @@ export default function OperationsTab() {
           )}
           {bottlenecks.data.stageMetrics && (
             <div className="space-y-1">
-              {Object.entries(bottlenecks.data.stageMetrics).sort((a: any, b: any) => b[1].avgHours - a[1].avgHours).map(([stage, data]: any) => (
+              {(Object.entries(bottlenecks.data.stageMetrics) as Array<[string, { avgHours: number; count: number }]>).sort((a, b) => b[1].avgHours - a[1].avgHours).map(([stage, data]) => (
                 <div key={stage} className="flex items-center justify-between py-1 text-[12px]">
                   <span className="text-foreground/70 capitalize">{stage}</span>
                   <div className="flex items-center gap-3 text-foreground/50">
