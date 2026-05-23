@@ -10,7 +10,7 @@
  */
 
 import { createLogger } from "../lib/logger";
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 
 const log = createLogger("shopdriver-mirror");
 
@@ -664,21 +664,33 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
   let created = 0;
   let updated = 0;
 
-  for (const rc of rawCustomers) {
-    if (!rc.phone || rc.phone.length < 7) continue;
+  // 2026-05-23 · N+1 collapse · was 1 SELECT per row + 1 INSERT/UPDATE
+  // per row. 500-customer probe = 1000 round-trips. Now: 1 bulk SELECT
+  // + 1 bulk INSERT (with ON DUPLICATE KEY UPDATE) + per-row UPDATE
+  // only for the "fill in blanks" heterogeneous case where ON DUP
+  // can't express the conditional COALESCE cheaply. 500-customer probe
+  // ≈ 1 + 1 + (count-of-rows-with-fillable-blanks) ≈ 2-50 round-trips.
+  const valid = rawCustomers.filter(rc => rc.phone && rc.phone.length >= 7);
+  if (valid.length === 0) return { created: 0, updated: 0 };
 
+  // Bulk prefetch existing rows by phone
+  const phones = [...new Set(valid.map(rc => rc.phone))];
+  type CustomerRow = typeof customers.$inferSelect;
+  const existingRows = await d.select().from(customers).where(inArray(customers.phone, phones)) as CustomerRow[];
+  const existingByPhone = new Map<string | null, CustomerRow>(existingRows.map((r: CustomerRow) => [r.phone, r]));
+
+  const toInsert: Array<typeof customers.$inferInsert> = [];
+
+  for (const rc of valid) {
     try {
-      // Deduplicate by phone
-      const existing = await d.select().from(customers).where(eq(customers.phone, rc.phone)).limit(1);
-
+      const ex = existingByPhone.get(rc.phone);
       const nameParts = rc.name.split(/\s+/);
       const firstName = nameParts[0] || "Unknown";
       const lastName = nameParts.slice(1).join(" ") || undefined;
 
-      if (existing.length > 0) {
+      if (ex) {
         // Update existing — only fill in blanks, don't overwrite
         const updates: Record<string, any> = {};
-        const ex = existing[0];
         if (!ex.email && rc.email) updates.email = rc.email;
         if (!ex.address && rc.address) updates.address = rc.address;
         if (!ex.city && rc.city) updates.city = rc.city;
@@ -691,49 +703,67 @@ async function upsertCustomers(rawCustomers: RawCustomer[]): Promise<{ created: 
           updated++;
         }
       } else {
-        // wave-116 — race-safe insert. The outer try/catch already
-        // logs+skips on error, but we want the dup-key case to convert
-        // to UPDATE so the customer's data isn't lost when two
-        // concurrent imports/mirrors race.
+        toInsert.push({
+          firstName,
+          lastName,
+          phone: rc.phone,
+          phone2: rc.phone2 || undefined,
+          email: rc.email || undefined,
+          address: rc.address || undefined,
+          city: rc.city || undefined,
+          state: rc.state || undefined,
+          zip: rc.zip || undefined,
+          segment: "unknown",
+        });
+      }
+    } catch (err) {
+      const phoneTail = rc.phone?.replace(/\D/g, "").slice(-4) || "";
+      log.warn(`Failed to upsert customer ${rc.name}/...${phoneTail}`, { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // Bulk insert · ON DUPLICATE KEY UPDATE makes the race-safe
+  // wave-116 fix automatic (no try/catch + INSERT/UPDATE retry per row).
+  if (toInsert.length > 0) {
+    try {
+      await d.insert(customers).values(toInsert).onDuplicateKeyUpdate({
+        set: {
+          // Fill in blanks on duplicate (mirrors the existing-row branch)
+          firstName: sql`COALESCE(${customers.firstName}, VALUES(firstName))`,
+          lastName: sql`COALESCE(${customers.lastName}, VALUES(lastName))`,
+          phone2: sql`COALESCE(${customers.phone2}, VALUES(phone2))`,
+          email: sql`COALESCE(${customers.email}, VALUES(email))`,
+          address: sql`COALESCE(${customers.address}, VALUES(address))`,
+          city: sql`COALESCE(${customers.city}, VALUES(city))`,
+          state: sql`COALESCE(${customers.state}, VALUES(state))`,
+          zip: sql`COALESCE(${customers.zip}, VALUES(zip))`,
+        },
+      });
+      created += toInsert.length;
+    } catch (err) {
+      log.warn(`Bulk customer insert failed, falling back to per-row`, { error: err instanceof Error ? err.message : String(err), count: toInsert.length });
+      // Fallback: per-row insert with the existing race-safe pattern
+      for (const row of toInsert) {
         try {
-          await d.insert(customers).values({
-            firstName,
-            lastName,
-            phone: rc.phone,
-            phone2: rc.phone2 || undefined,
-            email: rc.email || undefined,
-            address: rc.address || undefined,
-            city: rc.city || undefined,
-            state: rc.state || undefined,
-            zip: rc.zip || undefined,
-            segment: "unknown",
-          });
+          await d.insert(customers).values(row);
           created++;
         } catch (insertErr) {
           const msg = insertErr instanceof Error ? insertErr.message : String(insertErr);
           if (/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
             await d.update(customers).set({
-              firstName,
-              lastName,
-              phone2: rc.phone2 || undefined,
-              email: rc.email || undefined,
-              address: rc.address || undefined,
-              city: rc.city || undefined,
-              state: rc.state || undefined,
-              zip: rc.zip || undefined,
-            }).where(eq(customers.phone, rc.phone));
+              firstName: row.firstName,
+              lastName: row.lastName,
+              phone2: row.phone2 || undefined,
+              email: row.email || undefined,
+              address: row.address || undefined,
+              city: row.city || undefined,
+              state: row.state || undefined,
+              zip: row.zip || undefined,
+            }).where(eq(customers.phone, row.phone));
             updated++;
-            // wave-122b (LOW S3) — mask phone in log to last-4 only
-            log.warn(`[shopDriverMirror] Customer race detected — INSERT → UPDATE`, { phoneTail: rc.phone?.replace(/\D/g, "").slice(-4) });
-          } else {
-            throw insertErr;
           }
         }
       }
-    } catch (err) {
-      // wave-122b — mask phone in log; name is fine (less sensitive)
-      const phoneTail = rc.phone?.replace(/\D/g, "").slice(-4) || "";
-      log.warn(`Failed to upsert customer ${rc.name}/...${phoneTail}`, { error: err instanceof Error ? err.message : String(err) });
     }
   }
 
@@ -749,20 +779,77 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
   let updated = 0;
   let skipped = 0;
 
-  for (const ri of rawInvoices) {
-    if (!ri.invoiceNumber) { skipped++; continue; }
+  // 2026-05-23 · N+1 collapse · was 1 SELECT for invoice + 1 SELECT for
+  // customer-by-phone + 1 SELECT for customer-by-name × N rows. 500-
+  // invoice probe = ~1500 round-trips. Now: 3 bulk SELECTs upfront
+  // (invoices by number · customers by phone · customers by lastName)
+  // + per-row UPDATE/INSERT only. ~3 + 500 round-trips for the worst
+  // case, ~3-30 if most are updates with no changes.
+  const valid = rawInvoices.filter(ri => ri.invoiceNumber);
+  if (valid.length === 0) return { created: 0, updated: 0, skipped: rawInvoices.length };
 
+  // Bulk prefetch invoices by number
+  const invoiceNumbers = [...new Set(valid.map(ri => ri.invoiceNumber))];
+  type InvoiceLookup = { id: number; totalAmount: number; algTicketId: string | null };
+  type InvoiceRow = { id: number; invoiceNumber: string; totalAmount: number; algTicketId: string | null };
+  const existingInvoiceRows = await d.select({
+    id: invoices.id,
+    invoiceNumber: invoices.invoiceNumber,
+    totalAmount: invoices.totalAmount,
+    algTicketId: invoices.algTicketId,
+  }).from(invoices).where(inArray(invoices.invoiceNumber, invoiceNumbers)) as InvoiceRow[];
+  const existingByInvoiceNumber = new Map<string, InvoiceLookup>(
+    existingInvoiceRows.map((r: InvoiceRow) => [r.invoiceNumber, { id: r.id, totalAmount: r.totalAmount, algTicketId: r.algTicketId }])
+  );
+
+  // Bulk prefetch customers by phone — only for invoices we'll INSERT
+  const invoicesNeedingCustomerLookup = valid.filter(ri => !existingByInvoiceNumber.has(ri.invoiceNumber));
+  const phonesForLookup = [...new Set(
+    invoicesNeedingCustomerLookup
+      .map(ri => ri.customerPhone ? normalizePhone(ri.customerPhone) : null)
+      .filter((p): p is string => !!p && p.length >= 7)
+  )];
+  const customersByPhone = new Map<string, number>();
+  if (phonesForLookup.length > 0) {
+    const rows = await d.select({ id: customers.id, phone: customers.phone })
+      .from(customers).where(inArray(customers.phone, phonesForLookup));
+    for (const r of rows) {
+      if (r.phone) customersByPhone.set(r.phone, r.id);
+    }
+  }
+
+  // Bulk prefetch customers by lastName for fallback matching
+  const lastNamesForLookup = [...new Set(
+    invoicesNeedingCustomerLookup
+      .filter(ri => ri.customerName && ri.customerName !== "Unknown")
+      .map(ri => {
+        const parts = ri.customerName.includes(",")
+          ? ri.customerName.split(",").map(s => s.trim())
+          : [ri.customerName];
+        return parts[0] || "";
+      })
+      .filter(n => n.length > 0)
+  )];
+  const customersByLastName = new Map<string, Array<{ id: number; firstName: string | null; lastName: string | null }>>();
+  if (lastNamesForLookup.length > 0) {
+    const rows = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
+      .from(customers).where(inArray(customers.lastName, lastNamesForLookup));
+    for (const r of rows) {
+      if (!r.lastName) continue;
+      const arr = customersByLastName.get(r.lastName) ?? [];
+      arr.push(r);
+      customersByLastName.set(r.lastName, arr);
+    }
+  }
+
+  for (const ri of valid) {
     try {
-      // Check if invoice already exists — UPDATE if it does (tickets evolve from draft → finalized)
-      const existing = await d.select({ id: invoices.id, totalAmount: invoices.totalAmount, algTicketId: invoices.algTicketId })
-        .from(invoices)
-        .where(eq(invoices.invoiceNumber, ri.invoiceNumber))
-        .limit(1);
+      const existing = existingByInvoiceNumber.get(ri.invoiceNumber);
 
-      if (existing.length > 0) {
+      if (existing) {
         // Update existing invoice — amount, service, date, payment info may have changed
         const updates: Record<string, any> = {};
-        const ex = existing[0];
+        const ex = existing;
         // Always update amount if it changed (draft → finalized)
         if (ri.totalAmount > 0 && ri.totalAmount !== ex.totalAmount) updates.totalAmount = ri.totalAmount;
         if (ri.service) updates.serviceDescription = ri.service;
@@ -787,47 +874,29 @@ async function upsertInvoices(rawInvoices: RawInvoice[]): Promise<{ created: num
         continue;
       }
 
-      // Try to match customer by phone for linking
+      // Map-lookup customer by phone (no per-row SELECT)
       let customerId: number | undefined;
       if (ri.customerPhone) {
         const phone = normalizePhone(ri.customerPhone);
         if (phone.length >= 7) {
-          const match = await d.select({ id: customers.id })
-            .from(customers)
-            .where(eq(customers.phone, phone))
-            .limit(1);
-          if (match.length > 0) customerId = match[0].id;
+          customerId = customersByPhone.get(phone);
         }
       }
 
-      // Fallback: match by customer name when phone is missing or didn't match
+      // Fallback: map-lookup customer by lastName (and firstName if available)
       if (!customerId && ri.customerName && ri.customerName !== "Unknown") {
-        try {
-          // Handle "LASTNAME, FIRSTNAME" format from ShopDriver
-          const nameParts = ri.customerName.includes(",")
-            ? ri.customerName.split(",").map((s: string) => s.trim())
-            : [ri.customerName];
-          const lastName = nameParts[0] || "";
-          const firstName = nameParts[1] || "";
+        const nameParts = ri.customerName.includes(",")
+          ? ri.customerName.split(",").map((s: string) => s.trim())
+          : [ri.customerName];
+        const lastName = nameParts[0] || "";
+        const firstName = nameParts[1] || "";
 
-          if (lastName) {
-            const nameMatch = firstName
-              ? await d.select({ id: customers.id })
-                  .from(customers)
-                  .where(and(
-                    eq(customers.lastName, lastName),
-                    eq(customers.firstName, firstName),
-                  ))
-                  .limit(1)
-              : await d.select({ id: customers.id })
-                  .from(customers)
-                  .where(eq(customers.lastName, lastName))
-                  .limit(1);
-            if (nameMatch.length === 1) customerId = nameMatch[0].id;
-          }
-        } catch (e) {
-          log.warn("[services/shopDriverMirror] operation failed:", e);
-          // Name matching is best-effort, don't fail the import
+        if (lastName) {
+          const candidates = customersByLastName.get(lastName) ?? [];
+          const filtered = firstName
+            ? candidates.filter(c => c.firstName === firstName)
+            : candidates;
+          if (filtered.length === 1) customerId = filtered[0].id;
         }
       }
 
