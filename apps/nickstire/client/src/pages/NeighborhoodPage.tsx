@@ -31,7 +31,7 @@ const SERVICES = [
   { id: 1, name: "Brakes", icon: "🛑", href: "/brakes" },
   { id: 2, name: "Tires", icon: "🛞", href: "/tires" },
   { id: 3, name: "Oil Change", icon: "🛢️", href: "/synthetic-oil-change" },
-  { id: 4, name: "Diagnostics", icon: "🔧", href: "/diagnostics" },
+  { id: 4, name: "Check Engine", icon: "🔧", href: "/diagnostics" },
   { id: 5, name: "Alignment", icon: "⚖️", href: "/alignment" },
   { id: 6, name: "General Repair", icon: "🔩", href: "/general-repair" },
 ];
@@ -45,7 +45,7 @@ const FALLBACK_REVIEWS = [
     author: "Verified Google Review",
   },
   {
-    text: "Been a customer for years. They diagnose the actual problem, not whatever costs the most. Hard to find that in auto shops.",
+    text: "Been a customer for years. They figure out the actual problem, not whatever costs the most. Hard to find that in auto shops.",
     author: "Verified Google Review",
   },
   {
@@ -160,7 +160,7 @@ function NeighborhoodSchema({ neighborhood }: { neighborhood: Neighborhood }) {
         name: `What services do you offer for ${neighborhood.name} residents?`,
         acceptedAnswer: {
           "@type": "Answer",
-          text: "We offer a full range of auto repair services including brakes, tires, oil changes, diagnostics, alignment, and general repairs for all makes and models.",
+          text: "We offer a full range of auto repair services including brakes, tires, oil changes, check-engine light, alignment, and general repairs for all makes and models.",
         },
       },
       {

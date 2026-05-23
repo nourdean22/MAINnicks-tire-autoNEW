@@ -51,14 +51,14 @@ const SPECIALS: Special[] = [
     service: "Oil Change",
     headline: "Conventional Oil Change",
     description:
-      "Full conventional oil change with new filter. Includes the free 27-point multi-point inspection that keeps small problems from becoming repair bills.",
+      "Full conventional oil change with new filter. Includes the free 27-point 20-point check that keeps small problems from becoming repair bills.",
     salePrice: "$29.99",
     originalPrice: "$49.99",
     discountLabel: "$20 OFF",
     validThrough: "April 30, 2026",
     terms: "Conventional oil only. Up to 5 quarts. Synthetic blend +$15, full synthetic +$30. Most vehicles.",
     limited: true,
-    reasonWhy: "We treat oil changes as the front door of the relationship. Cheap entry point, real inspection, no upsell pressure.",
+    reasonWhy: "We treat oil changes as the front door of the relationship. Cheap entry point, real check, no upsell pressure.",
     anchors: { dealer: "$79", chain: "$49–$59", nicks: "$29.99" },
     serviceSlug: "oil-change",
     code: "OIL2999",
@@ -69,7 +69,7 @@ const SPECIALS: Special[] = [
     service: "Brake Pads",
     headline: "Economy Brake Pads (per axle)",
     description:
-      "New economy brake pads installed, plus rotor inspection and full brake-system check. We show you the worn pads before we replace them.",
+      "New economy brake pads installed, plus rotor check and full brake-system check. We show you the worn pads before we replace them.",
     salePrice: "$129",
     originalPrice: "$179",
     discountLabel: "$50 OFF",
@@ -92,9 +92,9 @@ const SPECIALS: Special[] = [
     originalPrice: "$89.99",
     discountLabel: "FREE",
     validThrough: "April 30, 2026",
-    terms: "With any repair totaling $200+. Standard code scan; advanced diagnostics (live data, wiring, intermittent) quoted at $95/hr if needed.",
+    terms: "With any repair totaling $200+. Standard code scan; deeper checks (live data, wiring, intermittent) quoted at $95/hr if needed.",
     limited: true,
-    reasonWhy: "We'd rather diagnose for free and earn the repair than charge $90 to read codes you can get at AutoZone.",
+    reasonWhy: "We'd rather check for free and earn the repair than charge $90 to read codes you can get at AutoZone.",
     anchors: { dealer: "$120–$150", chain: "$89", nicks: "FREE" },
     serviceSlug: "diagnostics",
     code: "FREESCAN",
@@ -105,7 +105,7 @@ const SPECIALS: Special[] = [
     service: "Tire Rotation",
     headline: "Tire Rotation",
     description:
-      "Pro 4-tire rotation, pressure check, and visual inspection. Extends tire life by ~20% when done every 5,000–7,500 miles.",
+      "Pro 4-tire rotation, pressure check, and visual check. Extends tire life by ~20% when done every 5,000–7,500 miles.",
     salePrice: "$19.99",
     originalPrice: "$39.99",
     discountLabel: "50% OFF",
@@ -120,14 +120,14 @@ const SPECIALS: Special[] = [
     id: 5,
     icon: <Wind className="w-6 h-6" />,
     service: "AC Check",
-    headline: "AC System Inspection",
+    headline: "AC System Check",
     description:
       "Refrigerant pressure check + visual component inspection. Catch low charge, leaks, or compressor wear before Cleveland's first 90° day.",
     salePrice: "$49.99",
     originalPrice: "$89.99",
     discountLabel: "$40 OFF",
     validThrough: "May 31, 2026",
-    terms: "Diagnostic only — refrigerant recharge ($90+) and component repairs additional. R-1234yf vehicles quoted separately.",
+    terms: "Check only — refrigerant recharge ($90+) and component repairs additional. R-1234yf vehicles quoted separately.",
     limited: true,
     reasonWhy: "AC issues caught in spring are 60% cheaper than the same issue caught in July. Easy seasonal incentive.",
     anchors: { dealer: "$130", chain: "$89", nicks: "$49.99" },
@@ -141,12 +141,12 @@ const SPECIALS: Special[] = [
     service: "Winter Prep",
     headline: "Winter Prep Package",
     description:
-      "Battery load test, coolant strength check, brake inspection, and full tire eval. The four things that strand Cleveland drivers every January.",
+      "Battery load test, coolant strength check, brake check, and full tire eval. The four things that strand Cleveland drivers every January.",
     salePrice: "$99",
     originalPrice: "$159",
     discountLabel: "$60 OFF",
     validThrough: "December 31, 2026",
-    terms: "Inspection-only package. Battery, coolant flush, brakes, or tire replacement quoted separately if needed.",
+    terms: "Check-only package. Battery, coolant flush, brakes, or tire replacement quoted separately if needed.",
     reasonWhy: "Most January tow calls are October-knowable problems. We'd rather catch them in your driveway than on I-90.",
     anchors: { dealer: "$199", chain: "$129–$149", nicks: "$99" },
     serviceSlug: "general-repair",
@@ -378,7 +378,7 @@ export default function SpecialsPage() {
     <PageLayout showChat={true}>
       <SEOHead
         title="Auto Repair Specials & Coupons Cleveland · Honest Discounts | Nick's"
-        description="Cleveland auto-repair specials that don't read like fine print. Current discounts on oil change, brakes, diagnostics, tires, AC, alignment. Walk-ins 7 days, payment programs on the spot. (216) 862-0005"
+        description="Cleveland auto-repair specials that don't read like fine print. Current discounts on oil change, brakes, check-engine light, tires, AC, alignment. Walk-ins 7 days, payment programs on the spot. (216) 862-0005"
         canonicalPath="/specials"
       />
 

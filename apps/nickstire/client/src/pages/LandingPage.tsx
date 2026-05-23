@@ -42,11 +42,11 @@ const VARIANTS: Record<string, LandingVariant> = {
   brakes: {
     headline: "BRAKE REPAIR — SAME DAY SERVICE",
     subline: "Safe, reliable braking for Cleveland drivers",
-    offer: "FREE Brake Inspection",
-    price: "Competitive Pricing",
+    offer: "FREE Brake Check",
+    price: "Honest Pricing",
     offerBadgeColor: "bg-red-500",
     trustBullets: [
-      "Free brake inspection with every visit",
+      "Free brake check with every visit",
       "OEM and quality aftermarket pads available",
       "Most repairs done same day",
       "Warranty on parts and labor",
@@ -103,12 +103,12 @@ const VARIANTS: Record<string, LandingVariant> = {
   },
   diagnostics: {
     headline: "CHECK ENGINE LIGHT ON?",
-    subline: "Fast, accurate diagnostics to fix the real problem",
+    subline: "Fast, accurate checks to fix the real problem",
     offer: "Full Diagnostic Scan",
     price: "Free with Repair",
     offerBadgeColor: "bg-yellow-500",
     trustBullets: [
-      "Computer diagnostic scan identifies the exact code",
+      "Computer code scan identifies the exact issue",
       "We translate what it means in plain English — no acronym soup",
       "Honest recommendation for repair",
       "Diagnostic fee credited toward service if you book with us",
@@ -120,12 +120,12 @@ const VARIANTS: Record<string, LandingVariant> = {
         service: "Check Engine Diagnostic",
       },
       {
-        text: "They explained the diagnostic clearly and didn't pressure me into expensive repairs.",
+        text: "They explained what was wrong clearly and didn't pressure me into expensive repairs.",
         author: "Lisa W.",
         service: "Emissions Scan",
       },
       {
-        text: "Quick diagnostic service. Knew what the problem was before I left.",
+        text: "Quick check. Knew what the problem was before I left.",
         author: "Mark G.",
         service: "Check Engine Light",
       },

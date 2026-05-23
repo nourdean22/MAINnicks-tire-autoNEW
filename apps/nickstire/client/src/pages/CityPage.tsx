@@ -149,11 +149,11 @@ function CitySchema({ city }: { city: CityData }) {
       // Use BUSINESS constants instead of hardcoded values so JSON-LD stays in
       // sync with the businessSchema's aggregateRating. Hardcoding was creating
       // a discrepancy Google could detect and use to suppress the rich result.
-      a: `Tires (new and used from $40), brake repair (from $149/axle), oil changes (from $39), wheel alignment, engine diagnostics, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
+      a: `Tires (new and used from $40), brake repair (from $149/axle), oil changes (from $39), wheel alignment, check-engine light, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
     },
     {
       q: `Is Nick's Tire & Auto reliable for ${city.name} drivers?`,
-      a: `★${BUSINESS.reviews.rating} stars from ${BUSINESS.reviews.countDisplay} Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest diagnosis, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
+      a: `★${BUSINESS.reviews.rating} stars from ${BUSINESS.reviews.countDisplay} Google reviews. We've served Cleveland-area drivers since 2018, including ${city.name}. Honest answers, up-front pricing, 12-month warranty on most repairs, and we show you the worn part before we replace it.`,
     },
     {
       q: `Do I need an appointment, or can I walk in?`,
@@ -490,7 +490,7 @@ export default function CityPage() {
                   <CheckCircle className="w-6 h-6 text-nick-blue-light flex-shrink-0 mt-0.5" />
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Real Mechanics, Real Experience</h3>
-                    <p className="text-foreground/70 leading-relaxed">Our technicians work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we diagnose the actual problem — not just the most expensive one.</p>
+                    <p className="text-foreground/70 leading-relaxed">We work on everything from daily drivers to trucks and SUVs. Whether it's a <Link href="/check-engine-light-cleveland" className="text-nick-blue-light hover:underline">check engine light</Link>, <Link href="/brakes" className="text-nick-blue-light hover:underline">brake job</Link>, or <Link href="/tires" className="text-nick-blue-light hover:underline">full tire replacement</Link>, we figure out the actual problem — not just the most expensive one.</p>
                   </div>
                 </div>
               </FadeIn>
