@@ -1150,24 +1150,41 @@ ${urls.join("\n")}
         if (invoiceNumber && !intent.metadata?.tireOrderNumber) {
           const { getDb } = await import("../db");
           const { invoices } = await import("../../drizzle/schema");
-          const { eq } = await import("drizzle-orm");
+          const { and, eq, ne } = await import("drizzle-orm");
           const d = await getDb();
           if (d) {
-            await d.update(invoices)
+            // 2026-05-23 · idempotency claim. Pre-fix the UPDATE ran on
+            // every Stripe retry (network blip / 5xx response → Stripe
+            // retries the same event) — second invocation duplicated the
+            // invoicePaid emit which fan-out triggers manager SMS +
+            // journey tracker + Telegram + push notifications. Now the
+            // conditional WHERE means only the first event claims the
+            // payment; subsequent retries change zero rows and skip emit.
+            const result = await d.update(invoices)
               .set({ paymentStatus: "paid", paymentMethod: "card" })
-              .where(eq(invoices.invoiceNumber, invoiceNumber));
+              .where(and(
+                eq(invoices.invoiceNumber, invoiceNumber),
+                ne(invoices.paymentStatus, "paid"),
+              ));
+            // mysql2 returns affectedRows; drizzle wraps it.
+            const affected = (result as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
+              ?? (result as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
 
-            // Emit event
-            import("../services/eventBus").then(({ emit }) =>
-              emit.invoicePaid({
-                invoiceNumber,
-                customerName: intent.metadata?.customerName || "Online payment",
-                totalAmount: (intent.amount_received || 0) / 100,
-                method: "card",
-              })
-            ).catch(e => console.warn("[server:stripeWebhook] event bus invoice paid dispatch failed:", e));
+            if (affected === 1) {
+              // First-time claim — fan out.
+              import("../services/eventBus").then(({ emit }) =>
+                emit.invoicePaid({
+                  invoiceNumber,
+                  customerName: intent.metadata?.customerName || "Online payment",
+                  totalAmount: (intent.amount_received || 0) / 100,
+                  method: "card",
+                })
+              ).catch(e => console.warn("[server:stripeWebhook] event bus invoice paid dispatch failed:", e));
 
-            serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
+              serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} marked paid — $${((intent.amount_received || 0) / 100).toFixed(2)}`);
+            } else {
+              serverLog.info(`[Stripe Webhook] Invoice ${invoiceNumber} retry — already paid, skipping fan-out (affected=${affected})`);
+            }
           }
         }
         // Tire-order checkouts surface here too — the metadata is mirrored

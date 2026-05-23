@@ -27,7 +27,23 @@ export function pushToAdminDashboards(event: {
   data: Record<string, any>;
 }): void {
   eventCounter++;
-  const payload = `id: ${eventCounter}\nevent: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`;
+  // 2026-05-23 · guard against circular references / non-serializable
+  // values in event.data (Date proxies, class instances, etc.). Pre-fix
+  // a single producer dropping a circular object killed the JSON.stringify
+  // call and skipped THIS event for ALL connected dashboards silently.
+  // Now we fall back to a sanitized payload + log the offender.
+  let dataStr: string;
+  try {
+    dataStr = JSON.stringify(event.data);
+  } catch (err) {
+    log.warn(`[realtimePush] non-serializable payload for event ${event.type}:`, err instanceof Error ? err.message : err);
+    dataStr = JSON.stringify({
+      _sanitized: true,
+      type: event.type,
+      keys: Object.keys(event.data ?? {}),
+    });
+  }
+  const payload = `id: ${eventCounter}\nevent: ${event.type}\ndata: ${dataStr}\n\n`;
 
   const dead: typeof clients extends Set<infer T> ? T[] : never[] = [];
   for (const client of clients) {

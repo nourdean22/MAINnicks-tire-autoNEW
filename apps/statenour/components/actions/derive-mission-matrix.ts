@@ -94,6 +94,40 @@ function safeDate(raw: string | null | undefined): Date | null {
 }
 
 /**
+ * 2026-05-23 · task #22 · ADR-0017 amended Rule 6 · effort-weighted
+ * progress rollup. Replaces the original `done / all` formula which
+ * weighted every task equally · a parent with one easy DONE + one
+ * hard OPEN would claim 50% complete which is silently wrong.
+ *
+ * Weights mirror the EFFORT_RANK ladder in loop-stream.tsx · M5 is
+ * the smallest unit of work + H2PLUS is the heaviest. Unknown/
+ * missing effort defaults to the middle weight (M30=3) so legacy
+ * tasks without an effort estimate still contribute · they just
+ * don't dominate the rollup.
+ *
+ *   parent.progressPct =
+ *     sum(EFFORT_WEIGHT[child.effort] · child.isDone ? 1 : 0)
+ *     / sum(EFFORT_WEIGHT[child.effort])
+ *
+ * Practical effect · finishing a heavy task moves the scoreboard
+ * needle further than finishing a light one · matches the
+ * operator's mental model of "how much work has been done".
+ */
+const EFFORT_WEIGHT: Record<string, number> = {
+  M5: 1,
+  M15: 2,
+  M30: 3,
+  H1: 4,
+  H2PLUS: 5,
+};
+/** Default when effort is missing/unknown · middle weight · 3 (M30). */
+const EFFORT_WEIGHT_DEFAULT = 3;
+function weightOf(t: Task): number {
+  if (!t.effort) return EFFORT_WEIGHT_DEFAULT;
+  return EFFORT_WEIGHT[t.effort] ?? EFFORT_WEIGHT_DEFAULT;
+}
+
+/**
  * Build per-mission metrics from raw `(missions, tasks)`. Pure ·
  * `now` is injected so tests can freeze time without mocking Date.
  */
@@ -118,9 +152,23 @@ export function computeMissionMetrics(
   return missions.map((m) => {
     const mTasks = tasksByMission.get(m.id) ?? [];
     const totalTasks = mTasks.length;
-    const doneCount = mTasks.filter((t) => t.status === "DONE").length;
+    // 2026-05-23 · task #22 · ADR-0017 amended Rule 6 · effort-weighted
+    // progress. The original `done / all` formula treated every task
+    // as equally weighty · a parent with one easy DONE + one hard
+    // OPEN claimed 50% complete which is silently wrong. Now the
+    // numerator + denominator both scale with EFFORT_WEIGHT so a
+    // heavy task moves the needle further than a light one.
+    let weightedDone = 0;
+    let weightedTotal = 0;
+    for (const t of mTasks) {
+      const w = weightOf(t);
+      weightedTotal += w;
+      if (t.status === "DONE") weightedDone += w;
+    }
     const progressPct =
-      totalTasks === 0 ? null : Math.round((doneCount / totalTasks) * 100);
+      weightedTotal === 0
+        ? null
+        : Math.round((weightedDone / weightedTotal) * 100);
 
     let doneTodayCount = 0;
     let overdueCount = 0;
