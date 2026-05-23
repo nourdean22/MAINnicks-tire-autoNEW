@@ -56,7 +56,7 @@ function extractBrandSlug(): string | null {
 function BrandHero({ brand }: { brand: TireBrand }) {
   const canonicalPath = `/${brand.slug}-tires-cleveland`;
   const title = `${brand.name} Tires Cleveland | Free $289 Install Package | Nick's`;
-  const description = `${brand.name} tires in Cleveland — full lineup stocked or special-ordered in 24 hours. FREE premium install package on every set: mount, balance, valve stems, TPMS, alignment check. ${BUSINESS.phone.display}`;
+  const description = `${brand.name} tires in Cleveland — full lineup stocked or special-ordered in 24 hours. FREE install package on every set: mount, balance, valve stems, TPMS, alignment check. ${BUSINESS.phone.display}`;
 
   return (
     <PageLayout activeHref="/tires" showChat={true}>
@@ -93,7 +93,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
             <FadeIn delay={0.15}>
               <p className="mt-5 text-lg sm:text-xl text-foreground/75 max-w-2xl leading-relaxed">
                 {brand.tagline} Stocked or special-ordered in 24 hours. Every set installs with our free $289 package
-                — mount, balance, valve stems, TPMS reset, alignment check, and 20-point inspection.
+                — mount, balance, valve stems, TPMS reset, alignment check, and 20-point check.
               </p>
             </FadeIn>
             <FadeIn delay={0.2}>
@@ -204,7 +204,7 @@ function BrandHero({ brand }: { brand: TireBrand }) {
                 "New valve stems",
                 "TPMS sensor reset (where equipped)",
                 "Alignment check (full alignment is separate if needed)",
-                "20-point safety inspection — brakes, suspension, fluids, lights",
+                "20-point safety check — brakes, suspension, fluids, lights",
                 "Disposal of old tires",
                 "Wheel cleaning before re-mount",
                 "12-month / 12,000-mile install workmanship warranty",

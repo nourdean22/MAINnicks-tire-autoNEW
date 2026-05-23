@@ -44,7 +44,7 @@ export default function TireSizePage() {
   const FAQS = [
     {
       q: `How much do ${page.size} tires cost?`,
-      a: `Prices vary by brand and type. Used ${page.size} tires start around $40-60 each. New tires range from $80-200+ per tire depending on the brand. All prices include our free premium installation package ($289 value).`,
+      a: `Prices vary by brand and type. Used ${page.size} tires start around $40-60 each. New tires range from $80-200+ per tire depending on the brand. All prices include our free install package ($289 value).`,
     },
     {
       q: `Do you have ${page.size} tires in stock?`,
@@ -98,7 +98,7 @@ export default function TireSizePage() {
             "@context": "https://schema.org",
             "@type": "Service",
             name: `${page.size} Tire Sales & Installation`,
-            description: `${page.size} tires in Cleveland — new and used in stock, fits ${vehicleList}. Free premium installation package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
+            description: `${page.size} tires in Cleveland — new and used in stock, fits ${vehicleList}. Free install package: mounting, balancing, valve stems, TPMS reset, alignment check, lifetime rotations. Walk in 7 days.`,
             serviceType: "Tire Installation",
             image: "https://nickstire.org/photos/rugged-tire-tread-closeup.webp",
             provider: {
@@ -151,7 +151,7 @@ export default function TireSizePage() {
           </FadeIn>
           <FadeIn delay={0.1}>
             <p className="mt-6 text-lg sm:text-xl text-foreground/80 max-w-2xl font-light leading-relaxed">
-              New and used {page.size} tires in stock. Fits {vehicleList}. Free premium installation package
+              New and used {page.size} tires in stock. Fits {vehicleList}. Free install package
               included with every set — mounting, balancing, alignment check, and lifetime rotations.
             </p>
           </FadeIn>

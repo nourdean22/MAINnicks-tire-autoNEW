@@ -198,7 +198,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Drop Off or Wait</h3>
-                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome — no appointment needed for diagnostics. Tell our front desk what you're experiencing and we'll get your vehicle into the bay. Most diagnostic inspections start within 30 minutes of arrival.</p>
+                    <p className="text-foreground/70 leading-relaxed">Walk-ins are welcome — no appointment needed. Tell our front desk what you're experiencing and we'll get your car into the bay. Most checks start within 30 minutes of arrival.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -209,7 +209,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Full Diagnostic Inspection</h3>
-                    <p className="text-foreground/70 leading-relaxed">Our technicians use professional scan tools, visual inspection, and road testing when needed. We don't just read a code and guess — we trace the problem to its root cause so we fix it right the first time.</p>
+                    <p className="text-foreground/70 leading-relaxed">We use OBD-II scan tools, live data, visual check, and road testing when needed. We don't just read a code and guess — we trace the problem to its root cause so we fix it right the first time.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -231,7 +231,7 @@ export default function ProblemPage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-foreground text-lg mb-2">Repair & Quality Check</h3>
-                    <p className="text-foreground/70 leading-relaxed">Once approved, we get to work. Most standard repairs are completed same-day. Before handing your keys back, we verify the fix with a final inspection to make sure everything is solid.</p>
+                    <p className="text-foreground/70 leading-relaxed">Once you say yes, we get to work. Most standard repairs are completed same-day. Before handing your keys back, we verify the fix with a final check to make sure everything is solid.</p>
                   </div>
                 </div>
               </FadeIn>
@@ -242,7 +242,7 @@ export default function ProblemPage() {
                 <h3 className="font-bold text-foreground text-lg mb-3">Estimated Turnaround Times</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger-in text-sm">
                   <div className="flex justify-between text-foreground/70">
-                    <span>Diagnostic inspection</span>
+                    <span>Code scan + check</span>
                     <span className="font-mono text-primary">30–60 min</span>
                   </div>
                   <div className="flex justify-between text-foreground/70">
