@@ -1056,9 +1056,16 @@ export function LoopStream({
             kind !== prevMainKind;
           if (isMainRow) prevMainKind = kind;
           const sectionHeader = showSectionHeader ? (
+            // 2026-05-23 · task #19 · sticky · the eyebrow pins to the
+            // top of the scroll container so the operator always knows
+            // which kind-cluster the rows below belong to. `bg-[var(
+            // --bg-base)]` (#0A0A0A — the page background) masks row
+            // content scrolling under it · `z-10` sits above rows but
+            // below modals/menus · `top-0` sticks to the page scroll
+            // container (no fixed app shell to offset against).
             <div
               key={`section-${kind}-${idx}`}
-              className="flex items-center gap-1.5 px-2 pt-2 pb-0.5 text-[8px] font-mono uppercase tracking-wider text-zinc-600"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
               aria-hidden
             >
               <KindIcon kind={kind} size={8} />
