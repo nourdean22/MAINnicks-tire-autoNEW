@@ -1,0 +1,37 @@
+{
+  "id": "specialist-routing-financial",
+  "name": "Financial specialist routing target",
+  "description": "Obvious financial-analyst-shaped message. Validates that the response (whether from a routed specialist or general Nick) is grounded in real numbers and names the actual financial framing rather than punting.",
+  "category": "decision",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "what's my savings rate looking like this month and which spending category is up the most?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator tracks net worth + savings rate via FinancialSnapshot rows",
+    "ENABLE_SPECIALIST_ROUTING may be off (default) — eval still applies to general Nick"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "uses-financial-framing",
+      "description": "Reply uses real financial framing (savings rate %, category names, $-units) rather than generic 'depends'",
+      "weight": 1.5
+    },
+    {
+      "id": "honest-about-data",
+      "description": "Reply either cites a concrete recent figure OR explicitly says 'I don't have this month's data' — never fabricates numbers",
+      "weight": 1.5
+    },
+    {
+      "id": "actionable-next-step",
+      "description": "Reply ends with a clear next step (e.g. 'pull the FinancialSnapshot' or 'next month aim for X%') rather than just observing",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "When specialist routing is enabled, this message routes to financial-analyst. Either way the reply names savings rate as a % of income, cites real figures (or refuses to make them up), and points to a next step.",
+  "tags": ["voice", "specialist-routing", "financial-analyst"]
+}

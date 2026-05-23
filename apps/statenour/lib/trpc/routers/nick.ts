@@ -28,6 +28,11 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 // is also called by the legacy GET /api/nick/suggest route — drift
 // structurally impossible.
 import { buildNickSuggestions } from "@/lib/services/nick-suggestions";
+// Task #13 (2026-05-23) · specialist sub-agent router · operator-only
+// classification endpoint. Gated behind ENABLE_SPECIALIST_ROUTING; when
+// the flag is off the procedure still works but always returns
+// `{ route: "general", reason: "routing-disabled" }`.
+import { routeMessage } from "@/lib/ai/agents/router";
 
 const VALID_TIERS = ["quick", "standard", "smart", "deep", "thorough", "mega"] as const;
 const TierSchema = z.enum(VALID_TIERS);
@@ -313,4 +318,33 @@ export const nickRouter = router({
    * projection · no Prisma Json reaches the AppRouter · TS2589 firewall).
    */
   suggestions: operatorProcedure.query(async () => buildNickSuggestions()),
+
+  /**
+   * Task #13 (2026-05-23) · classify a message → route decision.
+   * Diagnostics-only · the live chat handler does NOT call this; it
+   * lives here so the operator UI can surface "this turn would route
+   * to <specialist>" affordance + so tests can exercise the router
+   * via a stable API surface.
+   *
+   * When ENABLE_SPECIALIST_ROUTING != "true", every call returns
+   * `{ route: "general", reason: "routing-disabled", confidence: 1 }`
+   * (the router itself short-circuits on the flag).
+   */
+  classifyMessage: operatorProcedure
+    .input(
+      z.object({
+        messages: z
+          .array(
+            z.object({
+              role: z.enum(["user", "assistant", "system"]),
+              content: z.string().min(1).max(4000),
+            }),
+          )
+          .min(1)
+          .max(20),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      return routeMessage({ messages: input.messages });
+    }),
 });
