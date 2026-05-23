@@ -218,6 +218,12 @@ export async function finalizeTireOrderPayment(params: {
   // admin UI for these orders), so a delivery failure is a loud error,
   // never a silent warn. notifyTireOrderPaid bypasses the notification
   // throttle so a burst of orders can't drop it.
+  //
+  // 2026-05-23 · track both channels' success states and, if BOTH fail,
+  // write a payment_alert_backlog row so the operator can surface this
+  // paid-but-unfulfillable order on the Today dashboard.
+  let emailSent = false;
+  let telegramSent = false;
   try {
     const { notifyTireOrderPaid } = await import("../email-notify");
     const res = await notifyTireOrderPaid({
@@ -236,20 +242,48 @@ export async function finalizeTireOrderPayment(params: {
     });
     if (!res || !res.emailSent) {
       log.error(`Tire order ${params.tireOrderNumber} is PAID but the shop hand-off email did NOT send — fulfil it manually`, { throttled: res?.throttled ?? false });
+    } else {
+      emailSent = true;
     }
   } catch (e) {
     log.error(`Tire order ${params.tireOrderNumber} is PAID but the shop hand-off email threw — fulfil it manually:`, e);
   }
 
-  import("./telegram").then(({ sendTelegram }) =>
-    sendTelegram(
+  try {
+    const { sendTelegram } = await import("./telegram");
+    await sendTelegram(
       `TIRE ORDER PAID — ${params.tireOrderNumber}\n` +
       `${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize})\n` +
       `${order.customerName} · ${order.customerPhone}\n` +
       `$${amountPaid.toFixed(2)} paid online\n\n` +
       `Check moeseuclid@gmail.com — enter in ShopDriver + order from Gateway.`
-    )
-  ).catch((e) => log.warn("tire-order paid telegram failed:", e));
+    );
+    telegramSent = true;
+  } catch (e) {
+    log.warn("tire-order paid telegram failed:", e);
+  }
+
+  // Dual-fail recovery surface. If BOTH channels failed, the operator
+  // currently has no signal a paid tire order exists in the DB. Write
+  // a backlog row so the Today dashboard can render an alert.
+  if (!emailSent || !telegramSent) {
+    try {
+      const { paymentAlertBacklog } = await import("../../drizzle/schema");
+      const reason = !emailSent && !telegramSent
+        ? "both_failed"
+        : !emailSent ? "email_failed" : "telegram_failed";
+      await d.insert(paymentAlertBacklog).values({
+        tireOrderNumber: params.tireOrderNumber,
+        invoiceNumber: invNum || null,
+        amountCents: params.amountCents,
+        summary: `${order.quantity}x ${order.tireBrand} ${order.tireModel} (${order.tireSize}) · ${order.customerName} · ${order.customerPhone} · $${amountPaid.toFixed(2)}`,
+        failureReason: reason,
+      });
+      log.warn(`payment_alert_backlog row written for ${params.tireOrderNumber} (${reason})`);
+    } catch (e) {
+      log.error(`CRITICAL: failed to write payment_alert_backlog for ${params.tireOrderNumber} — order is paid but no recovery signal:`, e);
+    }
+  }
 }
 
 /**
