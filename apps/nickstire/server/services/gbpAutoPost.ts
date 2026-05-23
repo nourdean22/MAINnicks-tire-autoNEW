@@ -183,7 +183,7 @@ function buildPhotoNudge(): string {
     { months: [0, 4, 8],  topic: "the team",       shots: ["technician at work on a lifted car", "team photo in front of the storefront sign", "tech holding the part they replaced"] },
     { months: [1, 5, 9],  topic: "before/after",   shots: ["worn brake pad next to new pad", "rusted muffler next to fresh exhaust", "balding tire next to new tread"] },
     { months: [2, 6, 10], topic: "the storefront", shots: ["building exterior with sign at golden hour", "service-bay doors open with cars on lifts", "waiting area interior with the brand colors"] },
-    { months: [3, 7, 11], topic: "the work",       shots: ["alignment rack with a car on it", "diagnostic computer hooked to OBD-II", "tire-mounting machine mid-cycle"] },
+    { months: [3, 7, 11], topic: "the work",       shots: ["alignment rack with a car on it", "scan tool hooked to OBD-II", "tire-mounting machine mid-cycle"] },
   ];
   const theme = themes.find((t) => t.months.includes(month));
   // 3×4=12 covers every month — the find() should never miss. If it
