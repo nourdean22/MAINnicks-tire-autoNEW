@@ -54,6 +54,14 @@ const taskBaseSchema = z.object({
   phaseName: nullableString.optional(),
   actualMinutes: integerRange(0, 9999).default(0),
   startedAt: nullableDate.optional(),
+  // ── Subtask hierarchy (2026-05-23 · task #22 · ADR-0017) ──
+  // Nullable self-FK · subtasks point at their parent · top-level
+  // tasks have null. The createTask service inherits goalId from
+  // the parent at create time when payload.goalId isn't set
+  // (per amended Rule 2). Per Rule 4 the UI enforces 1-level depth ·
+  // the schema permits N levels (graceful degradation if someone
+  // ever bypasses the UI).
+  parentTaskId: nullableString.optional(),
 });
 
 export const taskCreateSchema = taskBaseSchema;

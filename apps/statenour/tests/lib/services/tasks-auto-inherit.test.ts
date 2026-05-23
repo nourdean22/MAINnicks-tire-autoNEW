@@ -166,6 +166,130 @@ describe("createTask · auto-inherit goalId", () => {
 });
 
 /**
+ * Subtask hierarchy · 2026-05-23 · task #22 · ADR-0017 amended Rule 2.
+ *
+ * When `parentTaskId` is set on the payload AND `goalId` is not
+ * explicitly set, the PARENT's goalId wins over sibling-scan
+ * inheritance · the operator chose this parent, its goal context is
+ * the strongest signal. Explicit `goalId` in the payload always
+ * wins · operator override stays sacred.
+ *
+ * Branches covered here:
+ *   1. parentTaskId set + parent has goalId → inherit parent's goal
+ *   2. parentTaskId set + parent has no goalId → fall back to siblings
+ *   3. parentTaskId set + explicit goalId in payload → respect explicit
+ *   4. parentTaskId persists to create.data unchanged
+ */
+describe("createTask · subtask parent-inheritance (task #22)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.mission.findUnique.mockResolvedValue({ id: "mission-1", deletedAt: null });
+    mocks.mission.findMany.mockResolvedValue([]);
+    mocks.task.create.mockImplementation(async (args: { data: { goalId?: string | null; parentTaskId?: string | null } }) => ({
+      id: "new-task-id",
+      ...args.data,
+    }));
+    mocks.task.findUnique.mockResolvedValue({
+      id: "new-task-id",
+      missionId: "mission-1",
+      title: "new task",
+      status: "INBOX",
+      mission: { id: "mission-1", title: "Mission 1" },
+    });
+    mocks.task.update.mockResolvedValue({});
+  });
+
+  it("inherits goalId from the parent when parentTaskId is set", async () => {
+    // First findUnique call is the parent lookup; subsequent findUnique
+    // is the post-create hydrate. Set the parent's goalId.
+    mocks.task.findUnique
+      .mockResolvedValueOnce({ goalId: "parent-goal" }) // parent lookup
+      .mockResolvedValue({
+        id: "new-task-id",
+        missionId: "mission-1",
+        title: "new task",
+        status: "INBOX",
+        mission: { id: "mission-1", title: "Mission 1" },
+      });
+    // No siblings exist — parent inheritance should kick in regardless.
+    mocks.task.findMany.mockResolvedValue([]);
+
+    await createTask({ ...baseInput, parentTaskId: "parent-1" });
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBe("parent-goal");
+    expect(createArgs.data.parentTaskId).toBe("parent-1");
+  });
+
+  it("falls back to sibling-scan when the parent has no goalId", async () => {
+    // Parent has null goalId — parent inheritance abstains, sibling
+    // scan should then run and pick up the unanimous sibling goal.
+    mocks.task.findUnique
+      .mockResolvedValueOnce({ goalId: null }) // parent lookup
+      .mockResolvedValue({
+        id: "new-task-id",
+        missionId: "mission-1",
+        title: "new task",
+        status: "INBOX",
+        mission: { id: "mission-1", title: "Mission 1" },
+      });
+    mocks.task.findMany
+      .mockResolvedValueOnce([{ goalId: "sibling-goal" }, { goalId: "sibling-goal" }])
+      .mockResolvedValue([]);
+
+    await createTask({ ...baseInput, parentTaskId: "parent-1" });
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBe("sibling-goal");
+    expect(createArgs.data.parentTaskId).toBe("parent-1");
+  });
+
+  it("respects explicit goalId even when parent has a different goal", async () => {
+    // Parent says goal-a but operator explicitly chose goal-z · the
+    // explicit choice wins · auto-inherit skipped entirely.
+    mocks.task.findUnique.mockResolvedValue({
+      id: "new-task-id",
+      missionId: "mission-1",
+      title: "new task",
+      status: "INBOX",
+      mission: { id: "mission-1", title: "Mission 1" },
+    });
+    mocks.task.findMany.mockResolvedValue([]);
+
+    await createTask({
+      ...baseInput,
+      parentTaskId: "parent-1",
+      goalId: "goal-z",
+    });
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.goalId).toBe("goal-z");
+    expect(createArgs.data.parentTaskId).toBe("parent-1");
+  });
+
+  it("persists parentTaskId on the create.data even with no inheritance", async () => {
+    // Parent has no goal · no siblings · no explicit · parentTaskId
+    // should still land on the new row.
+    mocks.task.findUnique
+      .mockResolvedValueOnce({ goalId: null }) // parent lookup
+      .mockResolvedValue({
+        id: "new-task-id",
+        missionId: "mission-1",
+        title: "new task",
+        status: "INBOX",
+        mission: { id: "mission-1", title: "Mission 1" },
+      });
+    mocks.task.findMany.mockResolvedValue([]);
+
+    await createTask({ ...baseInput, parentTaskId: "parent-1" });
+
+    const createArgs = mocks.task.create.mock.calls[0][0];
+    expect(createArgs.data.parentTaskId).toBe("parent-1");
+    expect(createArgs.data.goalId).toBeUndefined();
+  });
+});
+
+/**
  * Thin quick-add payload · regression cover for the 2026-05-21
  * add-task bug.
  *
