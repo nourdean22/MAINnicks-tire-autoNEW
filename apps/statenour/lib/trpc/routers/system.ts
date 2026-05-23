@@ -87,6 +87,13 @@ import { buildEmbeddingCoverage } from "@/lib/services/embedding-coverage";
 import { buildCronTree } from "@/lib/services/cron-tree";
 import { getEntityHistory } from "@/lib/db/entity-audit";
 import { buildSystemHub } from "@/lib/services/system-hub";
+// task #22 slice 5.4 · explicit operator-state model · LeCun-lens
+// consolidation · exposes a deterministic snapshot of the operator's
+// focus/capacity/drift/momentum/mood instead of letting Nick infer it.
+import {
+  currentOperatorState,
+  formatOperatorStateBlock,
+} from "@/lib/services/operator-state";
 // scattered-components REST→tRPC slice (2026-05-22) · shared functions
 // the migrated components/{ultron/today,hud,ui}/* surfaces delegate to
 // for their /api/{drift,auth/expires,errors} calls. Each is also called
@@ -2422,4 +2429,25 @@ export const systemRouter = router({
       await removeSubscription(input.endpoint);
       return { success: true as const };
     }),
+
+  /**
+   * task #22 slice 5.4 · operator-state diagnostic.
+   *
+   * Returns the deterministic 5-dimensional operator-state snapshot
+   * (focus · capacity · drift · momentum · mood) PLUS the formatted
+   * system-prompt block (so the /system/operator-state page can show
+   * "this is what Nick would see if we wired this in"). LeCun-lens
+   * consolidation in one query · cheap (3 Prisma queries · degrades
+   * to defaults on DB error · 0-confidence then).
+   *
+   * Owner-only · this exposes activity counts that aren't sensitive
+   * on their own but the policy is "operator surfaces are gated".
+   */
+  operatorState: operatorProcedure.query(async () => {
+    const snapshot = await currentOperatorState();
+    return {
+      snapshot,
+      promptBlock: formatOperatorStateBlock(snapshot),
+    };
+  }),
 });
