@@ -3,9 +3,10 @@
  *
  * Shared types for the router + specialists pattern. The router
  * classifies an incoming message and dispatches to either:
- *   · general          · the existing Nick chat path (unchanged)
+ *   · general           · the existing Nick chat path (unchanged)
  *   · financial-analyst · net-worth · savings · spending · money flow
  *   · decision-coach    · trade-offs · past-Nour patterns · grading
+ *   · schedule-keeper   · calendar shape · day rhythm · reschedules
  *
  * The whole layer is GATED behind ENABLE_SPECIALIST_ROUTING. When the
  * env var is anything other than "true" the router always returns
@@ -17,7 +18,11 @@
  */
 
 /** Stable route identifiers. Add a new value here when adding a specialist. */
-export type SpecialistRoute = "general" | "financial-analyst" | "decision-coach";
+export type SpecialistRoute =
+  | "general"
+  | "financial-analyst"
+  | "decision-coach"
+  | "schedule-keeper";
 
 export interface RoutingDecision {
   /** Which specialist (or general Nick) should handle this turn. */

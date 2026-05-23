@@ -1,0 +1,43 @@
+{
+  "id": "specialist-routing-schedule",
+  "name": "Schedule-keeper specialist routing target",
+  "description": "Time-placement question with a concrete scheduling ask. Validates that the response (specialist or general) names a real slot, respects existing rhythm, and does not relitigate whether the task should exist.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "when can I fit the proposal draft this week · I need ~90 min of deep work · push the marketing review to next week if it conflicts"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator's known daily rhythm: peak hours 9-11am · admin block 2-3pm · evening calls 5-6pm",
+    "Operator has WEEKLY recurring 'marketing review' at Thursday 10am (90 min)",
+    "ENABLE_SPECIALIST_ROUTING may be off (default) · eval still applies to general Nick"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "names-a-concrete-slot",
+      "description": "Reply names a real day-and-time slot (e.g. 'Wed 9-11am') · does NOT say 'sometime this week' or 'whenever works'",
+      "weight": 2.0
+    },
+    {
+      "id": "respects-existing-rhythm",
+      "description": "Reply uses peak hours (9-11am) for the deep block · does NOT propose an admin-block slot for deep work",
+      "weight": 1.5
+    },
+    {
+      "id": "handles-the-push-cleanly",
+      "description": "Reply confirms the marketing-review push to next week with a specific new slot · does NOT moralize about consistency or ask permission to push",
+      "weight": 1.5
+    },
+    {
+      "id": "no-overcommit-warning-spiral",
+      "description": "Reply does NOT spin off into 'are you sure you can take more on this week' · operator stated the constraint already · trust the ask",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'Wed 9-11am for the proposal · pushed marketing review to next Thu 10am (same slot, week 2)'. With specialist routing enabled, this routes to schedule-keeper. Either way the reply is concrete and decisive.",
+  "tags": ["voice", "specialist-routing", "schedule-keeper", "time-management"]
+}
