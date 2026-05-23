@@ -1,6 +1,57 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 (post Todoist/Evernote hierarchy follow-ups · 3 ships) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2692 across 177 vitest files (`.next-prod` excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-23 (post multi-advisor board · 2 slices) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2712 across 178 vitest files (`.next-prod` excluded · +20 board consult tests since the 11AM reconcile) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-23 · multi-advisor board · strategic-intelligence amplifier · 2 ships + ADR
+>
+> Borrowed the multi-advisor pattern from the community skill ecosystem
+> + built it native into statenour. This is the "next level" the
+> operator framed — strategic decisions get N parallel advisor lenses
+> with synthesis that PRESERVES divergence (where the lenses split is
+> the highest-signal information · fusion destroys it).
+>
+> Distinct from the existing strategic-frameworks lens-injection
+> (≤3 lenses fused into ONE Nick answer) by design · two patterns,
+> two jobs · tactical/daily questions go to Nick (fused),
+> major/multi-faceted strategic decisions go to the board (parallel).
+>
+> **`31b797ec` · multi-advisor board · foundation (task #23 · Slice A)** —
+> `lib/ai/board/` · types + 5 pre-configured boards (strategic ·
+> invest · product · operator · full) + the consult service. Fans
+> out to N advisors via `Promise.all` over `aiChat(taskType:"reason")`,
+> synthesizes via one more `aiChat` call. Reuses existing strategic-
+> frameworks REGISTRY persona blocks (elon-musk · warren-buffett ·
+> steve-jobs · inversion · etc.) — no duplicate persona maintenance.
+> 20 contract tests covering happy path · divergence preservation ·
+> graceful degradation (advisor throw / provider unavailable / parse
+> fail · synthesizer parse fail) · coercion · prompt content. Cost
+> per consultation = members.length + 1 aiChat calls (default 5-member
+> board = 6 calls). Tracing through `makeTracedAiChat("board-consult")`
+> shows every call in /system/agent-traces.
+>
+> **`06ce9933` · multi-advisor board · /brain/board surface + persistence
+> (task #24 · Slice B)** — `lib/services/board-consult-record.ts`
+> wraps Slice A with `brainMemory.remember` for persistence + flat-
+> projected read helper (metadata Json opened inside the service ·
+> TS2589 firewall · same pattern as `listRecentReflections`).
+> `brain.consultBoard` mutation + `brain.recentBoardConsultations`
+> query. `/brain/board/page.tsx` ships the operator surface · board
+> selector chips · question textarea · synthesis card (top, gold
+> border, recommendation + tension + consensus + divergence
+> sections) · expandable advisor takes · recent consultations rail.
+> Editorial-minimalist styling. `BOARD_CONSULTATION` registered in
+> `lib/brain/categories.ts` so the registry guard doesn't warn on
+> every write.
+>
+> **ADR-0018 (this slice)** · documents the pattern · distinguishes
+> from related patterns (multi-agent parallel sub-agents ADR-0009 ·
+> specialist sub-agents #13/#16 · CoALA reflection #12/#17). Includes
+> 4 future-work items (decision-replay coupling · suggested-board
+> routing · custom boards · board-vs-Nick eval scenario).
+>
+> **Flagged · NOT fixed:**
+> - Task #26 (Elon's critique on ADR-0017) shipped immediately after
+>   this wave · the subtask migration stays parked.
 
 > ## 2026-05-23 · Todoist/Evernote hierarchy follow-ups on /tasks · 3 ships
 >
