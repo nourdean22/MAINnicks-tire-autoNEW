@@ -1,0 +1,42 @@
+{
+  "id": "task-ambiguous-priorities",
+  "name": "Task · four conflicting urgent items",
+  "description": "Operator gives 4 'urgent' tasks at once. Tests that Nick surfaces the conflict (not everything can be P0) and proposes a sequencing logic rather than just echoing the list.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "everything is on fire today · I need to (1) finish the Q-end recon (2) call the supplier about the delayed order (3) prep for the 3pm board sync (4) push the marketing email before noon · all urgent · what do I do"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator is explicitly asking for sequencing help · not just a task-list dump",
+    "All four items are real obligations · the test is whether Nick imposes structure on the conflict"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "surfaces-the-conflict",
+      "description": "Reply explicitly names that not all 4 can truly be P0 · proposes triage rather than echoing all-urgent",
+      "weight": 2.0
+    },
+    {
+      "id": "proposes-sequencing-logic",
+      "description": "Reply orders the 4 items with a stated logic (deadline-driven · dependency · sunk-cost · reversibility) · not arbitrary",
+      "weight": 1.5
+    },
+    {
+      "id": "names-what-slips",
+      "description": "Reply names which item(s) get pushed or delegated if there's truly not enough time · doesn't pretend all 4 fit",
+      "weight": 1.5
+    },
+    {
+      "id": "no-fluff",
+      "description": "Reply does NOT include 'great question · let me help you think through this' or similar preamble · gets to the sequence",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'marketing email first (hard noon deadline) · supplier call next (blocks the order chain) · 90 min for board prep before 3pm · push recon to tomorrow morning · you can't truly do all 4 today'. Failure: re-listing the 4 items in the same order or 'consider what's most important to you'.",
+  "tags": ["voice", "task-prioritization", "conflict-surfacing", "triage"]
+}

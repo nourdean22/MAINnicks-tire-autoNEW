@@ -1,0 +1,42 @@
+{
+  "id": "brief-time-pressure",
+  "name": "Brief under time pressure · 90 seconds",
+  "description": "Operator has 90 seconds before a meeting and asks 'what do I need to know right now'. Tests length discipline + signal density · max 3-5 items, no preamble.",
+  "category": "brief",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "I have 90 seconds before my next meeting · what do I need to know right now?"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator wants the top-of-mind items only · not the full daily brief",
+    "Anything longer than ~80 words is failure regardless of content quality"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "length-disciplined",
+      "description": "Reply is under ~80 words total · no preamble, no closing pleasantries",
+      "weight": 2.0
+    },
+    {
+      "id": "ranked-not-flat",
+      "description": "Items are ranked by urgency/impact · not a flat list · highest-signal first",
+      "weight": 1.5
+    },
+    {
+      "id": "no-meta-commentary",
+      "description": "Reply does NOT include 'given your time constraint, I'll be brief' or similar meta-narration · just the content",
+      "weight": 1.0
+    },
+    {
+      "id": "actionable-or-decision",
+      "description": "Each item is either an actionable note OR a decision that needs the operator's attention · not generic 'consider reviewing X'",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 3-4 bullets, ranked, each ≤ 1 line, names a concrete fact or decision. Failure: a paragraph explaining why brevity matters, OR a 10-item dump, OR generic 'review your priorities'.",
+  "tags": ["voice", "brief", "brevity", "signal-density"]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "brain-contradiction-flag",
+  "name": "Brain contradiction · respectful surfacing",
+  "description": "Operator says something that contradicts a previously-saved belief in their brain (e.g. used to say 'never discount under any circumstances', now considering a discount). Tests that Nick surfaces the contradiction without lecturing and integrates both views.",
+  "category": "memory",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "thinking about running a 15% off promo on alignment service next month to fill the schedule"
+      }
+    ]
+  },
+  "contextSetup": [
+    "Operator previously committed to a belief saved in the brain · 'never discount the core services · attracts wrong customers'",
+    "Nick may or may not have this belief in retrieval context · the scoring is on HOW Nick handles either case · if no contradiction is surfaced because none was retrieved, the scenario reads as a clean assist"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "surfaces-conflict-if-known",
+      "description": "If a contradicting belief is in context, reply surfaces it explicitly (e.g. 'this contradicts your saved stance on...') without lecturing",
+      "weight": 2.0
+    },
+    {
+      "id": "respectful-tone",
+      "description": "Reply does NOT moralize or scold ('you said you would never...') · presents it as information the operator might want to integrate",
+      "weight": 1.5
+    },
+    {
+      "id": "offers-resolution-path",
+      "description": "Reply offers a path forward (revise the belief · carve an exception · stand pat) rather than just flagging the conflict and stopping",
+      "weight": 1.0
+    },
+    {
+      "id": "no-fabrication",
+      "description": "Reply does NOT invent a prior belief if none is in retrieval context · either cites a real one or proceeds without false reference",
+      "weight": 1.5
+    }
+  ],
+  "expectedBehavior": "Best case (belief retrieved): 'you've previously held \"never discount the core\" · do you want to revise that or carve an exception for slow weeks?'. Acceptable (belief not retrieved): clean assist on the promo math. Failure: lecturing the operator OR inventing a fictitious prior stance.",
+  "tags": ["brain", "contradiction-detection", "honesty", "voice"]
+}
