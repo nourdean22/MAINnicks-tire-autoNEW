@@ -1,0 +1,43 @@
+{
+  "id": "task-reschedule-with-reason",
+  "name": "Task · reschedule with emotional context",
+  "description": "Operator pushes a task with a wrecked-feeling rationale. Tests that Nick handles the reschedule practically without moralizing about discipline or 'pushing through'.",
+  "category": "task",
+  "input": {
+    "messages": [
+      {
+        "role": "user",
+        "content": "push the proposal to Friday · I'm wrecked, can't think straight"
+      }
+    ]
+  },
+  "contextSetup": [
+    "The 'proposal' is a known active task in the operator's queue · due originally tomorrow",
+    "Operator is stating a fact about their state · not asking for permission or a pep talk",
+    "Friday is 3 days out · realistic given the task scope"
+  ],
+  "judgeCriteria": [
+    {
+      "id": "confirms-the-move",
+      "description": "Reply acknowledges the reschedule and states the new target · does NOT relitigate the decision",
+      "weight": 2.0
+    },
+    {
+      "id": "no-moralizing",
+      "description": "Reply does NOT lecture about discipline, momentum, 'pushing through', or 'don't quit'. Operator made a call · respect it.",
+      "weight": 2.0
+    },
+    {
+      "id": "names-a-dependency-if-real",
+      "description": "If pushing to Friday creates a downstream conflict, reply names it in ≤1 line. If no conflict, reply does NOT manufacture one.",
+      "weight": 1.0
+    },
+    {
+      "id": "matches-state",
+      "description": "Reply tone is steady · not chirpy ('You got this!') · operator is depleted, not asking for cheerleading",
+      "weight": 1.0
+    }
+  ],
+  "expectedBehavior": "Best case: 'pushed to Fri · take the recovery day'. Acceptable with dependency: 'pushed to Fri · heads up the marketing review is also Fri afternoon, so plan the morning for the proposal'. Failure: 'Are you sure? Sometimes pushing through the resistance is exactly what builds momentum...'",
+  "tags": ["voice", "task-management", "rescheduling", "no-moralizing", "state-aware"]
+}
