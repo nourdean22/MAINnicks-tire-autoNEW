@@ -1,7 +1,17 @@
 -- Task subtasks · Task.parentTaskId self-FK
--- 2026-05-23 · task #22 · per ADR-0017 · parked per WAVE-200
+-- 2026-05-23 · task #22 · per ADR-0017 (AMENDED · see Elon's-lens
+-- critique addendum at top of the ADR) · parked per WAVE-200
 -- non-negotiable #1 ("No prod DB schema changes without a parked
 -- migration first").
+--
+-- ⚠ GATE · do NOT apply until ADR-0017 amendment items A1-A3 are
+-- resolved:
+--   A1 · "find 2 real subtask candidates" gate cleared (or this
+--        ADR + migration deleted because no real use cases found)
+--   A2 · completion-cascade rule resolved · Option A (cascade with
+--        confirm) is the recommended default
+--   A3 · scoreboard rollup formula resolved · effort-weighted OR
+--        rollup dropped · the original `done / all` is wrong
 --
 -- Adds a single-level subtask relationship to Task:
 --   parent_task_id (nullable) → Task.id
