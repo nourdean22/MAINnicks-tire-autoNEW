@@ -629,9 +629,14 @@ function LaborGuideTab() {
           )}
 
           {displayJobs.map((job, i) => (
-            <div
+            // 2026-05-23 · was <div onClick> · keyboard-inaccessible
+            // and screen readers didn't announce as activatable.
+            // Converted to <button> · same visual treatment, proper
+            // semantics + focus ring.
+            <button
+              type="button"
               key={`${job.name}-${i}`}
-              className={`bg-card border transition-colors cursor-pointer p-4 ${
+              className={`w-full text-left bg-card border transition-colors p-4 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
                 calcJob?.name === job.name ? "border-primary/50 bg-primary/5" : "border-border/30 hover:border-foreground/20"
               }`}
               onClick={() => handleCalc(job.name, job.avgHours)}
@@ -650,7 +655,7 @@ function LaborGuideTab() {
               {job.notes && (
                 <p className="text-foreground/30 text-xs mt-1">{job.notes}</p>
               )}
-            </div>
+            </button>
           ))}
         </div>
 

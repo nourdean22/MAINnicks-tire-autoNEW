@@ -1084,26 +1084,30 @@ function FeatureFlagsPanel() {
                 </span>
               </div>
 
-              {/* Flag Rows */}
+              {/* Flag Rows · 2026-05-23 · whole row is the toggle target.
+                  Previously only the 24px Toggle icon was clickable — way
+                  under iOS 44pt minimum and the operator naturally tapped
+                  the row text expecting it to flip. */}
               <div className="space-y-1">
                 {group.flags.map((flag) => (
-                  <div
+                  <button
+                    type="button"
                     key={flag.key}
-                    className={`flex items-center gap-3 p-2.5 border transition-colors ${
-                      flag.value ? "border-emerald-500/20 bg-emerald-500/5" : "border-border/10"
+                    onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
+                    disabled={toggleMut.isPending}
+                    className={`w-full text-left flex items-center gap-3 p-2.5 border transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
+                      flag.value ? "border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-border/10 hover:bg-foreground/[0.02]"
                     }`}
+                    aria-label={`Toggle ${flag.key}`}
+                    aria-pressed={flag.value}
                   >
-                    <button
-                      onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
-                      disabled={toggleMut.isPending}
-                      className="shrink-0"
-                    >
+                    <span className="shrink-0">
                       {flag.value ? (
                         <ToggleRight className="w-6 h-6 text-emerald-400" />
                       ) : (
                         <ToggleLeft className="w-6 h-6 text-foreground/30" />
                       )}
-                    </button>
+                    </span>
                     <div className="flex-1 min-w-0">
                       <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
                       {flag.description && (
@@ -1115,7 +1119,7 @@ function FeatureFlagsPanel() {
                     }`}>
                       {flag.value ? "ON" : "OFF"}
                     </span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>

@@ -198,10 +198,15 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
           <p className="text-foreground/40 text-xs">
             Campaign will target <span className="text-primary font-bold">{segmentCount ?? 0}</span> customers with personalized messages.
           </p>
+          {/* 2026-05-23 · block create when segmentCount=0. The TODO at the
+              top of this file flags that some segments lack a `customerStats`
+              key and resolve to 0 — operator could otherwise ship a zero-
+              target campaign that fires SMS at nobody. */}
           <button
             onClick={handleCreate}
-            disabled={!name.trim() || creating}
-            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
+            disabled={!name.trim() || creating || !segmentCount || segmentCount === 0}
+            title={!segmentCount || segmentCount === 0 ? "No customers in this segment yet — pick another segment or wait for the lapsed cohort to grow" : undefined}
+            className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             CREATE CAMPAIGN
