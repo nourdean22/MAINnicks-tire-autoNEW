@@ -1006,6 +1006,43 @@ export const gatewayTireRouter = router({
     brands: TIRE_BRANDS,
   })),
 
+  // ─── PUBLIC: Honest social proof for /tires page ───
+  // 2026-05-23 · returns the last-7-days tire-order count + most-
+  // popular size so the customer page can show real, fact-anchored
+  // social proof above the tire list. Anything older than 7 days is
+  // pruned to keep the signal current. Floors at 0 (empty DB ok).
+  //
+  // No PII surfaced — just aggregate counts + the size string.
+  publicStats: publicProcedure.query(async () => {
+    const d = await db();
+    if (!d) return { ordersThisWeek: 0, installedThisWeek: 0, popularSize: null as string | null };
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    try {
+      const [orderCount, installCount, sizeRow] = await Promise.all([
+        d.select({ c: sql<number>`count(*)` })
+          .from(tireOrders)
+          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo}`),
+        d.select({ c: sql<number>`count(*)` })
+          .from(tireOrders)
+          .where(sql`${tireOrders.status} IN ('installed', 'completed') AND ${tireOrders.createdAt} >= ${sevenDaysAgo}`),
+        d.select({ size: tireOrders.tireSize, c: sql<number>`count(*)` })
+          .from(tireOrders)
+          .where(sql`${tireOrders.createdAt} >= ${sevenDaysAgo}`)
+          .groupBy(tireOrders.tireSize)
+          .orderBy(sql`count(*) desc`)
+          .limit(1),
+      ]);
+      return {
+        ordersThisWeek: Number(orderCount[0]?.c || 0),
+        installedThisWeek: Number(installCount[0]?.c || 0),
+        popularSize: sizeRow[0]?.size || null,
+      };
+    } catch (err) {
+      log.warn("[gatewayTire:publicStats] aggregate failed, returning zeros:", err instanceof Error ? err.message : err);
+      return { ordersThisWeek: 0, installedThisWeek: 0, popularSize: null as string | null };
+    }
+  }),
+
   // ═══════════════════════════════════════════════════
   // ADMIN ENDPOINTS
   // ═══════════════════════════════════════════════════

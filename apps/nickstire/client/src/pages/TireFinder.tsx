@@ -826,6 +826,13 @@ export default function TireFinder() {
   // Get the package details
   const { data: packageData } = trpc.gatewayTire.getPackage.useQuery();
 
+  // 2026-05-23 · honest social proof — last-7-days tire-order count.
+  // Powers the activity badge above the trust strip. Real DB data;
+  // empty result → no badge. 5-min stale time, light query.
+  const { data: socialStats } = trpc.gatewayTire.publicStats.useQuery(undefined, {
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Confirm-on-return fallback — finalizes a paid order if the Stripe
   // webhook hasn't landed yet (see the ?paid=1 effect below).
   const confirmCheckout = trpc.gatewayTire.confirmCheckout.useMutation();
@@ -1101,6 +1108,34 @@ export default function TireFinder() {
               ) : data?.tires && data.tires.length > 0 ? (
                 <>
                   {/* Nick's Package Banner — THE KEY PIECE */}
+
+                  {/* 2026-05-23 · honest activity badge above trust strip.
+                      Pulls real numbers from tire_orders (7d). Hidden when
+                      DB is empty so an off-day doesn't show "0 orders". */}
+                  {socialStats && socialStats.ordersThisWeek > 0 && (
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 pb-3 text-[12px] text-foreground/70">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                        <span className="relative flex h-2 w-2">
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
+                        </span>
+                        <span className="font-medium text-emerald-300">{socialStats.ordersThisWeek}</span>
+                        <span className="text-foreground/60">
+                          {socialStats.ordersThisWeek === 1 ? "customer ordered" : "customers ordered"} tires this week
+                        </span>
+                      </span>
+                      {socialStats.installedThisWeek > 0 && (
+                        <span className="text-foreground/50 hidden sm:inline">
+                          · {socialStats.installedThisWeek} installed
+                        </span>
+                      )}
+                      {socialStats.popularSize && (
+                        <span className="text-foreground/50 hidden md:inline">
+                          · most ordered size: <span className="font-mono text-foreground/70">{socialStats.popularSize}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Trust strip — Social proof section */}
                   <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
