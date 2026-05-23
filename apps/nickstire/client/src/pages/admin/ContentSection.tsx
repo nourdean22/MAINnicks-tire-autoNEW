@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Link } from "wouter";
 import {
   StatCard, StatusDot, PageHeader, TabBar, formatDate, LoadingState, ErrorState,
+  useUrlFilter,
 } from "./shared";
 import {
   Bell, CheckCircle2, ChevronRight, FileText, Loader2, Newspaper,
@@ -30,8 +31,20 @@ type ContentTab = "manager" | "ideas" | "specials";
 type Article = NonNullable<RouterOutputs["contentAdmin"]["allArticles"]>[number];
 type Notification = NonNullable<RouterOutputs["contentAdmin"]["allNotifications"]>[number];
 
+const VALID_CONTENT_TABS: ContentTab[] = ["manager", "ideas", "specials"];
+
 export default function ContentSection() {
-  const [tab, setTab] = useState<ContentTab>("manager");
+  // 2026-05-23 · URL-persist the inner tab so deep-links + reloads land
+  // on the operator's last view. Every other admin section already uses
+  // useUrlFilter for inner tabs (Intelligence · Outreach · Money etc.);
+  // ContentSection was the lone holdout still using bare useState.
+  const [tab, setTab] = useUrlFilter<ContentTab>(
+    "contentTab",
+    "manager",
+    {
+      validate: (raw) => (VALID_CONTENT_TABS.includes(raw as ContentTab) ? (raw as ContentTab) : null),
+    },
+  );
 
   return (
     <div className="space-y-6">

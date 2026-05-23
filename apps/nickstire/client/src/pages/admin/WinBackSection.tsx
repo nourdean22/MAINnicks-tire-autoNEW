@@ -23,7 +23,11 @@ import {
   Loader2, MessageSquare, Zap
 } from "lucide-react";
 
-type View = "list" | "create" | "detail" | "preview";
+// 2026-05-23 · dropped "preview" — declared in the union + URL
+// validator but no UI button set it and no render branch handled it.
+// An old bookmark like ?wbView=preview silently fell back to list with
+// the value lingering in URL state. Removed.
+type View = "list" | "create" | "detail";
 
 const SEGMENT_LABELS: Record<string, string> = {
   lapsed: "Lapsed (90-180d)",
@@ -435,10 +439,11 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
 }
 
 export default function WinBackSection() {
-  // URL-persistent ?wbView=list|create|detail|preview (default list)
+  // URL-persistent ?wbView=list|create|detail (default list).
+  // 2026-05-23 · "preview" dropped from union — see comment on View type.
   const [view, setView] = useUrlFilter<View>(
     "wbView", "list",
-    { validate: (v) => (["list", "create", "detail", "preview"].includes(v) ? (v as View) : null) },
+    { validate: (v) => (["list", "create", "detail"].includes(v) ? (v as View) : null) },
   );
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
 
