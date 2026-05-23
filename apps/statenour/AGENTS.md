@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-21 · post /tasks hardening wave · monorepo branch `main`
+> **Last refreshed:** 2026-05-23 · post /tasks upgrade quartet (#7 visual hierarchy · #15 MissionScoreboard · #16 schedule-keeper · #17 task_loop reflection · #18 task-flow eval scenarios) · monorepo branch `main`
 
 ---
 
@@ -24,7 +24,7 @@
 | Reconciliation campaign | v10.0.166 → v10.0.236 | Cron audit waves · API auth audit · component layer audit · Wave A ghost-feeder migration | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 | Post-audit consolidation | v10.0.148 → v10.0.166 | AutomationPolicy registry · explainability envelope · Brier scoring · approval queue · fabrication-defense L1-L5 stack · prompt library scaffold | [`docs/RECONCILIATION.md`](docs/RECONCILIATION.md) |
 
-**Tests:** 1954 tests across 146 vitest files (2026-05-21 · `.next-prod` excluded). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
+**Tests:** 2692 tests across 177 vitest files (2026-05-23 · `.next-prod` excluded · +728 tests +31 files since 2026-05-21 reconcile spanning the 2026-05-22 + 2026-05-23 waves). **Pre-push gate:** the repo-root `.husky/pre-push` hook runs `turbo run build --filter=...[upstream]` — it rebuilds every affected app to catch Next.js prerender errors before Railway. statenour's own full local gate is `pnpm verify:hard` (7 checks: typecheck · lint · test · raw-SQL audit · cron manifest · prompt-size · `prisma validate`).
 
 ---
 

@@ -1,6 +1,73 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-21 (staleness reconcile) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 1954 across 146 vitest files (`.next-prod` now excluded) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) are NOT yet recorded below — backfill pending.
+**Last verified:** 2026-05-23 (post /tasks upgrade quartet + ComparisonMatrix consumer trio) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `fix · statenour · …` · **Tests:** 2692 across 177 vitest files (`.next-prod` excluded · +18 files +728 tests since 2026-05-21 reconcile, spanning the 2026-05-22 autonomous wave + this 2026-05-23 wave) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave (#8 ComparisonMatrix UI · #12 reflection loop · #13 specialist scaffold · #14 eval suite · #2 provider-comparison view · /brain/reflections viewer · +6 eval scenarios) are NOT yet recorded below — backfill pending.
+
+> ## 2026-05-23 · /tasks upgrade quartet · ComparisonMatrix consumer trio completed · 5 ships
+>
+> The original /tasks upgrade plan (5 slices ranked by leverage) shipped
+> in a single autonomous wave. Five commits across 19 files. All four
+> gates green (typecheck · lint · test · pre-push turbo build) on each
+> push. The ComparisonMatrix primitive (task #8) now has its third
+> consumer surface · the pattern proves out: pure derivation helper +
+> dumb component + per-column scoring, reusable across very different
+> domains (decision siblings · provider health · mission scoreboard).
+>
+> **`8f43c3f6` · +4 task-flow eval scenarios (task #18)** — extends
+> the LLM-as-judge regression suite from 16 to 20 scenarios. Adds
+> task-loop-completion-microaction (tone-matching for 5-word loop
+> confirms) · task-overload-one-thing (reduction not sequencing ·
+> distinct from task-ambiguous-priorities) · task-reschedule-with-
+> reason (no moralizing on depleted reschedules) · task-mission-
+> progress-eod (loop-vs-mission domain-model distinction). Contract
+> test validates all 20 JSONs as Zod-strict on every CI run.
+>
+> **`b5f4b947` · /tasks visual hierarchy · agent ADD-ONLY pass (task
+> #7)** — kind-section eyebrow headers in LoopStream (daily · habits ·
+> promises · once · tasks · only when sortKey=urgency + kindFilter=all
+> + non-pinned) + overdue PROMISE rows get a 2px red left stripe on top
+> of existing tint. /journal audited and intentionally untouched — its
+> day-grouped feed + ThreadRadar/Rail/Suggestions stack already
+> provides Evernote-tier hierarchy. Sub-agent (a37168d9) reconnaissance
+> caught the temptation to manufacture journal work and refused.
+>
+> **`ff8f46da` · schedule-keeper specialist · completes the trio (task
+> #16)** — third specialist sub-agent under Nick (alongside
+> financial-analyst · decision-coach) for calendar-shape questions:
+> free blocks · day rhythm · reschedules. Persona is steady-not-chirpy
+> with explicit NO MORALIZING on reschedules. Router refactored from
+> pairwise to cardinality-based keyword pre-filter (`hitCount === 0` →
+> general · `=== 1` → that specialist · `>= 2` → LLM tiebreak) so it
+> scales to N specialists without O(2^N) pairwise branches. New
+> SCHEDULE_SIGNALS regex anchored to "when can i" · "reschedule" ·
+> "free/deep/focus/time block" · "push X to <weekday>". Still soft-
+> launched (ENABLE_SPECIALIST_ROUTING gates the whole layer). New eval
+> scenario specialist-routing-schedule.json proves the contract.
+>
+> **`6fc99da7` · task_loop reflection · extends CoALA cron to task-
+> pattern lanes (task #17)** — two wins: (1) registers TASK_INSIGHT +
+> TASK_PATTERN + ORPHAN_TASKS_NUDGE in BRAIN_CATEGORIES (closes the
+> typo-protection gap · these were hand-typed strings in 4+ files for
+> months · isKnownCategory now returns true). (2) Adds TASK_INSIGHT +
+> TASK_PATTERN to the weekly reflection cron whitelist (auto-learn
+> writes 3-5 task_insight/day · cross-cutting synthesis becomes useful
+> at week scale). New contract test (10 tests) locks the whitelist so
+> drift gets caught.
+>
+> **`189e6bc9` · MissionScoreboard · ComparisonMatrix surface #3 on
+> /tasks (task #15)** — completes the consumer trio. Active missions
+> × {progress · velocity (done today) · overdue · stale (days idle) ·
+> deadline}. Pure derivation in `derive-mission-matrix.ts` (28 unit
+> tests · mirrors derive-provider-matrix.ts pattern · zero React).
+> Component self-fetches via `trpc.task.missions` + `trpc.task.list` ·
+> self-hides when no active user missions with tasks · 60s poll +
+> onDataChanged refresh debounced 500ms. Mounted in IntelPanel between
+> TodaysCompound and CompoundChain — the "missions panorama" beat
+> after today's signal before the multi-day compound view.
+>
+> **Flagged · NOT fixed:**
+> - 358 ESLint `any` warnings still present (pre-existing · non-blocking).
+> - vm_bundles cleanup (#10) still blocked behind a reboot — 20 claude.exe processes hold .vhdx file handles on AppData/Local/Roaming/Claude.
+> - /tasks subtasks (true nesting via `Task.parentTaskId` self-FK) flagged by the agent on #7 — operator must define subtask semantics first. Separate Prisma-migration slice.
 
 > ## 2026-05-21 · staleness deep-dive + reconcile — dead infra, dead code, fossil docs · 5 ships
 >
