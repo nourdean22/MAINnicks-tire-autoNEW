@@ -251,10 +251,10 @@ export default function Contact() {
               <FadeIn delay={0.15}>
                 <div>
                   <h2 className="font-bold text-2xl lg:text-3xl text-foreground tracking-[-0.01em] mb-6">
-                    REQUEST AN <span className="text-primary">APPOINTMENT</span>
+                    DROP IT OFF <span className="text-primary">TODAY</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
-                    Fill out the form and we will call you to confirm your appointment. Or call us directly — walk-ins are always welcome.
+                    Fill out the form and we'll text you back fast. Or just pull up — walk-ins always welcome, 7 days a week.
                   </p>
                   <BookingForm />
                 </div>

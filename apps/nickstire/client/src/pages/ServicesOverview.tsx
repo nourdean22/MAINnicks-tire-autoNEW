@@ -156,7 +156,7 @@ export default function ServicesOverview() {
                 {BUSINESS.phone.display}
               </a>
               <Link href="/contact" className="inline-flex items-center gap-2 border border-foreground/30 text-foreground px-8 py-4 rounded-full font-medium hover:bg-foreground/5 transition-colors">
-                Schedule Online
+                Drop Off Today
                 <ChevronRight className="w-5 h-5" />
               </Link>
             </div>
@@ -209,7 +209,7 @@ export default function ServicesOverview() {
               WHY CLEVELAND DRIVERS CHOOSE US
             </h2>
             <p className="mt-4 text-foreground/70 text-lg leading-relaxed">
-              We do not just fix cars — we build trust. Every repair starts with an honest diagnosis, a clear explanation, and a fair price. No surprises, no hidden fees.
+              We do not just fix cars — we earn trust. Every repair starts with an honest look, a clear explanation, and a fair price. We tell you the cost before we touch anything.
             </p>
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-8">
               <div className="text-center">
@@ -229,7 +229,7 @@ export default function ServicesOverview() {
               <div className="text-center">
                 <Wrench className="w-8 h-8 text-primary mx-auto mb-2" />
                 <span className="font-bold text-2xl text-foreground">ASE</span>
-                <p className="text-foreground/60 text-sm mt-1">Advanced OBD-II diagnostics</p>
+                <p className="text-foreground/60 text-sm mt-1">OBD-II + live data scan tools</p>
               </div>
             </div>
           </div>
@@ -240,10 +240,10 @@ export default function ServicesOverview() {
       <section className="py-16 lg:py-20">
         <div className="container text-center">
           <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight">
-            NEED A REPAIR?
+            GOT A CAR PROBLEM? PULL UP.
           </h2>
           <p className="mt-4 text-foreground/70 text-lg max-w-xl mx-auto">
-            Call us or stop by. We serve Cleveland, Euclid, Lakewood, Parma, and all of Northeast Ohio.
+            Call us, text us, or just pull up. We serve Cleveland, Euclid, Lakewood, Parma, and all of Northeast Ohio.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-4">
             <a

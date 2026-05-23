@@ -26,10 +26,10 @@ const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
 // Service-related keywords to highlight in gold
 const SERVICE_KEYWORDS = [
   "tires", "tire", "brakes", "brake", "oil change", "oil changes",
-  "diagnostics", "diagnostic", "check engine", "emissions", "e-check",
+  "check engine", "emissions", "e-check",
   "alignment", "transmission", "electrical", "exhaust", "muffler",
   "ac repair", "a/c", "battery", "alternator", "starter",
-  "general repair", "repair", "mechanic", "inspection",
+  "general repair", "repair", "mechanic", "check",
   "honest", "fair price", "affordable", "trust", "trustworthy",
 ];
 
@@ -331,7 +331,7 @@ export default function ReviewsPage() {
     <PageLayout activeHref="/reviews" showChat={true}>
       <SEOHead
         title={`Cleveland Auto Repair Reviews · 4.9★ Across ${BUSINESS.reviews.countDisplay} | Nick's Tire & Auto`}
-        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews from Cleveland drivers. The pattern: pulled up not knowing what to expect, walked under the lift to see the worn part, written estimate before any wrench moved, paid less than the dealer quote. ${BUSINESS.phone.display}`}
+        description={`Read ${BUSINESS.reviews.countDisplay} real Google reviews from Cleveland drivers. The pattern: pulled up, walked under the lift, written quote, paid less than the dealer. Free check — you don't pay until you say yes. ${BUSINESS.phone.display}`}
         canonicalPath="/reviews"
       />
       <script
@@ -633,7 +633,7 @@ export default function ReviewsPage() {
                 Ready to <span className="text-[#FDB913]">Experience It</span>?
               </h2>
               <p className="mt-4 text-foreground/60 text-lg max-w-xl mx-auto">
-                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Pull up any day we're open — first-come, first-served — or call for a free estimate.
+                Join thousands of Cleveland drivers who trust Nick's Tire & Auto. Pull up any day we're open — first-come, first-served. Free check, written quote, you don't pay until you say yes.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center flex-wrap">
                 <Link

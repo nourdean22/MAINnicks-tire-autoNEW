@@ -967,20 +967,31 @@ export default function TireFinder() {
               LCP candidate on TireFinder (no above-fold image). Now: starts
               visible; the y:20 animation still plays after first paint. */}
           <motion.div initial={{ opacity: 1, y: 0 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0 }}>
-            <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Cleveland Tire Shop · New + Used · Walk-In or Order Online</span>
+            {/* 2026-05-23 · brand-voice pass — eyebrow leads with Walk-In
+                (the differentiator) · H1 carries eagerness + value-prop in
+                4 words · subhead tightened (killed "complete service
+                package" semi-corporate phrase · "always" → "7 days"
+                specific) · palette green→emerald per canonical 3-signal. */}
+            <span className="text-xs font-medium text-primary tracking-[0.2em] uppercase">Walk-In Tire Shop · Cleveland · New + Used · Order Online Too</span>
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-semibold text-foreground mt-4 leading-[1.1] tracking-tight">
-              Order Tires Online
+              Tires Today. Installed Free.
             </h1>
             <p className="mt-4 text-lg text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              Cleveland's tire shop, online or in-shop. Search your size, pick new or used, we install free with our complete service package — mount, balance, valve stems, alignment check, the works. Walk-ins always welcome. Payment programs approved on the spot — faster than your phone finds a signal.
+              Cleveland's tire shop, online or walk-in. Search your size, pick new or used, we install free — mount, balance, valve stems, alignment check, the works. Walk-ins welcome 7 days. Financing approved on the spot, faster than your phone finds a signal.
             </p>
 
-            {/* Value proposition callout */}
-            <div className="mt-6 inline-flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-full px-4 py-2">
-              <Gift className="w-4 h-4 text-green-400" />
-              <span className="text-sm text-green-400 font-medium">
+            {/* Value proposition callout · canonical emerald per palette */}
+            <div className="mt-6 inline-flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 rounded-full px-4 py-2">
+              <Gift className="w-4 h-4 text-emerald-400" />
+              <span className="text-sm text-emerald-400 font-medium">
                 Free installation package ($289+ value) with every tire purchase
               </span>
+            </div>
+
+            {/* 2026-05-23 · Tire Haiku — three-beat brand anchor mirroring
+                the Repair Haiku from /services. Customer-repeatable. */}
+            <div className="mt-4 text-[12px] text-foreground/60 max-w-xl mx-auto leading-relaxed">
+              Real wholesale prices · Free install package ($289 value) · Same-day on in-stock
             </div>
           </motion.div>
 
@@ -1151,15 +1162,17 @@ export default function TireFinder() {
                     </div>
                   )}
 
-                  {/* Trust strip — Social proof section */}
+                  {/* Trust strip — Social proof + eagerness signals.
+                      2026-05-23 · added "Walk-in OK 7 days" + tightened
+                      "Same-day on in-stock" (more specific · honest). */}
                   <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4 border-y border-foreground/10 text-sm text-foreground/60 mb-8">
                     <span className="flex items-center gap-1.5 whitespace-nowrap">
                       <Star className="w-4 h-4 text-yellow-500 fill-yellow-500 flex-shrink-0" />
                       {BUSINESS.reviews.rating} stars · {BUSINESS.reviews.countDisplay} reviews
                     </span>
+                    <span className="hidden sm:inline">✓ Walk-in OK 7 days</span>
+                    <span className="hidden sm:inline">✓ Same-day on in-stock</span>
                     <span className="hidden sm:inline">✓ Fair prices, no pressure</span>
-                    <span className="hidden sm:inline">✓ All major brands</span>
-                    <span className="hidden sm:inline">✓ Same-day installation</span>
                   </div>
                   {/* Catalog-fallback disclaimer — DK Tire migrated their
                       B2B portal to a static SPA in 2026; the old auth
