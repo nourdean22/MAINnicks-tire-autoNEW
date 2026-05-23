@@ -75,7 +75,7 @@ export function ConesBlock() {
                 </div>
                 <div>
                   <div className="font-bold text-foreground text-sm tracking-wide">DROP IT OFF</div>
-                  <div className="text-foreground/55 text-[12px] mt-1 leading-snug">For brakes, diagnostics, anything bigger.</div>
+                  <div className="text-foreground/55 text-[12px] mt-1 leading-snug">For brakes, check-engine, anything bigger.</div>
                 </div>
               </div>
               <div className="flex flex-col items-start gap-2">

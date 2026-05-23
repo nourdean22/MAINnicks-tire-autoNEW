@@ -94,7 +94,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "urg-1",
     strategy: "urgency",
-    text: "Same-day brake inspections available — call before 2 PM to get in today",
+    text: "Free brake check on the spot — walk in any time before close",
     cta: "Get In Today",
     ctaHref: BUSINESS.phone.href,
     icon: <Clock className="w-4 h-4" />,
@@ -175,7 +175,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "auth-1",
     strategy: "authority",
-    text: "Advanced OBD-II diagnostics — we pinpoint the exact problem before you pay for anything",
+    text: "OBD-II + live data — we tell you exactly what's wrong before you pay for anything",
     icon: <Shield className="w-4 h-4" />,
   },
   {
@@ -217,7 +217,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "val-1",
     strategy: "value_anchor",
-    text: "Dealership diagnostic fee: $150+. Our diagnostic: find the real problem at a fair price.",
+    text: "Dealership check-out fee: $150+. Our check: find the real problem at a fair price.",
     cta: "Skip the Markup",
     ctaHref: BUSINESS.phone.href,
     icon: <Zap className="w-4 h-4" />,

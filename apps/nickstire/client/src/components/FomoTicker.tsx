@@ -25,7 +25,7 @@ const FALLBACK_ENTRIES: FomoEntry[] = [
   { type: "completed", message: "A 2020 Honda CR-V just got used tires — in and out in 18 minutes", minutesAgo: 5 },
   { type: "booking", message: "Someone in Euclid just booked a drop-off for brake repair", minutesAgo: 8 },
   { type: "completed", message: "A 2018 Chevy Equinox owner never left the car — tire swap done", minutesAgo: 11 },
-  { type: "booking", message: "Someone in Parma just scheduled a drop-off for diagnostics", minutesAgo: 4 },
+  { type: "booking", message: "Someone in Parma just dropped off for a check-engine scan", minutesAgo: 4 },
   { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Didn't even get out of my car. They came out, fixed it, brought the receipt. Amazing.\"", minutesAgo: 25 },
   { type: "completed", message: "A 2021 Toyota Camry just got brakes done — dropped off this morning", minutesAgo: 15 },
   { type: "review", message: "\u2605\u2605\u2605\u2605\u2605 \"Best tire shop in Cleveland. Used tire mounted, in and out before my coffee got cold.\"", minutesAgo: 40 },

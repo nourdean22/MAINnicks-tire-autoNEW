@@ -24,7 +24,7 @@ export default function ApprovalPromiseBlock({ variant = "full" }: ApprovalPromi
       <div className="flex flex-wrap items-center gap-3">
         <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
         <span className="text-xs text-foreground/60 font-medium">
-          Free estimate · Price locked at approval · No surprise bills
+          Free check · Written quote · You don't pay until you say yes
         </span>
       </div>
     );
