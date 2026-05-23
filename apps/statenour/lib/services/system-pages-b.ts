@@ -147,6 +147,11 @@ export async function buildVapiCallStats(opts: {
   }
 
   try {
+    // 2026-05-23 · Wave C · S1 · was a fetch with no AbortSignal ·
+    // a stalled VAPI API hung the /system dashboard render for the
+    // full Next.js function timeout (60s) before erroring, blanking
+    // the entire page. 8s timeout matches the bridge.ts:59 pattern
+    // already in use elsewhere in this file.
     const r = await fetch(
       `https://api.vapi.ai/call?limit=100&createdAtGt=${encodeURIComponent(
         since.toISOString(),
@@ -154,6 +159,7 @@ export async function buildVapiCallStats(opts: {
       {
         headers: { Authorization: `Bearer ${apiKey}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
       },
     );
     if (!r.ok) {
