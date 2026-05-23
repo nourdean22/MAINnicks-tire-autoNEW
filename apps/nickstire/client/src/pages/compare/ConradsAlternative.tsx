@@ -14,8 +14,8 @@ export default function ConradsAlternative() {
       primary={COMPETITORS.conrads}
       slug="conrads-tire-alternative-cleveland"
       seoTitle="Conrad's Tire Alternative Cleveland · Open Sundays | Nick's"
-      seoDescription="Tired of Conrad's? Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $40 installed. Written estimate before any wrench moves."
-      intro="Conrad's has been Cleveland's tire chain since 1934. Nothing wrong with that. They've got 37 locations, full-service repair, established financing. They're also closed Sunday, want an appointment, and won't sell you a used tire. Nick's Tire & Auto on Euclid Ave is what the chain isn't: walk-in any day we're awake including Sundays, used tires from $40 installed, the estimate in writing before any wrench moves. Same Euclid Ave you've driven past a hundred times. Yellow sign. Real address. Mechanic on duty."
+      seoDescription="Tired of Conrad's? Nick's Tire & Auto on Euclid Ave is open 7 days, walk-in any time, used tires from $40 installed. Free check. Written quote. You don't pay until you say yes."
+      intro="Conrad's has been Cleveland's tire chain since 1934. Nothing wrong with that. They've got 37 locations, full-service repair, established financing. They're also closed Sunday, want an appointment, and won't sell you a used tire. Nick's Tire & Auto on Euclid Ave is what the chain isn't: walk-in any day we're awake including Sundays, used tires from $40 installed, the quote in writing before any wrench moves. Same Euclid Ave you've driven past a hundred times. Yellow sign. Real address. Mechanic on duty. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Why do Cleveland drivers switch from Conrad's to Nick's?",
@@ -31,7 +31,7 @@ export default function ConradsAlternative() {
         },
         {
           question: "Does Conrad's still sell used tires? What about Nick's?",
-          answer: "Conrad's sells new tires only — that's been the chain's policy for years. Nick's sells used tires from $40 installed, every used tire passes a 4-point inspection (tread depth, sidewall, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
+          answer: "Conrad's sells new tires only — that's been the chain's policy for years. Nick's sells used tires from $40 installed, every used tire gets a 4-point check (tread depth, sidewall, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "How long is the wait at Nick's vs Conrad's?",

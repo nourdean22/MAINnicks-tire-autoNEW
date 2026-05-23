@@ -136,7 +136,7 @@ export const BUSINESS = {
     display: "First come, first serve",
     walkIns: "Walk-ins welcome 7 days a week",
     dropOffs: "Drop-offs preferred — same day service",
-    freeInspections: "Free quick inspections",
+    freeInspections: "Free quick checks",
     noAppointment: "No appointment needed",
   },
 
@@ -189,7 +189,7 @@ export const BUSINESS = {
   // ─── SEO ─────────────────────────────────────────
   seo: {
     titleSuffix: " | Nick's Tire & Auto — Cleveland, OH",
-    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Check engine light diagnostics, brake repair, tires, emissions, and more. Serving Cleveland, Euclid, and Northeast Ohio. $10 down, drive today.",
+    defaultDescription: "Honest auto repair and tire service in Cleveland, OH. Free check, written quote, you don't pay until you say yes. Brakes, tires, check-engine light, emissions. Serving Cleveland, Euclid, and Northeast Ohio. $10 down.",
   },
 } as const;
 

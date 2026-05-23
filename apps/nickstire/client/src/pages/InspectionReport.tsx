@@ -232,7 +232,7 @@ export default function InspectionReport() {
             <div className="bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 mb-8 text-center">
               <span className="font-mono text-foreground/40 text-xs uppercase">Estimated Total for Recommended Repairs</span>
               <p className="font-bold text-4xl text-primary mt-2">${summary.totalCost.toLocaleString()}</p>
-              <p className="text-foreground/50 text-sm mt-2">Final pricing confirmed after approval. No work starts without your OK.</p>
+              <p className="text-foreground/50 text-sm mt-2">Final number lands after you say yes. No work starts without your OK.</p>
             </div>
           )}
 

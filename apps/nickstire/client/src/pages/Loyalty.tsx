@@ -140,7 +140,7 @@ export default function Loyalty() {
     <PageLayout activeHref="/rewards" showChat={true}>
       <SEOHead
         title="Rewards Program | Nick's Tire & Auto — Cleveland, OH"
-        description="Earn points on every service at Nick's Tire & Auto. Redeem for discounts on future repairs. Cleveland's most rewarding auto shop."
+        description="Earn points on every service at Nick's Tire & Auto. Redeem for discounts on future repairs. Real rewards, no fine print."
         canonicalPath="/rewards"
       />
       <Breadcrumbs items={[{ label: "Rewards", href: "/rewards" }]} />

@@ -15,7 +15,7 @@ export default function BestTireShopsCleveland() {
       seoTitle="Best Tire Shops Cleveland · 7 Honest Picks Ranked | Nick's"
       seoDescription="The honest ranking of Cleveland tire shops. Nick's, Conrad's, Mavis, Discount Tire, Firestone, Monro, Big O — sorted by walk-in policy, Sunday hours, used tire access."
       h1="Best tire shops in Cleveland — the honest ranking"
-      intro="Most 'best tire shops in Cleveland' lists are paid placement or copied off Yelp. This one's different. Below: seven shops Cleveland drivers actually use, ranked by what matters when you actually need work done — walk-in availability, Sunday hours, written-estimate-before-the-wrench, used tire access, and how often the receipt matches the verbal quote. Nick's leads on those axes. The chains lead on location count and warranty paperwork. You decide which matters more for your car."
+      intro="Most 'best tire shops in Cleveland' lists are paid placement or copied off Yelp. This one's different. Below: seven shops Cleveland drivers actually use, ranked by what matters when you actually need work done — walk-in availability, Sunday hours, written quote before any wrench moves, used tire access, and how often the receipt matches the verbal. Nick's leads on those axes. The chains lead on location count and warranty paperwork. We publish the prices, you walk in any day, you see for yourself. Free check. Written quote. You don't pay until you say yes."
       roundupCompetitors={[
         COMPETITORS.conrads,
         COMPETITORS["discount-tire"],
@@ -35,11 +35,11 @@ export default function BestTireShopsCleveland() {
         },
         {
           question: "Where can I find used tires in Cleveland?",
-          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $40 installed. Every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date). If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
+          answer: "Most chains don't sell used tires — corporate policy. Nick's Tire & Auto sells used tires from $40 installed. Every used tire gets a 4-point check (tread depth, sidewall integrity, bead seat, age date). If a used tire is wrong for your car, we say so and put new ones on instead. Honesty is the floor.",
         },
         {
           question: "Which tire shop in Cleveland writes the estimate before starting work?",
-          answer: "Nick's does — every visit, in writing, before any wrench moves. Most chains start work after a verbal quote and the written total appears on the final invoice, sometimes higher than the verbal. We hand you the estimate before installation. New things found mid-job get a second authorization before any additional work — never a surprise on the final bill.",
+          answer: "Nick's does — every visit, in writing, before any wrench moves. Most chains start work after a verbal quote and the written total appears on the final invoice, sometimes higher than the verbal. We hand you the quote before installation. If we find something else mid-job, we stop and ask before touching it. You see the cost before we move.",
         },
         {
           question: "How do I pick between Nick's and the chains?",

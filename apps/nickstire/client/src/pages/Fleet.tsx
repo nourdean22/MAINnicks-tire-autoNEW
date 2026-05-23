@@ -160,7 +160,7 @@ export default function Fleet() {
               <span className="text-primary">Cleveland Businesses</span> Moving
             </h1>
             <p className="mt-5 text-foreground/70 text-lg max-w-2xl mx-auto">
-              Priority service, volume pricing, and dedicated account management for fleets of every size. Keep your vehicles on the road and your costs predictable.
+              Volume pricing, jump-the-line scheduling, one person who knows your fleet. Keep your trucks rolling, keep your costs steady.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-4 stagger-in justify-center">
               <a
@@ -225,7 +225,7 @@ export default function Fleet() {
                 {[
                   "Volume discounts on tires and parts",
                   "Flat-rate preventive maintenance packages",
-                  "No diagnostic fees for fleet vehicles",
+                  "No check-out fees on fleet vehicles",
                   "Free loaner coordination for extended repairs",
                 ].map((item) => (
                   <li key={item} className="flex items-start gap-3 stagger-in">

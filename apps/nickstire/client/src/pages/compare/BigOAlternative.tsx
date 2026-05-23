@@ -11,9 +11,9 @@ export default function BigOAlternative() {
       format="alternative"
       primary={COMPETITORS["big-o"]}
       slug="big-o-tires-alternative-cleveland"
-      seoTitle="Big O Tires Alternative Cleveland · Closer, Honest, Open Sundays | Nick's"
-      seoDescription="Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the estimate in writing before any wrench moves."
-      intro="Big O Tires runs decent house-brand tire warranties — Big Foot, Legacy lines, road hazard programs. The catch in Cleveland: Big O's footprint is thin here. A handful of stores serving Greater Cleveland. If the closest Big O is 20 miles away and you're on the East Side, Nick's Tire & Auto on Euclid Ave is closer, open later, open Sunday, and willing to sell you a used tire from $40 if a used tire fits. Yellow sign on Euclid Ave. Real address. Phone answered by an actual person."
+      seoTitle="Big O Tires Alternative Cleveland · Open 7 Days | Nick's"
+      seoDescription="Big O has only a handful of Cleveland locations. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires from $40, the quote in writing before any wrench moves."
+      intro="Big O Tires runs decent house-brand tire warranties — Big Foot, Legacy lines, road hazard programs. The catch in Cleveland: Big O's footprint is thin here. A handful of stores serving Greater Cleveland. If the closest Big O is 20 miles away and you're on the East Side, Nick's Tire & Auto on Euclid Ave is closer, open later, open Sunday, and willing to sell you a used tire from $40 if a used tire fits. Yellow sign on Euclid Ave. Real address. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Is Big O Tires worth the drive in Cleveland?",
@@ -25,7 +25,7 @@ export default function BigOAlternative() {
         },
         {
           question: "Why are Big O prices higher than Nick's on most installs?",
-          answer: "Chain pricing structure. Corporate sets labor rates, shop fees, parts markup. Single-location independents like Nick's set our own rates and we keep them honest because we live in the same neighborhood as our customers. The estimate hits your hand in writing before the wrench moves. No surprise checkout math.",
+          answer: "Chain pricing structure. Corporate sets labor rates, shop fees, parts markup. Single-location independents like Nick's set our own rates and we keep them honest because we live in the same neighborhood as our customers. The quote hits your hand in writing before the wrench moves. We tell you the cost before we touch anything.",
         },
         {
           question: "Is Big O open Sundays in Cleveland?",

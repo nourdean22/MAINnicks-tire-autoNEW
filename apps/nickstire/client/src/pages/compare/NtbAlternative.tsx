@@ -11,9 +11,9 @@ export default function NtbAlternative() {
       format="alternative"
       primary={COMPETITORS.ntb}
       slug="ntb-alternative-cleveland"
-      seoTitle="NTB Alternative Cleveland · After the Mavis Acquisition | Nick's"
-      seoDescription="NTB became Mavis in 2021. Same surprise-checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $40, estimate up front."
-      intro="NTB used to be its own brand. Mavis acquired NTB in 2021 and has been folding NTB stores into the Mavis banner ever since. If your last decent visit at NTB was before 2021, the shop you're remembering doesn't really exist anymore — it's a Mavis with NTB signage. Same surprise-charge-at-checkout pattern as everywhere else in the Mavis system. Same Sunday closures. Nick's Tire & Auto on Euclid Ave: still independent, still mechanic-owned, still walk-in 7 days, still hands you the estimate in writing before the wrench moves. Used tires from $40 installed when a used tire fits. Yellow sign. Real address."
+      seoTitle="NTB Alternative Cleveland · Post-Mavis Acquisition | Nick's"
+      seoDescription="NTB became Mavis in 2021. Same checkout pattern, same closed Sundays. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, used tires $40, quote up front."
+      intro="NTB used to be its own brand. Mavis acquired NTB in 2021 and has been folding NTB stores into the Mavis banner ever since. If your last decent visit at NTB was before 2021, the shop you're remembering doesn't really exist anymore — it's a Mavis with NTB signage. Same checkout-math pattern as everywhere else in the Mavis system. Same Sunday closures. Nick's Tire & Auto on Euclid Ave: still independent, still mechanic-owned, still walk-in 7 days, still hands you the quote in writing before the wrench moves. Used tires from $40 installed when a used tire fits. Free check. Written quote. You don't pay until you say yes."
       extraFaqs={[
         {
           question: "Is NTB still NTB after the Mavis acquisition?",
@@ -25,7 +25,7 @@ export default function NtbAlternative() {
         },
         {
           question: "Does Nick's accept old NTB warranties?",
-          answer: "Honor warranties at the shop that wrote them. NTB warranties are honored by NTB / Mavis stores. If you've got a transferable manufacturer tire warranty (Bridgestone, Michelin, etc.), Nick's can install replacement tires under that warranty on your visit — same as any tire shop. The labor and install we'll quote in writing before the wrench moves.",
+          answer: "Honor warranties at the shop that wrote them. NTB warranties are honored by NTB / Mavis stores. If you've got a transferable manufacturer tire warranty (Bridgestone, Michelin, etc.), Nick's can install replacement tires under that warranty on your visit — same as any tire shop. The labor and install we put in writing before any wrench moves — you don't pay until you say yes.",
         },
         {
           question: "Is Nick's open Sundays when NTB is closed?",
