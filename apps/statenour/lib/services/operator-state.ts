@@ -92,6 +92,76 @@ export function inferMood(input: {
   return "neutral";
 }
 
+/**
+ * Wave W Phase 3 · 2026-05-24 · landing-surface recommendation.
+ *
+ * Pure function · maps operator-state snapshot to ONE suggested
+ * surface to start on. Used by the HQ "Today, start here →" chip ·
+ * the chip is a hint, NOT an auto-redirect (reversibility · operator
+ * still owns the click).
+ *
+ * Mapping rules (priority order · first match wins):
+ *   1. drift >= 0.6 (scattered)        → /system  · triage the noise
+ *   2. capacity <= 0.25 (depleted)     → /journal · reflect/recover
+ *   3. mood == "energized" + momentum  → /tasks   · ride the wave
+ *   4. focus < 0.3 + capacity > 0.5    → /brain/board · low-focus
+ *                                          high-capacity = strategy
+ *   5. fallback                         → /tasks   · default
+ *
+ * Pure · no side effects · easy to unit-test the boundaries.
+ */
+export type LandingSurface =
+  | "/tasks"
+  | "/journal"
+  | "/system"
+  | "/brain/board";
+
+export interface LandingRecommendation {
+  surface: LandingSurface;
+  reason: string;
+}
+
+export function chooseLanding(snapshot: {
+  focus: number;
+  capacity: number;
+  drift: number;
+  momentum: number;
+  mood: MoodTag;
+  confidence: number;
+}): LandingRecommendation | null {
+  // Low confidence · don't pretend to know · let operator land
+  // wherever they normally land.
+  if (snapshot.confidence < 0.3) return null;
+
+  if (snapshot.drift >= 0.6) {
+    return {
+      surface: "/system",
+      reason: "drift is high · triage open work before adding more",
+    };
+  }
+  if (snapshot.capacity <= 0.25) {
+    return {
+      surface: "/journal",
+      reason: "capacity is low · reflect before pushing more output",
+    };
+  }
+  if (snapshot.mood === "energized" && snapshot.momentum >= 0.5) {
+    return {
+      surface: "/tasks",
+      reason: "energy + momentum · ride the wave",
+    };
+  }
+  if (snapshot.focus < 0.3 && snapshot.capacity > 0.5) {
+    return {
+      surface: "/brain/board",
+      reason: "low focus, high capacity · use the multi-advisor board",
+    };
+  }
+  // Neutral state · default to /tasks (the daily-driver) ·
+  // operator chip can still show but with a soft "default" reason.
+  return null;
+}
+
 // ── Component computations ─────────────────────────────────────
 
 /**

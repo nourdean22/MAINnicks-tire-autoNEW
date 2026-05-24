@@ -2647,6 +2647,31 @@ export const systemRouter = router({
   }),
 
   /**
+   * Wave W Phase 3 · 2026-05-24 · landing-surface recommendation.
+   *
+   * Pulls the current operator-state snapshot through `chooseLanding`
+   * (pure function in lib/services/operator-state.ts). Returns a
+   * single `{ surface, reason }` or null when the snapshot has
+   * insufficient confidence to recommend.
+   *
+   * Substrate-only this wave · UI placement decision deferred to
+   * the /chat wave when the homepage gets a redesign. Future
+   * consumers: a "Today, start here →" chip on HQ · a Cmd+K
+   * "today" command · a morning-brief paragraph opener.
+   */
+  landingRecommendation: operatorProcedure.query(async () => {
+    try {
+      const snapshot = await currentOperatorState();
+      const { chooseLanding } = await import(
+        "@/lib/services/operator-state"
+      );
+      return chooseLanding(snapshot);
+    } catch {
+      return null;
+    }
+  }),
+
+  /**
    * task #22 slice 5.5 · judge-eval calibration metric.
    *
    * Returns agreement % between the LLM judge's verdicts and the

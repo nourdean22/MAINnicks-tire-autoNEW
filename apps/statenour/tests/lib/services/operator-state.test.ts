@@ -19,6 +19,7 @@ import {
   computeDrift,
   computeMomentum,
   inferMood,
+  chooseLanding,
 } from "@/lib/services/operator-state";
 
 // ── computeFocus ───────────────────────────────────────────────
@@ -264,5 +265,68 @@ describe("currentOperatorState · integration smoke", () => {
     // Should not throw · degraded snapshot returned
     expect(state.mood).toBeDefined();
     expect(state.confidence).toBe(0);
+  });
+});
+
+// ── chooseLanding · Wave W Phase 3 · landing-surface recommendation ──
+
+describe("chooseLanding · 2026-05-24 Wave W Phase 3", () => {
+  const base = {
+    focus: 0.5,
+    capacity: 0.5,
+    drift: 0.3,
+    momentum: 0.5,
+    mood: "neutral" as const,
+    confidence: 0.7,
+  };
+
+  it("returns null when confidence is too low to recommend", () => {
+    expect(chooseLanding({ ...base, confidence: 0.1 })).toBeNull();
+  });
+
+  it("recommends /system when drift is high (scattered)", () => {
+    const rec = chooseLanding({ ...base, drift: 0.7, mood: "scattered" });
+    expect(rec?.surface).toBe("/system");
+    expect(rec?.reason).toMatch(/drift/);
+  });
+
+  it("recommends /journal when capacity is depleted", () => {
+    const rec = chooseLanding({ ...base, capacity: 0.2, mood: "depleted" });
+    expect(rec?.surface).toBe("/journal");
+    expect(rec?.reason).toMatch(/capacity|reflect/);
+  });
+
+  it("recommends /tasks when energized + momentum", () => {
+    const rec = chooseLanding({
+      ...base,
+      focus: 0.7,
+      momentum: 0.6,
+      mood: "energized",
+    });
+    expect(rec?.surface).toBe("/tasks");
+    expect(rec?.reason).toMatch(/momentum|wave/);
+  });
+
+  it("recommends /brain/board on low-focus high-capacity (strategy time)", () => {
+    const rec = chooseLanding({ ...base, focus: 0.2, capacity: 0.7 });
+    expect(rec?.surface).toBe("/brain/board");
+    expect(rec?.reason).toMatch(/board|focus/);
+  });
+
+  it("returns null for neutral steady-state (no specific signal)", () => {
+    // Default base · no rule hits · null fallback by design.
+    expect(chooseLanding(base)).toBeNull();
+  });
+
+  it("priority order · drift wins over depletion", () => {
+    // Both drift AND low capacity · drift triggers first (system over
+    // journal). Per the docstring: rule ordering is intentional.
+    const rec = chooseLanding({
+      ...base,
+      drift: 0.7,
+      capacity: 0.2,
+      mood: "scattered",
+    });
+    expect(rec?.surface).toBe("/system");
   });
 });
