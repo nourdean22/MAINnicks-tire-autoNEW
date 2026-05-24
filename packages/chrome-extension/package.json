@@ -1,0 +1,13 @@
+{
+  "name": "@statenour/chrome-extension",
+  "version": "0.1.0",
+  "description": "Statenour brain-capture Chrome extension · MV3 · F1 brain dump from anywhere via Cmd+Shift+B",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.0"
+  }
+}
