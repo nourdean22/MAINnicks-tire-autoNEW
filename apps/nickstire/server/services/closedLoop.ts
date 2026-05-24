@@ -142,6 +142,52 @@ const RESOLVERS: Record<string, MetricResolver> = {
     const rows = (Array.isArray(r) && Array.isArray(r[0]) ? r[0] : r) as Array<{ total: number | null }>;
     return rows[0]?.total ?? 0;
   },
+
+  /**
+   * Service Affinity v2 · A/B-tested booking-rate lift over last 14d.
+   *
+   * Numerator · prediction_outcomes.matched=1 rows where the parent
+   * prediction had ab_arm='treatment' AND was created in window.
+   * Denominator · total treatment-arm predictions created in window.
+   * Returns 0-100 percent · the booking rate from acted-upon (treatment)
+   * predictions.
+   *
+   * The cron auto-records baseline once a control group exists too ·
+   * the A/B comparison is lift-vs-baseline, NOT cross-arm. Future
+   * extension · separate treatment / control resolvers + a lift
+   * resolver that joins them.
+   *
+   * Per docs/2026-05-24-service-affinity-v2.md §2.3 (CLOSED LOOP) ·
+   * Wave 2. Requires migration 0061_service_affinity_v2.sql applied.
+   *
+   * Self-resilient · returns 0 if the new tables don't exist yet (DB
+   * error caught at caller via try/catch · matches the resilience
+   * pattern in vapi_convert_rate_14d above).
+   */
+  service_affinity_acted_to_revenue_14d: async () => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return 0;
+    try {
+      const r = await d.execute(sql`
+        SELECT
+          COUNT(*) AS total,
+          SUM(CASE WHEN po.matched = 1 THEN 1 ELSE 0 END) AS booked
+        FROM service_affinity_predictions sap
+        LEFT JOIN prediction_outcomes po ON po.prediction_id = sap.id
+        WHERE sap.ab_arm = 'treatment'
+          AND sap.created_at >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+      `);
+      const rows = (Array.isArray(r) && Array.isArray(r[0]) ? r[0] : r) as Array<{ total: number; booked: number | null }>;
+      const row = rows[0];
+      if (!row || !row.total) return 0;
+      return Math.round(((row.booked ?? 0) / row.total) * 10000) / 100;
+    } catch {
+      // Tables not yet applied to this environment · graceful 0
+      return 0;
+    }
+  },
 };
 
 export function listRegisteredMetrics(): string[] {
