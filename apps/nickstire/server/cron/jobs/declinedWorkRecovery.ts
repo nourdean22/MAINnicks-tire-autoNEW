@@ -206,8 +206,13 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
 
   // LIVE send path — feature-flagged on
   const { sendSms } = await import("../../sms");
+  // wave-181.110 · 5×3 sequence touch counters · maintain legacy 7d/30d
+  // for Telegram summary continuity, add 3d/14d/45d.
+  let sent3d = 0;
   let sent7d = 0;
+  let sent14d = 0;
   let sent30d = 0;
+  let sent45d = 0;
   let skippedOptOut = 0;
   let skippedNoPhone = 0;
   let perRowErrors = 0;
@@ -295,7 +300,10 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
   // where the personalization investment pays off · operator runs see the
   // estimates most likely to convert sent first · stale-but-low-score
   // rows naturally roll forward to subsequent runs.
-  const { scoreEstimateForRecovery, buildPersonalizedRecoveryMessage } = await import("../../services/recoveryTargeting");
+  const { scoreEstimateForRecovery } = await import("../../services/recoveryTargeting");
+  // wave-181.110 · 5×3 sequence (3d/7d/14d/30d/45d × 3 profiles)
+  const { pickProfile, buildSequenceMessage, TOUCH_ORDER, touchToDays, variantKey } =
+    await import("../../services/declinedRecoverySequence");
   type EstRow = typeof unmatched[number];
   type Ranked = { est: EstRow; customer: CustomerCtx | null; score: number };
   const ranked: Ranked[] = unmatched
@@ -312,8 +320,12 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
     })
     .sort((a: Ranked, b: Ranked) => b.score - a.score);
 
+  // Per-touch counter (mutated by sendOneTouch)
+  const sentByTouch: Record<string, number> = { "3d": 0, "7d": 0, "14d": 0, "30d": 0, "45d": 0 };
+  const totalSentSoFar = () => sentByTouch["3d"] + sentByTouch["7d"] + sentByTouch["14d"] + sentByTouch["30d"] + sentByTouch["45d"];
+
   for (const { est, customer } of ranked) {
-    if (sent7d + sent30d >= MAX_SMS_PER_RUN) {
+    if (totalSentSoFar() >= MAX_SMS_PER_RUN) {
       log.info(`[declined-recovery] hit per-run cap of ${MAX_SMS_PER_RUN} sends, stopping early`);
       break;
     }
@@ -338,126 +350,124 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
       }
 
       const ageMs = now.getTime() - est.estimateDate.getTime();
+      const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
       const name = firstName(est.customerName);
       const amount = est.estimatedAmount || 0;
 
       // wave-181.51 — persist outbound sends to sms_messages so the
       // /admin SMS Performance tile can read reply + conversion rates.
-      // Pre-181.51 these sends were invisible because sendSms() only
-      // persists delayed/queued messages — immediate sends bypassed
-      // the table entirely.
       const { logOutboundSms } = await import("../../services/smsInstrumentation");
 
-      // 30-day follow-up takes precedence (more urgent)
-      if (ageMs >= 30 * 24 * 60 * 60 * 1000 && !est.followUp30dSent) {
-        // wave-181.59 · at-most-once claim. Stamp AttemptedAt BEFORE
-        // sending — if this UPDATE wins (affectedRows=1) we own the
-        // attempt; a crash mid-send leaves AttemptedAt set so the next
-        // cron run will not re-send. affectedRows=0 means a peer
-        // process (multi-instance) or a prior crashed attempt already
-        // claimed the row; either way we skip. Pattern mirrors
-        // routers/campaigns.ts send() draft→active claim.
-        const claimResult = await d
-          .update(algEstimates)
-          .set({ followUp30dAttemptedAt: new Date() })
-          .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp30dAttemptedAt)));
-        // wave-181.64 (bug-hunter) · check BOTH `affectedRows` (mysql2)
-        // and `rowsAffected` (planetscale/d1/serverless) so a future
-        // driver swap doesn't silently turn every claim into a no-op.
-        // Mirror the pattern used in server/sms.ts rehydrate.
-        const claimRaw = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
-          ? claimResult[0]
-          : claimResult) as { affectedRows?: number; rowsAffected?: number };
-        const claimed = claimRaw.affectedRows ?? claimRaw.rowsAffected ?? 0;
-        if (claimed === 0) {
-          log.info(`[declined-recovery] 30d claim lost for estimate ${est.id} (peer or prior attempt)`);
-          continue;
-        }
-
-        // wave-181.82 · personalized message · vehicle reference + repeat-
-        // customer warmth + service-category language. Falls back to the
-        // generic template when customer data is missing (preload may not
-        // have matched · function is tolerant). 2× engagement lift vs the
-        // generic copy per the Gates-lens analysis at wave-181.80.
-        const body = buildPersonalizedRecoveryMessage({
-          tier: "30d",
-          name,
+      // wave-181.110 · Profile resolution · sticky per estimate.
+      // Reads cached est.recoveryProfile first; if null, computes via
+      // pickProfile() and writes back so subsequent touches stay
+      // consistent even if customer signals shift.
+      type ProfileCode = "P1" | "P2" | "P3";
+      let profile: ProfileCode = (est.recoveryProfile as ProfileCode | null) ?? null as unknown as ProfileCode;
+      if (!profile) {
+        profile = pickProfile({
           amountCents: amount,
           serviceDescription: est.serviceDescription,
-          customer,
+          totalVisits: customer?.totalVisits ?? 0,
+          vehicleMake: customer?.vehicleMake ?? null,
+          vehicleYear: customer?.vehicleYear ?? null,
+          declineRate: null, // pre-181.110 declineRate not yet wired · null = use other signals
+          customerType: null,
         });
-        // wave-181.46 · route through F25e gateway (Twilio dead per operator)
-        const res = await sendSms(est.customerPhone, body, { via: "shop" });
-        // Log to sms_messages regardless of success — failed sends matter
-        // for failure-rate analysis. variantKey is "declined_d30" so the
-        // admin tile can break out tier-level stats.
-        await logOutboundSms(est.customerPhone, body, res.sid, "declined_d30");
-        if (res.success) {
-          await d
-            .update(algEstimates)
-            .set({ followUp30dSent: 1, followUp30dSentAt: new Date() })
-            .where(eq(algEstimates.id, est.id));
-          sent30d++;
-          log.info(`30d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
-        } else {
-          log.error(`[declined-recovery] 30d send failed after claim for estimate ${est.id}`, {
-            error: res.error ?? "unknown",
-          });
-          // AttemptedAt is set; row will not re-send. Manual review:
-          //   SELECT id, customer_phone, follow_up_30d_attempted_at
-          //   FROM alg_estimates
-          //   WHERE follow_up_30d_attempted_at IS NOT NULL AND follow_up_30d_sent = 0;
+        // Persist for future touches (don't fail the loop if write errors)
+        try {
+          await d.update(algEstimates).set({ recoveryProfile: profile }).where(eq(algEstimates.id, est.id));
+        } catch (e) {
+          log.warn(`[declined-recovery] profile persist failed for ${est.id}`, { error: e instanceof Error ? e.message : String(e) });
         }
-        continue;
       }
 
-      // 7-day follow-up
-      if (ageMs >= 7 * 24 * 60 * 60 * 1000 && !est.followUp7dSent) {
-        // wave-181.59 · at-most-once claim (see 30d branch above)
-        const claimResult = await d
-          .update(algEstimates)
-          .set({ followUp7dAttemptedAt: new Date() })
-          .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp7dAttemptedAt)));
-        // wave-181.64 (bug-hunter) · check BOTH `affectedRows` (mysql2)
-        // and `rowsAffected` (planetscale/d1/serverless) so a future
-        // driver swap doesn't silently turn every claim into a no-op.
-        // Mirror the pattern used in server/sms.ts rehydrate.
+      // wave-181.110 · 5-touch loop · process highest-priority unattempted
+      // touch per estimate per cron run · TOUCH_ORDER = ["30d","14d","7d","45d","3d"].
+      // Stops after one send per estimate so the daily cap of 20 spreads
+      // across more customers, not five touches to one customer in one run.
+      let touchSentThisRun = false;
+      for (const touch of TOUCH_ORDER) {
+        const days = touchToDays(touch);
+        if (ageDays < days) continue;
+
+        // Read the per-touch sent + attempted columns by name
+        const sentCol = `followUp${touch}Sent` as keyof typeof est;
+        const attemptedCol = `followUp${touch}AttemptedAt` as keyof typeof est;
+        if ((est as unknown as Record<string, number>)[sentCol as string]) continue;
+        if ((est as unknown as Record<string, Date | null>)[attemptedCol as string]) continue;
+
+        // wave-181.59 · at-most-once claim · stamp AttemptedAt BEFORE send.
+        // Branch on touch since drizzle .set() needs static column names.
+        let claimResult: unknown;
+        if (touch === "3d") {
+          claimResult = await d.update(algEstimates).set({ followUp3dAttemptedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp3dAttemptedAt)));
+        } else if (touch === "7d") {
+          claimResult = await d.update(algEstimates).set({ followUp7dAttemptedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp7dAttemptedAt)));
+        } else if (touch === "14d") {
+          claimResult = await d.update(algEstimates).set({ followUp14dAttemptedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp14dAttemptedAt)));
+        } else if (touch === "30d") {
+          claimResult = await d.update(algEstimates).set({ followUp30dAttemptedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp30dAttemptedAt)));
+        } else {
+          claimResult = await d.update(algEstimates).set({ followUp45dAttemptedAt: new Date() })
+            .where(and(eq(algEstimates.id, est.id), isNull(algEstimates.followUp45dAttemptedAt)));
+        }
         const claimRaw = (Array.isArray(claimResult) && claimResult[0] && typeof claimResult[0] === "object"
           ? claimResult[0]
           : claimResult) as { affectedRows?: number; rowsAffected?: number };
         const claimed = claimRaw.affectedRows ?? claimRaw.rowsAffected ?? 0;
         if (claimed === 0) {
-          log.info(`[declined-recovery] 7d claim lost for estimate ${est.id} (peer or prior attempt)`);
+          log.info(`[declined-recovery] ${touch} claim lost for estimate ${est.id} (peer or prior attempt)`);
           continue;
         }
 
-        // wave-181.82 · personalized message (see 30d branch above)
-        const body = buildPersonalizedRecoveryMessage({
-          tier: "7d",
+        // wave-181.110 · profile-aware sequence message · 1 of 15 variants
+        const body = buildSequenceMessage({
+          touch,
+          profile,
           name,
           amountCents: amount,
           serviceDescription: est.serviceDescription,
           customer,
         });
-        // wave-181.46 · route through F25e gateway (Twilio dead per operator)
         const res = await sendSms(est.customerPhone, body, { via: "shop" });
-        await logOutboundSms(est.customerPhone, body, res.sid, "declined_d7");
+        await logOutboundSms(est.customerPhone, body, res.sid, variantKey(touch, profile));
+
         if (res.success) {
-          await d
-            .update(algEstimates)
-            .set({ followUp7dSent: 1, followUp7dSentAt: new Date() })
-            .where(eq(algEstimates.id, est.id));
-          sent7d++;
-          log.info(`7d follow-up sent to ${name} (${formatMoney(amount)} quote)`);
+          // Mark sent column (touch-specific, like the claim above)
+          if (touch === "3d") {
+            await d.update(algEstimates).set({ followUp3dSent: 1, followUp3dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
+          } else if (touch === "7d") {
+            await d.update(algEstimates).set({ followUp7dSent: 1, followUp7dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
+          } else if (touch === "14d") {
+            await d.update(algEstimates).set({ followUp14dSent: 1, followUp14dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
+          } else if (touch === "30d") {
+            await d.update(algEstimates).set({ followUp30dSent: 1, followUp30dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
+          } else {
+            await d.update(algEstimates).set({ followUp45dSent: 1, followUp45dSentAt: new Date() }).where(eq(algEstimates.id, est.id));
+          }
+          sentByTouch[touch] = (sentByTouch[touch] ?? 0) + 1;
+          if (touch === "3d") sent3d++;
+          else if (touch === "7d") sent7d++;
+          else if (touch === "14d") sent14d++;
+          else if (touch === "30d") sent30d++;
+          else sent45d++;
+          log.info(`${touch}/${profile} sent to ${name} (${formatMoney(amount)} quote)`);
         } else {
-          log.error(`[declined-recovery] 7d send failed after claim for estimate ${est.id}`, {
+          log.error(`[declined-recovery] ${touch} send failed after claim for estimate ${est.id}`, {
             error: res.error ?? "unknown",
           });
-          // AttemptedAt is set; row will not re-send. Manual review:
-          //   SELECT id, customer_phone, follow_up_7d_attempted_at
-          //   FROM alg_estimates
-          //   WHERE follow_up_7d_attempted_at IS NOT NULL AND follow_up_7d_sent = 0;
         }
+
+        touchSentThisRun = true;
+        break; // one touch per estimate per run (spread, not blast)
+      }
+      if (!touchSentThisRun) {
+        // No eligible touch (estimate too fresh, or all touches already sent/attempted)
       }
     } catch (rowErr) {
       perRowErrors++;
@@ -468,13 +478,14 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
     }
   }
 
-  const total = sent7d + sent30d;
+  const total = sent3d + sent7d + sent14d + sent30d + sent45d;
   if (total > 0) {
     try {
       const { sendTelegram } = await import("../../services/telegram");
       await sendTelegram(
-        `📬 DECLINED WORK RECOVERY: ${total} SMS sent (${sent7d} 7-day + ${sent30d} 30-day). ` +
-          `Potential pool: ${formatMoney(totalRecoverableCents)} from ${unmatched.length} quotes.` +
+        `📬 DECLINED WORK RECOVERY: ${total} SMS sent ` +
+          `(${sent3d} 3d · ${sent7d} 7d · ${sent14d} 14d · ${sent30d} 30d · ${sent45d} 45d). ` +
+          `Pool: ${formatMoney(totalRecoverableCents)} from ${unmatched.length} quotes.` +
           (perRowErrors > 0 ? ` ⚠️ ${perRowErrors} row errors — see server logs.` : ""),
       );
     } catch (e) {
@@ -484,6 +495,6 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
 
   return {
     recordsProcessed: total,
-    details: `Sent ${sent7d} 7-day + ${sent30d} 30-day | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone | pool: ${formatMoney(totalRecoverableCents)}`,
+    details: `Sent ${sent3d}/3d + ${sent7d}/7d + ${sent14d}/14d + ${sent30d}/30d + ${sent45d}/45d | skipped: ${skippedOptOut} opt-out, ${skippedNoPhone} no phone | pool: ${formatMoney(totalRecoverableCents)}`,
   };
 }
