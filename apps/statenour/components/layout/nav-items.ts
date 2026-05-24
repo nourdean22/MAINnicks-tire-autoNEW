@@ -120,6 +120,11 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/funnel",          label: "Funnel",          icon: Filter },
   { href: "/radar",           label: "Radar",           icon: Radar },
   { href: "/seo",             label: "SEO",             icon: Search },
+
+  // 2026-05-24 · Wave X.f activation · data-source-health canary
+  // (v10.0.58 Wave B) had no operator surface · the cron probed
+  // every 6h but nothing rendered the streaks. Now ⌘K reachable.
+  { href: "/system/data-source-health", label: "Data Source Health", icon: Activity },
 ];
 
 // Pages accessible via ⌘K command palette or Nick chat (personal OS only):
