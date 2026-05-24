@@ -105,8 +105,23 @@ export interface CalibrationReport {
     /** 2026-05-23 · UI #2 · same daily trend as byMood.trend. */
     trend: number[];
   }>;
-  /** Rows without an operatorStateSnapshot (legacy data · pre-Wave-H). */
+  /** Rows without an operatorStateSnapshot (legacy data · pre-Wave-H).
+   *  2026-05-24 · Wave N · split into 3 diagnostic counters so prod
+   *  triage knows WHICH failure mode is climbing:
+   *  · `unstamped` · operatorStateSnapshot === null → genuine pre-Wave-H
+   *    rows OR a regression in the upstream writer (should be 0 for
+   *    new rows after Wave H).
+   *  · `malformed` · snapshot exists but `mood` is not a string · means
+   *    schema drift on the snapshot shape · indicates a BUG in
+   *    `formatOperatorStateSnapshot`.
+   *  · `unknownMood` · `mood` is a string but not in `ALL_MOODS` · means
+   *    someone added a new mood enum value but didn't extend the report
+   *    classifier · indicates DRIFT between the operator-state module
+   *    and this report.
+   */
   unstamped: number;
+  malformed: number;
+  unknownMood: number;
 }
 
 function classifyKind(raw: unknown): KindKey {
@@ -150,6 +165,8 @@ function emptyGrid(sinceDays: number): CalibrationReport {
       trend: [],
     })),
     unstamped: 0,
+    malformed: 0,
+    unknownMood: 0,
   };
 }
 
@@ -227,6 +244,8 @@ export async function buildStateCalibration(
     >();
     const byKindMap = new Map<KindKey, { total: number; acted: number }>();
     let unstamped = 0;
+    let malformed = 0;
+    let unknownMood = 0;
 
     for (const mood of ALL_MOODS) {
       byMoodMap.set(mood, { total: 0, acted: 0 });
@@ -267,11 +286,24 @@ export async function buildStateCalibration(
     for (const row of rows) {
       const meta = (row.metadata ?? {}) as Meta;
       const snap = meta.operatorStateSnapshot ?? null;
-      const mood = snap ? classifyMood(snap.mood) : null;
       const kind = classifyKind(meta.suggestionKind);
       const event = typeof meta.event === "string" ? meta.event : null;
-      if (!mood) {
+      // 2026-05-24 · Wave N · the pre-Wave-N code wrote everything that
+      // wasn't a valid mood into `unstamped` · prod diagnosis couldn't
+      // tell "we have legacy rows" from "the snapshot writer broke"
+      // from "we added a new mood enum and forgot to update this file."
+      // Now: 3 buckets · the counter that climbs tells you the bug.
+      if (snap === null) {
         unstamped++;
+        continue;
+      }
+      if (typeof snap.mood !== "string") {
+        malformed++;
+        continue;
+      }
+      const mood = classifyMood(snap.mood);
+      if (!mood) {
+        unknownMood++;
         continue;
       }
       const cell = cellMap.get(`${mood}::${kind}`);
@@ -338,6 +370,8 @@ export async function buildStateCalibration(
       byMood,
       byKind,
       unstamped,
+      malformed,
+      unknownMood,
     };
   } catch (e) {
     log.warn("calibration_build_failed", {
