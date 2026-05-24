@@ -1,6 +1,104 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 AFTERNOON (post Wave R · /journal UX sweep · multi-agent audit pattern established as repeatable template) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-AFTERNOON (post Wave S + T · feature-mining waves shipping 12 wire-ups across /journal + /settings · zero new schema · all wire-ups of paid-for lib/brain helpers + AutomationPolicy fields) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 LATE-AFTERNOON · Wave S + T · feature-mining · 12 wire-ups · 2 ships
+>
+> Operator called out the gap from Wave P/Q/R: those were defensive
+> UX sweeps (ux-audit · silent-failure-hunter · code-reviewer) but
+> never did the OPPORTUNITY pass. Two parallel feature-mining agents
+> (infinite-gratitude pattern) surveyed the 1,400+ skill library +
+> the existing lib/brain/* + AutomationPolicy infrastructure ·
+> surfaced 12 wire-up candidates · clarity-gate principle applied to
+> mark each VERIFIED / PROJECTED / HYPOTHETICAL. Operator approved
+> "all 12" · both waves shipped.
+>
+> **The unexpected finding:** the vast majority of "cool features"
+> were already-built helpers not connected to the operator's eye.
+> Zero new schema · zero new cron jobs · pure connect-paid-for-infra-
+> to-the-operator's-eye work. This becomes Phase 5 of the per-page
+> UX-sweep playbook · the defensive audits (Wave M/P/Q/R) caught
+> bugs but missed the wire-up opportunities entirely.
+>
+> **Wave S · /journal · 7 wire-ups** · `a4307158`
+> - **#7 · Learning-velocity ticker** (`measureLearningVelocity` →
+>   one-line surface above the feed: "12 entries this week ·
+>   3 new connections · 2 beliefs revised · brain 78/100")
+> - **#5 · Weekly memoir block** (last 7d WISDOM/BELIEF promotions
+>   surfaced as a small block above the feed · silent when fewer
+>   than 2 items)
+> - **#3 + #6 · Brain signals chip** (combined emotional trajectory +
+>   drift composite via one read · trajectory tinted by
+>   rising/falling/volatile/stable · drift color-banded 0-3/3-6/6+)
+> - **#4 · Ghost counter-question** (reflect-composer · ghost-nick
+>   prediction reshaped as a question · honors a year-old docstring
+>   promise · violet inline banner · dismissable)
+> - **#1 · Margin contradictions** (per-entry contradiction list in
+>   brain-dump expanded body · pulls from contradiction-surfacer's
+>   loadRecentContradictions(30d))
+> - **#6 (refinement) · Drift pin on threads** (active threads with
+>   14+d silence get "drifting · Nd" amber badge · soft warning
+>   before cron-managed 30d auto-dormancy)
+> - **#2 · Prediction-line on decision entries** ("predict outcome"
+>   button on decision-type entries · one-line form writes to
+>   existing Prediction model · predictions-grader cron resolves
+>   when target date passes)
+>
+> Six new tRPC procedures on the journal router:
+> `learningVelocity` · `ghostCounterQuestion` ·
+> `contradictionsForEntry` · `brainSignals` · `weeklyMemoirItems` ·
+> `savePrediction`. All wrapped in try/catch + log.warn +
+> degrade-to-null · matches Wave M discipline.
+>
+> **Wave T · /settings · 5 elevators** · `dad4e9db`
+> - **#1 · Proof-of-life badges** (per-flag last-fired tail joined
+>   from AutomationPolicy by `autopilot:<key>` tag · last-result
+>   color-coded · tooltip exposes policy id + fireCount · "never
+>   fired · 14d" tells operator the binding's broken at a glance)
+> - **#2 · Why-was-this-disabled audit trail** (toggle write writes
+>   a BrainMemory row under new category AUTOPILOT_FLAG_CHANGE ·
+>   payload includes prior-state duration + optional 1-line note ·
+>   recentAutopilotFlagChanges read feeds the future drawer)
+> - **#3 · Shadow mode for critical flags · UI rehearsal**
+>   (3rd state on the 3 confirmDisable flags via localStorage ·
+>   violet bg + "shadow" badge · workers don't honor SHADOW yet ·
+>   UI rehearsal layer for the coming worker support · explicit
+>   "UI-only" note in the procedure docstring)
+> - **#4 · State-aware category dimming** (reads system.operatorState ·
+>   when mood is depleted or scattered, sales + comms categories
+>   drop to opacity-50 · brain + schedule stay at full · hover
+>   restores full · toggles stay fully interactive)
+> - **#5 · Blast-radius preview** (press-and-hold expansion surfaces
+>   1-2 lines of "disabling stops X" from AutomationPolicy.
+>   successMetric · confirm moment becomes learning moment · silent
+>   when no policy is mapped)
+>
+> Three new tRPC procedures on the system router:
+> `autopilotPolicyStatus` (covers #1 + #5) · `recordAutopilotFlagChange`
+> (covers #2) · `recentAutopilotFlagChanges` (covers #2). One new
+> BRAIN_CATEGORIES entry: `AUTOPILOT_FLAG_CHANGE`.
+>
+> **Playbook update:** the per-page sweep template now has 5 phases.
+> Defensive audit (Phase 1-4) was Wave P/Q/R · feature-mining audit
+> (Phase 5) is Wave S/T. The latter is the under-counted half · most
+> codebases have huge troves of paid-for infrastructure that never
+> surface. Apply both phases to every future page sweep
+> (next candidates: /tasks · /chat · /brain · /knowledge · /system).
+>
+> **Flagged · NOT fixed (operator-action follow-ups)**
+> - Worker support for SHADOW mode on the 3 critical flags
+>   (auto_brain_cycle · auto_identity_refresh · adhd_operating_rhythm)
+>   · this requires each cron to honor a `shadow=true` branch · UI
+>   already rehearses the toggle.
+> - Tag the rest of the AutomationPolicy rows with `autopilot:<key>` ·
+>   only a subset is currently tagged · the proof-of-life badges show
+>   nothing for un-tagged flags · low-effort but operator-decided
+>   which flags map to which policies.
+> - autonicks.com Cloudflare DNS flip still pending from Wave O.
+>
+> Gates: typecheck 0 errors · lint 0 errors / 368 baseline · vitest
+> 184 files / 2797 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy on each wave.
 
 > ## 2026-05-24 AFTERNOON · Wave R · /journal UX sweep · multi-agent audit · 1 ship
 >
