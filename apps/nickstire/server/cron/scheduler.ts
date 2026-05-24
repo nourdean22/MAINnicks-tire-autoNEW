@@ -877,6 +877,17 @@ export function startTieredScheduler(): void {
           return processVapiCallEval();
         },
       },
+      // wave-181.x · Tier A · Closed-loop delivery. Measures pending
+      // wave_metrics rows whose measure_at has passed · writes lift /
+      // no-lift / regression · Telegram digest only on days with
+      // actual measurements (silent otherwise).
+      {
+        name: "closed-loop-measure",
+        handler: async () => {
+          const { processClosedLoopMeasure } = await import("./jobs/closedLoopMeasure");
+          return processClosedLoopMeasure();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when
