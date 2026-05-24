@@ -34,6 +34,7 @@
  */
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { BridgeShell } from "@/components/mastery/bridge-shell";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 // master_report engine result shape · matches
@@ -90,30 +91,8 @@ export default function RadarPage() {
   const bridgeOk: "loading" | "ok" | "down" =
     error || (report && report.ok !== true) ? "down" : loading && !report ? "loading" : "ok";
 
-  if (bridgeOk === "down") {
-    return (
-      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <h1 className="text-2xl font-medium tracking-tight">Radar</h1>
-          <p className="mt-4 text-sm text-white/40">
-            Bridge to nickstire unavailable · master_report lives there.
-            Check the bridge status on /system/brain-bus.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (bridgeOk === "loading" || !report) {
-    return (
-      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <h1 className="text-2xl font-medium tracking-tight">Radar</h1>
-          <p className="mt-4 text-sm text-white/30 animate-pulse">Loading…</p>
-        </div>
-      </main>
-    );
-  }
+  if (bridgeOk === "down") return <BridgeShell title="Radar" state="down" />;
+  if (bridgeOk === "loading" || !report) return <BridgeShell title="Radar" state="loading" />;
 
   // Extract the radar-relevant signals from master_report. We keep the
   // unknown-data unwrap explicit so changes to upstream engine shapes

@@ -34,6 +34,7 @@
  */
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { BridgeShell } from "@/components/mastery/bridge-shell";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface GscSummary {
@@ -119,30 +120,8 @@ export default function SeoPage() {
   const bridgeOk: "loading" | "ok" | "down" =
     summaryError ? "down" : summaryLoading && !summary ? "loading" : summary ? "ok" : "down";
 
-  if (bridgeOk === "down") {
-    return (
-      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <h1 className="text-2xl font-medium tracking-tight">SEO</h1>
-          <p className="mt-4 text-sm text-white/40">
-            Bridge to nickstire unavailable · the GSC pipeline lives there.
-            Check the bridge status on /system/brain-bus.
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  if (bridgeOk === "loading" || !summary) {
-    return (
-      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-          <h1 className="text-2xl font-medium tracking-tight">SEO</h1>
-          <p className="mt-4 text-sm text-white/30 animate-pulse">Loading…</p>
-        </div>
-      </main>
-    );
-  }
+  if (bridgeOk === "down") return <BridgeShell title="SEO" state="down" />;
+  if (bridgeOk === "loading" || !summary) return <BridgeShell title="SEO" state="loading" />;
 
   // Pre-formatted summary values · CTR + position both percentage-like
   const ctr = summary.avgCtr.toFixed(2);
