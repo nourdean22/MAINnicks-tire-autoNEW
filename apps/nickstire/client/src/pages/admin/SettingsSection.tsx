@@ -30,13 +30,18 @@ import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 // Lazy-loaded system tabs — Nour's request: "move all system stuff to the settings page"
 // Consolidates System Health, Compliance, and Integrations into this hub so
 // the sidebar stays focused on business work, not admin plumbing.
+const SettingsStatusTab = lazy(() => import("./SettingsStatusTab"));
 const SiteHealthSection = lazy(() => import("./SiteHealthSection"));
 const ComplianceSection = lazy(() => import("./ComplianceSection"));
 const IntegrationsSection = lazy(() => import("./IntegrationsSection"));
 
-type SettingsTab = "shopdriver" | "health" | "compliance" | "integrations";
+// wave-181.x Phase 2 · "status" tab added as the new DEFAULT landing.
+// The shopdriver tab still exists for sync controls + cron list ·
+// will collapse into "Integrations" + "Automations" in Phase 3/4.
+type SettingsTab = "status" | "shopdriver" | "health" | "compliance" | "integrations";
 
 const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; icon: React.ReactNode; subtitle: string }> = [
+  { id: "status", label: "Status", icon: <Activity className="w-3.5 h-3.5" />, subtitle: "What needs attention today" },
   { id: "shopdriver", label: "ShopDriver HQ", icon: <Wrench className="w-3.5 h-3.5" />, subtitle: "ALG sync + probe + backfill" },
   { id: "health", label: "System Health", icon: <Activity className="w-3.5 h-3.5" />, subtitle: "Uptime, DB, vendor status" },
   { id: "compliance", label: "Compliance", icon: <Shield className="w-3.5 h-3.5" />, subtitle: "Audit log + TCPA + admin logins" },
@@ -53,16 +58,15 @@ export default function SettingsSection() {
   // him to this Settings page — and this resolver picks up `health` as the
   // inner tab so he lands exactly where he expected.
   const initialTab = (() => {
-    if (typeof window === "undefined") return "shopdriver" as SettingsTab;
+    if (typeof window === "undefined") return "status" as SettingsTab;
     const qp = new URLSearchParams(window.location.search);
     const raw = (qp.get("settingsTab") || qp.get("tab") || "").toLowerCase();
-    const valid: SettingsTab[] = ["shopdriver", "health", "compliance", "integrations"];
+    const valid: SettingsTab[] = ["status", "shopdriver", "health", "compliance", "integrations"];
     if (valid.includes(raw as SettingsTab)) return raw as SettingsTab;
-    // Legacy alias: ?tab=settings → ShopDriver tab (the section's home)
-    if (raw === "settings") return "shopdriver";
-    // wave-111 — removed dead `if (raw === "integrations")` guard;
-    // already handled by `valid.includes` check above.
-    return "shopdriver";
+    // wave-181.x · Phase 2 · default is now "status" instead of "shopdriver".
+    // Legacy alias: ?tab=settings → Status tab (the new home).
+    if (raw === "settings") return "status";
+    return "status";
   })();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
@@ -175,6 +179,15 @@ export default function SettingsSection() {
         activeTab={activeTab}
         onChange={handleTabChange}
       />
+
+      {/* wave-181.x Phase 2 · Status tab · new default · scannable
+          "what needs attention today" surface · severity-tagged open
+          issues + connection health + KPI strip. */}
+      {activeTab === "status" && (
+        <Suspense fallback={<div className="flex items-center justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+          <SettingsStatusTab />
+        </Suspense>
+      )}
 
       {/* Lazy-loaded tabs — these are the former sidebar sections */}
       {activeTab === "health" && (
