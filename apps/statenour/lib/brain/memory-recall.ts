@@ -38,6 +38,14 @@ const MAX_CONTENT_LEN = 220;
 // tax rates, shop-specific business facts). Pre-fix it was pulled
 // by KNN then silently filtered out at line ~175 before scoring ·
 // the entire semantic CoALA lane was dead on arrival for recall.
+//
+// 2026-05-24 · Wave X.f · added `meeting_transcript` · the
+// ingest-fireflies cron has been writing Fireflies meeting
+// transcripts twice daily since v10.0.x · they have full embeddings
+// from embed-backfill but recall never pulled the category. Result:
+// the paid Fireflies pipeline was running for nothing. With this
+// addition chat can now surface "you said X in last Tuesday's
+// meeting with Y" the way the cron docstring originally intended.
 const CONTEXT_CATEGORIES = new Set([
   "wisdom",
   "insight",
@@ -58,6 +66,7 @@ const CONTEXT_CATEGORIES = new Set([
   "brain_dump",
   "reflection",
   "domain_knowledge",
+  "meeting_transcript",
 ]);
 
 export interface RecallHit {

@@ -15,6 +15,7 @@ import { getRecentTranscripts } from "@/lib/integrations/fireflies";
 import { prisma } from "@/lib/prisma";
 import { classifyJournalEntry } from "@/lib/journal/classifier";
 import { logger as rootLogger } from "@/lib/logger";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/ingest-fireflies");
 
@@ -40,7 +41,7 @@ export const GET = cronHandler(async () => {
         const key = `fireflies:${meta.id}`;
         const existing = await prisma.brainMemory
           .findUnique({
-            where: { category_key: { category: "meeting_transcript", key } },
+            where: { category_key: { category: BRAIN_CATEGORIES.MEETING_TRANSCRIPT, key } },
             select: { id: true },
           })
           .catch(() => null);
@@ -58,7 +59,7 @@ export const GET = cronHandler(async () => {
 
         await prisma.brainMemory.create({
           data: {
-            category: "meeting_transcript",
+            category: BRAIN_CATEGORIES.MEETING_TRANSCRIPT,
             key,
             source: "fireflies",
             content: text.slice(0, 2000),
