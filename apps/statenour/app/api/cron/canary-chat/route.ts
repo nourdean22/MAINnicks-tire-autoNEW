@@ -20,8 +20,9 @@
  * Cost · ~$0.0003 per call (Venice text · 5k input + 200 output) ·
  * hourly cadence = ~$2/year. Effectively free.
  *
- * Schedule (when wired to config/crons.ts):
- *   · hourly text-canary · catches drift within 60min
+ * Schedule (registered in config/crons.ts as `canary-chat` ·
+ * FOLDED into mega-morning per the manifest entry · category=alert):
+ *   · daily text-canary · catches drift each morning before operator
  *   · weekly image-canary · catches gpt-image-1 drift cheaply (~$10/yr)
  *
  * Per docs/glitch-taxonomy.md · Category 8 (operational silence) ·
