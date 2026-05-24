@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "Statenour · Brain Capture",
   "short_name": "Statenour",
-  "version": "0.1.0",
-  "description": "Capture a brain dump from any tab · Cmd+Shift+B · syncs to your statenour brain via /api/brain/dump",
+  "version": "0.2.0",
+  "description": "Capture a brain dump from any tab · Cmd+Shift+B · shows prior notes for this URL · syncs to your statenour brain via /api/brain/dump",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Statenour brain dump (Cmd+Shift+B)",

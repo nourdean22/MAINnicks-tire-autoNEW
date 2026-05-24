@@ -1,6 +1,82 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 NIGHT (post overnight M1 + Wave F + OSS + Q2 wave · Closed-Loop Calibrated Brain) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2768 across 181 vitest files · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-23 LATE-NIGHT (post P-wave + Wave I/J · all routed items closed) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2787 across 183 vitest files (+19 since NIGHT) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-23 LATE-NIGHT · P-wave + Wave I/J · closing every routed item · 7 ships
+>
+> Seven ships closing the operator's "the routed ones go with the
+> smartest options" directive plus a follow-up "keep going" wave.
+> Each gated through 4-gate verification independently · 31
+> migrations applied · 2787 tests · prod heartbeat 200 throughout.
+>
+> **P1 · voice_latency migration APPLIED to prod Neon** · `4544120b`
+> Migration 20260512_v526_voice_latency moved from pending · 3 SQL
+> statements ok · resolved as applied · 31 migrations applied total.
+> Wave F's gated VoiceLatencyEvent composite index now also live
+> (DO $$ table-existence check was a no-op pre-P1 · table exists now).
+>
+> **P2 · OSS lenses Phase 2 · consumer rewire as SHIM** · `4544120b`
+> All 49 inline framework files deleted · lib/ai/strategic-frameworks/
+> is now a 3-file shim that re-exports from @statenour/lenses ·
+> aliases pickFrameworks→detectLenses + hasBusinessIntent→hasStrategicIntent
+> · custom composeStrategicLensBlock preserves the Wave E
+> featured-fallback path. Zero consumer code changed · chat path
+> stays untouched. Source of truth now single.
+>
+> **P3 · /api/ai/page-insight first operator-state opt-in** · `4544120b`
+> formatOperatorStateBlock(snap) injected after the lens block when
+> confidence > 0 · best-effort · degrades to no-block on DB error.
+> Pivoted from "morning brief" (pure template · no LLM call to
+> influence). First consumer of ADR-0019 substrate.
+>
+> **P4 · Chrome extension MVP + supporting infra** · `ed3c5e7b`
+> packages/chrome-extension/ · MV3 · vanilla JS · popup + options +
+> service worker · 4 icon sizes generated from icon-nour.svg · Cmd+Shift+B
+> from any tab. Backed by:
+> - /api/brain/dump POST · token-authed · Zod-validated
+> - /system/api-tokens page · issue/list/revoke
+> - lib/auth/extension-token.ts · sha256 hashing · BrainMemory storage
+> - 3 new tRPC procedures · 1 new BrainMemory category (API_TOKEN)
+>
+> **P5 · @statenour/lenses publish-ready** · `ed3c5e7b`
+> CHANGELOG.md v0.1.0 · pnpm pack verified 131KB. Operator runs
+> `cd packages/lenses && pnpm publish --access public` for the npm
+> 2FA prompt (only manual step remaining).
+>
+> **Wave I · 3 more operator-state opt-ins**
+> - /api/ai/plan-day · day plans now state-adapted (mood=depleted →
+>   shorter plans · mood=scattered → fewer blocks)
+> - /api/ai/assist · complementary to existing stateContext · two
+>   layers of state now (environmental + internal)
+> - lib/services/ai-coach-goal.ts · goal coaching pressure matches
+>   capacity/momentum
+>
+> **Wave I.b · 19 new tests across 2 files**
+> - tests/lib/services/state-calibration.test.ts · 6 cases · pure
+>   aggregation math
+> - tests/lib/auth/extension-token.test.ts · 13 cases · full
+>   issue/validate/list/revoke round-trip
+> - Test count 2768 → 2787
+>
+> **Wave J · Chrome ext F3 page-aware re-discovery**
+> - /api/brain/by-url · two-pass lookup (exact URL match first ·
+>   domain fallback) · token-authed · Zod-validated
+> - Popup queries this on open · renders prior notes ABOVE composer
+>   in a scrollable panel · hidden when no matches
+> - Extension bumped to v0.2.0
+>
+> **ADR-0021 · docs/adr/0021-p-wave-and-extension.md**
+> Records every P + I + J decision · 4 alternatives considered · 4
+> open items.
+>
+> **Gates** · 183 vitest files / 2787 tests · 0 lint errors ·
+> 0 typecheck errors · every push gated · prisma migrate status
+> clean · 31 migrations applied · prod heartbeat 200.
+>
+> **Flagged · NOT fixed**
+> - npm publish · only operator can run (2FA gate).
+> - Chrome ext F2 (ask Nick via side panel) · deferred to next wave.
+> - Shadow-judge queue tests · code is untested · backlog item.
 
 > ## 2026-05-23 NIGHT · overnight power-mode · M1 (Closed-Loop Calibrated Brain) + Q2 shadow queue + OSS lenses workspace + Wave F schema · 4 ships
 >

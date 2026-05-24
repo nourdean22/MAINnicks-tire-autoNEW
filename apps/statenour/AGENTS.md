@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 NIGHT (P1-P5 follow-up) · post P-wave shipping (P1 voice migration applied · P2 OSS Phase 2 rewire complete · P3 page-insight first operator-state opt-in · P4 Chrome extension MVP + API tokens surface · P5 @statenour/lenses publish-ready). On top of: overnight M1 wave (Q2 + Wave H + OSS workspace + Wave F + ADR-0020). LeCun-lens consolidation (5.3/5.4/5.5/5.6 · ADR-0019). Waves A-G. Monorepo branch `main`. **Tests:** 2768 across 181 vitest files. **Prod schema:** 31 migrations applied (voice_latency_events now exists).
+> **Last refreshed:** 2026-05-23 LATE-NIGHT · post Wave I/J (3 more operator-state opt-ins · 19 new tests · Chrome ext F3 page-aware re-discovery · ADR-0021). On top of: P1-P5 (parked migrations applied · OSS Phase 2 shim · first state opt-in · Chrome ext MVP · lenses publish-ready). On top of: overnight M1 wave (Q2 + Wave H + OSS workspace + Wave F + ADR-0020). LeCun-lens consolidation (5.3/5.4/5.5/5.6 · ADR-0019). Waves A-G. Monorepo branch `main`. **Tests:** 2787 across 183 vitest files. **Prod schema:** 31 migrations applied. **Chrome ext:** v0.2.0 · packages/chrome-extension/dist/ ready for unpacked install.
 
 ---
 

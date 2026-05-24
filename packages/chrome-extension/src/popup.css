@@ -157,6 +157,48 @@ button.primary:disabled {
   cursor: wait;
 }
 
+/* Wave J · F3 · prior notes panel */
+.prior-notes {
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.prior-notes-header {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--gold);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.prior-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prior-note {
+  color: var(--text-secondary);
+  line-height: 1.4;
+  padding-left: 6px;
+  border-left: 2px solid var(--border);
+}
+
+.prior-note .meta {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 /* Setup callout · shown when no token */
 .setup {
   background: var(--bg-base);
