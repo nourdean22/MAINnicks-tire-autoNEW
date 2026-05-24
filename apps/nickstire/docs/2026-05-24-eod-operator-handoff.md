@@ -1,5 +1,17 @@
 # 2026-05-24 EOD · Operator handoff
 
+> **UPDATE 2026-05-24 LATE-EOD · FULLY ACTIVATED.** Operator said "im
+> ready turn it all on" · all 3 manual gates closed autonomously via
+> the `nickActions.runMigrations` admin tRPC mutation + `featureFlags
+> .toggle` mutations (Chrome MCP fetch from authenticated admin tab).
+> Migration 0061 ran clean (41/41 statements applied, 0 errors). Both
+> flags ON. v2 model verified returning 50 affinities with
+> modelVersion `v2-heuristic-2026-05-24`.
+>
+> The "Step 1-4" instructions below are PRESERVED for reference but
+> are now historical · the manual-gate activation path is no longer
+> needed.
+
 The autonomous session shipped Intelligence Dispersal end-to-end and the
 Service Affinity v2 closed-loop architecture. This doc captures what is
 LIVE, what needs your hand to fully activate, and the order to do it.
