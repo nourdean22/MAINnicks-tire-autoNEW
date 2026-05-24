@@ -86,6 +86,7 @@ import {
 } from "./routers/index";
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
+import { closedLoopRouter } from "./routers/closedLoop";
 
 export const appRouter = router({
   system: systemRouter,
@@ -240,6 +241,12 @@ export const appRouter = router({
   // per outbound send, rolled up per tier). Powers the /admin Outreach Hub
   // → Performance tab. See server/routers/smsPerformance.ts.
   smsPerformance: smsPerformanceRouter,
+
+  // wave-181.x · Today page Phase 4 · surface daily wave-metric
+  // measurements ("did the work we shipped move the needle"). Reads
+  // wave_metrics table populated by the closedLoopMeasure daily cron.
+  // See server/routers/closedLoop.ts.
+  closedLoop: closedLoopRouter,
 });
 
 export type AppRouter = typeof appRouter;

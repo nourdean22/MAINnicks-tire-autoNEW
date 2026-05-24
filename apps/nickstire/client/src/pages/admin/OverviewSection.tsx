@@ -46,6 +46,12 @@ import { SlaTimer } from "./today/SlaTimer";
 // the operator's first eye-grab is "what changed overnight" — not
 // "what are these numbers."
 import { MorningBrief } from "./today/MorningBrief";
+// wave-181.x Today Phase 4 · WaveMetricWins tile · surfaces
+// closed-loop daily measurements (did shipped work move the needle?).
+// Renders only when wave_metrics has ≥1 measurement (clarity-gate ·
+// no fake empty state) · placed between Priority Queue + chevron so
+// it's above the fold for ops scanning post-shipment lift.
+import { WaveMetricWins } from "./today/WaveMetricWins";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -786,6 +792,12 @@ export default function OverviewSection() {
           </div>
         )}
       </div>
+
+      {/* wave-181.x Today Phase 4 · WaveMetricWins tile
+          Renders ONLY when closedLoop.recent returns ≥1 measurement.
+          Self-hides when wave_metrics is empty (first day after
+          framework ship · before any cron has measured). */}
+      <WaveMetricWins />
 
       {/* ─── MORE DETAIL chevron · default closed on mobile ─── */}
       <button
