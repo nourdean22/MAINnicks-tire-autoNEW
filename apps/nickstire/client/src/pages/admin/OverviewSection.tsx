@@ -41,6 +41,11 @@ import { SkeletonOverview } from "@/components/admin/AdminSkeletons";
 
 // 2026-05-23 · Phase 3 split · SlaTimer + types moved to ./today/.
 import { SlaTimer } from "./today/SlaTimer";
+// wave-181.x Today Phase 2 · MorningBrief header · 3-line auto-summary
+// composed from existing tRPC queries. Renders above the KPI strip so
+// the operator's first eye-grab is "what changed overnight" — not
+// "what are these numbers."
+import { MorningBrief } from "./today/MorningBrief";
 import type {
   BookingItem, LeadItem, CallbackItem, WorkOrderItem,
   NBAAction, AtRiskWhale, ShopFloorData, ActionItem,
@@ -553,6 +558,16 @@ export default function OverviewSection() {
             : "Offline — fix integrations"}
         </Link>
       </div>
+
+      {/* wave-181.x Today Phase 2 · Morning Brief header
+          3-line auto-summary · "what happened overnight" surface ·
+          composed from existing tRPC queries (no new server work).
+          Renders ABOVE the KPI strip so the operator's first eye-grab
+          is the narrative, not raw numbers. */}
+      <MorningBrief
+        priorityQueueLength={priorityQueue.length}
+        urgentLeads={urgentLeads}
+      />
 
       {/* ─── 4 STAT PILLS · the always-visible scoreboard ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
