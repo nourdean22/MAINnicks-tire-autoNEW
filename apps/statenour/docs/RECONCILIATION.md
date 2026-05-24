@@ -1,6 +1,66 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 EVE (post LeCun-lens consolidation · operator-state model + judge-eval calibration) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2768 across 181 vitest files (+48 since post-subtask reconcile · 27 operator-state + 15 judge-calibration + 6 misc) · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-23 NIGHT (post overnight M1 + Wave F + OSS + Q2 wave · Closed-Loop Calibrated Brain) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2768 across 181 vitest files · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-23 NIGHT · overnight power-mode · M1 (Closed-Loop Calibrated Brain) + Q2 shadow queue + OSS lenses workspace + Wave F schema · 4 ships
+>
+> Four substrate-fusion ships closing the operator's "complete waves
+> F H Q2 OSS lenses" directive. Each gated through 4-gate verification
+> independently · prod Neon migration applied with autocommit driver ·
+> 30 migrations clean.
+>
+> **Q2 · prompt-v2 paired-comparison queue** · `77174b0a`
+> Closes the V1→V2 cutover quality-signal gap. New PROMPT_SHADOW_JUDGE_QUEUE
+> BrainMemory category · shadow path samples ~10% of turns + enqueues
+> v1Prompt+v2Prompt+userMessage keyed by sha1(userMessage|tier|slot)
+> · judge-eval-shadow cron drains queue items at end-of-tick · writes
+> prompt.shadow.judge_score_delta SystemMetric centered around 0.
+> Decouples judging cost from chat-path latency.
+>
+> **Wave H · M1 · Closed-Loop Calibrated Brain** · `77174b0a` (bundled)
+> Fuses operator-state + suggestion-loop + judge-eval into one
+> auditable feedback graph. suggestion-loop now stamps the compact
+> 5-dim operator-state snapshot into BrainMemory.metadata on every
+> action/outcome write. New buildStateCalibration() service joins on
+> mood × suggestion kind · 4×19 grid + rollups. /system/calibration
+> page renders the grid with editorial-minimalist visual vocabulary.
+> system.stateCalibration tRPC procedure.
+>
+> **OSS lenses workspace** · `4ebcc193`
+> New pnpm workspace `packages/lenses/` shipping `@statenour/lenses`
+> v0.1.0 · MIT licensed · ESM-only · 49 frameworks + types + dispatch
+> · zero project-local dependencies · `dist/` builds clean (52 source
+> files × 4 outputs = 208 dist files). README + LICENSE + publishConfig.
+> Statenour keeps its own copy at lib/ai/strategic-frameworks/ ·
+> consumer rewire deferred to Phase 2.
+>
+> **Wave F · Tier-2 schema debt · APPLIED to prod Neon** · `4ab3185e`
+> Migration 20260523_wave_f_schema_debt applied via apply-pending-
+> migration.ts · prisma migrate status clean · 30 migrations applied.
+> - Contradiction · +updatedAt + deletedAt + composite index (resolved,
+>   category, created_at) + deletedAt index
+> - TaskEvent · +denormalized goalId + partial index on (goalId,
+>   created_at) WHERE goal_id IS NOT NULL · 49 existing rows backfilled
+> - VoiceLatencyEvent · +(assistant_id, stage, created_at) composite ·
+>   gated behind DO $$ table-existence check (table is in a parked
+>   migration · gate makes Wave F apply-order-independent)
+>
+> **ADR-0020** · `docs/adr/0020-closed-loop-calibrated-brain.md`
+> Records the M1 decision · supporting Q2 + Wave F + OSS context ·
+> 4 alternatives considered · 3 open items routed to operator.
+>
+> **Gates** · 181 vitest files / 2768 tests · 0 lint errors ·
+> 0 typecheck errors · next build green every push · prisma migrate
+> status clean · prod heartbeat 200 throughout.
+>
+> **Flagged · NOT fixed**
+> - Phase 2 of OSS extraction · statenour still imports its own copy
+>   of the lens registry. ~30 LOC import rewire · 1h.
+> - State-calibration grid will show mostly empty cells for ~weeks
+>   until suggestion-loop rows accumulate · expected.
+> - Wave F migration UPDATE used wrong table casing initially · corrected
+>   for posterity but worth a note: future schema migrations should grep
+>   schema.prisma for @@map values before writing UPDATE statements.
 
 > ## 2026-05-23 EVE · LeCun-lens consolidation · operator-state model + judge-eval ground truth · 3 ships
 >
