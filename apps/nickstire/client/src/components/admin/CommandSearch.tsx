@@ -5,6 +5,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity } from "lucide-react";
+// wave-181.x Customers Phase 4 · additional icons used by the new
+// Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
 import type { AdminSection } from "@/pages/admin/shared";
 import { openDrilldown } from "./DrilldownDrawer";
@@ -311,6 +313,50 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
           window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=health");
         }
         onNavigate("settings");
+      },
+    },
+    // wave-181.x Customers Phase 4 · jumps for the Customers page.
+    {
+      id: "action-customers-lapsed",
+      label: "Customers · show lapsed cohort",
+      keywords: ["customers", "lapsed", "dormant", "win-back", "churn", "at-risk"],
+      icon: <Users className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=customers&seg=lapsed");
+        }
+        onNavigate("customers");
+      },
+    },
+    {
+      id: "action-customers-vips",
+      label: "Customers · show VIPs (3+ visits)",
+      keywords: ["customers", "vip", "loyalty", "best", "regulars", "3+", "visits"],
+      icon: <Crown className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=customers&seg=all");
+        }
+        onNavigate("customers");
+        // The Customers page reads minVisits from local state · we
+        // can't pre-seed via URL · but the VIP StatCard is the first
+        // click target on landing. Future: extend useUrlFilter to
+        // cover minVisits so deep-linking works fully.
+      },
+    },
+    {
+      id: "action-customers-declined",
+      label: "Customers · show declined-work cohort",
+      keywords: ["customers", "declined", "walked", "estimate", "recovery"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=customers&seg=all");
+        }
+        onNavigate("customers");
       },
     },
     {

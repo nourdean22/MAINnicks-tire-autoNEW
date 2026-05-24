@@ -7,6 +7,10 @@
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate, openCustomerDrawer } from "./shared";
+// wave-181.x Customers Phase 2 · CustomersBrief header · mirror of
+// the Today page MorningBrief · 3-line auto-narrative above the
+// StatCard grid · composes from existing stats query (no new server work).
+import { CustomersBrief } from "./customers/CustomersBrief";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 
@@ -157,7 +161,20 @@ function FollowUpButton({ customerName, phone }: {
     if (expanded) inputRef.current?.focus();
   }, [expanded]);
 
-  const triggerCall = () => {
+  const triggerCall = async () => {
+    // wave-181.x bug-fix · per code-explorer agent audit ·
+    // FollowUpButton previously fired a real VAPI call after one Enter
+    // keypress with no confirmation. The call dials a live customer ·
+    // can't be unsent. Now wrapped in confirmDialog (iOS-PWA-safe vs
+    // native window.confirm which is suppressed in standalone mode).
+    const ok = await confirmDialog({
+      title: `Call ${customerName.split(" ")[0]} now?`,
+      message: `Nick AI will dial ${phone} for a 3-minute follow-up about "${(lastService.trim() || "recent visit")}". This is a real outbound call · the customer will see a Cleveland number ring through.`,
+      confirmLabel: "Dial now",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!ok) return;
     mutation.mutate({
       customerName,
       phone,
@@ -790,6 +807,20 @@ function CustomersList() {
 
   return (
     <div className="space-y-6">
+      {/* wave-181.x Customers Phase 2 · CustomersBrief header.
+          3-line auto-narrative of roster · LTV · top action (lapsed).
+          Composes from the same trpc.customers.stats query the
+          StatCard grid below uses · no additional API calls. The
+          "View" action on the lapsed line jumps the segment filter
+          to "lapsed" via the parent's state setter — keeps state
+          ownership inside CustomersList. */}
+      <CustomersBrief
+        onLapsedAction={() => {
+          setSegment("lapsed");
+          setPage(1);
+        }}
+      />
+
       {/* Stats Row — wave-127 — clickable filters. 6/8 wire to existing
           server-side filter state (segment + minVisits + sortBy). With Email
           and Commercial stay display-only because the server query has no
