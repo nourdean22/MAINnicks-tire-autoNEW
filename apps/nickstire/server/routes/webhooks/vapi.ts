@@ -503,13 +503,15 @@ router.post("/vapi", async (req: Request, res: Response) => {
         return;
 
       // wave-181.63 · Phase 6 · cross-call memory hydration.
+      // wave-181.x · Tier S · BDI upgrade (declined-recovery opener).
       // VAPI fires `assistant-request` BEFORE the call connects. The
       // response shape is `{ assistantOverrides?: {...} }` which VAPI
       // merges with the assistant's configured fields for THIS call
-      // only (no PATCH to the global assistant). We look up the caller
-      // by phone and, when known, override `firstMessage` so the agent
-      // greets them by name + vehicle. Unknown callers get the
-      // default first message.
+      // only (no PATCH to the global assistant). The BDI composer
+      // (vapi-bdi.ts) looks up the caller AND any unconverted estimate
+      // and opens the call with the recovery hook when one is on file.
+      // Unknown callers fall through to the default first message ·
+      // backward compatible with the wave-181.63 personalization path.
       case "assistant-request": {
         const customer = (event.call as { customer?: { number?: string } } | undefined)?.customer;
         const phone = customer?.number?.trim();
@@ -520,13 +522,14 @@ router.post("/vapi", async (req: Request, res: Response) => {
           return;
         }
         try {
-          const { buildPersonalizedFirstMessage } = await import(
-            "../../services/vapi-personalization"
+          const { buildBdiFirstMessage } = await import(
+            "../../services/vapi-bdi"
           );
-          const result = await buildPersonalizedFirstMessage(phone);
-          log.info("assistant-request personalization", {
+          const result = await buildBdiFirstMessage(phone);
+          log.info("assistant-request bdi", {
             phoneSuffix: phone.replace(/\D/g, "").slice(-4),
             matched: result.matched,
+            kind: result.kind,
             reason: result.reason,
           });
           if (result.firstMessage) {
@@ -536,7 +539,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
             return;
           }
         } catch (err) {
-          log.warn("assistant-request personalization threw", {
+          log.warn("assistant-request bdi threw", {
             err: err instanceof Error ? err.message : String(err),
           });
         }
