@@ -552,6 +552,92 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       };
     }
   },
+
+  // ─── Intelligence Dispersal Wave 3 first ship (2026-05-24) ───
+  // `funnel_overview` · 6-stage conversion · derived from
+  // master_report. Statenour /funnel page consumes this.
+  //
+  // Pulls the same data the deleted nickstire OverviewTab Customer
+  // Journey Funnel computed. master_report.operations.pipeline +
+  // customers.velocity + revenue.pacing + marketing.reviewVelocity +
+  // customers.retention are the underlying sources.
+  //
+  // Shape returned:
+  //   {
+  //     ok: true,
+  //     stages: [
+  //       { label, value, conversionFromPrev (pct), pctOfTopOfFunnel },
+  //       ... 6 stages: Leads → Estimates → Drop-Offs → Jobs → Reviews → Retained
+  //     ],
+  //     leadToJobRate, leadToRetainedRate
+  //   }
+  "funnel_overview": async () => {
+    const { generateMasterIntelligenceReport } = await import("../services/masterIntelligence");
+    try {
+      const report = await generateMasterIntelligenceReport();
+      // Same derivation pattern as the deleted OverviewTab.CustomerJourneyFunnel
+      const ops = report.operations as { pipeline?: { total?: number; estimated?: number; booked?: number } } | undefined;
+      const cust = report.customers as { velocity?: { totalLeads?: number; thisMonth?: number }; retention?: { returning?: number } } | undefined;
+      const rev = report.revenue as { pacing?: { month?: { jobCount?: number } } } | undefined;
+      const mkt = report.marketing as { reviewVelocity?: { thisMonth?: number } } | undefined;
+
+      const leads = ops?.pipeline?.total ?? cust?.velocity?.totalLeads ?? 0;
+      const estimates = ops?.pipeline?.estimated ?? Math.round(leads * 0.6);
+      const dropoffs = ops?.pipeline?.booked ?? cust?.velocity?.thisMonth ?? Math.round(estimates * 0.4);
+      const jobs = rev?.pacing?.month?.jobCount ?? Math.round(dropoffs * 0.8);
+      const reviews = mkt?.reviewVelocity?.thisMonth ?? Math.round(jobs * 0.15);
+      const retained = cust?.retention?.returning ?? Math.round(jobs * 0.3);
+
+      const stagesRaw = [
+        { label: "Leads", value: leads },
+        { label: "Estimates", value: estimates },
+        { label: "Drop-Offs", value: dropoffs },
+        { label: "Jobs Done", value: jobs },
+        { label: "Reviews", value: reviews },
+        { label: "Retained", value: retained },
+      ];
+      const top = stagesRaw[0]?.value ?? 0;
+      const stages = stagesRaw.map((s, i) => {
+        const prev = i > 0 ? stagesRaw[i - 1].value : s.value;
+        const conv = prev > 0 ? Math.round((s.value / prev) * 100) : 0;
+        const pctTop = top > 0 ? Math.round((s.value / top) * 100) : 0;
+        return { ...s, conversionFromPrev: conv, pctOfTopOfFunnel: pctTop };
+      });
+
+      return {
+        ok: true as const,
+        stages,
+        leadToJobRate: leads > 0 ? Math.round((jobs / leads) * 100) : 0,
+        leadToRetainedRate: leads > 0 ? Math.round((retained / leads) * 100) : 0,
+        timestamp: report.timestamp,
+      };
+    } catch (err) {
+      log.warn("[funnel_overview] failed:", err instanceof Error ? err.message : err);
+      return { ok: false as const, error: err instanceof Error ? err.message : "Unknown error" };
+    }
+  },
+
+  // `funnel_first_visit` · per-source conversion of first-visit
+  // customers · the "where do best customers come from" view.
+  // Wraps trpc.intelligence.firstVisitConversion data shape.
+  "funnel_first_visit": async () => {
+    const { getDb } = await import("../db");
+    const d = await getDb();
+    if (!d) return { ok: false as const, error: "No DB" };
+    try {
+      const { analyzeFirstVisitConversion } = await import("../services/engines/customer");
+      const data = await analyzeFirstVisitConversion();
+      return {
+        ok: true as const,
+        overallRate: data.overallRate,
+        avgDaysToRepeat: data.avgDaysToRepeat,
+        bySource: data.bySource ?? [],
+      };
+    } catch (err) {
+      log.warn("[funnel_first_visit] failed:", err instanceof Error ? err.message : err);
+      return { ok: false as const, error: err instanceof Error ? err.message : "Unknown error" };
+    }
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {
