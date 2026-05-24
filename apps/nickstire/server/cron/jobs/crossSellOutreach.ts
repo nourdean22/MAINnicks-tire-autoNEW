@@ -36,7 +36,7 @@
  * cycle so predictions exist).
  */
 import { createLogger } from "../../lib/logger";
-import { eq, and, sql, gte, like } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 const log = createLogger("cron:cross-sell-outreach");
 
@@ -160,11 +160,43 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
     }
 
     const { getDb } = await import("../../db");
-    const { smsMessages, smsConversations } = await import("../../../drizzle/schema");
     const { sendSms } = await import("../../sms");
     const { dispatch } = await import("../../services/eventBus");
     const db = await getDb();
     if (!db) return { recordsProcessed: 0, details: "No DB" };
+
+    // wave-181.x · ONE-shot cooldown set instead of N per-prediction queries
+    // (was the karpathy-style improvement layered on top of the v1 spam fix).
+    // We collect every phone (last-10-digit normalized) that had a cross-sell
+    // outbound in the last 30 days, then filter predictions client-side.
+    //
+    // The v1 spam fix kept its join correctness: matching on conversation
+    // by phone suffix so the cooldown is found under ANY conversation row
+    // for the number. We just pull all qualifying rows in one shot rather
+    // than N round-trips.
+    const cooldownDate = new Date();
+    cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS);
+    const cooldownSet = new Set<string>();
+    try {
+      const cooldownRows = (await db.execute(sql`
+        SELECT DISTINCT RIGHT(REGEXP_REPLACE(sc.phone, '[^0-9]', ''), 10) AS phone10
+        FROM sms_messages m
+        INNER JOIN sms_conversations sc ON sc.id = m.conversation_id
+        WHERE m.direction = 'outbound'
+          AND m.variant_key = 'cross_sell'
+          AND m.created_at >= ${cooldownDate}
+      `)) as unknown as [Array<{ phone10: string | null }>];
+      const rows = Array.isArray(cooldownRows) ? cooldownRows[0] : cooldownRows;
+      if (Array.isArray(rows)) {
+        for (const r of rows) {
+          if (r.phone10) cooldownSet.add(r.phone10);
+        }
+      }
+    } catch (err) {
+      log.warn("cooldown lookup failed · proceeding without cooldown (risk: re-send)", {
+        err: err instanceof Error ? err.message : String(err),
+      });
+    }
 
     let sent = 0;
     let skipped = 0;
@@ -174,28 +206,8 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       if (!p.customerPhone) { skipped++; continue; }
       if (p.smsOptOut) { skipped++; continue; }
 
-      // wave-181.x · F25e cooldown query (preserved from v1 spam-fix).
-      // The prior version resolved "the" conversation with LIKE-LIMIT-1
-      // and frequently landed on a conversation row with none of the
-      // cross-sell messages → cooldown saw nothing → re-text on every
-      // run. Fix: JOIN that matches the message's conversation by phone
-      // suffix, so a prior send is found under ANY conversation row.
       const normalized = p.customerPhone.replace(/\D/g, "").slice(-10);
-      const cooldownDate = new Date();
-      cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS);
-
-      const recentOutbound = await db.select({ id: smsMessages.id })
-        .from(smsMessages)
-        .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
-        .where(and(
-          like(smsConversations.phone, `%${normalized}`),
-          eq(smsMessages.direction, "outbound"),
-          gte(smsMessages.createdAt, cooldownDate),
-          eq(smsMessages.variantKey, "cross_sell"),
-        ))
-        .limit(1);
-
-      if (recentOutbound.length > 0) {
+      if (cooldownSet.has(normalized)) {
         skipped++;
         continue;
       }
