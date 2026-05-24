@@ -11,10 +11,13 @@ import FocusedServicePage, { type ServicePageConfig } from "@/components/Focused
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/tire-shop-near-me",
-  // Real storefront — proves "this is an actual shop, not an aggregator"
-  // 2026-05-06 wave-16 · pro photo pack: tire-shop-near-me lands on tire
-  // tread closeup per PLACEMENT_GUIDE.md "Tires page" row — tire-authority
-  heroImage: "/photos/rugged-tire-tread-closeup.webp",
+  // wave-181.x · upgraded to wide-storefront shot · GSC query "tire shop
+  // near me" (29,869 imp / pos 8.3 over 90d) wants visual confirmation
+  // it's a real local tire shop · this photo shows Nick's full exterior
+  // with General Tire + Continental banners + tire stacks on the sidewalk ·
+  // unmistakably a real tire shop. Filename
+  // "nicks-tire-auto-cleveland-euclid-ave-storefront" hits the GSC query.
+  heroImage: "/photos/nicks-tire-auto-cleveland-euclid-ave-storefront.webp",
   // 2026-05-06 copy wave · This page targets "tire shops near me"
   // 3,387 imp/mo cluster. Title kept short + Sunday-differentiator.
   // Sub rewritten with operators 3 + 4 + 5.
