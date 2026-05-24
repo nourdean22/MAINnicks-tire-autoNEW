@@ -40,6 +40,8 @@ import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, u
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
+// wave-181.x Money Phase 2 · MoneyBrief 3-line auto-narrative.
+import { MoneyBrief } from "./money/MoneyBrief";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -91,7 +93,7 @@ export default function RevenueSection() {
         onChange={setSection}
       />
 
-      {section === "revenue" && <RevenueContent />}
+      {section === "revenue" && <RevenueContent onGoToDeclined={() => setSection("declined")} />}
       {section === "declined" && (
         <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
           <DeclinedEstimatesSection />
@@ -117,7 +119,7 @@ export default function RevenueSection() {
 }
 
 // ─── REVENUE CONTENT (previously the entire RevenueSection) ───
-function RevenueContent() {
+function RevenueContent({ onGoToDeclined }: { onGoToDeclined: () => void }) {
   const [period, setPeriod] = useState(30);
   const [intelPeriod, setIntelPeriod] = useState<"7d" | "30d" | "90d" | "6mo" | "1yr" | "all">("30d");
   // wave-111 — was useState; now URL-persistent via useUrlFilter so a
@@ -150,14 +152,30 @@ function RevenueContent() {
 
   return (
     <div className="space-y-6">
+      {/* wave-181.x Money Phase 2 · MoneyBrief 3-line auto-narrative
+       * lands above the inner TabBar so the operator's first eye-grab
+       * is "what's the money state today" rather than 8 stat tiles.
+       *
+       * Note · the onDeclinedAction callback is the parent's setSection
+       * setter (passed as onGoToDeclined prop). NOT the admin:navigate-
+       * section CustomEvent · that triggers Admin.tsx's setSection, but
+       * we're already ON "revenue" so React bails out and useUrlFilter
+       * (mount-only-read) never re-reads ?moneyTab=declined. The direct
+       * setter from useUrlFilter does write+update local state in one
+       * call · the only path that actually moves the visible tab when
+       * we're already inside RevenueSection. (Code-review agent caught
+       * this · same useUrlFilter-mount-only bug class as wave-181.x
+       * Outreach Phase 2.) */}
+      <MoneyBrief period={period} onDeclinedAction={onGoToDeclined} />
+
       {/* Header */}
       {/* wave-112 — was 3 hand-styled <button>s; switched to canonical TabBar
           (pill variant) so revenue sub-tabs match every other admin section.
-          Outer Revenue tabs already use TabBar; inner ones drifted. */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <p className="text-[12px] text-foreground/40">Real-time financial intelligence</p>
-        </div>
+          Outer Revenue tabs already use TabBar; inner ones drifted.
+          wave-181.x Money Phase 1 · subtitle "Real-time financial
+          intelligence" was filler · removed. The TabBar tells the
+          operator what they're looking at. */}
+      <div className="flex items-center justify-end flex-wrap gap-4">
         <TabBar
           tabs={[
             { id: "dashboard" as const, label: "DASHBOARD" },

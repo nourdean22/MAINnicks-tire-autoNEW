@@ -10,6 +10,10 @@ import { toast } from "sonner";
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
 import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+// wave-181.x Money Phase 2 · shared daily-burn helpers · code-review
+// agent M4 fix (DAILY_DECAY_RATE was duplicated between MoneyBrief
+// and this file) + #3 fix (anchor burn on aged ≥7d-old estimates only).
+import { agedRecoverableDollars, dailyBurnDollars } from "./money/moneyMath";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
@@ -167,19 +171,36 @@ export default function DeclinedEstimatesSection() {
         icon={<AlertTriangle className="w-5 h-5" />}
       />
       <SectionInsightStrip section="declinedEstimates" />
-      {/* Urgency Banner */}
-      <div className="bg-amber-500/10 border border-amber-500/20 px-5 py-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
-          <div>
-            <p className="font-bold text-amber-300 text-sm tracking-wide">RECOVERY PIPELINE</p>
-            <p className="text-foreground/60 text-[13px] mt-1 leading-relaxed">
-              Car problems rarely stay the same. They usually get worse.
-              Every estimate below is a customer who left with a known problem. Follow up before they go somewhere else.
-            </p>
+      {/* wave-181.x Money Phase 2 · loss-aversion-designer steal
+       * (DFII 9.0 per skill-mining agent). Quantitative daily-burn
+       * banner replaces the qualitative "car problems get worse"
+       * urgency block. 30-day half-life implies ~2.28% per-day
+       * recovery-probability decay · loss-aversion-designer rule
+       * "verify the scarcity is real" — so we anchor on AGED
+       * estimates (≥7d old) only · fresh leads don't decay yet ·
+       * including them was alarmist (code-review agent #3 catch).
+       * Banner self-hides when no aged work pending (clarity-gate). */}
+      {(() => {
+        const agedDollars = agedRecoverableDollars(rawEstimates);
+        if (agedDollars <= 0) return null;
+        const burn = dailyBurnDollars(agedDollars);
+        return (
+          <div className="bg-amber-500/10 border border-amber-500/20 px-5 py-4 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-bold text-amber-300 text-sm tracking-wide">
+                  ${agedDollars.toLocaleString()} idle in ≥7d-old declined work
+                </p>
+                <p className="text-foreground/60 text-[13px] mt-1 leading-relaxed">
+                  Burning ~<span className="text-amber-300 font-semibold">${burn.toLocaleString()}/day</span> in recovery probability at a 30-day half-life.
+                  Each aged estimate below is a customer who left with a known problem · the longer it sits the colder it gets.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Stat Cards — wave-127 — clickable filters. DECLINED → all
           (clears time filter), RECOVERABLE → sort by $, AVG → sort by $.

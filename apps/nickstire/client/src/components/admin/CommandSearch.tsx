@@ -484,6 +484,60 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         onNavigate("leads");
       },
     },
+    // wave-181.x Money Phase 4 · 3 jumps for the highest-leverage Money
+    // surfaces. Operator runs all three multiple times per day. Each
+    // compresses 3-4 sidebar clicks into one keystroke.
+    {
+      id: "action-money-declined-fire",
+      label: "Money · Declined work · FIRE bulk recovery",
+      keywords: ["money", "declined", "fire", "recovery", "bulk", "sms", "$321K", "47K"],
+      icon: <DollarSign className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=declined");
+          // After section mount, scroll the FIRE button into view. The
+          // operator still has to confirm the confirmDialog gate, but
+          // we save them the tab-drill + scroll.
+          setTimeout(() => {
+            const btn = Array.from(document.querySelectorAll("button")).find((b) =>
+              /FIRE ALL ELIGIBLE/i.test(b.textContent || ""),
+            );
+            btn?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 250);
+        }
+        onNavigate("revenue");
+      },
+    },
+    {
+      id: "action-money-create-invoice",
+      label: "Money · Create invoice",
+      keywords: ["money", "invoice", "create", "new", "bill", "charge"],
+      icon: <FileText className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=revenue&revTab=create");
+        }
+        onNavigate("revenue");
+      },
+    },
+    {
+      id: "action-money-top-declined",
+      label: "Money · Top declined ≥$500 by amount",
+      keywords: ["money", "declined", "top", "high-ticket", "$500", "amount", "sort"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          // DeclinedEstimates reads sort+min from local useState (not
+          // useUrlFilter) so we can't seed those · land on the tab and
+          // let the operator click the existing $500/$1K threshold pills.
+          window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=declined");
+        }
+        onNavigate("revenue");
+      },
+    },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 
   // Filter actions by query
