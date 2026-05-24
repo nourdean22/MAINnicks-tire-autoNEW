@@ -761,7 +761,7 @@ export const NEIGHBORHOODS: Neighborhood[] = [
     name: "Aurora",
     type: "neighborhood",
     headline: "Auto Repair Serving Aurora, Ohio",
-    description: "Honest auto repair for Aurora drivers. Quality parts, expert mechanics.",
+    description: "Honest auto repair for Aurora drivers. OE-spec parts, ASE-trained hands.",
     driveTime: "30 min",
     driveMiles: "18 mi",
     directionsFrom: "From Aurora, take Route 43 north to I-480 west, then I-271 north to I-90 east.",
