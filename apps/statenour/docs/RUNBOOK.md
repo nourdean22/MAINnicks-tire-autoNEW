@@ -390,61 +390,104 @@ this doc contradicts code reality, the code wins · open an issue.
 
 ---
 
-## Retiring the `autonicks.com` Vercel ghost project · operator action
+## Retiring the Vercel projects · operator action
 
-**Status:** the statenour codebase is CLEAN of live `autonicks.com`
-references as of 2026-05-24 (Wave N). The only remaining drift is
-the Vercel project itself, still sitting in your account doing
-nothing.
+> **Reality check (2026-05-24 Wave O · post-MCP-audit):** the
+> previous version of this section called autonicks.com a "ghost."
+> That was wrong. Live pre-flight via the Vercel MCP + curl/DNS
+> shows the `statenour-os` Vercel project is STILL SERVING a stale
+> 2026-05-04 build at `autonicks.com` · DNS still points to Vercel
+> anycast (`76.76.21.X`) and `www.autonicks.com` is CNAME'd to
+> `cname.vercel-dns.com`. Don't delete the project first · cut
+> DNS first.
 
-**Why this matters:** abandoned Vercel projects can hold:
-- env vars containing real secrets (Anthropic keys, DB URLs, Neon creds)
-- a GitHub deploy hook still wired to `main` (so commits could
-  silently spin up phantom builds that 500 and waste minutes)
-- a custom-domain claim on `autonicks.com` that prevents reuse if
-  you ever want to point that DNS elsewhere
+**Vercel project inventory (team `nourdean22-4533s-projects`):**
 
-**Pre-flight (verify before deleting):**
+| Project | Project ID | Custom domain | Last deploy | Order |
+|---|---|---|---|---|
+| `statenour-os` | `prj_CFa6JVJblNXaS5bIOOoLwkxh7g72` | **autonicks.com** | 2026-05-04 | last · DNS flip first |
+| `nickstire` | `prj_jBUEOtkaHM7ba54Y6wCZBCsz82je` | none | 2026-05-08 (ERROR) | safe now |
+| `easy-nickstire` | `prj_dGpV2VT94D7OjyPtoqm4Ugyq7akk` | none | 2026-04-13 | safe now |
+| `elegant-yalow` | `prj_eHKTf7eOrNLnueQ3iiwtusmzlNYL` | none | 2026-04-14 | safe now |
 
-1. **Confirm no live consumer points there.** From your terminal:
-   ```
-   curl -sI https://autonicks.com/ | head -1
-   curl -sI https://www.autonicks.com/ | head -1
-   ```
-   Both should now resolve to `bdnick.info` (the Railway custom
-   domain) or fail / 404. If either resolves to a live Vercel
-   deployment, STOP — there's still traffic flowing to it.
+The 3 "safe now" projects only have `*.vercel.app` URLs · nothing
+on the public internet links to them · deleting them is risk-free.
+`statenour-os` is different because of the custom-domain claim.
 
-2. **Confirm DNS is detached from Vercel.** Cloudflare dashboard
-   → `autonicks.com` → DNS · the `A`/`CNAME` records for `@` and
-   `www` should point to Railway (`statenour-web-production.up.railway.app`),
-   NOT `cname.vercel-dns.com` or `76.76.21.21`.
+**Why DNS-first matters for `statenour-os`:** if you delete that
+Vercel project while DNS still points to Vercel, `autonicks.com`
+goes from "serving stale build" → "Vercel deleted-project page"
+immediately. Old PWA installs, bookmarks, OAuth callback URLs,
+email links that reference autonicks.com all break for 24-48h
+until DNS propagates the new pointer. Cut DNS first.
 
-3. **Confirm no current callback URL uses it.** Common spots:
-   - Google Cloud Console → OAuth client → authorized redirect URIs
-   - Anthropic / OpenAI / Venice dashboards → webhook URLs
-   - VAPI dashboard → webhook URLs
-   - any third-party (Buffer, Make, Telegram bot) → callback URLs
+---
 
-   If any still reference `autonicks.com`, swap to `bdnick.info`
-   FIRST. Then come back here.
+### Phase 1 · DNS flip for `autonicks.com` (Cloudflare)
 
-**Delete the Vercel project (operator-only · cannot be done by
-the agent):**
+The agent cannot do this (account-bound destructive op). Steps:
 
-1. Log into `https://vercel.com/dashboard` with your account.
-2. Find the project (likely named `statenour-os` or `statenour-web`
-   from the Vercel-era days).
-3. Project settings → "Delete Project" at the bottom of General.
-4. Type the project name to confirm.
+1. Log into `https://dash.cloudflare.com` → select `autonicks.com`.
+2. DNS tab · find the two records pointing to Vercel:
+   - `A   autonicks.com    76.76.21.X` (root)
+   - `CNAME  www  cname.vercel-dns.com` (www subdomain)
+3. **Pick a path:**
+   - **Option A · redirect to bdnick.info** (recommended ·
+     preserves old bookmarks). Cloudflare → Rules → Page Rules ·
+     add `https://autonicks.com/*` and `https://www.autonicks.com/*`
+     → forwarding URL · 301 permanent → `https://bdnick.info/$1`.
+     Then delete the old DNS records.
+   - **Option B · park the domain.** Just delete the two DNS
+     records. autonicks.com starts returning DNS NXDOMAIN. Cheaper
+     but breaks any external link.
+4. Verify: `curl -sI https://autonicks.com/` should now return
+   either a 301 to bdnick.info (Option A) or fail with DNS error
+   (Option B). NOT serve a Vercel build.
 
-**Aftermath:** the GitHub deploy hook on that Vercel project
-auto-detaches. Any env vars stored there die with the project ·
-they were already decoupled from Railway. The `autonicks.com`
-domain claim releases (so you can fully retire the DNS if
-desired, or point it at a 301 redirect to `bdnick.info`).
+### Phase 2 · Wait 48h
 
-**If something breaks after deletion:** unlikely · the codebase
-hasn't shipped to Vercel since the Railway migration. If a
-webhook 404s, it's pointing at the wrong URL · grep your vendor
-dashboards for `autonicks.com` and replace.
+Let DNS propagate + browser caches die. Most CDN+browser caches
+respect TTL within 24h · 48h is the safe ceiling.
+
+### Phase 3 · Delete the 3 dormant projects (anytime · independent)
+
+These have NO custom domains and the latest deploys are 6-7 weeks
+old. The agent cannot click "Delete" but you can do all 3 in 90 sec:
+
+1. `https://vercel.com/nourdean22-4533s-projects/nickstire/settings/general`
+   → scroll to "Delete Project" → type `nickstire` → confirm.
+2. `https://vercel.com/nourdean22-4533s-projects/easy-nickstire/settings/general`
+   → repeat with `easy-nickstire`.
+3. `https://vercel.com/nourdean22-4533s-projects/elegant-yalow/settings/general`
+   → repeat with `elegant-yalow`.
+
+### Phase 4 · Delete `statenour-os` (only after Phase 1 + Phase 2)
+
+After DNS flip + 48h wait:
+
+1. `https://vercel.com/nourdean22-4533s-projects/statenour-os/settings/general`
+2. Scroll to "Delete Project" → type `statenour-os` → confirm.
+
+The `autonicks.com` custom-domain claim releases when the project
+is deleted. Cloudflare DNS already points elsewhere (Phase 1) so
+nothing changes from the user's perspective.
+
+---
+
+**Other places to audit for stale `autonicks.com` references:**
+- Google Cloud Console → OAuth client → authorized redirect URIs
+  (statenour Google sign-in)
+- Anthropic / OpenAI / Venice dashboards → webhook URLs
+- VAPI dashboard → webhook URLs (if any)
+- Buffer / Make / Telegram bot → callback URLs
+
+If any still reference `autonicks.com`, swap to `bdnick.info`
+BEFORE Phase 1. Otherwise the redirect path adds an extra hop or
+breaks the integration.
+
+**Why all this is in operator hands not the agent's:**
+deleting a Vercel project + changing DNS are destructive, third-
+party, account-bound operations. The agent's safety policy
+explicitly prohibits these even with explicit user permission ·
+the rule exists because an account-bound destructive op can't be
+undone if the agent miscalibrates.
