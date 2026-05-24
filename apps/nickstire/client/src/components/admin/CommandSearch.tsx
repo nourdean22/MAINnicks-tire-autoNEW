@@ -4,7 +4,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity } from "lucide-react";
 import { toast } from "sonner";
 import type { AdminSection } from "@/pages/admin/shared";
 import { openDrilldown } from "./DrilldownDrawer";
@@ -250,6 +250,87 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
           window.history.replaceState({}, "", "/admin?tab=revenue&moneyTab=financing");
         }
         onNavigate("revenue");
+      },
+    },
+    // wave-181.x · Settings page redesign · Phase 4
+    // Cmd+K shortcuts for the new Settings sub-tabs.
+    {
+      id: "action-settings-status",
+      label: "Settings · Status (open issues)",
+      keywords: ["status", "open issues", "alert", "warning", "attention", "morning brief", "health"],
+      icon: <Activity className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=status");
+        }
+        onNavigate("settings");
+      },
+    },
+    {
+      id: "action-settings-shopdriver",
+      label: "Settings · ShopDriver HQ (ALG sync)",
+      keywords: ["shopdriver", "alg", "sync", "invoice", "customer", "probe"],
+      icon: <RefreshCw className="w-4 h-4 text-cyan-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=shopdriver");
+        }
+        onNavigate("settings");
+      },
+    },
+    {
+      id: "action-settings-flags",
+      label: "Find a feature flag",
+      keywords: ["flag", "feature flag", "toggle", "enable", "disable", "FEATURE_", "sms_", "engine_", "search flag"],
+      icon: <Zap className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=shopdriver");
+          // Scroll to feature flags panel after navigation
+          setTimeout(() => {
+            const el = Array.from(document.querySelectorAll("h3")).find((h) =>
+              /feature flags/i.test(h.textContent || ""),
+            );
+            el?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }, 200);
+        }
+        onNavigate("settings");
+      },
+    },
+    {
+      id: "action-settings-health",
+      label: "Settings · System Health",
+      keywords: ["health", "uptime", "db", "database", "memory", "vendor status", "system"],
+      icon: <Activity className="w-4 h-4 text-blue-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=health");
+        }
+        onNavigate("settings");
+      },
+    },
+    {
+      id: "action-flip-declined-recovery",
+      label: "Flip FEATURE_DECLINED_RECOVERY (84 estimates · $47K)",
+      keywords: ["declined", "recovery", "flag", "flip", "47k", "84", "sms", "FEATURE_DECLINED"],
+      icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=shopdriver");
+          // Scroll to flags + open the dialog via the new ⚠ RISKY confirmDialog
+          setTimeout(() => {
+            const flagBtn = Array.from(document.querySelectorAll("button")).find((b) =>
+              (b.getAttribute("aria-label") || "").includes("FEATURE_DECLINED_RECOVERY"),
+            );
+            flagBtn?.scrollIntoView({ behavior: "smooth", block: "center" });
+          }, 250);
+        }
+        onNavigate("settings");
       },
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
