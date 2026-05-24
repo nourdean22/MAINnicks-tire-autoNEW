@@ -78,37 +78,9 @@ describe("prerender-middleware · PRERENDER_MODE bypass (wave-181.12 critical fi
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("PRERENDER_MODE unset · non-bot UA + file present · serves prerendered (LCP fix · 2026-05-24)", () => {
-    // 2026-05-24 contract change · pre-fix non-bot UAs always fell through.
-    // PSI showed real users hit a 12KB shell + 777KB JS to render the H1
-    // → 7s LCP. Now non-bot UAs get the same fast prerendered HTML if a
-    // file exists for the route. The flash-then-rebuild is below the LCP
-    // measurement window.
+  it("PRERENDER_MODE unset · non-bot UA falls through to next() (regular users)", () => {
     const mw = createPrerenderMiddleware(tmpDir);
     const req = mockReq({ ua: "Mozilla/5.0 (regular human)" });
-    const res = mockRes();
-    const next = vi.fn() as NextFunction;
-    mw(req, res, next);
-    expect((res as unknown as { sendFile: ReturnType<typeof vi.fn> }).sendFile).toHaveBeenCalledOnce();
-    expect(next).not.toHaveBeenCalled();
-  });
-
-  it("PRERENDER_MODE unset · non-bot UA + missing file · falls through to SPA", () => {
-    // Non-existent routes still hit the React SPA path · only routes
-    // with a prerendered counterpart get intercepted.
-    const mw = createPrerenderMiddleware(tmpDir);
-    const req = mockReq({ ua: "Mozilla/5.0 (regular human)", path: "/nonexistent-route" });
-    const res = mockRes();
-    const next = vi.fn() as NextFunction;
-    mw(req, res, next);
-    expect(next).toHaveBeenCalled();
-    expect((res as unknown as { sendFile: ReturnType<typeof vi.fn> }).sendFile).not.toHaveBeenCalled();
-  });
-
-  it("PRERENDER_MODE unset · /admin path falls through to SPA even with no extension", () => {
-    // Admin paths are always SPA · we don't prerender authenticated UI.
-    const mw = createPrerenderMiddleware(tmpDir);
-    const req = mockReq({ ua: "Mozilla/5.0 (regular human)", path: "/admin" });
     const res = mockRes();
     const next = vi.fn() as NextFunction;
     mw(req, res, next);

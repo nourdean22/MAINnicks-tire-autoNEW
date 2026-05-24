@@ -1,23 +1,12 @@
 /**
- * Prerender Middleware — Serves static prerendered HTML to bots AND real users.
+ * Prerender Middleware — Serves static prerendered HTML to search engine bots.
  *
- * 2026-05-24 PSI fix · pre-fix this middleware only intercepted bot UAs.
- * Real users got a 12KB SPA shell + 777KB JS bundle to render the H1 ·
- * mobile LCP measured 7.0s (target <2.5s). The prerendered file
- * (~260KB) already contained the H1 text inline. Now real users get
- * the prerendered HTML on first paint · LCP fires off the static paint
- * (target ~1.5s). React still mounts on top and re-renders the tree
- * for client-side interactivity · the brief overlap is below the LCP
- * measurement window.
+ * When a known bot User-Agent requests a page, this middleware checks if a
+ * prerendered HTML file exists for that route. If so, it serves the static
+ * HTML directly (which contains all meta tags, JSON-LD, content). If not,
+ * it falls through to the normal SPA handler.
  *
- * When a GET request hits a route that has a prerendered HTML file,
- * the middleware serves it directly. All non-GET requests, API routes,
- * static assets, and routes without a prerendered counterpart fall
- * through to the normal SPA handler.
- *
- * Bots still benefit · same fast static HTML, with X-Prerendered: true
- * header so log analyzers can distinguish. Cache-Control 3600 stays
- * the same for both populations.
+ * For regular users, this middleware does nothing — they get the SPA as usual.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -95,23 +84,15 @@ export function createPrerenderMiddleware(prerenderedDir: string) {
     // updated to "Used Tires $60 · Open Sundays".
     if (process.env.PRERENDER_MODE === "true") return next();
 
-    // 2026-05-24 PSI fix · gate REMOVED · was `if (!isBot(userAgent)) return next();`
-    // Pre-fix real users got the 12KB SPA shell + waited for React to
-    // render the H1 · mobile LCP 7s. Now real users get the prerendered
-    // HTML on first paint · React hydrates on top after. Bots still
-    // get the same fast path. Admin routes don't have prerendered files
-    // so they fall through naturally.
-    //
-    // The /admin path stays SPA · the `prerendered/` dir contains only
-    // public marketing pages (index, blog, diagnose, guides, tires). Any
-    // future admin route additions to prerendered/ should be explicit.
+    // Only intercept if it's a bot
+    const userAgent = req.get("user-agent") || "";
+    if (!isBot(userAgent)) return next();
 
     // Skip API routes, static assets, and file requests
     const urlPath = req.path;
     if (
       urlPath.startsWith("/api/") ||
       urlPath.startsWith("/assets/") ||
-      urlPath.startsWith("/admin") || // SPA shell only · no prerender
       urlPath.includes(".") // has file extension (css, js, png, etc.)
     ) {
       return next();
@@ -127,20 +108,11 @@ export function createPrerenderMiddleware(prerenderedDir: string) {
     }
 
     if (fs.existsSync(htmlPath)) {
-      const userAgent = req.get("user-agent") || "";
-      const isUserBot = isBot(userAgent);
-      // Quiet log · only emit on bot hits + a 1% sample of human hits
-      // to avoid log spam during normal traffic. Spec: keep visibility
-      // into what bots see without drowning out signal on real users.
-      if (isUserBot || Math.random() < 0.01) {
-        console.info(`[prerender:serve] ${urlPath} ${isUserBot ? "BOT" : "USER"} ${userAgent.slice(0, 50)}`);
-      }
+      console.info(`[prerender:serve] ${urlPath} to ${userAgent.slice(0, 50)}`);
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.setHeader("X-Prerendered", "true");
-      // Short cache for human hits · long cache for bots (header same)
-      // Real users want fresh content after deploys · the 5-min cache
-      // matches the Vite bundle hash invalidation cadence.
-      res.setHeader("Cache-Control", "public, max-age=300, must-revalidate");
+      // Cache prerendered pages for bots (1 hour)
+      res.setHeader("Cache-Control", "public, max-age=3600");
       return res.sendFile(htmlPath);
     }
 
