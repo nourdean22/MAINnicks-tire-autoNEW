@@ -5,7 +5,7 @@
 
 ## Why this exists
 
-Statenour-os runs at autonicks.com (Railway) and the operator lives on
+Statenour-os runs at bdnick.info (Railway · custom domain · `autonicks.com` was the pre-2026-05 Vercel domain · retired) and the operator lives on
 iPhone PWA + Mac/Windows browser. The PWA covers mobile · the browser
 side is currently "operator opens a tab, clicks /chat, types." A Chrome
 extension would let the operator capture browser context (current tab,

@@ -387,3 +387,64 @@ class structurally impossible. New rows go in date-asc.
 rewritten for the Railway monorepo deploy (was Vercel /
 `codex/ollama-local` / `statenour-master`, all retired). If a claim in
 this doc contradicts code reality, the code wins · open an issue.
+
+---
+
+## Retiring the `autonicks.com` Vercel ghost project · operator action
+
+**Status:** the statenour codebase is CLEAN of live `autonicks.com`
+references as of 2026-05-24 (Wave N). The only remaining drift is
+the Vercel project itself, still sitting in your account doing
+nothing.
+
+**Why this matters:** abandoned Vercel projects can hold:
+- env vars containing real secrets (Anthropic keys, DB URLs, Neon creds)
+- a GitHub deploy hook still wired to `main` (so commits could
+  silently spin up phantom builds that 500 and waste minutes)
+- a custom-domain claim on `autonicks.com` that prevents reuse if
+  you ever want to point that DNS elsewhere
+
+**Pre-flight (verify before deleting):**
+
+1. **Confirm no live consumer points there.** From your terminal:
+   ```
+   curl -sI https://autonicks.com/ | head -1
+   curl -sI https://www.autonicks.com/ | head -1
+   ```
+   Both should now resolve to `bdnick.info` (the Railway custom
+   domain) or fail / 404. If either resolves to a live Vercel
+   deployment, STOP — there's still traffic flowing to it.
+
+2. **Confirm DNS is detached from Vercel.** Cloudflare dashboard
+   → `autonicks.com` → DNS · the `A`/`CNAME` records for `@` and
+   `www` should point to Railway (`statenour-web-production.up.railway.app`),
+   NOT `cname.vercel-dns.com` or `76.76.21.21`.
+
+3. **Confirm no current callback URL uses it.** Common spots:
+   - Google Cloud Console → OAuth client → authorized redirect URIs
+   - Anthropic / OpenAI / Venice dashboards → webhook URLs
+   - VAPI dashboard → webhook URLs
+   - any third-party (Buffer, Make, Telegram bot) → callback URLs
+
+   If any still reference `autonicks.com`, swap to `bdnick.info`
+   FIRST. Then come back here.
+
+**Delete the Vercel project (operator-only · cannot be done by
+the agent):**
+
+1. Log into `https://vercel.com/dashboard` with your account.
+2. Find the project (likely named `statenour-os` or `statenour-web`
+   from the Vercel-era days).
+3. Project settings → "Delete Project" at the bottom of General.
+4. Type the project name to confirm.
+
+**Aftermath:** the GitHub deploy hook on that Vercel project
+auto-detaches. Any env vars stored there die with the project ·
+they were already decoupled from Railway. The `autonicks.com`
+domain claim releases (so you can fully retire the DNS if
+desired, or point it at a 301 redirect to `bdnick.info`).
+
+**If something breaks after deletion:** unlikely · the codebase
+hasn't shipped to Vercel since the Railway migration. If a
+webhook 404s, it's pointing at the wrong URL · grep your vendor
+dashboards for `autonicks.com` and replace.

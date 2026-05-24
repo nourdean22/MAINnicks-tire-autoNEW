@@ -110,11 +110,80 @@ describe("buildStateCalibration · M1 grid math", () => {
     );
     const report = await buildStateCalibration();
     expect(report.unstamped).toBe(2);
+    // 2026-05-24 · Wave N · the unstamped split means the other two
+    // diagnostic counters MUST be 0 for genuine null-snapshot rows.
+    expect(report.malformed).toBe(0);
+    expect(report.unknownMood).toBe(0);
     // The 1 stamped row should hit the energized × task cell.
     const stampedCell = report.cells.find(
       (c) => c.mood === "energized" && c.kind === "task",
     );
     expect(stampedCell?.total).toBe(1);
+  });
+
+  it("counts malformed snapshots (mood is not a string) into the `malformed` bucket", async () => {
+    // 2026-05-24 · Wave N · simulates schema drift on the snapshot
+    // shape · pre-split this would have rolled into `unstamped` and
+    // hidden the bug · post-split it lands in `malformed` so prod
+    // diagnosis is unambiguous.
+    mocks.brainMemory.findMany.mockResolvedValue([
+      {
+        key: "sugg:abc:action:acted",
+        createdAt: new Date(),
+        metadata: {
+          suggestionKind: "task",
+          event: "acted",
+          // mood is a NUMBER instead of a string · classic schema drift.
+          operatorStateSnapshot: { mood: 123, focus: 0.6, confidence: 0.7 },
+        },
+      },
+      {
+        key: "sugg:def:action:acted",
+        createdAt: new Date(),
+        metadata: {
+          suggestionKind: "goal",
+          event: "acted",
+          // mood is null · also malformed (snap exists but mood missing).
+          operatorStateSnapshot: { mood: null, focus: 0.6, confidence: 0.7 },
+        },
+      },
+    ]);
+    const { buildStateCalibration } = await import(
+      "@/lib/services/state-calibration"
+    );
+    const report = await buildStateCalibration();
+    expect(report.malformed).toBe(2);
+    expect(report.unstamped).toBe(0);
+    expect(report.unknownMood).toBe(0);
+  });
+
+  it("counts unknown-mood snapshots into the `unknownMood` bucket", async () => {
+    // 2026-05-24 · Wave N · simulates a new mood enum value being
+    // added upstream without extending this report's ALL_MOODS · the
+    // counter spikes so the drift is visible from /system/calibration
+    // without needing to read the raw payload.
+    mocks.brainMemory.findMany.mockResolvedValue([
+      {
+        key: "sugg:xyz:action:acted",
+        createdAt: new Date(),
+        metadata: {
+          suggestionKind: "task",
+          event: "acted",
+          operatorStateSnapshot: {
+            mood: "ecstatic", // valid string · not in ALL_MOODS.
+            focus: 0.9,
+            confidence: 0.8,
+          },
+        },
+      },
+    ]);
+    const { buildStateCalibration } = await import(
+      "@/lib/services/state-calibration"
+    );
+    const report = await buildStateCalibration();
+    expect(report.unknownMood).toBe(1);
+    expect(report.unstamped).toBe(0);
+    expect(report.malformed).toBe(0);
   });
 
   it("classifies unknown suggestion kinds as 'other'", async () => {

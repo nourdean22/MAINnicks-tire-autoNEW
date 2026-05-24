@@ -109,15 +109,24 @@ export default function CalibrationPage() {
       eyebrow="NOUR OS · System"
       title="State Calibration"
       description={
-        // 2026-05-23 · Wave M · audit follow-up. Pre-fix the header
-        // showed "no data" both when totalRows === 0 AND when the
-        // query errored · operator couldn't tell warming-up from
-        // broken. The rose-300 error banner below already discloses
-        // the failure · the header now mirrors it.
+        // 2026-05-23 · Wave M · "failed to load" distinct from empty.
+        // 2026-05-24 · Wave N · surface non-zero malformed +
+        // unknownMood counters in the header so prod diagnosis
+        // doesn't require opening the response payload. Zero
+        // values stay hidden to keep the chip clean in the
+        // common case.
         error
           ? "failed to load"
           : data
-            ? `${data.totalRows} actions · ${data.unstamped} pre-Wave-H · ${data.sinceDays}d`
+            ? [
+                `${data.totalRows} actions`,
+                `${data.unstamped} pre-Wave-H`,
+                data.malformed > 0 ? `${data.malformed} malformed` : null,
+                data.unknownMood > 0 ? `${data.unknownMood} unknown-mood` : null,
+                `${data.sinceDays}d`,
+              ]
+                .filter(Boolean)
+                .join(" · ")
             : isLoading
               ? "loading…"
               : "no data"
