@@ -1691,12 +1691,16 @@ function Chat() {
 
   function handleKey(e: React.KeyboardEvent) {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      // v11.1 · input is no longer disabled during stream — but Enter
-      // still shouldn't fire send while Nick is mid-reply (would stack
-      // the queue). Let Nour TYPE the next turn; only SEND when the
-      // current stream is done.
+      // 2026-05-24 · Wave X.b · clarity-gate fix · pre-fix this branch
+      // ALWAYS called preventDefault() before checking isStreaming · so
+      // hitting Enter mid-stream consumed the keystroke and did nothing
+      // (no send · no newline · silent dead key). Now: while streaming
+      // we fall through · the textarea inserts a natural newline (same
+      // as shift+Enter) so the operator can draft the next turn while
+      // Nick replies. The original "don't stack the queue" intent is
+      // preserved · we just stop silently swallowing the keystroke.
       if (isStreaming) return;
+      e.preventDefault();
       send();
       return;
     }
