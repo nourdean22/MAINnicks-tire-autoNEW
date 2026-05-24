@@ -971,6 +971,21 @@ export const CRONS: CronDef[] = [
     addedAt: "2026-05-12",
   },
 
+  // ── 2026-05-24 · Wave X.f · daily-strategy · FOLDED into mega-morning
+  // Writes today's `DailyStrategy` row · the cockpit at
+  // `/api/command/data` reads from this table but no writer existed.
+  {
+    name: "daily-strategy",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega",
+    description:
+      "FOLDED into mega-morning. Runs the 15 strategic-trigger behavioral checks and writes a `DailyStrategy` row keyed by today's ET date. Deterministic briefing — no AI call, the triggers ARE the signal. Idempotent · upserts on the unique `strategyDate` constraint. Pre-fix the cockpit tile at /api/command/data line 87 always rendered null because no cron wrote the row.",
+    maxDuration: 60,
+    addedAt: "2026-05-24",
+  },
+
   // ── v10.0.524.6 · eval-regression · FOLDED into mega-evening
   {
     name: "eval-regression",

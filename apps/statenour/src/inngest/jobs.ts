@@ -56,6 +56,11 @@ export const MORNING_JOBS: readonly string[] = [
   "/api/cron/backlog-triage",
   "/api/cron/ingest-drive",
   "/api/cron/token-age-watch",
+  // 2026-05-24 · Wave X.f · writes today's `DailyStrategy` row so
+  // the cockpit's strategic-briefing tile has fresh data when the
+  // operator opens it. No writer existed before this — the tile was
+  // always null.
+  "/api/cron/daily-strategy",
 ];
 
 /**

@@ -178,6 +178,11 @@ export const BRAIN_CATEGORIES = {
   RELATIONSHIPS: "relationships",
   COMMS: "comms",
   MEETINGS: "meetings",
+  // 2026-05-24 · Wave X.f · ingest-fireflies writes the raw string
+  // "meeting_transcript" (not via this constant) and chat-recall
+  // never read it. Adding the constant + wiring it through
+  // ingest-fireflies + recall closes the loop.
+  MEETING_TRANSCRIPT: "meeting_transcript",
 
   // ── Meta / archive / stale markers ──
   ANCIENT_DEVICE_EVENTS: "ancient_device_events",
