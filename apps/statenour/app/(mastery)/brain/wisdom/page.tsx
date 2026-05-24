@@ -34,6 +34,7 @@ import { RelatedWisdomLinks } from "@/components/brain/related-wisdom-links";
 import { WisdomEvolutionPanel } from "@/components/brain/wisdom-evolution-panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface WisdomEntry {
   id: string;
@@ -149,6 +150,13 @@ function tone(hotness: number): string {
 function WisdomPageInner() {
   const searchParams = useSearchParams();
   const evolutionMode = searchParams.get("evolution") === "1";
+  // 2026-05-24 · Wave V P1-#5 · iOS-PWA-safe deprecation confirm.
+  // Pre-fix `window.confirm()` is silently suppressed in iOS PWA
+  // standalone mode (the operator's primary surface) · early-return
+  // ALWAYS fired · operator hit Deprecate and nothing happened.
+  // Same fix nickstire admin Wave 110-139 + statenour OVERDRIVE-1
+  // applied across other pages.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   // v10.0.414 · ?focus=<wisdom-key> · scrolls to + highlights a card ·
   // wired from /brain/wisdom?evolution=1 → "review →" links per low-trust row
   const focusKey = searchParams.get("focus");
@@ -161,14 +169,31 @@ function WisdomPageInner() {
   // default = hotness (legacy · most-fired first). 6 modes.
   type WisdomSort = "hotness" | "confidence" | "newest" | "oldest" | "alpha-asc" | "alpha-desc";
   const [sortKey, setSortKey] = useState<WisdomSort>(() => {
+    // 2026-05-24 · Wave V P1-#7 · pre-fix `localStorage.getItem` ran
+    // without a try/catch · Safari private mode + iOS Lockdown Mode
+    // throw `SecurityError` on storage access · the operator's whole
+    // /brain/wisdom page would crash before mounting. Now: try/catch
+    // matches the /journal Wave R + Wave T `resolveInitialFlags`
+    // pattern · fallback returns the default sort.
     if (typeof window === "undefined") return "hotness";
-    const saved = localStorage.getItem("wisdom:sortKey");
-    const valid: WisdomSort[] = ["hotness", "confidence", "newest", "oldest", "alpha-asc", "alpha-desc"];
-    return saved && valid.includes(saved as WisdomSort) ? (saved as WisdomSort) : "hotness";
+    try {
+      const saved = localStorage.getItem("wisdom:sortKey");
+      const valid: WisdomSort[] = ["hotness", "confidence", "newest", "oldest", "alpha-asc", "alpha-desc"];
+      return saved && valid.includes(saved as WisdomSort) ? (saved as WisdomSort) : "hotness";
+    } catch {
+      return "hotness";
+    }
   });
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem("wisdom:sortKey", sortKey);
+    // 2026-05-24 · Wave V P1-#7 · same Safari-private-mode guard on
+    // the persistence write · acceptable degradation if storage is
+    // unavailable · sortKey just resets to default next visit.
+    try {
+      localStorage.setItem("wisdom:sortKey", sortKey);
+    } catch {
+      // ignore
+    }
   }, [sortKey]);
   // v10.0.383 · curation state · which entry is being edited inline
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -218,7 +243,14 @@ function WisdomPageInner() {
 
   const deprecateWisdom = useCallback(
     async (id: string) => {
-      if (!confirm("Soft-delete this wisdom · stops appearing in recall · can be restored?")) return;
+      const ok = await confirm({
+        title: "Deprecate this wisdom?",
+        body: "Soft-deletes the row · stops appearing in recall · can be restored from /system/logs.",
+        confirmLabel: "Deprecate",
+        cancelLabel: "Keep",
+        tone: "danger",
+      });
+      if (!ok) return;
       const tid = toast.loading("Deprecating…");
       try {
         await actionMutation.mutateAsync({ id, action: "deprecate" });
@@ -607,7 +639,16 @@ function WisdomPageInner() {
                             v10.0.390 · ALWAYS visible on mobile (no hover state on
                             touch · operator can't curate without this) · larger
                             44px hit targets on small screens (iOS guideline) */}
-                        <div className="absolute top-2 right-2 md:top-3 md:right-3 md:opacity-0 md:group-hover/card:opacity-100 md:transition-opacity flex items-center gap-1">
+                        {/* 2026-05-24 · Wave V P1-#8 · a11y · pre-fix
+                            md:opacity-0 hid the curation buttons from
+                            keyboard-only users · Tab navigation
+                            revealed nothing on desktop until mouse-
+                            hover. Now: md:focus-within:opacity-100
+                            also reveals them when any child gets
+                            focus · matches the WCAG 2.1.1
+                            keyboard-accessible pattern. Mobile
+                            (default opacity-100) unchanged. */}
+                        <div className="absolute top-2 right-2 md:top-3 md:right-3 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100 md:transition-opacity flex items-center gap-1">
                           <button
                             onClick={() => {
                               setEditingId(entry.id);
@@ -678,6 +719,10 @@ function WisdomPageInner() {
           ))}
         </ol>
       </section>
+      {/* 2026-05-24 · Wave V · iOS-PWA-safe confirm dialog mount ·
+          renders null when no confirm is in-flight so this adds zero
+          DOM cost in the steady state. */}
+      {confirmDialog}
     </StandardPage>
   );
 }
