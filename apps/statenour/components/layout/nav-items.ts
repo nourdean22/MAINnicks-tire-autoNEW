@@ -18,6 +18,9 @@ import {
   Newspaper,
   History,
   TrendingUp,
+  Filter,
+  Radar,
+  Search,
 } from "lucide-react";
 
 export type NavItem = {
@@ -102,6 +105,21 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/content/history", label: "Content History", icon: History },
   { href: "/system/prompt",   label: "System Prompt",   icon: Newspaper },
   { href: "/system/costs",    label: "AI Costs (deep)", icon: TrendingUp },
+
+  // 2026-05-24 · Wave X.e (consolidation+activation pass) ·
+  // Intelligence Dispersal Wave 3 surfaces · 3 statenour-side bridge
+  // pages were SHIPPED but never wired into nav · invisible to ⌘K +
+  // FloatingHome · operator could only reach them by typing the URL.
+  // /funnel · 6-stage Lead→Estimate→Drop-off→Job→Review→Retained
+  //          consumes nickstire bridges funnel_overview +
+  //          funnel_first_visit.
+  // /radar  · competitor + AI-visibility surface ·
+  //          consumes master_report bridge.
+  // /seo    · GSC + Ahrefs forensic surface ·
+  //          consumes nickstire seo bridges.
+  { href: "/funnel",          label: "Funnel",          icon: Filter },
+  { href: "/radar",           label: "Radar",           icon: Radar },
+  { href: "/seo",             label: "SEO",             icon: Search },
 ];
 
 // Pages accessible via ⌘K command palette or Nick chat (personal OS only):
