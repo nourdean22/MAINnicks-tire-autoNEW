@@ -142,26 +142,34 @@ export default function SettingsSection() {
   const handleProbe = async () => {
     // wave-181.x · result lands in server log + toast (via tRPC error handler)
     // The in-page Probe Results panel was deleted in Phase 1.
-    const { data } = await runProbe();
-    if (data) {
-      const okCount = Object.values(data as Record<string, { status: number }>).filter(
-        (r) => r.status >= 200 && r.status < 400,
-      ).length;
-      const totalCount = Object.keys(data as Record<string, unknown>).length;
-      toast.success(`ALG probe complete · ${okCount}/${totalCount} endpoints OK`);
+    // wave-181.x bug-fix · was async/await with no try/catch · auth
+    // expiry or network blip silently dropped feedback · now wrapped
+    // matching handleSync's pattern.
+    try {
+      const { data } = await runProbe();
+      if (data) {
+        const okCount = Object.values(data as Record<string, { status: number }>).filter(
+          (r) => r.status >= 200 && r.status < 400,
+        ).length;
+        const totalCount = Object.keys(data as Record<string, unknown>).length;
+        toast.success(`ALG probe complete · ${okCount}/${totalCount} endpoints OK`);
+      } else {
+        toast.warning("ALG probe returned no data");
+      }
+    } catch (err) {
+      toast.error(`ALG probe failed: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
   const connected = algStatus?.connected ?? false;
   const usingFallback = algStatus?.usingFallback ?? true;
 
-  if (algLoading) {
-    return (
-      <div className="flex items-center justify-center py-32">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // wave-181.x bug-fix · loading guard previously blocked the ENTIRE
+  // page including the new Status tab (which only uses ALG status as
+  // signal, not as a hard dependency). Result: opening Settings on a
+  // slow ALG response showed a blank page for 3-5 seconds.
+  // Now: Status tab renders immediately · only shopdriver / health /
+  // integrations branches wait for ALG below in their own renders.
 
   return (
     <div className="space-y-6">
