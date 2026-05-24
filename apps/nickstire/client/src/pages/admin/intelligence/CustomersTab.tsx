@@ -1,131 +1,42 @@
+// wave-181.x Intelligence Dispersal Wave 2 (2026-05-24) · 4 panels
+// dispersed per dispersal plan §4.2 + operator decision §4.4 #3
+// "Risk + Churn merge into ONE column on Customers roster":
+//   · CHURN PREDICTION → CustomersSection StatusBadge (already
+//     renders "AT RISK" for churnRisk === "high" + daysSinceLastVisit
+//     > 90). The canonical risk surface · don't duplicate.
+//   · UNIFIED RISK SCORES → same · StatusBadge covers the signal.
+//   · DUE-BACK PREDICTIONS → same · the existing roster column
+//     "Last Service" with the daysAgo derivation covers the
+//     "predict who's due back" signal. The intelligence.repeatVisit
+//     procedure stays on the server for future enrichment work.
+//   · CUSTOMER VALUE TREND → migrates to statenour /brain (Wave 3).
+//
+// The intelligence.churnPrediction · intelligence.riskScores ·
+// intelligence.repeatVisit · intelligence.valueTrend tRPC procedures
+// stay on the server (operator decision §4.4 #1 · keep underlying
+// sub-reports for future improvements · only retire UI surfaces).
+//
+// Remaining panels on this tab AFTER Wave 2:
+//   · SERVICE PREFERENCES (Service Affinity) · its own v2 design ·
+//     migrating to statenour /brain via the SA v2 plan
+//   · FIRST VISIT CONVERSION · migrating to statenour /funnel (Wave 3)
+//
+// Both will be deleted from this file in Wave 3 · this tab will be
+// empty and the entire Intelligence section retired from nickstire.
 import { trpc } from "@/lib/trpc";
-import { StatCard } from "../shared";
-import { SectionSpinner, NoData, EngineCard, MiniTable, Badge, fmt, INTELLIGENCE_QUERY_OPTS } from "./utils";
-import {
-  Users, AlertTriangle, Heart, Activity, Star, RefreshCw, UserCheck,
-} from "lucide-react";
+import { SectionSpinner, NoData, EngineCard, MiniTable, INTELLIGENCE_QUERY_OPTS } from "./utils";
+import { Heart, UserCheck } from "lucide-react";
 
 export default function CustomersTab() {
-  const churn = trpc.intelligence.churnPrediction.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  const risk = trpc.intelligence.riskScores.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  const repeat = trpc.intelligence.repeatVisit.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  const value = trpc.intelligence.valueTrend.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const affinity = trpc.intelligence.serviceAffinity.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const firstVisit = trpc.intelligence.firstVisitConversion.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  // wave-181.x Intelligence Dispersal Wave 1 · `ltv` query removed
-  // after both consuming panels (LTV Segments grid + TOP LTV
-  // CUSTOMERS table) were deleted. The intelligence.ltv tRPC
-  // procedure stays on the server (CustomersBrief consumes it
-  // canonically).
-
 
   return (
     <div className="space-y-6">
-      {/* wave-181.x Intelligence Dispersal Wave 1 · LTV Segments
-       * grid (Whales/Regulars/Occasional/One-timers) deleted ·
-       * duplicates the LTV roster CustomersBrief already surfaces
-       * on the canonical Customers page. Per dispersal plan §4.1
-       * Bucket A cuts. */}
-
-      {/* Churn Prediction — highRisk: {name, phone, daysSinceVisit, churnProbability, reason}[] */}
-      {churn.isLoading ? <SectionSpinner /> : churn.data ? (
-        <EngineCard title="CHURN PREDICTION" icon={<AlertTriangle className="w-4 h-4 text-red-400" />}
-          border={churn.data.highRisk?.length > 0 ? "border-red-500/20" : "border-border/30"}>
-          {churn.data.highRisk?.length > 0 || churn.data.mediumRisk?.length > 0 ? (
-            <>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="text-center">
-                  <div className="text-xl font-bold text-red-400">{churn.data.highRisk?.length ?? 0}</div>
-                  <div className="text-[10px] text-foreground/40">HIGH RISK</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-xl font-bold text-amber-400">{churn.data.mediumRisk?.length ?? 0}</div>
-                  <div className="text-[10px] text-foreground/40">MEDIUM RISK</div>
-                </div>
-              </div>
-              <MiniTable
-                headers={["NAME", "RISK", "DAYS GONE", "REASON"]}
-                rows={[...(churn.data.highRisk || []).slice(0, 5), ...(churn.data.mediumRisk || []).slice(0, 3)].map((c) => [
-                  <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
-                  <span className={`font-mono font-bold ${c.churnProbability >= 70 ? "text-red-400" : "text-amber-400"}`}>{c.churnProbability}%</span>,
-                  <span className="font-mono">{c.daysSinceVisit}d</span>,
-                  <span className="text-[10px] text-foreground/40 truncate max-w-[160px] block">{c.reason}</span>,
-                ])}
-              />
-            </>
-          ) : <NoData label="No churn risks detected" />}
-        </EngineCard>
-      ) : null}
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Risk Scores — highRisk: {name, phone, riskScore, factors}[] */}
-        {risk.isLoading ? <SectionSpinner /> : risk.data ? (
-          <EngineCard title="UNIFIED RISK SCORES" icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}>
-            {risk.data.highRisk?.length > 0 ? (
-              <>
-                <div className="text-[12px] text-foreground/50 mb-3">{risk.data.totalAtRisk} at risk of {risk.data.totalCustomers} total</div>
-                <MiniTable
-                  headers={["CUSTOMER", "SCORE", "FACTORS"]}
-                  rows={risk.data.highRisk.slice(0, 8).map((c) => [
-                    <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
-                    <span className={`font-mono font-bold ${c.riskScore >= 70 ? "text-red-400" : c.riskScore >= 40 ? "text-amber-400" : "text-emerald-400"}`}>{c.riskScore}</span>,
-                    <span className="text-[10px] text-foreground/40">{(c.factors || []).join(", ") || "-"}</span>,
-                  ])}
-                />
-              </>
-            ) : <NoData />}
-          </EngineCard>
-        ) : null}
-
-        {/* Repeat Visit — dueSoon: {name, phone, predictedDate, avgGapDays, confidence}[] */}
-        {repeat.isLoading ? <SectionSpinner /> : repeat.data ? (
-          <EngineCard title="DUE-BACK PREDICTIONS" icon={<RefreshCw className="w-4 h-4 text-blue-400" />}>
-            {repeat.data.dueSoon?.length > 0 ? (
-              <>
-                <div className="text-[12px] text-foreground/50 mb-3">{repeat.data.overdueCount} overdue</div>
-                <MiniTable
-                  headers={["CUSTOMER", "PREDICTED", "GAP", "CONFIDENCE"]}
-                  rows={repeat.data.dueSoon.slice(0, 8).map((c) => [
-                    <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
-                    <span className="font-mono text-foreground/60">{c.predictedDate}</span>,
-                    <span className="font-mono">{c.avgGapDays}d avg</span>,
-                    <span className={`font-mono font-semibold ${c.confidence >= 70 ? "text-emerald-400" : "text-foreground/50"}`}>{c.confidence}%</span>,
-                  ])}
-                />
-              </>
-            ) : <NoData />}
-          </EngineCard>
-        ) : null}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Value Trend — growing/shrinking: {name, trend, lastTicket, avgTicket}[] */}
-        {value.isLoading ? <SectionSpinner /> : value.data ? (
-          <EngineCard title="CUSTOMER VALUE TREND" icon={<Activity className="w-4 h-4 text-emerald-400" />}>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="text-center">
-                <div className="text-lg font-bold text-emerald-400">{value.data.growing?.length ?? 0}</div>
-                <div className="text-[10px] text-foreground/40">GROWING</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-red-400">{value.data.shrinking?.length ?? 0}</div>
-                <div className="text-[10px] text-foreground/40">SHRINKING</div>
-              </div>
-            </div>
-            {value.data.growing?.length > 0 && (
-              <div className="space-y-1">
-                {value.data.growing.slice(0, 5).map((c, i) => (
-                  <div key={i} className="flex items-center justify-between py-1 text-[12px]">
-                    <span className="text-foreground/70 font-medium">{c.name || "Unknown"}</span>
-                    <span className="font-mono text-emerald-400">+{c.trend}% trend</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </EngineCard>
-        ) : null}
-
-        {/* Service Affinity — affinities: {customerId, name, topServices, predictedNext}[] */}
+        {/* Service Affinity — affinities: {customerId, name, topServices, predictedNext}[]
+         * To be retired in Wave 3 · v2 design lives in docs/2026-05-24-service-affinity-v2.md ·
+         * pending operator verify-before-build (task #75). */}
         {affinity.isLoading ? <SectionSpinner /> : affinity.data ? (
           <EngineCard title="SERVICE PREFERENCES" icon={<Heart className="w-4 h-4 text-primary" />}>
             {affinity.data.affinities?.length > 0 ? (
@@ -140,10 +51,9 @@ export default function CustomersTab() {
             ) : <NoData />}
           </EngineCard>
         ) : null}
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* First Visit Conversion — {overallRate, bySource, avgDaysToRepeat} */}
+        {/* First Visit Conversion — {overallRate, bySource, avgDaysToRepeat}
+         * To be retired in Wave 3 · migrating to statenour /funnel page. */}
         {firstVisit.isLoading ? <SectionSpinner /> : firstVisit.data ? (
           <EngineCard title="FIRST VISIT CONVERSION" icon={<UserCheck className="w-4 h-4 text-emerald-400" />}>
             <div className="grid grid-cols-2 gap-3 mb-3">
@@ -169,11 +79,6 @@ export default function CustomersTab() {
             )}
           </EngineCard>
         ) : null}
-
-        {/* wave-181.x Intelligence Dispersal Wave 1 · TOP LTV
-         * CUSTOMERS table deleted · same data lives on the CustomersBrief
-         * + CustomersSection roster (canonical home for LTV signal).
-         * Per dispersal plan §4.1 Bucket A cuts. */}
       </div>
     </div>
   );
