@@ -529,6 +529,11 @@ export async function handleRunMigrations() {
       // 2026-05-23 · drizzle/0059_wave_metrics.sql — Tier A closed-loop delivery
       // Baseline + measurement window per shipped wave · daily cron writes lift/no-lift.
       `CREATE TABLE IF NOT EXISTS wave_metrics (id BIGINT AUTO_INCREMENT PRIMARY KEY, wave_id VARCHAR(64) NOT NULL, metric_key VARCHAR(64) NOT NULL, baseline_value DECIMAL(12,4) NOT NULL, measure_at TIMESTAMP NOT NULL, measured_value DECIMAL(12,4) DEFAULT NULL, delta_percent DECIMAL(8,2) DEFAULT NULL, status ENUM('pending','lifted','no_lift','regression','resolver_error') NOT NULL DEFAULT 'pending', notes TEXT DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, measured_at TIMESTAMP NULL DEFAULT NULL, INDEX idx_wave_measure_at (status, measure_at), INDEX idx_wave_id (wave_id))`,
+      // 2026-05-23 · drizzle/0060_agentic_audit.sql — Tier S agentic-actions-auditor
+      // metadata JSON column captures audit findings · audited_at stamps the audit.
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT NULL`,
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS audited_at TIMESTAMP NULL DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_vapi_audited_at ON vapi_call_logs (audited_at)`,
     ];
 
     let applied = 0;
