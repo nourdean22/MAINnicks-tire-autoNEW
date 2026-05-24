@@ -4,7 +4,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
@@ -377,6 +377,59 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
           }, 250);
         }
         onNavigate("settings");
+      },
+    },
+    // wave-181.x Outreach Hub Phase 4 · jumps to each bulk-send surface.
+    // Cmd+K → "campaign" / "review" / "winback" lands you one click from
+    // the bulk-SMS gate (which itself is confirm-dialog protected since
+    // Phase 1). Highest-frequency outreach jumps · the operator no
+    // longer needs to drill through the sidebar to reach them.
+    {
+      id: "action-outreach-campaigns",
+      label: "Outreach · Send a campaign",
+      keywords: ["outreach", "campaign", "blast", "bulk sms", "send", "broadcast", "segment"],
+      icon: <Send className="w-4 h-4 text-blue-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=campaigns");
+        }
+        // AdminSection name for the Outreach Hub is "campaigns" (legacy).
+        // Writing the canonical tab=campaigns avoids Admin.tsx's effect
+        // overwriting the alias `tab=outreach` immediately after mount.
+        onNavigate("campaigns");
+      },
+    },
+    {
+      id: "action-outreach-reviews",
+      label: "Outreach · Process review request queue",
+      keywords: ["outreach", "reviews", "review request", "google review", "queue", "process", "due"],
+      icon: <Star className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=reviews");
+        }
+        // AdminSection name for the Outreach Hub is "campaigns" (legacy).
+        // Writing the canonical tab=campaigns avoids Admin.tsx's effect
+        // overwriting the alias `tab=outreach` immediately after mount.
+        onNavigate("campaigns");
+      },
+    },
+    {
+      id: "action-outreach-winback",
+      label: "Outreach · Win-Back sequences",
+      keywords: ["outreach", "winback", "win-back", "lapsed", "re-engagement", "reactivation", "sequence"],
+      icon: <RotateCcw className="w-4 h-4 text-emerald-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=campaigns&outreachTab=winback");
+        }
+        // AdminSection name for the Outreach Hub is "campaigns" (legacy).
+        // Writing the canonical tab=campaigns avoids Admin.tsx's effect
+        // overwriting the alias `tab=outreach` immediately after mount.
+        onNavigate("campaigns");
       },
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);

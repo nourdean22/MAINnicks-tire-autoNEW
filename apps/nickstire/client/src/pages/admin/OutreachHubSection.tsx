@@ -7,6 +7,11 @@
 import { lazy, Suspense } from "react";
 import { Send, MessageSquare, Star, RotateCcw, Timer, Loader2, BarChart3 } from "lucide-react";
 import { PageHeader, TabBar, useUrlFilter } from "./shared";
+// wave-181.x Outreach Hub Phase 2 · 3-line OutreachBrief above the
+// tab bar (queue/live/action) + GatewayPill hoisted into the hub
+// header so all tabs (not just Messages) show gateway state.
+import { OutreachBrief } from "./outreach/OutreachBrief";
+import GatewayPill from "@/components/admin/GatewayPill";
 
 const SmsSection = lazy(() => import("./SmsSection"));
 const FollowUpsSection = lazy(() => import("./FollowUpsSection"));
@@ -67,6 +72,27 @@ export default function OutreachHubSection() {
     },
   );
 
+  // Recovery banner CTA · jumps the operator to the Settings page's
+  // shopdriver tab where the FEATURE_DECLINED_RECOVERY flag + the live
+  // recoverable-$ panel both live.
+  //
+  // wave-181.x Outreach Phase 2 bug-fix · the section is held in
+  // Admin.tsx's local useState (set once at initial URL resolve), and
+  // useUrlFilter reads URL lazily at mount only — there is NO listener
+  // that re-reads the URL on history change. So writing the URL alone
+  // (via wouter setLocation or pushState) updates the address bar
+  // without moving the visible pane. The `admin:navigate-section`
+  // CustomEvent is the only path that flips Admin's section state ·
+  // when section flips, SettingsSection mounts fresh and its inner
+  // useUrlFilter("settingsTab", ...) honors ?settingsTab=shopdriver.
+  const goToRecoveryStatus = () => {
+    if (typeof window === "undefined") return;
+    window.history.replaceState({}, "", "/admin?tab=settings&settingsTab=shopdriver");
+    window.dispatchEvent(
+      new CustomEvent("admin:navigate-section", { detail: { section: "settings" } }),
+    );
+  };
+
   // SMS tab uses its own header (it's a chat-style surface — full bleed)
   if (tab === "sms") {
     return (
@@ -81,11 +107,15 @@ export default function OutreachHubSection() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Outreach Hub"
-        subtitle="Campaigns · review requests · win-back · follow-ups · loyalty — scheduled and bulk customer touches."
-        icon={<Send className="w-5 h-5" />}
-      />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <PageHeader
+          title="Outreach Hub"
+          subtitle="Campaigns · review requests · win-back · follow-ups · loyalty — scheduled and bulk customer touches."
+          icon={<Send className="w-5 h-5" />}
+        />
+        <GatewayPill />
+      </div>
+      <OutreachBrief onRecoveryAction={goToRecoveryStatus} />
       <TabBar tabs={TABS} activeTab={tab} onChange={setTab} variant="pill" />
 
       {/* Content */}
