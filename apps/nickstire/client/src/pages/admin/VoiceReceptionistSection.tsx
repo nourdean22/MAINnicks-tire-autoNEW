@@ -158,15 +158,26 @@ function fmtPhone(num: string | null): string {
   return num;
 }
 
+// wave-181.x Voice mobile polish · end-reason buckets compressed
+// from 8 to 4 actionable categories (Forwarded · Nick closed ·
+// Caller closed · Other). Per audit agent: carrier-hangup ·
+// silence-timeout · max-duration · assistant-error are operator-
+// noise · the operator doesn't act differently on them. Collapsing
+// to "Other" makes the chart + filter chips scannable in 1 second.
+// Future · if a specific subtype becomes actionable (e.g. silence-
+// timeout indicates a Nick prompt regression), surface it then.
 const REASON_PRETTY: Record<string, { label: string; color: string }> = {
-  "customer-ended-call":     { label: "Caller ended",  color: "text-blue-400" },
-  "assistant-ended-call":    { label: "Nick ended",    color: "text-emerald-400" },
-  "assistant-forwarded-call":{ label: "Forwarded",     color: "text-amber-400" },
-  "assistant-error":         { label: "Assistant error", color: "text-red-400" },
-  "phone-call-provider-closed-websocket": { label: "Carrier hangup", color: "text-foreground/40" },
-  "silence-timed-out":        { label: "Silence timeout", color: "text-foreground/40" },
-  "exceeded-max-duration":    { label: "Hit max duration", color: "text-amber-400" },
-  unknown:                    { label: "Unknown",      color: "text-foreground/40" },
+  "assistant-forwarded-call":   { label: "Forwarded",     color: "text-amber-400" },
+  "assistant-ended-call":       { label: "Nick closed",   color: "text-emerald-400" },
+  "customer-ended-call":        { label: "Caller closed", color: "text-blue-400" },
+  // Everything else falls into "Other" via the prettyReason() fallback
+  // below · the explicit entries below are noise-grade buckets that the
+  // chart used to surface individually · now they all funnel to "Other".
+  "assistant-error":            { label: "Other",         color: "text-foreground/40" },
+  "phone-call-provider-closed-websocket": { label: "Other", color: "text-foreground/40" },
+  "silence-timed-out":          { label: "Other",         color: "text-foreground/40" },
+  "exceeded-max-duration":      { label: "Other",         color: "text-foreground/40" },
+  unknown:                      { label: "Other",         color: "text-foreground/40" },
 };
 
 function prettyReason(reason: string | null | undefined): { label: string; color: string } {
@@ -175,7 +186,9 @@ function prettyReason(reason: string | null | undefined): { label: string; color
   // is falsy, so the old `|| reason.replace(...)` branch crashed the whole
   // section with "Cannot read properties of undefined (reading 'replace')".
   if (!reason) return REASON_PRETTY.unknown;
-  return REASON_PRETTY[reason] || { label: reason.replace(/-/g, " "), color: "text-foreground/60" };
+  // Any reason not in the 8 explicit keys (rare VAPI additions) falls
+  // through to the "Other" bucket via the unknown entry.
+  return REASON_PRETTY[reason] ?? REASON_PRETTY.unknown;
 }
 
 // ─── Date range selector (wave-91) ─────────────────────────
@@ -1325,8 +1338,13 @@ function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => voi
         </div>
       </div>
 
-      {/* Counts-by-state strip · operator sees the funnel at a glance */}
-      <div className="grid grid-cols-4 gap-2 mb-3">
+      {/* Counts-by-state strip · operator sees the funnel at a glance.
+       * wave-181.x Voice mobile polish · was `grid-cols-4` which gave
+       * each state pill ~80px on a 375px viewport · sub-AA legibility
+       * for the `text-[9px]` state labels. 2-col on phone (`grid-cols-2
+       * sm:grid-cols-4`) reflows to 2×2 with breathing room · still
+       * 4-up on tablet+. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         {stateOrder.map((s) => {
           const n = data.byState[s.key] ?? 0;
           const c = colorClasses[s.color];
@@ -1438,9 +1456,17 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
       onClick={onClose}
     >
       <div className="fixed inset-0 bg-black/60" />
+      {/* wave-181.x Voice mobile polish · was `ml-auto + max-w-2xl`
+       * which on iPhone PWA left a ~100px backdrop sliver at the
+       * left edge that was still clickable (closes the drawer when
+       * the operator reaches for the audio scrubber mid-read).
+       * Mobile gets full width (no left sliver) · tablet+ keeps the
+       * right-side drawer via `sm:max-w-2xl + sm:ml-auto` clamp.
+       * The parent flex puts the drawer at the right by default on
+       * desktop · `w-full` on mobile fills the flex item naturally. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="ml-auto relative z-10 w-full max-w-2xl bg-background border-l border-border/40 overflow-y-auto"
+        className="relative z-10 w-full sm:max-w-2xl sm:ml-auto bg-background border-l border-border/40 overflow-y-auto"
       >
         <div className="sticky top-0 bg-background/90 backdrop-blur-md border-b border-border/30 p-4 flex items-center justify-between">
           <div>
