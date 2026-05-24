@@ -147,7 +147,30 @@ export async function POST(req: Request) {
       // best-effort · lens injection failures shouldn't break the AI call
     }
 
-    const enrichedPrompt = `${systemPrompt}${lensBlock ? `\n\n${lensBlock}` : ""}
+    // 2026-05-23 · P3 · ADR-0019 first opt-in · explicit operator-state
+    // injection. Pre-fix: Nick inferred operator state from text (chat
+    // off-limits per directive · so morning brief was the original
+    // candidate, but it's pure template · pivoted to page-insight as the
+    // smallest LLM surface that benefits from state). State block tells
+    // the model the operator's mood/capacity/drift/momentum so the
+    // analysis tone matches (no pep-talks when depleted · cut the list
+    // when scattered). Best-effort · degrades to no-block on DB error.
+    let stateBlock = "";
+    try {
+      const { currentOperatorState, formatOperatorStateBlock } = await import(
+        "@/lib/services/operator-state"
+      );
+      const snap = await currentOperatorState();
+      // Only inject when confidence > 0 · zero-confidence is the
+      // cold-start default with no signal · no value in injecting noise.
+      if (snap.confidence > 0) {
+        stateBlock = formatOperatorStateBlock(snap);
+      }
+    } catch {
+      // best-effort · state injection failures shouldn't break the AI call
+    }
+
+    const enrichedPrompt = `${systemPrompt}${lensBlock ? `\n\n${lensBlock}` : ""}${stateBlock ? `\n\n${stateBlock}` : ""}
 
 # PAGE ANALYSIS MODE — ${body.page}
 ${framing}
