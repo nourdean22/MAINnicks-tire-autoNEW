@@ -1,6 +1,108 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT (post Wave X · /chat homepage 5-phase sweep · 6 surgical defensive fixes · biggest single page in the app + the homepage · biggest stakes wave of the playbook · all gates green · big architecture moves deferred to Wave X.b for risk management) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2804 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-NIGHT-2 (post Wave X.b · /chat consolidation follow-up · 2 surgical ships · 4 deferred architecture moves rejected after pre-flight audit · 1 deferred defensive picked up · all gates green) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 LATE-NIGHT-2 · Wave X.b · /chat consolidation follow-up · 2 ships
+>
+> Wave X deferred 8 architecture moves + 5 defensive findings for
+> "risk-managed phasing." This wave audited each deferred item
+> before executing · most turned out to be the wrong moves once
+> the actual usage was inspected. The kaizen + karpathy + clarity-
+> gate combined verdict: ship what's surgical and right · don't
+> ship to drain a checklist.
+>
+> **Wave X.b · 2 ships**
+>
+> **Batch 1** · `a7c3a419` · three surgical edits + 1 new pure
+> module + 1 new test file
+> - **Dead `loadConvo` wrapper deleted** (P2 from audit). The
+>   wrapper was `async (id) => await loadConvoBase(id)` · zero
+>   value-add · two consumers now call loadConvoBase directly
+>   through a `(id) => void loadConvoBase(id)` arrow that makes
+>   the async return intentional. Pure noise deletion.
+> - **`onSeed` parser → `lib/chat/suggestion-seed.ts`**. The 55
+>   LOC suggestion-prefix → entity-id ladder (broken-promise →
+>   lastTaskId · stalled-goal → lastGoalId · stale-pin →
+>   lastPinId · unresolved-reflection → lastReflectionId) lifted
+>   into one pure function `extractEntityFromSuggestion`. Page
+>   collapses to one `Object.assign(transportBodyRef.current,
+>   extractEntityFromSuggestion(meta))`. 8 vitest regression
+>   tests (`tests/lib/chat/suggestion-seed.test.ts`) pin the
+>   prefix→entity contract so a typo cannot silently break the
+>   suggestion-loop UX.
+> - **(P0 silent-failure)** image-send offline guard. The image
+>   branch in `handleSendOrQueue` pre-fix called `sendMessage({
+>   parts })` directly without checking `offline.isOnline` ·
+>   operator on weak cell attached a photo · the message silently
+>   vanished while `toast.success` lied that it sent. Now: explicit
+>   offline guard with a clear error toast pointing the operator
+>   at the recovery path (drop the attachment to send text only).
+>
+> **Batch 2** · `923f087d` · 1 clarity-gate fix
+> - **(P1 clarity-gate)** Enter-mid-stream silent dead key. Pre-
+>   fix `handleKey` called `e.preventDefault()` BEFORE checking
+>   `isStreaming` · so hitting Enter while Nick was mid-reply
+>   consumed the keystroke and produced nothing (no send · no
+>   newline). The operator's mental model — "Enter sends ·
+>   Shift+Enter inserts a newline" — silently broke whenever a
+>   reply was streaming. Now: bail BEFORE preventDefault when
+>   streaming · textarea inserts its natural newline (same as
+>   shift+Enter) · operator can keep drafting the next turn while
+>   Nick replies. The original "don't stack the queue" intent is
+>   preserved · we just stop swallowing the keystroke.
+>
+> **Pre-flight audit rejected 4 of 8 deferred moves**
+> - **ChatStatusOverlays cluster merge** · REJECTED. The 5
+>   overlays (ConnectionStatus · DeeperContextBadge ·
+>   ProviderDegradationBanner · ProviderHealthPill · StallBanner)
+>   render at 5 distinct positions in the layout — bottom toast ·
+>   header pill · composer-adjacent banner · header pill ·
+>   mid-stream banner. Merging them into one cluster would force
+>   colocation that breaks layout intent. The original
+>   recommendation was based on names · not actual usage.
+> - **Inline 4 single-consumer thin wrappers** · REJECTED. The
+>   thin wrappers (attachment-preview 57 LOC · pinned-messages-bar
+>   40 LOC) are SMALLER as extracted files than they would be
+>   inlined into a 2880 LOC page. Extracted = better locality of
+>   reasoning · named seams · grep-able. Inlining 97 more LOC into
+>   the homepage makes it MARGINALLY less readable · violates
+>   kaizen YAGNI.
+> - **Move shared overlays out of /chat** · REJECTED.
+>   keyboard-cheat-sheet · reasoning-trace · reasoning-trace-modal
+>   are all chat-specific · no consumer outside /chat. Moving them
+>   to `components/` root would falsely imply they're shared.
+> - **Promote `cn` to `@nour/utils`** · ALREADY SHIPPED + REJECTED
+>   the migration. `@nour/utils` already exports `cn` (since
+>   2026-05-19 Tier-2-E workspace shipped). `@/lib/utils` is now a
+>   1-line backwards-compat shim re-exporting from `@nour/utils`.
+>   380 import sites use the shim · mass-migration is a "we might
+>   need this" red-flag refactor · the shim is doing its job.
+>
+> **Genuinely deferred to dedicated session** (large-risk surgery)
+> - **ChatComposer shell extraction** · lines 2308-2706 (~398 LOC) ·
+>   M-effort · medium-risk · biggest single readability win · needs
+>   a dedicated session with explicit before/after smoke runs
+>   because the composer owns the input + textarea ref + draft
+>   resume + paste handling + voice + image + slash + mention paths.
+> - **MessageEdit merge** · combine user-edit + assistant-edit ·
+>   M-effort · medium-risk · the two share ~40% of state but
+>   diverge on submission path · needs its own design pass.
+>
+> **Genuinely deferred (low-priority defensive)**
+> - undo race condition (P1 #9) · agent's concern was real but the
+>   proposed fix wasn't clearly better than current behavior
+> - timing sentinel race (P2 #12) · too low priority
+>
+> **Gates** · typecheck 0 errors · lint 0 errors / 370 baseline ·
+> vitest 184+1 files / 2804+8 tests (the +8 are the new
+> suggestion-seed regression tests) · build OK.
+>
+> **Lesson** · The "8 deferred moves" backlog from Wave X was
+> written from names + sizes · not from a check of actual usage.
+> Pre-flight auditing reduced it to 2 surgical wins + 2 honest
+> deferrals + 4 rejections. Per-page playbook rule going forward:
+> a deferred backlog must be re-audited before execution · the
+> world has moved between writing it and shipping it.
 
 > ## 2026-05-24 LATE-NIGHT · Wave X · /chat homepage 5-phase sweep · 1 ship
 >
