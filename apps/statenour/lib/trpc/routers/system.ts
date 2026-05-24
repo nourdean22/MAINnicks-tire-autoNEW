@@ -583,6 +583,191 @@ export const systemRouter = router({
       return { flags: await setAutopilotFlags(input.flags) };
     }),
 
+  // ─────────────── Settings · Wave T feature-mining (2026-05-24) ───────────────
+  // Four procedures wire AutomationPolicy + BrainMemory infrastructure
+  // into the autopilot section. Same kaizen pattern as Wave S · zero
+  // new schema · operator-visible signal from paid-for data.
+
+  /**
+   * Wave T #1 + #5 · Proof-of-life status per autopilot flag +
+   * blast-radius preview.
+   *
+   * Joins flag keys to AutomationPolicy rows by tag (preferred · the
+   * policy registry tags rows with `autopilot:<flag-key>` to bind
+   * them) and falls back to substring match on policy id. Returns
+   * lastFiredAt + lastResult + fireCount per flag + the policy's
+   * `successMetric` for the blast-radius preview rendered in the
+   * confirm-hold expansion.
+   */
+  autopilotPolicyStatus: operatorProcedure.query(async () => {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      const policies = await prisma.automationPolicy.findMany({
+        where: { deletedAt: null },
+        select: {
+          id: true,
+          name: true,
+          objective: true,
+          successMetric: true,
+          tags: true,
+          lastFiredAt: true,
+          lastResult: true,
+          fireCount: true,
+        },
+      });
+      // Index policies by tag-binding (preferred) and by id-substring
+      // (fallback). The "autopilot:<key>" tag is the canonical link ·
+      // unbound policies stay out of the proof-of-life map.
+      const byFlag = new Map<
+        string,
+        {
+          policyId: string;
+          name: string;
+          lastFiredAt: string | null;
+          lastResult: string | null;
+          fireCount: number;
+          successMetric: string;
+          objective: string;
+        }
+      >();
+      for (const p of policies) {
+        for (const t of p.tags) {
+          if (t.startsWith("autopilot:")) {
+            const key = t.slice("autopilot:".length);
+            byFlag.set(key, {
+              policyId: p.id,
+              name: p.name,
+              lastFiredAt: p.lastFiredAt?.toISOString() ?? null,
+              lastResult: p.lastResult,
+              fireCount: p.fireCount,
+              successMetric: p.successMetric,
+              objective: p.objective,
+            });
+          }
+        }
+      }
+      return Object.fromEntries(byFlag);
+    } catch (err) {
+      const { logger } = await import("@/lib/logger");
+      logger
+        .withSurface("trpc/system")
+        .warn("autopilot_policy_status_failed", {
+          err: err instanceof Error ? err.message : String(err),
+        });
+      return {};
+    }
+  }),
+
+  /**
+   * Wave T #2 · Record an autopilot flag change · operator-grade audit
+   * trail. Writes a BrainMemory row under category AUTOPILOT_FLAG_CHANGE
+   * so the existing soft-delete cron retains it on the 90d schedule.
+   * The settings page calls this on every flag toggle · optional `note`
+   * surfaces in the drawer.
+   */
+  recordAutopilotFlagChange: operatorProcedure
+    .input(
+      z.object({
+        flagKey: z.string().min(1).max(64),
+        previousState: z.boolean(),
+        newState: z.boolean(),
+        priorStateDurationHours: z.number().min(0).optional(),
+        note: z.string().max(280).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+        await prisma.brainMemory.create({
+          data: {
+            key: `autopilot_change:${input.flagKey}:${Date.now()}`,
+            category: BRAIN_CATEGORIES.AUTOPILOT_FLAG_CHANGE,
+            content: JSON.stringify({
+              flagKey: input.flagKey,
+              previousState: input.previousState,
+              newState: input.newState,
+              priorStateDurationHours: input.priorStateDurationHours ?? null,
+              note: input.note ?? null,
+            }),
+            source: "settings/autopilot",
+            confidence: 1,
+          },
+        });
+        return { ok: true as const };
+      } catch (err) {
+        const { logger } = await import("@/lib/logger");
+        logger
+          .withSurface("trpc/system")
+          .warn("record_autopilot_flag_change_failed", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        return { ok: false as const };
+      }
+    }),
+
+  /**
+   * Wave T #2 · Recent autopilot flag changes · feeds the drawer
+   * showing the last 5 changes per flag (used when the operator
+   * long-presses a flag row to see the change history).
+   */
+  recentAutopilotFlagChanges: operatorProcedure
+    .input(
+      z.object({
+        flagKey: z.string().min(1).max(64).optional(),
+        limit: z.number().int().min(1).max(50).default(10),
+      }),
+    )
+    .query(async ({ input }) => {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+        const rows = await prisma.brainMemory.findMany({
+          where: {
+            category: BRAIN_CATEGORIES.AUTOPILOT_FLAG_CHANGE,
+            deletedAt: null,
+            ...(input.flagKey
+              ? { key: { startsWith: `autopilot_change:${input.flagKey}:` } }
+              : {}),
+          },
+          orderBy: { createdAt: "desc" },
+          take: input.limit,
+          select: { id: true, key: true, content: true, createdAt: true },
+        });
+        return rows.map((r) => {
+          let parsed: {
+            flagKey?: string;
+            previousState?: boolean;
+            newState?: boolean;
+            priorStateDurationHours?: number | null;
+            note?: string | null;
+          } = {};
+          try {
+            parsed = JSON.parse(r.content) as typeof parsed;
+          } catch {
+            // skip
+          }
+          return {
+            id: r.id,
+            flagKey: parsed.flagKey ?? null,
+            previousState: parsed.previousState ?? null,
+            newState: parsed.newState ?? null,
+            priorStateDurationHours: parsed.priorStateDurationHours ?? null,
+            note: parsed.note ?? null,
+            at: r.createdAt.toISOString(),
+          };
+        });
+      } catch (err) {
+        const { logger } = await import("@/lib/logger");
+        logger
+          .withSurface("trpc/system")
+          .warn("recent_autopilot_changes_failed", {
+            err: err instanceof Error ? err.message : String(err),
+          });
+        return [];
+      }
+    }),
+
   // ─────────────── Settings · tools health + data cards (UU.2) ───────────────
 
   /**
