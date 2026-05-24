@@ -1496,4 +1496,21 @@ export const brainRouter = router({
         };
       }
     }),
+
+  /**
+   * Wave W Phase 4 · 2026-05-24 · unified recall inbox.
+   *
+   * Fans out to 4 paid-for readers in parallel (pins · link-review ·
+   * contradictions · active-alerts) and returns the merged "needs
+   * your attention" feed. Each source is wrapped in its own try/catch
+   * so one slow/broken reader can't break the inbox. Replaces the
+   * "operator checks 3 different /brain sub-pages every morning"
+   * habit · single panel surface on /brain hub Zone 1.
+   */
+  recallInbox: operatorProcedure.query(async () => {
+    const { buildRecallInbox } = await import(
+      "@/lib/services/recall-inbox"
+    );
+    return await buildRecallInbox();
+  }),
 });
