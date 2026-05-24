@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.4 (2026-05-09)
+# Nickstire Query Contract — v11.7 (2026-05-24)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -541,6 +541,14 @@ the admin UI's `forceSyncNow`, not here.
   wraps `services/engines/customer.ts:analyzeFirstVisitConversion()` ·
   surfaces overall conversion rate + avg days to repeat + per-source
   breakdown. Statenour consumes both on the new /funnel page.
+- **v11.7** (2026-05-24) — `gsc_top_pages` action added (Statenour
+  gap surfaces · #79 · /seo page). Wraps
+  `pipelines/gsc-data.ts:getPagePerformance()` · returns top N pages
+  by clicks over a 30-day window with clicks + impressions + avgCtr.
+  Pairs with existing `gsc_top_queries` to give the full per-query +
+  per-page view on the statenour /seo gap surface. Note · /radar
+  surface derives entirely from `master_report` (review velocity +
+  competitor gap + content performance) · no new bridge action.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

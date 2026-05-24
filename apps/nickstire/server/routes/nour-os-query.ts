@@ -412,6 +412,23 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { from, to, queries, count: queries.length };
   },
 
+  // wave-181.x · v11.7 · Statenour /seo page (Wave 3 gap surface, #79).
+  // Top pages by clicks · uses getPagePerformance which aggregates
+  // search_performance over the date range. Filters are page-level
+  // (no per-query breakdown) · combined with gsc_top_queries on the
+  // /seo page they give the full query+page picture.
+  "gsc_top_pages": async (filters) => {
+    const { getPagePerformance } = await import("../pipelines/gsc-data");
+    const thirtyAgo = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+    const limit = Math.min(50, Math.max(1, Number(filters.limit || 10)));
+    const startDate = String(filters.from || thirtyAgo);
+    const pages = await getPagePerformance({
+      startDate,
+      limit,
+    });
+    return { from: startDate, pages, count: pages.length };
+  },
+
   // ─── Marketing attribution (added 2026-05-12 · ADR-0011 Tier 3) ──
   // Closes Nour's most-asked-and-vague category: "what's actually
   // working for lead-gen?" Source-by-source breakdown of leads +
