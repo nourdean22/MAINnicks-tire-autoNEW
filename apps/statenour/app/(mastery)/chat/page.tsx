@@ -29,6 +29,7 @@ import { RealtimeVoiceOverlay } from "@/components/chat/realtime-voice-overlay";
 // page still owns the persona-mode state + applyMode prefix logic.
 import { applyMode, type PersonaMode } from "@/components/chat/mode-persona-chip";
 import { ReasoningTraceModal } from "@/components/chat/reasoning-trace-modal";
+import { extractEntityFromSuggestion } from "@/lib/chat/suggestion-seed";
 import { useVoiceInput } from "@/hooks/use-voice-input";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useConversations } from "@/hooks/use-conversations";
@@ -1499,10 +1500,11 @@ function Chat() {
     sendOrQueue: (text: string) => sendOrQueue(text),
   });
 
-  // ── Wrapped convo handlers that also reset local state ──
-  const loadConvo = useCallback(async (id: string) => {
-    await loadConvoBase(id);
-  }, [loadConvoBase]);
+  // 2026-05-24 · Wave X.b · removed dead `loadConvo` wrapper that
+  // just awaited loadConvoBase with no value-add (P2 from audit).
+  // Only one consumer (ChatHistorySearch.onJumpTo) · now calls
+  // loadConvoBase directly. Pure noise deletion · matches kaizen
+  // YAGNI principle.
 
   const newChat = useCallback(() => {
     newChatBase();
@@ -1614,6 +1616,20 @@ function Chat() {
     // undo window (attach + send is already two taps; adding a
     // third feels wrong).
     if (img.attached) {
+      // 2026-05-24 · Wave X.b · P0 silent-failure fix · pre-fix this
+      // branch called sendMessage({ parts }) directly without
+      // checking offline.isOnline · operator attached photo on weak
+      // cell · the message silently vanished while toast.success
+      // lied that it sent. Now: explicit offline guard with a clear
+      // error toast (attachments don't survive the queue · operator
+      // has to retry online).
+      if (!offline.isOnline) {
+        toast.error(
+          `Offline · image sends require connection. Drop the attachment to send text only.`,
+          { duration: 5000 },
+        );
+        return;
+      }
       const filename = img.attached.file.name;
       const result = await img.readAsBase64();
       if (result) {
@@ -1900,7 +1916,7 @@ function Chat() {
           hasMoreConvos={hasMoreConvos}
           loadingMore={loadingMore}
           onLoadMore={loadMoreConvos}
-          onSelectConvo={loadConvo}
+          onSelectConvo={(id) => void loadConvoBase(id)}
           onDeleteConvo={deleteConvo}
           onRename={renameConvo}
           onTogglePin={toggleConvoPin}
@@ -2504,53 +2520,16 @@ function Chat() {
         <NickSuggestions
           onSeed={(prompt, meta) => {
             setInput(prompt);
-            // v10.0.529.86 · Wave 30 · stash the suggestion meta on
-            // the transport body so the next send carries "operator
-            // tapped suggestion X" context. Resolves "do that" /
-            // "yes" / "go ahead" pronouns against the seeded
-            // suggestion's kind + id. Cleared by the next non-seed
-            // send (composer's natural onChange leaves these set ·
-            // we'll clear after first send via a tiny effect below).
+            // 2026-05-24 · Wave X.b · onSeed parsing extracted to
+            // `lib/chat/suggestion-seed.ts` (extractEntityFromSuggestion).
+            // Pre-extract this was 55 LOC of repeated `meta.id.replace`
+            // calls inline · now it's one pure function call · testable
+            // in isolation · easier to extend with new suggestion kinds.
             if (meta) {
-              transportBodyRef.current.lastSuggestionKind = meta.kind;
-              transportBodyRef.current.lastSuggestionId = meta.id;
-
-              // v10.0.529.90 · Wave 34 · CLOSE THE LOOP.
-              // The suggestion IDs encode the underlying entity:
-              //   broken-promise-<taskId> → set lastTaskId
-              //   stalled-goal-<goalId>   → set lastGoalId
-              //   stale-pin-<pinId>       → set lastPinId
-              //   unresolved-reflection-<reflectionId> → set lastReflectionId
-              // Pre-Wave-34 the system prompt got `lastSuggestionId="broken
-              // -promise-abc123"` and Nick had to PARSE that string to find
-              // the underlying taskId. Now we extract it client-side and
-              // populate the proper `lastTaskId` field directly · "do it"
-              // / "ok" / "send it" resolves to that exact entity without
-              // ambiguity.
-              if (meta.kind === "broken-promise") {
-                const taskId = meta.id.replace(/^broken-promise-/, "");
-                if (taskId && taskId !== meta.id) {
-                  transportBodyRef.current.lastTaskId = taskId;
-                }
-              } else if (meta.kind === "stalled-goal") {
-                const goalId = meta.id.replace(/^stalled-goal-/, "");
-                if (goalId && goalId !== meta.id) {
-                  transportBodyRef.current.lastGoalId = goalId;
-                }
-              } else if (meta.kind === "stale-pin") {
-                const pinId = meta.id.replace(/^stale-pin-/, "");
-                if (pinId && pinId !== meta.id) {
-                  transportBodyRef.current.lastPinId = pinId;
-                }
-              } else if (meta.kind === "unresolved-reflection") {
-                const reflectionId = meta.id.replace(/^unresolved-reflection-/, "");
-                if (reflectionId && reflectionId !== meta.id) {
-                  transportBodyRef.current.lastReflectionId = reflectionId;
-                }
-              }
-              // weak-axis / pattern / orphan-nudge / contradictions /
-              // overdue / stuck-task → no single entity to anchor to ·
-              // lastSuggestionKind + Id are sufficient on their own.
+              Object.assign(
+                transportBodyRef.current,
+                extractEntityFromSuggestion(meta),
+              );
             }
             // Best-effort focus the textarea so the operator can edit
             // before hitting send · matches the wisdom-pill pattern.
@@ -2831,7 +2810,7 @@ function Chat() {
         open={showHistorySearch}
         onClose={() => setShowHistorySearch(false)}
         onJumpTo={(convId) => {
-          loadConvo(convId);
+          void loadConvoBase(convId);
         }}
       />
 
