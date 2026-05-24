@@ -932,6 +932,14 @@ export const customers = mysqlTable("customers", {
   /** Customer segment for marketing */
   segment: mysqlEnum("segment", ["recent", "lapsed", "new", "unknown"]).default("unknown").notNull(),
   /** Whether this customer was sent the March 2026 SMS campaign */
+  /** wave-181.111 · psychographic profile (10 segments) cached on the
+   *  customer row · written by daily psychoProfileRefresh cron · powers
+   *  profile-aware SMS routing + admin chip + analytics. Distinct from
+   *  `segment` above (which is the recency bucket used by retention
+   *  cron). Migration 0056. */
+  psychoProfile: varchar("psycho_profile", { length: 32 }),
+  psychoProfileScore: int("psycho_profile_score"),
+  psychoProfileAt: timestamp("psycho_profile_at"),
   smsCampaignSent: int("smsCampaignSent").default(0).notNull(),
   smsCampaignDate: timestamp("smsCampaignDate"),
   /** Admin notes for internal tracking */
@@ -954,6 +962,8 @@ export const customers = mysqlTable("customers", {
   index("idx_customer_segment").on(table.segment),
   index("idx_customer_last_visit").on(table.lastVisitDate),
   index("idx_customer_als_id").on(table.alsCustomerId),
+  // wave-181.111 · psychographic profile filter (migration 0056)
+  index("idx_customer_psycho").on(table.psychoProfile),
 ]);
 
 export type Customer = typeof customers.$inferSelect;
