@@ -976,13 +976,39 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
       { src: "/photos/undercar-brake-repair-action.webp",   title: "Underbody inspection during diagnostic",                   caption: "Underbody inspection at Nick's Tire & Auto during the diagnostic process." },
     ];
     const ABOUT_PHOTOS: ImgEntry[] = [
-      { src: "/photos/shop-exterior-hero-wide-sign-bays.webp", title: "Nick's Tire & Auto storefront — Euclid Avenue Cleveland", caption: "Full storefront with yellow sign and open service bays at Nick's Tire & Auto in Cleveland." },
-      { src: "/photos/busy-shop-action-mechanics.webp",        title: "Inside Nick's Tire & Auto — real techs at work",          caption: "Nick's Tire & Auto technicians working inside the tire and auto repair bay." },
+      { src: "/photos/nicks-tire-auto-shop-sign-cleveland-ohio.webp",        title: "Nick's Tire & Auto shop sign — Cleveland Ohio",              caption: "Yellow Nick's Tire & Auto sign on Euclid Avenue in Cleveland Ohio with tire stacks and tire brand banners visible." },
+      { src: "/photos/nicks-tire-auto-customer-waiting-area-cleveland.webp", title: "Customer waiting area inside Nick's Tire & Auto Cleveland",   caption: "Bright interior customer waiting area at Nick's Tire & Auto in Cleveland with a couch by the window, the 'Brakes Forever' wall sign, and tire displays." },
+      { src: "/photos/nicks-tire-auto-shop-interior-cleveland-ohio.webp",    title: "Nick's Tire & Auto shop interior — Cleveland Ohio",           caption: "Wide interior shot of Nick's Tire & Auto shop in Cleveland Ohio with brake parts displays, tire stacks, sunlit lounge area, and customer parking visible through the window." },
+      { src: "/photos/shop-exterior-hero-wide-sign-bays.webp",               title: "Nick's Tire & Auto storefront — Euclid Avenue Cleveland",    caption: "Full storefront with yellow sign and open service bays at Nick's Tire & Auto in Cleveland." },
+      { src: "/photos/busy-shop-action-mechanics.webp",                      title: "Inside Nick's Tire & Auto — real techs at work",             caption: "Nick's Tire & Auto technicians working inside the tire and auto repair bay." },
     ];
     const CONTACT_PHOTOS: ImgEntry[] = [
-      { src: "/photos/roadside-sign-exterior-wide.webp",      title: "Nick's Tire & Auto roadside sign — wayfinding",            caption: "Nick's Tire & Auto roadside sign and shop exterior on Euclid Avenue in Cleveland Ohio." },
-      { src: "/photos/parking-lot-sign-perspective-wide.webp", title: "Parking lot perspective at Nick's Tire & Auto",            caption: "Nick's Tire & Auto parking lot with roadside sign, parked vehicles, and service bays visible." },
+      { src: "/photos/nicks-tire-auto-cleveland-euclid-ave-storefront.webp", title: "Nick's Tire & Auto storefront on Euclid Avenue Cleveland",    caption: "Wide street-view of Nick's Tire & Auto on Euclid Avenue in Cleveland Ohio with General Tire and Continental tire brand banners and red-white-blue tire displays in front." },
+      { src: "/photos/roadside-sign-exterior-wide.webp",                     title: "Nick's Tire & Auto roadside sign — wayfinding",               caption: "Nick's Tire & Auto roadside sign and shop exterior on Euclid Avenue in Cleveland Ohio." },
+      { src: "/photos/parking-lot-sign-perspective-wide.webp",               title: "Parking lot perspective at Nick's Tire & Auto",               caption: "Nick's Tire & Auto parking lot with roadside sign, parked vehicles, and service bays visible." },
     ];
+    // wave-181.x · operator-supplied real-shop photos · indexed in image-sitemap
+    // for Google Image Search ranking on direct query intent. Each filename
+    // carries brand + geo + service keywords that match real GSC queries.
+    const MOES_PHOTOS: ImgEntry[] = [
+      { src: "/photos/moes-tire-euclid-cleveland-ohio-service-bays.webp", title: "Moe's Tire Euclid — now Nick's Tire & Auto · Cleveland Ohio service bays", caption: "Wide exterior photo of the Moe's Tire & Auto location on Euclid Avenue in Cleveland Ohio (now operating as Nick's Tire & Auto) showing four open service bays, BRAKE REPAIR, MUFFLER REPAIR, and OIL CHANGE signs, and priced tire stacks ready for install." },
+    ];
+    const TIRE_SHOP_NEAR_ME_PHOTOS: ImgEntry[] = [
+      { src: "/photos/nicks-tire-auto-cleveland-euclid-ave-storefront.webp", title: "Tire shop near me Cleveland Ohio — Nick's Tire & Auto on Euclid Avenue", caption: "Real local tire shop in Cleveland Ohio — Nick's Tire & Auto storefront with General Tire and Continental brand banners, tire displays on the sidewalk, and open service bays on Euclid Avenue." },
+      { src: "/photos/nicks-tire-auto-shop-sign-cleveland-ohio.webp",        title: "Nick's Tire & Auto shop sign — Cleveland tire shop on Euclid", caption: "Tire shop sign for Nick's Tire & Auto in Cleveland Ohio with the 'New Used Tires · We Fix Flats · Brakes · Oil Change' banner and tire stacks in front." },
+    ];
+    const AUTO_REPAIR_PHOTOS: ImgEntry[] = [
+      { src: "/photos/auto-mechanic-tire-shop-cleveland-ohio.webp",            title: "Auto mechanic working on a customer's car at Nick's Tire & Auto Cleveland Ohio", caption: "Auto mechanic at Nick's Tire & Auto in Cleveland Ohio working under the hood of a blue Kia Stinger with the 'Mechanic on Duty Euclid Ave' sign visible and other customer cars in the lot waiting for service." },
+      { src: "/photos/nicks-tire-brake-muffler-oil-change-cleveland-ohio.webp", title: "Brake repair, muffler repair, and oil change shop — Nick's Tire & Auto Cleveland", caption: "Exterior of Nick's Tire & Auto in Cleveland Ohio with prominent BRAKE REPAIR, MUFFLER REPAIR, and OIL CHANGE signs above the service bays plus priced tire stacks ready for install." },
+    ];
+    // wave-181.x · brake-page gets the explicit BRAKE REPAIR signage photo
+    // appended to its existing under-car action shot for stronger image-search
+    // signal on "brake repair near me" + "brake specials near me" GSC queries.
+    BRAKES_PHOTOS.push({
+      src: "/photos/nicks-tire-brake-muffler-oil-change-cleveland-ohio.webp",
+      title: "Brake repair shop in Cleveland — Nick's Tire & Auto on Euclid Avenue",
+      caption: "Brake repair shop signage at Nick's Tire & Auto in Cleveland Ohio with BRAKE REPAIR, MUFFLER REPAIR, and OIL CHANGE marquees above the service bays.",
+    });
 
     const pages: Array<{ path: string; photos: ImgEntry[] }> = [
       { path: "/",                       photos: HOME_PHOTOS },
@@ -993,6 +1019,12 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
       { path: "/diagnostics",            photos: DIAGNOSTICS_PHOTOS },
       { path: "/about",                  photos: ABOUT_PHOTOS },
       { path: "/contact",                photos: CONTACT_PHOTOS },
+      // wave-181.x · new entries · these pages now have hero photos that
+      // match their search intent. Image-sitemap signals are the missing
+      // link between the new photo files and Google Image Search rankings.
+      { path: "/moes-tire-euclid",       photos: MOES_PHOTOS },
+      { path: "/tire-shop-near-me",      photos: TIRE_SHOP_NEAR_ME_PHOTOS },
+      { path: "/auto-repair-near-me",    photos: AUTO_REPAIR_PHOTOS },
     ];
 
     const escapeXml = (s: string) =>

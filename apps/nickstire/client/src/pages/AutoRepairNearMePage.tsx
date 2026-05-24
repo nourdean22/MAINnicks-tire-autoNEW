@@ -16,9 +16,12 @@ import { Disc, Activity, Wrench, AlertTriangle } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/auto-repair-near-me",
-  // 2026-05-06 wave-16 · pro photo pack: full-sign storefront for
-  // local "auto repair near me" landing — strongest neighborhood-trust photo
-  heroImage: "/photos/shop-exterior-hero-wide-sign-bays.webp",
+  // wave-181.x · upgraded to mechanic-actively-working-on-a-customer-car shot.
+  // GSC query "auto repair near me" wants visual proof of an actual working
+  // shop · this photo shows a mechanic under the hood of a blue Kia with the
+  // "Mechanic on Duty" sign visible · directly answers the query intent.
+  // Filename carries "auto-mechanic-tire-shop-cleveland-ohio" for image-search.
+  heroImage: "/photos/auto-mechanic-tire-shop-cleveland-ohio.webp",
   // 2026-05-06 copy wave: title now anchors on "Estimate Before
   // Wrench" — the actual differentiator. Sub rewritten with operator
   // 3 (useful absurd: "phone bill that never breaks") + operator 4

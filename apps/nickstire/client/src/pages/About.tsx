@@ -29,11 +29,16 @@ const ABOUT_QUOTES = [
   CURATED_TESTIMONIALS.find((t) => t.name === "Marcus L."),
 ].filter((t): t is NonNullable<typeof t> => Boolean(t));
 
-// 2026-05-06 wave-16 · pro photo pack swap per PLACEMENT_GUIDE.md
-// "About page" row: top hero = full storefront, inside-shop = real
-// techs working
-const HERO_IMG = "/photos/shop-exterior-hero-wide-sign-bays.webp";
+// wave-181.x · About page now uses two new operator-supplied shop photos:
+//   HERO_IMG · close-shot of the actual Nick's signage with tire banners ·
+//             stronger brand-identity hero than the wide-sign-bays variant
+//   WAITING_IMG · interior waiting area with the iconic "BRAKES FOREVER"
+//                 sign + plaid couch + sunlight · trust signal that we're
+//                 a real-real shop a customer would sit comfortably in
+// Filenames carry brand + geo keywords for image-search ranking.
+const HERO_IMG = "/photos/nicks-tire-auto-shop-sign-cleveland-ohio.webp";
 const DIAG_IMG = "/photos/busy-shop-action-mechanics.webp";
+const WAITING_IMG = "/photos/nicks-tire-auto-customer-waiting-area-cleveland.webp";
 
 export default function About() {
   const { data: googleData } = trpc.reviews.google.useQuery(undefined, { staleTime: 60 * 60 * 1000, retry: 1 });
@@ -54,7 +59,7 @@ export default function About() {
           {/* LCP fix · hero is above-the-fold, must load eagerly with high priority.
               ResponsivePhoto serves /storefront-day-mobile.webp (98KB) under
               768px instead of the 469KB desktop variant. */}
-          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto on Euclid Ave Cleveland — exterior shop view" className="w-full h-full object-cover" objectPosition="center 42%" />
+          <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Nick's Tire & Auto shop sign on Euclid Avenue in Cleveland, Ohio — yellow Nick's Tire & Auto branded sign with phone number 216-862-0005 and tire stacks on the sidewalk" className="w-full h-full object-cover" objectPosition="center 42%" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-transparent" />
         </div>
         <div className="relative container pb-16 pt-32">

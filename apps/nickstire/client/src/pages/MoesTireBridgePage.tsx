@@ -17,9 +17,11 @@ import { MapPin, Star, Wrench } from "lucide-react";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/moes-tire-euclid",
-  // Hero shows the actual current sign — visual proof of "we are now Nick's"
-  // 2026-05-06 wave-16 · upgraded to the new pro roadside-sign photo
-  heroImage: "/photos/roadside-sign-exterior-wide.webp",
+  // Hero shows the actual Moe's Tire & Auto sign + 4 open service bays + priced tire stacks.
+  // wave-181.x · upgraded to the literal-match photo · the GSC query "moe's tires euclid"
+  // (242 clicks @ pos 4.5 over 90d) now lands on a hero that visually confirms the
+  // location. The filename itself carries the keyword for image-search ranking.
+  heroImage: "/photos/moes-tire-euclid-cleveland-ohio-service-bays.webp",
   title: "Moe's Tire is Now Nick's · 17625 Euclid Ave Cleveland",
   description: "Looking for Moe's Tire on Euclid Ave in Cleveland? Same corner, new chapter — we're now Nick's Tire & Auto. Same address, same neighborhood-trust ethos, expanded services, payment programs on the spot. 4.9★ across 1,700+ Google reviews. Walk-ins 7 days. (216) 862-0005",
   eyebrow: "MOE'S TIRE EUCLID — SAME CORNER, NEW CHAPTER",
