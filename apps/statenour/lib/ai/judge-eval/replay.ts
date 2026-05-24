@@ -52,7 +52,24 @@ const REPLAY_TIMEOUT_MS = 30_000;
  * Parallelized via Promise.all · the two paths share no mutable state
  * so concurrency is safe.
  */
-export async function replayPair(args: { prompt: string }): Promise<ReplayPair> {
+/**
+ * 2026-05-23 · audit follow-up · accept optional system-prompt
+ * overrides. Used by the Q2 shadow-judge queue drain to score the
+ * EXACT prompts that were live at capture-time, not the current
+ * builder output. Without these overrides, the queue's stored
+ * v1Prompt/v2Prompt fields were silently ignored and the drain
+ * effectively re-ran the sampler-driven judgement on a different
+ * sample pool · the queue's whole purpose (capture historical
+ * prompt-pair) was nullified.
+ *
+ * Backwards-compatible · existing sampler-driven callers pass only
+ * `{ prompt }` and get the original behavior (fresh-build prompts).
+ */
+export async function replayPair(args: {
+  prompt: string;
+  v1SystemPrompt?: string;
+  v2SystemPrompt?: string;
+}): Promise<ReplayPair> {
   const startedAt = Date.now();
   const { aiChat } = await import("@/lib/ai/provider");
 
@@ -79,8 +96,14 @@ export async function replayPair(args: { prompt: string }): Promise<ReplayPair> 
 
   const v1 = (async () => {
     try {
-      const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
-      const sys = await buildSystemPromptUncached("full", args.prompt);
+      let sys: string;
+      if (args.v1SystemPrompt) {
+        // 2026-05-23 · audit follow-up · use the queued historical prompt.
+        sys = args.v1SystemPrompt;
+      } else {
+        const { buildSystemPromptUncached } = await import("@/lib/ai/system-prompt");
+        sys = await buildSystemPromptUncached("full", args.prompt);
+      }
       const reply = await aiChat(
         [
           { role: "system", content: sys },
@@ -98,11 +121,18 @@ export async function replayPair(args: { prompt: string }): Promise<ReplayPair> 
 
   const v2 = (async () => {
     try {
-      const { buildSystemPromptV2 } = await import("@/lib/ai/prompt/v2");
-      const out = await buildSystemPromptV2();
+      let sys: string;
+      if (args.v2SystemPrompt) {
+        // 2026-05-23 · audit follow-up · use the queued historical prompt.
+        sys = args.v2SystemPrompt;
+      } else {
+        const { buildSystemPromptV2 } = await import("@/lib/ai/prompt/v2");
+        const out = await buildSystemPromptV2();
+        sys = out.prompt;
+      }
       const reply = await aiChat(
         [
-          { role: "system", content: out.prompt },
+          { role: "system", content: sys },
           { role: "user", content: args.prompt },
         ],
         "reason",

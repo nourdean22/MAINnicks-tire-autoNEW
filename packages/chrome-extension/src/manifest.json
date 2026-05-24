@@ -27,7 +27,6 @@
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
     "https://statenour-web-production.up.railway.app/*",
-    "https://autonicks.com/*",
     "http://localhost:3000/*"
   ],
   "commands": {

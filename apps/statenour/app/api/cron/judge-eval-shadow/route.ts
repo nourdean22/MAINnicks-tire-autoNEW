@@ -218,9 +218,22 @@ export const GET = cronHandler(async (): Promise<RunResult> => {
           continue;
         }
         try {
-          // The shadow path already built v1+v2 PROMPTS · we still need
-          // REPLIES to judge. replayPair runs both through the chain.
-          const pair = await replayPair({ prompt: meta.userMessage });
+          // The shadow path captured v1+v2 system prompts at the
+          // moment the chat turn fired. Pass them to replayPair so
+          // we score the EXACT historical prompts · not the current
+          // builder output. This is what makes the queue valuable
+          // vs just re-sampling chat messages.
+          //
+          // 2026-05-23 · audit follow-up · pre-fix this called
+          // replayPair({ prompt: meta.userMessage }) with no
+          // overrides · stored v1Prompt/v2Prompt were ignored · the
+          // drain was effectively a duplicate sampler. Now actually
+          // uses the captured pair.
+          const pair = await replayPair({
+            prompt: meta.userMessage,
+            v1SystemPrompt: meta.v1Prompt,
+            v2SystemPrompt: meta.v2Prompt,
+          });
           queueDrained++;
           if (!pair.bothSucceeded) continue;
           const judgment = await compareReplies({
