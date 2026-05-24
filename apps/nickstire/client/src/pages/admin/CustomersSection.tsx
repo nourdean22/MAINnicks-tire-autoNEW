@@ -4,7 +4,7 @@
  * Now with: VIP badges, churn risk indicators, lifetime value sorting,
  * call buttons, total spent, days since last visit.
  */
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, useMemo, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate, openCustomerDrawer } from "./shared";
 // wave-181.x Customers Phase 2 · CustomersBrief header · mirror of
@@ -742,6 +742,27 @@ function CustomersList() {
 
   const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
   const { data: campaignStats } = trpc.customers.campaignStats.useQuery(undefined, { refetchInterval: 30000 });
+
+  // wave-181.x SA v2 Wave 3 (Elon · single surface) · pull v2 service-
+  // affinity predictions live · index by customerId · render inline on
+  // the roster. The drawer-tile + statenour /brain panel from the
+  // original Wave 3 design were redundant with the roster · one
+  // surface · zero new pages.
+  // intelligence.serviceAffinity returns v2 shape: customerId + name +
+  // topServices + predictedNext + confidence (0-1) + reason + modelVersion.
+  // 5-min stale time · matches MoneyBrief / refresh cadence.
+  const { data: affinityData } = trpc.intelligence.serviceAffinity.useQuery(undefined, {
+    staleTime: 5 * 60_000,
+  });
+  const affinityByCustomerId = useMemo(() => {
+    const map = new Map<number, NonNullable<typeof affinityData>["affinities"][number]>();
+    if (!affinityData?.affinities) return map;
+    for (const a of affinityData.affinities) {
+      map.set(a.customerId, a);
+    }
+    return map;
+  }, [affinityData]);
+
   const { data: listData, isLoading } = trpc.customers.list.useQuery({
     page,
     pageSize,
@@ -1182,19 +1203,28 @@ function CustomersList() {
                   Last Service <ArrowUpDown className="w-3 h-3" />
                 </button>
               </th>
+              {/* wave-181.x · Service Affinity v2 · single read-only column.
+                  v2 model writes per-customer prediction (predictedNext +
+                  confidence + reason). Treatment-arm gets auto-SMS via the
+                  cross-sell cron (Wave 4). This column = operator awareness
+                  on desktop. Non-sortable on purpose · the cron picks the
+                  highest-confidence ones · operator doesn't need to chase. */}
+              <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide hidden xl:table-cell" title="Predicted next service · auto-SMS fires via cross-sell cron for treatment-arm at ≥50% confidence">
+                Next Service
+              </th>
               <th className="text-left p-3 text-[10px] text-foreground/40 tracking-wide w-20">Actions</th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-foreground/30">
+                <td colSpan={10} className="p-8 text-center text-foreground/30">
                   <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
                 </td>
               </tr>
             ) : listData?.customers.length === 0 ? (
               <tr>
-                <td colSpan={9} className="p-8 text-center text-foreground/30 text-[12px]">
+                <td colSpan={10} className="p-8 text-center text-foreground/30 text-[12px]">
                   No customers found
                 </td>
               </tr>
@@ -1313,6 +1343,30 @@ function CustomersList() {
                           {daysSinceStr(daysAgo)}
                         </span>
                       </div>
+                    </td>
+
+                    {/* Next Service · Service Affinity v2 prediction (read-only) */}
+                    <td className="p-3 hidden xl:table-cell">
+                      {(() => {
+                        const a = affinityByCustomerId.get(c.id);
+                        if (!a) return <span className="text-foreground/20 text-[11px]">{"—"}</span>;
+                        const conf = Math.round(a.confidence);
+                        const confColor = conf >= 70
+                          ? "text-emerald-400"
+                          : conf >= 50
+                          ? "text-amber-400"
+                          : "text-foreground/40";
+                        return (
+                          <div className="flex flex-col" title={a.reason || `${a.predictedNext} · ${conf}% confidence`}>
+                            <span className="text-[11px] text-foreground/70 capitalize">
+                              {a.predictedNext}
+                            </span>
+                            <span className={`text-[9px] tracking-wider font-mono ${confColor}`}>
+                              {conf}%
+                            </span>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* wave-181.x Customers Phase 1 · Actions simplified.

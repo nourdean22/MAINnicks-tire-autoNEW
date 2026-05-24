@@ -1,25 +1,56 @@
 /**
- * Cron: Cross-Sell Outreach — Proactive SMS service recommendations
+ * Cron: Cross-Sell Outreach · v2 closed-loop wire-up
  *
- * Uses the intelligence engine's cross-sell recommendations to send
- * proactive SMS to customers who are due for related services.
- * Example: customer got brakes 3 months ago → likely needs tire rotation.
+ * Reads per-customer predictions from `service_affinity_predictions`
+ * (written every 6h by serviceAffinityCompute.ts when the
+ * `service_affinity_v2_compute` flag is ON) and sends an SMS to the
+ * treatment-arm customers at ≥50% confidence.
  *
- * Safety: checks opt-out, 30-day cooldown per customer, max 10 SMS/run.
- * Feature flag: sms_cross_sell_outreach (starts DISABLED)
+ * Closed-loop instrumentation (per migration 0061):
+ *   · writes a row to `prediction_impressions` when a prediction is
+ *     selected for outreach
+ *   · writes a row to `prediction_actions` when the SMS actually sends
+ *   · `prediction_outcomes` is written downstream by a separate
+ *     attribution cron (14d window) when a treatment-arm customer
+ *     returns for the predicted service
+ *
+ * Why v2 replaces v1:
+ *   The pre-Wave-4 cron used pattern-based transitions ("got brakes →
+ *   likely needs tires" with ≥3 historical co-occurrences). v2 uses
+ *   per-customer weighted scoring (recency × seasonal × not-recently-
+ *   had) and includes confidence + reason. v2 is more selective + has
+ *   measurable hold-out (control arm) for lift math.
+ *
+ * Safety (preserved from v1 · hard-won lessons):
+ *   · 30-day cooldown via JOIN across smsConversations (was a spam
+ *     incident pre-181.51 from LIKE-LIMIT-1 picking arbitrary conv row)
+ *   · TCPA opt-out check (customers.smsOptOut)
+ *   · 8AM-8PM quiet-hours guard (NOT here · enforced upstream in sendSms)
+ *   · per-run cap (MAX_SMS_PER_RUN)
+ *   · F25e gateway via `{ via: "shop" }` · Twilio bypassed
+ *   · resilient to missing `service_affinity_predictions` (returns
+ *     early if migration 0061 not yet applied or no predictions exist)
+ *
+ * Feature flag: `sms_cross_sell_outreach` (starts DISABLED · operator
+ * flips after `service_affinity_v2_compute` has been running for ≥1
+ * cycle so predictions exist).
  */
 import { createLogger } from "../../lib/logger";
-import { eq, and, sql, gte } from "drizzle-orm";
+import { eq, and, sql, gte, like } from "drizzle-orm";
 
 const log = createLogger("cron:cross-sell-outreach");
 
-/** Max SMS per cron run to avoid spamming */
+/** Max SMS per cron run · matches v1 cap (slow ramp · raise after lift math validates) */
 const MAX_SMS_PER_RUN = 10;
 
-/** Cooldown: don't send cross-sell SMS to same customer within 30 days */
+/** Cooldown days · don't text the same number for any cross-sell within window */
 const COOLDOWN_DAYS = 30;
 
-/** Human-readable service names for SMS */
+/** Confidence threshold for outreach · below this, cron writes the
+ *  prediction but doesn't act on it. 50 = "more likely than not". */
+const MIN_CONFIDENCE_TO_ACT = 50;
+
+/** Human-readable service names for SMS · keys match buildServiceAffinityMap output */
 const SERVICE_LABELS: Record<string, string> = {
   brakes: "a brake check",
   tires: "tire service",
@@ -33,30 +64,103 @@ const SERVICE_LABELS: Record<string, string> = {
   diagnostic: "a vehicle inspection",
 };
 
-export async function processCrossSellOutreach(): Promise<{ recordsProcessed: number; details?: string }> {
-  // Gate behind feature flag
-  const { isEnabled } = await import("../../services/featureFlags");
-  if (!(await isEnabled("sms_cross_sell_outreach"))) return { recordsProcessed: 0, details: "Feature disabled" };
+interface V2PredictionRow {
+  predictionId: number;
+  customerId: number;
+  predictedService: string;
+  confidence: number;
+  reason: string | null;
+  customerName: string;
+  customerPhone: string;
+  smsOptOut: boolean;
+}
 
-  // wave-181.60-followup (audit-181.58 finding · 2026-05-18 PM) · the
-  // legacy Twilio env guard was blocking the entire cross-sell job in
-  // prod because Twilio is dead per operator and the env vars are
-  // intentionally unset on Railway. Every actual send below uses
-  // `{ via: "shop" }` so it flows through F25e directly · no Twilio
-  // credentials needed. Guard removed.
+/**
+ * Read latest treatment-arm predictions ≥ MIN_CONFIDENCE_TO_ACT and
+ * join customer details. Most-recent-prediction-per-customer wins.
+ *
+ * Returns empty array gracefully if the v2 table doesn't exist yet
+ * (migration 0061 not applied) or no predictions written yet.
+ */
+async function fetchActionablePredictions(): Promise<V2PredictionRow[]> {
+  const { getDb } = await import("../../db");
+  const d = await getDb();
+  if (!d) return [];
 
   try {
-    const { generateCrossSellRecommendations } = await import("../../services/intelligenceEngines");
-    const { recommendations } = await generateCrossSellRecommendations();
+    // Latest prediction per customer in the treatment arm above the
+    // confidence threshold. We use a window-like correlated subquery
+    // (MAX(created_at) per customer) because TiDB doesn't always pick
+    // a good plan for ROW_NUMBER() OVER() at this scale yet.
+    const rows = (await d.execute(sql`
+      SELECT
+        sap.id            AS predictionId,
+        sap.customer_id   AS customerId,
+        sap.predicted_service AS predictedService,
+        sap.confidence    AS confidence,
+        JSON_UNQUOTE(JSON_EXTRACT(sap.features_json, '$.reason')) AS reason,
+        TRIM(CONCAT(COALESCE(c.first_name, ''), ' ', COALESCE(c.last_name, ''))) AS customerName,
+        c.phone           AS customerPhone,
+        COALESCE(c.sms_opt_out, FALSE) AS smsOptOut
+      FROM service_affinity_predictions sap
+      JOIN customers c ON c.id = sap.customer_id
+      WHERE sap.ab_arm = 'treatment'
+        AND sap.confidence >= ${MIN_CONFIDENCE_TO_ACT}
+        AND sap.created_at = (
+          SELECT MAX(created_at)
+          FROM service_affinity_predictions sap2
+          WHERE sap2.customer_id = sap.customer_id
+        )
+        AND c.phone IS NOT NULL
+        AND c.phone <> ''
+      ORDER BY sap.confidence DESC
+      LIMIT 200
+    `)) as unknown as [Array<{
+      predictionId: number;
+      customerId: number;
+      predictedService: string;
+      confidence: string | number;
+      reason: string | null;
+      customerName: string;
+      customerPhone: string;
+      smsOptOut: number | boolean;
+    }>];
 
-    // Filter to actionable urgency levels only
-    const actionable = recommendations.filter(r => r.urgency === "overdue" || r.urgency === "upcoming");
-    if (actionable.length === 0) {
-      return { recordsProcessed: 0, details: "No actionable cross-sell recommendations" };
+    const data = Array.isArray(rows) ? rows[0] : rows;
+    if (!Array.isArray(data)) return [];
+
+    return data.map((r) => ({
+      predictionId: Number(r.predictionId),
+      customerId: Number(r.customerId),
+      predictedService: String(r.predictedService),
+      confidence: Number(r.confidence),
+      reason: r.reason ?? null,
+      customerName: r.customerName || "",
+      customerPhone: r.customerPhone || "",
+      smsOptOut: Boolean(r.smsOptOut),
+    }));
+  } catch (err) {
+    log.warn("v2 predictions read failed · table may not exist yet", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
+export async function processCrossSellOutreach(): Promise<{ recordsProcessed: number; details?: string }> {
+  const { isEnabled } = await import("../../services/featureFlags");
+  if (!(await isEnabled("sms_cross_sell_outreach"))) {
+    return { recordsProcessed: 0, details: "Feature disabled" };
+  }
+
+  try {
+    const predictions = await fetchActionablePredictions();
+    if (predictions.length === 0) {
+      return { recordsProcessed: 0, details: "No v2 predictions to act on (treatment-arm ≥50% confidence)" };
     }
 
     const { getDb } = await import("../../db");
-    const { customers, smsMessages, smsConversations } = await import("../../../drizzle/schema");
+    const { smsMessages, smsConversations } = await import("../../../drizzle/schema");
     const { sendSms } = await import("../../sms");
     const { dispatch } = await import("../../services/eventBus");
     const db = await getDb();
@@ -65,35 +169,18 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
     let sent = 0;
     let skipped = 0;
 
-    for (const rec of actionable) {
+    for (const p of predictions) {
       if (sent >= MAX_SMS_PER_RUN) break;
-      if (!rec.phone) { skipped++; continue; }
+      if (!p.customerPhone) { skipped++; continue; }
+      if (p.smsOptOut) { skipped++; continue; }
 
-      // 1. Check SMS opt-out
-      const normalized = rec.phone.replace(/\D/g, "").slice(-10);
-      const { like } = await import("drizzle-orm");
-      const [cust] = await db.select({ smsOptOut: customers.smsOptOut })
-        .from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
-
-      if (cust?.smsOptOut) {
-        skipped++;
-        continue;
-      }
-
-      // 2. Check 30-day cooldown — has this phone had a cross-sell SMS in
-      //    the last 30 days, under ANY of its conversation rows?
-      //
-      // BUG FIX (this wave) · the spam incident. The prior version resolved
-      // "the" conversation with `LIKE '%suffix' LIMIT 1` — no ORDER BY, so
-      // the row returned was arbitrary — then checked messages under that
-      // single id. But a phone routinely has MULTIPLE smsConversations rows:
-      // historically created in different formats ("+1…" vs bare 10-digit)
-      // by different code paths (see logOutboundSms's own comment). The
-      // LIMIT 1 frequently landed on a conversation row holding none of the
-      // cross-sell messages → the cooldown saw nothing → every eligible
-      // customer got re-texted on EVERY run. Fix: one JOIN that matches the
-      // message's conversation by phone suffix, so a prior send is found
-      // under ANY row for the number — no fragile single-conversation pick.
+      // wave-181.x · F25e cooldown query (preserved from v1 spam-fix).
+      // The prior version resolved "the" conversation with LIKE-LIMIT-1
+      // and frequently landed on a conversation row with none of the
+      // cross-sell messages → cooldown saw nothing → re-text on every
+      // run. Fix: JOIN that matches the message's conversation by phone
+      // suffix, so a prior send is found under ANY conversation row.
+      const normalized = p.customerPhone.replace(/\D/g, "").slice(-10);
       const cooldownDate = new Date();
       cooldownDate.setDate(cooldownDate.getDate() - COOLDOWN_DAYS);
 
@@ -113,46 +200,85 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
         continue;
       }
 
-      // 3. Build and send the SMS
-      // wave-181.46 brand-voice tightening:
-      //   - "Based on your last visit, it might be time" (passive, hedgy) →
-      //     direct + concrete + customer language
-      //   - Customer language: "your last visit" → "your last check-up",
-      //     "drop-offs welcome" → "drop it off anytime"
-      const firstName = (rec.name || "there").split(" ")[0];
-      const serviceLabel = SERVICE_LABELS[rec.service] || rec.service;
-      const message = `Hey ${firstName} — based on your last check-up, you're due for ${serviceLabel}. Free check, you don't pay until you say yes. Drop it off anytime. Reply STOP to opt out.`;
-
-      // wave-181.46 · route through F25e gateway (Twilio dead per operator)
-      const result = await sendSms(rec.phone, message, { via: "shop" });
-      // wave-181.51 — persist to sms_messages so the /admin SMS Performance
-      // tile sees these sends (pre-181.51 immediate sends bypassed the table
-      // because sendSms() only persists the delayed-queue path).
-      const { logOutboundSms } = await import("../../services/smsInstrumentation");
-      await logOutboundSms(rec.phone, message, result.sid, "cross_sell");
-      if (result.success) {
-        sent++;
-        log.info(`Cross-sell SMS sent to ${firstName} (${rec.service}): ${rec.reason}`);
-
-        // Log to event bus
-        dispatch("campaign_sent", {
-          type: "cross-sell-outreach",
-          customerId: rec.customerId,
-          phone: rec.phone,
-          service: rec.service,
-          reason: rec.reason,
-          urgency: rec.urgency,
-        }, { priority: "low", source: "cron:cross-sell-outreach" }).catch((e) => { log.warn("[jobs/crossSellOutreach] fire-and-forget failed:", e); });
-      } else {
-        log.warn(`Cross-sell SMS failed for ${firstName}: ${result.error || "unknown"}`);
+      // Closed-loop: write impression BEFORE the SMS attempt so we
+      // always know which predictions were "shown" (selected) even if
+      // the send itself fails. Per docs/2026-05-24-service-affinity-v2.md
+      // §2.3 the impression row marks "we considered this prediction"
+      // separately from "we acted on it".
+      try {
+        await db.execute(sql`
+          INSERT INTO prediction_impressions
+            (prediction_id, surface)
+          VALUES
+            (${p.predictionId}, 'cross_sell_cron')
+        `);
+      } catch (err) {
+        log.warn("impression write failed · continuing", {
+          predictionId: p.predictionId,
+          err: err instanceof Error ? err.message : String(err),
+        });
       }
 
-      // Rate limit between sends
+      // Build and send the SMS · brand-voice tightened wording from
+      // wave-181.46. v2 difference: we now lean on confidence + reason
+      // for diagnostic logs only · customer message is unchanged so
+      // brand voice stays consistent.
+      const firstName = (p.customerName || "there").split(" ")[0] || "there";
+      const serviceLabel = SERVICE_LABELS[p.predictedService] || p.predictedService;
+      const message = `Hey ${firstName} — based on your last check-up, you're due for ${serviceLabel}. Free check, you don't pay until you say yes. Drop it off anytime. Reply STOP to opt out.`;
+
+      const result = await sendSms(p.customerPhone, message, { via: "shop" });
+      const { logOutboundSms } = await import("../../services/smsInstrumentation");
+      await logOutboundSms(p.customerPhone, message, result.sid, "cross_sell");
+
+      if (result.success) {
+        sent++;
+        log.info(`v2 cross-sell SMS sent to ${firstName} (${p.predictedService} · ${p.confidence}%)`, {
+          reason: p.reason,
+          predictionId: p.predictionId,
+        });
+
+        // Closed-loop: write action row · ties this SMS to the
+        // specific v2 prediction · enables 14-day outcome attribution
+        // Schema (0061): prediction_actions(id, prediction_id, action,
+        // acted_at, operator_id) · action is the discriminator · we log
+        // 'sms_sent' here · sms_sid is captured in sms_messages (joined
+        // later for full attribution if needed).
+        try {
+          await db.execute(sql`
+            INSERT INTO prediction_actions
+              (prediction_id, action, operator_id)
+            VALUES
+              (${p.predictionId}, 'sms_sent', 'cron:cross-sell-outreach')
+          `);
+        } catch (err) {
+          log.warn("action write failed · SMS already sent · continuing", {
+            predictionId: p.predictionId,
+            err: err instanceof Error ? err.message : String(err),
+          });
+        }
+
+        dispatch("campaign_sent", {
+          type: "cross-sell-outreach-v2",
+          customerId: p.customerId,
+          phone: p.customerPhone,
+          service: p.predictedService,
+          confidence: p.confidence,
+          reason: p.reason,
+          predictionId: p.predictionId,
+        }, { priority: "low", source: "cron:cross-sell-outreach" }).catch((e) => {
+          log.warn("[jobs/crossSellOutreach] fire-and-forget failed:", e);
+        });
+      } else {
+        log.warn(`v2 cross-sell SMS failed for ${firstName}: ${result.error || "unknown"}`);
+      }
+
+      // Rate-limit between sends (gateway-friendly · 1.5s spacing)
       await new Promise(r => setTimeout(r, 1500));
     }
 
-    const details = `${sent} SMS sent, ${skipped} skipped (${actionable.length} actionable recommendations)`;
-    if (sent > 0) log.info(`Cross-sell outreach: ${details}`);
+    const details = `${sent} SMS sent, ${skipped} skipped (${predictions.length} v2 predictions in pool)`;
+    if (sent > 0) log.info(`v2 cross-sell outreach: ${details}`);
     return { recordsProcessed: sent, details };
   } catch (err: unknown) {
     log.error("Cross-sell outreach failed:", { error: (err as Error).message });
