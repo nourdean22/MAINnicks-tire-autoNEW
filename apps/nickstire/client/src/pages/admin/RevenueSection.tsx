@@ -220,37 +220,13 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
 
   return (
     <div className="space-y-6">
-      {/* ═══ AT A GLANCE — scope adapts to period ═══ */}
-      <div className="bg-gradient-to-r from-primary/10 to-emerald-500/10 border border-primary/20 p-5">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-[15px] font-semibold text-foreground tracking-tight">
-            {period === 1 ? "Today" : period === 7 ? "This week" : `Last ${period} days`}
-          </h2>
-          <span className="text-foreground/30 text-xs font-mono">{new Date().toLocaleDateString()}</span>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <p className="text-3xl font-bold text-primary">
-              {formatDollars(period === 1 ? (stats?.totalRevenue ?? 0) : (intel?.weekOverWeek?.thisWeek ?? stats?.totalRevenue ?? 0))}
-            </p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">
-              {period === 1 ? "Today's Revenue" : period === 7 ? "This Week Revenue" : `${period}d Revenue`}
-            </p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-emerald-400">{kpi?.completedThisWeek ?? stats?.invoiceCount ?? 0}</p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">Jobs Closed (Week)</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-blue-400">{kpi?.weekBookings ?? 0}</p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">New Bookings (Week)</p>
-          </div>
-          <div>
-            <p className="text-3xl font-bold text-amber-400">{shopFloor?.active ?? 0}</p>
-            <p className="text-[11px] text-foreground/50 mt-0.5">In Shop Now</p>
-          </div>
-        </div>
-      </div>
+      {/* wave-181.x Money Phase 1 · cleanup #3 fix · audit agent caught
+       * the AT A GLANCE gradient panel duplicating the KPI grid 35
+       * lines below. Today's Revenue / Jobs Closed / Bookings / In
+       * Shop Now all reappear as KPICard / MiniKPI tiles. Gradient
+       * = decoration without information per FRONTEND-DESIGN.
+       * Deleted · KPI grid is canonical · ~30 LOC + ~120px above-
+       * the-fold real estate reclaimed. */}
 
       {/* ═══ MONTHLY PACE ═══ */}
       <div className="bg-card border border-border/30 p-4">
@@ -314,16 +290,14 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
         </div>
       )}
 
-      {/* Work Order Revenue Pipeline */}
-      {(!shopFloor || (shopFloor.active === 0 && shopFloor.totalValueInProgress === 0)) && (
-        <div className="bg-card border border-border/30 p-5">
-          <h3 className="font-bold text-sm text-foreground tracking-wider mb-3 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-foreground/30" />
-            REVENUE PIPELINE
-          </h3>
-          <p className="text-xs text-foreground/40">No active work orders. The shop floor syncs from ALG every 15 minutes.</p>
-        </div>
-      )}
+      {/* wave-181.x Money Phase 1 · M4 + cleanup #6 fix · was an
+       * empty-state block that fired when `!shopFloor` (loading
+       * state) OR when zero active work orders. The "No active
+       * work orders" message flashed during every dashboard mount
+       * before real data arrived (M4). Even when data was zero,
+       * the message duplicated what the Shop Pulse tab already
+       * shows (cleanup #6). Killed the block · the populated
+       * panel below at L319 stays · clarity-gate: empty > fake. */}
       {shopFloor && (shopFloor.active > 0 || shopFloor.totalValueInProgress > 0) && (
         <div className="bg-card border border-primary/20 rounded-lg p-5">
           <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
@@ -375,7 +349,10 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
           {/* Funnel stages */}
           <div className="flex items-center gap-1 mb-5">
             {funnel.stages.map((stage: FunnelStage, i: number) => {
-              const maxCount = funnel.stages[0]?.count || 1;
+              // wave-181.x Money Phase 1 · M2 fix · `||` masks legitimate
+              // zero-count (empty funnel). Use `??` for undefined-guard
+              // and a separate check for zero so we don't divide by 0.
+              const maxCount = funnel.stages[0]?.count ?? 0;
               const pct = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
               const dropoff = i > 0 && funnel.stages[i - 1].count > 0
                 ? Math.round((1 - stage.count / funnel.stages[i - 1].count) * 100)
@@ -533,35 +510,15 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
         </div>
       </div>
 
-      {/* Hour-of-Day Heatmap */}
-      {kpi?.hourCounts && (
-        <div className="bg-card border border-border/30 p-5">
-          <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">BOOKING HEATMAP — HOUR OF DAY</h3>
-          <div className="flex items-end gap-1" style={{ height: 120 }}>
-            {kpi.hourCounts.map((count: number, hour: number) => {
-              const maxCount = Math.max(...kpi.hourCounts, 1);
-              const pct = (count / maxCount) * 100;
-              const isBusinessHour = hour >= 8 && hour <= 18;
-              return (
-                <div key={hour} className="flex-1 flex flex-col items-center gap-1" title={`${hour}:00 — ${count} bookings`}>
-                  <div
-                    className={`w-full rounded-t-sm ${isBusinessHour ? "bg-primary" : "bg-foreground/10"}`}
-                    style={{ height: `${Math.max(pct, 2)}%`, minHeight: 2, opacity: isBusinessHour ? Math.max(0.2, pct / 100) : 0.3 }}
-                  />
-                  {(hour % 3 === 0) && (
-                    <span className="font-mono text-[8px] text-foreground/30">{hour}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="font-mono text-[9px] text-foreground/20">12AM</span>
-            <span className="font-mono text-[9px] text-primary/40">Business Hours (8AM-6PM)</span>
-            <span className="font-mono text-[9px] text-foreground/20">11PM</span>
-          </div>
-        </div>
-      )}
+      {/* wave-181.x Money Phase 1 · ELON cut #2 · audit agent flagged
+       * the Hour-of-Day Heatmap as unreadable on mobile (24 micro-bars
+       * × `font-mono text-[8px]` labels = ~14px columns at <400px ·
+       * 9pt iOS minimum legibility). Day-of-Week heatmap above
+       * already covers the actionable scheduling signal (Sundays
+       * slow / Saturdays peak). Hour-of-day is academic — operator
+       * doesn't reschedule based on it. Cut · -28 LOC · fixes mobile
+       * bug at the same time. Data preserved in tRPC query if we
+       * ever want to bring it back. */}
 
       {/* Top Customers */}
       {topCustomers && topCustomers.length > 0 && (
@@ -670,12 +627,16 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">SERVICE BREAKDOWN</h3>
               <div className="space-y-2 max-h-[280px] overflow-y-auto">
                 {intel.serviceBreakdown.map((s: ServiceItem, i: number) => {
-                  const maxRev = intel.serviceBreakdown[0]?.revenue || 1;
+                  // wave-181.x Money Phase 1 · M2 fix · `||` would mask
+                  // legitimate $0-revenue top entry. Use `??` for the
+                  // undefined-guard (sorted desc · so [0] is max or 0).
+                  const maxRev = intel.serviceBreakdown[0]?.revenue ?? 0;
+                  const safeMaxRev = maxRev > 0 ? maxRev : 1;
                   return (
                     <div key={s.category} className="flex items-center gap-3">
                       <span className="text-[10px] text-foreground/60 w-24 truncate">{s.category}</span>
                       <div className="flex-1 h-5 bg-foreground/5 rounded-sm overflow-hidden relative">
-                        <div className="h-full rounded-sm" style={{ width: `${(s.revenue / maxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.4 }} />
+                        <div className="h-full rounded-sm" style={{ width: `${(s.revenue / safeMaxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.4 }} />
                         <span className="absolute right-2 top-0.5 text-[10px] font-bold text-foreground/80">{formatDollars(s.revenue)}</span>
                       </div>
                       <span className="text-[10px] text-foreground/40 w-12 text-right">{s.count} jobs</span>
@@ -816,7 +777,13 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
             <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
               <Target className="w-4 h-4 text-primary" /> ${(MONTHLY_TARGET / 1000).toFixed(0)}K MONTHLY RUN-RATE
             </h3>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* wave-181.x Money Phase 1 · cleanup #9 fix · audit agent
+             * caught the 4th tile duplicating the 1st (both showed
+             * intel.projections.monthlyAvg with slightly different
+             * labels). Old comment admitted it · was "replaced the
+             * $20K goal gap" but never noticed the dup. Dropped to
+             * 3-col grid · -1 tile · cleaner above-the-fold. */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="text-center p-3 rounded border border-border/20">
                 <p className="text-2xl font-bold text-primary">{formatDollars(intel.projections.monthlyAvg)}</p>
                 <p className="text-[9px] text-foreground/40 mt-1">Monthly Avg (recent 3mo)</p>
@@ -828,15 +795,6 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
               <div className="text-center p-3 rounded border border-border/20">
                 <p className="text-2xl font-bold text-blue-400">{formatDollars(intel.projections.dailyTarget)}</p>
                 <p className="text-[9px] text-foreground/40 mt-1">Daily Target (26 days)</p>
-              </div>
-              <div className="text-center p-3 rounded border border-border/20">
-                {/* Replaced the old "$20K goal gap" tile. Now shows monthly
-                    average run-rate as a contextual figure — no fixed goal,
-                    just current trajectory. */}
-                <p className="text-2xl font-bold text-emerald-400">
-                  ${Math.round(intel.projections.monthlyAvg).toLocaleString()}
-                </p>
-                <p className="text-[9px] text-foreground/40 mt-1">monthly avg run-rate</p>
               </div>
             </div>
           </div>
@@ -1427,7 +1385,13 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
     paymentMethod: "card",
     paymentStatus: "paid",
     invoiceNumber: "",
-    invoiceDate: new Date().toISOString().split("T")[0],
+    // wave-181.x Money Phase 1 · M1 fix · was `new Date().toISOString()
+    // .split("T")[0]` which returns UTC date. Operator in Cleveland
+    // (UTC-5) at 8 PM ET creating an invoice got invoiceDate ===
+    // tomorrow's date in UTC. Revenue silently dated to next day · end-
+    // of-month close broken. `toLocaleDateString("en-CA")` returns
+    // local-tz YYYY-MM-DD.
+    invoiceDate: new Date().toLocaleDateString("en-CA"),
   });
 
   const createInvoice = trpc.invoices.create.useMutation({
@@ -1441,15 +1405,33 @@ function CreateInvoiceView({ onDone }: { onDone: () => void }) {
   const handleSubmit = () => {
     if (!form.customerName.trim()) { toast.error("Customer name is required"); return; }
     if (!form.totalAmount) { toast.error("Total amount is required"); return; }
+
+    // wave-181.x Money Phase 1 · M6 fix · code-review agent caught
+    // parseFloat("abc") = NaN slipping past the truthy guard. iOS PWA
+    // paste of malformed text gets through. Explicit Number.isFinite
+    // check + dollar-value sanity guard before the cents math.
+    const total = parseFloat(form.totalAmount);
+    if (!Number.isFinite(total) || total < 0) {
+      toast.error("Total amount must be a positive number");
+      return;
+    }
+    const parts = form.partsCost ? parseFloat(form.partsCost) : 0;
+    const labor = form.laborCost ? parseFloat(form.laborCost) : 0;
+    const tax = form.taxAmount ? parseFloat(form.taxAmount) : 0;
+    if (!Number.isFinite(parts) || !Number.isFinite(labor) || !Number.isFinite(tax)) {
+      toast.error("Parts/labor/tax must be valid numbers");
+      return;
+    }
+
     createInvoice.mutate({
       customerName: form.customerName,
       customerPhone: form.customerPhone || undefined,
       serviceDescription: form.serviceDescription || undefined,
       vehicleInfo: form.vehicleInfo || undefined,
-      totalAmount: Math.round(parseFloat(form.totalAmount) * 100),
-      partsCost: form.partsCost ? Math.round(parseFloat(form.partsCost) * 100) : 0,
-      laborCost: form.laborCost ? Math.round(parseFloat(form.laborCost) * 100) : 0,
-      taxAmount: form.taxAmount ? Math.round(parseFloat(form.taxAmount) * 100) : 0,
+      totalAmount: Math.round(total * 100),
+      partsCost: Math.round(parts * 100),
+      laborCost: Math.round(labor * 100),
+      taxAmount: Math.round(tax * 100),
       paymentMethod: form.paymentMethod as "card" | "cash" | "check" | "financing" | "other",
       paymentStatus: form.paymentStatus as "paid" | "pending" | "partial" | "refunded",
       invoiceNumber: form.invoiceNumber || undefined,
