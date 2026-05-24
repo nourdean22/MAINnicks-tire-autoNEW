@@ -862,6 +862,21 @@ export function startTieredScheduler(): void {
           return processInventoryDemandForecast();
         },
       },
+      // wave-181.113 · Nick AI call eval (daily quality loop)
+      // Scores every VAPI call 0-100 using VAPI's already-extracted
+      // analysis signals (outcome, sentiment, successEvaluation) blended
+      // with duration + conversion heuristics. Writes back to
+      // vapi_call_logs.eval_* + nick_memory · Telegram alerts when avg
+      // score drops below 60 or wasted_count >= 3 (signal of real
+      // problem, not noise).
+      {
+        name: "vapi-call-eval",
+        requiresEnv: "VAPI_API_KEY",
+        handler: async () => {
+          const { processVapiCallEval } = await import("./jobs/vapiCallEval");
+          return processVapiCallEval();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when

@@ -1524,11 +1524,23 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   callbackId: int("callbackId"),
   transcriptUrl: varchar("transcriptUrl", { length: 500 }),
   recordingUrl: varchar("recordingUrl", { length: 500 }),
+  /** wave-181.113 · Nick AI evaluation. Daily cron scores each call
+   *  0-100 (eval_score), classifies outcome (eval_outcome), preserves
+   *  reasoning for compound improvement (eval_reasoning), stamps eval_at
+   *  so re-runs / catch-ups can detect what's been processed.
+   *  Sub-50 = wasted · 50-69 = info_only · 70-84 = converted · 85+ = exemplary.
+   *  Migration 0057. */
+  evalScore: int("eval_score"),
+  evalOutcome: varchar("eval_outcome", { length: 32 }),
+  evalReasoning: text("eval_reasoning"),
+  evalAt: timestamp("eval_at"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_vapi_log_created").on(table.createdAt),
   index("idx_vapi_log_phone").on(table.phoneNumber),
   index("idx_vapi_log_lead").on(table.leadId),
+  // wave-181.113 · daily eval cron index for "all unevaluated calls"
+  index("idx_vapi_eval_at_score").on(table.evalAt, table.evalScore),
 ]);
 
 export type VapiCallLog = typeof vapiCallLogs.$inferSelect;

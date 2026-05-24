@@ -515,6 +515,14 @@ export async function handleRunMigrations() {
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS psycho_profile_score INT DEFAULT NULL`,
       `ALTER TABLE customers ADD COLUMN IF NOT EXISTS psycho_profile_at TIMESTAMP NULL DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_customer_psycho ON customers (psycho_profile)`,
+      // 2026-05-23 · drizzle/0057_vapi_call_eval.sql — Nick AI eval columns
+      // Daily cron scores every call 0-100 · powers Telegram quality alerts +
+      // compound learning via nickMemory.
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_score TINYINT NULL DEFAULT NULL`,
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_outcome VARCHAR(32) DEFAULT NULL`,
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_reasoning TEXT DEFAULT NULL`,
+      `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_at TIMESTAMP NULL DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_vapi_eval_at_score ON vapi_call_logs (eval_at, eval_score)`,
     ];
 
     let applied = 0;
