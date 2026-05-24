@@ -1,6 +1,95 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-5 (post Wave X.e · statenour-wide consolidation + activation pass · 5 surgical batches · 4 commits · −926 LOC net · 3 orphan operator pages activated via nav-items + 6 dead-code files deleted + 4 cron routes migrated to timing-safe `requireCronAuth` + 22 `bg-[#0A0A0A]` design-token hardcodes swept to `var(--bg-base)` + 3 `#FDB913` Recharts hardcodes swept to `var(--gold)` + customer-360 inline SkeletonView/ErrorView replaced with `MasterySkeleton`/`MasteryErrorView`). On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap · 6 new entries closing the documentation debt. On top of: Wave X.c · R3F scene data wire-up · CommandCore + FrameworkOrbit now DATA-REACTIVE. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-24 LATE-NIGHT-6 (post Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems are now operator-reachable · ingest-fireflies meeting transcripts now in chat recall via `CONTEXT_CATEGORIES` allowlist + `MEETING_TRANSCRIPT` constant · NEW `/api/cron/daily-strategy` writer cron registered in MORNING_JOBS + crons manifest · NEW `SelfCritiqueCard` on /brain reads `reply_to_improve` · NEW `PricingAdvisoryCard` on /scoreboard reads weekly advisory · NEW `LocationRankingCard` on /financial reads monthly ranking · NEW `/system/data-source-health` page + reader API joining persisted probe rows with thresholds · canary loop closes). On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · 4 commits · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-24 LATE-NIGHT-6 · Wave X.f · activation wave · 6 paid-for-unused subsystems → operator-reachable · 3 ships
+>
+> The follow-up to Wave X.e's audit. X.e deferred 6 activation
+> findings ("we should surface the data the cron writes · just
+> needs a card"). This wave shipped all 6 across 3 commits.
+> Common pattern · the cron pipeline was already paid-for · the
+> embedder already covered the category · only the operator-facing
+> surface was missing.
+>
+> **Commit 1** · `b8c45dc4` · activations 1+2 · data-layer activations
+>
+> 1. **Fireflies meeting transcripts → chat recall.** The
+>    `ingest-fireflies` cron has been pulling transcripts twice
+>    daily for months · `embed-backfill` covered the category · but
+>    `lib/brain/memory-recall.ts` (CONTEXT_CATEGORIES allowlist)
+>    never included `meeting_transcript`. KNN pulled the rows, the
+>    filter silently dropped them. Added the category constant
+>    (`MEETING_TRANSCRIPT: "meeting_transcript"`) to BRAIN_CATEGORIES,
+>    swapped the raw string in ingest-fireflies for the constant,
+>    added the category to CONTEXT_CATEGORIES. Zero-LOC activation
+>    · the rows + embeddings are already there.
+> 2. **NEW `/api/cron/daily-strategy` writer.** The
+>    `/api/command/data` route reads `prisma.dailyStrategy.findFirst`
+>    for the cockpit's strategic-briefing tile · no cron wrote the
+>    row · always null. New cron calls `runStrategicTriggers()` (15
+>    behavioral triggers from `lib/services/strategic-triggers.ts`),
+>    composes a deterministic briefing (NO AI call · the triggers
+>    ARE the signal), upserts on today's ET date. Registered in
+>    `MORNING_JOBS` and `config/crons.ts` folded into mega-morning.
+>
+> **Commit 2** · `b6576c7d` · activations 3+4+5 · 3 operator cards
+>
+> 3. **`components/brain/self-critique-card.tsx`** mounted on
+>    /brain · reads
+>    `GET /api/brain/memories?category=reply_to_improve&limit=5`
+>    and renders the bottom-decile flagged replies with composite
+>    score + content preview · each row links to
+>    `/chat?conv=<id>` so a tap takes the operator to the
+>    flagged conversation. Closes the quality feedback loop.
+> 4. **`components/scoreboard/pricing-advisory-card.tsx`** mounted
+>    on /scoreboard · reads `/api/system/pricing-advisory` and
+>    renders headline + fleet-median + below-median outliers +
+>    top-3 drafted experiments. Operator no longer has to ASK
+>    Nick in chat to see the Sunday-morning pricing strategy.
+> 5. **`components/financial/location-ranking-card.tsx`** mounted
+>    on /financial · reads `/api/business/location-ranking` and
+>    renders the persisted markdown summary + month-key +
+>    staleness chip. Monthly strategic-decision surface becomes
+>    visible.
+>
+> All three cards · editorial-minimalist visual contract (`GlassCard`
+> host, `var(--text-tertiary)` + `var(--gold)` tokens, no AI-slop
+> gradients) · 44px tap targets · silent-when-empty (absence IS the
+> signal that the cron hasn't fired · clarity-gate · no
+> "no data yet" placeholder).
+>
+> **Commit 3** · `b2a0b818` · activation 6 · /system/data-source-health
+>
+> The `data-source-health` cron (v10.0.58 Wave B) probes every
+> 6h and writes `BrainMemory(category="data_source_probe")` rows.
+> The cron's own docstring promised "/system/diagnostics surface
+> reads a streak" but no page existed.
+>
+> - **NEW `GET /api/system/data-source-probes`** · joins persisted
+>   probe rows (last 30d) with `getProbeSpecs()` per-probe
+>   thresholds · per probe returns latest run + consecutive-empty
+>   streak + alerting bool (streak >= threshold).
+> - **NEW `/(mastery)/system/data-source-health/page.tsx`** ·
+>   editorial table · kind-grouped (bridge/shop/personal) ·
+>   alerting probes float to top · streak chip
+>   `<empty>/<threshold>` amber when alerting, gray when healthy
+>   · 60s auto-refresh.
+> - **Naming note** · the cron docstring referenced "/system/
+>   diagnostics" but the path was already claimed by
+>   `/api/system/diagnostics` (system-wide KPI rollup) · this page
+>   lives at `/system/data-source-health` to avoid the collision
+>   and added to `nav-items.ts`.
+>
+> **Pattern recap** · 6 audit findings · 6 ships · 0 rejections this
+> wave (because the audit was usage-grounded, not name-grounded ·
+> a contrast with Wave X.b where 4 of 8 were rejected on re-audit).
+> The pre-flight check from X.b still applied · every "writes data
+> nothing reads" claim spot-checked against `grep -rn` before
+> shipping the consumer.
+>
+> **Gates** · typecheck 0 errors · lint 0 errors / 369 baseline ·
+> vitest 185 / 2812 pass · zero new schema migrations · zero new
+> dependencies.
 
 > ## 2026-05-24 LATE-NIGHT-5 · Wave X.e · statenour-wide consolidation + activation · 4 ships
 >
