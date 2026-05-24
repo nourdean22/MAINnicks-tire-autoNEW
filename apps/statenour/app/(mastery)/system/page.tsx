@@ -221,103 +221,21 @@ export default function SystemPage() {
           of the grid. */}
       <SystemHubGrid />
 
-      {/* ── DETAIL ───────────────────────────────────────────────── */}
-      {/* Two-column grid: Devices + Brain */}
-      <div className="grid gap-4 md:grid-cols-2 stagger-in">
-        {/* Devices panel — emerald/red/amber cells map to real
-            severity states (online good · offline bad · error warn). */}
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">devices</h3>
-            <span className="text-xs text-[var(--text-tertiary)]">{d?.devices.total ?? 0} total</span>
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-lg bg-emerald-500/10 p-3">
-              <div className="text-2xl font-bold text-emerald-400">{d?.devices.online ?? 0}</div>
-              <div className="text-[10px] text-emerald-400/60 uppercase">Online</div>
-            </div>
-            <div className="rounded-lg bg-red-500/10 p-3">
-              <div className="text-2xl font-bold text-red-400">{d?.devices.offline ?? 0}</div>
-              <div className="text-[10px] text-red-400/60 uppercase">Offline</div>
-            </div>
-            <div className="rounded-lg bg-amber-500/10 p-3">
-              <div className="text-2xl font-bold text-amber-400">{d?.devices.error ?? 0}</div>
-              <div className="text-[10px] text-amber-400/60 uppercase">Error</div>
-            </div>
-          </div>
-          {health && (
-            <div className="mt-3 flex gap-3 text-xs text-[var(--text-tertiary)]">
-              <span>drift alerts: {health.alerts?.unresolved ?? 0}</span>
-              <span>commitments: {health.commitments?.active ?? 0}</span>
-            </div>
-          )}
-        </Panel>
-
-        {/* Brain panel — Wave 52 · palette corrected. Permanent /
-            Temporary / Rules are inventory counts, NOT severity
-            states, so they no longer borrow decorative violet/blue/
-            cyan. Permanent (the headline brain stat) carries the gold
-            brand accent · the other two stay neutral. */}
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-white">Nick brain</h3>
-            <span className="text-xs text-[var(--text-tertiary)]">
-              {brain?.memories.total ?? 0} memories
-            </span>
-          </div>
-          {brain ? (
-            <>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-[var(--gold)]/10 p-3">
-                  <div className="text-2xl font-bold text-[var(--gold)]">{brain.memories.permanent}</div>
-                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Permanent</div>
-                </div>
-                <div className="rounded-lg bg-white/5 p-3">
-                  <div className="text-2xl font-bold text-white">{brain.memories.temporary}</div>
-                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Temporary</div>
-                </div>
-                <div className="rounded-lg bg-white/5 p-3">
-                  <div className="text-2xl font-bold text-white">{brain.automationRules.active}</div>
-                  <div className="text-[10px] uppercase text-[var(--text-tertiary)]">Rules</div>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-[var(--text-tertiary)]">
-                avg confidence: {(brain.memories.avgConfidence * 100).toFixed(0)}%
-                {brain.memories.byCategory.length > 0 && (
-                  <span className="ml-2">
-                    top: {brain.memories.byCategory[0]?.category} ({brain.memories.byCategory[0]?.count})
-                  </span>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="text-xs text-[var(--text-tertiary)] text-center py-6">loading…</div>
-          )}
-        </Panel>
-      </div>
-
-      {/* Integrations */}
-      {d && d.integrations.length > 0 && (
-        <Panel className="border-[var(--border-default)] bg-[var(--bg-raised)]/[0.02]">
-          <h3 className="mb-3 text-sm font-semibold text-white">integrations</h3>
-          <div className="space-y-2">
-            {d.integrations.map((intg) => (
-              <div
-                key={intg.name}
-                className="flex items-center justify-between rounded-lg bg-[var(--bg-raised)]/[0.02] px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <StatusDot status={intg.status} />
-                  <span className="text-sm text-zinc-200">{intg.name}</span>
-                </div>
-                <span className="text-xs text-[var(--text-tertiary)]">
-                  {intg.lastSync ? timeAgo(intg.lastSync) : "never synced"}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      )}
+      {/* 2026-05-24 · Wave W Phase 1 · DELETION · the lower "DETAIL"
+          two-column grid (Devices + Nick brain panels) + the
+          Integrations panel were all duplicated downstream:
+            · Devices panel · same data + drift alerts surface on
+              /system/devices (linked via the hub-grid card)
+            · Nick brain panel · same memory counts surface on
+              /brain · /brain/health · /system/coverage
+            · Integrations · same status surfaces on the hub-grid
+              cards + /system/health
+          Wave 52 already deleted 3 sibling debug-dump cards for
+          this same reason (per file header). This finishes the
+          job. SystemHubGrid above is the page · attention-strip
+          already lifts degraded surfaces above their groups so
+          the live signal is preserved.
+          ~95 LOC removed. */}
     </div>
   );
 }
