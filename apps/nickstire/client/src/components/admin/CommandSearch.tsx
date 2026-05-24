@@ -538,6 +538,66 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         onNavigate("revenue");
       },
     },
+    // wave-181.x Voice Phase 4 · 3 high-leverage Voice jumps. Each
+    // compresses 3-4 sidebar clicks into one keystroke. Live-calls +
+    // stuck-calls anchors lean on `#voice-live-calls` injected in
+    // VoiceReceptionistSection on the LiveCallsCard wrapper.
+    {
+      id: "action-voice-live",
+      label: "Voice · Live in-flight calls",
+      keywords: ["voice", "nick", "vapi", "live", "in-flight", "active", "calls"],
+      icon: <PhoneCall className="w-4 h-4 text-violet-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=voiceReceptionist");
+        }
+        onNavigate("voiceReceptionist");
+        setTimeout(() => {
+          const el = document.getElementById("voice-live-calls");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 250);
+      },
+    },
+    {
+      id: "action-voice-stuck",
+      label: "Voice · Stuck calls (Nick fumbled · needs review)",
+      keywords: ["voice", "nick", "stuck", "tool", "fumble", "review", "verify"],
+      icon: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=voiceReceptionist");
+        }
+        onNavigate("voiceReceptionist");
+        // Same anchor as the VoiceBrief action CTA · flash the card.
+        setTimeout(() => {
+          const el = document.getElementById("voice-live-calls");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-amber-400/50");
+            setTimeout(() => el.classList.remove("ring-2", "ring-amber-400/50"), 1200);
+          }
+        }, 250);
+      },
+    },
+    {
+      id: "action-voice-today",
+      label: "Voice · Today's calls (reset filters)",
+      keywords: ["voice", "nick", "today", "calls", "reset", "filter"],
+      icon: <Phone className="w-4 h-4 text-blue-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          // ?range=today resets the date-range to default · VoiceReceptionist
+          // reads rangePreset from local useState though, not useUrlFilter,
+          // so this is a soft hint · operator may need to click "Today"
+          // chip if they were on a custom range. Better than nothing.
+          window.history.replaceState({}, "", "/admin?tab=voiceReceptionist");
+        }
+        onNavigate("voiceReceptionist");
+      },
+    },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
 
   // Filter actions by query

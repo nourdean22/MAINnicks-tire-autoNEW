@@ -55,6 +55,8 @@ import {
   Tooltip,
 } from "recharts";
 import { CHART_THEME } from "./shared";
+// wave-181.x Voice Phase 2 · 3-line auto-narrative.
+import { VoiceBrief } from "./voice/VoiceBrief";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // ─── VAPI dashboard URL helpers (wave-89) ───────────────────
@@ -444,6 +446,22 @@ export default function VoiceReceptionistSection() {
             : { label: rangePreset === "today" ? "QUIET DAY" : `0 CALLS · ${range.shortLabel.toUpperCase()}`, variant: "neutral" }
         }
         actions={<VapiDashboardLinks assistantId={assistantId} />}
+      />
+
+      {/* wave-181.x Voice Phase 2 · VoiceBrief 3-line auto-narrative
+       * lands above the routing cards so the operator's first eye-
+       * grab is "what's happening with Nick today" rather than the
+       * transfer-destination + live-calls + outbound-trigger stack.
+       * Stuck-calls action CTA scrolls to LiveCallsCard. */}
+      <VoiceBrief
+        onStuckCallsAction={() => {
+          const el = document.getElementById("voice-live-calls");
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-amber-400/50");
+            setTimeout(() => el.classList.remove("ring-2", "ring-amber-400/50"), 1200);
+          }
+        }}
       />
 
       {/* ─── Transfer destination quick-control ─────── */}
@@ -1334,7 +1352,9 @@ function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => voi
   };
 
   return (
-    <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
+    // wave-181.x Voice Phase 2 · `voice-live-calls` id targets the
+    // VoiceBrief stuck-calls action CTA (scrollIntoView + flash).
+    <div id="voice-live-calls" className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
