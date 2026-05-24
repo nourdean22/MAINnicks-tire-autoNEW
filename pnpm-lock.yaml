@@ -615,6 +615,12 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
+  packages/lenses:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/utils:
     dependencies:
       clsx:
