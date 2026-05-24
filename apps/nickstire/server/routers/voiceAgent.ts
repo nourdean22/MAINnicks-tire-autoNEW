@@ -318,7 +318,16 @@ export const voiceAgentRouter = router({
         // Wave-103 — route through the shop's real number so the
         // customer sees the text from 216-862-0005 (the same line they
         // just called). Falls back to Twilio if the gateway is offline.
-        const result = await sendSms(input.phone, body, { via: "shop" });
+        //
+        // wave-181.x · `transactional: true` is critical here. The
+        // customer is on the phone with us RIGHT NOW · this SMS is the
+        // direct response to a customer-initiated interaction · TCPA-
+        // safe to bypass quiet-hours + daily-cap. Without the flag, an
+        // 8:30 PM call would have Nick say "I'll text you the address"
+        // but the SMS would queue until 8 AM the next day · the
+        // customer is left thinking the text was lost. Opt-out is NOT
+        // bypassed · transactional flag only affects timing + cap.
+        const result = await sendSms(input.phone, body, { via: "shop", transactional: true });
         const degraded = !result.success && result.error === "sms_disabled";
         log.info("Voice agent SMS sent", {
           phone: input.phone.slice(-4),
