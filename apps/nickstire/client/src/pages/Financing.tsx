@@ -619,7 +619,7 @@ export default function Financing() {
               className="inline-flex items-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-lg font-bold text-base tracking-wide hover:bg-[#FDB913]/90 transition-colors"
             >
               <CreditCard className="w-5 h-5" />
-              Check If I Qualify (60s)
+              Get My Approval — up to $7,500 (60s)
               <ArrowRight className="w-5 h-5" />
             </button>
             <a

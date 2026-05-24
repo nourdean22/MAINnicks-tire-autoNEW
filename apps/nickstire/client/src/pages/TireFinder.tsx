@@ -1311,15 +1311,20 @@ export default function TireFinder() {
                       <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Valve Stems</span>
                       <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Disposal</span>
                       <span className="flex items-center gap-1"><Check className="w-3 h-3" /> TPMS Reset</span>
-                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Inspection</span>
+                      <span className="flex items-center gap-1"><Check className="w-3 h-3" /> 20-Point Check</span>
                       <span className="flex items-center gap-1"><Check className="w-3 h-3" /> Alignment Check</span>
+                    </div>
+
+                    {/* Loss-aversion anchor — what you'd pay at the chain shops */}
+                    <div className="mt-5 pt-5 border-t border-border/20 text-xs text-foreground/55 leading-relaxed">
+                      At Conrad's, Mavis, or Firestone, the same install package adds <span className="line-through text-foreground/40">$289+</span> at the register. Here it's already in the price you see. <span className="text-primary">You keep the $289.</span>
                     </div>
                   </div>
 
                   {/* Info note */}
                   <div className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
                     <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing before processing your order. No charge until you approve.</p>
+                    <p>Prices shown are estimates based on current wholesale availability. We confirm exact pricing before processing your order. <span className="text-foreground/80">Free check. Written quote. You don't pay until you say yes.</span></p>
                   </div>
                 </>
               ) : (
