@@ -29,6 +29,7 @@ export const FLAG_DEFINITIONS = [
   { key: "sms_blast_enabled", description: "Bulk SMS campaign sending" },
   { key: "smart_sms_auto_reply", description: "Auto-reply to inbound SMS based on intent" },
   { key: "sms_cross_sell_outreach", description: "Proactive cross-sell SMS based on service history patterns" },
+  { key: "service_affinity_v2_compute", description: "Service Affinity v2 prediction cron · writes per-customer predictions to service_affinity_predictions w/ 50/50 A/B arm split (treatment eligible for SMS · control hold-out for closed-loop measurement). Disabled until migration 0061 applied + operator verifies v2 quality." },
   { key: "auto_revenue_correction", description: "Auto-trigger winback when revenue behind pace" },
   { key: "vip_auto_recognition", description: "Auto-SMS new VIP customers with 10% off perk" },
   { key: "referral_loop_closer", description: "Auto-SMS both parties when referral converts" },
