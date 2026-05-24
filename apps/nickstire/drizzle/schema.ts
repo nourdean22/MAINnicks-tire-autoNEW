@@ -2262,6 +2262,32 @@ export const cronAlertsFired = mysqlTable("cron_alerts_fired", {
 });
 
 /**
+ * Wave metrics — wave-181.x · Tier A · Closed-loop delivery
+ *
+ * Records baseline + target measurement date for every shipped wave.
+ * The daily measure-due cron reads pending rows past their measure_at,
+ * resolves the current value via a named resolver, computes delta, and
+ * marks lift / no-lift / regression. This is the feedback signal that
+ * tells us which compounding loops actually compound.
+ */
+export const waveMetrics = mysqlTable("wave_metrics", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  waveId: varchar("wave_id", { length: 64 }).notNull(),
+  metricKey: varchar("metric_key", { length: 64 }).notNull(),
+  baselineValue: decimal("baseline_value", { precision: 12, scale: 4 }).notNull(),
+  measureAt: timestamp("measure_at").notNull(),
+  measuredValue: decimal("measured_value", { precision: 12, scale: 4 }),
+  deltaPercent: decimal("delta_percent", { precision: 8, scale: 2 }),
+  status: mysqlEnum("status", ["pending", "lifted", "no_lift", "regression", "resolver_error"]).notNull().default("pending"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  measuredAt: timestamp("measured_at"),
+}, (t) => ({
+  idxWaveMeasureAt: index("idx_wave_measure_at").on(t.status, t.measureAt),
+  idxWaveId: index("idx_wave_id").on(t.waveId),
+}));
+
+/**
  * Competitor snapshots — wave-181.x · Tier S persistent storage for
  * the existing in-memory competitor monitor. Survives pod restarts so
  * change detection works across weeks, not just minutes within one
