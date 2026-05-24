@@ -24,14 +24,33 @@ export async function processClosedLoopMeasure(): Promise<ProcessResult> {
   const start = Date.now();
   log.info("[closed-loop] start");
 
-  const { measureDueWaves } = await import("../../services/closedLoop");
+  const { measureDueWaves, seedWaveBaselines } = await import("../../services/closedLoop");
+
+  // wave-181.x · auto-seed wave baselines on every run. Idempotent ·
+  // skips already-recorded (wave_id, metric_key) pairs. Means the
+  // operator doesn't have to remember to run a seed script after
+  // migration 0059 lands · the first cron run after migration auto-
+  // seeds the 4 measurable compound loops shipped today.
+  let seeded = 0;
+  try {
+    seeded = await seedWaveBaselines();
+    if (seeded > 0) {
+      log.info(`[closed-loop] seeded ${seeded} new baselines`);
+    }
+  } catch (err) {
+    // Non-fatal · if seed fails, measurement still runs for already-recorded waves
+    log.warn("[closed-loop] auto-seed failed (non-fatal)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   const r = await measureDueWaves();
 
   const durMs = Date.now() - start;
-  log.info(`[closed-loop] done in ${durMs}ms`, r);
+  log.info(`[closed-loop] done in ${durMs}ms`, { ...r, seeded });
 
   return {
-    recordsProcessed: r.measured,
-    details: `measured=${r.measured} lifted=${r.lifted} no_lift=${r.noLift} regression=${r.regression} errors=${r.errors}`,
+    recordsProcessed: r.measured + seeded,
+    details: `seeded=${seeded} measured=${r.measured} lifted=${r.lifted} no_lift=${r.noLift} regression=${r.regression} errors=${r.errors}`,
   };
 }
