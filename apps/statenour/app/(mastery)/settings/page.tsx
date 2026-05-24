@@ -145,34 +145,103 @@ export default function SettingsPage() {
 }
 
 // ── Auto-Pilot Mode Controls ──────────────────────────────────────────────
+type AutoPilotCategory = "brain" | "sales" | "schedule" | "comms";
+
 interface AutoPilotFlag {
   key: string;
   label: string;
   description: string;
   icon: typeof Zap;
   enabled: boolean;
+  /** 2026-05-24 · Wave P · category for visual grouping. */
+  category: AutoPilotCategory;
+}
+
+// 2026-05-24 · Wave P · category metadata · gold-on-dark editorial
+// palette · each tint matches the surface's existing System Ops Hub
+// tint vocabulary (brain=amber · sales=emerald · schedule=violet ·
+// comms=sky) so the operator's mental color-coding stays consistent
+// across pages.
+const CATEGORY_META: Record<
+  AutoPilotCategory,
+  { label: string; tint: string; tintBg: string; description: string }
+> = {
+  brain: {
+    label: "Brain · learning",
+    tint: "text-amber-300",
+    tintBg: "bg-amber-500/10",
+    description: "memory consolidation · identity · skill extraction",
+  },
+  sales: {
+    label: "Sales · revenue",
+    tint: "text-emerald-300",
+    tintBg: "bg-emerald-500/10",
+    description: "lead alerts · quote follow-up · revenue anomaly",
+  },
+  schedule: {
+    label: "Schedule · focus",
+    tint: "text-violet-300",
+    tintBg: "bg-violet-500/10",
+    description: "morning · commitments · weekly targets · ADHD rhythm",
+  },
+  comms: {
+    label: "Comms · marketing",
+    tint: "text-sky-300",
+    tintBg: "bg-sky-500/10",
+    description: "weather-triggered campaigns",
+  },
+};
+
+// 2026-05-24 · Wave P · hoisted to module scope · same data, sorted by
+// category to drive the grouped render. Was inlined inside useState
+// before · grouping requires the list to be authored category-first.
+const DEFAULT_AUTOPILOT_FLAGS: AutoPilotFlag[] = [
+  // Brain · learning
+  { key: "auto_brain_cycle", label: "Nightly Brain Cycle", description: "Run 9-stage memory consolidation + intelligence engines", icon: Brain, enabled: true, category: "brain" },
+  { key: "auto_skill_extraction", label: "Skill Extraction", description: "Weekly Sun 03:00 · cluster DONE tasks into skill candidates · curate in /brain", icon: Brain, enabled: true, category: "brain" },
+  { key: "auto_identity_refresh", label: "Identity Snapshot Refresh", description: "Daily 04:30 · roll 8-axis self-model + harvest beliefs + decay stale patterns", icon: Brain, enabled: true, category: "brain" },
+  { key: "auto_session_distill", label: "Chat Session Distillation", description: "Every 3h · fold idle chats into durable memory", icon: Brain, enabled: true, category: "brain" },
+  // Sales · revenue
+  { key: "auto_stale_lead_alert", label: "Stale Lead Alerts", description: "Alert when leads go 24h+ without contact", icon: Bell, enabled: true, category: "sales" },
+  { key: "auto_followup_quotes", label: "Quote Follow-ups", description: "Auto-remind on quotes not followed up in 48h", icon: Bell, enabled: true, category: "sales" },
+  { key: "auto_revenue_alerts", label: "Revenue Anomaly Alerts", description: "Alert when daily revenue deviates significantly", icon: TrendingUp, enabled: true, category: "sales" },
+  { key: "auto_estimate_followup", label: "Estimate Auto-Follow-Up", description: "Auto-send SMS follow-ups on aging estimates (24h, 48h, 7d, 30d)", icon: Clock, enabled: false, category: "sales" },
+  // Schedule · focus
+  { key: "auto_morning_autopilot", label: "Morning Auto-Pilot", description: "ONE Telegram message with schedule + leads + weather + approve button", icon: Zap, enabled: true, category: "schedule" },
+  { key: "auto_commitment_check", label: "Commitment Check", description: "Auto-check overdue commitments and create tasks", icon: Shield, enabled: true, category: "schedule" },
+  { key: "auto_weekly_targets", label: "Weekly Target Auto-Set", description: "Auto-set targets by Tuesday if not manually set", icon: Clock, enabled: false, category: "schedule" },
+  { key: "adhd_operating_rhythm", label: "ADHD Operating Rhythm", description: "Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm — guards focus, enforces shutdown", icon: Activity, enabled: true, category: "schedule" },
+  // Comms · marketing
+  { key: "auto_weather_campaigns", label: "Weather Campaigns", description: "Auto-trigger marketing when weather events match (freeze, rain, heat, snow)", icon: Bell, enabled: true, category: "comms" },
+];
+
+// 2026-05-24 · Wave P · resolve initial state from localStorage SYNC
+// before the first render so the operator doesn't see the "everything
+// ON" flash on every page load (Nielsen #1 fix · visibility of system
+// status). The tRPC query still resolves and merges in · localStorage
+// just eliminates the cold-start lie. Falls back to DEFAULT_* if no
+// cache or parse fails (e.g. SSR pass).
+function resolveInitialFlags(): AutoPilotFlag[] {
+  if (typeof window === "undefined") return DEFAULT_AUTOPILOT_FLAGS;
+  try {
+    const stored = window.localStorage.getItem("nour-autopilot-flags");
+    if (!stored) return DEFAULT_AUTOPILOT_FLAGS;
+    const parsed = JSON.parse(stored) as Record<string, boolean>;
+    return DEFAULT_AUTOPILOT_FLAGS.map((f) => ({
+      ...f,
+      enabled: parsed[f.key] !== undefined ? parsed[f.key] : f.enabled,
+    }));
+  } catch {
+    return DEFAULT_AUTOPILOT_FLAGS;
+  }
 }
 
 function AutoPilotControls() {
-  const [flags, setFlags] = useState<AutoPilotFlag[]>([
-    // Apr 19 · Apr 18 · Retired: auto_morning_brief (morning brief killed),
-    // auto_drift_escalation (DailyScore retired — drift now resolves
-    // via backlog-triage auto-archive, not score gaps).
-    { key: "auto_morning_autopilot", label: "Morning Auto-Pilot", description: "ONE Telegram message with schedule + leads + weather + approve button", icon: Zap, enabled: true },
-    { key: "auto_stale_lead_alert", label: "Stale Lead Alerts", description: "Alert when leads go 24h+ without contact", icon: Bell, enabled: true },
-    { key: "auto_commitment_check", label: "Commitment Check", description: "Auto-check overdue commitments and create tasks", icon: Shield, enabled: true },
-    { key: "auto_brain_cycle", label: "Nightly Brain Cycle", description: "Run 9-stage memory consolidation + intelligence engines", icon: Brain, enabled: true },
-    { key: "auto_followup_quotes", label: "Quote Follow-ups", description: "Auto-remind on quotes not followed up in 48h", icon: Bell, enabled: true },
-    { key: "auto_weekly_targets", label: "Weekly Target Auto-Set", description: "Auto-set targets by Tuesday if not manually set", icon: Clock, enabled: false },
-    { key: "auto_revenue_alerts", label: "Revenue Anomaly Alerts", description: "Alert when daily revenue deviates significantly", icon: Zap, enabled: true },
-    { key: "auto_estimate_followup", label: "Estimate Auto-Follow-Up", description: "Auto-send SMS follow-ups on aging estimates (24h, 48h, 7d, 30d)", icon: Clock, enabled: false },
-    { key: "adhd_operating_rhythm", label: "ADHD Operating Rhythm", description: "Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm — guards focus, enforces shutdown", icon: Brain, enabled: true },
-    { key: "auto_weather_campaigns", label: "Weather Campaigns", description: "Auto-trigger marketing when weather events match (freeze, rain, heat, snow)", icon: Zap, enabled: true },
-    // New Apr 19 · Brain-learning auto-pilot toggles
-    { key: "auto_skill_extraction", label: "Skill Extraction", description: "Weekly Sun 03:00 · cluster DONE tasks into skill candidates · curate in /brain", icon: Brain, enabled: true },
-    { key: "auto_identity_refresh", label: "Identity Snapshot Refresh", description: "Daily 04:30 · roll 8-axis self-model + harvest beliefs + decay stale patterns", icon: Brain, enabled: true },
-    { key: "auto_session_distill", label: "Chat Session Distillation", description: "Every 3h · fold idle chats into durable memory", icon: Brain, enabled: true },
-  ]);
+  const [flags, setFlags] = useState<AutoPilotFlag[]>(resolveInitialFlags);
+  // 2026-05-24 · Wave P · surface mutation failures inline · mirror
+  // PushNotificationToggle's pattern · was completely silent before
+  // (Nielsen #9 fix · help users recognize errors).
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
   // Phase UU.2 (2026-05-22) · REST→tRPC · the flag map is a typed query
   // (system.autopilotFlags). It merges into the local `flags` state
@@ -226,7 +295,18 @@ function AutoPilotControls() {
       const map: Record<string, boolean> = {};
       updated.forEach(f => { map[f.key] = f.enabled; });
       localStorage.setItem("nour-autopilot-flags", JSON.stringify(map));
-      setAutopilotMutation.mutate({ flags: map });
+      // 2026-05-24 · Wave P · surface mutation errors inline · the
+      // localStorage write above means the toggle is "stored" even on
+      // mutation failure · clearing the banner on retry success.
+      setMutationError(null);
+      setAutopilotMutation.mutate(
+        { flags: map },
+        {
+          onError: (err) => {
+            setMutationError(err.message || "Server rejected the flag update · localStorage still holds your change.");
+          },
+        },
+      );
       // v10.0.529.90 · Wave 34 · fire bus · AiSettingsPanel (Wave 31)
       // + any future autopilot consumers refresh instantly.
       notifyDataChanged("settings", { source: "settings-page", detail: "autopilot-toggle", id: key });
@@ -235,6 +315,15 @@ function AutoPilotControls() {
   }
 
   const enabledCount = flags.filter(f => f.enabled).length;
+  // 2026-05-24 · Wave P · group flags by category for the rendered
+  // grid · iterate the meta map order (brain → sales → schedule →
+  // comms) so the visual sequence is stable regardless of array order.
+  const categoryOrder: AutoPilotCategory[] = ["brain", "sales", "schedule", "comms"];
+  const grouped = categoryOrder.map((cat) => ({
+    category: cat,
+    meta: CATEGORY_META[cat],
+    flags: flags.filter((f) => f.category === cat),
+  }));
 
   return (
     <div className="mt-10">
@@ -256,34 +345,109 @@ function AutoPilotControls() {
       <p className="text-[11px] text-[var(--text-tertiary)] mb-4">
         Nick runs these automatically via cron. Toggle to enable/disable autonomous operations.
       </p>
-      <div className="space-y-2">
-        {flags.map(f => {
-          const Icon = f.icon;
+      {/* 2026-05-24 · Wave P · grouped grid · 4 categories instead of
+          a flat 13-row scroll. Per-category count badge gives at-a-glance
+          state. md:grid-cols-2 on desktop · single-column on mobile
+          (iPhone width is the design floor). */}
+      <div className="grid gap-3 md:grid-cols-2">
+        {grouped.map((group) => {
+          if (group.flags.length === 0) return null;
+          const groupEnabled = group.flags.filter((f) => f.enabled).length;
           return (
-            <GlassCard key={f.key} className={cn(
-              "flex items-center gap-3 py-2 px-3 cursor-pointer transition-all",
-              f.enabled && "border-[var(--gold)]/10"
-            )} onClick={() => toggleFlag(f.key)}>
-              <Icon size={14} className={f.enabled ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]"} />
-              <div className="flex-1 min-w-0">
-                <p className={cn("text-xs font-medium", f.enabled ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]")}>
-                  {f.label}
-                </p>
-                <p className="text-[10px] text-[var(--text-tertiary)] truncate">{f.description}</p>
+            <div
+              key={group.category}
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3"
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <h3 className={cn("text-[10px] font-semibold uppercase tracking-wider", group.meta.tint)}>
+                    {group.meta.label}
+                  </h3>
+                  <p className="mt-0.5 text-[9px] text-[var(--text-tertiary)]">
+                    {group.meta.description}
+                  </p>
+                </div>
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-[1px] text-[9px] font-mono tabular-nums",
+                    groupEnabled === group.flags.length
+                      ? cn(group.meta.tintBg, group.meta.tint)
+                      : "bg-zinc-800 text-zinc-500",
+                  )}
+                >
+                  {groupEnabled}/{group.flags.length}
+                </span>
               </div>
-              <div className={cn(
-                "w-8 h-4 rounded-full transition-all relative",
-                f.enabled ? "bg-[var(--gold)]" : "bg-[var(--bg-surface)]"
-              )}>
-                <div className={cn(
-                  "absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all",
-                  f.enabled ? "left-[18px]" : "left-0.5"
-                )} />
+              <div className="space-y-1.5">
+                {group.flags.map((f) => {
+                  const Icon = f.icon;
+                  return (
+                    <button
+                      key={f.key}
+                      type="button"
+                      onClick={() => toggleFlag(f.key)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-md border px-2 py-2 text-left transition-colors",
+                        // 2026-05-24 · Wave P · 44pt vertical tap target ·
+                        // py-2 + content height = ~44px. Was a GlassCard
+                        // before with cursor-pointer · this is the proper
+                        // semantic (button) + matches Apple HIG.
+                        f.enabled
+                          ? "border-[var(--gold)]/20 bg-[var(--gold)]/[0.03]"
+                          : "border-[var(--border-default)] bg-transparent hover:bg-[var(--bg-raised)]",
+                      )}
+                    >
+                      <Icon
+                        size={13}
+                        className={cn(
+                          "shrink-0",
+                          f.enabled ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]",
+                        )}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p
+                          className={cn(
+                            "text-[11px] font-medium",
+                            f.enabled ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]",
+                          )}
+                        >
+                          {f.label}
+                        </p>
+                        <p className="truncate text-[9px] text-[var(--text-tertiary)]">
+                          {f.description}
+                        </p>
+                      </div>
+                      <div
+                        className={cn(
+                          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                          f.enabled ? "bg-[var(--gold)]" : "bg-zinc-700",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                            f.enabled ? "left-[18px]" : "left-0.5",
+                          )}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </GlassCard>
+            </div>
           );
         })}
       </div>
+      {/* 2026-05-24 · Wave P · inline mutation error · mirrors the
+          PushNotificationToggle error pattern · rose-300 badge ·
+          transient (cleared on next toggle). Pre-fix the mutation
+          could fail silently · operator wouldn't know the server
+          rejected their change. */}
+      {mutationError && (
+        <p className="mt-3 rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+          ⚠ {mutationError}
+        </p>
+      )}
     </div>
   );
 }
