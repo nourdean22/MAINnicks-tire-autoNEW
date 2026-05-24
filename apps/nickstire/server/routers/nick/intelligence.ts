@@ -534,6 +534,14 @@ export async function handleRunMigrations() {
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS metadata JSON DEFAULT NULL`,
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS audited_at TIMESTAMP NULL DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_vapi_audited_at ON vapi_call_logs (audited_at)`,
+      // 2026-05-24 · drizzle/0061_service_affinity_v2.sql — SA v2 closed loop
+      // 4 new tables: predictions/impressions/actions/outcomes. Enables
+      // operator-flip activation gate via admin UI without TiDB Cloud login.
+      // See apps/nickstire/docs/2026-05-24-service-affinity-v2.md §2.3.
+      `CREATE TABLE IF NOT EXISTS service_affinity_predictions (id BIGINT NOT NULL AUTO_INCREMENT, customer_id BIGINT NOT NULL, predicted_service VARCHAR(64) NOT NULL, confidence DECIMAL(5,4) NOT NULL, features_json JSON NOT NULL, model_version VARCHAR(32) NOT NULL, ab_arm ENUM('treatment','control') NOT NULL DEFAULT 'treatment', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), INDEX idx_customer_created (customer_id, created_at DESC), INDEX idx_model_created (model_version, created_at), INDEX idx_ab_arm_created (ab_arm, created_at)) ENGINE=InnoDB`,
+      `CREATE TABLE IF NOT EXISTS prediction_impressions (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, shown_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, surface VARCHAR(64) NOT NULL, operator_id VARCHAR(64) NULL, PRIMARY KEY (id), INDEX idx_prediction_shown (prediction_id, shown_at)) ENGINE=InnoDB`,
+      `CREATE TABLE IF NOT EXISTS prediction_actions (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, action VARCHAR(32) NOT NULL, acted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, operator_id VARCHAR(64) NULL, PRIMARY KEY (id), INDEX idx_prediction_acted (prediction_id, acted_at), INDEX idx_action_acted (action, acted_at)) ENGINE=InnoDB`,
+      `CREATE TABLE IF NOT EXISTS prediction_outcomes (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, invoice_id BIGINT NULL, matched TINYINT(1) NOT NULL, resolved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, window_days INT NOT NULL, PRIMARY KEY (id), INDEX idx_prediction (prediction_id), INDEX idx_resolved (resolved_at)) ENGINE=InnoDB`,
     ];
 
     let applied = 0;
