@@ -504,6 +504,54 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
           : `${sources.length} source rows · top by revenue: ${sources[0]?.source} ($${sources[0]?.totalDollars})`,
     };
   },
+
+  // ─── Intelligence Dispersal Wave 1.5 (2026-05-24) ─────────
+  // `master_report` · synthesized health score + top alert/opp/risk +
+  // 13-component score breakdown + sub-reports. Statenour consumes
+  // this on /scoreboard (per dispersal plan §4.3 · Bucket C migrate
+  // to statenour). The umbrella view dies on nickstire (Intelligence
+  // page being deleted) · the engine and sub-reports stay alive
+  // because operator wants the underlying data for future improve-
+  // ments (decision §4.4 #1).
+  //
+  // Shape returned to statenour:
+  //   {
+  //     timestamp,
+  //     summary: { score, topAlert, topOpportunity, topRisk, scoreBreakdown[] },
+  //     revenue: { pacing, anomalies, cashFlow, margins, ticketTrend },
+  //     customers: { churnRisk, riskScores, valueTrend, repeatPrediction, velocity, concentration },
+  //     operations: { techEfficiency, turnaround, bayUtilization, capacity, partsCost },
+  //     marketing: { channelROI, reviewVelocity, smsEngagement, leadResponse, contentPerformance },
+  //     growth: { newCustomerVelocity, referralNetwork, portfolioLTV, marketShare, seasonalDemand },
+  //     competitive: { competitorGap, chatFunnel, reviewSentiment }
+  //   }
+  //
+  // No filters · always returns the current state. Cache TTL is
+  // 60s server-side via memoize() inside generateMasterIntelligence-
+  // Report so back-to-back calls don't pile DB load.
+  "master_report": async () => {
+    const { generateMasterIntelligenceReport } = await import("../services/masterIntelligence");
+    try {
+      const report = await generateMasterIntelligenceReport();
+      return {
+        ok: true as const,
+        timestamp: report.timestamp,
+        summary: report.summary,
+        revenue: report.revenue,
+        customers: report.customers,
+        operations: report.operations,
+        marketing: report.marketing,
+        growth: report.growth,
+        competitive: report.competitive,
+      };
+    } catch (err) {
+      log.warn("[master_report] generation failed:", err instanceof Error ? err.message : err);
+      return {
+        ok: false as const,
+        error: err instanceof Error ? err.message : "Unknown error",
+      };
+    }
+  },
 };
 
 export function registerNourOsQueryRoute(app: Express): void {
