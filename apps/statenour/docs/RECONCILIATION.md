@@ -1,6 +1,86 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 EVENING (post Wave U · /tasks 5-phase sweep · 8 defensive fixes + 4 feature wire-ups · 4 parallel agents via infinite-gratitude pattern · biggest single page audited so far at 1350 LOC) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-EVENING (post Wave V · /brain 5-phase sweep · 7 defensive + 3 feature wire-ups · 4 surfaces touched out of 7 sub-pages · second-brain hub elevation) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 LATE-EVENING · Wave V · /brain 5-phase sweep · 1 ship
+>
+> 4th page to receive the per-page playbook (after /settings P+Q ·
+> /journal R · /tasks U). /brain is structured differently — a 199 LOC
+> hub routing to 6 sub-pages · total 2173 LOC. Scoped audit to the
+> hub + wisdom (697 LOC) + link-review (330 LOC). 2 parallel review
+> agents (defensive + feature-mining via infinite-gratitude) · 17
+> findings · Pareto-filtered to 7 defensive + 3 features.
+>
+> **Wave V · 10 changes** · `1f7dd3ae`
+>
+> Defensive:
+> - **(P0 silent-failure)** link-review staleness banner · pre-fix
+>   load() catch only toasted · candidates stayed at last value with
+>   no visible signal · now: persistent loadError banner with retry.
+> - **(P0 clarity-gate)** link-review setTimeout state-mutation ·
+>   pre-fix 240ms departure animation mutated `candidates` directly ·
+>   phantom row after navigate-back · now: invalidate cache + load().
+> - **(P0 stale-closure)** link-review decide() empty useCallback
+>   deps · now: real `[decideMutation, utils, load]` declared.
+> - **(P1 clarity-gate)** wisdom native confirm() silently
+>   suppressed in iOS PWA · Deprecate button did nothing · now:
+>   useConfirmDialog hook (same fix as nickstire admin Wave 110-139
+>   + OVERDRIVE-1).
+> - **(P1 code)** wisdom localStorage no try/catch · Safari private
+>   mode + iOS Lockdown Mode crashed the page · now: try/catch on
+>   read + write.
+> - **(P1 a11y)** wisdom curation buttons keyboard-hidden by
+>   md:opacity-0 · now: + md:focus-within:opacity-100 (Tab focus
+>   reveals).
+> - **(P2 perf)** brain hub 60s polling redundant with event-bus ·
+>   maturity header was re-rendering every 60s for zero new data ·
+>   dropped the interval · event-bus is the ONLY refresh path.
+>
+> Feature wire-ups (Phase 5 · infinite-gratitude):
+> - **#6 Identity-delta narrative line** · violet inline banner in
+>   Self-Model zone reads `yesterday → today: velocity rising 62→71`
+>   etc. Reads IdentitySnapshot.deltaFromLast populated by 04:30
+>   identity-refresh cron · new `brain.identityDelta` procedure ·
+>   silent on empty.
+> - **#5 Learning-velocity scoreboard** · 4-cell tile at top of
+>   Self-Model zone · headline "brain +22% vs 30d ago · health
+>   78/100" + per-metric tiles. Reuses existing
+>   `trpc.journal.learningVelocity` (Wave S) · zero new server work.
+> - **#2 Calibration tile** · new tile in Predictions zone next to
+>   PredictionStreaksCard. Shows verdict (well-calibrated / drift /
+>   unknown) + mean Brier + hit-rate + claim-vs-reality gap. Wires
+>   `summarizeCalibration` + `Prediction.brierScore` (populated by
+>   outcome-tracker cron for ~22 days · zero UI prior). New
+>   `brain.calibrationSummary` procedure.
+>
+> **Aggregator-thinking insight from Wave V:**
+> /brain is the convergence layer where Waves S/T/U paid-for
+> helpers go to die invisibly. The most leveraged moves are
+> aggregators that fuse 2-4 helpers into one operator-facing
+> surface (e.g. learning-velocity scoreboard = 4 helpers in one
+> tile). This is the next-page pattern: when picking elevation
+> candidates, prefer "this aggregates N existing helpers" over
+> "this surfaces 1 new helper."
+>
+> **Flagged · NOT fixed (Wave V.b candidates · 8 deferred items)**
+> Defensive: 5 competing filter surfaces on /brain/wisdom (M
+> redesign) · 1-button flex-wrap dead-weight (cosmetic) ·
+> Feature-mining M-effort: nightly consolidation report strip ·
+> decay-candidates triage panel · decision-quality GPA sparkline ·
+> hidden-correlations drawer · anticipated-questions hit-rate ·
+> 4 deeper sub-pages (board · reflections · health ·
+> identity-trajectory) not yet audited.
+>
+> **Playbook now has 4 pages of evidence:**
+> /settings (Wave P+Q · 9 findings → 7 fixes) · /journal (Wave R+S ·
+> 22 → 13) · /tasks (Wave U · 22 → 12) · /brain (Wave V · 17 → 10).
+> Average ~50% Pareto-survival rate per page. Recommended next
+> candidates: /chat (heaviest interaction · stream + tool calls) ·
+> /knowledge (Drive ingest · less audited) · /system root.
+>
+> Gates: typecheck 0 errors · lint 0 errors / 369 baseline · vitest
+> 184 files / 2797 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy.
 
 > ## 2026-05-24 EVENING · Wave U · /tasks 5-phase sweep · 1 ship
 >
