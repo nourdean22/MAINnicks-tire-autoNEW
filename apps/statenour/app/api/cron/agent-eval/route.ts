@@ -27,6 +27,8 @@ export const dynamic = "force-dynamic";
  */
 
 import { NextResponse } from "next/server";
+import { requireCronAuth } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { QUALITY_PROMPTS as GOLD_PROMPTS } from "@/tests/fixtures/quality-prompts.gold";
 import { brainMemory } from "@/lib/brain/memory-manager";
@@ -53,13 +55,6 @@ interface EvalRun {
   results: EvalCheckResult[];
   regressions: string[]; // prompt IDs that passed yesterday and failed today
   totalDurationMs: number;
-}
-
-function authorizeCron(req: Request): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-  return auth === `Bearer ${expected}`;
 }
 
 async function loadYesterdayResults(): Promise<Map<string, boolean>> {
@@ -186,8 +181,15 @@ async function runEval(): Promise<EvalRun> {
 }
 
 export async function GET(req: Request) {
-  if (!authorizeCron(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // 2026-05-24 · Wave X.e · timing-safe auth via shared
+  // `requireCronAuth` (replaces inline string-equality compare).
+  try {
+    requireCronAuth(req);
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
   }
 
   try {

@@ -12,20 +12,21 @@
  */
 
 import { NextResponse } from "next/server";
+import { requireCronAuth } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { runDomainKnowledgeExtraction } from "@/lib/brain/domain-knowledge-extractor";
 
 export const maxDuration = 120;
 
-function authorizeCron(req: Request): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-  return auth === `Bearer ${expected}`;
-}
-
 export async function GET(req: Request) {
-  if (!authorizeCron(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // 2026-05-24 · Wave X.e · timing-safe auth via shared `requireCronAuth`.
+  try {
+    requireCronAuth(req);
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
   }
 
   try {

@@ -46,19 +46,14 @@
  */
 
 import { NextResponse } from "next/server";
+import { requireCronAuth } from "@/lib/auth-guard";
+import { ServiceError } from "@/lib/utils/service-error";
 import { prisma } from "@/lib/prisma";
 import { recordSuggestionOutcome, listSuggestionSignals } from "@/lib/brain/suggestion-loop";
 
 export const maxDuration = 120;
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-
-function authorizeCron(req: Request): boolean {
-  const auth = req.headers.get("authorization") ?? "";
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false;
-  return auth === `Bearer ${expected}`;
-}
 
 const TASK_LINKED_KINDS = new Set([
   "broken-promise",
@@ -69,8 +64,14 @@ const TASK_LINKED_KINDS = new Set([
 const OUTCOME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export async function GET(req: Request) {
-  if (!authorizeCron(req)) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  // 2026-05-24 · Wave X.e · timing-safe auth via shared `requireCronAuth`.
+  try {
+    requireCronAuth(req);
+  } catch (err) {
+    if (err instanceof ServiceError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+    throw err;
   }
 
   const startedAt = Date.now();
