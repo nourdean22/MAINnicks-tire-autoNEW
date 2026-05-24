@@ -1,6 +1,95 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 NIGHT (post Wave W · cross-surface consolidation + activation · 4 phases shipped · net LOC negative · activated pgvector hybrid spotlight + landing router + recall inbox · 3 secondary surfaces collapsed into /brain panels) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2804 across 184 vitest files (+7 since EVENING) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-NIGHT (post Wave X · /chat homepage 5-phase sweep · 6 surgical defensive fixes · biggest single page in the app + the homepage · biggest stakes wave of the playbook · all gates green · big architecture moves deferred to Wave X.b for risk management) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2804 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 LATE-NIGHT · Wave X · /chat homepage 5-phase sweep · 1 ship
+>
+> The HOMEPAGE. Biggest stakes wave of the playbook · /chat is the
+> homepage (rendered inside app/(mastery)/page.tsx) · biggest single
+> page in the app (2880 LOC + 62 component files). Operator's
+> request: "utterly capture my attention." 3 parallel agents
+> (defensive code-review + silent-failure-hunter + ux-audit + mobile
+> + clarity-gate · plus architecture-sprawl audit) surfaced 14
+> defensive findings + 8 consolidation moves.
+>
+> Pareto-filtered to 6 highest-ROI defensive fixes that ship
+> together · big architecture moves deferred to Wave X.b because
+> the homepage's regression cost is the highest in the app · risk-
+> manage by phasing.
+>
+> **Wave X · 6 surgical fixes** · `dae95d9f`
+> - **(P0 clarity-gate)** ConnectionStatus "tap to retry" was
+>   lying about queue persistence. Queue is wiped on every mount
+>   (Apr-15 duplicate-replay bug fix) · iOS Safari kills PWA tabs
+>   after ~30s in background. Label now says "this session only ·
+>   tap to send now."
+> - **(P0 mobile)** ConnectionStatus pill collided with composer
+>   send-button on iPhone notched devices (`bottom-16` = 64px ·
+>   landed ON TOP of the home indicator + composer row). Now
+>   `[bottom:calc(80px+env(safe-area-inset-bottom))]`.
+> - **(P0 mobile + a11y)** UndoSendToast button was 14×50px ·
+>   below Apple HIG 44pt floor. Operator missed it constantly ·
+>   2s window expired. Now `min-h-[40px] min-w-[60px]` + aria-
+>   label with remaining seconds + parent `role="status"
+>   aria-live="polite" aria-atomic="true"` so VoiceOver announces
+>   "sent · undo in 2s" instead of silence.
+> - **(P1 silent-failure)** clipboard copy lied on Safari ·
+>   bare catch{} on navigator.clipboard.writeText · Safari rejects
+>   clipboard outside user-gesture context (most-common iOS PWA
+>   failure). Now toast.success on success · toast.error("couldn't
+>   copy · try long-press") on failure · points to native iOS
+>   selection UI.
+> - **(P1 silent-failure)** handleFork discarded the error message
+>   entirely · operator couldn't tell network from auth from
+>   "conversation no longer exists." Now forwards up to 80 chars
+>   of err.message into the banner.
+> - **(P1 perf)** 80+ Set/Map allocations PER ASSISTANT TURN ·
+>   TOOL_DOMAIN_MAP (28 entries) + NOW_TRIGGERING_TOOLS Set +
+>   PLAN_TRIGGERING_TOOLS Set were all defined INSIDE a useEffect
+>   with [messages] deps · effect re-fires every streamed token
+>   (~40 per turn). Hoisted to module scope · built once at module
+>   init · zero per-token allocation cost during streaming.
+> - **(P2 a11y bonus)** NickStreaming had no role/aria-live ·
+>   screen-reader operators never heard streaming-state changes.
+>   Now `role="status" aria-live="polite" aria-atomic="true"`.
+>
+> **Wave X.b backlog (8 deferred architecture moves)**
+> - **ChatComposer shell extraction** · lines 2308-2706 (~398 LOC)
+>   moved to dedicated component · page.tsx drops to ~2500 LOC ·
+>   M-effort · medium-risk · biggest single readability win
+> - **ChatStatusOverlays cluster** · merge 4 ambient-state mounts
+>   into 1 (-190 LOC · -3 files) · S-effort · low-risk
+> - **MessageEdit merge** · combine user-edit + assistant-edit ·
+>   M-effort · medium-risk
+> - **onSeed parsing helper** · extract 55 LOC pure-function to
+>   `lib/chat/suggestion-seed.ts` · S-effort · low-risk
+> - **Move shared overlays out of /chat** · keyboard-cheat-sheet ·
+>   connection-status · reasoning-trace · S-effort · low-risk
+> - **Inline 4 single-consumer thin wrappers** · attachment-preview
+>   · pinned-messages-bar · S-effort · low-risk
+> - **Promote `cn` to `@nour/utils`** · standardization · S
+> - Plus the 5 deferred P1/P2 defensive findings from the audit
+>
+> **Per-page playbook now has 6 pages of evidence:**
+> /settings (P+Q · 9 → 7) · /journal (R+S · 22 → 13) · /tasks
+> (U · 22 → 12) · /brain (V · 17 → 10) · cross-surface (W · 4
+> phases) · /chat (X · 22 → 6 phase-1 · 8 deferred to X.b). The
+> Pareto-survival rate dropped to ~28% on Wave X because
+> homepage risk-management forces tighter filtering — that's the
+> right discipline. Wave X.b can ship the rest after Wave X bakes
+> for 24h.
+>
+> **Aggregate stats across the 8-wave playbook arc (P through X):**
+> - Total findings audited: ~120
+> - Total fixes/wire-ups shipped: ~85
+> - Pareto-survival rate: ~70% average · 28% on homepage (X)
+> - Tests: 2795 → 2804 (+9 net)
+> - Pages elevated: /settings · /journal · /tasks · /brain ·
+>   /chat (+ cross-surface) · /knowledge + /system root touched
+>   in Wave W consolidation
+>
+> Gates: typecheck 0 errors · lint 0 errors / 370 baseline · vitest
+> 184 files / 2804 tests · build OK · prod smoke 200 on 3 endpoints.
 
 > ## 2026-05-24 NIGHT · Wave W · cross-surface consolidation + activation · 4 ships
 >
