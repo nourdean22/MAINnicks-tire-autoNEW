@@ -403,6 +403,8 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `leads_pipeline` | none | 30-day status breakdown |
 | `leads_today` | none | Today's leads (ET-anchored) |
 | `leads_urgent` | none | Urgency ≥ 4, status = new |
+| `funnel_first_visit` | none | First-visit conversion + per-source breakdown · `{ ok, overallRate, avgDaysToRepeat, bySource: [{ source, firstVisits, repeated, rate }] }`. Statenour /funnel consumer. |
+| `funnel_overview` | none | 6-stage Customer Journey Funnel · derived from master_report sub-reports · `{ ok, stages: [{ label, value, conversionFromPrev, pctOfTopOfFunnel }] (6 entries), leadToJobRate, leadToRetainedRate, timestamp }`. Statenour /funnel consumer. |
 | `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
 | `revenue_range` | `from?, to?` | Total + avg ticket for range |
 | `revenue_today` | none | Today's revenue (ET-anchored) |
@@ -530,6 +532,15 @@ the admin UI's `forceSyncNow`, not here.
   dispersal-plan.md` §4.3). The nickstire Intelligence admin page UI
   surface is being deleted; the engine + sub-reports stay alive for
   future improvements per operator decision §4.4 #1.
+- **v11.6** (2026-05-24) — `funnel_overview` + `funnel_first_visit`
+  actions added (Intelligence Dispersal Wave 3 follow-through ·
+  statenour /funnel gap surface). funnel_overview derives the 6-stage
+  Customer Journey (Leads→Estimates→Drop-offs→Jobs→Reviews→Retained)
+  from `master_report` sub-reports · adds per-stage `conversionFromPrev`
+  + `pctOfTopOfFunnel` for ratio-first rendering. funnel_first_visit
+  wraps `services/engines/customer.ts:analyzeFirstVisitConversion()` ·
+  surfaces overall conversion rate + avg days to repeat + per-source
+  breakdown. Statenour consumes both on the new /funnel page.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is
