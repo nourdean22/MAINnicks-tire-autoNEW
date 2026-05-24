@@ -21,6 +21,10 @@ import {
 } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
+// wave-181.x Leads Phase 2 · 3-line LeadsBrief above the StatCard grid
+// (velocity / pipeline / SLA-breach action). Composes from the same
+// trpc.lead.list query the parent already runs · no extra round-trip.
+import { LeadsBrief } from "./leads/LeadsBrief";
 
 // ── Lead type ──
 // 2026-05-23 · widened to match drizzle/schema.ts. The JSX already
@@ -50,6 +54,17 @@ interface LeadItem {
 
 // ── SLA Timer for leads ──
 function LeadAge({ dateStr }: { dateStr: string | Date }) {
+  // wave-181.x Leads Phase 3 · code-review agent caught M3 · LeadAge
+  // was render-pure reading Date.now() at mount; the green/amber/red
+  // SLA color and label froze until parent re-render. A lead at 3h59m
+  // wouldn't flip to red at 4h until the next list refetch (~30s).
+  // Minute-tick interval keeps the visual honest at ≤60s granularity.
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const created = new Date(dateStr);
   const diffMs = Date.now() - created.getTime();
   const hours = Math.floor(diffMs / 3600000);
@@ -240,21 +255,42 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
   }
 
   return (
-    <div className="overflow-x-auto">
+    // wave-181.x Leads Phase 3 · audit agent caught mobile UX gap ·
+    // overflow-x-auto with no snap meant the operator could scroll
+    // past the column they were aiming at on a phone. snap-x +
+    // snap-mandatory on the scroller + snap-start on each column
+    // anchors the swipe to column boundaries.
+    <div className="overflow-x-auto snap-x snap-mandatory">
       <div className="flex gap-6 min-w-full pb-4">
         {KANBAN_COLUMNS.map(col => {
           const leads = leadsByStatus[col.status];
+          // wave-181.x Leads Phase 2 · loss-aversion-designer steal ·
+          // sum the $ value of active-pipeline leads in this column.
+          // Code-review agent caught M2: showing "$X in pipeline" on
+          // Completed / Lost columns is semantically wrong (revenue
+          // already booked OR gone — not "pipeline"). YAGNI says hide
+          // the line on terminal columns until we have different copy
+          // ("$X recovered" / "$X lost") · skip the noise for now.
+          const isActivePipelineColumn = col.status === "new" || col.status === "contacted" || col.status === "booked";
+          const columnStalledCents = isActivePipelineColumn
+            ? leads.reduce((sum, l) => sum + (l.estimatedValueCents ?? 0), 0)
+            : 0;
           // wave-124b — Kanban columns were `w-80` (320px) on a 390px
           // phone viewport. Operator saw 1.2 columns with no scroll
           // hint. `w-[85vw]` on mobile makes one column nearly fill
           // the screen so the swipe pattern is obvious; sm+ keeps
           // the original 320px so 5 columns fit on tablet/desktop.
           return (
-            <div key={col.status} className="flex-shrink-0 w-[85vw] sm:w-80">
+            <div key={col.status} className="flex-shrink-0 w-[85vw] sm:w-80 snap-start">
               {/* Column Header */}
               <div className={`${col.color} border p-4 mb-4`}>
                 <h3 className="font-bold text-lg text-foreground tracking-wider">{col.label}</h3>
                 <p className="text-[13px] text-foreground/60 mt-1">{leads.length} {leads.length === 1 ? "lead" : "leads"}</p>
+                {columnStalledCents > 0 && (
+                  <p className="text-[11px] text-foreground/40 mt-0.5 font-mono">
+                    ${Math.round(columnStalledCents / 100).toLocaleString()} in pipeline
+                  </p>
+                )}
               </div>
 
               {/* Cards */}
@@ -622,6 +658,31 @@ export default function LeadsSection() {
         }
       />
       <SectionInsightStrip section="leads" />
+      <LeadsBrief
+        onSlaAction={() => {
+          // wave-181.x Leads Phase 2 · SLA-breach CTA · code-review agent
+          // caught M1 (false-affordance risk): banner only renders when
+          // uncontactedLeads.length > 0, AND `uncontactedLeads` filters on
+          // status==="new" without an age gate. So a 3h-old uncontacted
+          // lead would inflate the count and SLA-breach would fire on a
+          // sibling 5h lead — visible flash is correct. But if the
+          // banner is hidden (zero uncontacted but stale older leads)
+          // the scroll target is missing and the CTA silently no-ops.
+          // Defensive fallback · flip filters to ?status=new&view=list
+          // so the operator lands on the right cohort even if the
+          // urgent banner isn't currently rendered.
+          setLeadFilter("new");
+          setViewMode("list");
+          setTimeout(() => {
+            const el = document.getElementById("leads-urgent-banner");
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.classList.add("ring-2", "ring-red-400/50");
+              setTimeout(() => el.classList.remove("ring-2", "ring-red-400/50"), 1200);
+            }
+          }, 100);
+        }}
+      />
       {/* 2026-05-06 — Active filter chips with one-click clear */}
       <FilterChips
         chips={[
@@ -693,7 +754,12 @@ export default function LeadsSection() {
       {/* Stats — wave-127 — clickable filters. Each card sets the
           status filter + flips to list view. Urgent scrolls to the
           red banner (which already surfaces uncontacted leads by age). */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      {/* wave-181.x Leads Phase 3 · audit agent caught grid orphan
+          on tablet portrait (iPad common nick admin device) · 2-col
+          drops "Urgent" tile alone on row 3. Adding md:grid-cols-3
+          balances the layout · 5 cards split 3+2 on tablet, 5 on
+          desktop, 2-row stack on phone. */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard
           label="Total Leads"
           value={leadStats.total}
