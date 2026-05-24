@@ -359,36 +359,17 @@ export function TaskFilters({
         );
       })()}
 
-      {/* Active filter indicator — shows what's filtered when
-          the panel is collapsed so it's not invisible state */}
-      {!showFilters && (kindFilter !== "all" || domainFilter || searchQuery) && (
-        <div className="flex items-center gap-1.5 text-[9px]">
-          {kindFilter !== "all" && (
-            <button
-              onClick={() => setKindFilter("all")}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800/50 text-zinc-400 hover:text-zinc-200"
-            >
-              {kindFilter.toLowerCase()} <span className="text-zinc-600">×</span>
-            </button>
-          )}
-          {domainFilter && (
-            <button
-              onClick={() => setDomainFilter(null)}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800/50 text-zinc-400 hover:text-zinc-200"
-            >
-              {domainFilter} <span className="text-zinc-600">×</span>
-            </button>
-          )}
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-zinc-800/50 text-zinc-400 hover:text-zinc-200"
-            >
-              &ldquo;{searchQuery}&rdquo; <span className="text-zinc-600">×</span>
-            </button>
-          )}
-        </div>
-      )}
+      {/* 2026-05-24 · Wave U ux-F4 · pre-fix THREE filter-state
+          surfaces competed for the operator's eye:
+            (a) this collapsed-state indicator chips block
+            (b) the always-visible ActiveFiltersStrip rendered by the
+                /tasks page directly below TaskFilters
+            (c) the expanded TaskFilters panel itself
+          Operator saw the same `kind · ONCE × | domain · work ×`
+          rendered twice with different remove affordances · classic
+          Nielsen #4 violation (consistency). The page-level
+          ActiveFiltersStrip is the canonical surface · deleting this
+          block removes the duplicate without losing affordance. */}
     </>
   );
 }

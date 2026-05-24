@@ -318,23 +318,36 @@ export function LoopStream({
   //
   // Rebuilt only when the underlying tasks list changes · doesn't
   // depend on filter/sort state (the counts are global).
-  const { childCountByParent, openChildCountByParent } = useMemo(() => {
-    const total = new Map<string, number>();
-    const open = new Map<string, number>();
-    for (const t of tasks) {
-      const pid = t.parentTaskId;
-      if (!pid) continue;
-      total.set(pid, (total.get(pid) ?? 0) + 1);
-      if (
-        t.status !== "DONE" &&
-        t.status !== "CANCELLED" &&
-        t.status !== "ARCHIVED"
-      ) {
-        open.set(pid, (open.get(pid) ?? 0) + 1);
+  const { childCountByParent, openChildCountByParent, doneChildCountByParent } =
+    useMemo(() => {
+      const total = new Map<string, number>();
+      const open = new Map<string, number>();
+      // 2026-05-24 · Wave U feature-mining #5 · subtask roll-up · also
+      // tracks DONE children so the parent row can show progress
+      // (X/N done) instead of just total count. Pure addition · no
+      // change to existing total/open consumers.
+      const done = new Map<string, number>();
+      for (const t of tasks) {
+        const pid = t.parentTaskId;
+        if (!pid) continue;
+        total.set(pid, (total.get(pid) ?? 0) + 1);
+        if (t.status === "DONE") {
+          done.set(pid, (done.get(pid) ?? 0) + 1);
+        }
+        if (
+          t.status !== "DONE" &&
+          t.status !== "CANCELLED" &&
+          t.status !== "ARCHIVED"
+        ) {
+          open.set(pid, (open.get(pid) ?? 0) + 1);
+        }
       }
-    }
-    return { childCountByParent: total, openChildCountByParent: open };
-  }, [tasks]);
+      return {
+        childCountByParent: total,
+        openChildCountByParent: open,
+        doneChildCountByParent: done,
+      };
+    }, [tasks]);
 
   // When set, shows an inline modal to capture the break reason.
   // Always the primary flow for PROMISE breakage — the old two-tap
@@ -438,8 +451,46 @@ export function LoopStream({
   const runBulk = useCallback(async (fn: (id: string) => void | Promise<void>) => {
     const ids = Array.from(selectedIds);
     setBulkBusy(true);
-    try { for (const id of ids) await fn(id); }
-    finally { setBulkBusy(false); setSelectMode(false); setSelectedIds(new Set()); }
+    // 2026-05-24 · Wave U silent-failure P0 · pre-fix the loop awaited
+    // each fn() and the first rejection threw out of runBulk before
+    // notifyDataChanged · operator selected 10 tasks, task 3 failed,
+    // tasks 4-10 silently skipped, no toast disclosed the partial
+    // failure. Now: per-iteration catch · accumulate failedIds ·
+    // single toast summarizing partial completion at the end. The
+    // finally still resets bulk state so the UI exits select-mode
+    // even on partial fail.
+    const failedIds: string[] = [];
+    try {
+      for (const id of ids) {
+        try {
+          await fn(id);
+        } catch (err) {
+          failedIds.push(id);
+          // Don't swallow into the void · reportClientError lands in
+          // /system/errors so the operator can diagnose post-hoc.
+          try {
+            const { reportClientError } = await import(
+              "@/components/ui/client-error-telemetry"
+            );
+            reportClientError(err, {
+              source: `loop-stream.runBulk · task=${id}`,
+            });
+          } catch {
+            // reporter failure is acceptable degradation
+          }
+        }
+      }
+    } finally {
+      setBulkBusy(false);
+      setSelectMode(false);
+      setSelectedIds(new Set());
+      if (failedIds.length > 0) {
+        const done = ids.length - failedIds.length;
+        toast.error(
+          `${done} of ${ids.length} completed · ${failedIds.length} failed`,
+        );
+      }
+    }
   }, [selectedIds]);
   const bulkSnooze = useCallback(async () => {
     await runBulk(async (id) => {
@@ -459,9 +510,16 @@ export function LoopStream({
   // bulk-delete on iPhone never confirmed and the early-return
   // ALWAYS fired (operator hits Delete · nothing happens).
   const bulkDelete = useCallback(async () => {
-    if (selectedIds.size > 5) {
+    // 2026-05-24 · Wave U ux-F3 · pre-fix the confirm only fired for
+    // counts > 5 · selecting 2-5 tasks would wipe them with no prompt
+    // and no undo (the deletes are sequential soft-deletes via
+    // onDelete · destructive in batch). Now: any count ≥ 2 confirms
+    // with the count in the prompt · matches the iOS HIG mass-action
+    // pattern. Single-task delete still happens via the per-row trash
+    // affordance which has its own confirmation path.
+    if (selectedIds.size >= 2) {
       const ok = await confirm({
-        title: `Delete ${selectedIds.size} tasks?`,
+        title: `Delete ${selectedIds.size} task${selectedIds.size === 1 ? "" : "s"}?`,
         body: "This action cannot be undone.",
         confirmLabel: "Delete",
         cancelLabel: "Keep",
@@ -754,11 +812,37 @@ export function LoopStream({
       // approximate from the row.urgency since auto-priority
       // surface isn't always populated client-side.
       const targetUrgency = urgency || 50;
-      await review.edit(draggedId, {
-        manualPriorityOverride: Math.min(99, Math.max(1, targetUrgency + 1)),
-      });
+      // 2026-05-24 · Wave U silent-failure P0 · pre-fix review.edit()
+      // failure was masked by the hook's generic "Saved." toast on
+      // success · operator dragged a row, saw it move locally, got
+      // "Saved." even on server reject, then on next reload (60s)
+      // the row snapped back with zero explanation. Now: wrap the
+      // mutation · on failure roll back the visual immediately + toast
+      // the reorder failure explicitly. The hook's success toast still
+      // fires correctly on the happy path.
+      try {
+        await review.edit(draggedId, {
+          manualPriorityOverride: Math.min(99, Math.max(1, targetUrgency + 1)),
+        });
+      } catch (err) {
+        // Triggering an immediate reload pulls the canonical server
+        // order back so the operator sees the snap-back inside <1s
+        // rather than waiting for the 60s poll.
+        try {
+          const { reportClientError } = await import(
+            "@/components/ui/client-error-telemetry"
+          );
+          reportClientError(err, {
+            source: `loop-stream.onRowDrop · dragged=${draggedId} target=${taskId}`,
+          });
+        } catch {
+          // reporter failure is acceptable degradation
+        }
+        toast.error("Reorder failed · snapping back");
+        await onReviewChange?.();
+      }
     },
-    [draggingId, review],
+    [draggingId, review, onReviewChange],
   );
 
   // Apr 26 · F6 — live state-aware row coloring + fit chips. Pure
@@ -782,9 +866,15 @@ export function LoopStream({
       filtered = filtered.filter((r) => r.kind === kindFilter);
     }
     if (domainFilter) {
-      const df = domainFilter.toLowerCase();
+      // 2026-05-24 · Wave U code-review #8 · pre-fix: typed `work`
+      // filter never matched `BUSINESS` tasks because the anchor
+      // mapping (work → BUSINESS) lives only in loop-row-item.tsx:1040
+      // (the picker) and never in the filter compare. Symptom: filter
+      // by `work` shows zero tasks even when business tasks are
+      // present. Now apply the same alias on both sides.
+      const df = (domainFilter === "work" ? "business" : domainFilter).toLowerCase();
       filtered = filtered.filter((r) => {
-        const dom = r.task.mission?.domain?.toLowerCase() || "other";
+        const dom = (r.task.mission?.domain ?? "other").toLowerCase();
         return dom === df;
       });
     }
@@ -976,6 +1066,53 @@ export function LoopStream({
           onCancel={handleBreakCancel}
           onConfirm={handleBreakConfirm}
         />
+      )}
+
+      {/* 2026-05-24 · Wave U feature-mining #2 · capacity meter ·
+          surfaces the operator's realistic remaining minutes today
+          (from rolling 30d completion rate) vs total allocated minutes
+          across READY+DOING tasks. Pulled from useNowSignals which
+          was already computing it but never rendered. When
+          overcommitted, the line shifts amber (not red · no AI-slop).
+          Silent when there's nothing to show (zero tasks · zero
+          capacity computed). */}
+      {(liveSignals.capacityRemainingMin > 0 || liveSignals.allocatedMin > 0) && (
+        <div
+          className={cn(
+            "flex items-center gap-2 rounded-md px-2 py-1 text-[10px] font-mono",
+            liveSignals.overcommitted
+              ? "border border-amber-500/30 bg-amber-500/5 text-amber-300"
+              : "border border-[var(--border-default)] bg-[var(--bg-void)]/40 text-[var(--text-tertiary)]",
+          )}
+          title={
+            liveSignals.overcommitted
+              ? `${liveSignals.allocatedMin}m allocated · only ${liveSignals.capacityRemainingMin}m left today · ${liveSignals.allocatedMin - liveSignals.capacityRemainingMin}m over`
+              : `${liveSignals.allocatedMin}m allocated · ${liveSignals.capacityRemainingMin}m left today`
+          }
+        >
+          <span className="font-bold uppercase tracking-wider">capacity</span>
+          <span className="tabular-nums">
+            {Math.floor(liveSignals.capacityRemainingMin / 60)}h{" "}
+            {liveSignals.capacityRemainingMin % 60}m left today
+          </span>
+          <span className="text-[var(--text-tertiary)]/60">·</span>
+          <span className="tabular-nums">
+            {Math.floor(liveSignals.allocatedMin / 60)}h{" "}
+            {liveSignals.allocatedMin % 60}m allocated
+          </span>
+          {liveSignals.overcommitted && (
+            <span className="ml-auto tabular-nums">
+              {Math.floor(
+                (liveSignals.allocatedMin - liveSignals.capacityRemainingMin) /
+                  60,
+              )}
+              h{" "}
+              {(liveSignals.allocatedMin - liveSignals.capacityRemainingMin) %
+                60}
+              m over
+            </span>
+          )}
+        </div>
       )}
 
       {/* ── NEXT MOVE hero — the single smartest next action ── */}
@@ -1226,7 +1363,13 @@ export function LoopStream({
             <div
               key={`section-kind-${kind}-${idx}`}
               className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
-              aria-hidden
+              // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
+              // real structural cue from VoiceOver · screen-reader
+              // operator heard a flat list with no grouping. Now: role
+              // + aria-level expose the section heading so VoiceOver
+              // announces "doing, heading level 3" before each cluster.
+              role="heading"
+              aria-level={3}
             >
               <KindIcon kind={kind} size={8} />
               <span>{kind === "DAILY" ? "daily · habits" : kind === "PROMISE" ? "promises" : "once · tasks"}</span>
@@ -1240,7 +1383,13 @@ export function LoopStream({
             <div
               key={`section-status-${task.status}-${idx}`}
               className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
-              aria-hidden
+              // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
+              // real structural cue from VoiceOver · screen-reader
+              // operator heard a flat list with no grouping. Now: role
+              // + aria-level expose the section heading so VoiceOver
+              // announces "doing, heading level 3" before each cluster.
+              role="heading"
+              aria-level={3}
             >
               <span>
                 {STATUS_HEADER_LABEL[task.status] ?? task.status.toLowerCase()}
@@ -1257,6 +1406,11 @@ export function LoopStream({
           // render as direct children visually.
           const indentLevel = task.parentTaskId ? 1 : 0;
           const childCount = childCountByParent.get(task.id) ?? null;
+          // 2026-05-24 · Wave U feature-mining #5 · pass done count
+          // alongside total · parent row chip now reads "+3 sub ·
+          // 1/3 done" so the operator answers "where am I on this"
+          // without expanding.
+          const doneChildCount = doneChildCountByParent.get(task.id) ?? 0;
           const rowItem = (
             <LoopRowItem
               task={task}
@@ -1265,6 +1419,7 @@ export function LoopStream({
               overdue={overdue}
               doneToday={doneToday}
               daysUntilDeadline={daysUntilDeadline}
+              doneChildCount={doneChildCount}
               isPinned={pinnedIds?.has(task.id) ?? false}
               indentLevel={indentLevel}
               childCount={childCount}
