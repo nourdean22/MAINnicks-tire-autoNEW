@@ -253,6 +253,25 @@ Respond with JSON:
       });
     }
 
+    // 2026-05-23 · Wave I · operator-state opt-in (3rd surface).
+    // Complementary to the existing `stateContext` above (which
+    // captures environmental context · open loops / contradictions /
+    // weak axis). The operator-state block captures INTERNAL state:
+    // mood / focus / capacity / drift / momentum / confidence. Both
+    // inject together so Nick sees the full picture.
+    let operatorStateBlock = "";
+    try {
+      const { currentOperatorState, formatOperatorStateBlock } = await import(
+        "@/lib/services/operator-state"
+      );
+      const snap = await currentOperatorState();
+      if (snap.confidence > 0) {
+        operatorStateBlock = formatOperatorStateBlock(snap);
+      }
+    } catch {
+      // best-effort
+    }
+
     const messages: { role: "system" | "user"; content: string }[] = [
       {
         role: "system",
@@ -260,7 +279,8 @@ Respond with JSON:
           systemPrompts[type] +
           memoryContext +
           stateContext +
-          (lensBlock ? `\n\n${lensBlock}` : ""),
+          (lensBlock ? `\n\n${lensBlock}` : "") +
+          (operatorStateBlock ? `\n\n${operatorStateBlock}` : ""),
       },
       { role: "user", content: followUp ? `ORIGINAL: ${context}\n\nFOLLOW-UP: ${followUp}` : context },
     ];

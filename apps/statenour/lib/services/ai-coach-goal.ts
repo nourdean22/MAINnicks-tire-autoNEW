@@ -190,9 +190,28 @@ You're coaching Nour on this goal. Cold, specific, no fluff. Return ONLY valid J
     });
   }
 
+  // 2026-05-23 · Wave I · operator-state opt-in (4th surface).
+  // Goal-level coaching matters most when state-aware · pushing harder
+  // on a goal when mood=depleted is counterproductive · cutting back
+  // when capacity is high is missed opportunity. State block helps
+  // Nick calibrate the coaching pressure.
+  let stateBlock = "";
+  try {
+    const { currentOperatorState, formatOperatorStateBlock } = await import(
+      "@/lib/services/operator-state"
+    );
+    const snap = await currentOperatorState();
+    if (snap.confidence > 0) {
+      stateBlock = formatOperatorStateBlock(snap);
+    }
+  } catch {
+    // best-effort
+  }
+
   const baseSystem =
     "You are Nick, Nour's Chief of Staff. You give goal-level coaching in cold, specific, operator language. Return only valid JSON." +
-    (lensBlock ? `\n\n${lensBlock}` : "");
+    (lensBlock ? `\n\n${lensBlock}` : "") +
+    (stateBlock ? `\n\n${stateBlock}` : "");
   const styledSystem = await applyOperatorStyle(baseSystem);
   const result = await tracedAiChat(
     { label: "coach-goal", source: "tool", metadata: { goalId } },

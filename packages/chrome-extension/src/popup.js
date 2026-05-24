@@ -99,6 +99,50 @@ async function save() {
   }
 }
 
+// 2026-05-23 · Wave J · F3 · query prior notes for this URL and
+// render them above the composer. Fire-and-forget · network failure
+// just hides the panel · doesn't block the compose flow.
+async function loadPriorNotes(apiBase, token, url) {
+  if (!url) return;
+  try {
+    const u = new URL(`${apiBase}/api/brain/by-url`);
+    u.searchParams.set("url", url);
+    u.searchParams.set("limit", "3");
+    const res = await fetch(u.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!Array.isArray(data.notes) || data.notes.length === 0) return;
+    const panel = $("prior-notes");
+    const list = data.notes
+      .map((n) => {
+        const when = new Date(n.capturedAt).toLocaleDateString();
+        const snippet = escapeHtml(n.content.slice(0, 140));
+        return `<div class="prior-note"><div class="meta">${escapeHtml(n.category)} · ${when}</div>${snippet}</div>`;
+      })
+      .join("");
+    panel.innerHTML = `
+      <div class="prior-notes-header">
+        <span>● ${data.notes.length} prior note${data.notes.length === 1 ? "" : "s"} on this ${data.domain ? "domain" : "URL"}</span>
+      </div>
+      <div class="prior-notes-list">${list}</div>
+    `;
+    panel.hidden = false;
+  } catch {
+    // silent · nothing to show
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function init() {
   const ctx = await getActiveTabContext();
   const hint = $("ctx-hint");
@@ -107,7 +151,7 @@ async function init() {
     hint.title = ctx.sourceUrl ?? "";
   }
 
-  const { token } = await getConfig();
+  const { apiBase, token } = await getConfig();
   if (!token) {
     renderSetupCallout();
     return;
@@ -127,6 +171,9 @@ async function init() {
       window.close();
     }
   });
+
+  // Wave J · query prior notes in parallel · don't block input.
+  void loadPriorNotes(apiBase, token, ctx.sourceUrl);
 }
 
 init();

@@ -198,6 +198,23 @@ export async function POST(req: Request) {
     // best-effort · lens injection failures shouldn't break the AI call
   }
 
+  // 2026-05-23 · Wave I · operator-state opt-in (2nd surface after
+  // /api/ai/page-insight · ADR-0019/0020). Day planning is the highest-
+  // payoff state-aware surface · mood=depleted should produce shorter
+  // plans · mood=scattered should compress to fewer blocks · etc.
+  let stateBlock = "";
+  try {
+    const { currentOperatorState, formatOperatorStateBlock } = await import(
+      "@/lib/services/operator-state"
+    );
+    const snap = await currentOperatorState();
+    if (snap.confidence > 0) {
+      stateBlock = formatOperatorStateBlock(snap);
+    }
+  } catch {
+    // best-effort · state injection failures shouldn't break the AI call
+  }
+
   let result;
   try {
     result = await tracedAiChat(
@@ -207,7 +224,8 @@ export async function POST(req: Request) {
           role: "system",
           content: await applyOperatorStyle(
             "You are Nick — Nour's operator-strategist AI. Build day plans that match how Nour actually works: tight blocks, no fluff, action-tied. Return only JSON." +
-              (lensBlock ? `\n\n${lensBlock}` : ""),
+              (lensBlock ? `\n\n${lensBlock}` : "") +
+              (stateBlock ? `\n\n${stateBlock}` : ""),
           ),
         },
         { role: "user", content: userPrompt },
