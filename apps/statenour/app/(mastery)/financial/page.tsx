@@ -217,7 +217,7 @@ export default function FinancialPage() {
               <span className="text-sm font-semibold">Revenue vs ${(MONTHLY_TARGET / 1000).toFixed(0)}K Target</span>
             </div>
             <div className="flex items-center gap-3 text-[10px]">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#FDB913]" /> Cumulative</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[var(--gold)]" /> Cumulative</span>
               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#666]" style={{ borderStyle: "dashed" }} /> ${DAILY_TARGET}/day pace</span>
             </div>
           </div>
@@ -249,7 +249,7 @@ export default function FinancialPage() {
               {/* Target pace line */}
               <Area type="monotone" dataKey="target" stroke="#444" strokeDasharray="6 3" fill="none" dot={false} />
               {/* Actual cumulative revenue */}
-              <Area type="monotone" dataKey="cumulative" stroke="#FDB913" fill="#FDB913" fillOpacity={0.1} strokeWidth={2} dot={false} />
+              <Area type="monotone" dataKey="cumulative" stroke="var(--gold)" fill="var(--gold)" fillOpacity={0.1} strokeWidth={2} dot={false} />
               {/* Target reference line · label inside chart so it doesn't clip on mobile */}
               <ReferenceLine y={MONTHLY_TARGET} stroke="#22c55e" strokeDasharray="6 3" label={{ value: `$${(MONTHLY_TARGET / 1000).toFixed(0)}K target`, fill: "#22c55e", fontSize: 10, position: "insideTopRight" }} />
             </AreaChart>

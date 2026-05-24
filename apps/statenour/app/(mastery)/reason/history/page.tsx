@@ -91,7 +91,7 @@ export default function ReasoningHistoryPage() {
     budgetPct >= 90 ? "bg-red-400" : budgetPct >= 60 ? "bg-amber-400" : "bg-emerald-400";
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Header */}
         <header className="flex items-baseline justify-between gap-3">

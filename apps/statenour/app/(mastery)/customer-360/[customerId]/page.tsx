@@ -133,7 +133,7 @@ export default function Customer360Page({ params }: PageProps) {
     : `Customer ${customerId}`;
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-6 py-10">
         {/* Bridge banner */}
         {data.bridgeStatus !== "ok" ? (
@@ -332,7 +332,7 @@ function TimelineList({
 
 function SkeletonView() {
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-6 py-10">
         <div className="h-3 w-24 bg-white/5 rounded mb-3" />
         <div className="h-7 w-64 bg-white/10 rounded mb-2" />
@@ -360,7 +360,7 @@ function ErrorView({
   customerId: string;
 }) {
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white flex items-center justify-center px-6">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white flex items-center justify-center px-6">
       <div className="max-w-md text-center">
         <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
           Customer 360

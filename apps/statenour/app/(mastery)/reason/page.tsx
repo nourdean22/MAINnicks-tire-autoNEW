@@ -57,13 +57,13 @@ function ReasonPageInner() {
   // Wait for sessionStorage read to finish before mounting NickReasoner
   // so autoRun fires with the resolved question, not the initial undefined.
   if (!hydrated) {
-    return <main className="min-h-[100dvh] bg-[#0A0A0A] text-white" />;
+    return <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white" />;
   }
 
   const autoRun = Boolean(initialQuestion && initialQuestion.length > 0);
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <NickReasoner initialQuestion={initialQuestion} autoRun={autoRun} />
     </main>
   );

@@ -154,7 +154,7 @@ export default function GoalsPage() {
   if (!data) return null;
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
         <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />

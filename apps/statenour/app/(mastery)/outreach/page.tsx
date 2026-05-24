@@ -98,7 +98,7 @@ export default function OutreachPage() {
   ]);
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-2xl mx-auto px-6 py-10">
         <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-1">
           Outreach
@@ -264,7 +264,7 @@ function Select({
       className="bg-white/[0.04] border border-white/10 rounded px-3 py-2 text-sm w-full"
     >
       {options.map((opt) => (
-        <option key={opt} value={opt} className="bg-[#0A0A0A]">
+        <option key={opt} value={opt} className="bg-[var(--bg-base)]">
           {opt}
         </option>
       ))}
