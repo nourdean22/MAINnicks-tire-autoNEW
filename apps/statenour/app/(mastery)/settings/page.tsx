@@ -1,15 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/glass-card";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Badge } from "@/components/ui/badge";
+import { ConfirmHold } from "@/components/ui/confirm-hold";
 import { cn } from "@/lib/utils";
 import {
-  Zap, Shield, Bell, Brain, Clock, Wifi, BellRing,
-  Activity, AlertTriangle, Bot, TrendingUp, TrendingDown, Cog, Database,
-  MonitorSmartphone, FileText, Sparkles, Ghost, Gauge, Eye,
+  Zap, Shield, Bell, Brain, Clock, BellRing,
+  Activity, TrendingUp,
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
@@ -21,6 +20,7 @@ import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { CommandSpinePulse } from "@/components/ultron/command-spine-pulse";
 import { DeployChip } from "@/components/ultron/deploy-chip";
 import { SystemDataCards } from "@/components/settings/system-data-cards";
+import { SystemOpsHub } from "@/components/settings/system-ops-hub";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 
@@ -155,6 +155,12 @@ interface AutoPilotFlag {
   enabled: boolean;
   /** 2026-05-24 · Wave P · category for visual grouping. */
   category: AutoPilotCategory;
+  /** 2026-05-24 · Wave Q · when true, disabling the flag requires a
+   *  press-and-hold confirm (uses ConfirmHold · ~800ms). Prevents
+   *  accidental mobile-thumb taps from killing a critical nightly /
+   *  hourly job. Re-enabling is still a single tap (no risk in
+   *  turning automation back ON). */
+  confirmDisable?: boolean;
 }
 
 // 2026-05-24 · Wave P · category metadata · gold-on-dark editorial
@@ -196,21 +202,23 @@ const CATEGORY_META: Record<
 // category to drive the grouped render. Was inlined inside useState
 // before · grouping requires the list to be authored category-first.
 const DEFAULT_AUTOPILOT_FLAGS: AutoPilotFlag[] = [
-  // Brain · learning
-  { key: "auto_brain_cycle", label: "Nightly Brain Cycle", description: "Run 9-stage memory consolidation + intelligence engines", icon: Brain, enabled: true, category: "brain" },
+  // Brain · learning · all 4 are critical (these drive Nick's
+  // long-term coherence · accidental disable = quiet regression).
+  { key: "auto_brain_cycle", label: "Nightly Brain Cycle", description: "Run 9-stage memory consolidation + intelligence engines", icon: Brain, enabled: true, category: "brain", confirmDisable: true },
   { key: "auto_skill_extraction", label: "Skill Extraction", description: "Weekly Sun 03:00 · cluster DONE tasks into skill candidates · curate in /brain", icon: Brain, enabled: true, category: "brain" },
-  { key: "auto_identity_refresh", label: "Identity Snapshot Refresh", description: "Daily 04:30 · roll 8-axis self-model + harvest beliefs + decay stale patterns", icon: Brain, enabled: true, category: "brain" },
+  { key: "auto_identity_refresh", label: "Identity Snapshot Refresh", description: "Daily 04:30 · roll 8-axis self-model + harvest beliefs + decay stale patterns", icon: Brain, enabled: true, category: "brain", confirmDisable: true },
   { key: "auto_session_distill", label: "Chat Session Distillation", description: "Every 3h · fold idle chats into durable memory", icon: Brain, enabled: true, category: "brain" },
   // Sales · revenue
   { key: "auto_stale_lead_alert", label: "Stale Lead Alerts", description: "Alert when leads go 24h+ without contact", icon: Bell, enabled: true, category: "sales" },
   { key: "auto_followup_quotes", label: "Quote Follow-ups", description: "Auto-remind on quotes not followed up in 48h", icon: Bell, enabled: true, category: "sales" },
   { key: "auto_revenue_alerts", label: "Revenue Anomaly Alerts", description: "Alert when daily revenue deviates significantly", icon: TrendingUp, enabled: true, category: "sales" },
   { key: "auto_estimate_followup", label: "Estimate Auto-Follow-Up", description: "Auto-send SMS follow-ups on aging estimates (24h, 48h, 7d, 30d)", icon: Clock, enabled: false, category: "sales" },
-  // Schedule · focus
+  // Schedule · focus · ADHD rhythm is critical (5x daily checkpoint ·
+  // operator depends on these for focus structure).
   { key: "auto_morning_autopilot", label: "Morning Auto-Pilot", description: "ONE Telegram message with schedule + leads + weather + approve button", icon: Zap, enabled: true, category: "schedule" },
   { key: "auto_commitment_check", label: "Commitment Check", description: "Auto-check overdue commitments and create tasks", icon: Shield, enabled: true, category: "schedule" },
   { key: "auto_weekly_targets", label: "Weekly Target Auto-Set", description: "Auto-set targets by Tuesday if not manually set", icon: Clock, enabled: false, category: "schedule" },
-  { key: "adhd_operating_rhythm", label: "ADHD Operating Rhythm", description: "Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm — guards focus, enforces shutdown", icon: Activity, enabled: true, category: "schedule" },
+  { key: "adhd_operating_rhythm", label: "ADHD Operating Rhythm", description: "Telegram checkpoints at 8am, 11am, 2pm, 5pm, 9pm — guards focus, enforces shutdown", icon: Activity, enabled: true, category: "schedule", confirmDisable: true },
   // Comms · marketing
   { key: "auto_weather_campaigns", label: "Weather Campaigns", description: "Auto-trigger marketing when weather events match (freeze, rain, heat, snow)", icon: Bell, enabled: true, category: "comms" },
 ];
@@ -242,6 +250,31 @@ function AutoPilotControls() {
   // PushNotificationToggle's pattern · was completely silent before
   // (Nielsen #9 fix · help users recognize errors).
   const [mutationError, setMutationError] = useState<string | null>(null);
+  // 2026-05-24 · Wave Q · which flag is currently in "pending
+  // disable" state · only set when the operator taps a critical
+  // ENABLED toggle. While set, the row expands to show a ConfirmHold
+  // button · they must hold ~800ms to commit the disable. Auto-
+  // clears after 5s if no confirmation (mobile-thumb safety).
+  const [pendingDisable, setPendingDisable] = useState<string | null>(null);
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current);
+    };
+  }, []);
+
+  function startPendingDisable(key: string) {
+    if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current);
+    setPendingDisable(key);
+    pendingTimeoutRef.current = setTimeout(() => {
+      setPendingDisable((cur) => (cur === key ? null : cur));
+    }, 5000);
+  }
+
+  function cancelPendingDisable() {
+    if (pendingTimeoutRef.current) clearTimeout(pendingTimeoutRef.current);
+    setPendingDisable(null);
+  }
 
   // Phase UU.2 (2026-05-22) · REST→tRPC · the flag map is a typed query
   // (system.autopilotFlags). It merges into the local `flags` state
@@ -381,56 +414,118 @@ function AutoPilotControls() {
               <div className="space-y-1.5">
                 {group.flags.map((f) => {
                   const Icon = f.icon;
+                  const isPending = pendingDisable === f.key;
+                  // 2026-05-24 · Wave Q · critical flags require a
+                  // press-and-hold confirm on DISABLE only. Re-enable
+                  // is always a single tap (no risk in turning
+                  // automation back ON). Per-flag UX:
+                  //   · critical + enabled + tapped → row enters
+                  //     "pending disable" state, expands with a
+                  //     ConfirmHold button + cancel
+                  //   · all other taps commit the flip immediately
+                  const handleTap = () => {
+                    if (f.confirmDisable && f.enabled) {
+                      startPendingDisable(f.key);
+                      return;
+                    }
+                    toggleFlag(f.key);
+                  };
                   return (
-                    <button
-                      key={f.key}
-                      type="button"
-                      onClick={() => toggleFlag(f.key)}
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-md border px-2 py-2 text-left transition-colors",
-                        // 2026-05-24 · Wave P · 44pt vertical tap target ·
-                        // py-2 + content height = ~44px. Was a GlassCard
-                        // before with cursor-pointer · this is the proper
-                        // semantic (button) + matches Apple HIG.
-                        f.enabled
-                          ? "border-[var(--gold)]/20 bg-[var(--gold)]/[0.03]"
-                          : "border-[var(--border-default)] bg-transparent hover:bg-[var(--bg-raised)]",
-                      )}
-                    >
-                      <Icon
-                        size={13}
+                    <div key={f.key}>
+                      <button
+                        type="button"
+                        onClick={handleTap}
                         className={cn(
-                          "shrink-0",
-                          f.enabled ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]",
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className={cn(
-                            "text-[11px] font-medium",
-                            f.enabled ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]",
-                          )}
-                        >
-                          {f.label}
-                        </p>
-                        <p className="truncate text-[9px] text-[var(--text-tertiary)]">
-                          {f.description}
-                        </p>
-                      </div>
-                      <div
-                        className={cn(
-                          "relative h-5 w-9 shrink-0 rounded-full transition-colors",
-                          f.enabled ? "bg-[var(--gold)]" : "bg-zinc-700",
+                          "flex w-full items-center gap-2.5 rounded-md border px-2 py-2 text-left transition-colors",
+                          // 2026-05-24 · Wave P · 44pt vertical tap target ·
+                          // py-2 + content height = ~44px. Was a GlassCard
+                          // before with cursor-pointer · this is the proper
+                          // semantic (button) + matches Apple HIG.
+                          f.enabled
+                            ? "border-[var(--gold)]/20 bg-[var(--gold)]/[0.03]"
+                            : "border-[var(--border-default)] bg-transparent hover:bg-[var(--bg-raised)]",
+                          // 2026-05-24 · Wave Q · pending-disable
+                          // tint · rose ring matches the "danger"
+                          // semantic of the ConfirmHold below.
+                          isPending && "border-rose-500/40 bg-rose-500/[0.04]",
                         )}
                       >
-                        <div
+                        <Icon
+                          size={13}
                           className={cn(
-                            "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-                            f.enabled ? "left-[18px]" : "left-0.5",
+                            "shrink-0",
+                            f.enabled ? "text-[var(--gold)]" : "text-[var(--text-tertiary)]",
                           )}
                         />
-                      </div>
-                    </button>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={cn(
+                              "text-[11px] font-medium",
+                              f.enabled ? "text-[var(--text-primary)]" : "text-[var(--text-tertiary)]",
+                            )}
+                          >
+                            {f.label}
+                            {/* 2026-05-24 · Wave Q · critical badge ·
+                                signals to the operator "this one needs
+                                hold to disable" without taking up its
+                                own row. Only shown on enabled critical
+                                flags so the disabled state stays clean. */}
+                            {f.confirmDisable && f.enabled && (
+                              <span className="ml-1.5 rounded border border-[var(--gold)]/30 bg-[var(--gold)]/5 px-1 py-px text-[8px] font-mono uppercase tracking-wider text-[var(--gold)]/80">
+                                hold
+                              </span>
+                            )}
+                          </p>
+                          <p className="truncate text-[9px] text-[var(--text-tertiary)]">
+                            {f.description}
+                          </p>
+                        </div>
+                        <div
+                          className={cn(
+                            "relative h-5 w-9 shrink-0 rounded-full transition-colors",
+                            f.enabled ? "bg-[var(--gold)]" : "bg-zinc-700",
+                            isPending && "bg-rose-500/40",
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                              f.enabled ? "left-[18px]" : "left-0.5",
+                            )}
+                          />
+                        </div>
+                      </button>
+                      {/* 2026-05-24 · Wave Q · expansion · only shown
+                          when the operator has tapped a critical
+                          enabled flag. ConfirmHold reuses the existing
+                          press-and-hold primitive (haptic warn on
+                          start · haptic success on commit). Auto-
+                          collapses after 5s via the timeout in
+                          startPendingDisable. */}
+                      {isPending && (
+                        <div className="mt-1.5 flex items-center justify-between gap-2 rounded-md border border-rose-500/30 bg-rose-500/5 px-2 py-2">
+                          <span className="flex-1 text-[10px] text-rose-300">
+                            Disable {f.label}? This stops the cron from firing.
+                          </span>
+                          <ConfirmHold
+                            label="hold to disable"
+                            variant="danger"
+                            holdMs={800}
+                            onConfirm={() => {
+                              cancelPendingDisable();
+                              toggleFlag(f.key);
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={cancelPendingDisable}
+                            className="rounded border border-zinc-700 px-2 py-1 text-[10px] text-zinc-400 hover:bg-zinc-800"
+                          >
+                            cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -690,246 +785,3 @@ function PushNotificationToggle() {
   );
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// SystemOpsHub · organized grid of every /system/* surface
-// ═══════════════════════════════════════════════════════════════════════
-//
-// v11 restructure · Nour called out that the FloatingHome expanded menu
-// was getting crowded with System Ops chips (crons/errors/ai-cost/
-// actions) and didn't explain what each surface DOES. Solution: move
-// the full catalog here, organized into six categories with live pulse
-// counts on each row. The orb menu now just has one SETTINGS link.
-
-type SystemPulseShape = ReturnType<typeof useSystemPulse>;
-
-function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
-  const groups: Array<{
-    heading: string;
-    tint: string;
-    items: Array<{
-      href: string;
-      icon: React.ComponentType<{ size?: number; className?: string }>;
-      label: string;
-      subtitle: string;
-      count?: number;
-      countTint?: string;
-      soon?: boolean;
-    }>;
-  }> = [
-    {
-      heading: "Health",
-      tint: "text-emerald-300",
-      items: [
-        { href: "/system", icon: Activity, label: "Overview", subtitle: "diagnostics · DB · integrations · models" },
-        { href: "/system/health", icon: Gauge, label: "Health probe", subtitle: "DB latency · device count · uptime" },
-        { href: "/system/logs", icon: FileText, label: "Live logs", subtitle: "unified tail · errors + crons + metrics + actions + requests" },
-        {
-          // v10.0.306 · /system/errors absorbed into /system/logs
-          // grouped view-mode tab
-          href: "/system/logs?view=errors",
-          icon: AlertTriangle,
-          label: "Errors",
-          subtitle: "fingerprints grouped · stack traces · → task",
-          count: pulse?.errors24h ?? 0,
-          countTint: (pulse?.errors24h ?? 0) > 0 ? "text-rose-300 bg-rose-500/15" : "text-zinc-500 bg-zinc-800",
-        },
-        {
-          href: "/system/features",
-          icon: Activity,
-          label: "Feature status",
-          subtitle: "honest registry · live · partial · dormant + activation triggers",
-        },
-      ],
-    },
-    {
-      heading: "Crons + automation",
-      tint: "text-violet-300",
-      items: [
-        {
-          href: "/system/crons",
-          icon: Clock,
-          label: "Crons",
-          subtitle: "kill · run-now · sparklines · drift detector",
-          count: (pulse?.cronsDrifted ?? 0) + (pulse?.cronFails24h ?? 0),
-          countTint: ((pulse?.cronsDrifted ?? 0) + (pulse?.cronFails24h ?? 0)) > 0 ? "text-rose-300 bg-rose-500/15 animate-pulse" : "text-zinc-500 bg-zinc-800",
-        },
-        {
-          href: "/system/actions",
-          icon: Bot,
-          label: "Nick actions",
-          subtitle: "autonomous action audit · rule leaderboard · rollback",
-          count: pulse?.actionsPending ?? 0,
-          countTint: (pulse?.actionsPending ?? 0) > 0 ? "text-amber-300 bg-amber-500/15" : "text-zinc-500 bg-zinc-800",
-        },
-      ],
-    },
-    {
-      heading: "Nick · AI",
-      tint: "text-sky-300",
-      items: [
-        {
-          href: "/system/ai-cost",
-          icon: Zap,
-          label: "AI cost",
-          subtitle: "today/7d/30d · by feature × model · burn rate",
-          count: pulse?.aiCalls24h ?? 0,
-          countTint: "text-sky-300 bg-sky-500/10",
-        },
-        {
-          href: "/system/quality",
-          icon: Sparkles,
-          label: "Nick quality",
-          subtitle: "critic 4-axis score · 14-day trend · regen rate",
-          count: pulse?.nickQualityAvg7d ?? undefined,
-          countTint:
-            pulse?.nickQualityAvg7d != null && pulse.nickQualityAvg7d >= 80 ? "text-emerald-300 bg-emerald-500/10" :
-            pulse?.nickQualityAvg7d != null && pulse.nickQualityAvg7d >= 65 ? "text-amber-300 bg-amber-500/10" :
-            pulse?.nickQualityAvg7d != null ? "text-rose-300 bg-rose-500/10" : "text-zinc-500 bg-zinc-800",
-        },
-        { href: "/chat", icon: Brain, label: "Nick chat", subtitle: "talk to Nick · tool calls · citations" },
-      ],
-    },
-    {
-      heading: "Decisions + learning",
-      tint: "text-fuchsia-300",
-      items: [
-        {
-          // v10.0.529.103 · Wave 47 · /system/decision-drift route was
-          // merged into /system/quality (decisions tab) but this nav
-          // link was never updated · pointed at 404. Fixed.
-          href: "/system/quality?view=decisions",
-          icon: TrendingDown,
-          label: "Decision drift",
-          subtitle: "grade trend · review rate · overdue queue · misses",
-        },
-        {
-          href: "/system/ghost-nour",
-          icon: Ghost,
-          label: "Ghost Nour",
-          subtitle: "what past-Nour would choose · similarity search",
-        },
-        {
-          // v10.0.529.103 · Wave 47 · /system/anti-patterns was merged
-          // into /system/quality (lessons tab) · nav was 404. Fixed.
-          href: "/system/quality?view=lessons",
-          icon: TrendingUp,
-          label: "Anti-patterns",
-          subtitle: "tried X, failed reason Y · Nick consults pre-action",
-        },
-      ],
-    },
-    {
-      heading: "Devices + integrations",
-      tint: "text-cyan-300",
-      items: [
-        {
-          href: "/system/devices",
-          icon: MonitorSmartphone,
-          label: "Devices",
-          subtitle: "fleet · agent liveness · command queue",
-          count: pulse?.devicesOffline ?? 0,
-          countTint: (pulse?.devicesOffline ?? 0) > 0 ? "text-amber-300 bg-amber-500/15" : "text-zinc-500 bg-zinc-800",
-        },
-        // v10.0.529.49 · /integrations route deleted (orphan · zero
-        // inbound links · functionality lives on /system page already).
-        // Row removed from settings hub. Integration status visible
-        // via the /system page tiles + the agent-traces drill-down.
-        // v10.0.529.103 · Wave 47 · /system/gaps was merged into /system/
-        // coverage (gaps tab) · nav was 404. Fixed.
-        { href: "/system/coverage?view=gaps", icon: Eye, label: "Gaps scan", subtitle: "coded-but-not-surfaced · unscheduled crons · missing env" },
-      ],
-    },
-    {
-      heading: "Brain + memory",
-      tint: "text-amber-300",
-      items: [
-        {
-          href: "/brain",
-          icon: Brain,
-          label: "Brain",
-          subtitle: "memories · patterns · automation rules · graph explorer",
-        },
-        {
-          href: "/knowledge",
-          icon: Database,
-          label: "Knowledge base",
-          subtitle: "Drive ingest · laws · notes · research pins",
-        },
-        {
-          href: "/journal",
-          icon: FileText,
-          label: "Journal",
-          subtitle: "raw thoughts · brain dumps · reflections · daily logs",
-        },
-      ],
-    },
-    {
-      heading: "Power + control",
-      tint: "text-rose-300",
-      items: [
-        {
-          href: "/system/power",
-          icon: Shield,
-          label: "Power panel",
-          subtitle: "provider pin · cost cap · strict mode · pause ALL crons · quiet mode",
-        },
-      ],
-    },
-  ];
-
-  return (
-    <GlassCard>
-      <div className="mb-3 flex items-center justify-between">
-        <p className="section-label">System ops</p>
-        <span className="text-[10px] text-[var(--text-tertiary)]">
-          {pulse?.generatedAt ? `live · last refresh ${new Date(pulse.generatedAt).toLocaleTimeString()}` : "loading pulse…"}
-        </span>
-      </div>
-
-      <div className="grid gap-3 md:grid-cols-2">
-        {groups.map((g) => (
-          <div key={g.heading} className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 p-3">
-            <h3 className={cn("mb-2 text-[10px] font-semibold uppercase tracking-wider", g.tint)}>
-              {g.heading}
-            </h3>
-            <div className="space-y-1">
-              {g.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded px-2 py-2 transition",
-                      "hover:bg-[var(--bg-raised)]"
-                    )}
-                  >
-                    <Icon size={14} className="text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)]" />
-                    <div className="min-w-0">
-                      <div className="text-[11px] font-medium text-[var(--text-primary)] group-hover:text-[var(--gold)]">
-                        {item.label}
-                      </div>
-                      <div className="mt-0.5 truncate text-[10px] text-[var(--text-tertiary)]">
-                        {item.subtitle}
-                      </div>
-                    </div>
-                    {item.count !== undefined && (
-                      <span
-                        className={cn(
-                          "rounded-full px-1.5 py-[1px] text-[9px] font-mono tabular-nums",
-                          item.countTint ?? "text-zinc-500 bg-zinc-800",
-                        )}
-                      >
-                        <AnimatedCounter value={item.count} duration={600} />
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </GlassCard>
-  );
-}
