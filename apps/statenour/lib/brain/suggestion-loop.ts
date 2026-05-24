@@ -35,6 +35,15 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+// 2026-05-23 · Wave H · M1 (Closed-Loop Calibrated Brain).
+// Stamp every action + outcome row with the operator-state snapshot
+// at fire-time. Lets downstream calibration analysis (e.g.
+// /system/calibration) plot Nick's hit rate as a function of mood,
+// capacity, drift, momentum. Pre-fix the loop had no state context ·
+// downstream consumers couldn't disambiguate "Nick was good" from
+// "Nick was good while operator was depleted" (very different signals
+// for DPO data prep). LeCun-lens consolidation extending Wave 5.3.
+import { currentOperatorState, type OperatorState } from "@/lib/services/operator-state";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -145,6 +154,46 @@ function outcomeConfidence(polarity: z.infer<typeof OutcomePolarity>): number {
  * Record that the operator acted on (or dismissed / modified / deferred)
  * a Nick suggestion. Idempotent per (suggestionId, event) via upsert.
  */
+/**
+ * 2026-05-23 · Wave H · M1 · best-effort operator-state capture.
+ * Reads the current state snapshot (3 Prisma queries · ~60ms typical
+ * · degrades to zero-confidence on DB error). Returns null on any
+ * failure · suggestion-loop writes still succeed without the stamp.
+ */
+async function captureStateSnapshot(): Promise<OperatorState | null> {
+  try {
+    return await currentOperatorState();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 2026-05-23 · Wave H · M1 · compact snapshot for embedding in
+ * BrainMemory.metadata. Strips signals[] (heavy · not needed for
+ * calibration math) · keeps the 5 dims + mood + confidence.
+ */
+function compactState(s: OperatorState | null): null | {
+  focus: number;
+  capacity: number;
+  drift: number;
+  momentum: number;
+  mood: string;
+  confidence: number;
+  ranAt: string;
+} {
+  if (!s) return null;
+  return {
+    focus: s.focus,
+    capacity: s.capacity,
+    drift: s.drift,
+    momentum: s.momentum,
+    mood: s.mood,
+    confidence: s.confidence,
+    ranAt: s.ranAt,
+  };
+}
+
 export async function trackSuggestionAction(input: unknown): Promise<{
   id: string;
   key: string;
@@ -152,6 +201,7 @@ export async function trackSuggestionAction(input: unknown): Promise<{
   const parsed = SuggestionActionInput.parse(input);
   const key = `sugg:${parsed.suggestionId}:action:${parsed.event}`;
   const summary = `Operator ${parsed.event} on ${parsed.suggestionKind} suggestion ${parsed.suggestionId}${parsed.notes ? ` · ${parsed.notes.slice(0, 280)}` : ""}`;
+  const operatorStateSnapshot = compactState(await captureStateSnapshot());
 
   const row = await prisma.brainMemory.upsert({
     where: { category_key: { category: CATEGORY, key } },
@@ -169,6 +219,7 @@ export async function trackSuggestionAction(input: unknown): Promise<{
         delaySeconds: parsed.delaySeconds ?? null,
         modifiedTo: parsed.modifiedTo ?? null,
         notes: parsed.notes ?? null,
+        operatorStateSnapshot,
       },
     },
     update: {
@@ -182,6 +233,7 @@ export async function trackSuggestionAction(input: unknown): Promise<{
         delaySeconds: parsed.delaySeconds ?? null,
         modifiedTo: parsed.modifiedTo ?? null,
         notes: parsed.notes ?? null,
+        operatorStateSnapshot,
       },
     },
   });
@@ -205,6 +257,7 @@ export async function recordSuggestionOutcome(input: unknown): Promise<{
   const parsed = OutcomeObservationInput.parse(input);
   const key = `sugg:${parsed.suggestionId}:outcome:${parsed.polarity}`;
   const summary = `Outcome of ${parsed.suggestionKind} suggestion ${parsed.suggestionId}: ${parsed.polarity}${parsed.notes ? ` · ${parsed.notes.slice(0, 280)}` : ""}`;
+  const operatorStateSnapshot = compactState(await captureStateSnapshot());
 
   const row = await prisma.brainMemory.upsert({
     where: { category_key: { category: CATEGORY, key } },
@@ -221,6 +274,7 @@ export async function recordSuggestionOutcome(input: unknown): Promise<{
         polarity: parsed.polarity,
         delaySeconds: parsed.delaySeconds ?? null,
         notes: parsed.notes ?? null,
+        operatorStateSnapshot,
       },
     },
     update: {
@@ -233,6 +287,7 @@ export async function recordSuggestionOutcome(input: unknown): Promise<{
         polarity: parsed.polarity,
         delaySeconds: parsed.delaySeconds ?? null,
         notes: parsed.notes ?? null,
+        operatorStateSnapshot,
       },
     },
   });

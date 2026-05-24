@@ -284,6 +284,16 @@ export const BRAIN_CATEGORIES = {
    *  aggregates over these rows to compute win-rate trends per intent
    *  class. Unblocks Phase 0 of the agent-v1-to-v2 migration. */
   PROMPT_COMPARISON_RUN: "prompt_comparison_run",
+  /** 2026-05-23 · Wave C+ · Q2 · shadow-judge queue.
+   *  Pre-fix: the shadow path recorded char-count + section delta
+   *  but no quality signal · V1→V2 cutover had no falsifiable check.
+   *  Now: when shadow fires AND sample-rate hits, it writes v1Prompt
+   *  + v2Prompt + sourceMessageId here · the existing judge-eval
+   *  replay cron picks queued rows up, runs both prompts through
+   *  the model, scores via the comparator, writes the result back
+   *  to SystemMetric (prompt.shadow.judge_score_delta). Decouples
+   *  judging latency from chat path. Idempotent · keyed by message id. */
+  PROMPT_SHADOW_JUDGE_QUEUE: "prompt_shadow_judge_queue",
 
   // ── WAVE-200 (2026-05-17) ──
   /** Wave-200 Phase 5 · daily operator brief composer output. Indexed

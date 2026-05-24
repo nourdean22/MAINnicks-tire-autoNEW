@@ -98,6 +98,10 @@ import {
 // joins judge verdicts with operator thumbs reactions and surfaces
 // a calibration metric on /system/judge-eval.
 import { buildJudgeCalibration } from "@/lib/services/judge-calibration";
+// Wave H · M1 · state-conditioned calibration grid · mood × kind
+// hit rates from suggestion-loop rows now stamped with the
+// operator-state snapshot.
+import { buildStateCalibration } from "@/lib/services/state-calibration";
 // scattered-components REST→tRPC slice (2026-05-22) · shared functions
 // the migrated components/{ultron/today,hud,ui}/* surfaces delegate to
 // for their /api/{drift,auth/expires,errors} calls. Each is also called
@@ -2469,5 +2473,19 @@ export const systemRouter = router({
     .input(z.object({ sinceDays: z.number().int().min(1).max(365).optional() }).optional())
     .query(async ({ input }) => {
       return buildJudgeCalibration({ sinceDays: input?.sinceDays });
+    }),
+
+  /**
+   * Wave H · M1 · state-conditioned calibration grid. Mood × kind ·
+   * hit rate per cell. Joins suggestion-loop action rows (now stamped
+   * with operator-state snapshot at write-time) with their event
+   * outcome. Reveals patterns like "Nick's task suggestions land 65%
+   * when mood=energized but 22% when mood=depleted" · raw signal for
+   * future state-aware suggestion gating.
+   */
+  stateCalibration: operatorProcedure
+    .input(z.object({ sinceDays: z.number().int().min(1).max(365).optional() }).optional())
+    .query(async ({ input }) => {
+      return buildStateCalibration({ sinceDays: input?.sinceDays });
     }),
 });

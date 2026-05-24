@@ -35,6 +35,12 @@ import { replayPair } from "@/lib/ai/judge-eval/replay";
 import { compareReplies } from "@/lib/ai/judge-eval/comparator";
 import { recordComparison } from "@/lib/ai/judge-eval/persistence";
 import { logger as rootLogger } from "@/lib/logger";
+// 2026-05-23 · Q2 · drain the shadow-queue at the end of the cron tick.
+// Closes the V1→V2 cutover quality-signal gap by writing
+// prompt.shadow.judge_score_delta SystemMetric rows from operator-real
+// turns (sampled at ~10% by the shadow path · queued for offline judging).
+import { prisma } from "@/lib/prisma";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("cron/judge-eval-shadow");
 
@@ -66,6 +72,9 @@ interface RunResult {
   tieCount: number;
   durationMs: number;
   budget: number;
+  // 2026-05-23 · Q2 · shadow-queue drain stats.
+  queueDrained?: number;
+  queueJudged?: number;
 }
 
 export const GET = cronHandler(async (): Promise<RunResult> => {
@@ -158,6 +167,115 @@ export const GET = cronHandler(async (): Promise<RunResult> => {
     }
   }
 
+  // 2026-05-23 · Q2 · drain the shadow-queue. Pre-filled by the live
+  // shadow path at ~10% sample rate of real chat turns. Each row has
+  // v1Prompt + v2Prompt + userMessage in metadata. We score by judging
+  // the v2 prompt against the v1 prompt using the same LLM-judge that
+  // scored the sampler-driven batch above. Result lands as a
+  // SystemMetric row at metric="prompt.shadow.judge_score_delta" so
+  // /system/judge-eval can chart it alongside the structural delta.
+  //
+  // Budget: drain up to (budget - replayed) so the total LLM-call
+  // count per tick stays at `budget`. If sampler ate the whole budget,
+  // queue waits until tomorrow.
+  let queueDrained = 0;
+  let queueJudged = 0;
+  const remaining = budget - stats.replayed;
+  if (remaining > 0) {
+    try {
+      const queueRows = await prisma.brainMemory.findMany({
+        where: {
+          category: BRAIN_CATEGORIES.PROMPT_SHADOW_JUDGE_QUEUE,
+          deletedAt: null,
+          // Don't re-process already-judged rows (the metadata.judged
+          // flag flips to true once we score them below).
+          metadata: { path: ["judged"], equals: false },
+        },
+        orderBy: { createdAt: "asc" },
+        take: remaining,
+        select: { id: true, key: true, metadata: true },
+      });
+
+      for (const row of queueRows) {
+        const meta = (row.metadata ?? {}) as {
+          userMessage?: string;
+          v1Prompt?: string;
+          v2Prompt?: string;
+          intentClass?: string | null;
+          tier?: string;
+          slot?: string;
+        };
+        if (!meta.userMessage || !meta.v1Prompt || !meta.v2Prompt) {
+          // Malformed entry · skip + mark judged so it doesn't requeue.
+          await prisma.brainMemory
+            .update({
+              where: { id: row.id },
+              data: {
+                metadata: { ...meta, judged: true, error: "malformed" },
+              },
+            })
+            .catch(() => {});
+          continue;
+        }
+        try {
+          // The shadow path already built v1+v2 PROMPTS · we still need
+          // REPLIES to judge. replayPair runs both through the chain.
+          const pair = await replayPair({ prompt: meta.userMessage });
+          queueDrained++;
+          if (!pair.bothSucceeded) continue;
+          const judgment = await compareReplies({
+            prompt: meta.userMessage,
+            v1Reply: pair.v1Reply,
+            v2Reply: pair.v2Reply,
+            intentClass: meta.intentClass ?? undefined,
+          });
+          queueJudged++;
+          // Persist the score delta as a SystemMetric · separate
+          // series from sampler-driven runs so /system/judge-eval
+          // can show shadow-pair quality independently.
+          await prisma.systemMetric.create({
+            data: {
+              metric: "prompt.shadow.judge_score_delta",
+              value: judgment.v2Score - 50, // centered around 0 · +X = v2 wins
+              unit: "score-delta",
+              source: "shadow-queue-drain",
+              tags: {
+                winner: judgment.winner,
+                v2Score: judgment.v2Score,
+                tier: meta.tier ?? "unknown",
+                slot: meta.slot ?? "unknown",
+                intentClass: meta.intentClass ?? null,
+                parsed: judgment.parsed,
+              },
+            },
+          });
+          // Mark the queue row as judged so the next tick skips it.
+          await prisma.brainMemory.update({
+            where: { id: row.id },
+            data: {
+              metadata: {
+                ...meta,
+                judged: true,
+                judgedAt: new Date().toISOString(),
+                winner: judgment.winner,
+                v2Score: judgment.v2Score,
+              },
+            },
+          });
+        } catch (e) {
+          log.warn("shadow_queue_drain_failed", {
+            key: row.key,
+            err: (e as Error).message?.slice(0, 200),
+          });
+        }
+      }
+    } catch (e) {
+      log.warn("shadow_queue_read_failed", {
+        err: (e as Error).message?.slice(0, 200),
+      });
+    }
+  }
+
   stats.durationMs = Date.now() - startedAt;
   log.info("shadow_run_complete", {
     budget,
@@ -167,6 +285,8 @@ export const GET = cronHandler(async (): Promise<RunResult> => {
     v1WinCount: stats.v1WinCount,
     tieCount: stats.tieCount,
     durationMs: stats.durationMs,
+    queueDrained,
+    queueJudged,
   });
-  return stats;
+  return { ...stats, queueDrained, queueJudged };
 });

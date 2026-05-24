@@ -367,7 +367,7 @@ export async function buildSystemPrompt(
     void (async () => {
       try {
         const { buildSystemPromptV2 } = await import("./prompt/v2");
-        const { computeShadowDelta, recordShadowDelta } = await import(
+        const { computeShadowDelta, recordShadowDelta, enqueueShadowJudgePair } = await import(
           "./prompt/v2/shadow-metrics"
         );
         const out = await buildSystemPromptV2();
@@ -382,6 +382,20 @@ export async function buildSystemPrompt(
           `[prompt-shadow] v1=${delta.charsV1} v2=${delta.charsV2} delta=${delta.charsDelta} (${delta.charsDeltaPct}%) tier=${effectiveTier} slot=${slot} only-in-v1=${delta.sectionsOnlyInV1}`,
         );
         await recordShadowDelta(delta);
+        // 2026-05-23 · Wave C+ · Q2 · ~10% sample-rate queue for the
+        // judge-eval replay cron. Closes the V1→V2 cutover quality
+        // signal gap · the shadow path was recording structural drift
+        // only · now a small sample gets a real LLM-judged score delta
+        // written back via the cron (out-of-band · no chat latency hit).
+        if (userMessage && Math.random() < 0.1) {
+          await enqueueShadowJudgePair({
+            userMessage,
+            v1Prompt,
+            v2Prompt: out.prompt,
+            tier: effectiveTier,
+            slot,
+          });
+        }
       } catch (err) {
         console.warn("[prompt-shadow] v2 build failed:", err);
         try {
