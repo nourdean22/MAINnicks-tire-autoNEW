@@ -838,6 +838,18 @@ export function startTieredScheduler(): void {
           return processCustomerSegmentation();
         },
       },
+      // wave-181.111 · psychographic profile (10 segments) daily refresh.
+      // Wraps the orphaned segmentCustomer() classifier in a DB-batch
+      // pass that writes customers.psycho_profile · powers profile-aware
+      // SMS routing + admin chip + analytics. Idempotent · only writes
+      // when segment actually changes · Telegram silent on stable runs.
+      {
+        name: "psycho-profile-refresh",
+        handler: async () => {
+          const { processPsychoProfileRefresh } = await import("./jobs/psychoProfileRefresh");
+          return processPsychoProfileRefresh();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when

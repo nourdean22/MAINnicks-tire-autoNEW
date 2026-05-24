@@ -509,6 +509,12 @@ export async function handleRunMigrations() {
       `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_45d_sent_at TIMESTAMP NULL DEFAULT NULL`,
       `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS recovery_profile VARCHAR(8) DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_alg_est_recovery_profile ON alg_estimates (recovery_profile)`,
+      // 2026-05-23 · drizzle/0056_customer_psycho_profile.sql — psychographic profile
+      // Powers profile-aware SMS routing across win-back + drip + declined-recovery.
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS psycho_profile VARCHAR(32) DEFAULT NULL`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS psycho_profile_score INT DEFAULT NULL`,
+      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS psycho_profile_at TIMESTAMP NULL DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_customer_psycho ON customers (psycho_profile)`,
     ];
 
     let applied = 0;
