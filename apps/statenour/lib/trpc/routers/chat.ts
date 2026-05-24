@@ -86,6 +86,9 @@ import {
   ForkSourceNotFoundError,
   ForkInvalidPivotError,
 } from "@/lib/services/chat-fork";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("trpc/chat");
 
 export const chatRouter = router({
   /**
@@ -858,45 +861,60 @@ export const chatRouter = router({
   lensesForMessage: operatorProcedure
     .input(z.object({ messageId: z.string().min(1).max(64) }))
     .query(async ({ input }) => {
-      const { prisma } = await import("@/lib/prisma");
-      const msg = await prisma.chatMessage.findUnique({
-        where: { id: input.messageId },
-        select: { id: true, role: true, conversationId: true, createdAt: true },
-      });
-      if (!msg || msg.role !== "assistant") return { lenses: [] };
+      // 2026-05-23 · post-audit fix · two prisma calls + dynamic import
+      // were uncovered · any DB blip, schema drift, or import resolution
+      // failure was throwing a raw TRPCError that vanished into the
+      // <LensBadgeRow> "no lenses" null-render. Now: log + degrade to
+      // `{ lenses: [], error: "lens_lookup_failed" }` so the client can
+      // distinguish "Nick used no lenses" from "lens lookup broke."
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const msg = await prisma.chatMessage.findUnique({
+          where: { id: input.messageId },
+          select: { id: true, role: true, conversationId: true, createdAt: true },
+        });
+        if (!msg || msg.role !== "assistant") return { lenses: [], error: null };
 
-      const prevUser = await prisma.chatMessage.findFirst({
-        where: {
-          conversationId: msg.conversationId,
-          role: "user",
-          createdAt: { lt: msg.createdAt },
-        },
-        orderBy: { createdAt: "desc" },
-        select: { id: true, searchableContent: true, parts: true },
-      });
-      if (!prevUser) return { lenses: [] };
+        const prevUser = await prisma.chatMessage.findFirst({
+          where: {
+            conversationId: msg.conversationId,
+            role: "user",
+            createdAt: { lt: msg.createdAt },
+          },
+          orderBy: { createdAt: "desc" },
+          select: { id: true, searchableContent: true, parts: true },
+        });
+        if (!prevUser) return { lenses: [], error: null };
 
-      let userText = prevUser.searchableContent ?? "";
-      if (!userText && Array.isArray(prevUser.parts)) {
-        userText = (prevUser.parts as Array<{ type?: string; text?: string }>)
-          .filter((p) => p?.type === "text" && typeof p.text === "string")
-          .map((p) => p.text)
-          .join("\n");
+        let userText = prevUser.searchableContent ?? "";
+        if (!userText && Array.isArray(prevUser.parts)) {
+          userText = (prevUser.parts as Array<{ type?: string; text?: string }>)
+            .filter((p) => p?.type === "text" && typeof p.text === "string")
+            .map((p) => p.text)
+            .join("\n");
+        }
+        if (!userText) return { lenses: [], error: null };
+
+        const { pickFrameworks } = await import(
+          "@/lib/ai/strategic-frameworks"
+        );
+        const matches = pickFrameworks(userText.slice(0, 4000));
+
+        return {
+          lenses: matches.map((m) => ({
+            id: m.framework.id,
+            name: m.framework.name,
+            oneLiner: m.framework.oneLiner,
+            score: m.score,
+          })),
+          error: null,
+        };
+      } catch (err) {
+        log.warn("lenses_for_message_failed", {
+          messageId: input.messageId,
+          err: err instanceof Error ? err.message : String(err),
+        });
+        return { lenses: [], error: "lens_lookup_failed" as const };
       }
-      if (!userText) return { lenses: [] };
-
-      const { pickFrameworks } = await import(
-        "@/lib/ai/strategic-frameworks"
-      );
-      const matches = pickFrameworks(userText.slice(0, 4000));
-
-      return {
-        lenses: matches.map((m) => ({
-          id: m.framework.id,
-          name: m.framework.name,
-          oneLiner: m.framework.oneLiner,
-          score: m.score,
-        })),
-      };
     }),
 });

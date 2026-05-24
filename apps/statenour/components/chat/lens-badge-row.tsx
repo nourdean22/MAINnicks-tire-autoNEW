@@ -31,7 +31,7 @@
 
 import { useState } from "react";
 import { trpc } from "@/lib/trpc/client";
-import { Sparkles } from "lucide-react";
+import { Sparkles, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Lens {
@@ -42,7 +42,7 @@ interface Lens {
 }
 
 export function LensBadgeRow({ messageId }: { messageId: string }) {
-  const { data, isLoading } = trpc.chat.lensesForMessage.useQuery(
+  const { data, isLoading, error, refetch, isFetching } = trpc.chat.lensesForMessage.useQuery(
     { messageId },
     {
       staleTime: Infinity,
@@ -53,7 +53,33 @@ export function LensBadgeRow({ messageId }: { messageId: string }) {
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  if (isLoading || !data || data.lenses.length === 0) return null;
+  if (isLoading) return null;
+
+  // 2026-05-23 · Wave M · audit follow-up. Pre-fix the row returned
+  // null on (loading || !data || empty lenses) which hid TRPCError
+  // throws (P0 fix paired with the try/catch in lensesForMessage) AND
+  // server-side `error: "lens_lookup_failed"` payloads. Operator
+  // couldn't tell "Nick used no lenses" from "lens lookup broke" · the
+  // exact failure mode the transparency feature exists to eliminate.
+  // Now: surface a faint rose pill with a retry affordance.
+  if (error || data?.error === "lens_lookup_failed") {
+    return (
+      <div className="pt-1.5 flex items-center gap-1 text-[10px] text-rose-300/70">
+        <AlertCircle size={10} className="shrink-0" aria-hidden />
+        <span className="font-mono uppercase tracking-wider">lens lookup failed</span>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          disabled={isFetching}
+          className="ml-1 rounded border border-rose-500/30 px-1.5 py-0.5 text-[9px] uppercase tracking-wider hover:bg-rose-500/10 disabled:opacity-50"
+        >
+          {isFetching ? "…" : "retry"}
+        </button>
+      </div>
+    );
+  }
+
+  if (!data || data.lenses.length === 0) return null;
 
   const expanded = expandedId
     ? data.lenses.find((l) => l.id === expandedId)

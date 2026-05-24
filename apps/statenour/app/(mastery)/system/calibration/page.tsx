@@ -109,11 +109,18 @@ export default function CalibrationPage() {
       eyebrow="NOUR OS · System"
       title="State Calibration"
       description={
-        data
-          ? `${data.totalRows} actions · ${data.unstamped} pre-Wave-H · ${data.sinceDays}d`
-          : isLoading
-            ? "loading…"
-            : "no data"
+        // 2026-05-23 · Wave M · audit follow-up. Pre-fix the header
+        // showed "no data" both when totalRows === 0 AND when the
+        // query errored · operator couldn't tell warming-up from
+        // broken. The rose-300 error banner below already discloses
+        // the failure · the header now mirrors it.
+        error
+          ? "failed to load"
+          : data
+            ? `${data.totalRows} actions · ${data.unstamped} pre-Wave-H · ${data.sinceDays}d`
+            : isLoading
+              ? "loading…"
+              : "no data"
       }
       width="2xl"
       rhythm="loose"

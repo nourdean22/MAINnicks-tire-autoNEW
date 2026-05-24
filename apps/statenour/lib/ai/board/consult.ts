@@ -45,6 +45,9 @@ import type { StrategicFramework } from "@/lib/ai/strategic-frameworks/types";
 //      synthesizer · LLMs see the same explicit world-model context
 //      that the routing decision used.
 import { currentOperatorState, formatOperatorStateBlock, type MoodTag, type OperatorState } from "@/lib/services/operator-state";
+import { logger as rootLogger } from "@/lib/logger";
+
+const log = rootLogger.withSurface("ai/board/consult");
 
 import { getBoard } from "./boards";
 import type {
@@ -433,14 +436,27 @@ export async function consultBoard(
   let stateBlock = "";
   try {
     const snap = await currentOperatorState();
+    // 2026-05-23 · Wave M · audit follow-up. Pre-fix #1: bare catch
+    // swallowed currentOperatorState() failures with no logging · DB
+    // outage or schema drift would silently disable Wave L routing
+    // for EVERY consultation. Pre-fix #2: `if (snap.confidence > 0)`
+    // conflated "no signal yet" with "low confidence" · the
+    // synthesizer trace never saw the computed snapshot. Now: always
+    // record the snapshot so /system/agent-traces shows what was
+    // computed · gate only the routing/drop-list on confidence > 0
+    // (low-confidence snapshots shouldn't drive mood routing).
+    stateSnapshot = snap;
     if (snap.confidence > 0) {
-      stateSnapshot = snap;
       stateBlock = formatOperatorStateBlock(snap);
       const gated = gateMembersByMood(baseMembers, snap.mood);
       effectiveMembers = gated.effective;
       droppedAdvisorIds = gated.droppedIds;
     }
-  } catch {
+  } catch (err) {
+    log.warn("board_state_read_failed", {
+      boardId,
+      err: err instanceof Error ? err.message : String(err),
+    });
     // mood-blind fall-back · use base members + no state block
   }
 
