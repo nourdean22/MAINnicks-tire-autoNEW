@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, float } from "drizzle-orm/mysql-core";
+import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, float } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -2260,6 +2260,27 @@ export const cronAlertsFired = mysqlTable("cron_alerts_fired", {
   /** Optional metadata · for debugging the alert content later */
   payload: text("payload"),
 });
+
+/**
+ * Competitor snapshots — wave-181.x · Tier S persistent storage for
+ * the existing in-memory competitor monitor. Survives pod restarts so
+ * change detection works across weeks, not just minutes within one
+ * process lifetime. Indexed (place_id, captured_at DESC) so the
+ * "previous snapshot" lookup is a single fast read.
+ */
+export const competitorSnapshots = mysqlTable("competitor_snapshots", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  competitorName: varchar("competitor_name", { length: 160 }).notNull(),
+  placeId: varchar("place_id", { length: 128 }).notNull(),
+  rating: decimal("rating", { precision: 3, scale: 2 }).notNull().default("0"),
+  reviewCount: int("review_count").notNull().default(0),
+  source: varchar("source", { length: 32 }).notNull().default("google_places"),
+  capturedAt: timestamp("captured_at").defaultNow().notNull(),
+  rawPayload: text("raw_payload"),
+}, (t) => ({
+  idxCompetitorCaptured: index("idx_competitor_captured").on(t.placeId, t.capturedAt),
+  idxCapturedAt: index("idx_captured_at").on(t.capturedAt),
+}));
 
 /**
  * Webhook Deliveries — retry queue for failed external API calls

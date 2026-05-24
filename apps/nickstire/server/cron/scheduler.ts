@@ -1043,11 +1043,18 @@ export function startTieredScheduler(): void {
       {
         name: "competitor-monitor",
         requiresEnv: "GOOGLE_PLACES_API_KEY",
-        enabled: false,
+        // wave-181.x · Tier S · enabled now that competitor_snapshots
+        // table persists baselines across pod restarts. Without
+        // persistence the in-memory diff reset on every restart and
+        // change detection never fired (which is why this was off).
+        enabled: true,
         handler: async () => {
-          const { fetchCompetitorSnapshot } = await import("../services/competitorMonitor");
-          const data = await fetchCompetitorSnapshot();
-          return { recordsProcessed: data.length, details: `${data.length} competitors` };
+          const { runCompetitorMonitorCycle } = await import("../services/competitorMonitor");
+          const result = await runCompetitorMonitorCycle();
+          return {
+            recordsProcessed: result.fetched,
+            details: `${result.fetched} competitors · ${result.changes} changes${result.alerted ? " · alerted" : ""}`,
+          };
         },
       },
       // ─── NEW DAILY JOBS ────────────────────────────────

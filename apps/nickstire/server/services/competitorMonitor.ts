@@ -130,6 +130,81 @@ async function fetchPlaceDetails(
   }
 }
 
+/**
+ * Persist a snapshot batch to competitor_snapshots so change detection
+ * survives pod restarts (wave-181.x · Tier S). Fail-open · DB unavailable
+ * just means we lose this one snapshot · won't crash the cron.
+ */
+async function persistSnapshots(snapshots: CompetitorData[]): Promise<void> {
+  if (snapshots.length === 0) return;
+  try {
+    const { getDb } = await import("../db");
+    const { competitorSnapshots } = await import("../../drizzle/schema");
+    const d = await getDb();
+    if (!d) return;
+    await d.insert(competitorSnapshots).values(
+      snapshots.map((s) => ({
+        competitorName: s.name,
+        placeId: s.placeId,
+        rating: String(s.rating ?? 0),
+        reviewCount: s.reviewCount,
+        source: "google_places",
+        capturedAt: s.fetchedAt,
+      })),
+    );
+  } catch (err) {
+    log.warn("persistSnapshots failed (non-fatal)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
+/**
+ * Pull the most-recent snapshot per competitor from DB (older than now
+ * by at least 1 hour) so the cron has a real baseline to compare
+ * against. Returns empty array on DB error or first-ever run.
+ */
+async function loadPreviousSnapshots(): Promise<CompetitorData[]> {
+  try {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return [];
+    // Pull the most-recent row per place_id older than 1h ago. Indexed
+    // (place_id, captured_at DESC) so this is O(N_competitors), not a
+    // full-table scan.
+    const rows = await d.execute(sql`
+      SELECT cs.competitor_name, cs.place_id, cs.rating, cs.review_count, cs.captured_at
+      FROM competitor_snapshots cs
+      INNER JOIN (
+        SELECT place_id, MAX(captured_at) AS max_at
+        FROM competitor_snapshots
+        WHERE captured_at < DATE_SUB(NOW(), INTERVAL 1 HOUR)
+        GROUP BY place_id
+      ) latest ON cs.place_id = latest.place_id AND cs.captured_at = latest.max_at
+    `);
+    const dataRows = (Array.isArray(rows) && Array.isArray(rows[0]) ? rows[0] : rows) as Array<{
+      competitor_name: string;
+      place_id: string;
+      rating: string | number;
+      review_count: number;
+      captured_at: Date | string;
+    }>;
+    return dataRows.map((r) => ({
+      name: r.competitor_name,
+      placeId: r.place_id,
+      rating: typeof r.rating === "string" ? parseFloat(r.rating) : r.rating,
+      reviewCount: r.review_count,
+      fetchedAt: new Date(r.captured_at),
+    }));
+  } catch (err) {
+    log.warn("loadPreviousSnapshots failed (non-fatal)", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+}
+
 /** Fetch all competitor data (call from cron) */
 export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
   if (!API_KEY) {
@@ -183,6 +258,36 @@ export async function fetchCompetitorSnapshot(): Promise<CompetitorData[]> {
   });
 
   return results;
+}
+
+/**
+ * Full cycle · wave-181.x · Tier S. Run by the cron tier-4 daily job.
+ *   1 · load last persisted snapshot per competitor from DB
+ *   2 · fetch fresh data from Google Places
+ *   3 · persist the new batch
+ *   4 · diff vs the persisted baseline · alert on meaningful drift
+ *
+ * Returns { fetched, changes } for the cron caller to log.
+ *
+ * On a first-ever run · loadPreviousSnapshots returns [] · detectChanges
+ * yields 0 changes · normal · the next run has a baseline.
+ *
+ * Fail-open at every step · the cron MUST NOT crash if Google rate-
+ * limits, DB hiccups, or one competitor goes off-grid.
+ */
+export async function runCompetitorMonitorCycle(): Promise<{
+  fetched: number;
+  changes: number;
+  alerted: boolean;
+}> {
+  const previous = await loadPreviousSnapshots();
+  const current = await fetchCompetitorSnapshot();
+  if (current.length === 0) {
+    return { fetched: 0, changes: 0, alerted: false };
+  }
+  await persistSnapshots(current);
+  const changes = detectChanges(previous, current);
+  return { fetched: current.length, changes: changes.length, alerted: changes.length > 0 };
 }
 
 /** Compare two snapshots and detect significant changes */
