@@ -301,6 +301,12 @@ export const BRAIN_CATEGORIES = {
    *  Revoked = deletedAt set. Future: dedicated ApiToken table when
    *  scope/quotas need real columns. */
   API_TOKEN: "api_token",
+  /** 2026-05-24 · Wave T #2 · audit-trail for /settings autopilot
+   *  toggles. Each flag flip writes a row with the prior-state
+   *  duration · the optional 1-line "why?" note · the new state.
+   *  Drives the "why was this disabled?" drawer. 90d retention via
+   *  the existing soft-delete cron. */
+  AUTOPILOT_FLAG_CHANGE: "autopilot_flag_change",
 
   // ── WAVE-200 (2026-05-17) ──
   /** Wave-200 Phase 5 · daily operator brief composer output. Indexed
