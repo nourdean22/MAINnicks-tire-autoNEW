@@ -25,8 +25,16 @@ import { toast } from "sonner";
 import { notifyDataChanged } from "@/lib/events/data-change";
 import { Eye, Sparkles, ArrowRight, Loader2, ChevronDown, Target, RotateCcw, X as XIcon, Info } from "lucide-react";
 import { MemoryCalibrationRitual } from "./memory-calibration";
+import { logger as rootLogger } from "@/lib/logger";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
 
 import { trpc } from "@/lib/trpc/client";
+
+// 2026-05-24 · Wave R · structured logger so submit/draft-persist
+// failures show in /system/errors rather than disappearing into a
+// silent `catch {}`. Pre-fix the operator hit "save failed" toast
+// with zero breadcrumb · could not diagnose retries.
+const log = rootLogger.withSurface("journal/reflect-composer");
 type Template = "soap" | "driscoll" | "ssc" | "aar";
 
 interface TemplateDef {
@@ -243,8 +251,23 @@ export function ReflectComposer() {
       notifyDataChanged("any", { source: "ultron-reflect", detail: "reflection-saved" });
       // Auto-surface calibration when the model suggests memory-check
       if (result.nextStep === "memory-check") setShowCalibration(true);
-    } catch {
-      toast.error("save failed");
+    } catch (err) {
+      // 2026-05-24 · Wave R · Wave-M class fix · pre-fix the catch
+      // was bare with only `toast.error("save failed")` · zero log
+      // breadcrumb · operator retried blind. Now: structured log
+      // lands in /system/errors with the template + sanitized
+      // payload so /system/quality + the cost-anomaly cron can
+      // correlate failures against the affected feature.
+      log.error("reflect_submit_failed", {
+        template: templateKey,
+        filledCount,
+        error: sanitizeError(err),
+      });
+      toast.error(
+        err instanceof Error && err.message
+          ? `save failed · ${err.message.slice(0, 80)}`
+          : "save failed",
+      );
     } finally {
       setSubmitting(false);
     }

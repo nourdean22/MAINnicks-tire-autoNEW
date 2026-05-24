@@ -97,7 +97,29 @@ export function ThreadRail({
   }, [threads]);
 
   if (loading) return null;
-  if (error) return null;
+  // 2026-05-24 · Wave R · pre-fix this was `if (error) return null;` ·
+  // tRPC error made the ENTIRE thread rail vanish (operator with 12
+  // pinned threads would see zero rendered) · indistinguishable from
+  // "no threads exist." Now: surface a rose banner with the error
+  // message + a retry button. Loading is still silent because the
+  // server is responsive enough that a flash-skeleton would create
+  // more noise than it saves (matches the page-level pattern).
+  if (error) {
+    return (
+      <section className="mb-8">
+        <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-2 text-[10px] text-rose-300">
+          <span className="flex-1">⚠ couldn&apos;t load threads · {error.message.slice(0, 80)}</span>
+          <button
+            type="button"
+            onClick={() => void reload()}
+            className="rounded border border-rose-500/40 px-2 py-0.5 font-mono uppercase tracking-wider hover:bg-rose-500/15"
+          >
+            retry
+          </button>
+        </div>
+      </section>
+    );
+  }
   // No threads yet · still render a compact create-row so the operator
   // can manually start a thread without waiting for convergence.
   if (active.length === 0 && dormant.length === 0) {

@@ -38,7 +38,6 @@ import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { cn } from "@/lib/utils";
 import { onDataChanged } from "@/lib/events/data-change";
-import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Calendar, NotebookPen, Search, X as XIcon } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
@@ -335,6 +334,15 @@ function JournalPageInner() {
   }, [filteredEntries, sortKey]);
 
   // Group filtered entries by date for the day headers.
+  //
+  // 2026-05-24 · Wave R · pre-fix this grouped over the already-sorted
+  // list which meant `alpha-asc` / `alpha-desc` / `longest` /
+  // `shortest` modes broke the day-grouping invariant · two non-
+  // adjacent entries sharing a date created TWO day-group headers
+  // for the same date. Day headers are always date-ordered now ·
+  // entries within each day inherit whatever the sortKey dictated.
+  // For date-monotonic modes (newest/oldest, which is the default)
+  // this is identical to the pre-fix behavior.
   const byDate = useMemo(() => {
     const groups = new Map<string, FeedEntry[]>();
     for (const e of sortedEntries) {
@@ -343,8 +351,15 @@ function JournalPageInner() {
       list.push(e);
       groups.set(key, list);
     }
-    return Array.from(groups.entries());
-  }, [sortedEntries]);
+    // Day-header sort · newest-first if the user is on a "newest"-ish
+    // mode, otherwise oldest-first so the day axis matches the
+    // entries axis. The entry-level sort (sortedEntries) handles the
+    // within-day order.
+    const dateAsc = sortKey === "oldest";
+    return Array.from(groups.entries()).sort((a, b) =>
+      dateAsc ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0]),
+    );
+  }, [sortedEntries, sortKey]);
 
   // H.3.1 · suppress DeepModeNudge across the entire journal surface.
   // Journal entries ARE deep thinking — every brain-dump, decision-
@@ -435,7 +450,11 @@ function JournalPageInner() {
           {/* Weak-spot row · top 2 by daysSinceLastLearning so the
               operator sees the most-stale domains. Only renders when
               the cron flagged at least one weak spot · the array
-              upstream is already sorted desc by staleness. */}
+              upstream is already sorted desc by staleness.
+              2026-05-24 · Wave R · add "+N more" indicator when the
+              truncation hides additional weak spots · pre-fix a
+              brain with 7 weak spots looked identical to a brain
+              with 2 (false sense of health · Nielsen #1 violation). */}
           {meta.weakSpots.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)] mr-1">
@@ -450,6 +469,17 @@ function JournalPageInner() {
                   {spot.domain} · {spot.daysSinceLastLearning}d stale
                 </Badge>
               ))}
+              {meta.weakSpots.length > 2 && (
+                <span
+                  className="text-[10px] font-mono text-amber-400/60"
+                  title={meta.weakSpots
+                    .slice(2)
+                    .map((s) => `${s.domain} (${s.daysSinceLastLearning}d)`)
+                    .join(" · ")}
+                >
+                  +{meta.weakSpots.length - 2} more
+                </span>
+              )}
             </div>
           )}
 
@@ -747,6 +777,13 @@ function FilterChipRow<K extends string>({
             className={cn(
               "flex items-center gap-1 rounded-md font-bold uppercase tracking-wider border transition-all",
               chipSize === "md" ? "px-2.5 py-1 text-[10px]" : "px-2 py-1 text-[9px]",
+              // 2026-05-24 · Wave R · iOS HIG 44pt tap target via
+              // pointer-coarse media query · the chip's visual height
+              // stays the same on desktop (mouse) but expands to 44px
+              // on touch devices. Pre-fix the chips were ~20-24px tall ·
+              // operator on iPhone had to thumb a 4-line-tall area to
+              // reliably hit one. Tailwind v4 arbitrary variant syntax.
+              "[@media(pointer:coarse)]:min-h-[44px]",
               isActive
                 ? meta
                   ? `${meta.bg} ${meta.border} ${meta.color}`
@@ -759,8 +796,14 @@ function FilterChipRow<K extends string>({
             {Icon && <Icon size={9} aria-hidden />}
             {key}
             {showCount && (
-              <span className="text-[8px] font-mono opacity-70" aria-hidden>
-                <AnimatedCounter value={count!} />
+              // 2026-05-24 · Wave R · pre-fix every chip count animated
+              // via <AnimatedCounter> · with 14 chips visible the whole
+              // row ticked from 0 simultaneously on every page load /
+              // re-fetch · classic "gpt-built" gratuitous motion. Plain
+              // span is the editorial-minimalist choice · matches the
+              // chip-count rendering on /settings + /tasks.
+              <span className="text-[8px] font-mono opacity-70 tabular-nums" aria-hidden>
+                {count}
               </span>
             )}
           </button>
