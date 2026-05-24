@@ -39,6 +39,7 @@ import {
 import { CHART_COLORS, CHART_THEME, LoadingState, SectionInsightStrip, TabBar, useUrlFilter, ClickableRow, RowAction } from "./shared";
 import { SkeletonKpiGrid, SkeletonChart } from "@/components/admin/AdminSkeletons";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 
 function formatCents(cents: number): string {
   return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -946,14 +947,15 @@ function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, se
                             hoverClass="hover:text-emerald-400 hover:bg-emerald-500/10"
                             className="p-1"
                           />
-                          <RowAction
-                            icon={<MessageSquare className="w-3.5 h-3.5" />}
-                            href={`sms:${phoneStr}?body=${encodeURIComponent(`Hi ${w.name.split(" ")[0]}, it's Nick's Tire — checking in. Anything we can help with?`)}`}
-                            title="Send SMS"
+                          <MessageCustomerLink
+                            phone={phoneStr}
+                            body={`Hi ${w.name.split(" ")[0]}, it's Nick's Tire — checking in. Anything we can help with?`}
+                            className="p-1 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all inline-flex items-center"
+                            title="Open in-admin SMS chat"
                             ariaLabel={`Send SMS to ${w.name}`}
-                            hoverClass="hover:text-blue-400 hover:bg-blue-500/10"
-                            className="p-1"
-                          />
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" />
+                          </MessageCustomerLink>
                         </>
                       )}
                     </ClickableRow>
@@ -1253,13 +1255,15 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
               </div>
               <div className="col-span-2 flex items-center gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
                 {(inv.paymentStatus === "pending" || inv.paymentStatus === "partial") && inv.customerPhone && (
-                  <a
-                    href={`sms:${inv.customerPhone}?body=Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto. Your invoice of ${formatCents(total)} is still outstanding. Reply or call us to settle. Thanks!`}
-                    className="p-1 text-foreground/20 hover:text-blue-400 transition-colors"
-                    title="SMS follow-up"
+                  <MessageCustomerLink
+                    phone={inv.customerPhone}
+                    body={`Hi ${inv.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto. Your invoice of ${formatCents(total)} is still outstanding. Reply or call us to settle. Thanks!`}
+                    className="p-1 text-foreground/20 hover:text-blue-400 transition-colors inline-flex items-center"
+                    title="SMS follow-up via in-admin chat"
+                    ariaLabel="Send invoice follow-up SMS"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                  </a>
+                  </MessageCustomerLink>
                 )}
                 <button
                   onClick={async () => {
@@ -1372,12 +1376,13 @@ function InvoiceListView({ onCreateNew }: { onCreateNew: () => void }) {
                       >
                         <Phone className="w-3 h-3" /> CALL
                       </a>
-                      <a
-                        href={`sms:${inv.customerPhone}`}
+                      <MessageCustomerLink
+                        phone={inv.customerPhone}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-blue-400 hover:border-blue-400/30 transition-colors"
+                        title="Open in-admin SMS chat"
                       >
                         <MessageSquare className="w-3 h-3" /> SMS
-                      </a>
+                      </MessageCustomerLink>
                     </>
                   )}
                   <a

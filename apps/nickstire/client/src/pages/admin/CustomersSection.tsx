@@ -8,6 +8,7 @@ import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 
 // Inferred from tRPC AppRouter — admin audit §3 follow-up.
 type ListedCustomer = NonNullable<RouterOutputs["customers"]["list"]>["customers"][number];
@@ -644,13 +645,13 @@ function Customer360Panel({ customer, onSmsClick }: {
                   >
                     <Phone className="w-3 h-3" /> CALL
                   </a>
-                  <a
-                    href={`sms:${customer.phone}`}
+                  <MessageCustomerLink
+                    phone={customer.phone}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] tracking-wider bg-card border border-border/30 text-foreground/60 hover:text-blue-400 hover:border-blue-400/30 transition-colors"
-                    onClick={e => e.stopPropagation()}
+                    onClick={() => { /* parent row click is suppressed via Link's own handler chain */ }}
                   >
                     <MessageSquare className="w-3 h-3" /> SMS
-                  </a>
+                  </MessageCustomerLink>
                 </>
               )}
               {customer.email && (

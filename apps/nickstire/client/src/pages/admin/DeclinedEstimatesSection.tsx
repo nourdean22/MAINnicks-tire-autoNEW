@@ -10,6 +10,7 @@ import { toast } from "sonner";
 type DeclinedEstimate = NonNullable<RouterOutputs["invoices"]["declined"]>["estimates"][number];
 import { StatCard, PageHeader, SectionInsightStrip, useUrlFilter, FilterChips, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import {
   Loader2, AlertTriangle, DollarSign, Phone, MessageSquare,
   TrendingUp, Clock, Filter, Flame, CheckSquare, Square, Send, Zap, X,
@@ -530,14 +531,15 @@ export default function DeclinedEstimatesSection() {
                     </a>
                   )}
                   {est.customerPhone && (
-                    <a
-                      href={`sms:${est.customerPhone}?body=Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire %26 Auto following up on your recent estimate. Car problems usually get worse over time - ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
-                      aria-label="Send text message"
+                    <MessageCustomerLink
+                      phone={est.customerPhone}
+                      body={`Hi ${est.customerName?.split(" ")[0] || ""}, this is Nick's Tire & Auto following up on your recent estimate. Car problems usually get worse over time — ready to take care of it? Call us at (216) 862-0005 or just stop by.`}
+                      ariaLabel="Send text message via in-admin SMS chat"
                       className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 text-blue-400 text-[11px] font-bold tracking-wide border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
                     >
                       <MessageSquare className="w-3 h-3" />
                       SMS
-                    </a>
+                    </MessageCustomerLink>
                   )}
                   {!isFollowUp && (
                     <button

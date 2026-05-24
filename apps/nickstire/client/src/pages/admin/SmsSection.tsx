@@ -158,12 +158,17 @@ function GatewayPill() {
 function ThreadView({
   conversation,
   onBack,
+  initialBody,
 }: {
   conversation: ConversationRow;
   onBack: () => void;
+  /** wave-181.x · prefill composer when deep-linked from another admin
+   *  page (e.g. CustomersSection "Text" button). One-shot — only seeds
+   *  the textarea once per mount of this conversation. */
+  initialBody?: string;
 }) {
   const utils = trpc.useUtils();
-  const [reply, setReply] = useState("");
+  const [reply, setReply] = useState(initialBody ?? "");
   const messagesQ = trpc.smsConversations.messages.useQuery(
     { conversationId: conversation.id, limit: 200 },
     { refetchInterval: 15_000 },
@@ -364,14 +369,20 @@ function ThreadView({
 function NewConversationDialog({
   onClose,
   onCreated,
+  initialPhone,
+  initialBody,
 }: {
   onClose: () => void;
   onCreated: (conversationId: number) => void;
+  /** Prefill the To field · wave-181.x deep-link from other admin pages */
+  initialPhone?: string;
+  /** Prefill the Message field · wave-181.x deep-link from other admin pages */
+  initialBody?: string;
 }) {
   const utils = trpc.useUtils();
-  const [phone, setPhone] = useState("");
+  const [phone, setPhone] = useState(initialPhone ?? "");
   const [name, setName] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialBody ?? "");
   const send = trpc.smsConversations.send.useMutation({
     onSuccess: (res) => {
       if (res.success && res.conversationId) {
@@ -624,12 +635,51 @@ export default function SmsSection() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [showNew, setShowNew] = useState(false);
   const [searchQ, setSearchQ] = useState("");
+  // wave-181.x · deep-link from other admin pages via URL params
+  // (?smsPhone=2168620005&smsBody=Hi). On mount we read once, find a
+  // matching conversation OR open New-message prefilled, then clear
+  // the URL params so back-button doesn't re-trigger the dialog.
+  const [deepLink, setDeepLink] = useState<{ phone: string; body: string } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const sp = new URLSearchParams(window.location.search);
+    const phone = (sp.get("smsPhone") || "").replace(/\D/g, "").slice(-10);
+    const body = sp.get("smsBody") || "";
+    return phone ? { phone, body } : null;
+  });
+  const [pendingThreadBody, setPendingThreadBody] = useState<string | null>(null);
   const list = trpc.smsConversations.list.useQuery({ limit: 100 });
 
   const selected = useMemo(
     () => list.data?.find((c) => c.id === selectedId) ?? null,
     [list.data, selectedId],
   );
+
+  // Deep-link resolver · runs once when the list arrives. Finds a
+  // matching conversation by last-10-digits phone OR opens the new-
+  // message dialog with the phone/body prefilled. Either way: clears
+  // the URL params so reloading the chosen state is stable.
+  useEffect(() => {
+    if (!deepLink || !list.data) return;
+    const match = list.data.find((c) => {
+      const cPhone = (c.customerPhone || "").replace(/\D/g, "").slice(-10);
+      return cPhone === deepLink.phone;
+    });
+    if (match) {
+      setSelectedId(match.id);
+      if (deepLink.body) setPendingThreadBody(deepLink.body);
+    } else {
+      setShowNew(true);
+    }
+    // Strip the params so a refresh doesn't re-trigger
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("smsPhone");
+      url.searchParams.delete("smsBody");
+      window.history.replaceState({}, "", url.toString());
+    }
+    setDeepLink(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.data, deepLink]);
 
   return (
     <div className="space-y-4">
@@ -658,7 +708,12 @@ export default function SmsSection() {
         {/* Thread — show on mobile only when a conversation is selected */}
         <div className={`${selected ? "flex" : "hidden lg:flex"} flex-col min-h-0`}>
           {selected ? (
-            <ThreadView conversation={selected} onBack={() => setSelectedId(null)} />
+            <ThreadView
+              conversation={selected}
+              onBack={() => setSelectedId(null)}
+              initialBody={pendingThreadBody ?? undefined}
+              key={selected.id /* re-mount per conversation so initialBody only seeds once */}
+            />
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center bg-card border border-border/30 rounded-lg text-center px-6">
               <MessageSquare className="w-10 h-10 text-foreground/15 mb-4" />
@@ -685,6 +740,8 @@ export default function SmsSection() {
             setShowNew(false);
             setSelectedId(id);
           }}
+          initialPhone={deepLink?.phone}
+          initialBody={deepLink?.body}
         />
       )}
     </div>
