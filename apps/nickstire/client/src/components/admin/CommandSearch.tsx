@@ -4,7 +4,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
-import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw } from "lucide-react";
+import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
 import { toast } from "sonner";
@@ -430,6 +430,58 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         // Writing the canonical tab=campaigns avoids Admin.tsx's effect
         // overwriting the alias `tab=outreach` immediately after mount.
         onNavigate("campaigns");
+      },
+    },
+    // wave-181.x Leads Hub Phase 4 · 3 jumps for the most-frequent
+    // Leads queries. Each lands the operator one click from a
+    // common-action surface. Leads filter taxonomy keys are validated
+    // in LeadsSection's useUrlFilter (status, source, view).
+    {
+      id: "action-leads-kanban",
+      label: "Leads · Kanban board",
+      keywords: ["leads", "kanban", "board", "pipeline", "drag", "drop"],
+      icon: <LayoutGrid className="w-4 h-4 text-blue-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=leads&view=kanban");
+        }
+        onNavigate("leads");
+      },
+    },
+    {
+      id: "action-leads-urgent",
+      label: "Leads · Uncontacted backlog (urgent)",
+      keywords: ["leads", "urgent", "uncontacted", "sla", "new", "backlog", "ghost"],
+      icon: <AlertTriangle className="w-4 h-4 text-red-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          // ?status=new lands on the freshest uncontacted cohort; the
+          // urgent-banner shows on top of the list/Kanban for the
+          // operator to triage in order.
+          window.history.replaceState({}, "", "/admin?tab=leads&status=new");
+        }
+        onNavigate("leads");
+        // After section mount, scroll the urgent banner into view if it
+        // exists. Banner has id="leads-urgent-banner".
+        setTimeout(() => {
+          const el = document.getElementById("leads-urgent-banner");
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 250);
+      },
+    },
+    {
+      id: "action-leads-vapi",
+      label: "Leads · Nick AI (VAPI) source filter",
+      keywords: ["leads", "vapi", "nick", "ai", "voice", "source", "call"],
+      icon: <PhoneCall className="w-4 h-4 text-amber-500" />,
+      group: "Action",
+      run: () => {
+        if (typeof window !== "undefined") {
+          window.history.replaceState({}, "", "/admin?tab=leads&source=vapi");
+        }
+        onNavigate("leads");
       },
     },
   ], [refreshAlgMutation, generateGbpMutation, onNavigate]);
