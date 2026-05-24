@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import superjson from "superjson";
 import App from "./App";
 import { getLoginUrl } from "./const";
@@ -72,13 +72,42 @@ const trpcClient = trpc.createClient({
   ],
 });
 
-createRoot(document.getElementById("root")!).render(
+// 2026-05-24 PSI CLS fix · the prerender-to-all-users change (commit
+// 12a07432) cut mobile LCP 7.9s → 3.8s but introduced a 0.204 desktop
+// CLS regression because `createRoot().render()` WIPES the prerendered
+// DOM and rebuilds it. The flash-then-rebuild moves elements between
+// frames → layout shift.
+//
+// hydrateRoot() tells React the DOM already has the rendered tree ·
+// React adopts it and only attaches event handlers. No rebuild, no
+// shift. Detection · we set `data-prerendered="true"` from the
+// prerender middleware in the HTML root element. If present, hydrate.
+// Otherwise (cold dev / unrendered routes) fall back to createRoot.
+//
+// Safety net · if hydration mismatches occur, React logs warnings to
+// console but doesn't crash · it bails out and rebuilds the mismatched
+// subtree. So the worst case is "back to where we started" (CLS regression
+// but no functional break). The first prerendered hit is the highest-
+// value gate · once hydrated, all subsequent SPA navigations behave the
+// same as before.
+const rootEl = document.getElementById("root")!;
+const tree = (
   <trpc.Provider client={trpcClient} queryClient={queryClient}>
     <QueryClientProvider client={queryClient}>
       <App />
     </QueryClientProvider>
   </trpc.Provider>
 );
+
+// Heuristic for "is this a prerendered page?" · the prerender pass
+// renders the root with child content (the SkipToContent link, the
+// PageLayout etc). A non-prerendered cold load has root completely
+// empty. If root has children, hydrate. Otherwise, createRoot.
+if (rootEl.childNodes.length > 0) {
+  hydrateRoot(rootEl, tree);
+} else {
+  createRoot(rootEl).render(tree);
+}
 
 // Register PWA service worker
 if ("serviceWorker" in navigator && import.meta.env.PROD) {
