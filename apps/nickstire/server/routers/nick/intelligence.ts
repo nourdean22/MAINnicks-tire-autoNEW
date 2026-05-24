@@ -523,6 +523,9 @@ export async function handleRunMigrations() {
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_reasoning TEXT DEFAULT NULL`,
       `ALTER TABLE vapi_call_logs ADD COLUMN IF NOT EXISTS eval_at TIMESTAMP NULL DEFAULT NULL`,
       `CREATE INDEX IF NOT EXISTS idx_vapi_eval_at_score ON vapi_call_logs (eval_at, eval_score)`,
+      // 2026-05-23 · drizzle/0058_competitor_snapshots.sql — Tier S competitor intel
+      // Persistent baselines for the in-memory competitor monitor · survives pod restart.
+      `CREATE TABLE IF NOT EXISTS competitor_snapshots (id BIGINT AUTO_INCREMENT PRIMARY KEY, competitor_name VARCHAR(160) NOT NULL, place_id VARCHAR(128) NOT NULL, rating DECIMAL(3,2) NOT NULL DEFAULT 0, review_count INT NOT NULL DEFAULT 0, source VARCHAR(32) NOT NULL DEFAULT 'google_places', captured_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, raw_payload JSON DEFAULT NULL, INDEX idx_competitor_captured (place_id, captured_at), INDEX idx_captured_at (captured_at))`,
     ];
 
     let applied = 0;
