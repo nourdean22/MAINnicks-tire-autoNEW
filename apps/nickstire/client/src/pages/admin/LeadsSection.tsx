@@ -7,13 +7,17 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
-  StatCard, UrgencyBadge, ActivityIcon, StatusDot, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
-  BOOKING_STATUS_CONFIG, LEAD_STATUS_CONFIG, TIME_LABELS, CHART_COLORS,
+  StatCard, UrgencyBadge, PageHeader, LoadingState, EmptyState, SectionInsightStrip,
+  LEAD_STATUS_CONFIG,
   useUrlFilter, FilterChips,
-  type BookingStatus, type LeadStatus,
+  type LeadStatus,
 } from "./shared";
+// wave-181.x Leads Phase 1 cleanup · trimmed 8 unused imports
+// (ActivityIcon · StatusDot · BOOKING_STATUS_CONFIG · TIME_LABELS ·
+// CHART_COLORS · ChevronRight · ExternalLink · FileSpreadsheet).
+// Verified via grep that each had zero body references.
 import {
-  AlertTriangle, Car, CheckCircle2, ChevronRight, ExternalLink, FileSpreadsheet, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
+  AlertTriangle, Car, CheckCircle2, Filter, Hash, Loader2, Mail, MessageSquare, Phone, PhoneCall, RefreshCw, Search, Trash2, UserCheck, Users, Wrench, XCircle, Zap, LayoutGrid, List, Calculator
 } from "lucide-react";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import { openWalkInQuote } from "@/components/admin/WalkInQuoteDrawer";
@@ -209,8 +213,18 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
     };
     if (leadsData) {
       leadsData.forEach(lead => {
-        if (grouped[lead.status as LeadStatus]) {
-          grouped[lead.status as LeadStatus].push(lead);
+        // wave-181.x Leads Phase 1 bug-fix · code-review agent caught
+        // this as H1. KANBAN_COLUMNS has 5 entries (new/contacted/
+        // booked/completed/lost) — no "closed". So before this fix, a
+        // lead with status="closed" was bucketed into the `closed: []`
+        // array but never rendered, silently disappearing from Kanban.
+        // Collapse closed → completed at write time so closed leads
+        // appear in the Completed column where the operator can still
+        // see + reopen them. (Matches the list-view treatment which
+        // does include "closed" in its filter set.)
+        const bucket: LeadStatus = lead.status === "closed" ? "completed" : (lead.status as LeadStatus);
+        if (grouped[bucket]) {
+          grouped[bucket].push(lead);
         }
       });
       // Sort each column by newest first
@@ -295,11 +309,18 @@ function MarkContactedButton({ leadId, variant }: { leadId: number; variant: "ba
   }, [expanded]);
 
   const submit = () => {
+    // wave-181.x Leads Phase 1 bug-fix · code-review agent caught the
+    // placeholder "Called, no notes." pollutes the data Nick AI's
+    // pattern-detector reads. Same anti-pattern as the "estimate-as-
+    // invoice" leak (wave-95). Send undefined when the operator typed
+    // nothing — the JSX (line ~140) already guards on falsy with the
+    // contactNotes block hidden, so the visual is correct too.
+    const trimmed = notes.trim();
     mutation.mutate({
       id: leadId,
       status: "contacted",
       contacted: 1,
-      contactNotes: notes.trim() || "Called, no notes.",
+      contactNotes: trimmed.length > 0 ? trimmed : undefined,
     });
   };
 
@@ -478,13 +499,35 @@ export default function LeadsSection() {
     return [...sourceSet].sort();
   }, [leadsData]);
 
-  // Kanban drag-drop status handler. The lost-reason capture that used to
-  // live here relied on window.prompt(), which is suppressed in iOS PWA
-  // standalone mode (where the admin is operated) — so a drag to the Lost
-  // column silently never persisted. The reason is now captured by
-  // LostReasonButton in the list view; a kanban drag just sets the status,
-  // consistent with kanban already skipping the contacted-notes step.
-  const handleStatusChange = (id: number, status: LeadStatus) => {
+  // Kanban drag-drop status handler. The lost-reason capture that used
+  // to live here relied on window.prompt() (suppressed in iOS PWA
+  // standalone mode); the reason is now captured by LostReasonButton
+  // in the list view.
+  //
+  // wave-181.x Leads Phase 1 · code-review agent caught H2: terminal
+  // status transitions (lost / completed / closed) were firing with no
+  // confirm gate. A misclick on the small Kanban dropdown silently
+  // mutated state — lead drops out of working pipeline + may trigger
+  // downstream D7/D14 retention SMS via cron. Forward-motion
+  // transitions (new → contacted → booked) stay un-gated because
+  // they're reversible and high-frequency.
+  const handleStatusChange = async (id: number, status: LeadStatus) => {
+    const isTerminal = status === "lost" || status === "completed" || status === "closed";
+    if (isTerminal) {
+      const lead = leadsData?.find((l: LeadItem) => l.id === id);
+      const leadName = lead?.name ?? "this lead";
+      const messageExtra = status === "lost"
+        ? " The list-view's \"Mark Lost\" button is a better path — it captures the lost-reason for the analytics pipeline."
+        : "";
+      const ok = await confirmDialog({
+        title: `Move ${leadName} to ${status.toUpperCase()}?`,
+        message: `Removes the lead from the active pipeline.${messageExtra}`,
+        confirmLabel: `Move to ${status}`,
+        cancelLabel: "Cancel",
+        tone: status === "lost" ? "danger" : "default",
+      });
+      if (!ok) return;
+    }
     updateLead.mutate({ id, status });
   };
 
@@ -596,9 +639,15 @@ export default function LeadsSection() {
           setCategory("all");
         }}
       />
-      {/* CRITICAL ALERT — Uncontacted leads with ticking timer */}
+      {/* CRITICAL ALERT — Uncontacted leads with ticking timer.
+       *
+       * wave-181.x Leads Phase 1 · was `animate-pulse-slow` (no Tailwind
+       * def · silently no-op) · replaced with no animation. The red
+       * border + red tint is already operator-attention-grabbing · a
+       * constant pulse on top would be AI-slop visual noise that
+       * desensitizes the operator over time. */}
       {uncontactedLeads.length > 0 && (
-        <div id="leads-urgent-banner" className="bg-red-500/5 border border-red-500/20 rounded-lg p-4 animate-pulse-slow">
+        <div id="leads-urgent-banner" className="bg-red-500/5 border border-red-500/20 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="w-4 h-4 text-red-400" />
             <span className="text-[13px] font-bold text-red-400 tracking-wide">
@@ -911,7 +960,23 @@ export default function LeadsSection() {
                       )}
                       {(lead.status === "booked" || lead.status === "completed" || lead.status === "closed" || lead.status === "lost") && (
                         <button
-                          onClick={() => updateLead.mutate({ id: lead.id, status: "new", contacted: 0 })}
+                          onClick={async () => {
+                            // wave-181.x Leads Phase 1 · audit agent
+                            // flagged this as a one-tap operator footgun
+                            // — reopens a terminal lead back to "new"
+                            // AND clears the contacted flag, sending it
+                            // back to the uncontacted-lead banner +
+                            // resetting the audit trail. Gate it.
+                            const ok = await confirmDialog({
+                              title: `Reopen ${lead.name}'s lead?`,
+                              message: `Returns the lead to "new" status and clears the contacted flag. The lead will reappear in the urgent-uncontacted banner.`,
+                              confirmLabel: "Reopen",
+                              cancelLabel: "Cancel",
+                              tone: "default",
+                            });
+                            if (!ok) return;
+                            updateLead.mutate({ id: lead.id, status: "new", contacted: 0 });
+                          }}
                           disabled={updateLead.isPending}
                           className="flex items-center gap-2 border border-border/30 text-foreground/50 px-4 py-2.5 font-bold text-xs tracking-wide hover:text-foreground disabled:opacity-50"
                         >
