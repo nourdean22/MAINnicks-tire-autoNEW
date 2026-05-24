@@ -21,6 +21,8 @@
  */
 
 import { use, useCallback, useEffect, useState } from "react";
+import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
+import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 
 interface CustomerPreferences {
   customerId: string;
@@ -113,13 +115,13 @@ export default function Customer360Page({ params }: PageProps) {
     void fetchData();
   }, [fetchData]);
 
-  if (loading) return <SkeletonView />;
+  if (loading) return <MasterySkeleton cards={3} maxWidth="max-w-3xl" />;
   if (error)
     return (
-      <ErrorView
+      <MasteryErrorView
+        label="Customer 360"
         error={error}
         onRetry={() => void fetchData()}
-        customerId={customerId}
       />
     );
   if (!data) return null;
@@ -330,53 +332,8 @@ function TimelineList({
   );
 }
 
-function SkeletonView() {
-  return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="h-3 w-24 bg-white/5 rounded mb-3" />
-        <div className="h-7 w-64 bg-white/10 rounded mb-2" />
-        <div className="h-4 w-48 bg-white/5 rounded" />
-        <div className="mt-12 grid grid-cols-3 gap-4">
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i}>
-              <div className="h-2 w-16 bg-white/5 rounded mb-2" />
-              <div className="h-5 w-24 bg-white/10 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function ErrorView({
-  error,
-  onRetry,
-  customerId,
-}: {
-  error: string;
-  onRetry: () => void;
-  customerId: string;
-}) {
-  return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white flex items-center justify-center px-6">
-      <div className="max-w-md text-center">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-3">
-          Customer 360
-        </p>
-        <p className="text-sm text-red-300">{error}</p>
-        <p className="text-[10px] uppercase tracking-[0.22em] text-white/30 mt-2">
-          customer · {customerId}
-        </p>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-6 inline-flex items-center px-4 py-2 rounded border border-white/15 text-sm hover:bg-white/[0.04]"
-        >
-          retry
-        </button>
-      </div>
-    </main>
-  );
-}
+// 2026-05-24 · Wave X.e · `SkeletonView` + `ErrorView` were inline
+// re-implementations of `MasterySkeleton` + `MasteryErrorView` that
+// drifted from canon: hand-rolled placeholders without shimmer +
+// non-canonical eyebrow tracking (`0.18em` and `0.22em` vs `0.14em`).
+// Both deleted · the imports above bring in the shared primitives.
