@@ -26,6 +26,9 @@ import {
   ArrowLeft, Send as SendIcon, Plus, MessageSquare, Search, X, Sparkles,
 } from "lucide-react";
 import { PageHeader } from "./shared";
+// wave-181.x Outreach Hub Phase 2 · GatewayPill hoisted to shared
+// component so all Outreach tabs show gateway state, not just Messages.
+import GatewayPill from "@/components/admin/GatewayPill";
 import { SMS_TEMPLATES, renderSmsTemplate, type SmsTemplate } from "@shared/sms-templates";
 
 // wave-181.75 · operator preset SMS templates rendered as chips above
@@ -136,23 +139,8 @@ function initialsFor(name: string | null, phone: string): string {
   return formatPhone(phone).replace(/\D/g, "").slice(-2);
 }
 
-// ─── Compact gateway status pill ────────────────────────
-function GatewayPill() {
-  const status = trpc.sms.status.useQuery();
-  const health = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
-  const shopOnline = health.data?.online ?? false;
-  const shopConfigured = status.data?.shopGateway?.configured ?? false;
-  const tone = !shopConfigured ? "bg-red-400" : shopOnline ? "bg-emerald-400" : "bg-amber-400";
-  const label = !shopConfigured ? "Gateway: not configured" : shopOnline ? "Live" : "Gateway offline";
-  return (
-    <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-foreground/[0.04] border border-border/30 rounded-full text-[11px] text-foreground/60">
-      <span className={`w-1.5 h-1.5 rounded-full ${tone}`} />
-      <span>{label}</span>
-      <span className="text-foreground/30">·</span>
-      <span className="font-mono">{BUSINESS.phone.dashed}</span>
-    </div>
-  );
-}
+// GatewayPill now lives in client/src/components/admin/GatewayPill.tsx
+// (hoisted in Outreach Hub Phase 2 so every tab in the hub can show it).
 
 // ─── Day-grouped messages ───────────────────────────────
 function ThreadView({
