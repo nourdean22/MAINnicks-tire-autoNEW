@@ -888,6 +888,28 @@ export function startTieredScheduler(): void {
           return processClosedLoopMeasure();
         },
       },
+      // wave-181.x · Tier A · SEO Forensic · daily SERP rank-shift
+      // detection on top-30 GSC queries. Catches drops from rank 4 →
+      // rank 18 the DAY AFTER they happen instead of weeks later
+      // when revenue cliffs. Telegram alert on warning/alert shifts.
+      {
+        name: "seo-forensic",
+        handler: async () => {
+          const { processSeoForensic } = await import("./jobs/seoForensic");
+          return processSeoForensic();
+        },
+      },
+      // wave-181.x · Tier A · Monte-Carlo revenue forecast · weekly
+      // (Mondays only). 10,000 trials over 13-week sample window.
+      // Telegram digest with P10/P50/P90 band + top variance driver.
+      // Self-gates on day-of-week · no-op on non-Mondays.
+      {
+        name: "monte-carlo-forecast",
+        handler: async () => {
+          const { processMonteCarloForecast } = await import("./jobs/monteCarloForecast");
+          return processMonteCarloForecast();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when
