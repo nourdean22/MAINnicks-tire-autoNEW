@@ -3,6 +3,7 @@
  */
 import { trpc } from "@/lib/trpc";
 import { SideDrawer } from "./SideDrawer";
+import MessageCustomerLink from "./MessageCustomerLink";
 import {
   Phone, Mail, MapPin, Calendar, Hash, MessageSquare, Loader2,
   CalendarClock, Users, PhoneCall, Clock, CheckCircle2, XCircle,
@@ -157,12 +158,12 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
                 </a>
               )}
               {customer.phone && (
-                <a
-                  href={`sms:${customer.phone}`}
+                <MessageCustomerLink
+                  phone={customer.phone}
                   className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 text-emerald-400 text-xs font-medium hover:bg-emerald-500/20 transition-colors"
                 >
                   <MessageSquare className="w-3.5 h-3.5" /> Text
-                </a>
+                </MessageCustomerLink>
               )}
               {onNavigateToSection && (
                 <button

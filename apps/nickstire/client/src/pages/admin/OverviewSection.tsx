@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { openDrilldown } from "@/components/admin/DrilldownDrawer";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import AdminAlertBar, { type AdminAlert } from "@/components/admin/AdminAlertBar";
 import { SkeletonOverview } from "@/components/admin/AdminSkeletons";
 
@@ -123,14 +124,14 @@ function NextBestActions() {
                   </a>
                 )}
                 {action.phone && (
-                  <a
-                    href={`sms:${action.phone}`}
+                  <MessageCustomerLink
+                    phone={action.phone}
                     className="p-1.5 text-blue-400 hover:bg-blue-500/10 rounded transition-all"
-                    title="SMS"
-                    aria-label="Send text message"
+                    title="Open in-admin SMS chat"
+                    ariaLabel="Send text message via in-admin SMS chat"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />
-                  </a>
+                  </MessageCustomerLink>
                 )}
                 <Link
                   href={action.actionUrl}
@@ -727,16 +728,15 @@ export default function OverviewSection() {
                     </a>
                   )}
                   {item.phone && (
-                    <a
-                      href={`sms:${item.phone}?body=${encodeURIComponent(
-                        `Hi ${item.name.split(" ")[0]}, it's Nick's Tire. Following up on your ${item.type}.`
-                      )}`}
-                      onClick={(e) => e.stopPropagation()}
+                    <MessageCustomerLink
+                      phone={item.phone}
+                      body={`Hi ${item.name.split(" ")[0]}, it's Nick's Tire. Following up on your ${item.type}.`}
                       className="p-1.5 text-foreground/40 hover:text-blue-400 hover:bg-blue-500/10 rounded transition-all"
-                      title="Send SMS"
+                      title="Open in-admin SMS chat"
+                      ariaLabel={`Send SMS to ${item.name}`}
                     >
                       <MessageSquare className="w-3.5 h-3.5" />
-                    </a>
+                    </MessageCustomerLink>
                   )}
                   <button
                     type="button"

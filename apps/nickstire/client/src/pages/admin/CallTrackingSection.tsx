@@ -12,6 +12,7 @@ type CallEvent = RouterOutputs["callTracking"]["list"][number];
 type Callback = NonNullable<RouterOutputs["callback"]["list"]>[number];
 import { StatCard, CHART_COLORS, CHART_THEME, PageHeader, SectionInsightStrip, formatDateTime, LoadingState } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
+import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import {
   Phone, PhoneCall, MapPin, Loader2, Clock, AlertTriangle,
@@ -217,13 +218,14 @@ export default function CallTrackingSection() {
                     >
                       <Phone className="w-3 h-3" /> Call
                     </a>
-                    <a
-                      href={`sms:${cb.phone}?body=${encodeURIComponent(`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call — give us a ring back when you can: (216) 862-0005.`)}`}
+                    <MessageCustomerLink
+                      phone={cb.phone}
+                      body={`Hi ${(cb.name || "there").split(" ")[0]}, it's Nick's Tire. Returning your call — give us a ring back when you can: (216) 862-0005.`}
                       className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-blue-500/10 text-blue-400 text-[10px] font-medium hover:bg-blue-500/20 rounded transition-all"
-                      title="Send SMS"
+                      title="Open in-admin SMS chat"
                     >
                       <MessageSquare className="w-3 h-3" /> SMS
-                    </a>
+                    </MessageCustomerLink>
                     <button
                       type="button"
                       onClick={() => handleMarkCalled(cb.id, cb.name || "customer")}
