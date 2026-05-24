@@ -1,6 +1,84 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 MIDDAY (post Wave O + P + Q · /settings page UX sweep + Vercel runbook v2 · 4 Vercel projects deleted by operator · autonicks.com DNS still flagged for operator follow-up) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 AFTERNOON (post Wave R · /journal UX sweep · multi-agent audit pattern established as repeatable template) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 AFTERNOON · Wave R · /journal UX sweep · multi-agent audit · 1 ship
+>
+> Operator invoked `/infinite-gratitude` and `/clarity-gate` skills and
+> asked for the same UX sweep treatment on `/journal` as Wave P+Q got on
+> `/settings`. Discovered both skills had names that misled me:
+> `infinite-gratitude` is actually a multi-agent research orchestration
+> pattern (10 parallel agents) and `clarity-gate` is a RAG document
+> verification system (will another LLM mistake assumptions for facts?).
+> Adapted both correctly: dispatched 3 parallel review agents per
+> infinite-gratitude pattern · borrowed clarity-gate's principle for
+> the UI lens ("does any control imply state it can't deliver?").
+>
+> **Wave R · 6 surgical fixes synthesized from 22 audit findings** · `07639178`
+> Three review agents ran in parallel (code-reviewer · silent-failure-
+> hunter · ux-audit + frontend-design + mobile-design + clarity-gate
+> principle). Pareto-filtered ~22 findings down to 6 with the highest
+> operator-visible ROI:
+> - **(P0) `thread-suggestions.tsx` accept/dismiss silent failures** ·
+>   pre-fix both handlers had bare `catch {}` with the comment
+>   "today: silent re-fetch." Operator tapped a suggestion → server
+>   401/500 → UI looped → operator re-tapped forever. Now: log to
+>   /system/errors + inline rose-300 banner that auto-clears.
+> - **(P0) `thread-rail.tsx` whole-component vanish on error** ·
+>   pre-fix `if (error) return null;` made the entire thread rail
+>   disappear on any tRPC error · indistinguishable from "no threads
+>   exist." Now: rose banner + retry button + error.message.
+> - **(P0) `page.tsx` FilterChipRow · iOS HIG 44pt tap target** ·
+>   pre-fix chips were 20-24px tall · operator's thumb on iPhone
+>   couldn't reliably hit one. Added
+>   `[@media(pointer:coarse)]:min-h-[44px]` (Tailwind v4 arbitrary
+>   variant) · desktop unchanged · touch devices get HIG floor.
+> - **(P0) `page.tsx` FilterChipRow · AnimatedCounter slop** ·
+>   pre-fix every chip count rendered through `<AnimatedCounter>` ·
+>   14 chips visible meant the whole row ticked from 0
+>   simultaneously on every page load · gpt-built feel · semantically
+>   wrong (counts didn't change). Plain span with tabular-nums.
+> - **(P1) `page.tsx` byDate ordering on alpha sort** ·
+>   pre-fix `byDate` grouped over the already-sorted list ·
+>   `alpha-asc/desc/longest/shortest` modes produced TWO day-header
+>   sections for the same date when entries weren't date-monotonic.
+>   Now: day headers always sort by date · entries within inherit
+>   the sortKey.
+> - **(P1) `page.tsx` weak-spots `+N more` indicator** ·
+>   pre-fix `meta.weakSpots.slice(0, 2)` silently hid the rest · a
+>   brain with 7 weak spots looked identical to one with 2 (Nielsen
+>   #1 violation). Added `+N more` chip with hidden spots in the
+>   title attribute.
+> - **(P1) `reflect-composer.tsx` submit log** · Wave-M class fix ·
+>   pre-fix `catch{} toast.error("save failed")` with no log
+>   breadcrumb. Now: structured log via sanitizeError + template +
+>   filledCount in the payload so /system/quality can correlate.
+>
+> **Flagged · NOT fixed (deferred to Wave R.b if signal emerges)**
+> - Reflect composer template chooser hidden behind 9px "switch"
+>   link · 4 inline tabs would be the upgrade · bigger change ·
+>   stable as-is.
+> - localStorage 3x catch{} blocks in reflect-composer.tsx ·
+>   logging would catch QuotaExceeded in Safari private mode ·
+>   low frequency · noted.
+> - thread-radar.tsx error/empty collapse · same class as the
+>   rail fix · acceptable severity solo · could batch with a
+>   future radar-related wave.
+> - "extracting…" toast disclosure (clarity-gate violation) ·
+>   needs a poll-or-listen status pill · bigger UX change.
+>
+> **The repeatable playbook locked in:** skill-check → invoke
+> ux-audit + silent-failure-hunter + code-reviewer in parallel →
+> read each finding's line numbers against ground truth → Pareto-
+> filter to ≥80% confidence · ≥P1 severity · ≤8 fixes per wave →
+> ship in one commit with all 4 gates green → reconcile docs.
+> Same template applied to /settings (P+Q) and now /journal (R).
+> Next page candidates: /tasks · /brain · /chat · /knowledge ·
+> /system root.
+>
+> Gates: typecheck 0 · lint 0 errors / 368 baseline · vitest 184
+> files / 2797 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy.
 
 > ## 2026-05-24 MIDDAY · Wave O + P + Q · Vercel runbook v2 + /settings UX sweep · 4 ships
 >
