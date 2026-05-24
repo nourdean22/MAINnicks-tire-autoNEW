@@ -12,19 +12,20 @@ export default function CustomersTab() {
   const value = trpc.intelligence.valueTrend.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const affinity = trpc.intelligence.serviceAffinity.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const firstVisit = trpc.intelligence.firstVisitConversion.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  const ltv = trpc.intelligence.ltv.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
+  // wave-181.x Intelligence Dispersal Wave 1 · `ltv` query removed
+  // after both consuming panels (LTV Segments grid + TOP LTV
+  // CUSTOMERS table) were deleted. The intelligence.ltv tRPC
+  // procedure stays on the server (CustomersBrief consumes it
+  // canonically).
+
 
   return (
     <div className="space-y-6">
-      {/* LTV Segments */}
-      {ltv.isLoading ? <SectionSpinner /> : ltv.data?.segments ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard label="WHALES" value={ltv.data.segments.whales} icon={<Star className="w-4 h-4" />} color="text-violet-400" trendLabel="LTV >= 70" />
-          <StatCard label="REGULARS" value={ltv.data.segments.regulars} icon={<Users className="w-4 h-4" />} color="text-blue-400" trendLabel="LTV 40-69" />
-          <StatCard label="OCCASIONAL" value={ltv.data.segments.occasional} icon={<Activity className="w-4 h-4" />} color="text-amber-400" trendLabel="LTV 15-39" />
-          <StatCard label="ONE-TIMERS" value={ltv.data.segments.oneTimers} icon={<UserCheck className="w-4 h-4" />} color="text-foreground/50" trendLabel="LTV < 15" />
-        </div>
-      ) : null}
+      {/* wave-181.x Intelligence Dispersal Wave 1 · LTV Segments
+       * grid (Whales/Regulars/Occasional/One-timers) deleted ·
+       * duplicates the LTV roster CustomersBrief already surfaces
+       * on the canonical Customers page. Per dispersal plan §4.1
+       * Bucket A cuts. */}
 
       {/* Churn Prediction — highRisk: {name, phone, daysSinceVisit, churnProbability, reason}[] */}
       {churn.isLoading ? <SectionSpinner /> : churn.data ? (
@@ -169,20 +170,10 @@ export default function CustomersTab() {
           </EngineCard>
         ) : null}
 
-        {/* LTV Top Customers */}
-        {ltv.isLoading ? <SectionSpinner /> : ltv.data && ltv.data.topCustomers?.length > 0 ? (
-          <EngineCard title="TOP LTV CUSTOMERS" icon={<Star className="w-4 h-4 text-violet-400" />}>
-            <MiniTable
-              headers={["NAME", "LTV", "SPENT", "CHURN"]}
-              rows={ltv.data.topCustomers.slice(0, 6).map((c: { name?: string | null; ltvScore: number; totalSpent: number; churnRisk?: string | null }) => [
-                <span className="text-foreground font-medium">{c.name || "Unknown"}</span>,
-                <span className={`font-mono font-bold ${c.ltvScore >= 70 ? "text-violet-400" : c.ltvScore >= 40 ? "text-blue-400" : "text-foreground/60"}`}>{c.ltvScore}</span>,
-                <span className="font-mono">{fmt(c.totalSpent)}</span>,
-                <Badge label={c.churnRisk?.toUpperCase() || "LOW"} level={c.churnRisk || "low"} />,
-              ])}
-            />
-          </EngineCard>
-        ) : null}
+        {/* wave-181.x Intelligence Dispersal Wave 1 · TOP LTV
+         * CUSTOMERS table deleted · same data lives on the CustomersBrief
+         * + CustomersSection roster (canonical home for LTV signal).
+         * Per dispersal plan §4.1 Bucket A cuts. */}
       </div>
     </div>
   );

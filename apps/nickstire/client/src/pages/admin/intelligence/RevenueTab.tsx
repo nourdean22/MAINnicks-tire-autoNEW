@@ -1,109 +1,31 @@
 import { trpc } from "@/lib/trpc";
-import { BUSINESS } from "@shared/business";
-import { StatCard } from "../shared";
 import { SectionSpinner, NoData, EngineCard, MiniTable, fmt, pct, INTELLIGENCE_QUERY_OPTS } from "./utils";
-
-const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
-import {
-  DollarSign, BarChart3, Target, TrendingUp, TrendingDown, Minus,
-  AlertTriangle, CreditCard, Activity, CloudRain,
-} from "lucide-react";
+// wave-181.x Intelligence Dispersal Wave 1 · pruned 6 unused imports
+// after deleting Forecast KPI grid + MTD bar + AVG TICKET TREND +
+// WeatherImpactCard (BUSINESS · MONTHLY_TARGET · StatCard ·
+// BarChart3 · Target · TrendingUp · TrendingDown · Minus · CloudRain).
+// `forecast` and `ticket` queries also removed (no consumers left).
+// Note · intelligence.forecast + ticketTrend tRPC procedures still
+// live server-side; this just removes the dead client subscription.
+import { DollarSign, AlertTriangle, CreditCard, Activity } from "lucide-react";
 
 export default function RevenueTab() {
-  const forecast = trpc.intelligence.forecast.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const anomaly = trpc.intelligence.revenueAnomaly.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const cashFlow = trpc.intelligence.cashFlow.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const margins = trpc.intelligence.profitMargins.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
-  const ticket = trpc.intelligence.ticketTrend.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const concentration = trpc.intelligence.revenueConcentration.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
   const payments = trpc.intelligence.paymentTrends.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
 
   return (
     <div className="space-y-6">
-      {/* Forecast KPIs */}
-      {forecast.isLoading ? <SectionSpinner /> : forecast.data ? (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard
-              label="TODAY SO FAR"
-              value={fmt(forecast.data.today?.soFar ?? 0)}
-              icon={<DollarSign className="w-4 h-4" />}
-              color={forecast.data.today?.pct >= 80 ? "text-emerald-400" : forecast.data.today?.pct >= 50 ? "text-amber-400" : "text-red-400"}
-              trendLabel={`${forecast.data.today?.pct ?? 0}% of ${fmt(forecast.data.today?.expected ?? 0)}`}
-              trend={forecast.data.today?.pct >= 80 ? "up" : "down"}
-            />
-            <StatCard
-              label="WEEK PROJECTION"
-              value={fmt(forecast.data.week?.projection ?? 0)}
-              icon={<BarChart3 className="w-4 h-4" />}
-              trendLabel={`${fmt(forecast.data.week?.soFar ?? 0)} earned`}
-              trend="neutral"
-            />
-            <StatCard
-              label="MONTH PROJECTION"
-              value={fmt(forecast.data.month?.projection ?? 0)}
-              icon={<Target className="w-4 h-4" />}
-              color={forecast.data.month?.onPace ? "text-emerald-400" : "text-red-400"}
-              trendLabel={forecast.data.month?.onPace ? "On pace" : `${fmt(Math.abs(forecast.data.month?.gap ?? 0))} behind`}
-              trend={forecast.data.month?.onPace ? "up" : "down"}
-            />
-            <StatCard
-              label="TREND"
-              value={(forecast.data.trend || "flat").toUpperCase()}
-              icon={forecast.data.trend === "up" ? <TrendingUp className="w-4 h-4" /> : forecast.data.trend === "down" ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
-              color={forecast.data.trend === "up" ? "text-emerald-400" : forecast.data.trend === "down" ? "text-red-400" : "text-foreground/50"}
-            />
-          </div>
-
-          {/* MTD progress bar — shows REVENUE earned vs the dynamic target
-              (trailing 90d × 1.1, computed server-side in forecastRevenue).
-              Bar color reflects whether we're on pace for the day, not just
-              "how far through the month are we?". Yellow → green crossover
-              at 100% of expected pace. */}
-          {(() => {
-            const monthSoFar = Number(forecast.data.month?.soFar ?? 0);
-            const target = Number(forecast.data.month?.target ?? 0);
-            // What we'd EXPECT to have earned by today if pacing on target.
-            const day = new Date().getDate();
-            const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
-            const expectedByNow = target * (day / daysInMonth);
-            const pacePct = expectedByNow > 0 ? Math.round((monthSoFar / expectedByNow) * 100) : 0;
-            const barFill = target > 0 ? Math.min(100, Math.round((monthSoFar / target) * 100)) : 0;
-            const onPace = pacePct >= 90;
-            const aheadOfPace = pacePct >= 110;
-            return (
-              <div className="bg-card border border-border/30 p-5">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-medium text-foreground/50 tracking-wide">
-                    MONTH-TO-DATE · {pacePct}% OF PACE
-                  </span>
-                  <span className="text-[12px] font-mono text-foreground/70">
-                    {fmt(monthSoFar)}
-                    {forecast.data.month?.projection ? <> · projecting {fmt(forecast.data.month.projection)}</> : null}
-                    {target > 0 ? <> · target {fmt(target)}</> : null}
-                  </span>
-                </div>
-                <div className="w-full h-3 bg-background rounded-sm overflow-hidden relative">
-                  {/* Reference tick at "where we should be by today" */}
-                  {target > 0 && (
-                    <div
-                      className="absolute top-0 bottom-0 w-px bg-foreground/40"
-                      style={{ left: `${Math.min(100, Math.round((expectedByNow / target) * 100))}%` }}
-                      title={`Expected by today: ${fmt(expectedByNow)}`}
-                    />
-                  )}
-                  <div
-                    className={`h-full transition-all duration-700 rounded-sm ${
-                      aheadOfPace ? "bg-emerald-500" : onPace ? "bg-emerald-500/80" : "bg-amber-500"
-                    }`}
-                    style={{ width: `${barFill}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })()}
-        </>
-      ) : <NoData />}
+      {/* wave-181.x Intelligence Dispersal Wave 1 · Forecast KPI grid
+       * (4 tiles: Today So Far · Week Projection · Month Projection ·
+       * Trend) AND the MTD progress bar both deleted · MoneyBrief
+       * already surfaces today's pacing + month projection + trend
+       * inline on the Money page (canonical home for revenue velocity
+       * signal). Per dispersal plan §4.1 Bucket A cuts. The
+       * intelligence.forecast tRPC procedure stays for sub-report
+       * data future briefs may need (operator decision §4.4 #1). */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Revenue Anomaly — {anomalies: {date, revenue, expected, deviation, type}[], avgDailyRevenue} */}
@@ -195,38 +117,10 @@ export default function RevenueTab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Ticket Trend — {monthly: {month, avgTicket, jobCount}[], trend, percentChange} */}
-        {ticket.isLoading ? <SectionSpinner /> : ticket.data ? (
-          <EngineCard title="AVG TICKET TREND" icon={<TrendingUp className="w-4 h-4 text-primary" />}>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="text-center">
-                <div className={`text-xl font-bold font-mono ${ticket.data.trend === "increasing" ? "text-emerald-400" : ticket.data.trend === "decreasing" ? "text-red-400" : "text-foreground"}`}>
-                  {ticket.data.trend.toUpperCase()}
-                </div>
-                <div className="text-[10px] text-foreground/40">DIRECTION</div>
-              </div>
-              <div className="text-center">
-                <div className={`text-xl font-bold font-mono ${ticket.data.percentChange >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                  {ticket.data.percentChange >= 0 ? "+" : ""}{ticket.data.percentChange}%
-                </div>
-                <div className="text-[10px] text-foreground/40">CHANGE</div>
-              </div>
-            </div>
-            {ticket.data.monthly?.length > 0 && (
-              <div className="space-y-1">
-                {ticket.data.monthly.slice(-6).map((m, i) => (
-                  <div key={i} className="flex items-center justify-between py-1 text-[12px]">
-                    <span className="text-foreground/60 font-mono">{m.month}</span>
-                    <div className="flex items-center gap-4">
-                      <span className="font-mono text-foreground">{fmt(m.avgTicket)}</span>
-                      <span className="font-mono text-foreground/40">{m.jobCount} jobs</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </EngineCard>
-        ) : null}
+        {/* wave-181.x Intelligence Dispersal Wave 1 · AVG TICKET TREND
+         * deleted · MoneyBrief surfaces the same velocity/pacing signal
+         * adjacent to today's revenue · single source of truth. Per
+         * dispersal plan §4.1 Bucket A cuts. */}
 
         {/* Revenue Concentration — {top10PercentRevenue, top10PercentCount, totalRevenue, concentrationRatio, risk} */}
         {concentration.isLoading ? <SectionSpinner /> : concentration.data ? (
@@ -255,83 +149,14 @@ export default function RevenueTab() {
         ) : null}
       </div>
 
-      {/* Weather Impact — from statenour */}
-      <WeatherImpactCard />
+      {/* wave-181.x Intelligence Dispersal Wave 1 · WeatherImpactCard
+       * deleted (was 73 LOC at the end of this file). Pure proxy of
+       * statenour's autonicksWeather endpoint · weather→revenue
+       * correlation is genuinely brain-intelligence and belongs on
+       * statenour directly, not mirrored in the shop-ops admin. Per
+       * dispersal plan §4.3 "HIGH-confidence → delete" list. The
+       * intelligence.autonicksWeather tRPC procedure stays for any
+       * other caller that needs the demand multiplier. */}
     </div>
-  );
-}
-
-function WeatherImpactCard() {
-  // 2026-05-05 audit follow-up: was raw cross-origin fetch() to
-  // statenour-os from the browser. Now proxied through nickstire's
-  // tRPC layer for observability + same-origin requests.
-  const { data: weather } = trpc.intelligence.autonicksWeather.useQuery(undefined, {
-    staleTime: 60_000,
-  });
-
-  if (!weather?.businessImpact) return null;
-
-  const impact = weather.businessImpact;
-  const current = weather.current;
-  // 2026-05-23 · explicit type so the .map below infers `d` (weather.forecast
-  // comes from a loosely-typed analyzer function, hence the inline shape).
-  const forecast: Array<{ date: string; tempHigh: number; description: string }> = weather.forecast || [];
-
-  const demandColor = impact.demandForecast === "surge" ? "text-emerald-400"
-    : impact.demandForecast === "high" ? "text-emerald-400"
-    : impact.demandForecast === "low" ? "text-red-400"
-    : "text-foreground/70";
-
-  return (
-    <EngineCard
-      title="WEATHER → REVENUE CORRELATION"
-      icon={<CloudRain className="w-4 h-4 text-blue-400" />}
-      border={impact.demandForecast === "surge" ? "border-emerald-500/20" : "border-border/30"}
-    >
-      <div className="grid grid-cols-3 gap-4 mb-3">
-        <div className="text-center">
-          <div className={`text-xl font-bold font-mono ${demandColor}`}>
-            {impact.demandForecast.toUpperCase()}
-          </div>
-          <div className="text-[10px] text-foreground/40">DEMAND LEVEL</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold font-mono text-foreground">
-            {impact.demandMultiplier}x
-          </div>
-          <div className="text-[10px] text-foreground/40">MULTIPLIER</div>
-        </div>
-        <div className="text-center">
-          <div className="text-xl font-bold font-mono text-foreground">
-            {current?.tempHigh}°F
-          </div>
-          <div className="text-[10px] text-foreground/40">{current?.description}</div>
-        </div>
-      </div>
-
-      <div className="text-[12px] text-foreground/50 mb-2">{impact.reasoning}</div>
-      <div className="text-[12px] text-foreground/70 font-medium mb-2">Staffing: {impact.staffingAdvice}</div>
-
-      {impact.alerts?.length > 0 && (
-        <div className="space-y-1 mt-2">
-          {impact.alerts.map((a: string, i: number) => (
-            <div key={i} className="text-[11px] text-amber-400 flex items-center gap-1.5">
-              <AlertTriangle className="w-3 h-3 shrink-0" /> {a}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* 3-day forecast */}
-      <div className="flex gap-2 mt-3 pt-3 border-t border-border/20">
-        {forecast.slice(1, 4).map((d) => (
-          <div key={d.date} className="flex-1 text-center">
-            <div className="text-[10px] text-foreground/40">{d.date.slice(5)}</div>
-            <div className="text-[11px] font-mono text-foreground/70">{d.tempHigh}°</div>
-            <div className="text-[10px] text-foreground/30">{d.description}</div>
-          </div>
-        ))}
-      </div>
-    </EngineCard>
   );
 }
