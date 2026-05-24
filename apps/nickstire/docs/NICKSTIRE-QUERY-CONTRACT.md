@@ -403,10 +403,53 @@ every registered handler. If `x-sync-key` is missing/wrong → 401.
 | `leads_pipeline` | none | 30-day status breakdown |
 | `leads_today` | none | Today's leads (ET-anchored) |
 | `leads_urgent` | none | Urgency ≥ 4, status = new |
+| `master_report` | none | Synthesized health score + top alert/opp/risk + 13-component breakdown + sub-reports. See "master_report shape" below. Returns `{ ok: false, error }` if generation fails. Cache TTL 60s server-side. |
 | `revenue_range` | `from?, to?` | Total + avg ticket for range |
 | `revenue_today` | none | Today's revenue (ET-anchored) |
 | `shop_pulse` | none | Live snapshot via nickIntelligence |
 | `work_orders_active` | none | Open work orders (≠ completed/cancelled) |
+
+### master_report shape (added v11.5, 2026-05-24)
+
+Added to support **Intelligence Dispersal Wave 1.5** · the umbrella
+intelligence view dies on nickstire (Intelligence admin page being
+deleted) · synthesis moves to statenour `/scoreboard`.
+
+```ts
+{
+  ok: true,
+  timestamp: string,
+  summary: {
+    score: number,                  // 0-100 business-health composite
+    topAlert: string,               // highest-severity issue
+    topOpportunity: string,         // best-leverage opportunity
+    topRisk: string,                // medium-severity risk
+    scoreBreakdown: Array<{         // 13 components
+      label: string,
+      points: number,               // signed contribution
+      maxPoints: number,            // range (e.g. ±12)
+      reason: string,               // human-readable explanation
+      hasData: boolean,             // distinguishes zero-because-neutral from skipped
+    }>,
+  },
+  revenue: { pacing, anomalies, cashFlow, margins, ticketTrend },
+  customers: { churnRisk, riskScores, valueTrend, repeatPrediction, velocity, concentration },
+  operations: { techEfficiency, turnaround, bayUtilization, capacity, partsCost },
+  marketing: { channelROI, reviewVelocity, smsEngagement, leadResponse, contentPerformance },
+  growth: { newCustomerVelocity, referralNetwork, portfolioLTV, marketShare, seasonalDemand },
+  competitive: { competitorGap, chatFunnel, reviewSentiment },
+}
+```
+
+Each sub-engine result follows the `EngineResult` shape (see
+`server/services/masterIntelligence.ts:61` · `interface
+MasterIntelligenceReport`).
+
+**Operator decision (2026-05-24):** the underlying sub-reports
+stay live on nickstire even after the umbrella UI dies. Statenour
+consumes the summary on `/scoreboard` · future-improvement work
+on nickstire can still read sub-reports directly via tRPC. The
+engine isn't retired · only the UI surface is.
 
 **GSC actions (added v11.4, 2026-05-09):** these were added because the
 statenour AI COO had no SEO data source and was fabricating round
@@ -477,6 +520,16 @@ the admin UI's `forceSyncNow`, not here.
   `search_performance` table populated by `pipelines/gsc-data.ts`. CTR
   + position recomputed from raw sums (not avg-of-avg) and position is
   impression-weighted for accurate multi-day aggregates.
+- **v11.5** (2026-05-24) — `master_report` action added (Intelligence
+  Dispersal Wave 1.5). Synthesized health score + top alert/opp/risk +
+  13-component breakdown + 6 sub-engine result groups (revenue ·
+  customers · operations · marketing · growth · competitive). Wraps
+  `services/masterIntelligence.ts:generateMasterIntelligenceReport()`
+  which has internal 60s memoize cache. Statenour consumes on
+  `/scoreboard` (per dispersal plan `docs/2026-05-24-intelligence-
+  dispersal-plan.md` §4.3). The nickstire Intelligence admin page UI
+  surface is being deleted; the engine + sub-reports stay alive for
+  future improvements per operator decision §4.4 #1.
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is
