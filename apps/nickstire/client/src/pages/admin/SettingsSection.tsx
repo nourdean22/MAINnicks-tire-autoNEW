@@ -375,16 +375,28 @@ export default function SettingsSection() {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {[
+            // ── ALG / ShopDriver sync ─────────────────────────
             { name: "ALG Overnight Probe", interval: "Daily 3 AM ET", desc: "Single nightly sync — shop closed, no Moe risk" },
             { name: "ALG On-Login Probe", interval: "On admin login", desc: "Fresh data when you arrive at /admin" },
             { name: "ALG Chat-Demand Probe", interval: "On Nick query", desc: "Probes when Nick asks for shop pulse" },
+            // ── Workflow automation ───────────────────────────
             { name: "Intelligence Autopilot", interval: "Every 2h", desc: "Lead scoring, revenue pacing, cross-sell" },
             { name: "No-Show Detection", interval: "Daily", desc: "Flags past-date bookings, sends SMS" },
-            { name: "Declined Work Recovery", interval: "Daily", desc: "7d/30d SMS to walk-aways (DRY-RUN until env set)" },
+            { name: "Declined Work Recovery", interval: "Daily", desc: "5×3 SMS sequence to walk-aways (DRY-RUN until env set)" },
             { name: "Review Auto-Draft", interval: "Daily", desc: "AI drafts for new Google reviews" },
             { name: "Cross-Sell Outreach", interval: "Daily", desc: "SMS recommendations from service history" },
             { name: "Stale Booking Cleanup", interval: "Daily", desc: "Auto-cancels 30+ day old bookings" },
             { name: "Callback Escalation", interval: "Every 2h", desc: "Re-alerts on unanswered callbacks >4h" },
+            // ── wave-181.x Tier S/A compounding loops (NEW) ────
+            { name: "Customer Psycho Profiler", interval: "Daily", desc: "Classify ~2,800 customers into 10 segments for SMS routing" },
+            { name: "Inventory Demand Forecast", interval: "Daily", desc: "Aggregate declined tire estimates → Gateway purchase signal" },
+            { name: "Nick AI Call Eval", interval: "Daily", desc: "Score every VAPI call 0-100 · Telegram if avg<60 or 3+ wasted" },
+            { name: "Agentic Actions Auditor", interval: "Daily", desc: "Audit Nick AI tool calls · price drift · missing bookings" },
+            { name: "Closed-Loop Measurement", interval: "Daily", desc: "Measure wave_metrics with measure_at past · auto-seeds baselines" },
+            { name: "SEO Forensic", interval: "Daily", desc: "Top-30 GSC queries · catch rank drops ≥5 positions same-day" },
+            { name: "Monte-Carlo Forecast", interval: "Weekly (Mon)", desc: "10k trials · P10/P50/P90 revenue band · top variance driver" },
+            { name: "Competitor Monitor", interval: "Daily", desc: "5 competitors · Google Places · rating + review delta detection" },
+            { name: "SMS Gateway Health", interval: "Every 15m", desc: "Ping F25e Capevace cloud · Telegram if offline >30m" },
           ].map(job => (
             <div key={job.name} className="flex items-center gap-3 p-2.5 border border-border/10">
               <Zap className="w-3.5 h-3.5 text-primary shrink-0" />
@@ -889,7 +901,23 @@ function categorizeFlags(flags: Array<{ key: string; value: boolean; description
   return categorized;
 }
 
-// ─── FEATURE FLAGS PANEL ──────────────────────────────
+// ─── FEATURE FLAGS PANEL · wave-181.x Phase 3 ─────────────
+// Upgraded with search · filter chips · verification gate on
+// customer-contacting flag flips · iOS-PWA-safe confirmDialog.
+
+/**
+ * Flags that hit customer-facing channels (SMS / email / VAPI / GBP) ·
+ * flipping these requires explicit confirmation per nickstire-ios-pwa
+ * skill (window.confirm is silently suppressed in iOS PWA).
+ *
+ * Pattern · `confirmDialog({ ... })` wraps the toggle so flipping ON
+ * a flag that activates a campaign requires explicit operator intent.
+ * Flipping OFF is unrestricted (safe direction).
+ */
+function isCustomerFacingFlag(key: string): boolean {
+  return /(sms_|email_|gbp_|vapi_|drip_|outreach|review_request|retention|cross_sell|win_?back|emergency_)/i.test(key);
+}
+
 function FeatureFlagsPanel() {
   const utils = trpc.useUtils();
   const { data: flags, isLoading } = trpc.featureFlags.list.useQuery();
@@ -900,6 +928,27 @@ function FeatureFlagsPanel() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // wave-181.x Phase 3 · search + filter state
+  const [searchQ, setSearchQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "on" | "off" | "risky">("all");
+
+  // Verification gate · only flipping ON customer-facing flags asks for confirm
+  const handleFlagToggle = async (key: string, currentValue: boolean) => {
+    const newValue = !currentValue;
+    if (newValue === true && isCustomerFacingFlag(key)) {
+      const { confirmDialog } = await import("@/components/admin/ConfirmDialog");
+      const ok = await confirmDialog({
+        title: `Flip ${key} ON?`,
+        message: "This flag activates customer-contacting messages (SMS / email / outreach). Once on, the next cron tick may send to real customers. Verify guardrails before continuing.",
+        confirmLabel: "Flip ON",
+        cancelLabel: "Keep OFF",
+        tone: "danger",
+      });
+      if (!ok) return;
+    }
+    toggleMut.mutate({ key, value: newValue });
+  };
 
   if (isLoading) {
     return (
@@ -913,15 +962,27 @@ function FeatureFlagsPanel() {
 
   const allFlags = flags ?? [];
   const enabledCount = allFlags.filter(f => f.value).length;
-  const grouped = categorizeFlags(allFlags);
+
+  // Apply search + filter
+  const q = searchQ.trim().toLowerCase();
+  const filtered = allFlags.filter((f) => {
+    if (q && !f.key.toLowerCase().includes(q) && !(f.description || "").toLowerCase().includes(q)) {
+      return false;
+    }
+    if (filter === "on" && !f.value) return false;
+    if (filter === "off" && f.value) return false;
+    if (filter === "risky" && !isCustomerFacingFlag(f.key)) return false;
+    return true;
+  });
+  const grouped = categorizeFlags(filtered);
 
   return (
     <div className="bg-card border border-border/30 p-4">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h3 className="font-bold text-sm text-foreground tracking-wide">FEATURE FLAGS</h3>
           <p className="text-foreground/50 text-[11px] mt-0.5">
-            {enabledCount} of {allFlags.length} enabled. Customer-contacting automations check these before executing.
+            {enabledCount} of {allFlags.length} enabled. Customer-contacting flags require explicit confirmation to flip ON.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -935,6 +996,45 @@ function FeatureFlagsPanel() {
           </span>
         </div>
       </div>
+
+      {/* wave-181.x Phase 3 · search + filter row */}
+      <div className="flex items-center gap-2 flex-wrap mb-4">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-foreground/30 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search flags by key or description…"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            className="w-full bg-foreground/5 border border-border/30 rounded pl-8 pr-3 py-1.5 text-[12px] text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          {(["all", "on", "off", "risky"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`text-[10.5px] font-bold tracking-[0.1em] uppercase px-2.5 py-1.5 rounded border transition-colors ${
+                filter === f
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border/30 text-foreground/50 hover:text-foreground/80"
+              }`}
+            >
+              {f}
+              {f === "risky" && (
+                <span className="ml-1 text-[9px] opacity-70">⚠</span>
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-foreground/40 text-[12px] text-center py-6">
+          No flags match · adjust search or filter
+        </p>
+      )}
 
       <div className="space-y-4">
         {grouped.map((group) => {
@@ -960,13 +1060,14 @@ function FeatureFlagsPanel() {
                   <button
                     type="button"
                     key={flag.key}
-                    onClick={() => toggleMut.mutate({ key: flag.key, value: !flag.value })}
+                    onClick={() => handleFlagToggle(flag.key, flag.value)}
                     disabled={toggleMut.isPending}
                     className={`w-full text-left flex items-center gap-3 p-2.5 border transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-primary/40 ${
                       flag.value ? "border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10" : "border-border/10 hover:bg-foreground/[0.02]"
                     }`}
-                    aria-label={`Toggle ${flag.key}`}
+                    aria-label={`Toggle ${flag.key}${isCustomerFacingFlag(flag.key) ? " (customer-facing · confirm required)" : ""}`}
                     aria-pressed={flag.value}
+                    title={isCustomerFacingFlag(flag.key) ? "Customer-facing flag · flipping ON asks for confirmation" : undefined}
                   >
                     <span className="shrink-0">
                       {flag.value ? (
@@ -976,7 +1077,17 @@ function FeatureFlagsPanel() {
                       )}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-foreground text-[12px] font-medium font-mono">{flag.key}</span>
+                        {isCustomerFacingFlag(flag.key) && (
+                          <span
+                            className="text-[9px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20"
+                            title="Customer-facing · confirmation required to flip ON"
+                          >
+                            ⚠ RISKY
+                          </span>
+                        )}
+                      </div>
                       {flag.description && (
                         <p className="text-foreground/40 text-[10px] truncate">{flag.description}</p>
                       )}
