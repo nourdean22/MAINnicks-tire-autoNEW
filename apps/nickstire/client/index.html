@@ -192,16 +192,26 @@
       crossorigin
       href="https://fonts.gstatic.com/s/inter/v18/UcCO3FwrK3iLTeHuS_nVMrMxCp50ojIv.woff2"
     />
+    <!-- 2026-05-24 PSI CLS fix · display=swap → display=optional.
+         The H1 LCP element uses Inter 800 (font-heading). With swap,
+         the browser paints with fallback font, then re-paints with
+         Inter when it loads · the metric mismatch (Inter is more
+         compact than system sans) causes the H1 to re-wrap and shift
+         surrounding content · CLS contribution.
+         With optional, the H1 paints with fallback IMMEDIATELY and
+         only upgrades to Inter if it's cached (cold loads never
+         swap). Sacrifices brand fidelity on the cold-load path for
+         CLS green. Trade-off documented per /web-performance-optim. -->
     <link
       rel="preload"
       as="style"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=optional"
       onload="this.onload=null;this.rel='stylesheet'"
     />
     <noscript>
       <link
         rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Roboto+Mono:wght@400&family=Oswald:wght@500;700&display=optional"
       />
     </noscript>
   </head>
