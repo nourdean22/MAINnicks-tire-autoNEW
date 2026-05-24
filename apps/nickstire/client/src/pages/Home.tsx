@@ -98,8 +98,14 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           <img
             src={HERO_IMG}
             alt="Nick's Tire & Auto storefront on Euclid Avenue in Cleveland with the yellow sign, open service bays, and tire stacks visible"
-            className="w-full h-full object-cover"
-            style={{ objectPosition: "right 42%" }}
+            // 2026-05-24 PSI/photo audit · object-position is now
+            // viewport-responsive. Mobile (≤md) uses `center 42%` since the
+            // vertical-small variant has the sign centered horizontally in
+            // the frame — pushing right caused it to crop off the edge.
+            // Desktop (md+) keeps `right 42%` (wave-18 headline-readability
+            // fix · the H1 lives on the LEFT, so the bright sign on the
+            // RIGHT keeps the dark sky/trees zone under the headline).
+            className="w-full h-full object-cover [object-position:center_42%] md:[object-position:right_42%]"
             loading="eager"
             fetchPriority="high"
             width="1920"
@@ -461,12 +467,18 @@ function UsedTiresCallout() {
 // the other 9 (AC, transmission, electrical, battery, exhaust,
 // cooling, PPI, belts-hoses, starter-alternator) were unreachable
 // without typing the URL by hand. Now all 15 surface on the homepage.
+// 2026-05-24 PSI/photo audit · imgPos is the data-driven object-position
+// per tile so mobile portrait crops don't lose the subject. Defaults to
+// `center center` crops the sides of a landscape 1600×900 photo into a
+// vertical 65vh viewport · subject often shifts off-frame. Per-photo
+// vertical bias keeps the subject visible on phones AND desktops.
 const HERO_SERVICES = [
   {
     title: "Tires",
     slug: "/tires",
     desc: "Every tire we install — new or used — gets a free mount, balance, valve stems, TPMS reset, and an alignment check. The kind of welcome you wish a hotel gave you.",
     img: TIRES_IMG,
+    imgPos: "center 50%", // tread closeup · subject fills the frame
     price: "Free install on every tire",
   },
   {
@@ -474,6 +486,7 @@ const HERO_SERVICES = [
     slug: "/brakes",
     desc: "Pads, rotors, calipers, lines, ABS. We hand you a flashlight and walk you under your own car so you can see the worn part. The metal doesn't lie. Neither do we.",
     img: BRAKES_IMG,
+    imgPos: "center 65%", // undercar action · bias down so brake mechanism stays in frame on phones
     price: "Free brake check",
   },
   {
@@ -481,6 +494,7 @@ const HERO_SERVICES = [
     slug: "/diagnostics",
     desc: "If your car is making a noise even Spotify can't identify, drive it over. Free OBD-II scan, written estimate before a wrench moves, and a real explanation in real English.",
     img: DIAG_IMG,
+    imgPos: "center 35%", // car on lift · bias up so the lift + car stays visible on portrait
     price: "Free scan · honest answers",
   },
 ];
@@ -508,8 +522,11 @@ function Services() {
                 src={s.img}
                 alt={`${s.title} service at Nick's Tire and Auto`}
                 className="w-full h-full object-cover transition-transform duration-[1500ms] ease-out group-hover:scale-[1.04]"
+                style={{ objectPosition: s.imgPos }}
                 loading="lazy"
                 decoding="async"
+                width="1600"
+                height="900"
               />
             </picture>
             {/* Bottom-fade for headline legibility */}
