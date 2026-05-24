@@ -1,6 +1,99 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-4 (post Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap · 6 new entries · 4 fact-grounded (05-17 monorepo cutover · 05-18 Charizard + tRPC kickoff · 05-19 Tier-1+2 monorepo + signal-loop · 05-20 R3F pivot supplement · 05-22 tRPC migration COMPLETE) · 1 partially-conjectured (05-16 consolidation sprint reconstructed from surviving plan + EOD docs · pre-monorepo SHAs do not resolve in NOURCITY) · 1 honest gap (05-13 → 05-15 · no commits in NOURCITY · standalone repo predates CP3 import on 05-17)). On top of: Wave X.c · R3F scene data wire-up · CommandCore + FrameworkOrbit now DATA-REACTIVE. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-24 LATE-NIGHT-5 (post Wave X.e · statenour-wide consolidation + activation pass · 5 surgical batches · 4 commits · −926 LOC net · 3 orphan operator pages activated via nav-items + 6 dead-code files deleted + 4 cron routes migrated to timing-safe `requireCronAuth` + 22 `bg-[#0A0A0A]` design-token hardcodes swept to `var(--bg-base)` + 3 `#FDB913` Recharts hardcodes swept to `var(--gold)` + customer-360 inline SkeletonView/ErrorView replaced with `MasterySkeleton`/`MasteryErrorView`). On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap · 6 new entries closing the documentation debt. On top of: Wave X.c · R3F scene data wire-up · CommandCore + FrameworkOrbit now DATA-REACTIVE. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-24 LATE-NIGHT-5 · Wave X.e · statenour-wide consolidation + activation · 4 ships
+>
+> The first cross-surface "consolidation + activation pass" since
+> Wave W. Three parallel read-only audits (dead code + orphan
+> surfaces · paid-for-but-unused infra · cross-surface duplication)
+> returned 33 findings. Pareto-filtered to a 4-ship batch · the
+> agent's other findings deferred for risk/value reasons captured
+> below.
+>
+> **Audit lessons applied** · Wave X.b's rule ("a deferred backlog
+> must be re-audited before execution") was used to reject 1
+> finding outright: Agent B recommended building `/intel` to
+> surface the `industry-pull` cron · `nav-items.ts:96-99` documents
+> an explicit operator decision retiring that page in v10.0.302
+> ("automotive-RSS dashboard's business value moved to nickstire").
+> The API stayed only for chat's adaptive-placeholder. False
+> recommendation caught and dropped before the ship.
+>
+> **Batch 1+2** · `47c5a415` · 3 orphan operator pages activated +
+> 6 dead-code files deleted · −883 LOC net
+> - **Nav activation** · `/funnel` · `/radar` · `/seo` were all
+>   shipped 2026-05-24 as Intelligence Dispersal Wave 3 surfaces
+>   (`4c8eb89c` + `aa648205`) but never added to `nav-items.ts` ·
+>   invisible to ⌘K + FloatingHome · operator could only reach
+>   them by typing the URL. 3 nav entries added with `Filter` ·
+>   `Radar` · `Search` icons.
+> - **Dead-code deletion** · `lib/utils/semantic-cache.ts` (269) ·
+>   `lib/services/recovery.ts` + `lib/validators/recovery.ts`
+>   (302) · `hooks/use-abortable-fetch.ts` (103) ·
+>   `lib/ai/winback-templates.ts` (114) · `lib/utils/qr.ts` (9) ·
+>   `app/api/mastery/radar/route.ts` (92). Every "0 importers"
+>   claim spot-checked with `grep -rln` before deletion. Schema
+>   models `StagedRecoveryItem` + `RecoveryActionLog` STAY in
+>   place (still referenced by `config/retention.ts` +
+>   `data-cleanup` cron · 90d retention).
+>
+> **Batch 3** · `fba13e4a` · 4 cron routes migrated to timing-safe
+> `requireCronAuth` · −24 LOC + a real security finding
+> - `brain-feedback-loop` · `agent-eval` · `extract-knowledge` ·
+>   `suggestion-outcome-rollup` each inlined an identical 6-LOC
+>   `authorizeCron` that did a plain `auth === \`Bearer
+>   ${expected}\`` JavaScript string equality compare. Plain `===`
+>   on a secret leaks bytes via timing. `lib/auth-guard.ts`
+>   already exports `requireCronAuth` using node's
+>   `timingSafeEqual` (constant-time) · most cron routes use it ·
+>   these 4 were the stragglers.
+>
+> **Batch 4** · `2b5156c4` · design-token discipline sweep · 22
+> `bg-[#0A0A0A]` → `bg-[var(--bg-base)]` + 3 `#FDB913` → `var(--gold)`
+> - 12 files across `app/(mastery)/*/page.tsx` +
+>   `components/operator/mega-confirm-dialog.tsx` were hardcoding
+>   `bg-[#0A0A0A]` in their `<main>` shells, bypassing the
+>   `--bg-base` token. If `--bg-base` ever drifts these surfaces
+>   would freeze while `components/` (283 uses) adapts.
+> - `app/(mastery)/financial/page.tsx` Recharts `<Area>` had
+>   `stroke="#FDB913"` + `fill="#FDB913"` + `bg-[#FDB913]` ·
+>   Recharts passes string straight to SVG attributes · the CSS
+>   variable resolves identically. Same drift, same fix.
+>
+> **Batch 5** · `8145d5c5` · customer-360 inline SkeletonView +
+> ErrorView → `MasterySkeleton` + `MasteryErrorView` · −43 LOC
+> - 19-line `SkeletonView` + 27-line `ErrorView` duplicated
+>   primitives extracted in Phase D (2026-05-18 specifically to
+>   absorb inline rebuilds like this one). Inline implementations
+>   had token drift (`tracking-[0.18em]/0.22em` vs canonical
+>   `0.14em`, `text-white/40` vs `var(--text-tertiary)`) and
+>   missing shimmer animation. customerId-in-error chrome dropped
+>   on purpose · the URL already shows it.
+>
+> **Deferred from the audit (kept honest)**
+> - **Bridge-page polling refactor** (funnel · radar · seo →
+>   `usePollingFetch`) · MEDIUM risk · the funnel page does TWO
+>   concurrent bridge calls, envelope-unwrap semantics differ
+>   slightly · merits a dedicated session.
+> - **Activation: `meeting_transcript` in chat recall** ·
+>   ingest-fireflies writes the raw string `"meeting_transcript"`
+>   (not registered in `BRAIN_CATEGORIES`) · `chat-recall.ts`
+>   never reads it · activation requires registering the
+>   constant + threading it into the recall allowlist · deferred.
+> - **Activation: SelfCritiqueCard · PricingAdvisoryCard ·
+>   LocationRankingCard · `/system/diagnostics` page · DailyStrategy
+>   writer cron · ToolVerbRatio stats** · 6 paid-for-but-unused
+>   subsystems · each 0-50 LOC of activation code but the surface-
+>   placement decisions matter · deferred to a future activation
+>   wave for batched review.
+> - **`tracking-[0.18em]/0.22em` → `0.14em` aesthetic sweep** ·
+>   17 files have the drift but not all uses are eyebrows · needs
+>   visual inspection per site · skipped here, separate sweep.
+>
+> **Gates** · typecheck 0 · lint 0 errors / 369 baseline (-1 from
+> pre-X.e because `semantic-cache.ts` carried 1 `any` warning) ·
+> vitest 185 / 2812 pass · build OK.
 
 > ## 2026-05-24 LATE-NIGHT-3 · Wave X.c · R3F scene data wire-up · 1 ship
 >
