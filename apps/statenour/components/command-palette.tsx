@@ -237,6 +237,13 @@ export function CommandPalette() {
       { id: "sys-anti", label: "Anti-patterns · library", group: "System Ops", icon: <TrendingDownIcon className="size-4" />, action: () => navigate("/system/anti-patterns"), keywords: ["lesson", "failure", "mistake", "antipattern", "revisit"] },
       { id: "sys-devices", label: "Devices · fleet", group: "System Ops", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system/devices"), keywords: ["device", "ring", "eufy", "tuya", "camera", "agent", "bridge"] },
       { id: "sys-power", label: "Power · master control", group: "System Ops", icon: <ZapIcon className="size-4" />, action: () => navigate("/system/power"), keywords: ["power", "kill", "provider", "budget", "quiet", "shadow", "emergency"] },
+      // 2026-05-23 · UI #4 · new surfaces shipped this session
+      { id: "sys-operator-state", label: "Operator State · live pulse", group: "System Ops", icon: <BrainIcon className="size-4" />, action: () => navigate("/system/operator-state"), keywords: ["mood", "focus", "capacity", "drift", "momentum", "lecun", "state", "pulse"] },
+      { id: "sys-calibration", label: "State Calibration · mood × kind", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "m1", "heatmap", "mood", "kind", "hit rate", "suggestion"] },
+      { id: "sys-api-tokens", label: "API Tokens · Chrome ext", group: "System Ops", icon: <CogIcon className="size-4" />, action: () => navigate("/system/api-tokens"), keywords: ["token", "api", "chrome", "extension", "bearer", "sn_"] },
+      { id: "sys-judge-eval", label: "Judge-eval · V1↔V2 + calibration", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/judge-eval"), keywords: ["judge", "eval", "v1", "v2", "prompt", "shadow", "calibration", "ground truth"] },
+      { id: "sys-lens-stats", label: "Lens Stats · framework fire-rate", group: "System Ops", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/lens-stats"), keywords: ["lens", "framework", "elon", "pareto", "stats", "fire"] },
+      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain/board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
 
       // ═══ PAGES — remaining live surfaces ═══
       { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/body"), keywords: ["weight", "workout", "boxing"] },

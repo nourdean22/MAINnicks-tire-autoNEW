@@ -27,7 +27,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Grid3x3 } from "lucide-react";
+import { ChevronLeft, Grid3x3, Sparkles, Brain } from "lucide-react";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -156,12 +156,65 @@ export default function CalibrationPage() {
           (no operator-state snapshot) excluded from the grid.
         </p>
 
+        {/* 2026-05-23 · UI #7 · empty state when the operator hasn't
+            yet acted on / dismissed a single state-stamped suggestion.
+            Pre-fix the grid rendered as a sea of "—" cells which read
+            as "broken" rather than "warming up." This callout teaches
+            the operator how the grid fills · removes the cold-start
+            confusion · and matches the editorial palette (gold accent
+            on dark · concentric icon vocabulary from the operator-
+            state pulse). Branch keys off totalRows because that's the
+            inclusive count (stamped + unstamped) · zero means "no
+            suggestion-loop activity at all" · the truly empty case. */}
+        {!isLoading && !error && data && data.totalRows === 0 ? (
+          <div className="mt-6 flex flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-[var(--border-default)] bg-[var(--bg-elevated)]/30 px-6 py-10 text-center">
+            <div className="relative">
+              <div className="absolute inset-0 -m-1 rounded-full border border-[var(--gold)]/20" aria-hidden />
+              <div className="absolute inset-0 -m-3 rounded-full border border-[var(--gold)]/10" aria-hidden />
+              <Sparkles size={28} className="relative text-[var(--gold)]" aria-hidden />
+            </div>
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+                Grid warming up
+              </h3>
+              <p className="mx-auto max-w-sm text-xs text-[var(--text-secondary)]">
+                Your mood × kind matrix fills as you tap or dismiss
+                Nick&apos;s suggestion chips. Each chip stamps the
+                current operator-state · the grid reveals which
+                kinds land in which moods.
+              </p>
+            </div>
+            <ol className="space-y-1.5 text-[11px] text-[var(--text-tertiary)]">
+              <li className="flex items-center gap-2">
+                <span className="font-mono text-[var(--gold)]/70">1.</span>
+                <span>Visit <Link href="/" className="text-[var(--text-secondary)] hover:text-[var(--gold)] transition-colors">/</Link> · Nick surfaces chips based on your state</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="font-mono text-[var(--gold)]/70">2.</span>
+                <span>Tap a chip to act · or × to dismiss · both are signal</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="font-mono text-[var(--gold)]/70">3.</span>
+                <span>Return here · cells light up by mood × kind hit rate</span>
+              </li>
+            </ol>
+            <Link
+              href="/system/operator-state"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--gold)]/40 hover:text-[var(--gold)]"
+            >
+              <Brain size={11} aria-hidden /> see live operator-state
+            </Link>
+          </div>
+        ) : null}
+
         {/* Grid · sticky first column · scrollable horizontally on mobile.
             2026-05-23 · UI #2 · cells use heatmap saturation (cellTone
             returns inline-style bg with opacity scaled to hit rate).
             Row + col totals also carry sparklines so the time-trend
-            is visible without a separate chart. */}
-        <div className="mt-4 overflow-x-auto">
+            is visible without a separate chart.
+            2026-05-23 · UI #7 · hidden when totalRows === 0 · the
+            empty-state callout above replaces the blank grid. */}
+        <div className={cn("mt-4 overflow-x-auto", data && data.totalRows === 0 && "hidden")}>
           <table className="w-full border-separate border-spacing-0">
             <thead>
               <tr>
