@@ -77,20 +77,25 @@ export const closedLoopRouter = router({
   /**
    * summary — quick aggregate · how many lifted / no-lift / regression
    * across all measurements. Used for an at-a-glance tile heading.
+   *
+   * wave-181.x bug-fix · switched from raw SQL + dual-array result
+   * heuristic to typed Drizzle .select().groupBy() · driver-version-
+   * stable + type-safe.
    */
   summary: adminProcedure.query(async () => {
     try {
       const { getDb } = await import("../db");
       const { waveMetrics } = await import("../../drizzle/schema");
-      const { sql, eq } = await import("drizzle-orm");
+      const { sql } = await import("drizzle-orm");
       const d = await getDb();
       if (!d) return { lifted: 0, noLift: 0, regression: 0, total: 0, pending: 0 };
-      const counts = await d.execute(sql`
-        SELECT status, COUNT(*) AS n FROM wave_metrics GROUP BY status
-      `);
-      const rows = (Array.isArray(counts) && Array.isArray(counts[0]) ? counts[0] : counts) as Array<{ status: string; n: number }>;
-      // suppress eslint · eq imported for typing parity
-      void eq;
+      const rows = await d
+        .select({
+          status: waveMetrics.status,
+          n: sql<number>`COUNT(*)`.as("n"),
+        })
+        .from(waveMetrics)
+        .groupBy(waveMetrics.status);
       const map: Record<string, number> = {};
       for (const r of rows) map[r.status] = Number(r.n);
       return {

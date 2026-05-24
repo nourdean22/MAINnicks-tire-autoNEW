@@ -43,10 +43,11 @@ import {
   Search,
   Wifi,
   WifiOff,
-  Clock,
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+// wave-181.x bug-fix · removed unused Clock import (Recent Activity
+// panel was deleted due to roadmap-leak in placeholder text).
 import { PageHeader, KpiTile, Panel } from "./shared";
 
 // ─── Open Issue types ────────────────────────────────────
@@ -200,7 +201,10 @@ export default function SettingsStatusTab() {
         title: `Feature flag OFF · ${f.key}`,
         detail: f.description || "Customer-contacting automation is disabled. Flipping it on activates the workflow.",
         whyText: "Feature flags gate revenue-affecting workflows so they can be rolled out gradually. This one was left OFF either because it ships in dry-run by default OR because the operator hasn't verified it yet.",
-        actionHref: "/admin?tab=settings&settingsTab=automations",
+        // wave-181.x bug-fix · was settingsTab=automations which is NOT
+        // a valid SettingsTab · click silently landed on no-content.
+        // Flags live in the shopdriver tab via FeatureFlagsPanel.
+        actionHref: "/admin?tab=settings&settingsTab=shopdriver",
         actionLabel: "Review flag",
       });
     }
@@ -336,19 +340,12 @@ export default function SettingsStatusTab() {
         </div>
       </Panel>
 
-      {/* ── Recent events feed (placeholder · upgrades in Phase 3) ── */}
-      <Panel
-        title="Recent activity (24h)"
-        subtitle="Deploys · migrations · gateway events · cron alerts"
-        icon={<Clock className="w-4 h-4" />}
-      >
-        <div className="space-y-1.5">
-          <div className="text-[11.5px] text-foreground/40 italic">
-            Activity-feed wiring lands in Phase 3 (AUTOMATIONS tab) · pulled from cron_alerts_fired +
-            gateway events + git tags. For now check Telegram + deploy log.
-          </div>
-        </div>
-      </Panel>
+      {/* wave-181.x · Recent-events panel REMOVED for now.
+          Placeholder roadmap text was leaking developer intent to the
+          operator (CLAUDE.md red-flag: deferred TODOs displayed in
+          production UI). Real activity feed lands when there's a
+          unified events table to read from · see cron_alerts_fired +
+          gateway events + git-tag pipeline (not yet wired). */}
     </div>
   );
 }
