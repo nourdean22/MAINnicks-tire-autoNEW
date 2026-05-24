@@ -1,12 +1,10 @@
 import { trpc } from "@/lib/trpc";
-import { BUSINESS } from "@shared/business";
 import { StatCard } from "../shared";
 import { Spinner, NoData, INTELLIGENCE_QUERY_OPTS } from "./utils";
-
-const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
-import {
-  Activity, AlertTriangle, TrendingUp, Users, Star, Zap, Brain,
-} from "lucide-react";
+// wave-181.x Intelligence Dispersal Wave 1 · trimmed unused imports
+// after deleting 3 StatCards + NourOsBrainCard (Activity · TrendingUp ·
+// Brain · BUSINESS · MONTHLY_TARGET).
+import { AlertTriangle, Users, Star, Zap } from "lucide-react";
 
 export default function OverviewTab() {
   const { data, isLoading, error } = trpc.intelligence.masterReport.useQuery(undefined, INTELLIGENCE_QUERY_OPTS);
@@ -17,18 +15,13 @@ export default function OverviewTab() {
   const score = data.summary.score ?? 0;
   const scoreColor = score >= 70 ? "text-emerald-400" : score >= 40 ? "text-amber-400" : "text-red-400";
 
-  // Derived stats from sub-reports — engine results are Record<string, unknown>
-  // Use the dynamic target the backend computes (trailing 90d × 1.1 growth)
-  // instead of the stale $20K constant. Falls back to constant for cold start.
-  const pacingMonth = data.revenue.pacing?.month as Record<string, unknown> | undefined;
-  const dynamicTarget = typeof pacingMonth?.target === "number" ? pacingMonth.target : MONTHLY_TARGET;
-  const revenuePace = typeof pacingMonth?.soFar === "number"
-    ? Math.round((pacingMonth.soFar / dynamicTarget) * 100)
-    : null;
-  const highRiskArr = data.customers.churnRisk?.highRisk;
-  const churnCount = Array.isArray(highRiskArr) ? highRiskArr.length : null;
+  // wave-181.x Intelligence Dispersal Wave 1 · 3 derived stats deleted:
+  //   · revenuePace · MoneyBrief already shows pacing on the Money page
+  //   · churnCount · CustomersBrief surfaces the same adjacency
+  //   · newCusts · LeadsBrief velocity covers this
+  // Per 2026-05-24-intelligence-dispersal-plan.md §4.1 Bucket A cuts.
+  // reviewVel stays — going to statenour /radar in a later wave.
   const reviewVel = typeof data.marketing.reviewVelocity?.velocity === "number" ? data.marketing.reviewVelocity.velocity : null;
-  const newCusts = typeof data.customers.velocity?.thisMonth === "number" ? data.customers.velocity.thisMonth : null;
 
   return (
     <div className="space-y-6">
@@ -97,24 +90,12 @@ export default function OverviewTab() {
         />
       </div>
 
-      {/* Key Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          label="REVENUE PACE"
-          value={revenuePace != null ? `${revenuePace}%` : "--"}
-          icon={<TrendingUp className="w-4 h-4" />}
-          color={revenuePace != null && revenuePace >= 80 ? "text-emerald-400" : "text-amber-400"}
-          trendLabel="vs dynamic target"
-          trend={revenuePace != null && revenuePace >= 80 ? "up" : "down"}
-        />
-        <StatCard
-          label="CHURN RISK"
-          value={churnCount ?? "--"}
-          icon={<Users className="w-4 h-4" />}
-          color={churnCount != null && churnCount > 5 ? "text-red-400" : "text-emerald-400"}
-          trendLabel="high risk customers"
-          trend={churnCount != null && churnCount > 5 ? "down" : "up"}
-        />
+      {/* wave-181.x Intelligence Dispersal Wave 1 · 3 of 4 stat cards
+       * deleted (Revenue Pace · Churn Risk · New Customers) per
+       * dispersal plan §4.1 — all duplicated by the page-specific
+       * briefs (MoneyBrief · CustomersBrief · LeadsBrief). Only
+       * Review Velocity remains (going to statenour /radar later). */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-md">
         <StatCard
           label="REVIEW VELOCITY"
           value={reviewVel ?? "--"}
@@ -122,20 +103,15 @@ export default function OverviewTab() {
           trendLabel="reviews / month"
           trend="neutral"
         />
-        <StatCard
-          label="NEW CUSTOMERS"
-          value={newCusts ?? "--"}
-          icon={<Activity className="w-4 h-4" />}
-          color="text-blue-400"
-          trendLabel="this month"
-          trend="neutral"
-        />
       </div>
       {/* ─── CUSTOMER JOURNEY FUNNEL ─── */}
       <CustomerJourneyFunnel data={data} />
 
-      {/* ─── NOUR OS BRAIN INTEGRATION ─── */}
-      <NourOsBrainCard />
+      {/* wave-181.x Intelligence Dispersal Wave 1 · NourOsBrainCard
+       * deleted (~66 LOC) · it was a pure proxy of statenour brain
+       * endpoints · duplicating data the operator can see on statenour
+       * directly. Per dispersal plan §4.3 Bucket C "HIGH-confidence →
+       * delete" list. */}
     </div>
   );
 }
@@ -257,70 +233,11 @@ function AlertCard({ type, icon, message, border }: {
   );
 }
 
-function NourOsBrainCard() {
-  // 2026-05-05 audit follow-up: was raw cross-origin fetch() to
-  // statenour-os from the browser. Now proxied through nickstire's
-  // tRPC layer for observability + same-origin requests.
-  const { data: brain } = trpc.intelligence.autonicksBrainStatus.useQuery(undefined, {
-    staleTime: 60_000,
-  });
-  const { data: weather } = trpc.intelligence.autonicksWeather.useQuery(undefined, {
-    staleTime: 60_000,
-  });
-
-  if (!brain && !weather) return null;
-
-  const memories = brain?.memories;
-  const impact = weather?.businessImpact;
-
-  return (
-    <div className="bg-card border border-violet-500/20 p-5">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-6 h-6 bg-violet-500/20 flex items-center justify-center rounded-sm">
-          <Brain className="w-3.5 h-3.5 text-violet-400" />
-        </div>
-        <span className="text-[11px] font-bold text-violet-400 tracking-wide">NOUR OS BRAIN LINK</span>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {memories && (
-          <>
-            <div className="text-center">
-              <div className="text-lg font-bold font-mono text-violet-400">{memories.total ?? 0}</div>
-              <div className="text-[10px] text-foreground/40">MEMORIES</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold font-mono text-foreground">{memories.permanent ?? 0}</div>
-              <div className="text-[10px] text-foreground/40">PERMANENT</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-bold font-mono text-foreground">
-                {memories.avgConfidence ? `${Math.round(memories.avgConfidence * 100)}%` : "—"}
-              </div>
-              <div className="text-[10px] text-foreground/40">AVG CONFIDENCE</div>
-            </div>
-          </>
-        )}
-        {impact && (
-          <div className="text-center">
-            <div className={`text-lg font-bold font-mono ${
-              impact.demandForecast === "surge" ? "text-emerald-400" :
-              impact.demandForecast === "high" ? "text-emerald-400" :
-              impact.demandForecast === "low" ? "text-red-400" : "text-foreground/70"
-            }`}>
-              {impact.demandForecast.toUpperCase()}
-            </div>
-            <div className="text-[10px] text-foreground/40">WEATHER DEMAND</div>
-          </div>
-        )}
-      </div>
-
-      {brain?.automationRules && (
-        <div className="mt-3 text-[11px] text-foreground/40">
-          {brain.automationRules.active ?? 0} autonomous rules active ·
-          Brain health: {(memories?.avgConfidence ?? 0) > 0.3 ? "healthy" : "needs attention"}
-        </div>
-      )}
-    </div>
-  );
-}
+// wave-181.x Intelligence Dispersal Wave 1 · NourOsBrainCard function
+// deleted (was 66 LOC at this location). The card was a pure proxy of
+// statenour-side endpoints (autonicksBrainStatus + autonicksWeather)
+// that duplicated brain memories + weather demand the operator can
+// see on statenour directly. Per dispersal plan §4.3 "HIGH-confidence
+// → delete" list. The tRPC procedures themselves stay (intelligence.
+// autonicksBrainStatus + autonicksWeather) since other callers may
+// use them — only this UI surface is removed.
