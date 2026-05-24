@@ -19,6 +19,7 @@ export const northStarMetric: StrategicFramework = {
     /\b(growth\s+metric|leading\s+indicator\s+of\s+growth)\b/i,
   ],
   weight: 0.95,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply the North Star Metric lens. The point is FOCUS · most
 businesses track 30+ metrics and improve none of them because the
 team's attention is fragmented. The North Star is the ONE metric

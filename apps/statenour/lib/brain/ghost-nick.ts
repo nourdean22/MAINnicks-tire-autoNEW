@@ -426,6 +426,46 @@ export async function dismissPrediction(taskIdOrTitle: string): Promise<GhostPre
     })
     .catch(() => {});
 
+  // 2026-05-23 · Wave D · ghost-accuracy was a precision-only metric.
+  // The `misses` field existed on the GhostAccuracy interface but
+  // was NEVER incremented anywhere — the metric could only go UP.
+  // Dismissal of a prediction IS the operator's "this was wrong" vote ·
+  // increment misses so the accuracy denominator reflects all evaluated
+  // predictions, not just successes. Best-effort · independent from
+  // the dismissal-row persistence above.
+  void (async () => {
+    try {
+      const accRow = await prisma.brainMemory.findUnique({
+        where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
+        select: { content: true },
+      });
+      const baseAcc: GhostAccuracy = accRow
+        ? (() => {
+            try {
+              return JSON.parse(accRow.content) as GhostAccuracy;
+            } catch {
+              return { hits: 0, misses: 0, surprises: 0, evaluated_at: now.toISOString(), last_check_at: now.toISOString() };
+            }
+          })()
+        : { hits: 0, misses: 0, surprises: 0, evaluated_at: now.toISOString(), last_check_at: now.toISOString() };
+      baseAcc.misses += 1;
+      baseAcc.last_check_at = now.toISOString();
+      await prisma.brainMemory.upsert({
+        where: { category_key: { category: BRAIN_CATEGORIES.GHOST_ACCURACY, key: "rolling" } },
+        create: {
+          category: BRAIN_CATEGORIES.GHOST_ACCURACY,
+          key: "rolling",
+          content: JSON.stringify(baseAcc),
+          confidence: 0.7,
+          source: "ghost_dismissal",
+        },
+        update: { content: JSON.stringify(baseAcc), lastSeen: now },
+      });
+    } catch {
+      // Telemetry must not block UI dismissal.
+    }
+  })();
+
   // 2. Also flip the flag inside the current bundle for immediate UI
   const row = await prisma.brainMemory
     .findUnique({
@@ -479,9 +519,16 @@ export async function buildGhostContextBlock(): Promise<string> {
   if (!bundle || bundle.predictions.length === 0) return "";
   const lines: string[] = ["## Ghost Nick's next-move read"];
   const acc = await loadGhostAccuracy().catch((): GhostAccuracy | null => null);
-  if (acc && acc.hits + acc.surprises >= 3) {
-    const accPct = Math.round((acc.hits / (acc.hits + acc.surprises)) * 100);
-    lines.push(`_running accuracy ${acc.hits}/${acc.hits + acc.surprises} (${accPct}%)_`);
+  // 2026-05-23 · Wave D · accuracy now factors in misses (dismissals)
+  // alongside hits and surprises. Pre-fix the denominator was
+  // hits+surprises only · misses field was never incremented · the
+  // metric could only go UP. Now: precision-recall blend ·
+  // hits / (hits + misses + surprises). Surprises stay in the
+  // denominator because they're predictions we should have made.
+  if (acc && acc.hits + acc.misses + acc.surprises >= 3) {
+    const total = acc.hits + acc.misses + acc.surprises;
+    const accPct = Math.round((acc.hits / total) * 100);
+    lines.push(`_running accuracy ${acc.hits}/${total} (${accPct}%)_`);
   }
   for (const p of bundle.predictions) {
     if (p.dismissed) continue;

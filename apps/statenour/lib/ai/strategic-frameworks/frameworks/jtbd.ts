@@ -21,6 +21,7 @@ export const jobsToBeDone: StrategicFramework = {
     /\b(emotional|functional|social)\s+(job|need|driver)\b/i,
   ],
   weight: 1.05,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply Jobs To Be Done. Customers don't buy a product — they hire it
 to do a job. Map the THREE dimensions:
   · Functional · the visible task ("get the brakes fixed")

@@ -14,9 +14,20 @@ export const financialModeling: StrategicFramework = {
     /\b(p\s*&\s*l|p\s+and\s+l|profit\s*[-\s]*and[-\s]*loss|income\s+statement)\b/i,
     /\b(cash\s*flow|cashflow|burn(\s+rate)?|runway)\b/i,
     /\b(scenario|bull\s+case|bear\s+case|base\s+case|sensitivity)\b/i,
-    /\b(unit\s+economics?|gross\s+margin|operating\s+margin|contribution\s+margin)\b/i,
+    /\b(operating\s+margin)\b/i,
     /\b(break[\s-]?even|breakeven)\b/i,
-    /\bproject(ed|ions?)\s+(revenue|profit|cashflow|burn)/i,
+  ],
+  // 2026-05-23 · Wave E · dedup with unit-economics + financial-projections.
+  // Pre-fix this lens claimed `unit\s+economics?` and `project(ed|ions?)`
+  // triggers AND `contribution\s+margin` / `gross\s+margin` — all of which
+  // belong to sister frameworks. Result: a "cashflow projection" question
+  // co-fired all 3, wasting the top-3 slots on one domain. Now distinct:
+  // financial-modeling = scenario + break-even depth · unit-economics =
+  // CAC/LTV/margin · financial-projections = forecast horizon. antiTriggers
+  // suppress fallback fires when those sister lenses should take over.
+  antiTriggers: [
+    /\b(cac|ltv|payback\s+period|contribution\s+margin|per[\s-](customer|unit))/i,
+    /\b(forecast|projection)\b/i,
   ],
   weight: 1.0,
   lens: `Apply Financial Modeling. The model should be the SIMPLEST one that

@@ -284,7 +284,16 @@ strategic.`;
   // specific framework triggered. Still nudge Nick toward
   // structured thinking · list the registry headlines so the model
   // can pick a relevant one based on its own read of the question.
-  const headlines = REGISTRY
+  //
+  // 2026-05-23 · Wave E · filter to FEATURED lenses only.
+  // Pre-fix this dumped ALL 49 headlines · ~700-1000 tokens per
+  // generic-fallback fire · ~80 tokens of which the model actually
+  // used. Featured-only keeps the fallback compact (~150 tokens)
+  // while preserving the choice set for Nick. Fallback to ALL
+  // when zero lenses are marked featured (safety net).
+  const featuredLenses = REGISTRY.filter((f) => f.featured);
+  const lensesToList = featuredLenses.length > 0 ? featuredLenses : REGISTRY;
+  const headlines = lensesToList
     .map((f) => `· **${f.name}** — ${f.oneLiner}`)
     .join("\n");
 

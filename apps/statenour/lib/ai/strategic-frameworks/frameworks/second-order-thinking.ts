@@ -22,6 +22,7 @@ export const secondOrderThinking: StrategicFramework = {
     /\b(reaction\s+(to\s+)?(the\s+)?(market|customers?|competitors?))/i,
   ],
   weight: 1.0,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply Second-Order Thinking. Marks's claim · "first-level thinking
 says, 'It's a good company; let's buy the stock.' Second-level
 thinking says, 'It's a good company, but everyone thinks it's a

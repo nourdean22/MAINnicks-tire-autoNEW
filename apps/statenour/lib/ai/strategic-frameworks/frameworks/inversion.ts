@@ -19,6 +19,7 @@ export const inversion: StrategicFramework = {
     /\b(pre[\s-]mortem)/i,
   ],
   weight: 1.0,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply Inversion. Munger's claim · "all I want to know is where
 I'm going to die so I'll never go there." Inversion turns the
 question on its head ·

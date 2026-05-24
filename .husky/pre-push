@@ -41,6 +41,21 @@ if [ ! -x "./node_modules/.bin/turbo" ]; then
   exit 1
 fi
 
+# 2026-05-23 · Wave G · self-heal stale .next/lock from a prior aborted
+# build. Two failure modes this fixes:
+#   1. Operator hits Ctrl-C mid-`pnpm build` · the lockfile survives ·
+#      next build hangs forever waiting for a holder PID that no longer
+#      exists.
+#   2. A separate session started a build that died · same hang.
+# Safe to delete · Next.js writes a fresh one on every build start.
+# Match the pattern in Wave A's manual `rm -f .next/lock` invocations.
+for lock in apps/*/.next/lock; do
+  if [ -e "$lock" ]; then
+    echo "[pre-push] removing stale lock · $lock"
+    rm -f "$lock"
+  fi
+done
+
 # wave-181.91 hardening · was `--affected` which silently missed
 # committed-but-not-pushed changes when the working tree also had
 # unstaged changes (Turbo's affected detection got confused). Now we

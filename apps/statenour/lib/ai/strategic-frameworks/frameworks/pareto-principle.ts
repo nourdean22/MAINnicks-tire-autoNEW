@@ -21,6 +21,7 @@ export const paretoPrinciple: StrategicFramework = {
     /\b(which\s+(few|customers?|products?|features?)\s+(drive|account\s+for))/i,
   ],
   weight: 0.95,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply the Pareto Principle (80/20 rule). The pattern is
 empirical · across hundreds of domains · ~80% of the effect comes
 from ~20% of the inputs. Customers · revenue · profit · complaints ·

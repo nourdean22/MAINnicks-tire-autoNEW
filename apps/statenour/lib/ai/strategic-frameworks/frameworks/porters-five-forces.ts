@@ -21,6 +21,7 @@ export const portersFiveForces: StrategicFramework = {
     /\b(commoditiz|race\s+to\s+the\s+bottom)\b/i,
   ],
   weight: 1.0,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply Porter's Five Forces. Industry profitability is structural ·
 not the result of who tries hardest. Walk the 5 forces and grade
 each as LOW / MEDIUM / HIGH pressure on margins:

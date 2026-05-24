@@ -31,12 +31,17 @@ const CATEGORY_TO_KIND: Record<string, CoalaKind> = {
   wisdom: "procedural",
   wisdom_candidate: "procedural",
   pattern: "procedural",
+  meta_pattern: "procedural", // 2026-05-23 · Wave D · was unspecified
   routine: "procedural",
   prediction_lesson: "procedural",
   counter_intuitive: "procedural",
   hidden_correlation: "procedural",
   decision_manual: "procedural",
+  decision_pattern: "procedural", // 2026-05-23 · Wave D · was unspecified
   belief: "procedural",
+  strategic_plan: "procedural", // 2026-05-23 · Wave D · was unspecified
+  anti_pattern: "procedural", // 2026-05-23 · Wave D · what NOT to do = procedural
+  nick_advice: "procedural", // 2026-05-23 · Wave D · moved from episodic · advice IS guidance
   // ── SEMANTIC · facts · concepts ──
   business_alert: "semantic",
   insight: "semantic",
@@ -44,9 +49,15 @@ const CATEGORY_TO_KIND: Record<string, CoalaKind> = {
   domain_knowledge: "semantic",
   contradiction: "semantic",
   wisdom_contradiction: "semantic",
+  customer_stories: "semantic", // 2026-05-23 · Wave D · facts-about-customers
+  industry_intel: "semantic", // 2026-05-23 · Wave D · external facts
+  qualitative_identity: "semantic", // 2026-05-23 · Wave D · facts about operator self
   // ── EPISODIC · events · conversation snippets ──
-  nick_advice: "episodic",
   conversation_summary: "episodic",
+  chat_summary: "episodic", // 2026-05-23 · Wave D · was unspecified · same lane as conversation_summary
+  brain_dump: "episodic", // 2026-05-23 · Wave D · operator's stream-of-consciousness moments
+  reflection: "episodic", // 2026-05-23 · Wave D · timestamped self-observations
+  blind_spot: "episodic", // 2026-05-23 · Wave D · usually anchored to a specific moment
   glitch_capture: "episodic",
   daily_score: "episodic",
   device_behavior: "episodic",
