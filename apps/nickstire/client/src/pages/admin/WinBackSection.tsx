@@ -6,6 +6,10 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard, PageHeader, useUrlFilter, ErrorState } from "./shared";
+// wave-181.x Outreach Phase 1 · confirmDialog on ACTIVATE + SEND
+// PENDING + RESUME (each fires real SMS to potentially hundreds of
+// customers · previously ungated). iOS-PWA-safe primitive.
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 // tRPC-inferred types — server router was fixed in same commit
 // (drizzle $inferSelect on (c: any) leakages), so RouterOutputs
@@ -319,7 +323,20 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
         <div className="flex items-center gap-2">
           {campaign.status === "draft" && (
             <button
-              onClick={() => activateMutation.mutate({ campaignId })}
+              onClick={async () => {
+                // wave-181.x Outreach Phase 1 · safety gate · activate
+                // locks in target list + begins the multi-step sequence.
+                const targetCount = campaign.targetCount ?? 0;
+                const ok = await confirmDialog({
+                  title: `Activate win-back to ${targetCount} customers?`,
+                  message: `This locks in the target list (${targetCount} customers) and starts the multi-step sequence. The first SMS step will fire as soon as you press SEND PENDING. Sequence respects quiet-hours + opt-out + daily rate limit.`,
+                  confirmLabel: "Activate",
+                  cancelLabel: "Cancel",
+                  tone: "danger",
+                });
+                if (!ok) return;
+                activateMutation.mutate({ campaignId });
+              }}
               disabled={activateMutation.isPending}
               className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 font-bold text-xs tracking-wide hover:bg-emerald-700 transition-colors disabled:opacity-50"
             >
@@ -330,7 +347,21 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
           {campaign.status === "active" && (
             <>
               <button
-                onClick={() => processMutation.mutate()}
+                onClick={async () => {
+                  // wave-181.x Outreach Phase 1 · safety gate · "SEND
+                  // PENDING" fires the next scheduled step to ALL
+                  // customers currently in the sequence. Was ungated.
+                  const pendingCount = campaign.pendingCount ?? campaign.targetCount ?? 0;
+                  const ok = await confirmDialog({
+                    title: `Send next step to ${pendingCount} customers?`,
+                    message: `This fires the next scheduled SMS step to every customer currently in the active sequence (${pendingCount} pending). Real outbound · respects quiet hours + opt-out + daily cap. No undo.`,
+                    confirmLabel: `Send to ${pendingCount}`,
+                    cancelLabel: "Cancel",
+                    tone: "danger",
+                  });
+                  if (!ok) return;
+                  processMutation.mutate();
+                }}
                 disabled={processMutation.isPending}
                 className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 font-bold text-xs tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
               >

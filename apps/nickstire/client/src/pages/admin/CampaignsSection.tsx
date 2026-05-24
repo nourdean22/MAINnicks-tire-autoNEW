@@ -6,6 +6,10 @@ import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard, formatDate } from "./shared";
+// wave-181.x Outreach Phase 1 · safety gate on bulk campaign send.
+// confirmDialog is iOS-PWA-safe (window.confirm is suppressed in
+// standalone mode per nickstire-ios-pwa-primitives skill).
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
 type Campaign = NonNullable<RouterOutputs["campaigns"]["list"]>[number];
 import {
@@ -104,6 +108,23 @@ export default function CampaignsSection() {
       toast.error("Please enter a campaign name");
       return;
     }
+
+    // wave-181.x Outreach Phase 1 bug-fix · per code-explorer agent audit:
+    // before this gate, clicking "Send Campaign" on the preview screen
+    // fired create+send IMMEDIATELY with no second confirmation.
+    // The campaign sends to the entire segment (could be the full DB).
+    // confirmDialog is iOS-PWA-safe vs window.confirm (suppressed in
+    // standalone mode per wave-139). Includes target-count + segment
+    // name + a clear "real outbound SMS" warning.
+    const targetCount = preview?.length ?? 0;
+    const ok = await confirmDialog({
+      title: `Send to ${targetCount} customers?`,
+      message: `This will fire a REAL outbound SMS campaign to ${targetCount} customers in the "${selectedSegment}" segment from the F25e shop gateway (216-862-0005). Each customer counts toward their daily SMS cap. Opt-outs are filtered automatically. There is no undo.`,
+      confirmLabel: `Send to ${targetCount}`,
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!ok) return;
 
     setCreating(true);
     try {
@@ -337,7 +358,7 @@ export default function CampaignsSection() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-[15px] font-semibold text-foreground tracking-tight">Campaigns</h3>
-          <p className="text-foreground/50 text-[12px] mt-0.5">Schedule + send bulk SMS · routes through Twilio fallback path</p>
+          <p className="text-foreground/50 text-[12px] mt-0.5">Schedule + send bulk SMS · routes through F25e shop gateway (216-862-0005)</p>
         </div>
         <button
           onClick={() => setView("create")}

@@ -6,6 +6,10 @@ import { useState, useMemo, useEffect } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
 import { StatCard, PageHeader, useUrlFilter, FilterChips } from "./shared";
+// wave-181.x Outreach Phase 1 · confirmDialog gate on backfill blast +
+// process queue (both fire real outbound SMS to dozens-to-hundreds of
+// customers · previously ungated).
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   Loader2, Star, Send, RefreshCw, CheckCircle2, XCircle,
   Clock, MousePointerClick, Settings, Zap, AlertTriangle,
@@ -197,7 +201,20 @@ export default function ReviewRequestsSection() {
               {requests?.length ?? 0} review requests
             </span>
             <button
-              onClick={() => processQueue.mutate()}
+              onClick={async () => {
+                // wave-181.x Outreach Phase 1 · safety gate · was firing
+                // a real outbound SMS run with no confirmation.
+                const due = requests?.filter((r: ReviewRequest) => r.status === "scheduled" && new Date(r.scheduledFor) <= new Date()).length ?? 0;
+                const ok = await confirmDialog({
+                  title: `Process the review-request queue?`,
+                  message: `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
+                  confirmLabel: "Process queue",
+                  cancelLabel: "Cancel",
+                  tone: "danger",
+                });
+                if (!ok) return;
+                processQueue.mutate();
+              }}
               disabled={processQueue.isPending}
               className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2 text-[12px] tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
@@ -483,7 +500,21 @@ export default function ReviewRequestsSection() {
               {(backfillPreview?.count ?? 0) > 0 ? (
                 <div className="flex items-center gap-4">
                   <button
-                    onClick={() => backfillExecute.mutate()}
+                    onClick={async () => {
+                      // wave-181.x Outreach Phase 1 · safety gate per code-
+                      // explorer agent audit · was firing real outbound SMS
+                      // to all past-service customers with no confirmation.
+                      const count = backfillPreview?.count ?? 0;
+                      const ok = await confirmDialog({
+                        title: `Send review request to ${count} customers?`,
+                        message: `This will schedule a REAL outbound review-request SMS to ${count} customers who completed service in the past year and were never asked. Sends respect the 8AM-8PM quiet hours + per-day rate limit + TCPA opt-out filter. No undo.`,
+                        confirmLabel: `Send to ${count}`,
+                        cancelLabel: "Cancel",
+                        tone: "danger",
+                      });
+                      if (!ok) return;
+                      backfillExecute.mutate();
+                    }}
                     disabled={backfillExecute.isPending}
                     className="flex items-center gap-2 bg-primary text-primary-foreground px-6 py-3 font-bold text-sm tracking-wide hover:bg-primary/90 transition-colors disabled:opacity-50"
                   >
