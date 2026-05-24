@@ -33,8 +33,8 @@
  * first-class operator surface.
  */
 
-import { useEffect, useState } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface GscSummary {
   ok: true;
@@ -76,56 +76,48 @@ interface GscPagesData {
   count: number;
 }
 
+type SummaryRaw = Omit<GscSummary, "ok">;
+type QueriesRaw = Omit<GscQueriesData, "ok">;
+type PagesRaw = Omit<GscPagesData, "ok">;
+
 export default function SeoPage() {
-  const [summary, setSummary] = useState<GscSummary | null>(null);
-  const [queries, setQueries] = useState<GscQueriesData | null>(null);
-  const [pages, setPages] = useState<GscPagesData | null>(null);
-  const [bridgeOk, setBridgeOk] = useState<"loading" | "ok" | "down">("loading");
+  // 2026-05-24 · Wave X.g · migrated off the inline 40-LOC fetch loop
+  // onto three `usePollingFetch` calls. Each runs independently · the
+  // page already isolated per-sub-report degrade so the hook's
+  // independence matches the existing semantics. 15-min interval
+  // matches the GSC pipeline's nightly update cadence (faster poll
+  // would thrash the cache without surfacing new data). gsc_*
+  // handlers don't include `ok:true` in their payload · the page
+  // synthesizes it for type compatibility with the interfaces.
+  const {
+    data: summaryRaw,
+    loading: summaryLoading,
+    error: summaryError,
+  } = usePollingFetch<SummaryRaw>(
+    "/api/nickstire/query?q=gsc_summary",
+    { intervalMs: 900_000 },
+  );
+  const { data: queriesRaw } = usePollingFetch<QueriesRaw>(
+    "/api/nickstire/query?q=gsc_top_queries&limit=10",
+    { intervalMs: 900_000 },
+  );
+  const { data: pagesRaw } = usePollingFetch<PagesRaw>(
+    "/api/nickstire/query?q=gsc_top_pages&limit=10",
+    { intervalMs: 900_000 },
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [sRes, qRes, pRes] = await Promise.all([
-          fetch("/api/nickstire/query?q=gsc_summary"),
-          fetch("/api/nickstire/query?q=gsc_top_queries&limit=10"),
-          fetch("/api/nickstire/query?q=gsc_top_pages&limit=10"),
-        ]);
-        const [sJson, qJson, pJson] = await Promise.all([
-          sRes.json(),
-          qRes.json(),
-          pRes.json(),
-        ]);
-        if (cancelled) return;
-
-        // Bridge returns { data, query, timestamp } on success; inner
-        // `data` is the handler return. gsc_* handlers don't include
-        // ok:true · wrap inferred presence as the "ok" check.
-        const sData = sJson?.data;
-        const qData = qJson?.data;
-        const pData = pJson?.data;
-
-        if (!sData || typeof sData.totalClicks !== "number") {
-          setBridgeOk("down");
-          return;
-        }
-        setSummary({ ok: true, ...sData } as GscSummary);
-        if (qData?.queries) setQueries({ ok: true, ...qData } as GscQueriesData);
-        if (pData?.pages) setPages({ ok: true, ...pData } as GscPagesData);
-        setBridgeOk("ok");
-      } catch {
-        if (!cancelled) setBridgeOk("down");
-      }
-    };
-    void load();
-    // Refresh every 15 minutes · GSC pipeline updates nightly · faster
-    // poll would just thrash the cache without surfacing new data.
-    const id = setInterval(load, 900_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  const summary: GscSummary | null =
+    summaryRaw && typeof summaryRaw.totalClicks === "number"
+      ? ({ ok: true, ...summaryRaw } as GscSummary)
+      : null;
+  const queries: GscQueriesData | null = queriesRaw?.queries
+    ? ({ ok: true, ...queriesRaw } as GscQueriesData)
+    : null;
+  const pages: GscPagesData | null = pagesRaw?.pages
+    ? ({ ok: true, ...pagesRaw } as GscPagesData)
+    : null;
+  const bridgeOk: "loading" | "ok" | "down" =
+    summaryError ? "down" : summaryLoading && !summary ? "loading" : summary ? "ok" : "down";
 
   if (bridgeOk === "down") {
     return (

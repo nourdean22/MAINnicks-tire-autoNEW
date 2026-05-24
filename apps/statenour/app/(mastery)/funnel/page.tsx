@@ -30,8 +30,8 @@
  * Conversion panels (both retired in Wave 2).
  */
 
-import { useEffect, useState } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface FunnelStage {
   label: string;
@@ -63,46 +63,36 @@ interface FirstVisitData {
 }
 
 export default function FunnelPage() {
-  const [overview, setOverview] = useState<FunnelOverview | null>(null);
-  const [firstVisit, setFirstVisit] = useState<FirstVisitData | null>(null);
-  const [bridgeOk, setBridgeOk] = useState<"loading" | "ok" | "down">("loading");
+  // 2026-05-24 · Wave X.g · migrated off the inline 35-LOC fetch loop
+  // onto `usePollingFetch` (two independent calls · the funnel page
+  // is unusual in fanning out two bridge actions instead of one).
+  // Overview is required · drives the down-state. First-visit is
+  // optional · the page still renders without it. Both share the
+  // 5-min interval since funnel data is daily-roll-up cadence.
+  const {
+    data: overviewRaw,
+    loading: overviewLoading,
+    error: overviewError,
+  } = usePollingFetch<FunnelOverview>(
+    "/api/nickstire/query?q=funnel_overview",
+    { intervalMs: 300_000 },
+  );
+  const { data: firstVisitRaw } = usePollingFetch<FirstVisitData>(
+    "/api/nickstire/query?q=funnel_first_visit",
+    { intervalMs: 300_000 },
+  );
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const [oRes, fRes] = await Promise.all([
-          fetch("/api/nickstire/query?q=funnel_overview"),
-          fetch("/api/nickstire/query?q=funnel_first_visit"),
-        ]);
-        const [oJson, fJson] = await Promise.all([oRes.json(), fRes.json()]);
-        if (cancelled) return;
-        // Bridge returns { data, query, timestamp } on success; inner
-        // `data` is the handler return: { ok, ... } or { ok: false }.
-        const oData = oJson?.data;
-        const fData = fJson?.data;
-        if (!oData || oData.ok !== true) {
-          setBridgeOk("down");
-          return;
-        }
-        setOverview(oData as FunnelOverview);
-        // First-visit may fail independently · don't block the page
-        if (fData && fData.ok === true) {
-          setFirstVisit(fData as FirstVisitData);
-        }
-        setBridgeOk("ok");
-      } catch {
-        if (!cancelled) setBridgeOk("down");
-      }
-    };
-    void load();
-    // Refresh every 5 minutes · funnel data is slow-moving (daily roll-up)
-    const id = setInterval(load, 300_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  // Treat `ok !== true` from the handler the same way the old code
+  // did · falsy down. First-visit isolated · stays null on its own
+  // failure without disrupting the page.
+  const overview = overviewRaw && overviewRaw.ok === true ? overviewRaw : null;
+  const firstVisit = firstVisitRaw && firstVisitRaw.ok === true ? firstVisitRaw : null;
+  const bridgeOk: "loading" | "ok" | "down" =
+    overviewError || (overviewRaw && overviewRaw.ok !== true)
+      ? "down"
+      : overviewLoading && !overview
+        ? "loading"
+        : "ok";
 
   if (bridgeOk === "down") {
     return (
