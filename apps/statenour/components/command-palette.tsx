@@ -112,6 +112,18 @@ export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [recents, setRecents] = useState<string[]>([]);
+  // 2026-05-24 · Wave W Phase 2 · universal hybrid spotlight ·
+  // operator types in ⌘K · in addition to filtering navigation
+  // actions (cmdk default), we ALSO call the /api/brain/search-hybrid
+  // RRF endpoint (FTS + KNN cosine fusion across brain_memory +
+  // chat_message). Pre-Wave-W this endpoint was wired to nothing the
+  // operator used daily · ~22 days of paid-for embeddings sitting
+  // idle. Now: ⌘K reaches into your second-brain from anywhere.
+  const [query, setQuery] = useState("");
+  const [semanticHits, setSemanticHits] = useState<
+    Array<{ id: string; sourceType: string; content: string }>
+  >([]);
+  const [semanticLoading, setSemanticLoading] = useState(false);
   const router = useRouter();
   // scattered-components REST→tRPC slice (2026-05-22 · prerender fix) ·
   // the eight CommandPalette system probes migrated off `authedFetch`
@@ -450,11 +462,138 @@ export function CommandPalette() {
 
   const groups = [...new Set(actions.map((a) => a.group))];
 
+  // 2026-05-24 · Wave W Phase 2 · debounced hybrid spotlight fetch.
+  // 250ms debounce · only fires for queries ≥ 3 chars · clears
+  // results immediately when query empties so cmdk's own
+  // action-filter shows alone for short queries. Calls the existing
+  // /api/brain/search-hybrid endpoint which already does RRF over
+  // FTS + KNN cosine on brain_memory + chat_message (~22 days of
+  // paid-for embeddings · zero UI consumer pre-Wave-W).
+  useEffect(() => {
+    if (!open) {
+      setSemanticHits([]);
+      return;
+    }
+    if (query.trim().length < 3) {
+      setSemanticHits([]);
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSemanticLoading(true);
+      try {
+        const res = await fetch(
+          `/api/brain/search-hybrid?q=${encodeURIComponent(query.trim())}&limit=5`,
+          { signal: controller.signal, credentials: "same-origin" },
+        );
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        // apiHandler wraps responses in { ok, data, meta } · the
+        // search-hybrid handler returns { results: SearchHit[] } where
+        // SearchHit has { id (embedding row), sourceType, sourceId,
+        // content, rrfScore }. For navigation we need sourceId (the
+        // brain_memory or chat_message id) · id is the embedding row.
+        const payload = (await res.json()) as {
+          data?: {
+            results?: Array<{
+              id: string;
+              sourceType: string;
+              sourceId: string;
+              content: string;
+            }>;
+          };
+        };
+        const results = payload.data?.results ?? [];
+        setSemanticHits(
+          results.map((r) => ({
+            id: r.sourceId,
+            sourceType: r.sourceType,
+            content: r.content,
+          })),
+        );
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") return;
+        // Silent degrade · cmdk's local action filter still works.
+        setSemanticHits([]);
+      } finally {
+        setSemanticLoading(false);
+      }
+    }, 250);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [query, open]);
+
+  // 2026-05-24 · Wave W Phase 2 · semantic-hit navigation. Brain
+  // memory hits route to /brain/wisdom?focus=<key> when possible ·
+  // chat message hits route to /chat with the message id anchor.
+  // Mirror the operator's existing deep-link patterns elsewhere on
+  // the page (e.g. /brain/wisdom?focus= from the evolution panel).
+  const navigateToHit = useCallback(
+    (hit: { id: string; sourceType: string }) => {
+      setOpen(false);
+      if (hit.sourceType === "brain_memory") {
+        router.push(`/brain/wisdom?focus=${encodeURIComponent(hit.id)}`);
+      } else if (hit.sourceType === "chat_message") {
+        router.push(`/chat#${encodeURIComponent(hit.id)}`);
+      } else {
+        // Future sources (knowledge_file, task, pin) wire here.
+        router.push(`/chat?prompt=${encodeURIComponent(query)}`);
+      }
+    },
+    [router, query],
+  );
+
   return (
     <CommandDialog open={open} onOpenChange={setOpen}>
-      <CommandInput placeholder="Type a command or search... (⌘K)" />
+      <CommandInput
+        placeholder="Type a command or search brain... (⌘K)"
+        value={query}
+        onValueChange={setQuery}
+      />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {/* 2026-05-24 · Wave W Phase 2 · semantic spotlight group ·
+            top-5 RRF-fused hits across brain_memory + chat_message.
+            Rendered above the action groups so a fresh search lands
+            on actual content first · navigation second. Hidden when
+            query < 3 chars · loading shows a placeholder so the
+            operator doesn't perceive a dead palette during the
+            ~150ms embedding fetch. */}
+        {query.trim().length >= 3 && (
+          <CommandGroup
+            heading={
+              semanticLoading
+                ? "Searching brain…"
+                : `From your brain · ${semanticHits.length}`
+            }
+          >
+            {semanticHits.map((hit) => {
+              const preview = hit.content.slice(0, 140);
+              return (
+                <CommandItem
+                  key={`semantic-${hit.id}`}
+                  value={`semantic-${hit.id}-${hit.content.slice(0, 80)}`}
+                  onSelect={() => navigateToHit(hit)}
+                >
+                  <SearchIcon className="size-4 text-[var(--gold)]/70" />
+                  <span className="truncate">{preview}</span>
+                  <span className="ml-auto text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+                    {hit.sourceType === "brain_memory" ? "memory" : "chat"}
+                  </span>
+                </CommandItem>
+              );
+            })}
+            {!semanticLoading && semanticHits.length === 0 && (
+              <CommandItem disabled value="no-semantic-hits">
+                <span className="text-[var(--text-tertiary)]">
+                  No matches in brain · keep typing or scroll for actions
+                </span>
+              </CommandItem>
+            )}
+          </CommandGroup>
+        )}
 
         {recentActions.length > 0 && (
           <>
