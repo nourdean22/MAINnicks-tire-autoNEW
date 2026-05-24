@@ -314,7 +314,13 @@ function KanbanBoard({ leadsData, onUpdate, isLoading }: {
   );
 }
 
-type LeadCategory = "all" | "estimates" | "chat" | "callbacks";
+// wave-181.x Leads Phase 5 · audit agent flagged the LeadCategory tab
+// taxonomy as redundant with `sourceFilter` (chat == source=chat ·
+// callbacks == source=callback · estimates was the only true new
+// axis · and even that is reachable via the existing search box
+// which already indexes the problem field on L600-604). Operator
+// approved the ~50 LOC delete · ELON discipline: question → delete →
+// simplify. Net: 1 filter taxonomy instead of 2 overlapping ones.
 
 /**
  * MarkContactedButton — inline "mark lead contacted" control with a notes
@@ -501,14 +507,6 @@ export default function LeadsSection() {
     "view", "kanban",
     { validate: (v) => (v === "kanban" || v === "list" ? v : null) },
   );
-  const [category, setCategory] = useUrlFilter<LeadCategory>(
-    "cat", "all",
-    {
-      validate: (v) => (["all", "estimates", "chat", "callbacks"].includes(v)
-        ? (v as LeadCategory) : null),
-    },
-  );
-
   const utils = trpc.useUtils();
   const { data: leadsData, isLoading } = trpc.lead.list.useQuery(undefined, {
     refetchInterval: 30000,
@@ -567,26 +565,14 @@ export default function LeadsSection() {
     updateLead.mutate({ id, status });
   };
 
-  // Category filter helper
-  const applyCategory = (list: LeadItem[]) => {
-    switch (category) {
-      case "estimates":
-        return list.filter(l =>
-          l.problem && (l.problem.startsWith("Cost estimate:") || l.problem.startsWith("Diagnosis:"))
-        );
-      case "chat":
-        return list.filter(l => l.source === "chat");
-      case "callbacks":
-        return list.filter(l => l.source === "callback");
-      default:
-        return list;
-    }
-  };
-
+  // wave-181.x Leads Phase 5 · `applyCategory` + `categoryFilteredLeads`
+  // both removed when the dual filter taxonomy was deleted. Chat /
+  // Callbacks were duplicates of `sourceFilter`; the search box already
+  // indexes the `problem` field so "Cost estimate:" prefix is reachable
+  // via search. One taxonomy · one source of truth.
   const filteredLeads = useMemo(() => {
     if (!leadsData) return [];
     let list = [...leadsData];
-    list = applyCategory(list);
     if (leadFilter !== "all") list = list.filter(l => l.status === leadFilter);
     if (sourceFilter !== "all") list = list.filter(l => l.source === sourceFilter);
     if (searchQuery.trim()) {
@@ -604,13 +590,7 @@ export default function LeadsSection() {
       );
     }
     return list;
-  }, [leadsData, leadFilter, sourceFilter, searchQuery, category]);
-
-  // Category-filtered data for Kanban view
-  const categoryFilteredLeads = useMemo(() => {
-    if (!leadsData) return undefined;
-    return applyCategory([...leadsData]);
-  }, [leadsData, category]);
+  }, [leadsData, leadFilter, sourceFilter, searchQuery]);
 
   const leadStats = useMemo(() => {
     if (!leadsData) return { new: 0, contacted: 0, urgent: 0, total: 0, booked: 0 };
@@ -690,14 +670,12 @@ export default function LeadsSection() {
           { label: "Search", value: searchQuery, default: "", onClear: () => setSearchQuery("") },
           { label: "Source", value: sourceFilter, default: "all", onClear: () => setSourceFilter("all") },
           { label: "View", value: viewMode, default: "kanban", onClear: () => setViewMode("kanban"), displayValue: viewMode === "list" ? "List" : undefined },
-          { label: "Category", value: category, default: "all", onClear: () => setCategory("all"), displayValue: category === "all" ? undefined : category.charAt(0).toUpperCase() + category.slice(1) },
         ]}
         onClearAll={() => {
           setLeadFilter("all");
           setSearchQuery("");
           setSourceFilter("all");
           setViewMode("kanban");
-          setCategory("all");
         }}
       />
       {/* CRITICAL ALERT — Uncontacted leads with ticking timer.
@@ -809,27 +787,9 @@ export default function LeadsSection() {
         />
       </div>
 
-      {/* Category Tabs */}
-      <div className="flex items-center gap-1 border-b border-border/40 overflow-x-auto">
-        {([
-          { id: "all" as LeadCategory, label: "All Leads" },
-          { id: "estimates" as LeadCategory, label: "Website Estimates" },
-          { id: "chat" as LeadCategory, label: "Chat Leads" },
-          { id: "callbacks" as LeadCategory, label: "Callbacks" },
-        ]).map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setCategory(tab.id)}
-            className={`px-4 py-2.5 text-[12px] font-bold tracking-wide border-b-2 transition-colors whitespace-nowrap ${
-              category === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-foreground/50 hover:text-foreground"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* wave-181.x Leads Phase 5 · Category Tabs deleted (chat /
+       * callbacks were duplicates of sourceFilter · estimates is
+       * reachable via search · ~30 LOC removed). Operator opt-in. */}
 
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -859,9 +819,10 @@ export default function LeadsSection() {
         </div>
       </div>
 
-      {/* Kanban View */}
+      {/* Kanban View · post-Phase-5 uses raw leadsData (Kanban shows
+       * all columns as bird's-eye-view · list-view applies filters). */}
       {viewMode === "kanban" ? (
-        <KanbanBoard leadsData={categoryFilteredLeads} onUpdate={handleStatusChange} isLoading={isLoading} />
+        <KanbanBoard leadsData={leadsData} onUpdate={handleStatusChange} isLoading={isLoading} />
       ) : (
         <>
           {/* List View Filters */}
