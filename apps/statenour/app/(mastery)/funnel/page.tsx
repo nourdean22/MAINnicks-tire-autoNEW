@@ -106,7 +106,7 @@ export default function FunnelPage() {
 
   if (bridgeOk === "down") {
     return (
-      <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
           <h1 className="text-2xl font-medium tracking-tight">Funnel</h1>
           <p className="mt-4 text-sm text-white/40">
@@ -120,7 +120,7 @@ export default function FunnelPage() {
 
   if (bridgeOk === "loading" || !overview) {
     return (
-      <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+      <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
           <h1 className="text-2xl font-medium tracking-tight">Funnel</h1>
           <p className="mt-4 text-sm text-white/30 animate-pulse">Loading…</p>
@@ -130,7 +130,7 @@ export default function FunnelPage() {
   }
 
   return (
-    <main className="min-h-[100dvh] bg-[#0A0A0A] text-white">
+    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <header>
           <h1 className="text-2xl font-medium tracking-tight">Funnel</h1>
