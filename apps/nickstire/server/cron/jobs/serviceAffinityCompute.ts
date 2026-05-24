@@ -77,6 +77,18 @@ export async function processServiceAffinityCompute(): Promise<{ recordsProcesse
     return { recordsProcessed: 0, treatment: 0, control: 0 };
   }
 
+  // wave-181.x · upfront table-exists check · operator may flip the
+  // flag BEFORE running migration 0061 (script ships separately at
+  // scripts/apply-wave-181-sa-v2.ts). Skip cleanly with ONE warn
+  // rather than 600 per-customer insert warns (12 runs/day × 50
+  // customers). Once the migration runs, this no-ops + cron proceeds.
+  try {
+    await d.execute(sql`SELECT 1 FROM service_affinity_predictions LIMIT 1`);
+  } catch {
+    log.warn("service_affinity_predictions table missing · operator must run scripts/apply-wave-181-sa-v2.ts first · skipping");
+    return { recordsProcessed: 0, treatment: 0, control: 0 };
+  }
+
   try {
     const { affinities } = await buildServiceAffinityMap();
     if (affinities.length === 0) {
