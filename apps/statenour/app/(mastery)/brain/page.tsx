@@ -45,6 +45,7 @@ import { PinnedContextPanel } from "@/components/brain/pinned-context-panel";
 import { SuggestionTelemetryPanel } from "@/components/brain/suggestion-telemetry-panel";
 import { InsightRibbon } from "@/components/brain/insight-ribbon";
 import { BrainInsightsPanel } from "@/components/brain/brain-insights-panel";
+import { RecallInboxPanel } from "@/components/brain/recall-inbox-panel";
 import { PatternCard } from "@/components/brain/pattern-card";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { onDataChanged } from "@/lib/events/data-change";
@@ -131,6 +132,13 @@ function BrainPageInner() {
       <section className="space-y-3 pt-2">
         <MasterySectionLabel label="Signal" />
         <div className="space-y-6">
+          {/* 2026-05-24 · Wave W Phase 4 · unified recall inbox.
+              Single panel aggregating pins · link-review candidates ·
+              contradictions · active alerts. Pre-Wave-W the operator
+              checked these on 3 separate sub-pages every morning ·
+              now one panel · silent-when-empty across all 4 sources
+              so a clean morning shows nothing. */}
+          <RecallInboxPanel />
           <InsightRibbon />
           <BrainInsightsPanel />
           <PatternCard />
