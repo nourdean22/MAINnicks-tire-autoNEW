@@ -1,6 +1,81 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 MORNING (post Wave N · unstamped split + autonicks Vercel retire runbook · 2 deferred items from Wave M audit + MEMORY.md operator-action backlog closed) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files (+2 since LATE-NIGHT-3) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 MIDDAY (post Wave O + P + Q · /settings page UX sweep + Vercel runbook v2 · 4 Vercel projects deleted by operator · autonicks.com DNS still flagged for operator follow-up) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 MIDDAY · Wave O + P + Q · Vercel runbook v2 + /settings UX sweep · 4 ships
+>
+> Operator status check this morning identified two threads: (a) the
+> autonicks.com Vercel cleanup that MEMORY.md flagged as a "ghost"
+> turned out to be a live serving stale build with DNS still pointed
+> at Vercel · runbook rewritten with the correct DNS-first sequence ·
+> operator chose to delete all 4 Vercel projects upfront, which left
+> autonicks.com returning `X-Vercel-Error: DEPLOYMENT_NOT_FOUND`
+> (DNS flip still pending in operator's hands) · (b) /settings page
+> UX sweep applying ux-audit + frontend-design + minimalist-ui +
+> mobile-design skills.
+>
+> **Wave O · Vercel cleanup runbook v2 · DNS-first sequence** · `6542d5c5`
+> Pre-flight via Vercel MCP + curl/DNS exposed the prior runbook's
+> wrong-state assumption. New inventory: 4 Vercel projects identified
+> (statenour-os holding autonicks.com · nickstire / easy-nickstire /
+> elegant-yalow without custom domains). Rewrote `docs/RUNBOOK.md`
+> with: 4-phase safe sequence (DNS flip → 48h wait → delete 3 dormant
+> projects · then statenour-os) · Cloudflare DNS flip instructions
+> (301 redirect vs park-domain options) · explicit safety-policy
+> boundary statement (deletion + DNS are operator-only).
+>
+> **Wave P · /settings autopilot grouping + 3 UX fixes** · `0e5fb0ce`
+> Applied Nielsen heuristics scan + frontend-design lens to the
+> autopilot section · 3 violations found, all fixed:
+> - Grouped the 13 flat toggles into 4 named categories: Brain ·
+>   learning (4 · amber) · Sales · revenue (4 · emerald) · Schedule ·
+>   focus (4 · violet) · Comms · marketing (1 · sky). Each group
+>   shows a per-category count badge ("3/4 active"). Tints match
+>   System Ops Hub vocabulary · md:grid-cols-2 on desktop · single-
+>   col on mobile.
+> - Eliminated the "everything ON" flash via `resolveInitialFlags()`
+>   that reads localStorage SYNC during state init (Nielsen #1 fix).
+> - Surfaced mutation failures inline with a rose-300 badge mirroring
+>   PushNotificationToggle's translate-error pattern (Nielsen #9 fix).
+> - Bonus: switched from GlassCard-with-cursor-pointer to semantic
+>   `<button>` (correct ARIA · Apple HIG 44pt) · 7 distinct icons
+>   replacing 3 duplicate `Zap` glyphs (Nielsen #6 · recognition not
+>   recall).
+>
+> **Wave Q · extract SystemOpsHub + confirm-hold on critical toggles** · `fd02f4d0`
+> Two surgical follow-ups to Wave P:
+> - **Extracted SystemOpsHub** (230 lines · 7 category groups) from
+>   inline in settings/page.tsx to a new
+>   `components/settings/system-ops-hub.tsx` matching the existing
+>   `components/settings/*` pattern. Pure relocation · zero visual or
+>   behavioral change. settings/page.tsx: 935 → 787 LOC (-148).
+> - **Press-and-hold confirm on 3 critical autopilot disables** ·
+>   `auto_brain_cycle` · `auto_identity_refresh` ·
+>   `adhd_operating_rhythm`. Uses the existing `ConfirmHold` primitive
+>   (800ms ring · haptic warn on start · haptic success on commit).
+>   Asymmetric friction by design: re-enabling stays a single tap (low
+>   risk in turning automation back ON). Flow: tap critical-enabled
+>   row → expansion banner with rose tint + ConfirmHold (danger
+>   variant) + cancel button + 5s auto-cancel timeout (mobile-thumb
+>   safety).
+>
+> **Flagged · NOT fixed**
+> - autonicks.com Cloudflare DNS flip · still pending operator
+>   action · domain now serves Vercel deleted-project 404. Runbook
+>   covers the fix at `docs/RUNBOOK.md`.
+> - `inline crons expansion` on autopilot flags (recognition-not-recall
+>   improvement) · deferred · acceptable cognitive load with current
+>   description text.
+> - `real appVersion` in SystemInfo · already pulls from
+>   `trpc.system.toolsHealth` · `?? "v10"` is just the loading
+>   fallback · no actual drift.
+> - Inline help expansion per flag · would need additional
+>   per-flag content · deferred until operator surfaces a real
+>   "I don't remember what X does" moment.
+>
+> Gates: typecheck 0 · lint 0 errors / 368 baseline · vitest 184
+> files / 2797 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy on every wave.
 
 > ## 2026-05-24 MORNING · Wave N · unstamped split + autonicks Vercel retire runbook · 1 ship
 >
