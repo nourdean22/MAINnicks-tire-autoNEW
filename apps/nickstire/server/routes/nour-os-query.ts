@@ -429,6 +429,104 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
     return { from: startDate, pages, count: pages.length };
   },
 
+  // wave-181.x · v11.8 · Service Affinity v2 status (post-migration check).
+  // Answers "did the cron actually run / are predictions populated /
+  // is the arm split healthy" without opening the DB. Resilient · if
+  // service_affinity_predictions doesn't exist (operator hasn't run
+  // the migration script yet) we return migrated:false instead of
+  // throwing · clean signal for the operator's gate.
+  //
+  // Operator flow: after `pnpm tsx scripts/apply-wave-181-sa-v2.ts`
+  // + flipping `service_affinity_v2_compute` ON · wait 2h for first
+  // cron tick · then `curl /api/nour-os/query?q=service_affinity_v2_status`
+  // confirms predictions are writing.
+  "service_affinity_v2_status": async () => {
+    const { getDb } = await import("../db");
+    const { sql } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return { ok: false, error: "no DB" };
+
+    // Probe table existence first · zero-error path when migration not applied yet
+    try {
+      await d.execute(sql`SELECT 1 FROM service_affinity_predictions LIMIT 1`);
+    } catch {
+      return {
+        ok: true,
+        migrated: false,
+        message: "service_affinity_predictions table not found · run scripts/apply-wave-181-sa-v2.ts to apply migration 0061",
+      };
+    }
+
+    // Pull the snapshot in ONE round-trip · per-arm count + avg confidence +
+    // most-recent created_at (== last cron tick) + impression/action totals.
+    const stats = await d.execute(sql`
+      SELECT
+        (SELECT COUNT(*) FROM service_affinity_predictions) AS predTotal,
+        (SELECT COUNT(*) FROM service_affinity_predictions WHERE ab_arm = 'treatment') AS predTreatment,
+        (SELECT COUNT(*) FROM service_affinity_predictions WHERE ab_arm = 'control') AS predControl,
+        (SELECT ROUND(AVG(confidence) * 100, 1) FROM service_affinity_predictions WHERE ab_arm = 'treatment') AS avgConfTreatment,
+        (SELECT ROUND(AVG(confidence) * 100, 1) FROM service_affinity_predictions WHERE ab_arm = 'control') AS avgConfControl,
+        (SELECT MAX(created_at) FROM service_affinity_predictions) AS lastCronTick,
+        (SELECT COUNT(DISTINCT model_version) FROM service_affinity_predictions) AS distinctModels,
+        (SELECT COUNT(*) FROM prediction_impressions) AS impressionTotal,
+        (SELECT COUNT(*) FROM prediction_actions WHERE action = 'sms_sent') AS smsSentTotal,
+        (SELECT COUNT(*) FROM prediction_outcomes WHERE matched = 1) AS outcomesMatched
+    `);
+
+    type Row = {
+      predTotal: number;
+      predTreatment: number;
+      predControl: number;
+      avgConfTreatment: number | null;
+      avgConfControl: number | null;
+      lastCronTick: Date | null;
+      distinctModels: number;
+      impressionTotal: number;
+      smsSentTotal: number;
+      outcomesMatched: number;
+    };
+    const rows = (Array.isArray(stats) && Array.isArray(stats[0])
+      ? stats[0]
+      : stats) as Row[];
+    const r = rows[0];
+    if (!r) return { ok: true, migrated: true, predictions: 0 };
+
+    const lastTickIso = r.lastCronTick ? new Date(r.lastCronTick).toISOString() : null;
+    const ageMinutes = lastTickIso
+      ? Math.round((Date.now() - new Date(lastTickIso).getTime()) / 60_000)
+      : null;
+    const armRatio = r.predTotal > 0
+      ? Math.round((Number(r.predTreatment) / Number(r.predTotal)) * 100)
+      : null;
+    // Healthy split is roughly 50/50 (±10 percentage points · stable hash variance)
+    const armSplitHealthy = armRatio == null ? null : armRatio >= 40 && armRatio <= 60;
+
+    return {
+      ok: true,
+      migrated: true,
+      predictions: {
+        total: Number(r.predTotal),
+        treatment: Number(r.predTreatment),
+        control: Number(r.predControl),
+        armRatioTreatmentPct: armRatio,
+        armSplitHealthy,
+        avgConfidenceTreatment: r.avgConfTreatment != null ? Number(r.avgConfTreatment) : null,
+        avgConfidenceControl: r.avgConfControl != null ? Number(r.avgConfControl) : null,
+        distinctModelVersions: Number(r.distinctModels),
+      },
+      cron: {
+        lastTick: lastTickIso,
+        ageMinutes,
+        running: ageMinutes != null && ageMinutes < 180,
+      },
+      closedLoop: {
+        impressions: Number(r.impressionTotal),
+        smsSent: Number(r.smsSentTotal),
+        outcomesMatched: Number(r.outcomesMatched),
+      },
+    };
+  },
+
   // ─── Marketing attribution (added 2026-05-12 · ADR-0011 Tier 3) ──
   // Closes Nour's most-asked-and-vague category: "what's actually
   // working for lead-gen?" Source-by-source breakdown of leads +

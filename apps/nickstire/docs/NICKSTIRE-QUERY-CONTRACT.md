@@ -1,4 +1,4 @@
-# Nickstire Query Contract — v11.7 (2026-05-24)
+# Nickstire Query Contract — v11.8 (2026-05-24)
 
 > **This doc is the mirror.** It must match `docs/NICKSTIRE-QUERY-CONTRACT.md`
 > in the statenour-os repo byte-for-byte. When adding or changing an endpoint,
@@ -549,6 +549,14 @@ the admin UI's `forceSyncNow`, not here.
   per-page view on the statenour /seo gap surface. Note · /radar
   surface derives entirely from `master_report` (review velocity +
   competitor gap + content performance) · no new bridge action.
+- **v11.8** (2026-05-24) — `service_affinity_v2_status` action added
+  · observability for the SA v2 closed-loop activation gate. Operator
+  curls this AFTER running scripts/apply-wave-181-sa-v2.ts + flipping
+  `service_affinity_v2_compute` ON to verify the cron is writing
+  predictions, the 50/50 A/B arm split is healthy, and the closed-
+  loop tables (impressions/actions/outcomes) are accumulating. Single
+  round-trip 9-subquery SELECT · returns null/empty fields cleanly
+  when the migration hasn't been applied yet (graceful pre-flight).
 
 When adding a new endpoint: bump version, document here + statenour repo,
 include the commit hash in the PR description so cross-ring wiring is

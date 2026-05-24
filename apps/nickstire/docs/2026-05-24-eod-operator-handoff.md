@@ -94,18 +94,39 @@ of the flip, you'll see predictions populated in
 
 ### Step 3 · Verify predictions populated (after ~2-6h)
 
-Admin → Customers roster → look at the Next Service column on desktop
-(it's `xl:table-cell`, so use a wide window). Customers with
-predictions show service + confidence% in the column.
-
-OR run:
-```sql
-SELECT ab_arm, COUNT(*) AS n, AVG(confidence) AS avg_conf
-FROM service_affinity_predictions
-GROUP BY ab_arm;
+Easiest path — hit the v11.8 status endpoint:
+```bash
+curl https://nickstire.org/api/nour-os/query?q=service_affinity_v2_status | jq
 ```
 
-You should see roughly equal counts in treatment + control.
+Healthy response shape:
+```json
+{
+  "data": {
+    "ok": true,
+    "migrated": true,
+    "predictions": {
+      "total": 50,
+      "treatment": 24,
+      "control": 26,
+      "armRatioTreatmentPct": 48,
+      "armSplitHealthy": true,
+      "avgConfidenceTreatment": 62.4,
+      "avgConfidenceControl": 61.8,
+      "distinctModelVersions": 1
+    },
+    "cron": { "lastTick": "2026-...", "ageMinutes": 12, "running": true },
+    "closedLoop": { "impressions": 0, "smsSent": 0, "outcomesMatched": 0 }
+  }
+}
+```
+
+Red flags · `migrated:false` (run the script) · `cron.running:false`
+(check feature flag + scheduler logs) · `armSplitHealthy:false` (re-
+seed `SA_V2_AB_SEED` env var if the hash is skewed for this customer base).
+
+Also visible in admin: Customers roster → "Next Service" column on
+desktop (`xl:table-cell`).
 
 ### Step 4 · Flip `sms_cross_sell_outreach` ON
 
@@ -166,6 +187,9 @@ These were flagged in the design docs and the session deferred them:
 - **v11.5** (2026-05-24) — `master_report` action
 - **v11.6** (2026-05-24) — `funnel_overview` + `funnel_first_visit`
 - **v11.7** (2026-05-24) — `gsc_top_pages` (for the new /seo surface)
+- **v11.8** (2026-05-24) — `service_affinity_v2_status` (SA v2
+  activation observability · curl-friendly · no admin login needed
+  to check the gate worked)
 
 All three statenour pages (`/scoreboard`, `/funnel`, `/seo`, `/radar`)
 follow the same resilience pattern · graceful self-hide on bridge
