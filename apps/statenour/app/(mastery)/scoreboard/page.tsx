@@ -12,6 +12,13 @@
  *   · Each card: label · big value · trend arrow · delta · link
  *   · Footer: composedAt + lastBriefAt timestamps
  *
+ * 2026-05-24 · Intelligence Dispersal Wave 1.5 · NickHealthSection
+ * added below OperatorPulse · pulls master_report from the nickstire
+ * bridge (NICKSTIRE-QUERY-CONTRACT v11.5) · renders 4 KPI cards +
+ * collapsible 13-component breakdown. Statenour is the canonical
+ * home for "intelligence-about-Nick-shop" · the nickstire admin
+ * Intelligence page is being deleted in favor of this surface.
+ *
  * Aesthetic: editorial-minimalist · matches /goals + /customer-360.
  * The page is a SINGLE-PAGE pull-anytime surface that complements
  * the morning brief push (Phase 5).
@@ -22,6 +29,7 @@
  */
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 // Phase WW (2026-05-19 AM) · useAuthedFetch swapped for trpc.
 import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
@@ -104,6 +112,12 @@ export default function ScoreboardPage() {
             operator the "right now" story in one strip before the raw
             number grid. */}
         <OperatorPulse surface="scoreboard" className="mt-6 px-0 mx-0" />
+
+        {/* Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop
+            health from the nickstire master_report bridge. Self-hides
+            when bridge is down or returns ok:false. Editorial-mini-
+            malist match to the existing Card visual contract. */}
+        <NickHealthSection />
 
         {anomalies.length > 0 ? (
           <section className="mt-6 space-y-3">
@@ -255,6 +269,191 @@ function Card({ number }: { number: ScoreNumber }) {
     );
   }
   return inner;
+}
+
+// Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop health
+// section. Fetches master_report via the browser-safe proxy at
+// /api/nickstire/query (which wraps queryNick + the bridge contract
+// v11.5). Renders 4 KPI cards above the existing scoreboard cards +
+// a collapsible 13-signal score breakdown.
+//
+// Aesthetic match: uses the same `border-white/10 bg-white/[0.02]`
+// + `text-[10px] uppercase tracking-[0.18em] text-white/40` label
+// style as the existing Card component. No new design language.
+//
+// Graceful degradation: self-hides entirely when the bridge is down
+// or returns `ok: false` · no error toast · no broken card · matches
+// the pattern documented in app/api/nickstire/query/route.ts ("the
+// client differentiates by looking for .error vs .data").
+
+interface ScoreBreakdownComponent {
+  label: string;
+  points: number;
+  maxPoints: number;
+  reason: string;
+  hasData: boolean;
+}
+
+interface MasterReportShape {
+  ok: true;
+  timestamp: string;
+  summary: {
+    score: number;
+    topAlert: string;
+    topOpportunity: string;
+    topRisk: string;
+    scoreBreakdown: ScoreBreakdownComponent[];
+  };
+  // Other sub-engine results are fetched but not rendered in this
+  // first scoreboard surface · `/brain` extensions will consume them.
+}
+
+function NickHealthSection() {
+  const [data, setData] = useState<MasterReportShape | null>(null);
+  const [bridgeOk, setBridgeOk] = useState<"loading" | "ok" | "down">("loading");
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/nickstire/query?q=master_report");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        if (cancelled) return;
+        // Bridge proxy returns { data, query, timestamp } on success
+        // or { error } on failure. Then the inner `data` is the
+        // handler return: { ok: true, summary, ... } OR { ok: false }.
+        const payload = json?.data;
+        if (!payload || payload.ok !== true) {
+          setBridgeOk("down");
+          return;
+        }
+        setData(payload as MasterReportShape);
+        setBridgeOk("ok");
+      } catch {
+        if (!cancelled) setBridgeOk("down");
+      }
+    };
+    void load();
+    // Refresh every 2 minutes · matches the nickstire 60s memoize
+    // cache on master_report + adds 60s breathing room.
+    const id = setInterval(load, 120_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // Self-hide when bridge is unreachable or hasn't responded yet.
+  // No loading skeleton · this surface is a bonus · the rest of the
+  // page already renders.
+  if (bridgeOk !== "ok" || !data) return null;
+
+  const score = data.summary.score;
+  const scoreLabel = score >= 80 ? "STRONG" : score >= 60 ? "OK" : score >= 40 ? "MIXED" : "WEAK";
+  const scoreColor = score >= 80
+    ? "text-emerald-300"
+    : score >= 60
+    ? "text-white"
+    : score >= 40
+    ? "text-amber-300"
+    : "text-red-300";
+
+  // Per-component breakdown sorted by impact (largest absolute
+  // contribution first) so the operator scans top-to-bottom.
+  const breakdown = [...(data.summary.scoreBreakdown ?? [])].sort(
+    (a, b) => Math.abs(b.points) - Math.abs(a.points),
+  );
+
+  return (
+    <section className="mt-6 space-y-3">
+      <MasterySectionLabel label="Nick · shop health" />
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* Business Health Score */}
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2">
+            Business Health
+          </p>
+          <div className="flex items-baseline gap-2">
+            <p className={`text-3xl font-medium tabular-nums ${scoreColor}`}>{score}</p>
+            <span className={`text-[10px] uppercase tracking-wider ${scoreColor}`}>{scoreLabel}</span>
+          </div>
+        </div>
+
+        {/* Top Alert · amber tint matches anomalous card pattern */}
+        <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-amber-300/70 mb-2">
+            Top Alert
+          </p>
+          <p className="text-[13px] text-amber-100 leading-snug line-clamp-3">
+            {data.summary.topAlert || "—"}
+          </p>
+        </div>
+
+        {/* Top Opportunity · emerald tint */}
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.04] p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-300/70 mb-2">
+            Top Opportunity
+          </p>
+          <p className="text-[13px] text-emerald-100 leading-snug line-clamp-3">
+            {data.summary.topOpportunity || "—"}
+          </p>
+        </div>
+
+        {/* Top Risk · amber tint (medium severity) */}
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-white/40 mb-2">
+            Top Risk
+          </p>
+          <p className="text-[13px] text-white/80 leading-snug line-clamp-3">
+            {data.summary.topRisk || "—"}
+          </p>
+        </div>
+      </div>
+
+      {/* Collapsible 13-signal breakdown */}
+      {breakdown.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[10px] uppercase tracking-[0.18em] text-white/40 hover:text-white/70 transition-colors"
+        >
+          {expanded ? "− Hide" : "+ Show"} 13-signal breakdown
+        </button>
+      )}
+      {expanded && breakdown.length > 0 && (
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5">
+          {breakdown.map((c, i) => (
+            <div key={`${c.label}-${i}`} className="flex items-start gap-3 py-1">
+              <span
+                className={[
+                  "font-mono font-medium text-xs w-12 text-right shrink-0 tabular-nums",
+                  !c.hasData
+                    ? "text-white/30"
+                    : c.points > 0
+                    ? "text-emerald-300"
+                    : c.points < 0
+                    ? "text-red-300"
+                    : "text-white/50",
+                ].join(" ")}
+              >
+                {!c.hasData ? "—" : `${c.points > 0 ? "+" : ""}${c.points}`}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[12px] font-medium text-white/85">{c.label}</span>
+                  <span className="text-[9px] text-white/30 font-mono">±{c.maxPoints}</span>
+                </div>
+                <div className="text-[10px] text-white/40 leading-tight line-clamp-2">{c.reason}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function Footer({
