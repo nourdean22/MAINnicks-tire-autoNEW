@@ -37,6 +37,11 @@ import { StandardPage } from "@/components/layout/standard-page";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+// 2026-05-23 · UI #3 · the living-pulse hero. Replaces the static
+// 5-card numeric grid as the FIRST thing the operator sees on the
+// page · numbers stay below (kept for precision) but the visual
+// anchor is the pulse · Apple Watch activity ring aesthetic.
+import { StatePulse } from "@/components/operator/state-pulse";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { Brain, ChevronLeft, Gauge, Sparkles, Zap } from "lucide-react";
@@ -122,19 +127,24 @@ export default function OperatorStatePage() {
         </GlassCard>
       ) : null}
 
-      {/* Mood chip + lead blurb */}
-      <GlassCard className="p-6">
-        <div className="flex items-start gap-4">
-          <div
-            className={cn(
-              "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border",
-              MOOD_TONE[mood],
-            )}
-          >
-            <Brain size={20} aria-hidden />
-          </div>
-          <div className="flex-1 space-y-2">
-            <div className="flex items-center gap-2">
+      {/* 2026-05-23 · UI #3 · Living pulse hero · 5 dimensions rendered
+       *   as concentric SVG rings. The visual anchor of the page · the
+       *   numeric cards below are kept for precision but the pulse is
+       *   the "operator's state at a glance" moment. */}
+      <GlassCard className="p-6 sm:p-8">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-8">
+          <StatePulse
+            focus={snapshot?.focus ?? 0.5}
+            capacity={snapshot?.capacity ?? 0.5}
+            drift={snapshot?.drift ?? 0}
+            momentum={snapshot?.momentum ?? 0.5}
+            mood={mood}
+            confidence={confidence}
+            size={220}
+            className="shrink-0"
+          />
+          <div className="flex-1 space-y-3 text-center sm:text-left">
+            <div className="flex items-center justify-center gap-2 sm:justify-start">
               <span
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider",

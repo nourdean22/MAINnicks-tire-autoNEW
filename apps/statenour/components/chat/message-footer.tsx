@@ -43,6 +43,11 @@ import { MessageStatusBadge } from "@/components/chat/message-status-badge";
 import { MessageBranchSwitcher } from "@/components/chat/message-branch-switcher";
 import { MessageEditControls } from "@/components/chat/message-edit-controls";
 import { MessageInfoCard } from "@/components/chat/message-info-card";
+// 2026-05-23 · UI #1 · Lens-fire transparency · shows which strategic
+// lenses Nick used for THIS reply · post-hoc re-runs the (pure)
+// detector against the previous user message · same answer the chat
+// path got at request time.
+import { LensBadgeRow } from "@/components/chat/lens-badge-row";
 import { getMessageMeta } from "@/lib/chat/get-message-meta";
 
 /**
@@ -192,6 +197,17 @@ function MessageFooterImpl({
         >
           trace · {lastTraceId.slice(0, 12)}… →
         </a>
+      )}
+      {/* 2026-05-23 · UI #1 · Lens-fire badges (assistant-only, complete
+       *   messages only). Component returns null when no lenses fired ·
+       *   zero DOM cost when irrelevant. Streamed messages are skipped
+       *   until they settle (the lens query depends on the FINAL
+       *   message id matching a DB row · which only happens once the
+       *   turn lands). */}
+      {isAssistant && (!ss || ss === "complete") && (
+        <div className="w-full">
+          <LensBadgeRow messageId={msg.id} />
+        </div>
       )}
     </div>
   );

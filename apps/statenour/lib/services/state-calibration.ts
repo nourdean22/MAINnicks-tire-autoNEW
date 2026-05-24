@@ -86,9 +86,25 @@ export interface CalibrationReport {
   /** 4 × N flattened grid (mood × kind cells). */
   cells: CalibrationCell[];
   /** Per-mood roll-up across all kinds. */
-  byMood: Array<{ mood: MoodTag; total: number; acted: number; hitRatePct: number }>;
+  byMood: Array<{
+    mood: MoodTag;
+    total: number;
+    acted: number;
+    hitRatePct: number;
+    /** 2026-05-23 · UI #2 · daily hit-rate samples for the sparkline ·
+     *  one value per day in the window · NaN-rejected · gaps backfilled
+     *  with the previous day's rate so the sparkline is continuous. */
+    trend: number[];
+  }>;
   /** Per-kind roll-up across all moods. */
-  byKind: Array<{ kind: KindKey; total: number; acted: number; hitRatePct: number }>;
+  byKind: Array<{
+    kind: KindKey;
+    total: number;
+    acted: number;
+    hitRatePct: number;
+    /** 2026-05-23 · UI #2 · same daily trend as byMood.trend. */
+    trend: number[];
+  }>;
   /** Rows without an operatorStateSnapshot (legacy data · pre-Wave-H). */
   unstamped: number;
 }
@@ -124,15 +140,53 @@ function emptyGrid(sinceDays: number): CalibrationReport {
       total: 0,
       acted: 0,
       hitRatePct: -1,
+      trend: [],
     })),
     byKind: ALL_KINDS.map((kind) => ({
       kind,
       total: 0,
       acted: 0,
       hitRatePct: -1,
+      trend: [],
     })),
     unstamped: 0,
   };
+}
+
+/**
+ * 2026-05-23 · UI #2 · helper · bin (date, acted, total) tuples into
+ * daily hit-rate samples for sparklines. Groups by ISO date string
+ * (UTC) · forward-fills gaps with the previous day's rate so the
+ * sparkline is continuous (no zig-zag-through-zero artifacts when a
+ * day has no samples). Returns array sized to `sinceDays`.
+ */
+function buildDailyTrend(
+  samples: Array<{ day: string; acted: number; total: number }>,
+  sinceDays: number,
+  now: Date = new Date(),
+): number[] {
+  if (samples.length === 0) return [];
+  // Build a date→{acted,total} map · keys are YYYY-MM-DD UTC.
+  const dayMap = new Map<string, { acted: number; total: number }>();
+  for (const s of samples) {
+    const cur = dayMap.get(s.day) ?? { acted: 0, total: 0 };
+    cur.acted += s.acted;
+    cur.total += s.total;
+    dayMap.set(s.day, cur);
+  }
+  // Walk the day range · forward-fill from previous-day rate.
+  const trend: number[] = [];
+  let lastRate = 0;
+  for (let i = sinceDays - 1; i >= 0; i--) {
+    const d = new Date(now.getTime() - i * 86_400_000);
+    const key = d.toISOString().slice(0, 10);
+    const bucket = dayMap.get(key);
+    if (bucket && bucket.total > 0) {
+      lastRate = (bucket.acted / bucket.total) * 100;
+    }
+    trend.push(Number(lastRate.toFixed(1)));
+  }
+  return trend;
 }
 
 export async function buildStateCalibration(
@@ -159,7 +213,8 @@ export async function buildStateCalibration(
         key: { contains: ":action:" },
       },
       take: 5000,
-      select: { key: true, metadata: true },
+      // 2026-05-23 · UI #2 · need createdAt to bucket by day for sparklines.
+      select: { key: true, metadata: true, createdAt: true },
     });
 
     if (rows.length === 0) return emptyGrid(sinceDays);
@@ -190,6 +245,19 @@ export async function buildStateCalibration(
       byKindMap.set(kind, { total: 0, acted: 0 });
     }
 
+    // 2026-05-23 · UI #2 · per-day trend bins · separate maps so the
+    // sparkline data builds in one pass alongside the totals.
+    const moodDailyMap = new Map<
+      MoodTag,
+      Array<{ day: string; acted: number; total: number }>
+    >();
+    const kindDailyMap = new Map<
+      KindKey,
+      Array<{ day: string; acted: number; total: number }>
+    >();
+    for (const mood of ALL_MOODS) moodDailyMap.set(mood, []);
+    for (const kind of ALL_KINDS) kindDailyMap.set(kind, []);
+
     type Meta = {
       suggestionKind?: unknown;
       event?: unknown;
@@ -213,6 +281,7 @@ export async function buildStateCalibration(
       moodTotals.total++;
       const kindTotals = byKindMap.get(kind)!;
       kindTotals.total++;
+      const acted = event === "acted" ? 1 : 0;
       if (event === "acted") {
         cell.acted++;
         moodTotals.acted++;
@@ -220,6 +289,10 @@ export async function buildStateCalibration(
       } else if (event === "dismissed") {
         cell.dismissed++;
       }
+      // Record daily bucket entry for both per-mood + per-kind series.
+      const day = row.createdAt.toISOString().slice(0, 10);
+      moodDailyMap.get(mood)!.push({ day, acted, total: 1 });
+      kindDailyMap.get(kind)!.push({ day, acted, total: 1 });
     }
 
     // Finalize hit rates.
@@ -240,6 +313,7 @@ export async function buildStateCalibration(
           t.total === 0
             ? -1
             : Number(((t.acted / t.total) * 100).toFixed(1)),
+        trend: buildDailyTrend(moodDailyMap.get(mood)!, sinceDays),
       };
     });
     const byKind = ALL_KINDS.map((kind) => {
@@ -252,6 +326,7 @@ export async function buildStateCalibration(
           t.total === 0
             ? -1
             : Number(((t.acted / t.total) * 100).toFixed(1)),
+        trend: buildDailyTrend(kindDailyMap.get(kind)!, sinceDays),
       };
     });
 

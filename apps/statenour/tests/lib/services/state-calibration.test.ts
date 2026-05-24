@@ -31,9 +31,12 @@ function mintRow(args: {
   suggestionKind: string;
   event: "acted" | "dismissed";
   mood: MoodTag | null;
-}): { key: string; metadata: unknown } {
+}): { key: string; metadata: unknown; createdAt: Date } {
   return {
     key: `sugg:${Math.random().toString(36).slice(2)}:action:${args.event}`,
+    // 2026-05-23 · UI #2 · createdAt added because buildStateCalibration
+    // now bins per-day for sparkline trends.
+    createdAt: new Date(),
     metadata: {
       suggestionKind: args.suggestionKind,
       event: args.event,

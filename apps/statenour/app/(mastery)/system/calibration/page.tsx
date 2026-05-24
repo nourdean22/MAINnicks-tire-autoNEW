@@ -20,9 +20,11 @@
  */
 
 import Link from "next/link";
+import type React from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import { ChevronLeft, Grid3x3 } from "lucide-react";
@@ -36,16 +38,63 @@ const MOOD_LABEL: Record<Mood, string> = {
   scattered: "scattered",
 };
 
-// Color the cell by hit rate · matches the calibration-card palette
-// from /system/judge-eval. Gray = no data · rose = poor · amber =
-// borderline · emerald = strong.
-function cellTone(pct: number, total: number): string {
+// 2026-05-23 · UI #2 · heatmap style cell · gradient saturation
+// proportional to hit rate within color band. A 95% emerald cell is
+// visibly more saturated than a 60% emerald cell · reads like a real
+// heatmap. Inline `style` instead of dynamic Tailwind classes because
+// Tailwind's JIT can't pre-generate runtime opacity strings.
+//
+// Sample-size matters · cells with total < 3 dim the saturation so
+// "1 hit / 1 total = 100%" doesn't visually dominate a "30 hits /
+// 50 total = 60%" cell. Operator sees confidence at a glance.
+interface CellTone {
+  /** Tailwind border + text classes · static · safe to use. */
+  border: string;
+  text: string;
+  /** Inline style for the bg color · dynamic opacity. */
+  bgStyle: React.CSSProperties;
+}
+
+function cellTone(pct: number, total: number): CellTone {
   if (total === 0 || pct < 0) {
-    return "border-[var(--border-default)] bg-[var(--bg-base)]/30 text-[var(--text-tertiary)]";
+    return {
+      border: "border-[var(--border-default)]",
+      text: "text-[var(--text-tertiary)]",
+      bgStyle: { backgroundColor: "rgb(10 10 10 / 0.30)" },
+    };
   }
-  if (pct >= 60) return "border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300";
-  if (pct >= 35) return "border-amber-500/30 bg-amber-500/[0.06] text-amber-300";
-  return "border-rose-500/30 bg-rose-500/[0.08] text-rose-300";
+  // Confidence dampener · cells with <3 samples render at half saturation.
+  const confidence = total < 3 ? 0.5 : 1;
+
+  if (pct >= 60) {
+    // Emerald · rgb(16 185 129) · opacity ramps 0.05 → 0.22 across 60→100%.
+    const dist = Math.min(1, (pct - 60) / 40);
+    const opacity = (0.05 + dist * 0.17) * confidence;
+    return {
+      border: "border-emerald-500/30",
+      text: "text-emerald-300",
+      bgStyle: { backgroundColor: `rgb(16 185 129 / ${opacity.toFixed(3)})` },
+    };
+  }
+  if (pct >= 35) {
+    // Amber · rgb(245 158 11) · 0.04 → 0.16 across 35→60%.
+    const dist = Math.min(1, (pct - 35) / 25);
+    const opacity = (0.04 + dist * 0.12) * confidence;
+    return {
+      border: "border-amber-500/30",
+      text: "text-amber-300",
+      bgStyle: { backgroundColor: `rgb(245 158 11 / ${opacity.toFixed(3)})` },
+    };
+  }
+  // Rose · rgb(244 63 94) · LOWER pct = HIGHER saturation (poor performance
+  // is visually loud · operator should see it first).
+  const dist = (35 - pct) / 35;
+  const opacity = (0.06 + dist * 0.16) * confidence;
+  return {
+    border: "border-rose-500/30",
+    text: "text-rose-300",
+    bgStyle: { backgroundColor: `rgb(244 63 94 / ${opacity.toFixed(3)})` },
+  };
 }
 
 export default function CalibrationPage() {
@@ -101,12 +150,17 @@ export default function CalibrationPage() {
           </h2>
         </div>
         <p className="mt-1 text-xs text-[var(--text-tertiary)]">
-          Cell = acted / total · color-graded by hit rate (≥60% emerald
-          · ≥35% amber · &lt;35% rose · no-data gray). Pre-Wave-H rows
-          have no operator-state snapshot and don&apos;t appear in the grid.
+          Heatmap saturation = hit rate · brighter cell = more lift.
+          Row sparkline = mood&apos;s hit rate over {data?.sinceDays ?? 30}d ·
+          col sparkline = kind&apos;s hit rate over time. Pre-Wave-H rows
+          (no operator-state snapshot) excluded from the grid.
         </p>
 
-        {/* Grid · sticky first column · scrollable horizontally on mobile */}
+        {/* Grid · sticky first column · scrollable horizontally on mobile.
+            2026-05-23 · UI #2 · cells use heatmap saturation (cellTone
+            returns inline-style bg with opacity scaled to hit rate).
+            Row + col totals also carry sparklines so the time-trend
+            is visible without a separate chart. */}
         <div className="mt-4 overflow-x-auto">
           <table className="w-full border-separate border-spacing-0">
             <thead>
@@ -119,7 +173,22 @@ export default function CalibrationPage() {
                     key={k.kind}
                     className="px-2 py-1 text-center text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]"
                   >
-                    {k.kind}
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span>{k.kind}</span>
+                      {k.total > 0 && k.trend.length > 0 ? (
+                        <span className="text-[var(--text-tertiary)]">
+                          <Sparkline
+                            data={k.trend}
+                            width={48}
+                            height={10}
+                            color="rgb(253 185 19)"
+                            fillOpacity={0.08}
+                            showDot={false}
+                            animate={false}
+                          />
+                        </span>
+                      ) : null}
+                    </div>
                   </th>
                 ))}
                 <th className="px-2 py-1 text-center text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]">
@@ -132,10 +201,26 @@ export default function CalibrationPage() {
                 const moodCells = data.cells.filter((c) => c.mood === moodRow.mood);
                 const total = moodRow.total;
                 const pct = moodRow.hitRatePct;
+                const rowTone = cellTone(pct, total);
                 return (
                   <tr key={moodRow.mood}>
                     <td className="sticky left-0 bg-[var(--bg-base)] px-2 py-1 text-sm font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                      {MOOD_LABEL[moodRow.mood as Mood]}
+                      <div className="flex flex-col gap-0.5">
+                        <span>{MOOD_LABEL[moodRow.mood as Mood]}</span>
+                        {moodRow.total > 0 && moodRow.trend.length > 0 ? (
+                          <span className="text-[var(--text-tertiary)]">
+                            <Sparkline
+                              data={moodRow.trend}
+                              width={56}
+                              height={10}
+                              color="rgb(253 185 19)"
+                              fillOpacity={0.08}
+                              showDot={false}
+                              animate={false}
+                            />
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     {data.byKind.map((kindCol) => {
                       const cell = moodCells.find((c) => c.kind === kindCol.kind);
@@ -144,12 +229,15 @@ export default function CalibrationPage() {
                         cell.total === 0
                           ? "—"
                           : `${cell.acted}/${cell.total}`;
+                      const tone = cellTone(cell.hitRatePct, cell.total);
                       return (
                         <td
                           key={kindCol.kind}
+                          style={tone.bgStyle}
                           className={cn(
-                            "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
-                            cellTone(cell.hitRatePct, cell.total),
+                            "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums transition-colors",
+                            tone.border,
+                            tone.text,
                           )}
                           title={
                             cell.total === 0
@@ -162,9 +250,11 @@ export default function CalibrationPage() {
                       );
                     })}
                     <td
+                      style={rowTone.bgStyle}
                       className={cn(
                         "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
-                        cellTone(pct, total),
+                        rowTone.border,
+                        rowTone.text,
                       )}
                     >
                       {total === 0 ? "—" : `${moodRow.acted}/${total} (${pct}%)`}
@@ -177,19 +267,24 @@ export default function CalibrationPage() {
                 <td className="sticky left-0 bg-[var(--bg-base)] px-2 py-2 text-[10px] font-mono uppercase tracking-wider text-[var(--gold)]">
                   col total
                 </td>
-                {data?.byKind.map((k) => (
-                  <td
-                    key={k.kind}
-                    className={cn(
-                      "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
-                      cellTone(k.hitRatePct, k.total),
-                    )}
-                  >
-                    {k.total === 0
-                      ? "—"
-                      : `${k.acted}/${k.total} (${k.hitRatePct}%)`}
-                  </td>
-                ))}
+                {data?.byKind.map((k) => {
+                  const tone = cellTone(k.hitRatePct, k.total);
+                  return (
+                    <td
+                      key={k.kind}
+                      style={tone.bgStyle}
+                      className={cn(
+                        "rounded border px-2 py-1.5 text-center font-mono text-[11px] tabular-nums",
+                        tone.border,
+                        tone.text,
+                      )}
+                    >
+                      {k.total === 0
+                        ? "—"
+                        : `${k.acted}/${k.total} (${k.hitRatePct}%)`}
+                    </td>
+                  );
+                })}
                 <td />
               </tr>
             </tbody>

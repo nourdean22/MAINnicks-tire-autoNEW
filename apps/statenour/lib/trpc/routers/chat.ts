@@ -840,4 +840,63 @@ export const chatRouter = router({
         surroundingText: input.surroundingText,
       }),
     ),
+
+  /**
+   * 2026-05-23 · UI #1 · Lens-fire transparency.
+   *
+   * Given an ASSISTANT message id, re-runs the strategic-frameworks
+   * detector against the PRECEDING USER message and returns the
+   * matched lenses. The detector is pure · same input → same output ·
+   * so calling it post-hoc gives the SAME lens picks that fired at
+   * request-time in app/api/ai/chat/route.ts (which we can't edit).
+   *
+   * Returns empty array when messageId is not assistant · no
+   * preceding user message · or no lenses triggered.
+   *
+   * Operator-only · read-only · safe to call per message.
+   */
+  lensesForMessage: operatorProcedure
+    .input(z.object({ messageId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const msg = await prisma.chatMessage.findUnique({
+        where: { id: input.messageId },
+        select: { id: true, role: true, conversationId: true, createdAt: true },
+      });
+      if (!msg || msg.role !== "assistant") return { lenses: [] };
+
+      const prevUser = await prisma.chatMessage.findFirst({
+        where: {
+          conversationId: msg.conversationId,
+          role: "user",
+          createdAt: { lt: msg.createdAt },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { id: true, searchableContent: true, parts: true },
+      });
+      if (!prevUser) return { lenses: [] };
+
+      let userText = prevUser.searchableContent ?? "";
+      if (!userText && Array.isArray(prevUser.parts)) {
+        userText = (prevUser.parts as Array<{ type?: string; text?: string }>)
+          .filter((p) => p?.type === "text" && typeof p.text === "string")
+          .map((p) => p.text)
+          .join("\n");
+      }
+      if (!userText) return { lenses: [] };
+
+      const { pickFrameworks } = await import(
+        "@/lib/ai/strategic-frameworks"
+      );
+      const matches = pickFrameworks(userText.slice(0, 4000));
+
+      return {
+        lenses: matches.map((m) => ({
+          id: m.framework.id,
+          name: m.framework.name,
+          oneLiner: m.framework.oneLiner,
+          score: m.score,
+        })),
+      };
+    }),
 });
