@@ -34,7 +34,9 @@
 // meta-narrative · was buried at bottom). Survivors ordered by
 // cognitive-time: read-this-first → what-changed → vitals →
 // today-anchor → today-questions → resume → work.
+import { useMemo } from "react";
 import { CommandCore } from "@/components/3d/command-core";
+import type { CommandCoreAlertLevel } from "@/components/3d/scenes/command-core-scene";
 import { TodayPulseStrip } from "@/components/ultron/today-pulse-strip";
 import { ResumeLastWork } from "@/components/ultron/resume-last-work";
 import { MITSlot } from "@/components/ultron/mit-slot";
@@ -138,6 +140,45 @@ export function Ultron() {
 
   const mode: UltronMode = classifier.mode;
 
+  // 2026-05-24 · Wave X.c · derive CommandCore scene props from the
+  // signals this component already pulls — no extra fetch. The R3F
+  // backdrop's contract is { healthScore, alertLevel, situationCount }
+  // (see components/3d/scenes/command-core-scene.tsx).
+  //   · healthScore = 100 - driftBudgetUsed → the drift budget is the
+  //     OS's "noise floor"; a clean signal layer reads as a bright,
+  //     stable core. Clamped 0..100.
+  //   · alertLevel = critical blind-spots → "critical"; high blind-
+  //     spots OR drift > 70% → "warn"; else "info". Mirrors the rim
+  //     color of the wireframe core to system state.
+  //   · situationCount = stale leads + aging critical + overdue +
+  //     critical/high blind-spots. Drives a faint scale pulse so the
+  //     core visibly grows under load.
+  const blindSpotsCritical = signalCounts?.blindSpots.critical ?? 0;
+  const blindSpotsHigh = signalCounts?.blindSpots.high ?? 0;
+  const commandCoreData = useMemo(() => {
+    const alertLevel: CommandCoreAlertLevel =
+      blindSpotsCritical > 0
+        ? "critical"
+        : blindSpotsHigh > 0 || driftBudgetUsed > 70
+          ? "warn"
+          : "info";
+    const healthScore = Math.max(0, Math.min(100, 100 - driftBudgetUsed));
+    const situationCount =
+      (s.staleLeads ?? 0) +
+      (s.agingCritical ?? 0) +
+      (s.overdueCommitments ?? 0) +
+      blindSpotsCritical +
+      blindSpotsHigh;
+    return { healthScore, alertLevel, situationCount };
+  }, [
+    blindSpotsCritical,
+    blindSpotsHigh,
+    driftBudgetUsed,
+    s.staleLeads,
+    s.agingCritical,
+    s.overdueCommitments,
+  ]);
+
   return (
     // Apr 19 · Dropped `min-h-screen` + `flex-col` + `flex-1` from the
     // Ultron root. The outer (mastery) layout already applies
@@ -147,12 +188,17 @@ export function Ultron() {
     // naturally — top strip, content column, bottom ticker — no
     // phantom gap.
     <div className="text-[var(--text-primary)] relative">
-      {/* v10.0.291 · CommandCore Spline backdrop · sits behind data,
-          binds to /api/ultron/situation · while scene URL is TBD this
-          renders the SceneSkeleton ambient gradient. opacity-50 keeps
-          the 3D subtle so data legibility wins. fixed positioning so
-          the backdrop persists across scroll for an OS-landing feel. */}
-      <CommandCore className="fixed inset-0 -z-10 opacity-50 pointer-events-none" />
+      {/* v10.0.291 · CommandCore R3F backdrop · sits behind data.
+          opacity-50 keeps the 3D subtle so data legibility wins ·
+          fixed positioning so the backdrop persists across scroll for
+          an OS-landing feel. 2026-05-24 (Wave X.c) · now DATA-REACTIVE:
+          drift budget drives core integrity · blind-spot severity
+          shifts the wireframe rim color · situation load pulses the
+          core scale. The backdrop reads as the OS state, not decor. */}
+      <CommandCore
+        className="fixed inset-0 -z-10 opacity-50 pointer-events-none"
+        data={commandCoreData}
+      />
       <TopStrip mode={mode} reason={classifier.reason} />
 
       <div className="max-w-3xl w-full mx-auto px-3 py-4 space-y-4">
