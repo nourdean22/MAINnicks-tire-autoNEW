@@ -20,12 +20,13 @@
  * React Query's refetchInterval replaces the manual 60s setInterval.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { trpc } from "@/lib/trpc/client";
 import { FrameworkOrbit } from "@/components/3d/framework-orbit";
+import type { FrameworkOrbitSceneProps } from "@/components/3d/scenes/framework-orbit-scene";
 
 const WINDOWS = [
   { label: "1d", days: 1 },
@@ -50,6 +51,36 @@ export default function LensStatsPage() {
 
   const maxFrameworkCount = data?.topFrameworks[0]?.count ?? 1;
   const maxSurfaceCount = data?.surfaces[0]?.count ?? 1;
+
+  // 2026-05-24 · Wave X.c · derive scene props from live lens-stats.
+  // Pre-fix the FrameworkOrbit mount below ignored `data` and rendered
+  // a fixed placeholder ladder · the 3D scene was decoration, not a
+  // surface. Now: top-3 firer counts are normalized to 0..1 against
+  // the #1 firer · fallbackRate (a 0..100 percent on the response) is
+  // converted to 0..1 for the scene's red-alert threshold. When data
+  // is missing (initial load · error · empty window) we return
+  // undefined so the wrapper falls back to its PLACEHOLDER. Filters
+  // out the synthetic "(fallback)" row · it's not a real framework
+  // and would corrupt the top-3 ranking. `(fallback)` is already
+  // surfaced separately by data.fallbackRate.
+  const orbitData = useMemo<FrameworkOrbitSceneProps | undefined>(() => {
+    if (!data) return undefined;
+    const realFrameworks = data.topFrameworks.filter(
+      (f) => f.framework !== "(fallback)",
+    );
+    if (realFrameworks.length === 0) return undefined;
+    const topCount = realFrameworks[0]?.count ?? 1;
+    const norm = (i: number): number => {
+      const count = realFrameworks[i]?.count ?? 0;
+      return topCount > 0 ? Math.min(1, count / topCount) : 0;
+    };
+    return {
+      topFirerSize: norm(0),
+      secondFirerSize: norm(1),
+      thirdFirerSize: norm(2),
+      fallbackRate: Math.min(1, Math.max(0, data.fallbackRate / 100)),
+    };
+  }, [data]);
 
   return (
     <StandardPage
@@ -117,14 +148,19 @@ export default function LensStatsPage() {
       {/* FrameworkOrbit · React Three Fiber scene (Wave 53 · pivot
           from Spline) · 52 framework spheres orbiting a center,
           top-fired ones grow larger + gold. A memorable visual
-          anchor above the data table. Renders with placeholder
-          data for now — wiring it to the lensStats query above is
-          a follow-up. Scene code in components/3d/scenes/. */}
+          anchor above the data table. 2026-05-24 (Wave X.c) · now
+          DATA-REACTIVE: top-3 firer counts normalize 0..1 against
+          the leader for the sphere scale ladder · fallbackRate
+          drives the central anchor's status-red alert above 30%.
+          Scene code in components/3d/scenes/. */}
       <Panel>
         <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2">
           framework orbit
         </div>
-        <FrameworkOrbit className="w-full h-[280px] rounded-lg overflow-hidden" />
+        <FrameworkOrbit
+          className="w-full h-[280px] rounded-lg overflow-hidden"
+          data={orbitData}
+        />
       </Panel>
 
       {/* Top-fired frameworks */}
