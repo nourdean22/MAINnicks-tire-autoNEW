@@ -1,6 +1,6 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-3 (post Wave X.c · R3F scene data wire-up · the two surviving 3D mounts — CommandCore on the homepage backdrop + FrameworkOrbit on /system/lens-stats — were both shipping with PLACEHOLDER prop constants since the Wave 53 Spline→R3F pivot · now both DATA-REACTIVE · derived from signals the components already pulled · zero new fetches) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-NIGHT-4 (post Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap · 6 new entries · 4 fact-grounded (05-17 monorepo cutover · 05-18 Charizard + tRPC kickoff · 05-19 Tier-1+2 monorepo + signal-loop · 05-20 R3F pivot supplement · 05-22 tRPC migration COMPLETE) · 1 partially-conjectured (05-16 consolidation sprint reconstructed from surviving plan + EOD docs · pre-monorepo SHAs do not resolve in NOURCITY) · 1 honest gap (05-13 → 05-15 · no commits in NOURCITY · standalone repo predates CP3 import on 05-17)). On top of: Wave X.c · R3F scene data wire-up · CommandCore + FrameworkOrbit now DATA-REACTIVE. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
 
 > ## 2026-05-24 LATE-NIGHT-3 · Wave X.c · R3F scene data wire-up · 1 ship
 >
@@ -1389,6 +1389,51 @@
 > - vm_bundles cleanup (#10) still blocked behind a reboot — 20 claude.exe processes hold .vhdx file handles on AppData/Local/Roaming/Claude.
 > - /tasks subtasks (true nesting via `Task.parentTaskId` self-FK) flagged by the agent on #7 — operator must define subtask semantics first. Separate Prisma-migration slice.
 
+> ## 2026-05-22 · tRPC migration COMPLETE · 14 ships
+>
+> The day the REST→tRPC strangler-fig migration finished.
+> `hooks/use-authed-fetch.ts` is **deleted** — zero importers
+> remain. M-done achieved per the migration roadmap's own
+> definition: "you cannot half-delete a function, so that
+> milestone forced the migration to actually finish."
+>
+> **Phase B slices B.4 → B.14 · final 11 slices** · `bef2a860`
+> (B.4 · actions/task domain) · `be2185bd` (B.5 · chat domain) ·
+> `3c9ce883` (B.6a · ultron operator-domain) · `5627b8e4` (B.6b ·
+> ultron task-domain) · `f3af544b` (B.6c · ultron system-domain) ·
+> `68c3eb7e` (B.7 · brain domain) · `8e275dfe` (B.7a · system
+> pages slice A) · `414c0e3a` (B.7b · system pages slice B) ·
+> `6046ec50` (B.8 · misc pages) · `09b6230a` (B.9 · hooks ·
+> partial) · `ac0d71d8` (B.10 · cross-domain residuals · chat +
+> ultron + brain stragglers) · `fc218104` (B.11 · actions surface
+> · added 9th router · ai) · `d7849454` (B.12 · scattered
+> components · 13 files · ultron/goals/chat/brain/ai) · `7872709b`
+> (B.13 · 7 straggler pages · + `app/voice/layout.tsx`) ·
+> `2f172174` (B.14 · final hooks+lib slice · 16 authedFetch sites
+> migrated · `hooks/use-authed-fetch.ts` DELETED · 10 new
+> procedures · 7 new shared `lib/services/*` · 9 REST routes
+> slimmed to call same functions · the migration CLOSES).
+>
+> **Supporting infra** · `9452aa84` (vanilla tRPC client for
+> non-React call-sites · `createTRPCClient`) · `29e48302` (fix ·
+> command-palette prerender · vanilla tRPC client at root-layout
+> scope).
+>
+> **Out-of-band repairs** · `14ef500a` (feat · Nick response
+> style · logical-hierarchy directive · scannable structure across
+> reply turns) · `c3681b40` (fix · /financial page rendered "—"
+> for every field).
+>
+> **Docs** · `9606359f` (Phase B progress update) · `b5ea7869`
+> (Phase B progress reconcile) · `8e90711e` (tRPC migration
+> roadmap · COMPLETE · M-done achieved · `hooks/use-authed-fetch.ts`
+> deleted · importer grep returns 0 · only Phase C decommission
+> of REST routes remains).
+>
+> **Gates** · per the migration roadmap doc · every slice gated
+> typecheck + `eslint .` + full test suite + build-verified by
+> pre-push `turbo build`. All 11 slices shipped green.
+
 > ## 2026-05-21 · staleness deep-dive + reconcile — dead infra, dead code, fossil docs · 5 ships
 >
 > The operator's read — "a lot of old, stale, outdated data everywhere"
@@ -1619,6 +1664,46 @@
 > green local state without Neon creds in the env — environmental, not a
 > code defect.
 
+> ## 2026-05-20 · Spline→R3F 3D pivot + de-Vercel sweep + /system hub redesign · 10 ships
+>
+> The 3D pivot day. Morning shipped a Spline scaffold (8 files in
+> `components/3d/` with TBD scene URLs) · pivoted to React Three
+> Fiber the same afternoon (Spline requires a human in its visual
+> editor · R3F components are plain React + agent-buildable).
+> Concurrent · de-Vercel sweep (retire `vercel.json` + dead
+> Vercel-API subsystem + `autonicks.com` → `bdnick.info`) and the
+> /system hub status-first redesign. This entry covers the
+> non-bug-hunt arcs of the day · the two 05-20 entries below
+> capture the bug-hunt waves.
+>
+> **3D layer pivot** · `ca467dce` (feat · Spline 3D integration
+> scaffold Phase 1 · 8 files in `components/3d/` · `scene-registry`
+> with 4 TBD scene URLs · `spline-scene` + `spline-canvas` +
+> skeleton + `use-scene-binding` · all gracefully no-op until
+> operator builds scenes in Spline editor) · `50fed272` (feat ·
+> 3D layer · React Three Fiber pivot from Spline · drops
+> `@splinetool/*` · keeps R3F stack already in deps ·
+> `scene-canvas` + `canvas-inner` + 4 scenes · CommandCore
+> icosahedron · KnowledgeGalaxy 56 instanced spheres ·
+> FrameworkOrbit 52 orbiting spheres · AiPulse faceted breathing
+> mesh) · `289f804c` (chore · de-stale FrameworkOrbit mount
+> comment).
+>
+> **De-Vercel sweep** · `a2cf99bb` (retire `autonicks.com` →
+> `bdnick.info` across statenour) · `30f6aa16` (remove dead
+> Vercel-API subsystem + Vercel deps) · `f042e0ad` (retire
+> `vercel.json` + de-Vercel the cron verifier) · `1ec5b18c`
+> (de-Vercel the cron-diagnostics runtime report).
+>
+> **/system hub + /chat + /tasks redesign + a11y** · `3aa39202`
+> (/system hub · status-first layout + grouped de-duped card
+> grid) · `ddf5f99e` (/chat dead-code sweep + timestamp legibility
+> fix) · `1f427600` (/tasks dead-code + filter-banner a11y +
+> brand-token fixes).
+>
+> **Gates** · per-commit · pre-push `turbo build --affected` +
+> vitest green throughout.
+
 > ## 2026-05-20 · bug-hunt continuation · journal + chat pipeline + brain recall · 10 ships
 >
 > Picks up the wide-wave's flagged list, then two fresh code-review
@@ -1767,6 +1852,298 @@
 > caught these) — `brain-bus-durable` check-then-act (the P2002 catch +
 > Postgres conflict-blocking make the dedupe correct) · `use-wisdom-
 > suggest` `dismissed.size` effect dep (effect only acts on empty draft).
+
+> ## 2026-05-19 · monorepo Tier-1+2 buildout + supervised-signal loop + fetch-timeout sweep · 36 ships
+>
+> Three overlapping arcs · (1) Monorepo Tier-1+2 buildout (Turbo
+> affected · pre-push validation · shared packages · BuildKit
+> cache · CI matrix) closing the 9-hour Wave 40 deploy thrash ·
+> (2) supervised-signal loop end-to-end (NickSuggestions chip taps
+> + dismiss-X → `brain_memory` rows → outcome rollup cron +
+> operator stats endpoint) · (3) fetch-timeout sweep
+> (`wave-181.91+92`) bounding every external fetch wall-clock ·
+> plus the tRPC strangler-fig push from `/tasks` to `/knowledge`
+> (Phases SS through AAA · J at 36/50+ surfaces by EOD).
+>
+> **Monorepo Tier-1+2 buildout** · `cec9dda1` (Turbo + pre-push +
+> shared packages + BuildKit cache + CI matrix · cold 987ms →
+> warm 103ms · 9.5x speedup) · `2c2fe056` (`next.config.ts` add
+> `@nour/utils` to `transpilePackages`) · `834ccc73` / `ab504b25`
+> / `6231e396` (Dockerfile BuildKit cache mount fixes · Railway
+> rejects `id=` field) · `deeb363b` (Tier-3 · `@nour/utils` ships
+> pre-built `dist/` · drop transpilePackages dep) · `e6776a39`
+> (`pnpm smoke:prod` · post-deploy verification) · `07e2012c`
+> (`pnpm audit:surfaces` · Elon delete-first companion script).
+>
+> **Supervised-signal loop · end-to-end** · `e9fe26b3`
+> (`brain/suggestion-loop` · supervised-signal capture for Nick
+> suggestions) · `0dda5695` (NickSuggestions chip taps →
+> suggestion-loop API) · `696f854f` (`SUGGESTION_LOOP` to
+> `BRAIN_CATEGORIES`) · `b41022a9` (dismiss-X on each Nick
+> suggestion chip · captures `event=dismissed`) · `cc2e9378` (GET
+> `/api/system/suggestion-loop-stats` · operator-visible signal
+> capture) · `1dde046e` (`/api/cron/suggestion-outcome-rollup` ·
+> closes the Ilya loop end-to-end) · `0466246d`
+> (`suggestion-outcome-rollup` added to `EVENING_JOBS` fan-out) ·
+> `848a302b` (NickSuggestions on /tasks · supervised-signal
+> capture on second surface).
+>
+> **Fetch-timeout sweep** · `b730eeda` (wave-181.91 · 9
+> high-traffic AI sites + shared helper) · `d65aa86a`
+> (wave-181.92 · 23 lower-priority sites · cron-driven + admin
+> integration paths · every statenour external fetch now has
+> bounded wall-clock).
+>
+> **tRPC strangler-fig push · Phases OO-AAA · 7 surface migrations
+> + Mastery Polyhedron** · `3d231b5d` (OO · /goals page snapshot ·
+> J at 22/50+) · `c2b05958` (PP · /tasks reads · 6th router ·
+> task) · `05495f23` (QQ · TaskEvent typed read · J at 24/50+) ·
+> `85bc8589` (RR · /tasks 4 mutations migrated · J at 25/50+ ·
+> 50% threshold) · `0d56980a` / `46908a3c` / `54da813c` /
+> `9f542641` (SS.1-SS.4 · /tasks 2 create mutations · AI roiScore
+> + AI task generation + bulk backfill · 100% on tRPC) ·
+> `1826361a` (TT · /journal · 7th router) · `849f055d` (UU ·
+> /brain/wisdom · 8th router) · `f46d2dfe` (VV ·
+> /brain/link-review · brain router at 5) · `5f894cb0` (WW ·
+> /scoreboard snapshot) · `9f3e5475` (XX · /body daily check-in) ·
+> `ad5c19bb` (YY · /pins · brain router at 9) · `818f5746` (ZZ ·
+> /knowledge reads · operator router at 9 · J at 36/50+ · 72%) ·
+> `2d34555e` (Phase AAA · Mastery Polyhedron on /goals · 1st
+> bespoke 3D identity moment).
+>
+> **Chat composer redesign** · `f8488ede` (v10.0.529.96 · Wave
+> 40 · chat composer redesign · slim chrome + upper-middle empty
+> state).
+
+> ## 2026-05-18 · Nick Reasoning Engine "Charizard" + tRPC strangler-fig start + deeper coherence · 63 ships
+>
+> Biggest single day in the gap. Three overlapping arcs · (1) Nick
+> reasoning engine upgrade (Charmeleon→Charizard · Phases H
+> through H.8) including OperatorPulse + CompoundChain
+> visualizations · (2) tRPC strangler-fig migration kickoff
+> (Phases J through GG · 13+ domain routers + 7 surface
+> migrations · J at ~26% by EOD) · (3) deeper coherence pass
+> across mastery primitives + design tokens + /journal
+> pattern-radar Phase D completion.
+>
+> **Nick Reasoning Engine · Phases E-H.8** · `a1dbd5ad` (Phase E ·
+> OperatorPulse forward-looking intelligence across 4 mastery
+> surfaces) · `ebdb6bc9` (Phase F · wisdom line · context-matched
+> persona-weighted) · `70735965` (Phase G · CompoundChain ·
+> see-your-work compound visualization) · `7f713f72` (Phase G.2
+> bugfix) · `da7ed9aa` (Phase H · Charmeleon → Charizard) ·
+> `42ada555` (Phase H.2 · Mega Charizard · 5-feature reasoning
+> upgrade) · `43021b63` (H.3 · 4 critical critique items from
+> H.2 self-audit) · `00ce2867` (H.4 · 7 H.2 critique backlog
+> items shipped) · `60f2526e` (H.5 · real cost threading +
+> telemetry UI + marker quality) · `a50f696d` (H.6 · 3
+> high-severity bugs from find-bugs audit) · `86d42546` (H.7 ·
+> MEDIUM/LOW audit items closed) · `4c82abf2` (H.8 · real
+> sub-pipeline `callCount`).
+>
+> **tRPC strangler-fig · Phases J-GG · 4 domain routers + 17
+> surface migrations** · `a37a4442` (Phase J · H-series surfaces ·
+> type-safe end-to-end) · `1ada9abb` (Phase Z · 4th tRPC router ·
+> chat · ChatHistorySearch migrated) · `14705ea7` (Y · 2 more
+> /system/* migrations) · `49487f0e` (AA · /system/judge-eval
+> polish · 5 findings) · `f0a14875` (BB · category codemod sweep
+> · 133 files / 411 replacements · category migration CLOSED) ·
+> `f0587679` (CC · audit V-BB chain · 4 real bugs caught + fixed) ·
+> `81d039f4` (DD · MessageBranchSwitcher) · `f249e90e` (EE ·
+> MessageInfoCard provenance + BB codemod regex broadened) ·
+> `068dc89b` (FF · audit V-EE chain · 6 surgical fixes) ·
+> `eb97edf9` (GG · LaneCorrectionChip) · `8a5c7b18` (HH ·
+> EmailDraftCard send · first true `.mutation()`) · `9ae17d94`
+> (JJ · MessageEditControls edit + history) · `26ea463c` (II ·
+> NickMessage image upscale + vary) · `01ceb082` (KK ·
+> BuilderSandbox deploys + rollback) · `aa9bf3da` (LL ·
+> BrowserSandbox · 5th domain router) · `de26150b` (MM ·
+> ActionClaimWarning) · `60c8a472` (NN · cron-diagnostics
+> mutations · T.4 carve-out closed).
+>
+> **Cross-cutting skill-driven hardenings** · `79d35129` (Phase L ·
+> modern-JS adoption · 5 patterns + 1 architectural bug fix) ·
+> `7f22f8ba` (M · CrewAI-inspired · smart tier + personas +
+> plan-first UI) · `830a5ed5` (N · `cc-skill-*` inspired · 6
+> items + 2 real bug fixes) · `93412826` (O · TypeScript advanced
+> types · 3 surgical safety hardenings) · `e563dd03` (P ·
+> legacy-modernizer surgical hardening · tests + codemod +
+> deprecation) · `6e957e84` (Q · strangler-fig migration tracker
+> · 3 items · 4 docs + flag registry + tracker UI) · `8c57496f`
+> (K · operator review pipeline · 5-piece pre-push + audit +
+> lookup) · `435121b1` (R · M.2 persona wiring · scorer sees
+> real keys) · `ac7a39e6` / `6a66ddf6` / `4cd39099` (S/T/U ·
+> persona wiring + 3 /system/* tRPC migrations) · `4366fc26`
+> (V · AGENT_V1→V2 judge-eval comparator · Phase 0 safety net
+> shipped) · `b7ec78c7` (W · AGENT_V2 corpus-building workflow) ·
+> `c8bc8f61` (X · AGENT_V2 auto-corpus cron · Phase 0 COMPLETE
+> end-to-end).
+>
+> **/journal pattern-radar Phase D completion** · `ce3cc591`
+> (deeper coherence pass · ADR-0014 + Reflection auto-join + 3
+> hook conversions) · `0eb9c942` (mastery primitives +
+> goals/scoreboard conversions) · `fa835588` / `176803f4`
+> (cross-links #1-3 · 4 surfaces mesh) · `de81a314` (Phase D
+> TRUE completion · all 4 journal sources wired to auto-join) ·
+> `9e22f069` (manual scan trigger) · `92e43e26` (radar
+> observability on `/api/health`) · `08d81ea5`
+> (operator-initiated thread creation).
+>
+> **Design + canonical headers** · `b9d3f46e` (HomeStrip →
+> HomeNarrator · editorial sentence as router) · `2f871cf1`
+> (/voice redesign · brief leads + live-call follows) ·
+> `acd9429c` (/brain hub · canonical header + 5 zones · was 22
+> stacked atoms) · `a1481f73` (goals + scoreboard header drift
+> fixes) · `292bd08b` (MasterySectionLabel · canonicalize
+> tracking + tone) · `0ec16392` (design tokens · mastery
+> primitives realigned to aesthetic-principles + ADR-0015).
+>
+> **Build + Railway fixes** · `3eb5cbe2` (fix · /tasks
+> force-dynamic for `useSearchParams` · Phase B build-failure
+> root cause) · `6b3083d8` (Suspense wrap `useSearchParams`
+> pages) · `b45c0275` (all hook adoptions double-wrapped
+> useAuthedFetch type · components silently no-op'd) · `5a71a838`
+> (MasterySectionLabel h2 → p · global h2 override broke eyebrow
+> sizing) · `d435b04b` (cache-bust Dockerfile to break Railway
+> BuildKit corruption) · `b79d6239` (touch health route to force
+> fresh Railway snapshot upload) · `aac62eb4` (wave-181.51 · SMS
+> instrumentation · reply-rate + attribution + A/B + admin tile).
+
+> ## 2026-05-17 · monorepo cutover + WAVE-200 substrate · 43 ships
+>
+> The cutover day. statenour-os left its standalone repo and
+> Vercel deploy and landed in the monorepo (`apps/statenour/`)
+> with a Railway twin (`statenour-web` + `apps/worker/`).
+> Concurrent with the cutover · WAVE-200 substrate landed
+> (Mastra agent · Inngest durable workflows · LiveKit operator
+> voice · Customer 360 + predictive brain · multi-channel morning
+> brief). Closing the day · orphan dead-code sweep.
+>
+> **Cutover (CP2-CP9)** · `7a8a2eb4` (CP3 import) · `e022ddb9`
+> (CP4 worker) · `1754e84c` (CP5 Dockerfiles + `APP_BASE_URL`) ·
+> `88e905eb` (CP6 worker → `/api/cron/*` forwarding) ·
+> `4bf96cde` / `a628860c` / `4528019d` (CP7 force-dynamic +
+> 300s `staticPageGenerationTimeout` for Railway) · `553bb952`
+> (CP9 merge) · `ef2313bd` (cutover landed) · `4ce4ace7` (drop
+> email/Resend from `/api/health`).
+>
+> **WAVE-200 substrate** · `def38ce9` (Phase 0 · Mastra +
+> Braintrust scaffold + 3 ADRs) · `b27b58fb` (Phase 1 · Nick as
+> Mastra agent + eval suite) · `2b29d3e0` (Phase 3 · Inngest
+> durable workflows · mega-fanout) · `d99a69f3` (Phase 4 ·
+> LiveKit operator voice · Python worker + PWA launcher) ·
+> `19462256` (Phase 5 · morning brief multi-channel · push +
+> audio) · `b899cb83` (Phase 6 · Customer 360 + predictive brain
+> scaffold) · `aca0dbf0` (Phase 7 · Mastra memory +
+> Inngest→Telegram + brief×prefs) · `f16c4dcc` (Phase 7+ ·
+> memory wiring fix + play brief + smoke harness) · `10f28472`
+> (11 audit fixes from code-reviewer + silent-failure-hunter +
+> live Chrome smoke) · `894a1e4c` (Phase 1.5 · `/api/ai/chat`
+> AGENT_V2 cutover gate · early-exit) · `02c7cc85` (Phase 1.3 ·
+> `@mastra/pg` flag-gated scaffold) · `1d4d554e` (env spec
+> covers all 9 substrate flags) · `d3f93b6b` (Inngest completion
+> wave · 6 follow-ups) · `a9e3f7e2` (outreach segmentation ·
+> end-to-end approval loop wired) · `8f9d8d33` (Phase 4
+> follow-up · voice-bridge bearer token · ADR-0006) · `17b4507f`
+> (nickstire · `recent_customer_ids` query activates statenour
+> customer-prefs cron).
+>
+> **Orphan + dead-code sweep** · `6da0effd` (33 orphan API
+> routes deleted · 0 callers) · `e0a75262` (13 orphan components
+> deleted) · `e647606c` (6 orphan crons wired into mega fan-out)
+> · `4400af39` (`token-age-watch` + `semantic-link` wired per
+> registry intent) · `ce2fdfd9` (3 coherency holes from audit) ·
+> `9d28b73e` (`.gitignore` was hiding /system/logs page + API
+> route).
+>
+> **Auth + middleware hardening** · `da470bd8` (`/api/agent`
+> bypasses global auth middleware · handles bridge-token +
+> session auth) · `b440d0dd` (`/api/inngest` bypasses global
+> auth · webhook validates HMAC itself) · `f17c3f6e` (mega-fanout
+> concurrency 6→5 to fit Inngest free tier cap) · `54a4ff20`
+> (`autonicks.com` dropped · Railway canonical host).
+>
+> **Schema + migration catch-up** · `a41b99a7` (catch-up DB
+> migrations to match deployed Prisma client) · `1f2ea4e3`
+> (`/api/health` functions count 5→6 · goal-pruner added).
+
+> ## 2026-05-16 · Consolidation Sprint · Waves 46-55 · ~10 ships (pre-monorepo · partially conjectured)
+>
+> The 18-dimension god-mode audit + 10-wave consolidation pass.
+> Took an "85% coherent / 15% drift" codebase and shipped 10
+> surgical waves in one day · zero rollbacks · all 15 pre-push
+> gates green · ~1,400 LOC removed · 4 silent-failure modes
+> closed · 30 new tests · 1747 vitest passing at EOD.
+>
+> **Honesty footnote** · the commits themselves are NOT in this
+> monorepo's git log — they shipped on the standalone
+> `statenour-os.git` repo before the 2026-05-17 import (CP3 ·
+> `7a8a2eb4`). The two surviving artifacts are
+> `docs/CONSOLIDATION-PLAN-2026-05-16.md` (Waves 46-57 ranked
+> plan) and `docs/cohort-2026-05-16-consolidation-eod.md` (the
+> EOD sprint summary). The wave decomposition below is sourced
+> from those · the wave 47 SHA is missing because the plan doc
+> lists it as "(Phase A · already on branch)". **Treat the SHAs
+> below as historical references from the pre-cutover repo · they
+> will not resolve via `git show` in NOURCITY.**
+>
+> - **Wave 46** · `08f8f85` · `CONSOLIDATION-PLAN-2026-05-16.md`
+>   published · the 12-wave roadmap synthesized from 18 parallel
+>   code-explorer agents.
+> - **Wave 47** · Elon delete-first sweep (Phase A) · 2 retired
+>   autonomous rules + 3 dead Settings hub links pruned.
+> - **Wave 48** · `7e5adf1` · 11 standalone crons folded into
+>   mega-evening fan-out · cron double-billing killed.
+> - **Wave 49** · `3913721` · security lockdown · 3 unauth GETs
+>   gated · structured logger for mock-bypass warn · runner-secret
+>   dev fallback removed.
+> - **Wave 50** · `ddbb2e5` · 3 hook primitives shipped ·
+>   `usePollingFetch` · `useAbortableFetch` · `useLocalStorageState`
+>   (33+ files have a migration target · migrations deferred).
+> - **Wave 51** · `88c43e6` · 5 mobile gap fixes · /mastery
+>   radar · /financial chart · /content/history table · /social
+>   checkboxes · /system database-models grid.
+> - **Wave 52** · `e448f16` · 2 silent event-emit gaps closed ·
+>   `updateTask` now emits `task.completed` to brain-bus ·
+>   `/tasks/[id]/start` now emits `TaskEvent.started`.
+> - **Wave 53** · `d21747f` · `tool_telemetry` BrainMemory
+>   dual-write removed · ~225 LOC legacy JSON-blob writes gone.
+> - **Wave 53b** · `1822a87` · 3 more dual-writes removed ·
+>   `autonomous_event` + `provider_ping` + `telemetry_tool_verb`
+>   in one batch (identical pattern).
+> - **Wave 54** · `7522711` · 30 new tests covering 3
+>   previously-untested brain primitives · `resolveInboxMissionId`
+>   + `memory-manager` + `auto-learn`.
+> - **Wave 55** · `78b1435` · Descript registry stub deleted ·
+>   HuggingFace Whisper + Tuya + 3-source search quorum KEPT with
+>   documented rationale (deferred future migrations, not bugs).
+> - **Wave 56** · docs reconciliation starter (in-progress at EOD
+>   · ULTRON-VISION + CONSOLIDATION-PLAN status headers
+>   corrected).
+> - **Wave 57** · config strictness (`noUncheckedIndexedAccess` +
+>   `exactOptionalPropertyTypes`) · explicitly DEFERRED to its own
+>   sub-plan · 100+ existing call sites need fixes first.
+>
+> **Companion doc shipped same day** ·
+> `docs/NEXT-EVOLUTION-2026-05-16.md` · 6-agent god-mode audit
+> across cost/capability · cognition · UX · data+ops · tech debt
+> · strategic capability · the "what's NEXT" master roadmap.
+
+> ## 2026-05-13 → 2026-05-15 · pre-monorepo standalone-repo waves · **GAP**
+>
+> **Gap · backfill pending** · these dates predate the monorepo
+> cutover (CP2-CP9 landed 2026-05-17). statenour was still in
+> its own `nourdean22/statenour-os.git` repo and pushed to
+> Vercel. No commits for these dates exist in the current
+> monorepo git log (`apps/statenour/` was created via
+> `git archive HEAD` on 05-17 · losing the standalone repo's
+> commit graph). The work itself landed —
+> `docs/session-handoff-2026-05-12.md` covers the v10.0.485 →
+> v10.0.507 arc shipped just before this gap window opens — but
+> reconstruction of per-day waves between 05-13 and 05-15 would
+> require pulling the archived standalone repo. Not attempted
+> here · operator decision needed if this gap matters for audit
+> trail.
 
 > ## v10.0.528 → v10.0.529.6 · audit-driven hardening wave · 2026-05-12 · 8 ships · 1 cohort
 >
