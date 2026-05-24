@@ -32,6 +32,19 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { REGISTRY } from "@/lib/ai/strategic-frameworks";
 import type { StrategicFramework } from "@/lib/ai/strategic-frameworks/types";
+// 2026-05-23 · Wave L · 5th operator-state opt-in. The board is the
+// highest per-fire-leverage AI surface · used for major decisions ·
+// state-awareness matters MORE here than on chip generators or
+// task-creation helpers. Sam Altman pick · /sam-altman skill session.
+//
+// Two layers of state injection:
+//   1. Mood-gated routing · drop advisors whose lens is counter-
+//      productive in the operator's current mood (e.g. elon-musk +
+//      steve-jobs when mood=depleted · pushing harder is wrong)
+//   2. State block injected into both advisor prompts and the
+//      synthesizer · LLMs see the same explicit world-model context
+//      that the routing decision used.
+import { currentOperatorState, formatOperatorStateBlock, type MoodTag, type OperatorState } from "@/lib/services/operator-state";
 
 import { getBoard } from "./boards";
 import type {
@@ -126,11 +139,17 @@ function coerceAdvisorTake(
 async function consultOne(
   framework: StrategicFramework,
   question: string,
+  stateBlock: string = "",
 ): Promise<AdvisorTake> {
   try {
     const result = await aiChat(
       [
-        { role: "system", content: buildAdvisorPrompt(framework) },
+        {
+          role: "system",
+          content:
+            buildAdvisorPrompt(framework) +
+            (stateBlock ? `\n\n${stateBlock}` : ""),
+        },
         { role: "user", content: question.slice(0, 4000) },
       ],
       "reason",
@@ -236,6 +255,8 @@ function coerceSynthesis(raw: RawSynthesis): BoardSynthesis {
 async function synthesize(
   question: string,
   takes: AdvisorTake[],
+  stateBlock: string = "",
+  droppedAdvisorIds: string[] = [],
 ): Promise<BoardSynthesis> {
   // Format the advisor takes into a structured input for the synthesizer.
   const advisorBlock = takes
@@ -248,19 +269,31 @@ async function synthesize(
         (t.divergenceFlag ? `\n   divergence flag: ${t.divergenceFlag}` : ""),
     )
     .join("\n\n");
+  // Wave L · tell the synthesizer which advisors were gated out so it
+  // doesn't ask "where's X?" or hallucinate a missing take. Empty list
+  // == mood-blind run (no gating happened).
+  const gateNote =
+    droppedAdvisorIds.length > 0
+      ? `\n\nNote · the following advisors were gated out for this consultation due to the operator's current state: ${droppedAdvisorIds.join(", ")}. Do not synthesize what they would have said · their lenses are deliberately absent.`
+      : "";
   const userPrompt = `Operator's question:
 ${question}
 
 Board members' takes (${takes.length} advisors):
 
-${advisorBlock}
+${advisorBlock}${gateNote}
 
 Synthesize per the format above. Be honest about divergence — flattening it loses the whole point of consulting multiple lenses.`;
 
   try {
     const result = await aiChat(
       [
-        { role: "system", content: SYNTHESIZE_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content:
+            SYNTHESIZE_SYSTEM_PROMPT +
+            (stateBlock ? `\n\n${stateBlock}` : ""),
+        },
         { role: "user", content: userPrompt },
       ],
       "reason",
@@ -294,9 +327,84 @@ Synthesize per the format above. Be honest about divergence — flattening it lo
 }
 
 /**
+ * 2026-05-23 · Wave L · mood-gated routing.
+ *
+ * Per-mood advisor DROP lists · the rules below encode "this lens is
+ * counter-productive in this mood." Conservative · we ONLY drop · we
+ * NEVER add (the operator curated the board's memberIds intentionally
+ * · we respect that). When the drop list would empty the board, we
+ * fall back to the full member list (operator's curation wins).
+ *
+ * Mood→drop rationale:
+ *   energized · no drops · operator can handle every lens at full strength
+ *   neutral   · no drops · default behavior preserved
+ *   depleted  · drop push-harder lenses · they tell you to do more when
+ *               you can't · counterproductive · ADD friction not insight
+ *   scattered · drop complexity-adding lenses · they multiply the
+ *               cognitive load when the operator already can't focus
+ */
+const MOOD_DROP_RULES: Record<MoodTag, ReadonlySet<string>> = {
+  energized: new Set<string>(),
+  neutral: new Set<string>(),
+  depleted: new Set<string>([
+    "elon-musk", // 10x not 10% · push harder · counterproductive when depleted
+    "steve-jobs", // perfectionism · costs energy you don't have
+    "growth-engine", // scale focus · wrong frame when capacity is low
+  ]),
+  scattered: new Set<string>([
+    "osterwalder-canvas", // 9-cell business model · multiplies the surface area
+    "lean-canvas", // similar · adds structure when you can't focus
+    "porters-five-forces", // 5-force analysis · too many threads to hold
+    "kotler-macro", // PESTEL / macro · widens the field when narrowing is needed
+  ]),
+};
+
+/**
+ * Filter board members by the operator's current mood · returns the
+ * effective member list + the set of advisorIds that were dropped (for
+ * traceability + so the synthesizer can be told which lenses were
+ * gated out · prevents the synthesizer from asking "where's elon").
+ *
+ * Exported for unit tests.
+ */
+export function gateMembersByMood(
+  members: StrategicFramework[],
+  mood: MoodTag,
+): { effective: StrategicFramework[]; droppedIds: string[] } {
+  const dropSet = MOOD_DROP_RULES[mood];
+  if (dropSet.size === 0) {
+    return { effective: members, droppedIds: [] };
+  }
+  const dropped: string[] = [];
+  const kept: StrategicFramework[] = [];
+  for (const m of members) {
+    if (dropSet.has(m.id)) {
+      dropped.push(m.id);
+    } else {
+      kept.push(m);
+    }
+  }
+  // Safety net · if mood-gating would empty the board, fall back to
+  // the full member list. Operator's board curation wins over mood
+  // heuristics · we'd rather over-deliver advisor takes than starve
+  // the consultation of input.
+  if (kept.length === 0) {
+    return { effective: members, droppedIds: [] };
+  }
+  return { effective: kept, droppedIds: dropped };
+}
+
+/**
  * Consult a board on a question · fans out to all members in
  * parallel, then synthesizes. Returns a structured BoardConsultation
  * the caller can persist + render.
+ *
+ * 2026-05-23 · Wave L · operator-state aware. Reads the operator-state
+ * snapshot at consult time · applies mood-gated routing (drops
+ * advisors whose lens is counterproductive in the current mood) ·
+ * injects the state block into both advisor prompts and the
+ * synthesizer system prompt. Best-effort · degrades to mood-blind
+ * behavior on operator-state read failure.
  *
  * Throws only on:
  *   · unknown boardId
@@ -311,9 +419,29 @@ export async function consultBoard(
 ): Promise<BoardConsultation> {
   const board = getBoard(boardId);
   if (!board) throw new Error(`Unknown board: ${boardId}`);
-  const members = resolveMembers(board.memberIds);
-  if (members.length === 0) {
+  const baseMembers = resolveMembers(board.memberIds);
+  if (baseMembers.length === 0) {
     throw new Error(`Board ${boardId} has no resolvable members in REGISTRY`);
+  }
+
+  // Wave L · operator-state capture + routing. Best-effort · if
+  // state read fails, fall back to mood-blind behavior (use all
+  // members · no state block).
+  let stateSnapshot: OperatorState | null = null;
+  let effectiveMembers: StrategicFramework[] = baseMembers;
+  let droppedAdvisorIds: string[] = [];
+  let stateBlock = "";
+  try {
+    const snap = await currentOperatorState();
+    if (snap.confidence > 0) {
+      stateSnapshot = snap;
+      stateBlock = formatOperatorStateBlock(snap);
+      const gated = gateMembersByMood(baseMembers, snap.mood);
+      effectiveMembers = gated.effective;
+      droppedAdvisorIds = gated.droppedIds;
+    }
+  } catch {
+    // mood-blind fall-back · use base members + no state block
   }
 
   const t0 = Date.now();
@@ -322,10 +450,10 @@ export async function consultBoard(
   // frameworks lens-injection already does in Nick. The board exists
   // precisely BECAUSE it parallelizes the perspectives.
   const takes = await Promise.all(
-    members.map((member) => consultOne(member, question)),
+    effectiveMembers.map((member) => consultOne(member, question, stateBlock)),
   );
   // Sequential after fan-out · synthesizer reads ALL takes.
-  const synthesis = await synthesize(question, takes);
+  const synthesis = await synthesize(question, takes, stateBlock, droppedAdvisorIds);
   const durationMs = Date.now() - t0;
 
   return {
@@ -336,6 +464,20 @@ export async function consultBoard(
     synthesis,
     durationMs,
     ranAt: new Date().toISOString(),
+    // Wave L · trace fields · operator can see WHICH state drove the
+    // routing + which advisors got gated out. Helps debug "why didn't
+    // elon-musk show up?" and feeds the M1 calibration loop.
+    operatorState: stateSnapshot
+      ? {
+          mood: stateSnapshot.mood,
+          focus: stateSnapshot.focus,
+          capacity: stateSnapshot.capacity,
+          drift: stateSnapshot.drift,
+          momentum: stateSnapshot.momentum,
+          confidence: stateSnapshot.confidence,
+        }
+      : null,
+    droppedAdvisorIds,
   };
 }
 
@@ -346,4 +488,5 @@ export const __testInternals = {
   resolveMembers,
   coerceAdvisorTake,
   coerceSynthesis,
+  MOOD_DROP_RULES,
 };

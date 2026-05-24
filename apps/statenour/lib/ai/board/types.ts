@@ -118,4 +118,26 @@ export interface BoardConsultation {
   durationMs: number;
   /** ISO timestamp the consultation completed · used as the brain-memory key suffix. */
   ranAt: string;
+  /**
+   * 2026-05-23 · Wave L · operator-state snapshot at consult time.
+   * Null when state read failed OR confidence was 0 (cold-start ·
+   * no signal yet · mood-blind fall-back). Lets the dashboard show
+   * "this consult ran while mood=depleted · these advisors got gated."
+   */
+  operatorState: {
+    mood: string;
+    focus: number;
+    capacity: number;
+    drift: number;
+    momentum: number;
+    confidence: number;
+  } | null;
+  /**
+   * 2026-05-23 · Wave L · advisor ids that the mood-gate dropped from
+   * the consultation. Empty array when no gating ran (mood-blind OR
+   * mood=energized/neutral OR gating would have emptied the board).
+   * Persisted so the operator can replay consultations + see WHY a
+   * particular advisor didn't show up.
+   */
+  droppedAdvisorIds: string[];
 }
