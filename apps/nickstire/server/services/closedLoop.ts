@@ -148,6 +148,72 @@ export function listRegisteredMetrics(): string[] {
   return Object.keys(RESOLVERS);
 }
 
+/**
+ * Seed wave_metrics baselines for the 8 compounding loops shipped on
+ * 2026-05-23. Idempotent · checks for existing rows per (wave_id,
+ * metric_key) before inserting. Safe to call on every cron startup
+ * but typically called once after migration 0059 lands.
+ *
+ * Why this exists · the framework was built AFTER the waves shipped ·
+ * the loops are already running but have no recorded baseline for
+ * the 14-day measurement window to compare against. This function
+ * captures "today" as the baseline so 14 days from now the cron has
+ * something to measure against.
+ *
+ * Returns count of new rows inserted.
+ */
+export async function seedWaveBaselines(): Promise<number> {
+  const seeds: Array<{ waveId: string; metricKey: string; notes: string }> = [
+    {
+      waveId: "wave-181.x.bdi",
+      metricKey: "vapi_convert_rate_14d",
+      notes: "BDI declined-recovery opener · expecting +5-10% lift on inbound convert rate",
+    },
+    {
+      waveId: "wave-181.x.declined-5x3",
+      metricKey: "declined_recovery_rate_14d",
+      notes: "5×3 SMS sequence with P1/P2/P3 profiles · expecting +3-5% recovery rate vs 2-touch baseline",
+    },
+    {
+      waveId: "wave-181.x.call-eval-loop",
+      metricKey: "vapi_avg_eval_score_14d",
+      notes: "Daily call-eval feeding nickMemory · expecting compound learning to raise avg score over weeks",
+    },
+    {
+      waveId: "wave-181.x.tire-size-guides",
+      metricKey: "tire_size_impressions_14d",
+      notes: "Category-specific buying guides on 32 /tires/* pages · expecting +20-40% impressions over baseline",
+    },
+  ];
+
+  let inserted = 0;
+  try {
+    const { getDb } = await import("../db");
+    const { waveMetrics } = await import("../../drizzle/schema");
+    const { and, eq } = await import("drizzle-orm");
+    const d = await getDb();
+    if (!d) return 0;
+
+    for (const seed of seeds) {
+      // Idempotent · skip if already seeded for this waveId+metricKey
+      const [existing] = await d
+        .select({ id: waveMetrics.id })
+        .from(waveMetrics)
+        .where(and(eq(waveMetrics.waveId, seed.waveId), eq(waveMetrics.metricKey, seed.metricKey)))
+        .limit(1);
+      if (existing) continue;
+      const ok = await recordWave(seed.waveId, seed.metricKey, {
+        measureInDays: 14,
+        notes: seed.notes,
+      });
+      if (ok) inserted++;
+    }
+  } catch (err) {
+    log.warn("seedWaveBaselines failed", { err: err instanceof Error ? err.message : String(err) });
+  }
+  return inserted;
+}
+
 // ─── Public API ─────────────────────────────────────────────────────
 
 /**

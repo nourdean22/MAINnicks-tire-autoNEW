@@ -1534,6 +1534,12 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   evalOutcome: varchar("eval_outcome", { length: 32 }),
   evalReasoning: text("eval_reasoning"),
   evalAt: timestamp("eval_at"),
+  /** wave-181.x · agentic-actions-auditor stores findings under
+   *  metadata.agenticAudit (JSON) · auditedAt stamps when audit ran ·
+   *  daily cron filters for NULL auditedAt to find unaudited calls.
+   *  Migration 0060. */
+  metadata: json("metadata"),
+  auditedAt: timestamp("audited_at"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 }, (table) => [
   index("idx_vapi_log_created").on(table.createdAt),
@@ -1541,6 +1547,8 @@ export const vapiCallLogs = mysqlTable("vapi_call_logs", {
   index("idx_vapi_log_lead").on(table.leadId),
   // wave-181.113 · daily eval cron index for "all unevaluated calls"
   index("idx_vapi_eval_at_score").on(table.evalAt, table.evalScore),
+  // wave-181.x · agentic-auditor cron index for "all unaudited calls"
+  index("idx_vapi_audited_at").on(table.auditedAt),
 ]);
 
 export type VapiCallLog = typeof vapiCallLogs.$inferSelect;

@@ -910,6 +910,19 @@ export function startTieredScheduler(): void {
           return processMonteCarloForecast();
         },
       },
+      // wave-181.x · Tier S · Agentic-actions auditor · pairs with
+      // call-eval. Reads recent vapi_call_logs · fetches VAPI detail ·
+      // audits tool calls vs ground truth (bookings, callbacks,
+      // pricing bounds) · writes findings to metadata.agenticAudit ·
+      // Telegram alert on price drift / missing booking / etc.
+      {
+        name: "agentic-auditor",
+        requiresEnv: "VAPI_API_KEY",
+        handler: async () => {
+          const { processAgenticAuditor } = await import("./jobs/agenticAuditor");
+          return processAgenticAuditor();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when
