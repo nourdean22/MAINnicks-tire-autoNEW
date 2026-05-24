@@ -1,6 +1,79 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 LATE-NIGHT (post P-wave + Wave I/J · all routed items closed) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2787 across 183 vitest files (+19 since NIGHT) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-23 LATE-NIGHT-2 (post Wave L + UI sweep · multi-advisor mood-gating + 4 visual upgrades shipped end-to-end) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2795 across 184 vitest files (+8 since LATE-NIGHT) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-23 LATE-NIGHT-2 · Wave L + UI sweep · multi-advisor mood-gating + 4 visual upgrades · 3 ships
+>
+> Three ships closing the operator's "OKAY GO" directive on Wave L
+> (Sam-Altman pick for the 5th operator-state opt-in) plus the
+> follow-up "auto mode i am busy just complete it all" UI sweep.
+> Each gated through typecheck + lint + vitest (184 files · 2795
+> tests) + build · pre-push hook caught nothing · prod smoke 200
+> on `/`, `/api/system/heartbeat`, `/auth/sign-in` post-deploy.
+>
+> **Wave L · multi-advisor mood-gated routing** · `1f3bb9e4`
+> The 5th AI surface to opt into operator-state. ADR-0018 board
+> consultation now reads `currentOperatorState()` pre-fan-out and
+> applies `MOOD_DROP_RULES` to gate out advisors whose voice
+> would land wrong for the current mood (e.g. depleted operator
+> doesn't get Elon's first-principles intensity · scattered
+> operator skips Buffett's wait-for-fat-pitch patience). Safety
+> net: if gating would empty the board, keeps original members
+> + adds a synthesizer gate-note. Mood-blind boards (no snapshot)
+> degrade to pre-Wave-L behavior. 7 new tests in
+> `tests/ai/board/mood-gating.test.ts` cover neutral/energized
+> no-op · depleted/scattered drops · safety net engagement ·
+> framework-id typo regression guard. `BoardConsultation` type
+> extended with `operatorState` (compact snapshot · null when
+> mood-blind) + `droppedAdvisorIds`.
+>
+> **UI #1 + #2 + #3 · lens badges + heatmap + state-pulse** · `d8b4e5b6`
+> Three visual upgrades in one push:
+> - **Lens-fire badges** under Nick replies · new
+>   `lensesForMessage` tRPC query re-runs `pickFrameworks` on
+>   the preceding user message (detector is pure → deterministic
+>   re-execution). `LensBadgeRow` renders chips with
+>   click-to-expand inline detail · returns null when no lenses
+>   fire (zero DOM cost) · react-query cached forever per
+>   messageId (input is immutable).
+> - **Calibration heatmap + sparklines** on `/system/calibration`.
+>   `cellTone` refactored to return inline-style `bgStyle` with
+>   `rgb(R G B / opacity)` (Tailwind JIT can't pre-generate
+>   runtime opacity strings). Emerald ≥60% · amber 35-59% ·
+>   rose <35% · confidence dampener for total < 3 samples.
+>   Row + col sparklines from new forward-filled daily trends
+>   in `buildStateCalibration`.
+> - **Operator-state pulse** at `/system/operator-state`. New
+>   `StatePulse` SVG component · 4 concentric value rings +
+>   center mood text · pulse period scales with momentum
+>   (high momentum = fast pulse) · drift ring jitters when
+>   drift > 0.4 · respects `prefers-reduced-motion`. Replaces
+>   the static `Brain` icon circle.
+>
+> **UI #4 + #7 · command palette extension + calibration empty
+> state** · `eb681a3c`
+> - **Cmd+K palette** gains 6 new entries surfacing surfaces
+>   that weren't reachable from the global palette:
+>   `/system/operator-state` · `/system/calibration` ·
+>   `/system/api-tokens` · `/system/judge-eval` ·
+>   `/system/lens-stats` · `/brain/board`.
+> - **/system/calibration cold-start state**. Pre-fix the grid
+>   rendered as a sea of "—" cells when `totalRows === 0` · the
+>   heatmap looked broken rather than warming up. New
+>   empty-state callout: concentric Sparkles icon (matches
+>   state-pulse vocabulary) · 3-step "how this fills"
+>   walkthrough · link to `/system/operator-state` so operator
+>   sees the live signal. Grid stays in DOM with `hidden` class
+>   so layout doesn't reflow once the first chip-action lands.
+>
+> **UI #5 + #6 · already shipped pre-session** · zero new code
+> UI #5 (suggestion-kind icons) discovered already implemented
+> in `components/chat/nick-suggestions.tsx` via `KIND_META`
+> const (11 kinds · per-kind icon + tone). UI #6 (swipe-to-
+> archive on task rows) discovered already implemented in
+> `components/actions/loop-row-item.tsx` (v10.0.529.19 · F12 ·
+> right=complete · left=snooze). Tasks #59 + #60 marked
+> complete-as-found · no work added.
 
 > ## 2026-05-23 LATE-NIGHT · P-wave + Wave I/J · closing every routed item · 7 ships
 >
