@@ -793,6 +793,43 @@ export default function OverviewSection() {
         )}
       </div>
 
+      {/* wave-181.x Today Phase 4 · AI Insights strip · hoisted from
+          inside the (collapsed) Shop Stats panel to above-the-fold.
+          Operator sees the top alert/opportunity/risk WITHOUT having
+          to expand the More Detail chevron. Self-hides when no
+          insights present (clarity-gate · don't fake empty state). */}
+      {masterReport?.summary && (masterReport.summary.topAlert || masterReport.summary.topOpportunity || masterReport.summary.topRisk) && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {masterReport.summary.topAlert && (
+            <div className="flex items-start gap-2 p-3 rounded bg-red-500/5 border border-red-500/20 text-xs">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[9px] font-bold text-red-400 uppercase tracking-[0.15em] mb-0.5">Alert</p>
+                <p className="text-foreground/75 text-[12px] leading-snug">{masterReport.summary.topAlert}</p>
+              </div>
+            </div>
+          )}
+          {masterReport.summary.topOpportunity && (
+            <div className="flex items-start gap-2 p-3 rounded bg-emerald-500/5 border border-emerald-500/20 text-xs">
+              <TrendingUp className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[9px] font-bold text-emerald-400 uppercase tracking-[0.15em] mb-0.5">Opportunity</p>
+                <p className="text-foreground/75 text-[12px] leading-snug">{masterReport.summary.topOpportunity}</p>
+              </div>
+            </div>
+          )}
+          {masterReport.summary.topRisk && (
+            <div className="flex items-start gap-2 p-3 rounded bg-amber-500/5 border border-amber-500/20 text-xs">
+              <Shield className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[9px] font-bold text-amber-400 uppercase tracking-[0.15em] mb-0.5">Risk</p>
+                <p className="text-foreground/75 text-[12px] leading-snug">{masterReport.summary.topRisk}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* wave-181.x Today Phase 4 · WaveMetricWins tile
           Renders ONLY when closedLoop.recent returns ≥1 measurement.
           Self-hides when wave_metrics is empty (first day after
@@ -933,38 +970,12 @@ export default function OverviewSection() {
                 Week: {weekInvoiceCount} invoices · ${Math.round(weekRevenue).toLocaleString()} · {algFloor.estimatesThisWeek} walk-in est. · Month: ${Math.round(monthRevenue).toLocaleString()}
               </div>
 
-              {/* AI insights — Alert / Opportunity / Risk */}
-              {masterReport?.summary && (masterReport.summary.topAlert || masterReport.summary.topOpportunity || masterReport.summary.topRisk) && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-border/15">
-                  {masterReport.summary.topAlert && (
-                    <div className="flex items-start gap-2 p-2.5 rounded bg-red-500/5 border border-red-500/15 text-xs">
-                      <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[8px] font-bold text-red-400 uppercase mb-0.5">Alert</p>
-                        <p className="text-foreground/70">{masterReport.summary.topAlert}</p>
-                      </div>
-                    </div>
-                  )}
-                  {masterReport.summary.topOpportunity && (
-                    <div className="flex items-start gap-2 p-2.5 rounded bg-emerald-500/5 border border-emerald-500/15 text-xs">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[8px] font-bold text-emerald-400 uppercase mb-0.5">Opportunity</p>
-                        <p className="text-foreground/70">{masterReport.summary.topOpportunity}</p>
-                      </div>
-                    </div>
-                  )}
-                  {masterReport.summary.topRisk && (
-                    <div className="flex items-start gap-2 p-2.5 rounded bg-amber-500/5 border border-amber-500/15 text-xs">
-                      <Shield className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-[8px] font-bold text-amber-400 uppercase mb-0.5">Risk</p>
-                        <p className="text-foreground/70">{masterReport.summary.topRisk}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* wave-181.x Today Phase 4 · AI insights MOVED above-the-fold.
+                  They're rendered as a top-level strip between the Priority
+                  Queue and the WaveMetricWins tile so the operator sees
+                  Alert/Opportunity/Risk without expanding More Detail.
+                  Score badge (line ~880) stays here as the Shop Stats
+                  health anchor. */}
 
               {/* Shop insight one-liner */}
               {shopPulse?.shopInsight && (
