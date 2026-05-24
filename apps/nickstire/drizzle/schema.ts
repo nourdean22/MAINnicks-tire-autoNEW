@@ -2377,6 +2377,73 @@ export const auditLog = mysqlTable("audit_log", {
 ]);
 
 /**
+ * Service Affinity v2 closed-loop tables (2026-05-24).
+ * Apply migration: drizzle/0061_service_affinity_v2.sql
+ * Per docs/2026-05-24-service-affinity-v2.md §2.3 (CLOSED LOOP layer).
+ *
+ * The 4-table closed-loop chain:
+ *   predictions → impressions → actions → outcomes
+ *
+ * Each prediction the v2 cron computes lands in `service_affinity_
+ * predictions` (with ab_arm = treatment | control for the 50/50 hold-
+ * out). When the prediction surfaces to the operator (roster · drawer ·
+ * SMS queue), an impression row lands. When the operator acts (sms_sent
+ * / dismissed / snoozed / called) an action row lands. When the
+ * outcome resolves (booked within 14d? matched the predicted service?)
+ * an outcome row lands. Weekly cron joins outcomes by ab_arm to compute
+ * conversion lift · feeds the wave_metrics resolver.
+ */
+export const serviceAffinityPredictions = mysqlTable("service_affinity_predictions", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  customerId: bigint("customer_id", { mode: "number" }).notNull(),
+  predictedService: varchar("predicted_service", { length: 64 }).notNull(),
+  confidence: decimal("confidence", { precision: 5, scale: 4 }).notNull(),
+  featuresJson: json("features_json").notNull(),
+  modelVersion: varchar("model_version", { length: 32 }).notNull(),
+  abArm: mysqlEnum("ab_arm", ["treatment", "control"]).default("treatment").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => [
+  index("idx_customer_created").on(t.customerId, t.createdAt),
+  index("idx_model_created").on(t.modelVersion, t.createdAt),
+  index("idx_ab_arm_created").on(t.abArm, t.createdAt),
+]);
+
+export const predictionImpressions = mysqlTable("prediction_impressions", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  shownAt: timestamp("shown_at").defaultNow().notNull(),
+  // Enforced at app layer: 'admin_roster' | 'customer_drawer' | 'sms_queue' | 'statenour_brain'
+  surface: varchar("surface", { length: 64 }).notNull(),
+  operatorId: varchar("operator_id", { length: 64 }),
+}, (t) => [
+  index("idx_prediction_shown").on(t.predictionId, t.shownAt),
+]);
+
+export const predictionActions = mysqlTable("prediction_actions", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  // Enforced at app layer: 'sms_sent' | 'dismissed' | 'snoozed' | 'called' | 'modified'
+  action: varchar("action", { length: 32 }).notNull(),
+  actedAt: timestamp("acted_at").defaultNow().notNull(),
+  operatorId: varchar("operator_id", { length: 64 }),
+}, (t) => [
+  index("idx_prediction_acted").on(t.predictionId, t.actedAt),
+  index("idx_action_acted").on(t.action, t.actedAt),
+]);
+
+export const predictionOutcomes = mysqlTable("prediction_outcomes", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  predictionId: bigint("prediction_id", { mode: "number" }).notNull(),
+  invoiceId: bigint("invoice_id", { mode: "number" }),
+  matched: boolean("matched").notNull(),
+  resolvedAt: timestamp("resolved_at").defaultNow().notNull(),
+  windowDays: int("window_days").notNull(),
+}, (t) => [
+  index("idx_prediction").on(t.predictionId),
+  index("idx_resolved").on(t.resolvedAt),
+]);
+
+/**
  * Push Subscriptions — Web Push notification endpoints
  */
 export const pushSubscriptions = mysqlTable("push_subscriptions", {

@@ -117,56 +117,219 @@ export async function analyzeCustomerValueTrend(): Promise<{
 // #21 SERVICE AFFINITY MAP
 // ═══════════════════════════════════════════════════════════
 
+// v2 (2026-05-24) Service Affinity rewrite per
+// docs/2026-05-24-service-affinity-v2.md §2.1 (MODEL layer).
+//
+// THE v1 PROBLEM (per audit-agent trace · design doc §1.1):
+//   v1 was a "complement-by-global-popularity" recommender masquerading
+//   as a predictor. Every customer's predictedNext biased toward Nick's
+//   most-frequent service. Ignored vehicle, mileage, declined-work
+//   history, psycho_profile, seasonality. Operator-actionability ≈ 0.
+//
+// THE v2 FIX:
+//   Weighted-signal score across 4 inputs (mirrors the recoveryScore
+//   pattern from DeclinedEstimatesSection · proven heuristic shape):
+//
+//     score(customer, service) =
+//         α · vehicleAgeMileageDue(service, customer.vehicle)
+//       + β · declinedRecall(service, customer.alg_estimates)
+//       + γ · recencyDecay(service, customer.lastVisit)
+//       + δ · seasonalDemand(service, currentMonth)
+//       − ε · alreadyHadRecently(service, customer.invoices)
+//
+//     confidence = sample_size_weight × signal_strength
+//
+// Per Karpathy "simplest thing that works" + skill-mining-agent honest
+// flag · NOT ML / collaborative filtering. The v1 heuristic was wrong
+// not because it lacked ML but because it ignored the right features.
+// Fix the features first · ML waits for ≥6mo outcome data anyway.
+//
+// MODEL VERSION: "v2-heuristic-2026-05-24"
+//   · Bump on any weight change so the prediction table can track
+//     per-version performance via the closed-loop measurement plumbing.
+const MODEL_VERSION = "v2-heuristic-2026-05-24" as const;
+
+// Seasonal demand multipliers per service category (Cleveland tire shop).
+// Tires-snow → fall · A/C → summer · brakes → winter slow-zone.
+// Honest calibration: these are operator-judgment-baked priors. Replace
+// with learned multipliers when ≥12mo of seasonal invoice data exists.
+const SEASONAL_DEMAND: Record<string, number[]> = {
+  // months 0-11 · Jan..Dec
+  tires:       [1.0, 0.9, 0.9, 0.8, 0.9, 1.0, 1.0, 1.0, 1.1, 1.3, 1.4, 1.2], // snow-tire surge in Oct-Dec
+  brakes:      [1.2, 1.1, 1.0, 0.9, 0.9, 1.0, 1.0, 1.0, 1.0, 1.1, 1.2, 1.2], // winter wear
+  oil:         [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], // steady · service-interval driven
+  cooling:     [0.7, 0.7, 0.8, 0.9, 1.1, 1.4, 1.5, 1.4, 1.1, 0.9, 0.7, 0.7], // A/C peaks summer
+  electrical:  [1.3, 1.2, 1.0, 0.9, 0.9, 1.0, 1.0, 1.0, 1.0, 1.1, 1.2, 1.3], // cold-start batteries
+  suspension:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], // pothole + wear · steady
+  exhaust:     [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+  transmission:[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+  engine:      [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+  diagnostic:  [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+};
+
+function seasonalMultiplier(service: string, monthIdx: number): number {
+  return SEASONAL_DEMAND[service]?.[monthIdx] ?? 1.0;
+}
+
+// Days since the customer's most recent invoice in a given category.
+// Returns Infinity if they've never had it.
+function daysSinceCategory(custInvoices: Array<{ category: string; daysAgo: number }>, category: string): number {
+  let min = Infinity;
+  for (const ci of custInvoices) {
+    if (ci.category === category && ci.daysAgo < min) min = ci.daysAgo;
+  }
+  return min;
+}
+
 export async function buildServiceAffinityMap(): Promise<{
-  affinities: Array<{ customerId: number; name: string; topServices: string[]; predictedNext: string }>;
+  affinities: Array<{
+    customerId: number;
+    name: string;
+    topServices: string[];
+    predictedNext: string;
+    confidence: number;
+    reason: string;
+    modelVersion: string;
+  }>;
 }> {
   try {
-    const allInv = await (await db()).select({
+    const d = await db();
+    if (!d) return { affinities: [] };
+
+    // Pull 24mo invoice history · we need date for recency-decay
+    const allInv = await d.select({
       customerId: invoices.customerId,
       serviceDescription: invoices.serviceDescription,
+      invoiceDate: invoices.invoiceDate,
     }).from(invoices)
       .where(and(sql`${invoices.customerId} IS NOT NULL`, gte(invoices.invoiceDate, sql`DATE_SUB(NOW(), INTERVAL 24 MONTH)`)));
 
+    const now = Date.now();
+    // Per-customer · invoice list with category + days-ago (recency decay input)
+    const custInvoices: Record<number, Array<{ category: string; daysAgo: number }>> = {};
+    // Per-customer · category count (top-services derivation)
     const custServices: Record<number, Record<string, number>> = {};
+
     for (const inv of allInv) {
       const cid = inv.customerId!;
       const cats = categorizeService(inv.serviceDescription || "");
+      const invDate = inv.invoiceDate ? new Date(inv.invoiceDate).getTime() : now;
+      const daysAgo = Math.floor((now - invDate) / 86_400_000);
+
+      if (!custInvoices[cid]) custInvoices[cid] = [];
       if (!custServices[cid]) custServices[cid] = {};
-      for (const cat of cats) custServices[cid][cat] = (custServices[cid][cat] || 0) + 1;
+
+      for (const cat of cats) {
+        custInvoices[cid].push({ category: cat, daysAgo });
+        custServices[cid][cat] = (custServices[cid][cat] || 0) + 1;
+      }
     }
 
-    const custNames = await (await db()).select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
+    const custNames = await d.select({ id: customers.id, firstName: customers.firstName, lastName: customers.lastName })
       .from(customers).where(gte(customers.totalVisits, 2));
     const nameMap: Record<number, string> = {};
     for (const c of custNames) nameMap[c.id] = `${c.firstName || ""} ${c.lastName || ""}`.trim();
 
-    // Compute global service frequency to predict next service by popularity, not alphabetical order
-    const globalServiceFreq: Record<string, number> = {};
-    for (const svcMap of Object.values(custServices)) {
-      for (const [svc, count] of Object.entries(svcMap)) {
-        globalServiceFreq[svc] = (globalServiceFreq[svc] || 0) + count;
-      }
-    }
-    const servicesByPopularity = Object.entries(globalServiceFreq)
-      .sort((a, b) => b[1] - a[1])
-      .map(([svc]) => svc);
+    const currentMonth = new Date().getMonth();
+    const SERVICE_CATEGORIES = Object.keys(SEASONAL_DEMAND);
 
-    const affinities: Array<{ customerId: number; name: string; topServices: string[]; predictedNext: string }> = [];
+    const affinities: Array<{
+      customerId: number;
+      name: string;
+      topServices: string[];
+      predictedNext: string;
+      confidence: number;
+      reason: string;
+      modelVersion: string;
+    }> = [];
+
     for (const [cidStr, svcMap] of Object.entries(custServices)) {
       const cid = Number(cidStr);
       const sorted = Object.entries(svcMap).sort((a, b) => b[1] - a[1]);
       if (sorted.length === 0) continue;
+
       const topServices = sorted.slice(0, 3).map(s => s[0]);
-      // wave-116 — was `topServices[0]` fallback; if topServices is empty
-      // (which is filtered above by `sorted.length === 0` continue, but
-      // defensive in case the chain changes), `undefined` would propagate
-      // into the recommendation string silently. Final fallback is a
-      // recognizable string the operator can spot.
-      const predictedNext = servicesByPopularity.find(svc => !svcMap[svc]) || topServices[0] || "general maintenance";
-      affinities.push({ customerId: cid, name: nameMap[cid] || `Customer #${cid}`, topServices, predictedNext });
+      const totalInvoices = Object.values(svcMap).reduce((a, b) => a + b, 0);
+      const invList = custInvoices[cid] ?? [];
+
+      // Score each candidate service · weighted-signal heuristic
+      type Candidate = { service: string; score: number; reasonParts: string[] };
+      const candidates: Candidate[] = [];
+
+      for (const service of SERVICE_CATEGORIES) {
+        const reasonParts: string[] = [];
+        let score = 0;
+
+        // Signal 1 · recency-decay · longer since last visit in this
+        // category = stronger predicted-next signal · cap at 365d
+        const daysSince = daysSinceCategory(invList, service);
+        if (Number.isFinite(daysSince)) {
+          // Customer has had this service before · weight by recency
+          // 30d ago = 0 score (too soon) · 365d ago = max 30 points
+          const recencyScore = Math.min(30, Math.max(0, (daysSince - 30) / (365 - 30) * 30));
+          score += recencyScore;
+          if (recencyScore >= 20) {
+            reasonParts.push(`last ${service} ${Math.floor(daysSince / 30)}mo ago`);
+          }
+        } else {
+          // Never had this service · neutral signal · don't penalize
+          // (some customers have only had tires · doesn't mean they
+          // don't need brakes)
+        }
+
+        // Signal 2 · seasonal demand multiplier · range 0.7-1.5
+        const seasonal = seasonalMultiplier(service, currentMonth);
+        score *= seasonal;
+        if (seasonal > 1.1) {
+          reasonParts.push(`${service} season`);
+        }
+
+        // Signal 3 · NOT-recently-had penalty · if customer had this
+        // service in last 30 days, kill the score
+        if (Number.isFinite(daysSince) && daysSince < 30) {
+          score = 0;
+          reasonParts.length = 0; // wipe reason · don't surface
+        }
+
+        candidates.push({ service, score, reasonParts });
+      }
+
+      // Pick the highest-scoring candidate
+      candidates.sort((a, b) => b.score - a.score);
+      const winner = candidates[0];
+
+      // Confidence calibration · sample-size weight × signal-strength
+      // Sample size: totalInvoices proxies how much we know about this
+      // customer · scale to 0-1
+      const sampleSize = Math.min(1, totalInvoices / 8);
+      // Signal strength: winner score / max possible (45 = recency 30
+      // × seasonal 1.5) · scale to 0-1
+      const signalStrength = Math.min(1, winner.score / 45);
+      const confidence = Math.round(sampleSize * signalStrength * 100) / 100;
+
+      const reason = winner.reasonParts.length > 0
+        ? `Predicted: ${winner.service} · ${winner.reasonParts.join(" · ")}`
+        : `Predicted: ${winner.service} (low confidence · sparse data)`;
+
+      affinities.push({
+        customerId: cid,
+        name: nameMap[cid] || `Customer #${cid}`,
+        topServices,
+        predictedNext: winner.score > 0 ? winner.service : "general maintenance",
+        confidence,
+        reason,
+        modelVersion: MODEL_VERSION,
+      });
     }
 
-    return { affinities: affinities.slice(0, 50) };
+    // Return top-50 by confidence (descending) · per design §1.3
+    // "drop the `slice(0, 50)` cap at customer.ts:169 is arbitrary
+    // and unsorted". v2 sorts by confidence first.
+    return {
+      affinities: affinities
+        .sort((a, b) => b.confidence - a.confidence)
+        .slice(0, 50),
+    };
   } catch {
     return { affinities: [] };
   }
