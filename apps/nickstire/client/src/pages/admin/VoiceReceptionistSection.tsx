@@ -25,10 +25,8 @@ import {
 import {
   PhoneCall,
   PhoneForwarded,
-  PhoneOff,
   Phone,
   Clock,
-  TrendingUp,
   AlertCircle,
   Edit2,
   Save,
@@ -278,43 +276,14 @@ function DateRangeSelector({
 
 // ─── Header dashboard-links + filter chip helpers (wave-89) ─
 
-function VapiDashboardLinks({ assistantId }: { assistantId: string | null }) {
-  const linkClass =
-    "inline-flex items-center gap-1 text-[11px] font-medium tracking-[0.15em] uppercase " +
-    "text-foreground/60 hover:text-primary border border-border/40 hover:border-primary/40 " +
-    "rounded px-2 py-1 transition-colors";
-  return (
-    <div className="flex items-center gap-1.5 flex-wrap">
-      <a
-        href={assistantId ? VAPI_LINKS.assistantDetail(assistantId) : VAPI_LINKS.assistants}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={linkClass}
-        title="Edit Nick's prompt, tools, model in VAPI"
-      >
-        Assistant <ExternalLink className="w-3 h-3" />
-      </a>
-      <a
-        href={VAPI_LINKS.callLogs}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={linkClass}
-        title="Full call history (beyond today) in VAPI"
-      >
-        All Calls <ExternalLink className="w-3 h-3" />
-      </a>
-      <a
-        href={VAPI_LINKS.phoneNumbers}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={linkClass}
-        title="Phone number config + routing rules"
-      >
-        Phone Lines <ExternalLink className="w-3 h-3" />
-      </a>
-    </div>
-  );
-}
+// wave-181.x Voice Phase 5 ELON cut · VapiDashboardLinks function
+// deleted (was 37 LOC at this location). Three target="_blank" chips
+// (Assistant · All Calls · Phone Lines) sent the operator OUT of the
+// nickstire admin into the VAPI dashboard. Per audit agent: "operator
+// pain is 'all in admin', yet the header sends them OUT." The CallDetails-
+// Drawer (L1527-1535 post-Phase-2) already has one inline "Open in
+// VAPI" link · sufficient. The VAPI_LINKS constants stay since the
+// inline drawer link still uses them.
 
 function FilterChip({
   label, count, active, onClick, tone = "neutral",
@@ -445,7 +414,10 @@ export default function VoiceReceptionistSection() {
             ? { label: `${m.total} CALLS · ${range.shortLabel.toUpperCase()}`, variant: "success" }
             : { label: rangePreset === "today" ? "QUIET DAY" : `0 CALLS · ${range.shortLabel.toUpperCase()}`, variant: "neutral" }
         }
-        actions={<VapiDashboardLinks assistantId={assistantId} />}
+        /* wave-181.x Voice Phase 5 ELON cut · VapiDashboardLinks
+         * chips removed · they sent the operator out of the admin.
+         * CallDetailsDrawer keeps a single inline "Open in VAPI"
+         * link for the rare per-call deep-dive case. */
       />
 
       {/* wave-181.x Voice Phase 2 · VoiceBrief 3-line auto-narrative
@@ -479,8 +451,16 @@ export default function VoiceReceptionistSection() {
           zero calls are in flight so quiet hours stay clean. */}
       <LiveCallsCard onSelectCall={setSelectedCallId} />
 
-      {/* ─── Wave-102: free-form outbound call trigger ─ */}
-      <OutboundCallCard />
+      {/* wave-181.x Voice Phase 5 ELON cut · OutboundCallCard deleted
+       * (~102 LOC inline + ~5 KB of UI). Per audit agent HIGH-confidence
+       * delete: it was a free-form "dial any number" power-tool with
+       * one confirmDialog gate but NO TCPA consent check · NO quiet-
+       * hours guard · NO daily-cap on the client. Foot-gun masquerading
+       * as a feature. Operator can dial a customer from their own cell
+       * or the shop landline · the F25e SMS gateway covers the SMS path.
+       * Server-side vapi.makeFollowUpCall procedure stays (other crons
+       * may use it · or it can ship in a future op-gated cron with proper
+       * TCPA/quiet-hours plumbing per the design plan). */}
 
       {/* ─── Date range selector (wave-91 + wave-111 manual refresh) ─ */}
       <DateRangeSelector
@@ -494,11 +474,20 @@ export default function VoiceReceptionistSection() {
         refreshing={refreshing}
       />
 
-      {/* ─── KPI Tiles ──────────────────────────────────── */}
+      {/* ─── KPI Tiles ────────────────────────────────────
+       * wave-181.x Voice Phase 5 ELON cut · 5→3 tiles · per audit
+       * agent: Caller-Ended + Nick-Closed are redundantly shown in
+       * the "Why calls ended" BarChart below (L552+) · classic AI-
+       * slop 5-tile symmetry pattern (same kill we did on Today +
+       * Money). Three tiles · Calls · Forwarded · Total Talk Time ·
+       * fits cleanly on mobile without horizontal scroll. */}
       {metricsLoading || !m ? (
-        <SkeletonKpiGrid cols={5} />
+        // SkeletonKpiGrid `cols` prop only accepts 4|5|6 · pass 4 for
+        // the closest match to the 3-tile post-ELON-cut MetricGrid.
+        // Skeleton over-counts by 1 for ~200ms · acceptable.
+        <SkeletonKpiGrid cols={4} />
       ) : (
-        <MetricGrid cols={5}>
+        <MetricGrid cols={3}>
           <StatCard
             label={rangePreset === "today" ? "Today's Calls" : `Calls · ${range.shortLabel}`}
             value={m.total}
@@ -516,20 +505,6 @@ export default function VoiceReceptionistSection() {
             trendLabel={m.total > 0 ? `${Math.round((m.forwarded / m.total) * 100)}% of calls` : undefined}
           />
           <StatCard
-            label="Caller Ended"
-            value={m.customerEnded}
-            icon={<PhoneOff className="w-4 h-4" />}
-            color="text-blue-400"
-            trendLabel={m.total > 0 ? `${Math.round((m.customerEnded / m.total) * 100)}% of calls` : undefined}
-          />
-          <StatCard
-            label="Nick Closed"
-            value={m.assistantEnded}
-            icon={<TrendingUp className="w-4 h-4" />}
-            color="text-emerald-400"
-            trendLabel={m.total > 0 ? `${Math.round((m.assistantEnded / m.total) * 100)}% of calls` : undefined}
-          />
-          <StatCard
             label="Total Talk Time"
             value={fmtDuration(m.totalSeconds)}
             icon={<Clock className="w-4 h-4" />}
@@ -539,9 +514,12 @@ export default function VoiceReceptionistSection() {
         </MetricGrid>
       )}
 
-      {/* ─── End reasons + Cost breakdown ─────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Panel title="Why calls ended" subtitle={`Breakdown of end reasons · ${range.shortLabel}`} padding="md" className="lg:col-span-2">
+      {/* ─── End reasons breakdown ──────────────────────
+       * wave-181.x Voice Phase 5 · was a `grid-cols-3` with a
+       * `col-span-2` chart + Quick-math panel. Quick-math
+       * deleted · chart now takes full width directly. */}
+      <div>
+        <Panel title="Why calls ended" subtitle={`Breakdown of end reasons · ${range.shortLabel}`} padding="md">
           {reasonsChart.length === 0 ? (
             <EmptyState
               icon={<PhoneCall className="w-8 h-8" />}
@@ -560,36 +538,13 @@ export default function VoiceReceptionistSection() {
           )}
         </Panel>
 
-        <Panel title="Quick math" subtitle={range.shortLabel.charAt(0).toUpperCase() + range.shortLabel.slice(1)} padding="md">
-          <dl className="space-y-3 text-sm">
-            <div className="flex items-baseline justify-between">
-              <dt className="text-foreground/60">Connect rate</dt>
-              <dd className="font-mono tabular-nums">
-                {m && m.total > 0 ? `${Math.round(((m.assistantEnded + m.forwarded) / m.total) * 100)}%` : "—"}
-              </dd>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <dt className="text-foreground/60">Avg call length</dt>
-              <dd className="font-mono tabular-nums">{m ? fmtDuration(m.avgSeconds) : "—"}</dd>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <dt className="text-foreground/60">Total talk time</dt>
-              <dd className="font-mono tabular-nums">{m ? fmtDuration(m.totalSeconds) : "—"}</dd>
-            </div>
-            <div className="flex items-baseline justify-between">
-              <dt className="text-foreground/60">Web vs phone</dt>
-              <dd className="font-mono tabular-nums text-xs">
-                {m ? `${m.inbound + m.outbound} phone · ${m.web} web` : "—"}
-              </dd>
-            </div>
-            {m && !m.ok && (
-              <div className="mt-2 p-2 rounded bg-red-500/10 border border-red-500/20 text-[11px] text-red-400 flex items-start gap-2">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                <span>VAPI API unreachable — numbers may be stale.</span>
-              </div>
-            )}
-          </dl>
-        </Panel>
+        {/* wave-181.x Voice Phase 5 ELON cut · "Quick math" Panel
+         * deleted · was full duplication of KPI tiles + "Why calls
+         * ended" chart. Connect-rate / Avg / Total-talk / Web-vs-
+         * phone are all already shown elsewhere on this page. Pure
+         * decoration · 30 LOC reclaimed. The m.ok error message moves
+         * up to the page-header badge which already shows "VAPI
+         * UNREACHABLE" when m.ok === false. */}
       </div>
 
       {/* ─── Recent calls table — wave-89 sort + filter controls ───── */}
@@ -1441,126 +1396,19 @@ function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => voi
   );
 }
 
-// ─── Wave-102 · Outbound call trigger ───────────────────────
-// Free-form dialer for any number — not gated to existing customers.
-// Uses the same VAPI follow-up assistant + same 3-min cap.
-function OutboundCallCard() {
-  const [phone, setPhone] = useState("");
-  const [name, setName] = useState("");
-  const [lastService, setLastService] = useState("recent visit");
-
-  const mutation = trpc.vapi.makeFollowUpCall.useMutation({
-    onSuccess: (result) => {
-      if (result.success && result.callId) {
-        toast.success(`Call queued (${result.callId.slice(0, 8)}...). Nick is dialing now.`);
-        setPhone("");
-        setName("");
-        setLastService("recent visit");
-      } else {
-        toast.error(`Call failed: ${result.error || "unknown error"}`);
-      }
-    },
-    onError: (err) => toast.error(`Call failed: ${err.message}`),
-  });
-
-  const phoneDigits = phone.replace(/\D/g, "");
-  const phoneValid = phoneDigits.length === 10 || phoneDigits.length === 11;
-
-  return (
-    <div className="bg-card border border-emerald-500/20 p-5">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
-          <Phone className="w-4 h-4 text-emerald-400" />
-        </div>
-        <div>
-          <h3 className="text-[15px] font-semibold text-foreground tracking-tight">Outbound call</h3>
-          <p className="text-[10px] text-foreground/40">
-            Fire Nick at any number. Follow-up tone · 3-min cap · asks for referrals.
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-        <div>
-          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">Phone (required)</label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="216-862-0005"
-            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground font-mono focus:border-emerald-500/50 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">First name (optional)</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="buddy"
-            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium block mb-1">What for? (optional)</label>
-          <input
-            type="text"
-            value={lastService}
-            onChange={(e) => setLastService(e.target.value)}
-            placeholder="recent visit"
-            className="w-full bg-background border border-border/30 px-3 py-2 text-sm text-foreground focus:border-emerald-500/50 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="text-[10px] text-foreground/40">
-          Caller ID: <span className="font-mono">+1 216 424 9249</span> · Assistant: <span className="font-mono">Nick's Tire Follow-Up Caller</span>
-        </div>
-        <button
-          onClick={async () => {
-            if (!phoneValid) {
-              toast.error("Phone needs to be 10 or 11 digits");
-              return;
-            }
-            // wave-181.x Voice Phase 1 · CRITICAL #2 fix · code-review
-            // agent caught a paste-with-junk hazard. Operator could
-            // paste "(216) 862-0005" or "12168620005x" · phoneValid
-            // accepted it because the digit-strip happens for length-
-            // check only · but the un-stripped raw was shown in the
-            // confirm AND passed to the mutation. Visual mismatch
-            // between confirm and reality. Normalize to canonical
-            // E.164 ONCE before the confirm · pass the normalized
-            // value to both the confirm message AND the mutation.
-            const digits = phone.replace(/\D/g, "");
-            const normalized = digits.length === 11 && digits.startsWith("1")
-              ? `+${digits}`
-              : `+1${digits.slice(-10)}`;
-            const finalName = name.trim() || "buddy";
-            const ok = await confirmDialog({
-              title: `Call ${fmtPhone(normalized)} as a follow-up?`,
-              message: `Nick will say:\n"${finalName}? ... Hope you're doing good, this is Nick from Nick's Tire and Auto, just following up after your last visit. How is everything?"`,
-              confirmLabel: `Call ${fmtPhone(normalized)}`,
-              cancelLabel: "Cancel",
-              tone: "danger",
-            });
-            if (!ok) return;
-            mutation.mutate({
-              customerName: finalName,
-              phone: normalized,
-              lastService: lastService.trim() || "recent visit",
-            });
-          }}
-          disabled={!phoneValid || mutation.isPending}
-          className="flex items-center gap-2 px-5 py-2 text-[11px] tracking-[0.15em] font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/30 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {mutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Phone className="w-3.5 h-3.5" />}
-          DIAL NOW
-        </button>
-      </div>
-    </div>
-  );
-}
+// wave-181.x Voice Phase 5 ELON cut · OutboundCallCard function
+// deleted (was 117 LOC at this location). Per audit agent HIGH-
+// confidence delete · per CLAUDE.md "delete what's redundant":
+//   · Free-form "dial any number" UI · one confirmDialog gate
+//   · NO TCPA consent check
+//   · NO quiet-hours guard (operator could dial at 11pm Sunday)
+//   · NO daily-cap on the client
+// Server-side vapi.makeFollowUpCall procedure stays · still callable
+// by future cron-based outbound flows that have proper TCPA +
+// quiet-hours + cap plumbing. The Service-Affinity v2 plan
+// (docs/2026-05-24-service-affinity-v2.md) describes the right
+// shape for autonomous outbound · this manual surface was the
+// foot-gun version. Delete · revisit in Wave 4 of SA v2.
 
 // ─── Drawer ─────────────────────────────────────────────────
 function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () => void }) {
