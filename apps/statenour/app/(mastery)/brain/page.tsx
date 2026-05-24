@@ -45,6 +45,7 @@ import { PinnedContextPanel } from "@/components/brain/pinned-context-panel";
 import { SuggestionTelemetryPanel } from "@/components/brain/suggestion-telemetry-panel";
 import { InsightRibbon } from "@/components/brain/insight-ribbon";
 import { BrainInsightsPanel } from "@/components/brain/brain-insights-panel";
+import { SelfCritiqueCard } from "@/components/brain/self-critique-card";
 import { RecallInboxPanel } from "@/components/brain/recall-inbox-panel";
 import { PatternCard } from "@/components/brain/pattern-card";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
@@ -143,6 +144,11 @@ function BrainPageInner() {
           <BrainInsightsPanel />
           <PatternCard />
           <ActiveAlertsCard />
+          {/* 2026-05-24 · Wave X.f · activation · the self-critique
+              cron has written `reply_to_improve` rows nightly but
+              nothing on /brain rendered them · loop was dark. Card
+              silent-hides on clean weeks. */}
+          <SelfCritiqueCard />
         </div>
       </section>
 

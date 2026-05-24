@@ -13,6 +13,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Pencil, Check, X } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
+import { LocationRankingCard } from "@/components/financial/location-ranking-card";
 // misc-pages slice (2026-05-22) · the two polled reads moved off
 // authedFetch onto trpc.operator.financialSnapshot +
 // operator.revenueStats · React Query's refetchInterval replaces the
@@ -313,6 +314,14 @@ export default function FinancialPage() {
           flagged HIGH by audit Wave 9 · was a permanent stub linking
           to nickstire admin · zero data load · removed cleanly. The
           ShopRevenue function definition below is also unused now. */}
+
+      {/* 2026-05-24 · Wave X.f activation · monthly second-location
+          ranking from the `monthly-location-rank` cron. Pre-fix the
+          cron ran 1st of month, the API was live, but no operator
+          surface rendered it · the strategic-decision signal was
+          dark. Silent-hides when no ranking persisted for the
+          current month. */}
+      <LocationRankingCard />
 
       {/* ═══ PERSONAL FINANCE ═══ */}
       {latest ? (
