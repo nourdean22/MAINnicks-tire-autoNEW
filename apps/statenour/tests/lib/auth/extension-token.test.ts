@@ -59,6 +59,40 @@ describe("extension-token · issue", () => {
     // Spaces + special chars get replaced with hyphens · timestamp suffix
     expect(call.data.key).toMatch(/^chrome---work-_[a-z0-9]+$/);
   });
+
+  it("rejection-samples to avoid modulo bias on the 62-char alphabet", async () => {
+    // 2026-05-23 · audit follow-up · pre-fix the generator used
+    // `bytes[i] % 62` which over-weighted the first 8 alphabet
+    // chars by ~25% (256 % 62 = 8). This test issues many tokens
+    // and asserts the per-char distribution is approximately
+    // uniform across all 62 chars. Chi-squared isn't worth it ·
+    // a coarse "no char dominates" check is enough.
+    const { issueToken } = await import("@/lib/auth/extension-token");
+    const counts = new Map<string, number>();
+    const SAMPLES = 200;
+    for (let i = 0; i < SAMPLES; i++) {
+      const r = await issueToken({ label: `t${i}` });
+      // Strip prefix · count each char of the body
+      for (const ch of r.token.slice(3)) {
+        counts.set(ch, (counts.get(ch) ?? 0) + 1);
+      }
+    }
+    // Expected per-char count ≈ (24 × 200) / 62 ≈ 77.4
+    // Allow generous tolerance · we just want to catch a 25%+ skew
+    // toward the first 8 chars (which would give them count > 96).
+    const firstEight = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const firstEightTotal = firstEight.reduce(
+      (s, c) => s + (counts.get(c) ?? 0),
+      0,
+    );
+    const overallTotal = Array.from(counts.values()).reduce((s, n) => s + n, 0);
+    const firstEightShare = firstEightTotal / overallTotal;
+    // Uniform expectation: 8/62 ≈ 0.129. Biased pre-fix would give
+    // ≈ 5/256 / (mean ≈ 4.13/256) ≈ 0.158 (~22% skew).
+    // Tolerance · 0.10-0.18 = uniform-ish · outside that = bias.
+    expect(firstEightShare).toBeGreaterThan(0.1);
+    expect(firstEightShare).toBeLessThan(0.18);
+  });
 });
 
 describe("extension-token · validate", () => {

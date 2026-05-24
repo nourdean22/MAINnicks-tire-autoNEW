@@ -311,6 +311,13 @@ export interface SuggestionLoopSignal {
 /**
  * Pull all suggestion-loop rows for the last N days · used by
  * improve-agent + future DPO data-prep + /system/quality scorecard.
+ *
+ * 2026-05-23 · audit follow-up · filters by `createdAt` (not
+ * `lastSeen`). Pre-fix: the upsert bumped lastSeen on every repeat
+ * touch · a row first seen 45d ago + re-touched today would appear
+ * in the 30d window · inflated the sample size for "recent signal"
+ * reads. createdAt matches the state-calibration grid's convention
+ * (state-calibration.ts:154) · same window math now in both lanes.
  */
 export async function listSuggestionSignals(
   daysBack = 30,
@@ -319,7 +326,7 @@ export async function listSuggestionSignals(
   const rows = await prisma.brainMemory.findMany({
     where: {
       category: CATEGORY,
-      lastSeen: { gte: since },
+      createdAt: { gte: since },
       deletedAt: null,
     },
     orderBy: { lastSeen: "desc" },

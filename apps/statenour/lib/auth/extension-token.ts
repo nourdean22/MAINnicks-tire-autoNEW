@@ -29,13 +29,30 @@ const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
 /**
  * Generate a fresh token. Returns the RAW token (must be shown to
  * the operator immediately · never persisted in plaintext).
+ *
+ * Uses rejection sampling to eliminate modulo bias on the 62-char
+ * alphabet (256 % 62 = 8 · naive `bytes[i] % 62` would over-pick
+ * the first 8 chars by ~25%). Pulls more bytes than needed in one
+ * shot · refills from a fresh randomBytes if we exhaust the buffer
+ * (vanishingly rare at 4x oversample).
  */
 function generateRawToken(): string {
-  // 4 bytes of entropy per char · pull more than we need + slice.
-  const bytes = randomBytes(TOKEN_BODY_LEN * 2);
+  // 256 / 62 = 4.13 · floor = 4 · 4 × 62 = 248 · accept bytes < 248
+  // (rejection sampling threshold).
+  const ACCEPT_MAX = Math.floor(256 / ALPHABET.length) * ALPHABET.length;
+  let buf = randomBytes(TOKEN_BODY_LEN * 4);
+  let bufIdx = 0;
   let out = "";
-  for (let i = 0; i < TOKEN_BODY_LEN; i++) {
-    out += ALPHABET[bytes[i] % ALPHABET.length];
+  while (out.length < TOKEN_BODY_LEN) {
+    if (bufIdx >= buf.length) {
+      buf = randomBytes(TOKEN_BODY_LEN * 4);
+      bufIdx = 0;
+    }
+    const b = buf[bufIdx++];
+    if (b < ACCEPT_MAX) {
+      out += ALPHABET[b % ALPHABET.length];
+    }
+    // else: reject, draw next byte
   }
   return TOKEN_PREFIX + out;
 }
