@@ -25,7 +25,11 @@ async function getConfig() {
   return new Promise((resolve) => {
     chrome.storage.local.get(["apiBase", "token"], (out) => {
       resolve({
-        apiBase: out.apiBase ?? "https://statenour-web-production.up.railway.app",
+        // 2026-05-23 · default to bdnick.info (operator-facing custom
+        // domain · per AGENTS.md "served at bdnick.info"). Railway
+        // platform URL is the internal one · operator can override
+        // via Options if they want to point at preview/localhost.
+        apiBase: out.apiBase ?? "https://bdnick.info",
         token: out.token ?? null,
       });
     });
@@ -46,7 +50,7 @@ function renderSetupCallout() {
     <strong>Setup needed.</strong> Open the
     <a href="#" id="open-options">extension options</a>
     and paste a token from
-    <a href="https://statenour-web-production.up.railway.app/system/api-tokens" target="_blank" rel="noopener">/system/api-tokens</a>.
+    <a href="https://bdnick.info/system/api-tokens" target="_blank" rel="noopener">/system/api-tokens</a>.
   `;
   ta.replaceWith(wrapper);
   $("open-options").addEventListener("click", (e) => {

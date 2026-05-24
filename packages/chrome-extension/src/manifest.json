@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Statenour · Brain Capture",
   "short_name": "Statenour",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Capture a brain dump from any tab · Cmd+Shift+B · shows prior notes for this URL · syncs to your statenour brain via /api/brain/dump",
   "action": {
     "default_popup": "popup.html",
@@ -26,6 +26,7 @@
   },
   "permissions": ["activeTab", "storage"],
   "host_permissions": [
+    "https://bdnick.info/*",
     "https://statenour-web-production.up.railway.app/*",
     "http://localhost:3000/*"
   ],

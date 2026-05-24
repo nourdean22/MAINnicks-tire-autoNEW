@@ -1,6 +1,9 @@
 // options.js · token + base URL setup · 2026-05-23.
 
-const DEFAULT_API_BASE = "https://statenour-web-production.up.railway.app";
+// 2026-05-23 · default to bdnick.info · operator-facing custom domain.
+// Railway URL still works · operator can override via this options
+// page if they want preview / localhost.
+const DEFAULT_API_BASE = "https://bdnick.info";
 const $ = (id) => document.getElementById(id);
 
 function setStatus(msg, kind = "") {

@@ -65,7 +65,7 @@ async function main() {
   console.log("  2. toggle 'Developer mode' (top right)");
   console.log("  3. click 'Load unpacked' · select packages/chrome-extension/dist/");
   console.log("  4. open the extension options · paste a token from");
-  console.log("     https://statenour-web-production.up.railway.app/system/api-tokens");
+  console.log("     https://bdnick.info/system/api-tokens");
   console.log("  5. Cmd+Shift+B from anywhere · type · Cmd+Enter to save");
 }
 
