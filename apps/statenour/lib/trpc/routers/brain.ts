@@ -58,6 +58,11 @@ import {
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { getMemoryOfTheDay } from "@/lib/services/memory-of-the-day";
 import { prisma } from "@/lib/prisma";
+// 2026-05-24 · Wave V · feature-mining wire-up · calibrationSummary
+// procedure surfaces the existing summarizeCalibration helper to /brain.
+// Pre-Wave-V the math has been built + tested + the brierScore column
+// has been populated by outcome-tracker for ~22 days · zero UI consumer.
+import { summarizeCalibration } from "@/lib/brain/calibration";
 // Phase B.6d · brain-domain slice · the shared services / lib functions
 // the migrated components/brain/* + brain-dump-modal call-sites delegate
 // to. Each is also called by the matching legacy REST route — drift
@@ -1428,4 +1433,67 @@ export const brainRouter = router({
       }): Promise<{ consultations: BoardConsultationView[] }> =>
         listRecentBoardConsultations({ limit: input.limit }),
     ),
+
+  /**
+   * 2026-05-24 · Wave V feature-mining · IdentitySnapshot deltaFromLast.
+   *
+   * loadIdentitySnapshot() in operator-router returns a typed projection
+   * without the raw `deltaFromLast` text column · this procedure pulls
+   * the most-recent snapshot's narrative directly from the DB. The
+   * column is populated by the daily 04:30 identity-refresh cron ·
+   * pre-Wave-V no UI surfaced it.
+   *
+   * Returns null when no snapshot exists OR when deltaFromLast is empty
+   * (e.g. first snapshot of a new install · the cron has nothing to
+   * compare against).
+   */
+  identityDelta: operatorProcedure.query(async () => {
+    try {
+      const row = await prisma.identitySnapshot.findFirst({
+        orderBy: { createdAt: "desc" },
+        select: { deltaFromLast: true, createdAt: true, date: true },
+      });
+      if (!row || !row.deltaFromLast || row.deltaFromLast.trim().length === 0) {
+        return null;
+      }
+      return {
+        delta: row.deltaFromLast,
+        date: row.date,
+        computedAt: row.createdAt.toISOString(),
+      };
+    } catch {
+      return null;
+    }
+  }),
+
+  /**
+   * 2026-05-24 · Wave V feature-mining · calibration summary for /brain.
+   *
+   * Pre-Wave-V `summarizeCalibration` was tested + Prediction.brierScore
+   * was populated by the outcome-tracker cron · zero UI rendered it.
+   * Now: /brain Predictions zone shows mean Brier + verdict + hit-rate
+   * alongside the existing PredictionStreaksCard. Brier is the
+   * calibration metric (does 70% confidence actually hit 70% of the
+   * time) · hit-rate is the credibility metric (do predictions land
+   * at all). Both belong on the page.
+   *
+   * Degrades to { resolved: 0, ... } on Prisma failure (silent) ·
+   * the consuming tile hides itself when resolved === 0.
+   */
+  calibrationSummary: operatorProcedure
+    .input(z.object({ days: z.number().int().min(1).max(365).default(30) }).optional())
+    .query(async ({ input }) => {
+      try {
+        return await summarizeCalibration({ days: input?.days ?? 30 });
+      } catch {
+        return {
+          resolved: 0,
+          confirmed: 0,
+          hitRate: null,
+          meanBrier: null,
+          verdict: "unknown" as const,
+          avgClaimVsRealityGap: null,
+        };
+      }
+    }),
 });

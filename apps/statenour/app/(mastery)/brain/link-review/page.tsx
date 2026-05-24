@@ -55,13 +55,22 @@ export default function LinkReviewPage() {
   const utils = trpc.useUtils();
   const decideMutation = trpc.brain.decideLinkReview.useMutation();
 
+  // 2026-05-24 · Wave V P0-#1 · staleness banner. Pre-fix the load()
+  // catch only toasted · the toast disappears in 5s · the candidates
+  // array stays at last value · operator looks at stale data with no
+  // visible "may be stale" signal. Now: set a banner state that
+  // persists in the UI until the next successful load.
+  const [loadError, setLoadError] = useState<string | null>(null);
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const view = await utils.brain.linkReview.fetch();
       setCandidates(view.candidates as Candidate[]);
+      setLoadError(null);
     } catch (e) {
-      toast.error(`Failed to load: ${e instanceof Error ? e.message : String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(`Failed to load: ${msg}`);
+      setLoadError(msg);
     } finally {
       setLoading(false);
     }
@@ -100,18 +109,22 @@ export default function LinkReviewPage() {
         if (decision === "approve") {
           notifyDataChanged("missions", { source: "link-review-page", detail: "link-approve", id: c.missionId });
         }
-        // Wait for the departure animation before removing from list.
+        // 2026-05-24 · Wave V P0-#2 · pre-fix the 240ms setTimeout
+        // mutated `candidates` directly · if the operator navigated
+        // away in that window, on remount the local cache still held
+        // the row that the backend no longer surfaces · phantom row
+        // until next manual refresh. Now: invalidate the tRPC cache
+        // and let useEffect's `load()` pull canonical state · the
+        // departure animation still gets its frame because
+        // `setDeparting` is set above.
         setTimeout(() => {
-          setCandidates((prev) =>
-            decision === "snooze"
-              ? prev.filter((x) => x.id !== c.id).concat([{ ...c, lastSeen: new Date().toISOString() }])
-              : prev.filter((x) => x.id !== c.id),
-          );
           setDeparting((d) => {
             const next = new Map(d);
             next.delete(c.id);
             return next;
           });
+          void utils.brain.linkReview.invalidate();
+          void load();
         }, 240);
       } catch (e) {
         toast.error(`${decision} failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -128,7 +141,13 @@ export default function LinkReviewPage() {
         });
       }
     },
-    [],
+    // 2026-05-24 · Wave V P0-#3 · pre-fix the deps array was empty
+    // but the closure references decideMutation + utils + load. If
+    // any of those rotate (e.g. tRPC client re-creation on auth
+    // refresh) the stale captured reference fires the old client ·
+    // results land on a dead query cache. Now: declare the real
+    // closure dependencies so React's identity reconciliation runs.
+    [decideMutation, utils, load],
   );
 
   return (
@@ -211,6 +230,27 @@ export default function LinkReviewPage() {
               : `${candidates.length} conversation${candidates.length === 1 ? "" : "s"} flagged for your call. Each row is a decision spread — conversation on the left, the mission it might belong to on the right, the cosine similarity drawn between them. Approve writes the link. Reject drops the suggestion. Snooze defers.`
         }
       />
+
+      {/* 2026-05-24 · Wave V P0-#1 · staleness banner · paired with
+          the loadError state set in load(). Pre-fix a failed reload
+          showed last-known candidates as if fresh · operator could
+          act on already-resolved rows. Now: rose banner persists
+          until next successful load · retry button explicit. */}
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-md border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-[11px] text-rose-300">
+          <span className="flex-1">
+            ⚠ Queue may be stale · failed to refresh · {loadError.slice(0, 100)}
+          </span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded border border-rose-500/40 px-2 py-1 text-[10px] font-mono uppercase tracking-wider hover:bg-rose-500/15 disabled:opacity-50"
+          >
+            retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div className="rounded-2xl border border-[var(--border-soft)] px-5 py-10 text-center text-xs text-[var(--text-tertiary)]">
