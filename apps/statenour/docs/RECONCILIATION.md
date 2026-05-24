@@ -1,6 +1,62 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 LATE-NIGHT-2 (post Wave L + UI sweep · multi-advisor mood-gating + 4 visual upgrades shipped end-to-end) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2795 across 184 vitest files (+8 since LATE-NIGHT) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-23 LATE-NIGHT-3 (post Wave M · 5 silent-failure fixes uncovered by code-reviewer + silent-failure-hunter audit · prod smoke clean) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2795 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-23 LATE-NIGHT-3 · Wave M · post-audit silent-failure fixes · 1 ship
+>
+> Operator ran `check for errors` after the Wave L + UI sweep landed.
+> Parallel code-reviewer + silent-failure-hunter audits found 1 P0 +
+> 3 P1 + 1 P2 silent failures · all in the NEW code shipped today ·
+> all invisible to typecheck/lint/vitest (which had been green for
+> three consecutive pushes).
+>
+> **Wave M · 5 silent-failure fixes** · `66e7dcf1`
+> - **P0 · `lib/trpc/routers/chat.ts` lensesForMessage** · two prisma
+>   calls + a dynamic import had zero error handling · any DB blip,
+>   schema drift, or import-resolution failure threw raw TRPCError to
+>   the client. Combined with the P1 below, the lens-fire badges
+>   silently vanished with no operator signal. Now: try/catch around
+>   the procedure · `log.warn("lenses_for_message_failed", …)` on
+>   failure · returns `{ lenses: [], error: "lens_lookup_failed" }`
+>   so the client can branch correctly.
+> - **P1 · `lib/ai/board/consult.ts` Wave L routing** · two distinct
+>   silent failures in the same try block:
+>   (1) bare `catch {}` swallowed `currentOperatorState()` failures
+>   with no logging · Prisma outage would silently disable Wave L
+>   routing for EVERY consultation. Now: `log.warn("board_state_read_failed", …)`.
+>   (2) `if (snap.confidence > 0)` conflated "no signal yet" with
+>   "computed low confidence" · the synthesizer trace +
+>   `BoardConsultation.operatorState` never saw the snapshot even
+>   when it was successfully computed. Now: always record the
+>   snapshot for trace visibility · gate ONLY the routing /
+>   drop-list on confidence > 0.
+> - **P1 · `components/chat/lens-badge-row.tsx`** · React Query
+>   didn't destructure `error` · so any failure from the P0 endpoint
+>   produced the IDENTICAL visual experience as "Nick used no lenses"
+>   · the exact failure mode the transparency feature exists to
+>   eliminate. Now: faint rose pill with retry affordance when
+>   `error` or `data.error === "lens_lookup_failed"`.
+> - **P2 · `app/(mastery)/system/calibration/page.tsx`** · header
+>   description showed "no data" when the query errored · identical
+>   to the genuine empty-grid state. Operator scanning the chip alone
+>   couldn't tell broken from warming-up. Now: "failed to load" when
+>   `error` is set, distinct from the empty-grid path.
+>
+> **Flagged · NOT fixed**
+> - `lib/services/state-calibration.ts:267-272` (P2) · `unstamped`
+>   counter conflates 3 failure modes (genuine pre-Wave-H · malformed
+>   snapshot · unknown mood). Diagnostic improvement, not a bug ·
+>   would require schema/type changes to report. Deferred.
+> - `lib/services/state-calibration.ts:181` DST ms-arithmetic ·
+>   reviewer confirmed not a real bug (1-cell drift max, twice/year).
+> - `state-pulse.tsx:270-274` `prefers-reduced-motion` :global
+>   scoping interaction · reviewer confirmed correct.
+> - `consult.ts:153` synthesizer `userPrompt` un-sliced · operator-
+>   only surface, no untrusted input, not a security issue.
+>
+> Gates: typecheck 0 · lint 0 errors / 368 baseline · vitest 184
+> files / 2795 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy.
 
 > ## 2026-05-23 LATE-NIGHT-2 · Wave L + UI sweep · multi-advisor mood-gating + 4 visual upgrades · 3 ships
 >
