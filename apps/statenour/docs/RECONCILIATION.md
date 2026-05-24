@@ -1,6 +1,59 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-23 LATE-NIGHT-3 (post Wave M · 5 silent-failure fixes uncovered by code-reviewer + silent-failure-hunter audit · prod smoke clean) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2795 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 MORNING (post Wave N · unstamped split + autonicks Vercel retire runbook · 2 deferred items from Wave M audit + MEMORY.md operator-action backlog closed) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files (+2 since LATE-NIGHT-3) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 MORNING · Wave N · unstamped split + autonicks Vercel retire runbook · 1 ship
+>
+> Operator picked items 3 + 4 from this morning's status check:
+> (3) the P2 `unstamped` counter granularity finding I'd deferred
+> from Wave M, and (4) the Vercel-ghost autonicks.com cleanup that's
+> sat in MEMORY.md as "needs operator action" since the Railway
+> migration.
+>
+> **Wave N · 5 files changed** · `d4cc5652`
+> - **`lib/services/state-calibration.ts`** · `unstamped` counter
+>   split into 3 named diagnostic buckets:
+>   - `unstamped` · `operatorStateSnapshot === null` · genuine
+>     pre-Wave-H OR upstream writer regression
+>   - `malformed` · snapshot exists but `mood` is not a string ·
+>     schema drift on snapshot shape · indicates BUG in
+>     `formatOperatorStateSnapshot`
+>   - `unknownMood` · `mood` is a string but not in `ALL_MOODS` ·
+>     new mood enum added upstream without extending the report ·
+>     indicates DRIFT between `operator-state.ts` and
+>     `state-calibration.ts`
+>   Each counter implies a distinct root cause · prod diagnosis
+>   is now zero-cognitive-load.
+> - **`app/(mastery)/system/calibration/page.tsx`** · header
+>   description surfaces non-zero malformed + unknownMood counters
+>   inline (zero values hidden to keep the chip clean in the
+>   common case · array-filter-join pattern).
+> - **`tests/lib/services/state-calibration.test.ts`** · two new
+>   vitest cases pinning the malformed and unknownMood paths ·
+>   existing unstamped test extended to assert the other two
+>   counters are 0 when only null-snapshot rows are present.
+> - **`docs/RUNBOOK.md`** · appended an operator runbook section
+>   "Retiring the autonicks.com Vercel ghost project · operator
+>   action" covering: pre-flight checks (curl, DNS, callback URL
+>   audit), Vercel-dashboard delete steps, post-deletion
+>   verification. The agent cannot delete the Vercel project
+>   itself (operator-account-only) · the runbook captures the
+>   safe-deletion checklist so the operator doesn't re-derive it.
+> - **`docs/chrome-extension-plan.md`** · fixed the only stale
+>   `autonicks.com` reference in apps/statenour (a planning doc) ·
+>   now reads "bdnick.info (Railway · custom domain · `autonicks.com`
+>   was the pre-2026-05 Vercel domain · retired)."
+>
+> **Flagged · NOT fixed**
+> - The actual Vercel project deletion · cannot be done by agent ·
+>   sits in operator's hands. Runbook is at
+>   `docs/RUNBOOK.md#retiring-the-autonickscom-vercel-ghost-project--operator-action`.
+> - 2026-05-13 → 05-19 + 05-22 wave backfill · still pending ·
+>   pure docs work · low priority.
+>
+> Gates: typecheck 0 · lint 0 errors / 368 baseline · vitest 184
+> files / 2797 tests · build OK · prod smoke 200 on 3 endpoints
+> post-deploy.
 
 > ## 2026-05-23 LATE-NIGHT-3 · Wave M · post-audit silent-failure fixes · 1 ship
 >
