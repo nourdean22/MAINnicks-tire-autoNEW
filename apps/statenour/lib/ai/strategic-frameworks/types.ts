@@ -38,6 +38,14 @@ export interface StrategicFramework {
   /** Confidence boost when the framework's keywords appear · used
    *  for picking top-N when multiple frameworks match. Default 1.0. */
   weight?: number;
+  /** 2026-05-23 · Wave E · marks a lens as "featured" for the
+   *  generic fallback. When no specific framework triggers but the
+   *  intent is business/strategy, only featured lenses get listed.
+   *  Pre-fix all 49 frameworks dumped their headlines → ~700-1000
+   *  tokens injected on every casual mention. Featured-only keeps
+   *  the fallback compact (~150 tokens) while preserving the choice
+   *  set for Nick. Default false. */
+  featured?: boolean;
 }
 
 export interface FrameworkMatch {

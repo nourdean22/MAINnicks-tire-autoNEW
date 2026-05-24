@@ -22,6 +22,11 @@ export const startupMetrics: StrategicFramework = {
     /\b(body|fitness|health|running|workout|sports?|bike|swim|gym|cycling|hiking)\s+(composition\s+|fat\s+|mass\s+|weight\s+|performance\s+)?metrics?\b/i,
     /\b(track|measure)\s+(my|your|the)\s+(running|fitness|body|workout|health|bike|swim|hiking)\s+metrics?\b/i,
     /\b(car|engine|gpu|cpu|computer|laptop|phone|device)\s+metrics?\b/i,
+    // 2026-05-23 · Wave E · dedup with north-star-metric.ts. When the
+    // user names "north star" explicitly, that's a north-star-metric
+    // question · NOT a generic startup-metrics overview. north-star
+    // is the more specific lens · let it win the slot.
+    /\bnorth\s+star\s+(metric|kpi)/i,
   ],
   weight: 1.0,
   lens: `Apply the Startup Metrics framework. The structure of measurement

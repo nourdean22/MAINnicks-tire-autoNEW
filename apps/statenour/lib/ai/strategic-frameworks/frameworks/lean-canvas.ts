@@ -22,6 +22,7 @@ export const leanCanvas: StrategicFramework = {
     /\b(validate\s+(the\s+)?(problem|hypothesis|assumptions))/i,
   ],
   weight: 1.0,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply the Lean Canvas. Built for early-stage situations where
 the BIGGEST risks are assumption-risks · the customer might not
 exist · the problem might not be real · the solution might not work.

@@ -21,6 +21,7 @@ export const opportunityCost: StrategicFramework = {
     /\b(can't\s+do\s+everything|can\s+not\s+do\s+everything)/i,
   ],
   weight: 0.95,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply Opportunity Cost. The principle is mechanical · every
 dollar / hour / unit-of-attention spent on X is a dollar / hour /
 unit-of-attention NOT spent on Y. Resources do not multiply.

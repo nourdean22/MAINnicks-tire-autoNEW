@@ -30,6 +30,7 @@ export const elonMusk: StrategicFramework = {
     /\bspacex\s+(launch|rocket|booster|capsule)\s+(is|was|tomorrow|today|next|this)\b/i,
   ],
   weight: 0.95,
+  featured: true, // 2026-05-23 · Wave E · baseline lens shown in generic fallback
   lens: `Apply the Elon Musk lens · first principles + physics-based reasoning.
 The unique thing about this lens is what it REJECTS:
    · It rejects "that's how it's always been done."
