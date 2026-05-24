@@ -495,6 +495,20 @@ export async function handleRunMigrations() {
       // Idempotent: INSERT IGNORE then UPDATE force-syncs the value regardless of current state.
       `INSERT IGNORE INTO shop_settings (\`key\`, value, category, label, updatedBy) VALUES ('tireMarkup', '100', 'pricing', 'Tire Markup %', 'system-migration-0054')`,
       `UPDATE shop_settings SET value = '100', updatedBy = 'system-migration-0054' WHERE \`key\` = 'tireMarkup'`,
+      // 2026-05-23 · drizzle/0055_declined_recovery_sequence.sql — 5×3 SMS sequence
+      // Adds new touch column triplets (3d/14d/45d) + recoveryProfile cache.
+      // ALTER ... ADD COLUMN IF NOT EXISTS is MySQL 8+ — TiDB supports.
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_3d_sent INT NOT NULL DEFAULT 0`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_3d_attempted_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_3d_sent_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_14d_sent INT NOT NULL DEFAULT 0`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_14d_attempted_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_14d_sent_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_45d_sent INT NOT NULL DEFAULT 0`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_45d_attempted_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS follow_up_45d_sent_at TIMESTAMP NULL DEFAULT NULL`,
+      `ALTER TABLE alg_estimates ADD COLUMN IF NOT EXISTS recovery_profile VARCHAR(8) DEFAULT NULL`,
+      `CREATE INDEX IF NOT EXISTS idx_alg_est_recovery_profile ON alg_estimates (recovery_profile)`,
     ];
 
     let applied = 0;

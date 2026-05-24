@@ -1302,12 +1302,26 @@ export const algEstimates = mysqlTable("alg_estimates", {
    * but never confirmed) land in the manual review queue (Sent=0 +
    * AttemptedAt IS NOT NULL). Per-tier columns so a failed 7d attempt
    * does not block the 30d send. Migration 0042. */
+  followUp3dSent: int("follow_up_3d_sent").default(0).notNull(),
+  followUp3dAttemptedAt: timestamp("follow_up_3d_attempted_at"),
+  followUp3dSentAt: timestamp("follow_up_3d_sent_at"),
   followUp7dSent: int("follow_up_7d_sent").default(0).notNull(),
   followUp7dAttemptedAt: timestamp("follow_up_7d_attempted_at"),
   followUp7dSentAt: timestamp("follow_up_7d_sent_at"),
+  followUp14dSent: int("follow_up_14d_sent").default(0).notNull(),
+  followUp14dAttemptedAt: timestamp("follow_up_14d_attempted_at"),
+  followUp14dSentAt: timestamp("follow_up_14d_sent_at"),
   followUp30dSent: int("follow_up_30d_sent").default(0).notNull(),
   followUp30dAttemptedAt: timestamp("follow_up_30d_attempted_at"),
   followUp30dSentAt: timestamp("follow_up_30d_sent_at"),
+  followUp45dSent: int("follow_up_45d_sent").default(0).notNull(),
+  followUp45dAttemptedAt: timestamp("follow_up_45d_attempted_at"),
+  followUp45dSentAt: timestamp("follow_up_45d_sent_at"),
+  /** wave-181.110 (this commit) · psychographic profile cache for 5×3
+   *  sequence (P1=broke_brenda · P2=skeptical_pat · P3=busy_tim). Set
+   *  on first touch and sticky so the sequence stays consistent even
+   *  if customer signals shift. Migration 0055. */
+  recoveryProfile: varchar("recovery_profile", { length: 8 }),
   /** wave-181.85 · voice recovery escalation (post-D30) · AgentPhone */
   voiceRecoveryAttemptedAt: timestamp("voice_recovery_attempted_at"),
   voiceRecoveryCallId: varchar("voice_recovery_call_id", { length: 64 }),
@@ -1324,6 +1338,8 @@ export const algEstimates = mysqlTable("alg_estimates", {
   // Wave-97 — admin search by customer name + filter by source
   index("idx_alg_est_customer_name").on(t.customerName),
   index("idx_alg_est_source").on(t.source),
+  // wave-181.110 · profile-aware sequence filter
+  index("idx_alg_est_recovery_profile").on(t.recoveryProfile),
 ]);
 
 export type AlgEstimate = typeof algEstimates.$inferSelect;
