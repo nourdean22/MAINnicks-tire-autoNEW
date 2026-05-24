@@ -413,6 +413,14 @@ model TaskEvent {
   // does it's a bug worth surfacing as an error, not silently
   // nuking the event audit trail.
   task           Task     @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  /// 2026-05-23 · Wave F · denormalized from Task.goalId. The
+  /// per-goal event-feed query (services/goals.ts:75-82) was doing
+  /// a cross-join on Task on every read · adds growing scan cost
+  /// as Task grows. Denormalizing means a single-table range scan
+  /// over (goalId, createdAt). Maintained by createTaskEvent +
+  /// goal-relink trigger. Nullable because pre-Wave-F rows + tasks
+  /// without a goal both exist.
+  goalId         String?  @map("goal_id")
   kind           String
   /// Optional structured payload (e.g. priority_changed → { from, to }).
   payload        Json?
@@ -427,6 +435,9 @@ model TaskEvent {
   @@index([taskId, createdAt])
   @@index([kind, createdAt])
   @@index([createdAt])
+  /// 2026-05-23 · Wave F · per-goal event feed · covers the
+  /// services/goals.ts per-goal-event-timeline query.
+  @@index([goalId, createdAt])
   @@map("task_events")
 }
 
@@ -1920,22 +1931,37 @@ model MemoryEdge {
 // Branch A: Self-Awareness (extends L4 Reflective)
 // L7: Contradiction Detector — catches conflicts between stated vs actual behavior
 model Contradiction {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   date        String
-  claimSource String   @map("claim_source") // what Nour said/believed (brain_dump, chat, commitment)
-  claimId     String?  @map("claim_id")
-  claim       String   @db.Text // "I'm disciplined" or "I follow up on every lead"
-  reality     String   @db.Text // "Discipline score avg 3.2/10 last 7 days"
-  gap         String   @db.Text // "Gap: stated 8/10, measured 3.2/10"
-  severity    String   @default("moderate") // mild, moderate, severe, critical
+  claimSource String    @map("claim_source") // what Nour said/believed (brain_dump, chat, commitment)
+  claimId     String?   @map("claim_id")
+  claim       String    @db.Text // "I'm disciplined" or "I follow up on every lead"
+  reality     String    @db.Text // "Discipline score avg 3.2/10 last 7 days"
+  gap         String    @db.Text // "Gap: stated 8/10, measured 3.2/10"
+  severity    String    @default("moderate") // mild, moderate, severe, critical
   category    String // identity, business, health, commitment, habit
-  resolved    Boolean  @default(false)
-  resolvedHow String?  @map("resolved_how") @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  resolved    Boolean   @default(false)
+  resolvedHow String?   @map("resolved_how") @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  /// 2026-05-23 · Wave F · was missing · updateMany() callers had no
+  /// way to track when severity / resolved transitioned · the brain
+  /// pattern miner couldn't sort by "recently changed" for review.
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  /// 2026-05-23 · Wave F · soft-delete · was hard-delete via deleteMany()
+  /// which lost the audit trail. Dismissing a contradiction now flips
+  /// deletedAt instead. Consumers filter with `deletedAt: null`.
+  deletedAt   DateTime? @map("deleted_at")
 
   @@index([date, category])
   @@index([resolved])
   @@index([createdAt])
+  /// 2026-05-23 · Wave F · the resolved-by-category dashboard hit (
+  /// SELECT * WHERE resolved=false AND category='identity') was a
+  /// full table scan because no composite index covered (resolved,
+  /// category, createdAt). At ~10k rows this is a 200ms+ query · with
+  /// the index it's a 5ms index range scan.
+  @@index([resolved, category, createdAt])
+  @@index([deletedAt])
   @@map("contradictions")
 }
 
@@ -2598,5 +2624,10 @@ model VoiceLatencyEvent {
 
   @@index([callId, stage])
   @@index([createdAt])
+  /// 2026-05-23 · Wave F · per-assistant + per-stage latency dashboard
+  /// query (lib/services/system-pages-b.ts voice metrics aggregation)
+  /// was filtering by (assistantId, stage, createdAt) post-fetch. With
+  /// this composite index it becomes an index range scan.
+  @@index([assistantId, stage, createdAt])
   @@map("voice_latency_events")
 }
