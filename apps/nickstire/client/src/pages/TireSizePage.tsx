@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { Phone, ChevronRight, ShieldCheck, Clock, Package, Search } from "lucide-react";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { getTireSizeBySlug, TIRE_SIZE_PAGES, buildTireSizeMetaDescription } from "@shared/tireSizes";
+import { getBuyingGuide } from "@shared/tireSizeContent";
 import { BUSINESS } from "@shared/business";
 import InternalLinks from "@/components/InternalLinks";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
@@ -39,6 +40,15 @@ export default function TireSizePage() {
   const relatedSizes = TIRE_SIZE_PAGES
     .filter(p => p.slug !== page.slug && p.category === page.category)
     .slice(0, 6);
+
+  // wave-181.x · Tier S · category-specific buying-guide content lifts
+  // each size page above the templated-doorway threshold by injecting
+  // ~150 words of unique editorial differentiated by category. Sedan
+  // pages talk fuel economy + tread life · SUV pages talk all-weather
+  // + 3PMSF · Truck pages talk load rating + towing · Performance
+  // pages talk speed rating + grip compounds. Drives long-tail SERP
+  // visibility on size+intent queries that the templated copy missed.
+  const buyingGuide = getBuyingGuide(page.category);
 
   // FAQ source-of-truth — drives both rendered FAQ section + FAQPage JSON-LD
   const FAQS = [
@@ -284,6 +294,40 @@ export default function TireSizePage() {
               </a>{" "}
               and we'll confirm the correct size for your year, make, and model.
             </p>
+          </FadeIn>
+        </div>
+      </section>
+
+      {/* Category-specific buying guide (wave-181.x) */}
+      <section className="py-16 bg-card/30">
+        <div className="container max-w-4xl">
+          <FadeIn>
+            <h2 className="font-semibold text-3xl text-foreground mb-6">{buyingGuide.heading}</h2>
+            <p className="text-foreground/80 leading-relaxed whitespace-pre-line">{buyingGuide.body}</p>
+
+            <h3 className="font-semibold text-xl text-foreground mt-10 mb-4">What to look for on the sidewall</h3>
+            <ul className="space-y-2 text-foreground/75">
+              {buyingGuide.sidewallTips.map(tip => (
+                <li key={tip} className="flex items-start gap-2">
+                  <ChevronRight className="w-4 h-4 text-primary shrink-0 mt-1" />
+                  <span>{tip}</span>
+                </li>
+              ))}
+            </ul>
+
+            <h3 className="font-semibold text-xl text-foreground mt-10 mb-4">Worth checking while the tires are off</h3>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {buyingGuide.relatedServices.map(s => (
+                <Link
+                  key={s.slug}
+                  href={`/${s.slug}`}
+                  className="group p-4 bg-background rounded-sm border border-border/30 hover:border-primary/40 transition-colors"
+                >
+                  <div className="font-semibold text-foreground group-hover:text-primary transition-colors">{s.label}</div>
+                  <div className="text-sm text-foreground/60 mt-1">{s.why}</div>
+                </Link>
+              ))}
+            </div>
           </FadeIn>
         </div>
       </section>
