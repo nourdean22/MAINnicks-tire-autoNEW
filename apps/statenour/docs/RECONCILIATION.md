@@ -1,6 +1,59 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-2 (post Wave X.b · /chat consolidation follow-up · 2 surgical ships · 4 deferred architecture moves rejected after pre-flight audit · 1 deferred defensive picked up · all gates green) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 LATE-NIGHT-3 (post Wave X.c · R3F scene data wire-up · the two surviving 3D mounts — CommandCore on the homepage backdrop + FrameworkOrbit on /system/lens-stats — were both shipping with PLACEHOLDER prop constants since the Wave 53 Spline→R3F pivot · now both DATA-REACTIVE · derived from signals the components already pulled · zero new fetches) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 LATE-NIGHT-3 · Wave X.c · R3F scene data wire-up · 1 ship
+>
+> Both surviving R3F scene mounts had been shipping with
+> PLACEHOLDER constants since the Wave 53 Spline→R3F pivot ·
+> decoration, not surfaces. The per-wrapper docstrings explicitly
+> flagged "next phase: real-data wiring." This wave is that next
+> phase.
+>
+> **Wave X.c · 1 ship** · `f73f7209`
+>
+> **CommandCore** (`components/ultron/ultron.tsx`) · homepage 3D
+> backdrop. Derives:
+> - `healthScore = 100 - driftBudgetUsed` (clamped 0..100) · drift
+>   becomes the inverse of core integrity. Cleaner signal layer
+>   reads as a brighter, more stable core.
+> - `alertLevel = "critical" | "warn" | "info"` · critical
+>   blind-spots → red rim · high OR drift > 70% → amber rim · else
+>   gold. The wireframe edge now reflects system severity.
+> - `situationCount = staleLeads + agingCritical + overdue +
+>   critical/high blind-spots` · drives a faint scale pulse so the
+>   core visibly grows under load.
+>
+> All three signals come from data the component ALREADY pulls
+> (useUltronFetch on `/api/ultron/signal` + `/api/ultron/pulse` +
+> `/api/body` + useNourState). Zero new fetches.
+>
+> **FrameworkOrbit** (`app/(mastery)/system/lens-stats/page.tsx`) ·
+> lens-stats hero scene. Derives:
+> - `topFirerSize / secondFirerSize / thirdFirerSize` · top-3
+>   fired framework counts normalized 0..1 against the #1 leader.
+>   Filters out the synthetic "(fallback)" row first — it's
+>   surfaced separately via `data.fallbackRate` and would corrupt
+>   the ranking.
+> - `fallbackRate = data.fallbackRate / 100` · converts the 0..100
+>   percent response into the scene's 0..1 red-alert contract.
+>   Above 30% the central anchor pulses status-red: lens routing
+>   degraded.
+>
+> When data is missing (initial load · error · empty window) the
+> helpers return `undefined` so the wrapper's PLACEHOLDER
+> constants take over — graceful degradation, scene never blanks.
+>
+> **Net effect** · the 3D pivot that started Wave 53 lands its
+> intended outcome: scenes that REACT to live state, not
+> decorations layered over data. Two of the four originally-
+> planned surfaces now satisfy the "interactive command center"
+> ambition (the other two — KnowledgeGalaxy + AiPulse — were
+> formally retired during the pivot: `/brain/galaxy` page never
+> existed, AiPulse cut as vanity at v10.0.529.54).
+>
+> **Gates** · typecheck 0 errors · lint 0 errors / 370 baseline ·
+> vitest 185 / 2812 pass · zero new dependencies.
 
 > ## 2026-05-24 LATE-NIGHT-2 · Wave X.b · /chat consolidation follow-up · 2 ships
 >
