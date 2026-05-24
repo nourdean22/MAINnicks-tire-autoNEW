@@ -148,7 +148,7 @@ export async function processSeoForensic(): Promise<ProcessResult> {
         lines.push(`${emoji} "${s.query.slice(0, 50)}"${page} · ${dir} ${Math.abs(s.shift)} pos (${s.priorAvgPosition} → ${s.recentAvgPosition}) · ${s.recentImpressions.toLocaleString()} impr`);
       }
       if (shifts.length > 12) {
-        lines.push(``, `+ ${shifts.length - 12} more shifts in /admin → SEO → Forensic`);
+        lines.push(``, `+ ${shifts.length - 12} more shifts · check search_performance table for full list`);
       }
       const alertCount = shifts.filter((s) => s.severity === "alert").length;
       if (alertCount > 0) {

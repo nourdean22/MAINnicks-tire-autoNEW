@@ -309,7 +309,7 @@ export async function processAgenticAuditor(): Promise<ProcessResult> {
         }
       }
       if (callsWithIssues.length > 6) {
-        lines.push(``, `+ ${callsWithIssues.length - 6} more calls with findings · drill down in /admin/voice-receptionist`);
+        lines.push(``, `+ ${callsWithIssues.length - 6} more calls with findings · drill down via vapi_call_logs.metadata.agenticAudit`);
       }
       if (alerts > 0) {
         lines.push(``, `Alerts are agentic drift · price below floor, booking promised but not persisted, etc. Listen to the calls.`);
