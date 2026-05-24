@@ -46,7 +46,14 @@ export function ConnectionStatus({
       border = "border-red-500/30";
       break;
     case "queued":
-      label = `${queueCount} queued · tap to retry`;
+      // 2026-05-24 · Wave X · pre-fix the label said "tap to retry"
+      // implying queue persistence · the queue is WIPED on every mount
+      // (see use-offline-queue.ts:131 · duplicate-replay bug
+      // mitigation). On iOS Safari PWA the tab dies after ~30s in
+      // background · any queued message vanishes. Now: label is honest
+      // about session-only persistence so operator's mental model
+      // matches reality.
+      label = `${queueCount} queued · this session only · tap to send now`;
       Icon = Clock;
       color = "text-amber-400";
       bg = "bg-amber-500/10";
@@ -102,7 +109,7 @@ export function ConnectionStatus({
       <button
         onClick={onRetry}
         className={cn(
-          "fixed bottom-16 left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm transition-all hover:scale-105",
+          "fixed left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm transition-all hover:scale-105 [bottom:calc(80px+env(safe-area-inset-bottom))]",
           bg,
           border
         )}
@@ -115,7 +122,7 @@ export function ConnectionStatus({
   return (
     <div
       className={cn(
-        "fixed bottom-16 left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm",
+        "fixed left-1/2 -translate-x-1/2 z-[50] flex items-center gap-1.5 px-2.5 py-1 rounded-full border backdrop-blur-sm [bottom:calc(80px+env(safe-area-inset-bottom))]",
         bg,
         border
       )}

@@ -207,6 +207,62 @@ import { trpc } from "@/lib/trpc/client";
 // for type aliases that don't close over state.
 type Personality = "master" | "builder" | "friend";
 
+// 2026-05-24 · Wave X Phase 1 · perf hoist (P1 finding from
+// defensive audit). These three lookup constants were defined INSIDE
+// the tool-completion useEffect at the bottom of the Chat() body ·
+// the effect re-fires on every streamed token (~40 per assistant
+// turn) and reconstructed them all from scratch each time. 80+ Set
+// + Map allocations per assistant turn dropped to zero by moving
+// them to module scope where they're built once at module init.
+// Pure data · no state closure · safe to hoist.
+const TOOL_DOMAIN_MAP: Record<string, DataDomain[]> = {
+  createTask: ["tasks"],
+  updateTask: ["tasks"],
+  completeTask: ["tasks"],
+  deleteTask: ["tasks"],
+  createLoop: ["tasks"],
+  closeLoop: ["tasks"],
+  addCommitment: ["commitments"],
+  markCommitment: ["commitments"],
+  setMit: ["mit"],
+  clearMit: ["mit"],
+  toggleHabit: ["habits"],
+  snoozeTask: ["tasks"],
+  archiveGoal: ["goals"],
+  logGoalProgress: ["goals"],
+  pinMemory: ["brain"],
+  logSituation: ["journal"],
+  journalDecision: ["journal"],
+  reviewDecisionReplay: ["journal"],
+  markCommitmentBroken: ["commitments"],
+  syncDriveMemory: ["settings"],
+  setLifeGoal: ["goals"],
+  updateMasteryScore: ["score"],
+  createMissionPlan: ["missions"],
+  setOKRs: ["missions"],
+  setWeeklyTargets: ["missions"],
+  syncKnowledge: ["knowledge"],
+  buildArchitectureMemory: ["brain"],
+  learnCodingPreference: ["brain"],
+};
+
+const NOW_TRIGGERING_TOOLS = new Set([
+  "createTask",
+  "completeTask",
+  "setTaskPriority",
+  "snoozeTask",
+  "updateTask",
+]);
+
+const PLAN_TRIGGERING_TOOLS = new Set([
+  "archiveGoal",
+  "logGoalProgress",
+  "setLifeGoal",
+  "createMissionPlan",
+  "setOKRs",
+  "setWeeklyTargets",
+]);
+
 // ─── Types ───────────────────────────────────────────────
 // Apr 26 · Flow mode retired. Zero hits on /api/ai/debrief in 7d,
 // fully superseded by:
@@ -860,7 +916,16 @@ function Chat() {
     if (!text) return;
     try {
       await navigator.clipboard.writeText(text);
-    } catch {}
+      toast.success("copied to clipboard");
+    } catch {
+      // 2026-05-24 · Wave X · pre-fix this catch was bare · Safari
+      // rejects navigator.clipboard outside user-gesture context
+      // (the most-common failure mode on iOS PWA) · operator hit
+      // Copy and got NO feedback. Now: toast tells them to fall
+      // back to long-press (which uses the native iOS selection
+      // UI which always works).
+      toast.error("couldn't copy · try long-press to select", { duration: 4000 });
+    }
   }, []);
 
   // ── Conversations (list + CRUD) ──
@@ -950,10 +1015,19 @@ function Chat() {
         await loadConvoBase(data.forkId);
         setError(`Forked → ${data.title}`);
         setTimeout(() => setError(null), 2500);
-      } catch {
+      } catch (err) {
+        // 2026-05-24 · Wave X · pre-fix the catch discarded `err`
+        // entirely · operator saw "Fork failed" with no clue whether
+        // it was "conversation no longer exists" vs "network" vs
+        // "auth refresh needed." Now: forward up to 80 chars of the
+        // error message so the failure is actionable.
         haptic.error();
-        setError("Fork failed");
-        setTimeout(() => setError(null), 3000);
+        const detail =
+          err instanceof Error && err.message
+            ? ` · ${err.message.slice(0, 80)}`
+            : "";
+        setError(`Fork failed${detail}`);
+        setTimeout(() => setError(null), 3500);
       }
     },
     [activeId, loadConvoBase, forkMutation]
@@ -1133,70 +1207,11 @@ function Chat() {
     const last = messages[messages.length - 1];
     if (!last || last.role !== "assistant" || !last.parts) return;
 
-    // v10.0.75 · createLoop / closeLoop entries kept for chat-history
-    // tool calls that pre-date the rename. Live tool catalog no longer
-    // exposes those names (canonical: createTask / completeTask), but
-    // older messages in ChatMessage rows still reference them — the map
-    // lookup ensures cache invalidation still fires when those replays
-    // resolve. Same backwards-compat pattern as tool-result-card.tsx.
-    const TOOL_DOMAIN_MAP: Record<string, DataDomain[]> = {
-      createTask: ["tasks"],
-      updateTask: ["tasks"],
-      completeTask: ["tasks"],
-      deleteTask: ["tasks"],
-      createLoop: ["tasks"],
-      closeLoop: ["tasks"],
-      addCommitment: ["commitments"],
-      markCommitment: ["commitments"],
-      setMit: ["mit"],
-      clearMit: ["mit"],
-      // Apr 19 · logScore retired alongside DailyScore.
-      toggleHabit: ["habits"],
-      // v10.0.529.86 · Wave 30 · the 5 Wave 29 tools that mutate
-      // /tasks /goals surfaces. Without these the bus fires "any"
-      // fallback · less efficient than targeted domain refresh.
-      snoozeTask: ["tasks"],
-      archiveGoal: ["goals"],
-      logGoalProgress: ["goals"],
-      pinMemory: ["brain"], // Wave 30 · "brain" domain added · targeted refresh
-      // Wave 30 · expand the new tools to ALSO fire across related
-      // domains so cross-surface refresh is exhaustive. snoozeTask
-      // moves a task to WAITING (waiting-band reads "tasks" already
-      // · noop) · archiveGoal also touches missions linkage ·
-      // logGoalProgress affects mastery-radar via downstream
-      // GoalEvent → no auto-fire there but the "goals" target
-      // covers the immediate UI.
-      // v10.0.529.87 · Wave 31 · /journal + /settings coverage.
-      // Audit found 4 mutating tools fell through to "any" fanout ·
-      // /journal subscribed but filtered by detail-string match so
-      // tool-driven writes never refreshed the feed. Pre-fix Nick
-      // could log a situation via chat and /journal would stay
-      // stale until full page reload. syncDriveMemory now targets
-      // "settings" so AiSettingsPanel's Cold Memory card refreshes.
-      logSituation: ["journal"],
-      journalDecision: ["journal"],
-      reviewDecisionReplay: ["journal"],
-      markCommitmentBroken: ["commitments"],
-      syncDriveMemory: ["settings"],
-      // v10.0.529.88 · Wave 32 · /life /plan /mastery /knowledge /pins
-      // axis coverage. Audit found 8 write-tools fell through to "any"
-      // fanout · 3 pages (mastery / pins / knowledge) had zero bus
-      // subscription. Operator could update mastery via chat and the
-      // radar stayed frozen up to 60s while polling caught up.
-      setLifeGoal: ["goals"],
-      updateMasteryScore: ["score"],
-      createMissionPlan: ["missions"],
-      setOKRs: ["missions"],
-      setWeeklyTargets: ["missions"],
-      syncKnowledge: ["knowledge"],
-      // BrainMemory mutators that target /brain · pre-Wave-32 they
-      // fell through to "any" so /brain refresh fired but couldn't
-      // be filtered from churn signals. Targeted "brain" lets the
-      // page narrow its refetch path.
-      buildArchitectureMemory: ["brain"],
-      learnCodingPreference: ["brain"],
-    };
-
+    // 2026-05-24 · Wave X · TOOL_DOMAIN_MAP hoisted to module scope
+    // (see top of file). Was rebuilt on every streamed token here ·
+    // ~40 allocations per assistant turn. Same backwards-compat
+    // pattern as tool-result-card.tsx for legacy createLoop/closeLoop
+    // names that pre-date the rename.
     for (const part of last.parts) {
       if (!part.type.startsWith("tool-")) continue;
       const tp = part as { type: string; state?: string; toolCallId?: string; output?: unknown };
@@ -1239,21 +1254,9 @@ function Chat() {
       //   · (no   · journal / decision / pin / settings · these don't
       //     switch)  belong on /tasks at all · forcing a mode switch
       //              would yank the operator away from their context
-      const NOW_TRIGGERING_TOOLS = new Set([
-        "createTask",
-        "completeTask",
-        "setTaskPriority",
-        "snoozeTask",
-        "updateTask",
-      ]);
-      const PLAN_TRIGGERING_TOOLS = new Set([
-        "archiveGoal",
-        "logGoalProgress",
-        "setLifeGoal",
-        "createMissionPlan",
-        "setOKRs",
-        "setWeeklyTargets",
-      ]);
+      // 2026-05-24 · Wave X · NOW_TRIGGERING_TOOLS + PLAN_TRIGGERING_TOOLS
+      // hoisted to module scope. Were rebuilt every token here (~40 per
+      // turn × 2 Sets = 80 needless allocations per assistant turn).
       let targetMode: "NOW" | "PLAN" | null = null;
       if (NOW_TRIGGERING_TOOLS.has(toolName)) targetMode = "NOW";
       else if (PLAN_TRIGGERING_TOOLS.has(toolName)) targetMode = "PLAN";

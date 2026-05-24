@@ -93,7 +93,17 @@ export function NickStreaming({ lastMessage, stallStatus }: NickStreamingProps) 
           };
 
   return (
-    <div className="flex items-center gap-2.5 py-2 px-1">
+    // 2026-05-24 · Wave X · a11y · pre-fix the streaming indicator
+    // had no role/aria-live · screen-reader operators on iPhone PWA
+    // never heard "Nick is thinking" or "3 tools pending." The
+    // mode-tinted pulse + status text changes were silent. Now: the
+    // parent gets role="status" + aria-live="polite" so VoiceOver
+    // announces state changes without preempting other speech.
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="flex items-center gap-2.5 py-2 px-1">
       {/* Cinematic ring + pulse · mode-tinted */}
       <div className="relative shrink-0 w-4 h-4 flex items-center justify-center">
         {/* Outer breathing ring — slower in deep mode (genuine work
