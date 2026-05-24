@@ -10,6 +10,10 @@ import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
+// wave-181.x Money Phase 1 · H1 fix · confirmDialog gate on Snap
+// submission. Real $-affecting external API call (triggers Snap
+// credit pull · shop is charged per app · cannot be undone).
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import {
   CreditCard, ExternalLink, CheckCircle2, XCircle, Clock,
   User, Phone, Car, DollarSign, Plus, X,
@@ -71,13 +75,42 @@ export default function SnapDashboardSection() {
     onError: (e) => toast.error(e.message),
   });
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+
+    // wave-181.x Money Phase 1 · M5 fix · Number("1.2.3") = NaN slips
+    // past the truthy check on form.amount. iOS paste can bypass
+    // type="number" so guard explicitly. NaN serializes to null
+    // mid-flight and corrupts the Snap payload.
+    let parsedAmount: number | undefined;
+    if (form.amount) {
+      const n = Number(form.amount);
+      if (!Number.isFinite(n) || n < 0) {
+        toast.error("Invalid amount · enter a positive number");
+        return;
+      }
+      parsedAmount = n;
+    }
+
+    // wave-181.x Money Phase 1 · H1 fix · code-review agent flagged
+    // this as critical. Snap submission fires a real external API
+    // call · triggers a credit pull on the customer · shop is
+    // charged per submitted app. One-tap fat-finger on a touch
+    // device was un-gated. confirmDialog is iOS-PWA-safe.
+    const ok = await confirmDialog({
+      title: `Submit Snap application for ${form.customerName || "this customer"}?`,
+      message: `This sends a REAL application to Snap Finance · triggers a credit pull · cannot be undone. ${parsedAmount ? `Amount: $${parsedAmount.toLocaleString()}.` : ""}`,
+      confirmLabel: "Submit to Snap",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!ok) return;
+
     submit.mutate({
       customerName: form.customerName,
       customerPhone: form.customerPhone,
       customerEmail: form.customerEmail || undefined,
-      amount: form.amount ? Number(form.amount) : undefined,
+      amount: parsedAmount,
       vehicle: form.vehicle || undefined,
       service: form.service || undefined,
     });

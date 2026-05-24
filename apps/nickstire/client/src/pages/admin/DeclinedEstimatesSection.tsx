@@ -493,6 +493,13 @@ export default function DeclinedEstimatesSection() {
                     {est.customerPhone && (
                       <a
                         href={`tel:${est.customerPhone}`}
+                        // wave-181.x Money Phase 1 · audit agent caught
+                        // a phantom-click hazard · the row-card has an
+                        // onClick toggling bulk-select when bulkMode is
+                        // on. Without stopPropagation here, tapping
+                        // the phone link both placed the call AND
+                        // toggled the selection set silently.
+                        onClick={(e) => e.stopPropagation()}
                         className="flex items-center gap-1 hover:text-primary transition-colors"
                       >
                         <Phone className="w-3 h-3" />
