@@ -24,11 +24,15 @@ import CountUpNumber from "@/components/CountUpNumber";
 // Old URLs redirect via COMPOUND_REDIRECTS in Admin.tsx.
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
-  | "campaigns" | "settings" | "revenue" | "callTrackingView" | "intelligence"
+  | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
+// 2026-05-24 — `intelligence` removed (Intelligence Dispersal Wave 3).
+// Signals dispersed to statenour /scoreboard + various briefs. The
+// `intelligence` URL alias survives in Admin.tsx TAB_ALIASES so legacy
+// bookmarks redirect to "overview".
 export type BookingStatus = "new" | "confirmed" | "completed" | "cancelled";
 export type LeadStatus = "new" | "contacted" | "booked" | "completed" | "closed" | "lost";
 
@@ -153,7 +157,8 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   revenue: "Money",
   callTrackingView: "Call Tracking",
   voiceReceptionist: "Voice Receptionist",
-  intelligence: "Intelligence",
+  // wave-181.x Wave 3 · intelligence label removed (section retired) ·
+  // URL alias redirects ?tab=intelligence → "overview"
   trafficFunnel: "Traffic → Revenue",
 };
 
@@ -954,7 +959,7 @@ const VARIANT_CLASS: Record<string, string> = {
 type SectionInsightSection =
   | "customers" | "revenue" | "leads" | "campaigns" | "callTrackingView"
   | "declinedEstimates" | "noShowRisk" | "content"
-  | "intelligence" | "settings" | "trafficFunnel" | "snapDashboard";
+  | "settings" | "trafficFunnel" | "snapDashboard";
 
 export function SectionInsightStrip({ section }: { section: SectionInsightSection }) {
   const { data } = trpc.adminDashboard.sectionInsight.useQuery(

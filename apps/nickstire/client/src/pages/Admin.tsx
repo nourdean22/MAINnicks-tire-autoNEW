@@ -39,7 +39,13 @@ const RevenueSection = lazy(() => import("./admin/RevenueSection"));
 const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
 const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
-const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
+// wave-181.x Intelligence Dispersal Wave 3 (2026-05-24) · Intelligence-
+// Section retired entirely. Signals are dispersed to canonical surfaces:
+// statenour /scoreboard (Wave 1.5 · NickHealthSection) · the various
+// briefs (CustomersBrief / OutreachBrief / LeadsBrief / MoneyBrief /
+// VoiceBrief) · and pending statenour /funnel + /brain extensions for
+// the remaining signals. See docs/2026-05-24-intelligence-dispersal-plan.md.
+// const IntelligenceSection = lazy(() => import("./admin/IntelligenceSection"));
 // 2026-05-19 MONEY consolidation · DeclinedEstimatesSection +
 // SnapDashboardSection are now tabs inside RevenueSection (the "Money"
 // page). Lazy imports moved into RevenueSection.tsx. Old URLs redirect
@@ -80,7 +86,9 @@ function SectionContent({ section }: { section: AdminSection }) {
         {section === "settings" && <SettingsSection />}
         {section === "revenue" && <RevenueSection />}
         {section === "callTrackingView" && <CallTrackingSection />}
-        {section === "intelligence" && <IntelligenceSection />}
+        {/* wave-181.x Wave 3 · intelligence section retired · operator
+         * deep-links to ?tab=intelligence are redirected via TAB_ALIASES
+         * below to /scoreboard (the canonical replacement). */}
         {section === "trafficFunnel" && <TrafficFunnelSection />}
         {section === "voiceReceptionist" && <VoiceReceptionistSection />}
       </Suspense>
@@ -106,6 +114,13 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   home: "overview",
   funnel: "trafficFunnel",
   traffic: "trafficFunnel",
+
+  // wave-181.x Wave 3 (2026-05-24) · Intelligence section retired ·
+  // operator bookmarks pointing to ?tab=intelligence land on overview
+  // instead of a blank pane. Statenour /scoreboard is the canonical
+  // home for the synthesized intelligence (see docs/2026-05-24-
+  // intelligence-dispersal-plan.md).
+  intelligence: "overview",
 
   // 2026-05-06 Elon-deeper-cut · these sections were removed from the
   // sidebar but kept reachable via URL.
@@ -196,9 +211,12 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 // pre-2026-05-17 was that any unknown slug got cast to AdminSection
 // via `as`, then every `section === "..."` check returned false,
 // leaving the whole right pane empty).
+// wave-181.x Wave 3 · "intelligence" removed from VALID_SECTIONS ·
+// TAB_ALIASES redirects ?tab=intelligence to "overview" so legacy
+// bookmarks still resolve.
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
   "commandCenter", "overview", "leads", "content", "customers",
-  "campaigns", "settings", "revenue", "callTrackingView", "intelligence",
+  "campaigns", "settings", "revenue", "callTrackingView",
   "trafficFunnel", "voiceReceptionist",
 ]);
 

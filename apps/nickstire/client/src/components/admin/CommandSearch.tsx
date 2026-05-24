@@ -58,7 +58,10 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   // wave-110 — reEngagement merged into campaigns (Outreach Hub tab)
   { id: "campaigns", label: "Outreach Hub", keywords: ["campaign", "outreach", "sms", "email", "review", "follow-up", "re-engage", "winback", "dormant", "inactive"], group: "Outreach" },
   { id: "content", label: "Content & AI", keywords: ["content", "post", "social", "blog", "ai", "seo", "specials"], group: "Outreach" },
-  { id: "intelligence", label: "Intelligence", keywords: ["intelligence", "brain", "insight", "ai", "analysis"], group: "Intelligence" },
+  // wave-181.x Wave 3 · Intelligence section retired ·
+  // operator searches for "intelligence" / "brain" now route via
+  // TAB_ALIASES to overview · the canonical signals live on statenour
+  // /scoreboard + various nickstire briefs.
 
   // System (tabs inside Settings)
   { id: "settings", label: "Settings & System", keywords: ["setting", "config", "sync", "shopdriver", "health", "compliance", "integrations"], group: "System" },
