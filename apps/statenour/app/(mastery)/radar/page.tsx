@@ -33,8 +33,8 @@
  * Wave 3 statenour gap fills · housekeeping delete).
  */
 
-import { useEffect, useState } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 // master_report engine result shape · matches
 // apps/nickstire/server/services/masterIntelligence.ts EngineResult.
@@ -75,37 +75,20 @@ interface MasterReport {
 }
 
 export default function RadarPage() {
-  const [report, setReport] = useState<MasterReport | null>(null);
-  const [bridgeOk, setBridgeOk] = useState<"loading" | "ok" | "down">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/nickstire/query?q=master_report");
-        const json = await res.json();
-        if (cancelled) return;
-        const data = json?.data;
-        if (!data || data.ok !== true) {
-          setBridgeOk("down");
-          return;
-        }
-        setReport(data as MasterReport);
-        setBridgeOk("ok");
-      } catch {
-        if (!cancelled) setBridgeOk("down");
-      }
-    };
-    void load();
-    // Refresh every 5 minutes · matches /scoreboard NickHealthSection ·
-    // master_report has its own 60s internal memoize cache so 5min is
-    // realistic for fresh-but-not-thrashing.
-    const id = setInterval(load, 300_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  // 2026-05-24 · Wave X.g · migrated off the inline `let cancelled /
+  // setInterval` block onto the canonical `usePollingFetch` primitive.
+  // Hook bonuses · tab-visibility pause (no fetch while tab is hidden)
+  // · 401-bounce retry · centralized cleanup contract. The envelope
+  // unwrap (`raw.data ?? raw`) inside the hook handles the bridge's
+  // `{data,query,timestamp}` wrapping, so the hook returns the inner
+  // `{ok,...}` MasterReport directly. 5min interval matches
+  // /scoreboard NickHealthSection cadence.
+  const { data: report, loading, error } = usePollingFetch<MasterReport>(
+    "/api/nickstire/query?q=master_report",
+    { intervalMs: 300_000 },
+  );
+  const bridgeOk: "loading" | "ok" | "down" =
+    error || (report && report.ok !== true) ? "down" : loading && !report ? "loading" : "ok";
 
   if (bridgeOk === "down") {
     return (
