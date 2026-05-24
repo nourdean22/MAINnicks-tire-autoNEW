@@ -7,8 +7,11 @@
  * for closed-loop measurement (operator decides later whether to ship
  * SMS based on treatment-vs-control lift).
  *
- * Frequency · every 6h (4× daily). Each run replaces predictions for
- * the customers it picks · most recent prediction wins per customer.
+ * Frequency · hourly tier (every 2h · 12× daily). Each run replaces
+ * predictions for the customers it picks · most-recent prediction wins
+ * per customer (covered by the (customer_id, created_at DESC) index in
+ * service_affinity_predictions). MAX_PREDICTIONS_PER_RUN=50 caps the
+ * per-run cycle so it stays small + predictable.
  *
  * Per docs/2026-05-24-service-affinity-v2.md §2.3 (CLOSED LOOP layer)
  * + §5 Wave 1 / Wave 2 execution. Requires migration 0061 applied.

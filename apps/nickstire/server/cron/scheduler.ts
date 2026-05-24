@@ -976,6 +976,18 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // wave-181.x SA v2 · per-customer prediction compute · runs 4×/day
+        // and writes predictions to service_affinity_predictions with a
+        // 50/50 A/B arm split. Decoupled from SMS · the cross-sell-outreach
+        // job above (Wave 4) reads these predictions when its own flag is
+        // ON. Flag · service_affinity_v2_compute (starts DISABLED).
+        name: "service-affinity-compute",
+        handler: async () => {
+          const { processServiceAffinityCompute } = await import("./jobs/serviceAffinityCompute");
+          return processServiceAffinityCompute();
+        },
+      },
+      {
         name: "warranty-alerts",
         handler: async () => {
           const { processWarrantyAlerts } = await import("./jobs/warrantyAlerts");
