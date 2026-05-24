@@ -13,7 +13,7 @@
  * Data: trpc.vapi.todayMetrics + trpc.vapi.todayCalls + trpc.vapi.callDetails.
  * Server-side memo'd 60s; client polls every 60s.
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   PageHeader,
@@ -358,9 +358,13 @@ export default function VoiceReceptionistSection() {
   const [searchQuery, setSearchQuery] = useState("");
   const [reasonFilter, setReasonFilter] = useState<string | null>(null); // null = "all"
 
-  // Wave-91 — date range state
+  // Wave-91 — date range state.
+  // wave-181.x Voice Phase 1 · audit agent cleanup #10 · customSince
+  // defaulted to 7 days back · clicking "Custom" fresh silently
+  // double-counted with the "Last 7 days" preset. Default to TODAY
+  // so "Custom" is opt-in narrowing, not duplicate widening.
   const [rangePreset, setRangePreset] = useState<RangePreset>("today");
-  const [customSince, setCustomSince] = useState<string>(() => defaultDateString(7));
+  const [customSince, setCustomSince] = useState<string>(() => defaultDateString(0));
   const [customUntil, setCustomUntil] = useState<string>(() => defaultDateString(0));
 
   const range = rangeToISO(rangePreset, customSince, customUntil);
@@ -800,20 +804,38 @@ function TransferDestinationCard() {
     return null;
   };
 
-  const submit = () => {
+  // wave-181.x Voice Phase 1 · CRITICAL #1 fix · code-review agent
+  // caught three ungated mutations on the LIVE inbound transfer
+  // destination. Submit/usePreset/landline-reset all fire setDest
+  // immediately · operator fat-finger on a preset on a phone =
+  // calls forward to wrong number for the rest of the day = lost
+  // revenue. FollowUpTransferCard already uses confirmDialog ·
+  // copy that pattern. Shared helper · normalize once · show the
+  // normalized destination in the confirm so operator visually
+  // verifies BEFORE the mutation fires.
+  const confirmAndSetDest = async (e164: string, message?: string) => {
+    const ok = await confirmDialog({
+      title: "Change inbound transfer destination?",
+      message: `Inbound Nick AI calls will now forward to ${fmtPhone(e164)}. Live · takes effect on the next call.`,
+      confirmLabel: `Forward to ${fmtPhone(e164)}`,
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!ok) return;
+    setDest.mutate({ phoneNumber: e164, message });
+  };
+
+  const submit = async () => {
     const e164 = toE164(draftNumber);
     if (!e164) {
       toast.error("Invalid number — type a 10-digit US number (e.g. 605-691-6315)");
       return;
     }
-    setDest.mutate({
-      phoneNumber: e164,
-      message: draftMessage || undefined,
-    });
+    await confirmAndSetDest(e164, draftMessage || undefined);
   };
 
-  const usePreset = (number: string, message?: string) => {
-    setDest.mutate({ phoneNumber: number, message });
+  const usePreset = async (number: string, message?: string) => {
+    await confirmAndSetDest(number, message);
   };
 
   const handleSavePresetSubmit = () => {
@@ -1276,7 +1298,13 @@ function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string) => voi
   const { data, isLoading } = trpc.vapi.activeCallStates.useQuery(
     { maxAgeMinutes: 10 },
     {
-      refetchInterval: 5_000, // live feel · cheap query (no DB write)
+      // wave-181.x Voice Phase 1 · M4 fix · was 5_000 which is 12
+      // queries/minute · with 3 admin tabs open = 36/min for a
+      // mostly-zero-row response. activeCallStates IS a DB hit (not
+      // cached). Bumped to 15_000 · still feels live for the
+      // operator. refetchIntervalInBackground stays default (false)
+      // so the background tab doesn't fire either.
+      refetchInterval: 15_000,
       refetchOnWindowFocus: true,
     },
   );
@@ -1475,16 +1503,31 @@ function OutboundCallCard() {
               toast.error("Phone needs to be 10 or 11 digits");
               return;
             }
+            // wave-181.x Voice Phase 1 · CRITICAL #2 fix · code-review
+            // agent caught a paste-with-junk hazard. Operator could
+            // paste "(216) 862-0005" or "12168620005x" · phoneValid
+            // accepted it because the digit-strip happens for length-
+            // check only · but the un-stripped raw was shown in the
+            // confirm AND passed to the mutation. Visual mismatch
+            // between confirm and reality. Normalize to canonical
+            // E.164 ONCE before the confirm · pass the normalized
+            // value to both the confirm message AND the mutation.
+            const digits = phone.replace(/\D/g, "");
+            const normalized = digits.length === 11 && digits.startsWith("1")
+              ? `+${digits}`
+              : `+1${digits.slice(-10)}`;
             const finalName = name.trim() || "buddy";
             const ok = await confirmDialog({
-              title: `Call ${phone} as a follow-up?`,
+              title: `Call ${fmtPhone(normalized)} as a follow-up?`,
               message: `Nick will say:\n"${finalName}? ... Hope you're doing good, this is Nick from Nick's Tire and Auto, just following up after your last visit. How is everything?"`,
-              confirmLabel: "Call",
+              confirmLabel: `Call ${fmtPhone(normalized)}`,
+              cancelLabel: "Cancel",
+              tone: "danger",
             });
             if (!ok) return;
             mutation.mutate({
               customerName: finalName,
-              phone,
+              phone: normalized,
               lastService: lastService.trim() || "recent visit",
             });
           }}
@@ -1505,6 +1548,19 @@ function CallDetailsDrawer({ callId, onClose }: { callId: string; onClose: () =>
     { callId },
     { staleTime: 5 * 60_000 },
   );
+
+  // wave-181.x Voice Phase 1 · M3 fix · code-review agent caught
+  // missing Escape-key close. role="dialog" aria-modal="true" without
+  // an Escape listener is an a11y regression · also a real UX bug
+  // (operator scanning transcripts on desktop couldn't dismiss with
+  // Esc · drawer-state leaked across calls when they navigated back).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div
