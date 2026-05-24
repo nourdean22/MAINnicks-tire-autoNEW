@@ -1,6 +1,48 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-6 (post Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems are now operator-reachable · ingest-fireflies meeting transcripts now in chat recall via `CONTEXT_CATEGORIES` allowlist + `MEETING_TRANSCRIPT` constant · NEW `/api/cron/daily-strategy` writer cron registered in MORNING_JOBS + crons manifest · NEW `SelfCritiqueCard` on /brain reads `reply_to_improve` · NEW `PricingAdvisoryCard` on /scoreboard reads weekly advisory · NEW `LocationRankingCard` on /financial reads monthly ranking · NEW `/system/data-source-health` page + reader API joining persisted probe rows with thresholds · canary loop closes). On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · 4 commits · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-24 LATE-NIGHT-7 (post Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net · 3 bridge pages (`/funnel` · `/radar` · `/seo`) migrated their inline 30-40 LOC fetch loops onto the canonical `usePollingFetch` hook — tab-visibility pause + 401-bounce retry + centralized cleanup are now free for all 3 · their inline 22-LOC down + loading shells absorbed into a new `components/mastery/bridge-shell.tsx` primitive · token cleanup as a side-effect — last `text-white/40` hardcodes gone in favor of `var(--text-tertiary)`). On top of: Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems operator-reachable. On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-24 LATE-NIGHT-7 · Wave X.g · bridge-page polling refactor + shared shell · 2 ships
+>
+> The MEDIUM-RISK refactor Wave X.e deferred. Three bridge pages
+> (`/funnel` · `/radar` · `/seo`) each inlined a 30-40 LOC fetch
+> loop with the same shape · the canonical `usePollingFetch` hook
+> was created Wave 50 specifically to absorb it · these were the
+> last 3 stragglers. Plus their inline 22-LOC down/loading shells
+> got absorbed into a new shared `BridgeShell` primitive.
+>
+> **Ship 1** · `d218e9d9` · polling migration · −35 LOC
+> - **radar** · 1 fetch · single `usePollingFetch<MasterReport>`
+>   call · -30 LOC
+> - **funnel** · 2 fetches (overview required + first_visit
+>   optional) · two independent hook calls · the optional one
+>   self-isolates on failure · -25 LOC
+> - **seo** · 3 fetches (gsc_summary + gsc_top_queries +
+>   gsc_top_pages) · three independent hook calls · gsc_*
+>   handlers don't include `ok:true` in their payload so the page
+>   continues to synthesize it for type-compatibility with the
+>   existing interfaces · -50 LOC
+> - Per-page free wins · tab-visibility pause (the hook stops
+>   polling while tab is hidden) · 401-bounce retry · centralized
+>   cleanup contract.
+>
+> **Ship 2** · `20e5ee14` · BridgeShell extraction · −63 LOC
+> - NEW `components/mastery/bridge-shell.tsx` (~45 LOC) · takes
+>   `title` + `state ("loading" | "down")` and renders the
+>   canonical chrome.
+> - 3 pages collapse 22-LOC inline shells to a 1-LOC
+>   `<BridgeShell title="…" state="…" />`.
+> - Side-effect token cleanup · the inline shells were the last
+>   places hardcoding `text-white/40` + `text-white/30` instead
+>   of the design-token equivalents. Shared primitive uses
+>   `text-[var(--text-tertiary)]`.
+>
+> Net · -98 LOC across the 3 bridge pages · +1 hook adoption ·
+> +1 new shared primitive. The "33+ files inline the same fetch
+> pattern" footnote in `use-polling-fetch.ts` can now drop to 30.
+>
+> **Gates** · typecheck 0 errors · lint 0 errors / 369 baseline ·
+> vitest 185 / 2812 pass.
 
 > ## 2026-05-24 LATE-NIGHT-6 · Wave X.f · activation wave · 6 paid-for-unused subsystems → operator-reachable · 3 ships
 >
