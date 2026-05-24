@@ -1,6 +1,105 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-AFTERNOON (post Wave S + T · feature-mining waves shipping 12 wire-ups across /journal + /settings · zero new schema · all wire-ups of paid-for lib/brain helpers + AutomationPolicy fields) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 EVENING (post Wave U · /tasks 5-phase sweep · 8 defensive fixes + 4 feature wire-ups · 4 parallel agents via infinite-gratitude pattern · biggest single page audited so far at 1350 LOC) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 EVENING · Wave U · /tasks 5-phase sweep · 1 ship
+>
+> Operator's request: apply the 5-phase per-page playbook to /tasks
+> (the daily-driver · 1350 LOC). Dispatched 4 parallel agents via
+> infinite-gratitude pattern (code-reviewer + silent-failure-hunter +
+> ux-audit/frontend-design/mobile/clarity-gate + feature-mining) ·
+> 22+ findings synthesized · Pareto-filtered to 8 defensive + 4
+> feature wire-ups · shipped in one commit. clarity-gate principle
+> applied to every "VERIFIED" claim (spot-checked actual schema +
+> helper exports before building).
+>
+> **Wave U · 12 changes** · `1034df11`
+> Defensive (Phase 1-4):
+> - **(P0 silent-failure)** `loop-stream.tsx` onRowDrop · drag-to-
+>   reorder was swallowing server rejection while the hook's generic
+>   "Saved." toast fired on success · operator dragged a row, saw it
+>   move, got "Saved." on reject, then snapped back 60s later with
+>   no explanation. Now: try/catch + reportClientError + explicit
+>   "Reorder failed · snapping back" toast + immediate onReviewChange.
+> - **(P0 silent-failure)** `loop-stream.tsx` runBulk · first-rejection-
+>   aborts-rest behavior · operator selected 10, task 3 failed, tasks
+>   4-10 silently skipped. Now: per-iteration catch + accumulated
+>   failedIds + single summary toast ("7 of 10 completed · 3 failed").
+> - **(P0 ux)** `loop-stream.tsx` bulkDelete · pre-fix confirm only
+>   fired for counts > 5 · 2-5 task selections wiped silently. Now:
+>   any count ≥ 2 confirms.
+> - **(bug)** `loop-stream.tsx` domainFilter casing · `work` filter
+>   never matched `BUSINESS` tasks · alias mapping only lived in the
+>   picker, not the filter compare. Aliased both sides.
+> - **(ux-F5)** `now-operator-bar.tsx` · AnimatedCounter on 3 status
+>   counters fired on every visibility-change · plain tabular-nums
+>   spans · same fix as /journal Wave R.
+> - **(ux-F4)** `task-filters.tsx` · 3 redundant filter-state surfaces
+>   collapsed to 1 (page-level ActiveFiltersStrip is canonical).
+> - **(ux-F7)** `loop-row-item.tsx` · "+ subtask" tap collision on
+>   iPhone (3 abutting 44pt circles) · button relocated from
+>   collapsed row to expanded action panel.
+> - **(ux-F12 a11y)** `loop-stream.tsx` · section headers had
+>   aria-hidden hiding structural cues from VoiceOver · now
+>   role="heading" aria-level={3}.
+>
+> Feature wire-ups (Phase 5 · infinite-gratitude):
+> - **(#2) Capacity meter in header** · `loop-stream.tsx` · useNowSignals
+>   was already computing capacityRemainingMin + allocatedMin +
+>   overcommitted · never rendered. New one-line meter above
+>   NextMove · amber when overcommitted with "Nh Nm over" inline.
+> - **(#4) Streak-at-risk countdown chip** · `loop-row-item.tsx` ·
+>   DAILY rows with streakCount ≥ 3 enter warning window at 24h
+>   since lastCompletedAt · turn red at 30h · 6h until 36h break
+>   threshold per task-context.dailyBrokenStreaks bucket. Render-
+>   time math · no helper.
+> - **(#5) Subtask roll-up on parent row** · `loop-stream.tsx` +
+>   `loop-row-item.tsx` · existing `+N sub` chip shifts to "+N sub ·
+>   X/N" with color band (emerald 100% · gold ≥50% · zinc <50%) ·
+>   new `doneChildCountByParent` map alongside the existing total +
+>   open maps.
+>
+> **Findings flagged · NOT fixed (deferred to next wave)**
+> - Stale-closure in auto-gen AI tasks effect (page.tsx:573-587) ·
+>   deeper rewrite · localStorage key-write must move into success
+>   branch · skipped this wave for risk-limit.
+> - useDebouncedReload race condition (page.tsx:365-471 +
+>   hooks/use-debounced-reload.ts:49-67) · loadingRef short-circuits
+>   abort path · deeper rewrite.
+> - addTask double-submit guard missing (page.tsx:748-815) · iOS
+>   double-tap can create duplicates · needs submittingRef pattern.
+> - getInbox concurrent race (page.tsx:608-628) · two parallel
+>   addTask calls before inboxRef populates can create duplicate
+>   Inbox missions · cache promise instead of resolved id.
+> - Optimistic cascade flip ARCHIVED-exclusion mismatch (page.tsx:
+>   894-904).
+> - F2 sticky section headers stack/overlap on by-status sort ·
+>   CSS-expert work.
+> - F8 IntelPanel badge signalCount gating · scoreboard hidden when
+>   operator has zero overdue · badge should reflect "anything
+>   interesting in here today" not just overdue.
+> - F10 "stuck · re-frame?" chip is non-interactive · either wrap in
+>   button or drop the "?" copy.
+> - F11 pinned-band gradient vs section flat-line · 3 divider styles
+>   compete · cosmetic.
+> - 3x localStorage `catch{}` in togglePin + AI-gen gate · Safari
+>   private mode silently fails.
+> - Feature-mining candidates #1 (effort-drift chip) · #3 (ghost-nick
+>   next-step) · #6 (overdue-promise confrontation) · #7
+>   (abandonment-pattern badge) · #8 (time-of-day fit label · already
+>   half-shipped) · all M-effort · deferred to Wave V.
+>
+> **Playbook update:** the 5-phase per-page sweep template now has
+> 3 pages of evidence (P+Q on /settings · R on /journal · U on /tasks).
+> Per-page audit finding density: /settings ~9 · /journal ~22 ·
+> /tasks ~22 (with 4 parallel agents vs 3 on /journal). The 4-agent
+> pattern (separating ux-audit + code-review + silent-failure as
+> distinct lenses + feature-mining as a separate lens) is the right
+> shape going forward.
+>
+> Gates: typecheck 0 errors · lint 0 errors / 369 baseline warnings
+> (+1 from new code · all pre-existing any) · vitest 184 files /
+> 2797 tests · build OK · prod smoke 200 on 3 endpoints post-deploy.
 
 > ## 2026-05-24 LATE-AFTERNOON · Wave S + T · feature-mining · 12 wire-ups · 2 ships
 >
