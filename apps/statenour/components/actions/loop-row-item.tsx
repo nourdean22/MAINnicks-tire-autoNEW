@@ -172,6 +172,10 @@ export interface LoopRowItemProps {
    *  "+N sub" chip renders on the row so the operator sees that
    *  expanding into the child rendering exists. */
   childCount?: number | null;
+  /** 2026-05-24 · Wave U feature-mining #5 · count of DONE direct
+   *  children. Drives the "X/N done" progress fraction inside the
+   *  +N sub chip · 0 when no children are DONE yet. */
+  doneChildCount?: number;
 
   /** Per-row state booleans derived from parent Sets/IDs. */
   isCompleting: boolean;
@@ -295,6 +299,7 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
     isPinned,
     indentLevel = 0,
     childCount = null,
+    doneChildCount = 0,
     isCompleting,
     isExpanded,
     isEditing,
@@ -555,25 +560,49 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               pattern · hover-only on desktop · always-visible-44px on
               mobile. Calls onAddSubtask with the parent task so the
               page handler can pre-populate missionId. */}
-          {!task.parentTaskId && onAddSubtask && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSubtask(task);
-              }}
-              className="shrink-0 w-11 h-11 sm:w-6 sm:h-6 rounded sm:rounded-sm flex items-center justify-center text-zinc-600 hover:text-amber-400 hover:bg-zinc-800/50 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
-              title="Add subtask"
-              aria-label="Add subtask"
-            >
-              <Plus size={12} className="sm:w-3 sm:h-3" />
-            </button>
-          )}
+          {/* 2026-05-24 · Wave U ux-F7 · pre-fix the "+ subtask"
+              button was rendered in the collapsed row at w-11 h-11
+              on mobile · placed adjacent to a w-11 h-11 rename pencil
+              and a w-11 h-11 complete circle · on iPhone-14 width
+              (390px) the row right-edge had three 44pt circles
+              abutting · tap precision dropped (operator hit rename
+              when wanting subtask). Now: collapsed row keeps only
+              rename pencil + complete · "+ subtask" moves to the
+              expanded action panel (alongside edit · snooze · pin) ·
+              still discoverable but no longer collides with sibling
+              targets. Desktop hover-affordance unchanged because the
+              expansion is already 1 tap away. */}
           {kind === "DAILY" && (task.streakCount ?? 0) > 0 && (
             <span className="text-[9px] text-amber-400 font-mono shrink-0">
               🔥{task.streakCount}
             </span>
           )}
+          {/* 2026-05-24 · Wave U feature-mining #4 · streak-at-risk
+              countdown · DAILY rows with streakCount ≥ 3 enter the
+              warning window 24h after lastCompletedAt · turn red at
+              30h (6h until the 36h break threshold per
+              task-context.dailyBrokenStreaks bucket). Pure render-
+              time math · no new helper · turns a stat into an action.
+              Hidden until in-the-window so non-streak rows stay clean. */}
+          {kind === "DAILY" && (task.streakCount ?? 0) >= 3 && task.lastCompletedAt && (() => {
+            const hoursSince =
+              (Date.now() - new Date(task.lastCompletedAt).getTime()) /
+              (60 * 60 * 1000);
+            if (hoursSince < 24) return null;
+            const hoursUntilBreak = Math.max(0, Math.ceil(36 - hoursSince));
+            const critical = hoursSince >= 30;
+            return (
+              <span
+                className={cn(
+                  "text-[8px] font-mono shrink-0 uppercase tracking-wider",
+                  critical ? "text-rose-300" : "text-amber-300/80",
+                )}
+                title={`Streak at risk · ${Math.round(hoursSince)}h since last completion · breaks at 36h`}
+              >
+                {hoursUntilBreak}h until break
+              </span>
+            );
+          })()}
           {isStale && (
             <button
               type="button"
@@ -660,10 +689,20 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
               this chip never shows on a child row. */}
           {childCount !== null && childCount > 0 && (
             <span
-              title={`${childCount} subtask${childCount === 1 ? "" : "s"} below`}
-              className="text-[8px] text-zinc-500 font-mono shrink-0 px-1 rounded border border-zinc-700 bg-zinc-800/30"
+              title={`${childCount} subtask${childCount === 1 ? "" : "s"} · ${doneChildCount} done`}
+              className={cn(
+                "text-[8px] font-mono shrink-0 px-1 rounded border bg-zinc-800/30",
+                // 2026-05-24 · Wave U feature-mining #5 · color shifts
+                // emerald when 100% done · gold when 50%+ · zinc
+                // otherwise. Pure visual signal · no new affordance.
+                doneChildCount === childCount
+                  ? "border-emerald-500/40 text-emerald-300 bg-emerald-500/[0.06]"
+                  : doneChildCount >= Math.ceil(childCount / 2)
+                    ? "border-[var(--gold)]/30 text-[var(--gold)]/80 bg-[var(--gold)]/[0.04]"
+                    : "border-zinc-700 text-zinc-500",
+              )}
             >
-              +{childCount} sub
+              +{childCount} sub · {doneChildCount}/{childCount}
             </span>
           )}
           {/* Apr 26 · F5 — origin-source chip. Only renders
@@ -1191,6 +1230,21 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
                   <Edit3 size={11} />
                   edit
                 </button>
+                {/* 2026-05-24 · Wave U ux-F7 · "+ subtask" relocated
+                    from the collapsed row to here · prevents the
+                    three-44pt-circles collision on iPhone. Same Rule
+                    4 gate (top-level rows only · no sub-of-sub via
+                    UI). */}
+                {!task.parentTaskId && onAddSubtask && (
+                  <button
+                    type="button"
+                    onClick={() => onAddSubtask(task)}
+                    className="inline-flex items-center gap-1 rounded-md border border-amber-500/30 px-2 py-1 text-[10px] font-medium text-amber-300 hover:bg-amber-500/10"
+                  >
+                    <Plus size={11} />
+                    subtask
+                  </button>
+                )}
                 {/* F4 · snooze — flips the row into snooze mode. */}
                 <button
                   type="button"

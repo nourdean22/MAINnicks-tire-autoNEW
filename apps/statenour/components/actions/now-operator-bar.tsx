@@ -20,7 +20,6 @@
  * Page-scope state ALL passed in via typed props · no global state
  * reads. Mirrors the v10.0.273 ProjectCard extraction pattern.
  */
-import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { Sparkline } from "@/components/ui/sparkline";
 import { cn } from "@/lib/utils";
 import { RefreshCw, SlidersHorizontal } from "lucide-react";
@@ -140,10 +139,17 @@ export function NowOperatorBar({
             </a>
           )}
           <div className="flex items-center gap-2 mt-0.5 text-[9px] text-zinc-600 font-mono">
-            <span className="text-amber-400"><AnimatedCounter value={active.length} /></span>
+            {/* 2026-05-24 · Wave U ux-F5 · AnimatedCounter on these 3
+                status counters fired on every visibility-change /
+                event-bus refresh · ticked from 0 simultaneously for
+                zero information gain · same AI-slop class as the
+                /journal chip counts (Wave R). Plain spans with
+                tabular-nums match /settings + /journal vocabulary. */}
+            <span className="text-amber-400 tabular-nums">{active.length}</span>
             <span>open</span>
             <span className="text-zinc-800">·</span>
             <span className={cn(
+              "tabular-nums",
               // Apr 26 · F2 — afternoon-with-zero-done is a wake-up
               // signal. Color shifts red and a tiny clock anchor
               // appears so the visual lies match the number's truth.
@@ -151,7 +157,7 @@ export function NowOperatorBar({
                 ? "text-red-400"
                 : "text-emerald-400"
             )}>
-              <AnimatedCounter value={doneToday} />
+              {doneToday}
             </span>
             <span>done</span>
             {doneToday === 0 && isAfternoon && (
@@ -162,7 +168,7 @@ export function NowOperatorBar({
             {overdue > 0 && (
               <>
                 <span className="text-zinc-800">·</span>
-                <span className="text-red-400"><AnimatedCounter value={overdue} /></span>
+                <span className="text-red-400 tabular-nums">{overdue}</span>
                 <span>late</span>
               </>
             )}
