@@ -14,8 +14,9 @@
  *     the page filter UI can also import TYPE_META without circular
  *     reference back through this file
  */
+import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ChevronRight, Link2, NotebookPen } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, Link2, NotebookPen, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   SOURCE_ICON,
@@ -23,6 +24,8 @@ import {
   type FeedEntry,
   type TypeKey,
 } from "@/components/journal/types";
+import { trpc } from "@/lib/trpc/client";
+import { toast } from "sonner";
 
 interface JournalEntryRowProps {
   entry: FeedEntry;
@@ -173,6 +176,25 @@ export function JournalEntryRow({
               confidence {Math.round(entry.confidence * 100)}%
             </p>
           )}
+
+          {/* 2026-05-24 · Wave S #1 · Margin contradictions on
+              brain-dump entries · queries contradictionsForEntry only
+              when expanded (lazy · saves the round-trip when operator
+              just scans the feed). Silent when no contradictions
+              found · matches the existing "silent unless signal"
+              page-level convention. */}
+          {entry.source === "dump" && (
+            <EntryContradictions brainMemoryId={entry.id} />
+          )}
+
+          {/* 2026-05-24 · Wave S #2 · Prediction-line on decision
+              entries · captures "you predict X by Y" so the existing
+              predictions-grader cron can resolve it later. Persists
+              into the existing Prediction model · no schema changes ·
+              feeds the Brier score + calibration pipeline. */}
+          {entry.entryType === "decision" && (
+            <EntryPredictionForm sourceEntryId={entry.id} />
+          )}
           {/* v10.0.30 — "needs acknowledgment" indicator gated behind
               an env feature flag. Pre-v10.0.30 it always rendered
               but pointed at /api/journal/:id/ack which doesn't exist
@@ -188,6 +210,143 @@ export function JournalEntryRow({
             )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Wave S #1 · per-entry contradictions (2026-05-24).
+ *
+ * Lazy-fetches contradictions tied to a brain-dump's underlying
+ * BrainMemory id. Renders only when results exist · operator sees
+ * "⚠ 2 contradictions" with each on a row that shows the conflicting
+ * excerpt + days-apart. No mutation here — resolving lives in the
+ * MemoryCalibration ritual which the operator opens separately.
+ */
+function EntryContradictions({ brainMemoryId }: { brainMemoryId: string }) {
+  const { data } = trpc.journal.contradictionsForEntry.useQuery(
+    { brainMemoryId },
+    { refetchOnWindowFocus: false, staleTime: 5 * 60 * 1000 },
+  );
+  if (!data || data.length === 0) return null;
+  return (
+    <div className="space-y-1.5 rounded-md border border-amber-500/20 bg-amber-500/[0.03] p-2">
+      <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-amber-300">
+        <AlertTriangle size={9} aria-hidden /> {data.length}{" "}
+        contradiction{data.length === 1 ? "" : "s"}
+      </p>
+      <ul className="space-y-1">
+        {data.map((c) => (
+          <li
+            key={c.key}
+            className="text-[10px] leading-snug text-[var(--text-secondary)]"
+          >
+            <span className="font-mono text-amber-400/60 mr-1">
+              {c.signal}
+            </span>
+            <span className="italic">&ldquo;{c.excerpt.slice(0, 140)}&rdquo;</span>
+            <span className="ml-1 font-mono text-[var(--text-tertiary)]">
+              · {c.daysApart}d apart
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Wave S #2 · per-entry prediction-line (2026-05-24).
+ *
+ * Decision-class entries get a small "predict outcome" button. Click
+ * reveals a one-line form (prediction text + target date). Submit
+ * writes to the existing Prediction model with kind="binary"·
+ * predictions-grader cron resolves it once the date passes. The
+ * sourceEntryId is stored in `basis` so the entry → prediction link
+ * is traceable.
+ */
+function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [date, setDate] = useState("");
+  const [saved, setSaved] = useState(false);
+  const mutation = trpc.journal.savePrediction.useMutation();
+  if (saved) {
+    return (
+      <p className="flex items-center gap-1 text-[10px] text-emerald-300">
+        <Target size={10} aria-hidden /> prediction saved · grader will score
+        on {date}
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-1 rounded border border-violet-500/30 bg-violet-500/[0.05] px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-violet-300 hover:bg-violet-500/15 transition-colors"
+      >
+        <Target size={10} aria-hidden /> predict outcome
+      </button>
+    );
+  }
+  // Default to 30 days out · most decisions resolve within a month.
+  const defaultDate = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  })();
+  return (
+    <div className="space-y-1.5 rounded-md border border-violet-500/30 bg-violet-500/[0.04] p-2">
+      <p className="text-[9px] font-bold uppercase tracking-wider text-violet-300">
+        Predict outcome
+      </p>
+      <input
+        type="text"
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder="What will happen by the target date?"
+        className="w-full rounded border border-violet-500/30 bg-[var(--bg-void)] px-2 py-1 text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]"
+        maxLength={500}
+      />
+      <div className="flex items-center gap-2">
+        <input
+          type="date"
+          value={date || defaultDate}
+          onChange={(e) => setDate(e.target.value)}
+          className="rounded border border-violet-500/30 bg-[var(--bg-void)] px-2 py-1 text-[10px] font-mono text-[var(--text-secondary)]"
+        />
+        <button
+          type="button"
+          disabled={!text.trim() || mutation.isPending}
+          onClick={async () => {
+            const result = await mutation.mutateAsync({
+              prediction: text.trim(),
+              targetDate: date || defaultDate,
+              sourceEntryId,
+            });
+            if (result.ok) {
+              setSaved(true);
+            } else {
+              toast.error("couldn't save prediction · retry?");
+            }
+          }}
+          className="rounded border border-violet-500/40 bg-violet-500/15 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-violet-200 hover:bg-violet-500/25 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {mutation.isPending ? "saving…" : "save"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setText("");
+          }}
+          className="rounded border border-zinc-700 px-2 py-1 text-[10px] font-mono uppercase tracking-wider text-zinc-400 hover:bg-zinc-800/40 transition-colors"
+        >
+          cancel
+        </button>
+      </div>
     </div>
   );
 }

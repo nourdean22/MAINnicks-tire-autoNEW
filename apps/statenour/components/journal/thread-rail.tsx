@@ -254,6 +254,21 @@ function ThreadCard({
     return `${Math.floor(days / 30)}mo ago`;
   }, [thread.lastJoinAt, thread.namedAt]);
 
+  // 2026-05-24 · Wave S #6 · Drift pin. Active threads with 14+ days
+  // since the last join are visually marked as drifting · gives the
+  // operator a soft signal to either revive the thread or let it
+  // formally go dormant. Cron-managed dormancy still happens at 30d
+  // (see /system/policies · "convergence-thread-dormancy") · this is
+  // the warning that triggers before that hard transition.
+  const driftDays = useMemo(() => {
+    if (thread.status !== "active") return null;
+    const ref = thread.lastJoinAt
+      ? new Date(thread.lastJoinAt)
+      : new Date(thread.namedAt);
+    const days = Math.floor((Date.now() - ref.getTime()) / 86_400_000);
+    return days >= 14 ? days : null;
+  }, [thread.status, thread.lastJoinAt, thread.namedAt]);
+
   return (
     <li className="rounded-lg border border-white/10 bg-white/[0.02] transition hover:bg-white/[0.04]">
       <button
@@ -269,6 +284,13 @@ function ThreadCard({
             {thread.status === "dormant" ? (
               <span className="text-[10px] uppercase tracking-wider text-white/40 border border-white/15 rounded px-1.5 py-0.5">
                 dormant
+              </span>
+            ) : driftDays !== null ? (
+              <span
+                className="text-[10px] uppercase tracking-wider text-amber-300/80 border border-amber-500/30 rounded px-1.5 py-0.5 bg-amber-500/[0.06]"
+                title={`No activity in ${driftDays} days · revive or let drift to dormant`}
+              >
+                drifting · {driftDays}d
               </span>
             ) : null}
           </div>

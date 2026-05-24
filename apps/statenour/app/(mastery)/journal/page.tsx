@@ -385,6 +385,19 @@ function JournalPageInner() {
         ]}
       />
 
+      {/* 2026-05-24 · Wave S #7 · Learning-velocity ticker. Wires the
+          existing measureLearningVelocity() helper (already computes
+          for /brain) to a one-line surface above the feed. Silent on
+          fetch failure · silent when both deltas are zero (avoids
+          "0 entries · 0 new" noise on a fresh week). */}
+      <LearningVelocityTicker />
+
+      {/* 2026-05-24 · Wave S #5 · Weekly memoir block. Surfaces the
+          last 7 days of distilled wisdom / belief promotions from the
+          existing wisdom-distiller cron · top 3 only · silent when
+          fewer than 2 items (operator doesn't need a memoir of zero). */}
+      <WeeklyMemoirBlock />
+
       {/* Phase D · ADR-0013 · pattern-radar
           ThreadRadar shows convergence candidates the nightly cron
           detected · silent when none. ThreadRail shows pinned active
@@ -397,6 +410,15 @@ function JournalPageInner() {
         refreshSignal={threadRefresh}
         onActioned={() => setThreadRefresh((n) => n + 1)}
       />
+
+      {/* 2026-05-24 · Wave S #3 + #6 · Brain signals chip · overall
+          emotional trajectory + drift composite. Pulls from
+          analyzeEmotionalArc + computeDriftScore via one combined
+          procedure. Renders as a slim row · silent when both helpers
+          fail or both signals are dormant. Sits above the
+          metacognition card because it's a "right now" pulse and the
+          metacognition card is "last night's verdict." */}
+      <BrainSignalsChip />
 
       {/* v10.0.529.24 · METACOGNITION CARD — Nick's nightly self-
           assessment of his own brain, computed by the evening cron and
@@ -809,6 +831,196 @@ function FilterChipRow<K extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Wave S · feature-mining wire-ups · 2026-05-24
+// ═══════════════════════════════════════════════════════════════════════
+//
+// Two inline components consuming the new journal-router procedures.
+// Both are silent-by-default per kaizen · only render when there's
+// signal worth surfacing. Extracted from the page body so the main
+// component stays scannable.
+
+/**
+ * Wave S #7 · Learning-velocity ticker.
+ *
+ * Single line above the feed · gives the operator at-a-glance whether
+ * the week is generative or just busy. Reads measureLearningVelocity
+ * via tRPC · returns null on fetch failure or zero-signal week.
+ */
+function LearningVelocityTicker() {
+  const { data } = trpc.journal.learningVelocity.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data) return null;
+  // Silent when truly nothing happened this week · "0 entries · 0 new"
+  // would just be noise. Threshold is intentionally low (any of the
+  // three counters non-zero qualifies).
+  const hasSignal =
+    data.memoriesThisWeek > 0 ||
+    data.newConnections > 0 ||
+    data.contradictionsResolved > 0 ||
+    data.wisdomPromotions > 0;
+  if (!hasSignal) return null;
+  const deltaSign = data.memoriesDelta > 0 ? "+" : "";
+  return (
+    <div className="flex items-center gap-3 text-[10px] font-mono text-[var(--text-tertiary)] py-1">
+      <span className="font-bold uppercase tracking-[0.18em] text-[var(--text-secondary)]">
+        velocity
+      </span>
+      <span className="tabular-nums">
+        {data.memoriesThisWeek} entries this week
+        {data.memoriesDelta !== 0 && (
+          <span
+            className={cn(
+              "ml-1",
+              data.memoriesDelta > 0 ? "text-emerald-400/80" : "text-rose-400/70",
+            )}
+          >
+            ({deltaSign}{data.memoriesDelta} vs last)
+          </span>
+        )}
+      </span>
+      {data.newConnections > 0 && (
+        <span className="tabular-nums">· {data.newConnections} new connections</span>
+      )}
+      {data.contradictionsResolved > 0 && (
+        <span className="tabular-nums">· {data.contradictionsResolved} beliefs revised</span>
+      )}
+      {data.wisdomPromotions > 0 && (
+        <span className="tabular-nums">· {data.wisdomPromotions} wisdom</span>
+      )}
+      <span className="ml-auto text-[var(--text-tertiary)]/60">
+        brain {data.healthScore}/100
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Wave S #3 + #6 · Brain signals chip.
+ *
+ * Slim row showing the operator's emotional trajectory + drift
+ * composite. Covers two feature-mining candidates with one read.
+ * Silent when both signals are dormant.
+ */
+function BrainSignalsChip() {
+  const { data } = trpc.journal.brainSignals.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  if (!data) return null;
+  const { emotionalArc: arc, drift } = data;
+  if (!arc && !drift) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--border-default)] bg-[var(--bg-void)]/40 px-3 py-2 text-[10px]">
+      <span className="font-bold uppercase tracking-[0.22em] text-[var(--text-tertiary)]">
+        right now
+      </span>
+      {arc && (
+        <>
+          <span className="font-mono">
+            <span className="text-[var(--text-tertiary)]">trajectory ·</span>{" "}
+            <span
+              className={cn(
+                "font-medium",
+                arc.trajectory === "rising" && "text-emerald-300",
+                arc.trajectory === "falling" && "text-rose-300",
+                arc.trajectory === "volatile" && "text-amber-300",
+                arc.trajectory === "stable" && "text-[var(--text-secondary)]",
+              )}
+            >
+              {arc.trajectory}
+            </span>
+          </span>
+          {arc.dominantState && (
+            <span className="font-mono text-[var(--text-secondary)]">
+              · {arc.dominantState.toLowerCase()}
+            </span>
+          )}
+          {arc.stressDays > 0 && (
+            <span className="font-mono text-amber-400/70">
+              · {arc.stressDays} stress day{arc.stressDays === 1 ? "" : "s"}/7
+            </span>
+          )}
+        </>
+      )}
+      {drift && (
+        <>
+          <span className="font-mono">
+            <span className="text-[var(--text-tertiary)]">drift ·</span>{" "}
+            <span
+              className={cn(
+                "font-medium tabular-nums",
+                drift.overallScore < 3 && "text-emerald-300",
+                drift.overallScore >= 3 && drift.overallScore < 6 && "text-amber-300",
+                drift.overallScore >= 6 && "text-rose-300",
+              )}
+            >
+              {drift.overallScore.toFixed(1)}/10
+            </span>
+          </span>
+          {drift.topConcern && (
+            <span
+              className="font-mono text-[var(--text-secondary)] truncate max-w-[200px]"
+              title={drift.topConcern}
+            >
+              · {drift.topConcern}
+            </span>
+          )}
+        </>
+      )}
+      {arc?.intervention && (
+        <span
+          className="ml-auto truncate max-w-[280px] text-[var(--gold)]/70 italic"
+          title={arc.intervention}
+        >
+          → {arc.intervention.slice(0, 60)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Wave S #5 · Weekly memoir block.
+ *
+ * Top 3 distilled wisdom / belief items from the last 7 days. The
+ * nightly wisdom-distiller already produces these · this surface just
+ * makes them visible without going to /brain. Silent when fewer than
+ * 2 items (a 1-item "memoir" is just a row, not a memoir).
+ */
+function WeeklyMemoirBlock() {
+  const { data } = trpc.journal.weeklyMemoirItems.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 30 * 60 * 1000,
+  });
+  if (!data || data.length < 2) return null;
+  return (
+    <div className="rounded-xl border border-[var(--gold)]/15 bg-[var(--gold)]/[0.02] p-3 space-y-1.5">
+      <div className="flex items-center gap-2">
+        <span className="text-[9px] font-bold uppercase tracking-[0.22em] text-[var(--gold)]/70">
+          this week
+        </span>
+        <span className="text-[10px] text-[var(--text-tertiary)]">
+          · distilled from your last 7 days
+        </span>
+      </div>
+      <ul className="space-y-1">
+        {data.map((item) => (
+          <li
+            key={item.id}
+            className="text-[11.5px] leading-relaxed text-[var(--text-primary)]"
+          >
+            <span className="text-[var(--gold)]/40 mr-1.5">·</span>
+            {item.text}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -37,6 +37,19 @@ import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
 import { buildJournalFeed } from "@/lib/services/journal-feed";
 import { getLatestLearningJournalEntry } from "@/lib/brain/learning-journal";
+// 2026-05-24 · Wave S · feature-mining wire-ups · 7 new procedures
+// surface existing lib/brain/* helpers on /journal. The helpers were
+// all paid-for · just not connected to the operator's eye.
+import { measureLearningVelocity } from "@/lib/brain/learning-velocity";
+import { getGhostPredictions } from "@/lib/brain/ghost-nick";
+import { loadRecentContradictions } from "@/lib/brain/contradiction-surfacer";
+import { analyzeEmotionalArc } from "@/lib/brain/emotional-arc";
+import { computeDriftScore } from "@/lib/brain/drift-detector";
+import { logger as rootLogger } from "@/lib/logger";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+
+const log = rootLogger.withSurface("trpc/journal");
 import {
   acceptThreadSuggestion,
   confirmCandidate,
@@ -288,6 +301,252 @@ export const journalRouter = router({
           });
         }
         throw err;
+      }
+    }),
+
+  // 2026-05-24 · Wave S · feature-mining wire-ups (7 procedures · one
+  // per /journal feature the operator can't currently see). Each
+  // wraps an existing lib/brain/* helper with a degradation fallback
+  // so the journal page never hard-fails on a brain-helper error.
+
+  /**
+   * Wave S #7 · Learning-velocity ticker.
+   *
+   * Renders "12 entries this week · 3 new domains · 2 beliefs revised"
+   * as a one-liner above the feed. Delegates to measureLearningVelocity
+   * which already produces this shape for /brain. Single read, no
+   * mutations · cached for the page session.
+   */
+  learningVelocity: operatorProcedure.query(async () => {
+    try {
+      const v = await measureLearningVelocity();
+      return {
+        memoriesThisWeek: v.memoriesCreated.thisWeek,
+        memoriesDelta: v.memoriesCreated.delta,
+        newConnections: v.connections.new,
+        contradictionsResolved: v.contradictions.resolved,
+        wisdomPromotions: v.wisdomPromotions.recent,
+        healthScore: v.healthScore,
+        overallGrowth: v.overallGrowth,
+      };
+    } catch (err) {
+      log.warn("learning_velocity_failed", { error: sanitizeError(err) });
+      return null;
+    }
+  }),
+
+  /**
+   * Wave S #4 · Ghost counter-question.
+   *
+   * ReflectComposer promises "one counter-question to push Nour's
+   * reasoning" in its docstring (line 17). This wires the promise to
+   * the existing ghost-nick helper · picks the most-recent prediction
+   * whose `basis` field reads as a probing question. Falls back to
+   * null when ghost-nick has nothing to say · composer skips the slot.
+   */
+  ghostCounterQuestion: operatorProcedure.query(async () => {
+    try {
+      const bundle = await getGhostPredictions();
+      if (!bundle || !bundle.predictions || bundle.predictions.length === 0) {
+        return null;
+      }
+      // Pick the highest-confidence non-dismissed prediction that
+      // frames a tension · re-shape its title as a question. One line ·
+      // operator can ignore. ghost-nick.GhostPrediction stores the
+      // task title (not a prediction string) · the basis is in
+      // signals[] (what drove the pick).
+      const top = bundle.predictions
+        .filter((p) => !p.dismissed)
+        .slice()
+        .sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0];
+      if (!top) return null;
+      const titleClipped = top.title.slice(0, 120);
+      return {
+        question: `Past-Nour predicted you'd work on "${titleClipped}" today · did you?`,
+        basis: top.signals?.slice(0, 2).join(" · ") ?? null,
+        confidence: top.confidence,
+      };
+    } catch (err) {
+      log.warn("ghost_counter_question_failed", { error: sanitizeError(err) });
+      return null;
+    }
+  }),
+
+  /**
+   * Wave S #1 · Contradictions for a specific entry.
+   *
+   * The brainMemoryId is the FeedEntry.id when the entry is a
+   * BrainDump (the page's natural granularity). Returns up to 3
+   * contradictions tied to entries within ~30d of the target ·
+   * matches the operator's natural recall window.
+   */
+  contradictionsForEntry: operatorProcedure
+    .input(z.object({ brainMemoryId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      try {
+        // Second arg is includeResolved boolean · default false (only
+        // unresolved). Loader caps at 40 rows internally · ample for
+        // the 30d window we hit here.
+        const all = await loadRecentContradictions(30, false);
+        const related = all
+          .filter(
+            (c) =>
+              c.new_memory_id === input.brainMemoryId ||
+              c.old_memory_id === input.brainMemoryId,
+          )
+          .slice(0, 3);
+        return related.map((c) => ({
+          key: c.key,
+          otherId:
+            c.new_memory_id === input.brainMemoryId
+              ? c.old_memory_id
+              : c.new_memory_id,
+          signal: c.signal,
+          excerpt:
+            c.new_memory_id === input.brainMemoryId
+              ? c.old_excerpt
+              : c.new_excerpt,
+          status: c.status,
+          daysApart: c.days_apart,
+        }));
+      } catch (err) {
+        log.warn("contradictions_for_entry_failed", {
+          error: sanitizeError(err),
+        });
+        return [];
+      }
+    }),
+
+  /**
+   * Wave S #6 + #3 · Thread drift + emotional arc signals.
+   *
+   * Combined into one read because both surface on the ThreadRail
+   * and react-query already keys by no-args here. The arc is
+   * overall-session (analyzeEmotionalArc is whole-history) · the
+   * drift result includes per-domain decay. Both fall back to null
+   * on helper failure (silent · the rail handles null gracefully).
+   */
+  brainSignals: operatorProcedure.query(async () => {
+    try {
+      const [arc, drift] = await Promise.all([
+        analyzeEmotionalArc().catch(() => null),
+        computeDriftScore().catch(() => null),
+      ]);
+      return {
+        emotionalArc: arc
+          ? {
+              trajectory: arc.trajectory,
+              energyTrend: arc.energyTrend,
+              dominantState: arc.dominantState,
+              volatility: arc.volatilityScore,
+              stressDays: arc.stressDays,
+              intervention: arc.interventionRecommendation,
+            }
+          : null,
+        drift: drift
+          ? {
+              overallScore: drift.overallScore,
+              topConcern: drift.topConcern,
+              topSignals: drift.signals
+                .slice()
+                .sort((a, b) => b.score * b.weight - a.score * a.weight)
+                .slice(0, 3)
+                .map((s) => ({
+                  source: s.source,
+                  label: s.label,
+                  score: s.score,
+                  detail: s.detail,
+                })),
+            }
+          : null,
+      };
+    } catch (err) {
+      log.warn("brain_signals_failed", { error: sanitizeError(err) });
+      return null;
+    }
+  }),
+
+  /**
+   * Wave S #5 · Weekly memoir items.
+   *
+   * Returns the top 3 BrainMemory rows from category WISDOM or
+   * BELIEF with createdAt in the last 7 days · these are the
+   * distilled outputs from the nightly wisdom-distiller cron.
+   * Surfaced as a small block above the feed when the operator
+   * filters to "last 7 days." Silent when fewer than 3 items.
+   */
+  weeklyMemoirItems: operatorProcedure.query(async () => {
+    try {
+      const { prisma } = await import("@/lib/prisma");
+      const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const items = await prisma.brainMemory.findMany({
+        where: {
+          deletedAt: null,
+          createdAt: { gte: since },
+          category: { in: [BRAIN_CATEGORIES.WISDOM, BRAIN_CATEGORIES.BELIEF] },
+        },
+        select: { id: true, key: true, content: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      });
+      return items.map((m) => ({
+        id: m.id,
+        text:
+          typeof m.content === "string"
+            ? m.content.slice(0, 200)
+            : String(m.content).slice(0, 200),
+        createdAt: m.createdAt.toISOString(),
+      }));
+    } catch (err) {
+      log.warn("weekly_memoir_failed", { error: sanitizeError(err) });
+      return [];
+    }
+  }),
+
+  /**
+   * Wave S #2 · Save prediction tied to a decision entry.
+   *
+   * Lightweight write into the existing Prediction model · the
+   * journal-entry-row exposes a 1-line form on decision-class
+   * entries · operator types prediction text + target date · this
+   * persists. The existing predictions-grader cron grades it once
+   * the target date passes · no new infra needed.
+   */
+  savePrediction: operatorProcedure
+    .input(
+      z.object({
+        prediction: z.string().min(3).max(500),
+        targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        confidence: z.number().min(0).max(1).default(0.6),
+        sourceEntryId: z.string().max(64).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      try {
+        const { prisma } = await import("@/lib/prisma");
+        const today = new Date().toISOString().slice(0, 10);
+        const row = await prisma.prediction.create({
+          data: {
+            date: today,
+            targetDate: input.targetDate,
+            category: "behavior",
+            prediction: input.prediction,
+            basis: input.sourceEntryId
+              ? `journal-entry:${input.sourceEntryId}`
+              : "operator-typed",
+            confidence: input.confidence,
+            status: "pending",
+            kind: "binary",
+          },
+          select: { id: true, status: true, targetDate: true },
+        });
+        return { ok: true as const, id: row.id, targetDate: row.targetDate };
+      } catch (err) {
+        log.error("save_prediction_failed", {
+          input,
+          error: sanitizeError(err),
+        });
+        return { ok: false as const, error: "save_prediction_failed" };
       }
     }),
 });

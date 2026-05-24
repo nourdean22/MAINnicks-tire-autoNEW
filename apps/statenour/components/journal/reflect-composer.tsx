@@ -336,6 +336,15 @@ export function ReflectComposer() {
         </div>
       </div>
 
+      {/* 2026-05-24 · Wave S #4 · Ghost counter-question. The composer
+          docstring (line 17) has long promised "ONE counter-question to
+          push Nour's reasoning" but nothing was wired · this surfaces
+          ghost-nick's highest-confidence prediction reshaped as a
+          question. Silent when ghost-nick has nothing to say. Dismiss
+          via the × is intentionally local-only (no need to persist
+          dismissals · the prediction set rotates daily). */}
+      <GhostCounterQuestionInline />
+
       {/* Fields */}
       <div className="space-y-1.5">
         {tmpl.fields.map((f) => (
@@ -504,5 +513,46 @@ export function ReflectComposer() {
       {/* Memory calibration ritual — expands after memory-check click */}
       {showCalibration && <MemoryCalibrationRitual onClose={() => setShowCalibration(false)} />}
     </section>
+  );
+}
+
+/**
+ * Wave S #4 · Ghost counter-question (2026-05-24).
+ *
+ * Wires `journal.ghostCounterQuestion` (which delegates to ghost-nick)
+ * into a slim prompt below the composer header. Honors the docstring
+ * promise. Silent on null · self-dismissable. The dismissal is local
+ * state only because the prediction set rotates daily · re-displaying
+ * a fresh question tomorrow is the design.
+ */
+function GhostCounterQuestionInline() {
+  const { data } = trpc.journal.ghostCounterQuestion.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: 15 * 60 * 1000,
+  });
+  const [dismissed, setDismissed] = useState(false);
+  if (!data || dismissed) return null;
+  return (
+    <div className="flex items-start gap-2 rounded-md border border-violet-500/25 bg-violet-500/[0.04] px-2.5 py-2 text-[11px]">
+      <Eye size={11} className="mt-0.5 shrink-0 text-violet-400/70" aria-hidden />
+      <div className="flex-1 min-w-0">
+        <p className="text-violet-100/90 leading-snug">
+          {data.question}
+        </p>
+        {data.basis && (
+          <p className="text-[9px] text-violet-300/50 mt-0.5 font-mono truncate">
+            ghost · {data.basis}
+          </p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss counter-question"
+        className="shrink-0 text-[var(--text-tertiary)] hover:text-violet-300 transition-colors"
+      >
+        <XIcon size={11} />
+      </button>
+    </div>
   );
 }
