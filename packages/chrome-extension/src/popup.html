@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Brain dump</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="mark" aria-hidden>N</span>
+      <span class="title">Brain dump</span>
+      <span class="hint" id="ctx-hint" title="Current tab"></span>
+    </header>
+    <textarea
+      id="content"
+      autofocus
+      placeholder="What just happened. A thought. A pattern. A snippet. Cmd+Enter to save."
+      rows="6"
+    ></textarea>
+    <footer>
+      <span id="status" class="status"></span>
+      <div class="actions">
+        <button id="cancel" class="ghost">Cancel</button>
+        <button id="save" class="primary">Save (⌘↵)</button>
+      </div>
+    </footer>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

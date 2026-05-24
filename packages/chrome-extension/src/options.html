@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Statenour · Options</title>
+    <link rel="stylesheet" href="popup.css" />
+    <style>
+      body { width: 480px; }
+      label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-secondary);
+        margin-bottom: 4px;
+      }
+      input[type="text"], input[type="password"] {
+        width: 100%;
+        background: var(--bg-base);
+        color: var(--text-primary);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 8px 10px;
+        font-family: inherit;
+        font-size: 13px;
+        outline: none;
+      }
+      input:focus { border-color: var(--border-hover); }
+      .row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+      .footnote { color: var(--text-tertiary); font-size: 11px; }
+      .footnote a { color: var(--gold); text-decoration: none; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <span class="mark" aria-hidden>N</span>
+      <span class="title">Statenour brain-capture · options</span>
+    </header>
+
+    <div class="row">
+      <label for="apiBase">API base URL</label>
+      <input id="apiBase" type="text" placeholder="https://statenour-web-production.up.railway.app" />
+    </div>
+
+    <div class="row">
+      <label for="token">Personal API token</label>
+      <input id="token" type="password" placeholder="sn_…" />
+      <p class="footnote">
+        Get one from
+        <a id="open-tokens-link" href="#" target="_blank" rel="noopener">/system/api-tokens</a>.
+        Stored in chrome.storage.local (this machine only · NOT synced).
+      </p>
+    </div>
+
+    <footer>
+      <span id="status" class="status"></span>
+      <div class="actions">
+        <button id="save" class="primary">Save</button>
+      </div>
+    </footer>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

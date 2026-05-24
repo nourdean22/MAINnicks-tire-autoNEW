@@ -102,6 +102,8 @@ import { buildJudgeCalibration } from "@/lib/services/judge-calibration";
 // hit rates from suggestion-loop rows now stamped with the
 // operator-state snapshot.
 import { buildStateCalibration } from "@/lib/services/state-calibration";
+// P4 · Chrome extension · personal API tokens · issue / list / revoke.
+import { issueToken, listTokens, revokeToken } from "@/lib/auth/extension-token";
 // scattered-components REST→tRPC slice (2026-05-22) · shared functions
 // the migrated components/{ultron/today,hud,ui}/* surfaces delegate to
 // for their /api/{drift,auth/expires,errors} calls. Each is also called
@@ -2487,5 +2489,24 @@ export const systemRouter = router({
     .input(z.object({ sinceDays: z.number().int().min(1).max(365).optional() }).optional())
     .query(async ({ input }) => {
       return buildStateCalibration({ sinceDays: input?.sinceDays });
+    }),
+
+  /**
+   * P4 · Chrome extension · personal API token CRUD. Operator-only.
+   * Tokens are sha256-hashed at rest · the RAW token is returned ONCE
+   * on issue (UI must display + offer copy) and never re-readable.
+   */
+  apiTokensList: operatorProcedure.query(async () => {
+    return listTokens();
+  }),
+  apiTokensIssue: operatorProcedure
+    .input(z.object({ label: z.string().min(1).max(64), scope: z.string().max(64).optional() }))
+    .mutation(async ({ input }) => {
+      return issueToken(input);
+    }),
+  apiTokensRevoke: operatorProcedure
+    .input(z.object({ id: z.string().min(1) }))
+    .mutation(async ({ input }) => {
+      return revokeToken(input.id);
     }),
 });

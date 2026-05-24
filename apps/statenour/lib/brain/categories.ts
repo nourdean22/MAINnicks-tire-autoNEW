@@ -294,6 +294,13 @@ export const BRAIN_CATEGORIES = {
    *  to SystemMetric (prompt.shadow.judge_score_delta). Decouples
    *  judging latency from chat path. Idempotent · keyed by message id. */
   PROMPT_SHADOW_JUDGE_QUEUE: "prompt_shadow_judge_queue",
+  /** 2026-05-23 · P4 · long-lived API tokens for the Chrome extension
+   *  + future scripts. Content holds a sha256 of the token (raw
+   *  token shown ONCE on issue · never re-readable). key = nanoid
+   *  label. metadata: { label, createdAt, lastUsedAt, scope }.
+   *  Revoked = deletedAt set. Future: dedicated ApiToken table when
+   *  scope/quotas need real columns. */
+  API_TOKEN: "api_token",
 
   // ── WAVE-200 (2026-05-17) ──
   /** Wave-200 Phase 5 · daily operator brief composer output. Indexed

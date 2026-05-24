@@ -2,7 +2,7 @@
 
 > **Purpose:** any AI agent (Claude, Codex, Antigravity, Gemini, Cursor, etc.) opening this repo reads this file FIRST. It tells you where we are, how we work, what the active backlog is, and the canonical sources of truth. Refresh this file whenever a wave of work lands so the next session resumes cleanly.
 >
-> **Last refreshed:** 2026-05-23 NIGHT · post overnight M1 wave (Q2 prompt-v2 shadow queue · Wave H M1 Closed-Loop Calibrated Brain · OSS `@statenour/lenses` workspace · Wave F schema applied to prod Neon · ADR-0020). On top of: LeCun-lens consolidation (5.3 / 5.4 / 5.5 / 5.6 · ADR-0019) · Wave A iOS PWA fixes · Wave B brain dead-lane + cost recapture · Wave C recall metric · Wave D CoALA coverage · Wave E lens dedup · Wave G dev velocity. Monorepo branch `main`. **Tests:** 2768 across 181 vitest files. **Prod schema:** 30 migrations applied (Wave F landed).
+> **Last refreshed:** 2026-05-23 NIGHT (P1-P5 follow-up) · post P-wave shipping (P1 voice migration applied · P2 OSS Phase 2 rewire complete · P3 page-insight first operator-state opt-in · P4 Chrome extension MVP + API tokens surface · P5 @statenour/lenses publish-ready). On top of: overnight M1 wave (Q2 + Wave H + OSS workspace + Wave F + ADR-0020). LeCun-lens consolidation (5.3/5.4/5.5/5.6 · ADR-0019). Waves A-G. Monorepo branch `main`. **Tests:** 2768 across 181 vitest files. **Prod schema:** 31 migrations applied (voice_latency_events now exists).
 
 ---
 
@@ -109,8 +109,8 @@ Detection regex lives in [`lib/ai/chat/action-claim-detector.ts`](lib/ai/chat/ac
 
 ## 5 · Active backlog (priority order · updated 2026-05-23 EVE)
 
-1. **Pick the first AI surface to opt into operator-state** — substrate landed in slices 5.3/5.4 (ADR-0019). The /system/calibration grid (ADR-0020 · Wave H · M1) will inform this choice once data accumulates. Candidates: daily morning brief · `/api/ai/page-insight` · NickSuggestions chip generator. Chat path off-limits. **Owner: operator-side call.**
-1c. **Phase 2 OSS extraction · statenour → `@statenour/lenses`** — packages/lenses/ workspace exists at v0.1.0 (ADR-0020). Statenour still imports its own copy at `lib/ai/strategic-frameworks/`. ~30 LOC import rewire + delete inline copy · 1h.
+1. ~~Pick the first AI surface to opt into operator-state~~ · **SHIPPED P3** · /api/ai/page-insight now injects formatOperatorStateBlock when confidence > 0. Future surfaces can copy the same pattern.
+1c. ~~Phase 2 OSS extraction~~ · **SHIPPED P2** · statenour imports from @statenour/lenses · inline 49 framework files deleted · lib/ai/strategic-frameworks/ is a 3-file shim. Chat path untouched (shim aliases preserve the API).
 1b. ~~Prompt-v2 shadow quality measurement~~ · **SHIPPED Wave Q2** (ADR-0020). shadow path samples ~10% + enqueues into PROMPT_SHADOW_JUDGE_QUEUE · judge-eval-shadow cron drains. SystemMetric `prompt.shadow.judge_score_delta` will accumulate as shadow turns fire.
 1a. **2026-06-22 · subtask-usage audit (30-day check-in)** — now AUTOMATED via `app/api/cron/subtask-usage-audit/route.ts` (folded into mega-morning). Self-fires on/after 2026-06-22 · computes usage % and writes a nudge_pin_hygiene BrainMemory row · operator sees it in the daily-brief surfacing layer. ADR-0017 amendment A1's <5% gate is now a falsifiable mechanical check rather than a manual reminder.
 2. **Watch judge-eval calibration verdict** — `/system/judge-eval` now shows the agreement % between judge and operator. Verdict will read "preliminary" until n≥30 comparisons with operator feedback accumulate. Re-check before promoting the V2 canary further.
