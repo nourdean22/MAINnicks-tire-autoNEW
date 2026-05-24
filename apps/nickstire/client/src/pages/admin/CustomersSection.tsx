@@ -6,7 +6,7 @@
  */
 import React, { useEffect, useState, lazy, Suspense } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
-import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate } from "./shared";
+import { StatCard, PageHeader, LoadingState, EmptyState, SectionInsightStrip, TabBar, useUrlFilter, FilterChips, formatDate, openCustomerDrawer } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 import MessageCustomerLink from "@/components/admin/MessageCustomerLink";
 
@@ -84,393 +84,42 @@ function daysSinceStr(days: number | null | undefined): string {
   return `${Math.floor(days / 365)}yr ago`;
 }
 
-// 2026-05-23 · palette pass · canonicalized 5 colors that were drifting
-// off the documented 3-signal palette (emerald/amber/red/primary).
-// Was: purple (call) · cyan (workorder) · green (invoice) · yellow (review).
-// Blue stays — it's the established info-color for "lead just arrived"
-// even though shared.tsx doesn't strictly canonicalize it.
-const JOURNEY_ICONS: Record<string, { icon: string; color: string }> = {
-  lead: { icon: "📥", color: "border-blue-500/50" },
-  booking: { icon: "📅", color: "border-emerald-500/50" },
-  callback: { icon: "📞", color: "border-amber-500/50" },
-  call: { icon: "☎️", color: "border-primary/50" },
-  workorder: { icon: "🔧", color: "border-primary/50" },
-  invoice: { icon: "💰", color: "border-emerald-500/50" },
-  review: { icon: "⭐", color: "border-amber-500/50" },
-};
+// wave-181.x Customers Phase 1 · DELETED JOURNEY_ICONS const.
+// Was an emoji-icon system parallel to the canonical Lucide icons in
+// CustomerDrawer.EVENT_CONFIG · only used inside the now-deleted
+// CustomerJourney component which was only mounted inside the
+// now-deleted CustomerDetail modal. Triple-dead.
 
-function CustomerJourney({ phone }: { phone: string }) {
-  const { data: timeline, isLoading } = trpc.customers.timeline.useQuery(
-    { phone },
-    { enabled: !!phone }
-  );
-
-  if (isLoading) return <div className="py-3 text-center"><div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" /></div>;
-  if (!timeline || timeline.length === 0) return <p className="text-xs text-foreground/30 italic py-2">No journey data yet</p>;
-
-  return (
-    <div className="space-y-0">
-      {timeline.slice(0, 15).map((event: TimelineEvent, i: number) => {
-        const cfg = JOURNEY_ICONS[event.type] || { icon: "📌", color: "border-foreground/20" };
-        const date = new Date(event.date);
-        const isFirst = i === 0;
-        return (
-          <div key={i} className="flex gap-3 relative">
-            {/* Timeline line */}
-            <div className="flex flex-col items-center w-6 shrink-0">
-              <span className="text-sm">{cfg.icon}</span>
-              {i < (timeline as unknown[]).length - 1 && (
-                <div className="w-px flex-1 bg-foreground/10 my-1" />
-              )}
-            </div>
-            {/* Content */}
-            <div className={`flex-1 pb-3 ${isFirst ? "" : ""}`}>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-foreground">{event.title}</span>
-                <span className={`text-[9px] px-1.5 py-0.5 tracking-wider font-bold ${
-                  event.status === "completed" || event.status === "confirmed" ? "text-emerald-400 bg-emerald-500/10" :
-                  event.status === "lost" || event.status === "cancelled" ? "text-red-400 bg-red-500/10" :
-                  "text-foreground/40 bg-foreground/5"
-                }`}>{event.status.toUpperCase()}</span>
-              </div>
-              {event.detail && <p className="text-[10px] text-foreground/50 mt-0.5">{event.detail}</p>}
-              <p className="text-[9px] text-foreground/30 mt-0.5">{date.toLocaleDateString()} · {date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CustomerDetail({ customerId, onClose }: { customerId: number; onClose: () => void }) {
-  // wave-168 a11y: Escape closes the modal. The fixed-overlay div lacked
-  // role="dialog"/aria-modal/Escape handling — keyboard-only operators (and
-  // PWA users on iOS where there's no hardware back gesture) were trapped
-  // until they Tab-cycled to the X button. ConfirmDialog was upgraded
-  // wave-139 but this full-page modal was missed.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  const utils = trpc.useUtils();
-  const { data: customer, isLoading } = trpc.customers.getById.useQuery({ id: customerId });
-  const [smsOpen, setSmsOpen] = useState(false);
-  const [smsText, setSmsText] = useState("");
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [notesText, setNotesText] = useState("");
-
-  // v1.7 audit fix · pre-fix used `if (customer && !notesInitialized)`
-  // setState-during-render pattern, which triggers React 18+ "Cannot
-  // update a component while rendering a different component" warnings
-  // and double-renders under React 19 strict mode. Plus the
-  // notesInitialized guard prevented re-sync when customer switched.
-  // Now syncs on customer.id change via useEffect.
-  useEffect(() => {
-    if (customer) setNotesText(customer.notes || "");
-  }, [customer?.id, customer?.notes]);
-
-  const quickSms = trpc.customers.quickSms.useMutation({
-    onSuccess: (result) => {
-      if (result.success) { toast.success("SMS sent"); setSmsText(""); setSmsOpen(false); }
-      else toast.error(result.error || "Failed");
-    },
-    onError: () => toast.error("Failed to send SMS"),
-  });
-
-  const updateNotes = trpc.customers.updateNotes.useMutation({
-    onSuccess: (result) => {
-      if (result.success) { toast.success("Notes saved"); utils.customers.getById.invalidate({ id: customerId }); }
-      else toast.error("Failed to save notes");
-    },
-    onError: () => toast.error("Failed to save notes"),
-  });
-
-  if (isLoading) {
-    return (
-      <div className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4">
-        <div className="bg-card border border-border/30 p-8 max-w-lg w-full">
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!customer) {
-    return (
-      <div className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4">
-        <div className="bg-card border border-border/30 p-8 max-w-lg w-full">
-          <p className="text-foreground/50">Customer not found.</p>
-          <button onClick={onClose} className="mt-4 text-sm text-primary hover:underline">Close</button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className="fixed inset-0 bg-black/60 z-[62] flex items-center justify-center p-4"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="customer-detail-title"
-    >
-      <div className="bg-card border border-border/30 max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between p-6 border-b border-border/20">
-          <div>
-            <h3 id="customer-detail-title" className="font-bold text-xl text-foreground tracking-tight">
-              {customer.firstName} {customer.lastName || ""}
-            </h3>
-          </div>
-          <button onClick={onClose} aria-label="Close customer detail" className="text-foreground/30 hover:text-foreground/60 transition-colors">
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Phone</span>
-              <a href={`tel:${customer.phone}`} className="text-sm text-foreground flex items-center gap-1.5">
-                <Phone className="w-3.5 h-3.5 text-primary" />
-                {customer.phone}
-              </a>
-            </div>
-            {customer.phone2 && (
-              <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Phone 2</span>
-                <a href={`tel:${customer.phone2}`} className="text-sm text-foreground flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-foreground/30" />
-                  {customer.phone2}
-                </a>
-              </div>
-            )}
-            {customer.email && (
-              <div>
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Email</span>
-                <a href={`mailto:${customer.email}`} className="text-sm text-foreground flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-primary" />
-                  {customer.email}
-                </a>
-              </div>
-            )}
-            {/* 2026-05-19 · "Type" field removed from card trim · 95%+ of
-                customers are Individual · low-signal field consuming a slot.
-                Commercial customers still get the Building2 icon next to
-                their name in the row view (line 1562). */}
-          </div>
-
-          {(customer.address || customer.city) && (
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Address</span>
-              <p className="text-sm text-foreground flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-primary shrink-0" />
-                {[customer.address, customer.city, customer.state, customer.zip].filter(Boolean).join(", ")}
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border/20">
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Total Visits</span>
-              <span className="font-bold text-2xl text-foreground">{customer.totalVisits}</span>
-            </div>
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Total Spent</span>
-              <span className={`font-bold text-2xl ${customer.totalSpent > 0 ? "text-emerald-400" : "text-foreground/30"}`}>
-                {customer.totalSpent > 0 ? `$${Math.round(customer.totalSpent / 100).toLocaleString()}` : "—"}
-              </span>
-            </div>
-            <div>
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Last Visit</span>
-              <span className="text-sm text-foreground flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-foreground/30" />
-                {customer.lastVisitDate ? formatDate(customer.lastVisitDate) : "Unknown"}
-              </span>
-            </div>
-            {/* 2026-05-19 · "First Visit" removed from card trim · the
-                customer journey timeline (further down) shows their first
-                event with full context · this isolated date adds noise. */}
-          </div>
-
-          {/* Vehicle Info */}
-          {customer.vehicleMake && (
-            <div className="pt-2 border-t border-border/20">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide block mb-1">Primary Vehicle</span>
-              <span className="text-sm text-foreground">
-                {[customer.vehicleYear, customer.vehicleMake, customer.vehicleModel].filter(Boolean).join(" ")}
-              </span>
-            </div>
-          )}
-
-          {/* 2026-05-19 · "Campaign Status" + "ALS Customer ID" both
-              removed from card trim. SMS-sent flag is operational telemetry
-              (not actionable from this view) · ALG ID is already reachable
-              via the external-link button in the row's action group. */}
-
-          {/* Notes Section */}
-          <div className="pt-2 border-t border-border/20">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide flex items-center gap-1">
-                <StickyNote className="w-3 h-3" /> Notes
-              </span>
-              {!notesOpen && (
-                <button onClick={() => setNotesOpen(true)} className="text-[10px] text-primary hover:text-primary/80 tracking-wider">
-                  {customer.notes ? "EDIT" : "ADD NOTE"}
-                </button>
-              )}
-            </div>
-            {notesOpen ? (
-              <div className="space-y-2">
-                <textarea value={notesText} onChange={e => setNotesText(e.target.value)}
-                  placeholder="Add internal notes about this customer..."
-                  className="w-full bg-background border border-border/30 p-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
-                  rows={3} maxLength={5000} />
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => { updateNotes.mutate({ id: customer.id, notes: notesText }); setNotesOpen(false); }}
-                    disabled={updateNotes.isPending}
-                    className="px-3 py-1.5 bg-primary text-primary-foreground text-xs tracking-wider hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {updateNotes.isPending ? "SAVING..." : "SAVE"}
-                  </button>
-                  <button onClick={() => { setNotesOpen(false); setNotesText(customer.notes || ""); }}
-                    className="px-3 py-1.5 text-xs text-foreground/50 hover:text-foreground tracking-wider">CANCEL</button>
-                </div>
-              </div>
-            ) : customer.notes ? (
-              <p className="text-sm text-foreground/60 whitespace-pre-wrap">{customer.notes}</p>
-            ) : (
-              <p className="text-xs text-foreground/30 italic">No notes yet</p>
-            )}
-          </div>
-
-          {/* Customer Journey Timeline */}
-          <div className="pt-2 border-t border-border/20">
-            <div className="flex items-center justify-between mb-2">
-              <span className="font-mono text-[10px] text-foreground/40 tracking-wide">CUSTOMER JOURNEY</span>
-            </div>
-            <CustomerJourney phone={customer.phone} />
-          </div>
-
-          {/* Quick SMS */}
-          <div className="pt-2 border-t border-border/20">
-            {!smsOpen ? (
-              <button onClick={() => setSmsOpen(true)} aria-label="Send text message" className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 tracking-wider">
-                <MessageSquare className="w-3.5 h-3.5" /> QUICK TEXT
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <span className="font-mono text-[10px] text-foreground/40 tracking-wide block">
-                  Send SMS to {customer.firstName}
-                </span>
-                <textarea value={smsText} onChange={e => setSmsText(e.target.value)}
-                  placeholder="Type your message..."
-                  className="w-full bg-background border border-border/30 p-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
-                  rows={3} maxLength={500} />
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-foreground/30">{smsText.length}/500</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => { setSmsOpen(false); setSmsText(""); }}
-                      className="px-3 py-1.5 text-xs text-foreground/50 hover:text-foreground tracking-wider">CANCEL</button>
-                    <button
-                      onClick={() => quickSms.mutate({ customerId: customer.id, message: smsText })}
-                      disabled={!smsText.trim() || quickSms.isPending}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-xs tracking-wider hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {quickSms.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-                      {quickSms.isPending ? "SENDING..." : "SEND"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Inline SMS Sender for customer rows ──────────────────
-function InlineSms({ customerId, firstName }: { customerId: number; firstName: string }) {
-  const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
-  const [sent, setSent] = useState(false);
-
-  const quickSms = trpc.customers.quickSms.useMutation({
-    onSuccess: (result) => {
-      if (result.success) {
-        setSent(true);
-        setText("");
-        setTimeout(() => { setSent(false); setOpen(false); }, 1500);
-      } else {
-        toast.error(result.error || "Failed to send");
-      }
-    },
-    onError: () => toast.error("Failed to send SMS"),
-  });
-
-  if (sent) {
-    return (
-      <span className="text-emerald-400" title="Sent!">
-        <CheckCircle2 className="w-4 h-4" />
-      </span>
-    );
-  }
-
-  if (!open) {
-    return (
-      <button
-        onClick={(e) => { e.stopPropagation(); setOpen(true); setText(`Hi ${firstName || "there"}! Nick's Tire & Auto here. `); }}
-        className="text-foreground/30 hover:text-blue-400 transition-colors"
-        title="Quick SMS"
-      >
-        <MessageSquare className="w-4 h-4" />
-      </button>
-    );
-  }
-
-  return (
-    /* wave-119 — was `right-0 top-0 w-72` absolute. On a 390px phone
-       viewport with the card inset, no guarantee right-edge stayed on-
-       screen. Now: clamps width to viewport-minus-margin and pulls back
-       from the right with `max-w-[calc(100vw-2rem)]` so it never overflows
-       on small viewports. Added `right-2` for breathing room from the edge. */
-    <div className="absolute right-2 top-0 z-30 bg-card border border-primary/30 shadow-lg p-3 w-72 max-w-[calc(100vw-2rem)]" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-bold text-foreground/50 tracking-wider">SMS TO {(firstName || "").toUpperCase()}</span>
-        <button onClick={() => setOpen(false)} aria-label="Close" className="text-foreground/30 hover:text-foreground">
-          <X className="w-3 h-3" />
-        </button>
-      </div>
-      <textarea
-        value={text}
-        onChange={e => setText(e.target.value)}
-        className="w-full bg-background border border-border/30 p-2 text-xs text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50 resize-none"
-        rows={2}
-        maxLength={500}
-        autoFocus
-      />
-      <div className="flex items-center justify-between mt-1.5">
-        {/* wave-120 — 9px is below iOS legibility threshold; bumped to 11px */}
-        <span className="text-[11px] text-foreground/40">{text.length}/500</span>
-        <button
-          onClick={() => quickSms.mutate({ customerId, message: text })}
-          disabled={!text.trim() || quickSms.isPending}
-          className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground text-[10px] tracking-wider hover:bg-primary/90 disabled:opacity-50"
-        >
-          {quickSms.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
-          {quickSms.isPending ? "..." : "SEND"}
-        </button>
-      </div>
-    </div>
-  );
-}
+// wave-181.x Customers Phase 1 · DELETED 3 dead components below
+// (CustomerJourney + CustomerDetail + InlineSms · ~390 lines).
+// Why each:
+//   · CustomerJourney  — emoji-icon timeline · only mounted inside
+//     CustomerDetail · CustomerDrawer.EVENT_CONFIG is the canonical
+//     timeline pattern.
+//   · CustomerDetail   — 250-line full-screen fixed modal that did the
+//     same job as CustomerDrawer (the surviving side-drawer pattern) ·
+//     missing the wave-100 DECLINED + BACKLOG tiles that 360Panel has.
+//   · InlineSms        — duplicate SMS popover · MessageCustomerLink
+//     (the canonical pattern from the wave-181.x SMS-link migration)
+//     handles all admin SMS now.
+// All entry points migrated:
+//   · Eye button → openCustomerDrawer(id)
+//   · Row SMS button → <MessageCustomerLink>
+// State `selectedId` removed from CustomersList.
+// wave-181.x Customers Phase 1 · DELETED 3 dead components in one block:
+//   CustomerJourney  (43 lines · emoji timeline · only used by CustomerDetail)
+//   CustomerDetail   (250 lines · full-screen modal duplicating CustomerDrawer)
+//   InlineSms        (74 lines · SMS popover duplicating MessageCustomerLink)
+// Why · the wave-181.92 admin consolidation kept TWO detail patterns
+// (full-screen modal + side drawer) for the same job. CustomerDrawer is
+// the surviving one (richer · already wired to event-bus from anywhere ·
+// includes the wave-100 DECLINED + BACKLOG tiles). MessageCustomerLink
+// is the canonical SMS-link primitive from the wave-181.x click-to-
+// message migration. JOURNEY_ICONS const was already deleted above.
+// All call sites in this file migrated:
+//   · Eye button setSelectedId(c.id) → openCustomerDrawer(c.id)
+//   · Row InlineSms button           → <MessageCustomerLink>
+//   · selectedId state               → removed (drawer manages its own)
 
 /**
  * Wave-102: outbound follow-up call trigger.
@@ -568,10 +217,12 @@ function FollowUpButton({ customerName, phone }: {
   );
 }
 
-/** Customer 360 expandable detail panel — lazy-loaded service history */
-function Customer360Panel({ customer, onSmsClick }: {
+/** Customer 360 expandable detail panel — lazy-loaded service history.
+ *  wave-181.x Customers Phase 1 · removed unused onSmsClick prop ·
+ *  was declared but never invoked inside the panel · only existed to
+ *  wire setSelectedId on the now-deleted CustomerDetail modal. */
+function Customer360Panel({ customer }: {
   customer: ListedCustomer;
-  onSmsClick: (id: number) => void;
 }) {
   const { data: historyData, isLoading: historyLoading } = trpc.customers.history.useQuery(
     { phone: customer.phone },
@@ -1059,7 +710,10 @@ function CustomersList() {
   const [sortBy, setSortBy] = useState<SortByExt>("totalSpent");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  // wave-181.x Customers Phase 1 · removed selectedId state · was only
+  // used to drive the deleted CustomerDetail modal. Detail view now
+  // uses openCustomerDrawer (the surviving side-drawer pattern) which
+  // manages its own state via the event bus.
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const pageSize = 25;
   const [exporting, setExporting] = useState(false);
@@ -1191,7 +845,10 @@ function CustomersList() {
           onClick={() => { setSegment("lapsed"); setPage(1); }}
         />
         <StatCard label="With Email" value={stats?.withEmail ?? 0} icon={<Mail className="w-4 h-4" />} color="text-blue-400" />
-        <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-purple-400" />
+        {/* wave-181.x bug-fix · was text-purple-400 · purple was DELETED
+            from canonical 3-signal palette in wave-181.92. Now uses
+            text-foreground/60 (neutral). */}
+        <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-foreground/60" />
       </div>
 
       {/* Campaign Progress + Retry + Export */}
@@ -1528,7 +1185,7 @@ function CustomersList() {
                           : <ChevronDown className="w-3.5 h-3.5 text-foreground/30 shrink-0" />
                         }
                         <span className="text-foreground font-medium">{c.firstName} {c.lastName || ""}</span>
-                        {c.customerType === "commercial" && <Building2 className="w-3 h-3 text-purple-400" />}
+                        {c.customerType === "commercial" && <Building2 className="w-3 h-3 text-foreground/50" />}
                         {c.notes && <span title="Has notes"><StickyNote className="w-3 h-3 text-amber-400/60" /></span>}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 ml-5">
@@ -1627,14 +1284,25 @@ function CustomersList() {
                       </div>
                     </td>
 
-                    {/* Actions: SMS + View */}
+                    {/* wave-181.x Customers Phase 1 · Actions simplified.
+                        WAS: InlineSms (74-line duplicate) + Eye → CustomerDetail
+                             modal (250-line stale duplicate of CustomerDrawer).
+                        NOW: MessageCustomerLink (canonical SMS entry) + Eye →
+                             openCustomerDrawer (the surviving detail pattern). */}
                     <td className="p-3">
                       <div className="flex items-center gap-1.5 relative" onClick={e => e.stopPropagation()}>
                         {c.phone && (
-                          <InlineSms customerId={c.id} firstName={c.firstName || ""} />
+                          <MessageCustomerLink
+                            phone={c.phone}
+                            className="text-foreground/30 hover:text-blue-400 transition-colors p-1"
+                            ariaLabel={`Text ${c.firstName || c.phone}`}
+                            title="Open in-admin SMS chat"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                          </MessageCustomerLink>
                         )}
                         <button
-                          onClick={() => setSelectedId(c.id)}
+                          onClick={() => openCustomerDrawer(c.id)}
                           className="text-foreground/30 hover:text-primary transition-colors"
                           title="View full details"
                         >
@@ -1644,7 +1312,7 @@ function CustomersList() {
                     </td>
                   </tr>
                   {isExpanded && (
-                    <Customer360Panel customer={c} onSmsClick={(id) => setSelectedId(id)} />
+                    <Customer360Panel customer={c} />
                   )}
                   </React.Fragment>
                 );
@@ -1679,7 +1347,9 @@ function CustomersList() {
         </div>
       )}
 
-      {selectedId && <CustomerDetail customerId={selectedId} onClose={() => setSelectedId(null)} />}
+      {/* wave-181.x Customers Phase 1 · CustomerDetail modal mount
+          REMOVED. Detail view now opens via openCustomerDrawer (the
+          surviving CustomerDrawer side-drawer pattern). */}
     </div>
   );
 }
