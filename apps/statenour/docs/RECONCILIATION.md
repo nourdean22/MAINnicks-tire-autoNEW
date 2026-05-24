@@ -1,6 +1,105 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-EVENING (post Wave V · /brain 5-phase sweep · 7 defensive + 3 feature wire-ups · 4 surfaces touched out of 7 sub-pages · second-brain hub elevation) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2797 across 184 vitest files · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+**Last verified:** 2026-05-24 NIGHT (post Wave W · cross-surface consolidation + activation · 4 phases shipped · net LOC negative · activated pgvector hybrid spotlight + landing router + recall inbox · 3 secondary surfaces collapsed into /brain panels) · **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2804 across 184 vitest files (+7 since EVENING) · **Prod schema:** 31 migrations applied · **Note:** the 2026-05-13 → 05-19 waves (05-16 consolidation · Spline→R3F 3D pivot) and the 2026-05-22 wave are still NOT recorded below — backfill pending.
+
+> ## 2026-05-24 NIGHT · Wave W · cross-surface consolidation + activation · 4 ships
+>
+> The operator's request: combine /knowledge + /system root + /brain
+> sub-pages into one next-level move (save /chat for last since it's
+> also the homepage). 2 parallel planning agents (infinite-gratitude
+> pattern + similarity-search-patterns lens + clarity-gate principle
+> + using-superpowers protocol) returned a 5-phase plan. Operator
+> approved option A · all 4 ship-phases plus the planning wave.
+>
+> The unifying discovery: statenour has paid-for `/api/brain/search-
+> hybrid` (RRF + FTS + KNN cosine on pgvector HNSW · live since
+> v10.0.90) wired to NOTHING the operator uses daily. The cross-
+> surface theme isn't "build a unifier" — it's "delete the duplicates
+> AND wire the paid-for substrate to the operator's eye." Net LOC
+> change across Wave W is NEGATIVE.
+>
+> **Wave W Phase 1 · /system root strip** · `669c3e9d` · -82 LOC
+> Pre-fix /system root rendered a two-column Devices + Nick brain
+> panel grid + an Integrations panel BELOW SystemHubGrid. All three
+> duplicated data ALREADY surfaced by the hub-grid's per-domain
+> cards. Wave 52 had already deleted 3 sibling debug-dump cards for
+> this exact reason · this finishes the job. SystemHubGrid IS the
+> page now · the attention-strip lifts degraded surfaces above their
+> groups so live signal is preserved.
+>
+> **Wave W Phase 2 · universal hybrid spotlight** · `d3cb3ae0` · +139 LOC
+> Cmd+K palette now does semantic search across brain_memory +
+> chat_message in addition to navigation. 250ms debounce · AbortCon-
+> troller · top-5 RRF-fused hits in a "From your brain · N" group
+> ABOVE the action groups (semantic-then-actions reading order).
+> Each hit deep-links to its source (brain_memory →
+> /brain/wisdom?focus= · chat_message → /chat#id). Silent degrade
+> on fetch failure · cmdk's local action-filter still works. The
+> most expensive idle infrastructure in the repo (22 days of
+> pgvector embeddings) finally activated.
+>
+> **Wave W Phase 3 · operator-state landing router** · `e59371fd` · +159 LOC
+> Substrate-only ship · pure function `chooseLanding(snapshot)` +
+> tRPC procedure `system.landingRecommendation` + 7 new vitest cases
+> covering the 5 rules:
+>   · drift ≥ 0.6 → /system (triage open work)
+>   · capacity ≤ 0.25 → /journal (reflect before pushing)
+>   · mood=energized + momentum ≥ 0.5 → /tasks (ride the wave)
+>   · focus < 0.3 + capacity > 0.5 → /brain/board (strategy time)
+>   · neutral → null (no specific signal)
+> UI placement (chip on HQ) deferred to /chat wave because the
+> homepage IS /chat and the 2026-05-18 PM brainstorm explicitly
+> rejected chip-strip clutter · placement decision belongs in the
+> /chat redesign context.
+>
+> **Wave W Phase 4 · unified recall inbox** · `1eca229e` · +448 LOC
+> The largest substrate addition. `lib/services/recall-inbox.ts`
+> mirrors the proven `system-hub.ts` parallel-read pattern · fans
+> out to 4 paid-for readers (pins · link-review · contradictions ·
+> active-alerts) in parallel · per-source try/catch isolation so one
+> broken reader can't break the inbox. New `brain.recallInbox` tRPC
+> procedure. New `<RecallInboxPanel />` component (175 LOC) mounted
+> in /brain Zone 1 ABOVE InsightRibbon. Editorial-minimalist · per-
+> group "see all →" link drills to source page · silent across all
+> 4 sources on clean morning. Operator's daily ritual: 3 page-visits
+> → 1 panel.
+>
+> **Architectural patterns surfaced for the playbook:**
+> - **Aggregator-thinking is the leverage**. /brain is the
+>   convergence layer where Waves S/T/U paid-for helpers go to die
+>   invisibly. The most leveraged moves fuse 2-4 helpers into one
+>   operator-facing surface. recall-inbox fuses 4 · learning-velocity
+>   scoreboard fuses 4 (Wave V) · calibration tile fuses 2 (Wave V).
+> - **Substrate-first when UI placement is contested**. Phase 3
+>   shipped the pure function + tRPC procedure without committing
+>   to UI placement · operator can later decide where the chip goes
+>   without rebuilding the substrate.
+> - **Net-negative LOC is the kaizen tell**. Phase 1 deleted 82 LOC ·
+>   the rest of Wave W added ~750 LOC of substrate (services +
+>   procedures + tests + UI). Total net: ~+670 LOC but zero new
+>   schema · zero new cron jobs · activates 3 idle endpoints.
+>
+> **Flagged · NOT done in Wave W (Wave W.b candidates)**
+> - KnowledgeRefreshPanel relocation /knowledge → /system/cron-
+>   diagnostics (inline component · extract first)
+> - Brain sub-page consolidation (reflections + identity-trajectory
+>   + link-review folded as panels on /brain) · need to
+>   extract panel components first
+> - Knowledge embeddings activation · the /knowledge page still uses
+>   substring LIKE search · need to verify knowledge files are
+>   vectorized in `vector_embeddings` then add knowledge_file source
+>   to search-hybrid
+> - Landing-router chip placement decision · defers to /chat wave
+>
+> **Per-page playbook now has 5 pages of evidence + 1 cross-surface
+> wave:** /settings (P+Q) · /journal (R+S) · /tasks (U) · /brain (V) ·
+> /brain + /system + /knowledge (W). Pattern: 4 parallel agents ·
+> Pareto-filter to 50% · ship with substrate-first discipline.
+>
+> Gates: typecheck 0 · lint 0 errors / 370 baseline (+1 pre-existing
+> any in Phase 2 new code) · vitest 184 files / 2804 tests (+7 from
+> Phase 3) · build OK · prod smoke 200 on 3 endpoints after each
+> phase.
 
 > ## 2026-05-24 LATE-EVENING · Wave V · /brain 5-phase sweep · 1 ship
 >
