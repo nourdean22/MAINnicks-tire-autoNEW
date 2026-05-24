@@ -850,6 +850,18 @@ export function startTieredScheduler(): void {
           return processPsychoProfileRefresh();
         },
       },
+      // wave-181.112 · inventory demand forecast · complements existing
+      // analyzeTireInventory in dataPipelines.ts. Aggregates declined
+      // tire estimates by extracted size · cross-references Gateway live
+      // inventory · Telegram ranks top 10 lost-revenue sizes the
+      // operator should stock to capture next quarter's demand.
+      {
+        name: "inventory-demand-forecast",
+        handler: async () => {
+          const { processInventoryDemandForecast } = await import("./jobs/inventoryDemandForecast");
+          return processInventoryDemandForecast();
+        },
+      },
       // wave-181.4 · migrated from statenour-os v10.0.526 Arc A F3.
       // Pulls VAPI call list, derives end-to-end latency, captures
       // rows in voice_latency_events, fires Telegram alert when
