@@ -116,39 +116,51 @@
     <!-- FAQPage schema removed from index.html to prevent duplicate FAQPage errors.
          Each page renders its own FAQ schema via React components (ServicePage, FAQ, etc.) -->
 
-    <!-- Meta Pixel — deferred until after first paint -->
+    <!-- 2026-05-24 PSI fix · 3rd-party analytics moved off the critical
+         path. PageSpeed Insights flagged mobile TBT 1090ms / desktop
+         2640ms. All 3 analytics scripts now queue via requestIdleCallback
+         (or setTimeout 2.5s on browsers without it) so they don't compete
+         with React hydration during the initial main-thread window.
+         · Meta Pixel · GA4 · Ahrefs Analytics
+         All still fire · just AFTER the user-perceived performance
+         window closes (Time to Interactive). -->
     <script>
-      window.addEventListener('load', function() {
-        !function(f,b,e,v,n,t,s)
-        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-        n.queue=[];t=b.createElement(e);t.async=!0;
-        t.src=v;s=b.getElementsByTagName(e)[0];
-        s.parentNode.insertBefore(t,s)}(window, document,'script',
-        'https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '1436350367898578');
-        fbq('track', 'PageView');
-      });
-    </script>
-    <!-- Google Analytics 4 (GA4) — deferred until after first paint -->
-    <script>
-      window.addEventListener('load', function() {
-        var s = document.createElement('script');
-        s.src = 'https://www.googletagmanager.com/gtag/js?id=G-B1LJ1P43G8';
-        s.async = true;
-        document.head.appendChild(s);
-        s.onload = function() {
-          window.dataLayer = window.dataLayer || [];
-          function gtag(){dataLayer.push(arguments);}
-          gtag('js', new Date());
-          gtag('config', 'G-B1LJ1P43G8');
-        };
-      });
-    </script>
+      (function() {
+        var idle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 2500); };
+        idle(function() {
+          // Meta Pixel
+          !function(f,b,e,v,n,t,s)
+          {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+          n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+          n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];
+          s.parentNode.insertBefore(t,s)}(window, document,'script',
+          'https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '1436350367898578');
+          fbq('track', 'PageView');
 
-    <!-- Ahrefs Analytics — defer to avoid render-blocking -->
-    <script src="https://analytics.ahrefs.com/analytics.js" data-key="DCheKV/YJsF9d6vmJuHNBg" defer></script>
+          // Google Analytics 4 (GA4)
+          var ga = document.createElement('script');
+          ga.src = 'https://www.googletagmanager.com/gtag/js?id=G-B1LJ1P43G8';
+          ga.async = true;
+          document.head.appendChild(ga);
+          ga.onload = function() {
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-B1LJ1P43G8');
+          };
+
+          // Ahrefs Analytics
+          var ah = document.createElement('script');
+          ah.src = 'https://analytics.ahrefs.com/analytics.js';
+          ah.setAttribute('data-key', 'DCheKV/YJsF9d6vmJuHNBg');
+          ah.async = true;
+          document.head.appendChild(ah);
+        }, { timeout: 4000 });
+      })();
+    </script>
 
     <!-- Preload Home hero image (full storefront sign + open bays) for fastest LCP.
          PSI fix 2026-05-24 · the preload MUST match the <picture> sources
