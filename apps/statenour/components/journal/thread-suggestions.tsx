@@ -19,6 +19,10 @@
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { logger as rootLogger } from "@/lib/logger";
+import { sanitizeError } from "@/lib/utils/sanitize-error";
+
+const log = rootLogger.withSurface("journal/thread-suggestions");
 
 interface Suggestion {
   key: string;
@@ -39,6 +43,14 @@ export function ThreadSuggestions({
   onActioned?: () => void;
 }) {
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // 2026-05-24 · Wave R · per-key action error surfacing. Pre-fix
+  // both accept() + dismiss() wrapped mutateAsync in bare `catch {}`
+  // with a comment "today: silent re-fetch" · operator tapped a
+  // suggestion, server 401/500'd, UI just looped the same state.
+  // No log, no toast, no feedback · indistinguishable from the
+  // mutation working slowly. Now: log surfaces in /system/errors ·
+  // banner surfaces the failure inline with a retry-by-retap hint.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Phase TT.2 (2026-05-22) · REST→tRPC · useAuthedFetch swapped for
   // trpc.journal.suggestions.useQuery. Errors still silently no-op
@@ -67,12 +79,23 @@ export function ThreadSuggestions({
   const accept = async (key: string) => {
     if (busyKey) return;
     setBusyKey(key);
+    setActionError(null);
     try {
       await acceptMutation.mutateAsync({ key });
       await load();
       onActioned?.();
-    } catch {
-      // surface via DOM or future toast · today: silent re-fetch
+    } catch (err) {
+      // 2026-05-24 · Wave R · log + surface · pre-fix this was a
+      // bare catch{} with a "today: silent re-fetch" comment.
+      log.error("thread_suggestion_accept_failed", {
+        key,
+        error: sanitizeError(err),
+      });
+      setActionError(
+        err instanceof Error
+          ? `couldn't join thread · ${err.message.slice(0, 80)}`
+          : "couldn't join thread · retry?",
+      );
       await load();
     } finally {
       setBusyKey(null);
@@ -82,10 +105,20 @@ export function ThreadSuggestions({
   const dismiss = async (key: string) => {
     if (busyKey) return;
     setBusyKey(key);
+    setActionError(null);
     try {
       await dismissMutation.mutateAsync({ key });
       await load();
-    } catch {
+    } catch (err) {
+      log.error("thread_suggestion_dismiss_failed", {
+        key,
+        error: sanitizeError(err),
+      });
+      setActionError(
+        err instanceof Error
+          ? `couldn't dismiss · ${err.message.slice(0, 80)}`
+          : "couldn't dismiss · retry?",
+      );
       await load();
     } finally {
       setBusyKey(null);
@@ -102,6 +135,15 @@ export function ThreadSuggestions({
         count={suggestions.length}
         action={<span className="text-white/30">borderline matches</span>}
       />
+      {/* 2026-05-24 · Wave R · per-action error banner · paired with
+          the log lines in accept/dismiss. Pre-fix a failed accept
+          looked identical to a slow accept · operator would re-tap
+          the same suggestion forever. Auto-clears on next tap. */}
+      {actionError && (
+        <div className="rounded border border-rose-500/30 bg-rose-500/10 px-2 py-1.5 text-[10px] text-rose-300">
+          ⚠ {actionError}
+        </div>
+      )}
       <ul className="space-y-2">
         {suggestions.map((s) => (
           <li
