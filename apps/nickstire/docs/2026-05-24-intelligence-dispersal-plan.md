@@ -183,17 +183,17 @@ Each requires bridge action + optional BrainMemory cache + statenour UI.
 
 **Net: ~10 panels migrated · 8 new bridge actions · ~3 new statenour pages or sections.**
 
-### 4.4 · Bucket D · Needs operator input
+### 4.4 · Operator decisions (locked 2026-05-24)
 
-These have real architectural questions:
+Operator answered 3 of 4 open questions explicitly:
 
-1. **`intelligence.masterReport` itself** — if the synthesized score moves to statenour, do the underlying sub-reports (revenue.pacing · customers.churnRisk · marketing.reviewVelocity · operations.pipeline · etc.) keep powering nickstire briefs, OR fully retire the masterIntelligence engine? Most underlying procedures stay useful even if the umbrella view dies.
+1. **`intelligence.masterReport` engine fate** → **KEEP underlying sub-reports.** The umbrella synthesis (score + top alert/opp/risk) moves to statenour `/scoreboard`. The sub-reports (`revenue.pacing` · `customers.churnRisk` · `marketing.reviewVelocity` · `operations.pipeline` · etc.) STAY on nickstire as the underlying data for future improvements. Don't retire the engine — retire only the UI surface that displayed it.
 
-2. **Tech Efficiency / Bay Utilization / Turnaround / Bottlenecks** — single Operations strip on Today page, OR a new `/admin/operations` page? Today page is already absorbing Money/Outreach signal · adding all 4 may overflow.
+2. **Operations content destination** → **SINGLE STRIP on Today page.** Tech Efficiency · Bay Utilization · Turnaround · Bottlenecks · Shop Load · Capacity Forecast all collapse into one Operations strip above-fold on the Today page. No new `/admin/operations` page. Need a UX pass during Wave 2 to keep Today scannable (it's already absorbing Money/Outreach signal).
 
-3. **Risk scores vs churn prediction** — these overlap heavily. Merge into ONE customer-risk column on the Customers roster, or keep separate signals?
+3. **Risk + Churn merger** → **ONE COLUMN on Customers roster.** Unified `risk_score` column · churn prediction collapses into it as a sub-signal. Single source of truth · simpler operator mental model.
 
-4. **Service Affinity (cross-sell)** — does it belong in statenour `/brain` for pattern-recognition, OR inline on nickstire Customer Detail for actionable next-service-call? Could be both with different shapes.
+4. **Service Affinity / Predicted Next-Service** → **STATENOUR BRAIN PATTERN** · operator flagged this needs **extra attention**. Separate research-synthesis pass produced a v2 design doc — see `2026-05-24-service-affinity-v2.md`. Highest-leverage cross-sell signal in the business · merits its own end-to-end design (model + surface + closed loop).
 
 ---
 
