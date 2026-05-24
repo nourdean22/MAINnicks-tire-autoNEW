@@ -49,6 +49,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // here from the deleted /tasks TRACK tab. KPI cards above are business
 // numbers; this is the execution layer beneath them.
 import { KommandoTrack } from "@/components/actions/mode-track";
+import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
 
 type Trend = "up" | "down" | "flat";
 
@@ -118,6 +119,13 @@ export default function ScoreboardPage() {
             when bridge is down or returns ok:false. Editorial-mini-
             malist match to the existing Card visual contract. */}
         <NickHealthSection />
+
+        {/* 2026-05-24 · Wave X.f activation · Sunday `pricing-advisor`
+            cron writes a weekly pricing advisory · pre-fix operator
+            had to ASK Nick in chat to see it · now mounts on
+            /scoreboard so the computation surfaces every operator
+            open. Silent-hides when no advisory written yet. */}
+        <PricingAdvisoryCard />
 
         {anomalies.length > 0 ? (
           <section className="mt-6 space-y-3">
