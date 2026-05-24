@@ -24,12 +24,12 @@ This creates `packages/chrome-extension/dist/`. Then:
 2. Toggle **Developer mode** (top-right)
 3. Click **Load unpacked** → select `packages/chrome-extension/dist/`
 4. Click the extension icon → **Options** → set:
-   - API base URL (default: `https://statenour-web-production.up.railway.app`)
-   - **Token** (paste from https://statenour-web-production.up.railway.app/system/api-tokens)
+   - API base URL (default: `https://bdnick.info` — the operator-facing custom domain)
+   - **Token** (paste from https://bdnick.info/system/api-tokens)
 
 ## Generate a token
 
-1. Go to `/system/api-tokens` on your statenour instance
+1. Go to `https://bdnick.info/system/api-tokens` on your statenour instance
 2. Click **Issue new**
 3. Label it (e.g. `chrome-laptop`, `edge-work-machine`)
 4. Copy the raw token (`sn_…`) ONCE · it's sha256-hashed at rest, never retrievable again
