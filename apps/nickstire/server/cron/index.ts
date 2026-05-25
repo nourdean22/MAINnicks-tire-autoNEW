@@ -324,6 +324,20 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
   if (!job) {
     return { status: "not_found", details: `Job "${jobName}" not found. Available: ${[...registeredJobs.keys()].join(", ")}` };
   }
+
+  // wave-fix-2026-05-25 (audit #281 · Wave A regression catch) · this
+  // entry point was bypassing the cron lock that Wave A added to
+  // runTier + runTierJobByName. The Railway cron worker HTTP trigger
+  // calls THIS function · without the lock, an external HTTP trigger
+  // could race against a tiered-scheduler tick of the same job and
+  // double-fire. Same lock contract as runJob() above · skip on
+  // held-by-other, proceed on acquired/fallback, release in finally
+  // if acquired.
+  const lockResult = await acquireCronLock(job.name);
+  if (lockResult.status === "held-by-other") {
+    return { status: "skipped", details: "cross-dyno lock held by another process (Railway worker HTTP trigger)" };
+  }
+
   const startedAt = Date.now();
   try {
     const result = await job.handler();
@@ -335,6 +349,10 @@ export async function runJobByName(jobName: string): Promise<{ status: string; r
     const error = err instanceof Error ? err.message : String(err);
     logCronRun(job.name, "failed", durationMs, 0, error).catch((e) => { log.warn("[cron/index] fire-and-forget failed:", e); });
     return { status: "failed", details: error };
+  } finally {
+    if (lockResult.status === "acquired") {
+      await releaseCronLock(lockResult);
+    }
   }
 }
 

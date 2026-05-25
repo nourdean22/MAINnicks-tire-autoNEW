@@ -344,7 +344,7 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
             } else {
               const { sendSms } = await import("../sms");
               const name = cust.firstName || "there";
-              await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`);
+              await sendSms(cust.phone, `Hi ${name}, your vehicle is ready for pickup at Nick's Tire & Auto! We're open until 6pm. Call (216) 862-0005 with any questions.`, { via: "shop" });
             }
           }
         }

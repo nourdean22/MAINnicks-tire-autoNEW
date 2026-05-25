@@ -187,7 +187,7 @@ export async function executeAutoAction(parsed: ParsedResponse, phone: string, c
           const priceResult = detectServiceAndPrice(parsed.extractedData?.question || "");
           if (priceResult) {
             const { sendSms } = await import("../sms");
-            await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free check -- no appointment needed. (216) 862-0005`);
+            await sendSms(phone, `Hi! ${priceResult.service} starts at ${priceResult.price} at Nick's. Drop off anytime for a free check -- no appointment needed. (216) 862-0005`, { via: "shop" });
             log.info("Auto-responded with price quote", { phone: phone.slice(-4), service: priceResult.service });
 
             // Create a lead from this SMS inquiry

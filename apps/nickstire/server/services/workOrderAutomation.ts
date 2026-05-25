@@ -279,7 +279,8 @@ export async function processEstimateFollowUp(): Promise<{ recordsProcessed: num
             est.customerPhone,
             `Hi ${est.customerName || "there"}, following up on your estimate for ${est.serviceType || "auto service"} ($${est.totalEstimate || "see estimate"}). ` +
             `Remember: car problems rarely stay the same — early diagnosis costs less. ` +
-            `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`
+            `Bring your estimate back anytime. Call (216) 862-0005 or book at nickstire.org. We also offer financing! — Nick's Tire & Auto`,
+            { via: "shop" }
           );
         }
 

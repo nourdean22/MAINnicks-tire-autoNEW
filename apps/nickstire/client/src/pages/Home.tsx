@@ -135,6 +135,25 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               "radial-gradient(ellipse at 25% 50%, transparent 0%, transparent 30%, rgba(0,0,0,0.65) 100%)",
           }}
         />
+        {/* wave-fix-2026-05-25 · mobile-only headline-readability band.
+            Operator eyeball test on PSI screenshot (54 mobile) showed the
+            yellow "PULL UP FOR TIRES / DROP OFF FOR REPAIRS" headline was
+            fighting the building/sign IN the photo · text was overlapping
+            the brightly-lit yellow sign + lower-floor windows. The diagonal
+            105deg gradient above works on desktop where H1 lives in the
+            LEFT dark-sky zone, but on mobile the H1 is centered, so it
+            gets the mid-gradient (~50% opacity) which isn't enough.
+            This adds a vertical dark band centered on the H1+subhead
+            zone (y=280-700) at 85% peak opacity · preserves the building
+            at the TOP and the CTA buttons at the BOTTOM by fading to
+            transparent at both edges. md:hidden so desktop is unaffected. */}
+        <div
+          className="absolute inset-x-0 top-[280px] h-[420px] md:hidden pointer-events-none"
+          style={{
+            background:
+              "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(8,10,14,0.55) 15%, rgba(8,10,14,0.85) 50%, rgba(8,10,14,0.55) 85%, rgba(0,0,0,0) 100%)",
+          }}
+        />
         {/* Photo grain — inline-SVG noise, ~250 bytes total. Sells the
             "real photo on Euclid Ave" feel and hides any compression
             artifacts on older devices. */}
