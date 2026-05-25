@@ -141,7 +141,7 @@ export async function notify(params: NotifyParams): Promise<void> {
       }
 
       const body = template(templateData);
-      await sendSms(params.phone, body);
+      await sendSms(params.phone, body, { via: "shop" });
       log.info(`Notification sent: ${params.type}`, { phone: params.phone?.slice(-4) });
     }
   } catch (err) {

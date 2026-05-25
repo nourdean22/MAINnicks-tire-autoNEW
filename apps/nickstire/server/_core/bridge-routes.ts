@@ -490,7 +490,7 @@ export function registerBridgeRoutes(app: Express): void {
       const { sendSms } = await import("../sms");
       for (const m of messages) {
         try {
-          await sendSms(m.phone, m.message);
+          await sendSms(m.phone, m.message, { via: "shop" });
           // Mark customer as campaign-sent
           await db.execute(sql`UPDATE customers SET smsCampaignSent = 1, smsCampaignDate = NOW() WHERE phone = ${m.phone}`);
           sent++;

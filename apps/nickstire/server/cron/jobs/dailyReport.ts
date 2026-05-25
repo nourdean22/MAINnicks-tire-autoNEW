@@ -57,7 +57,7 @@ export async function generateDailyReport(): Promise<{ recordsProcessed: number;
 
     // Still send SMS as backup
     const message = `Daily: ${bookingCount} bookings, ${leadCount} leads, $${revenue} revenue. — Nick's Tire & Auto`;
-    await sendSms(ownerPhone, message);
+    await sendSms(ownerPhone, message, { via: "shop" });
 
     log.info("Daily report sent", { bookingCount, leadCount, revenue });
     return { recordsProcessed: 1, details: `Bookings: ${bookingCount}, Leads: ${leadCount}, Revenue: $${revenue}` };

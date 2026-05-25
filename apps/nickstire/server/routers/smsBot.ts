@@ -256,7 +256,7 @@ async function saveBooking(phone: string, conv: ConversationState) {
       const ownerPhone = process.env.OWNER_PHONE_NUMBER || process.env.ADMIN_PHONE;
       if (ownerPhone) {
         const notifMsg = `New SMS booking from ${conv.customerName}: ${conv.vehicleInfo} - ${conv.problemDescription}`;
-        await sendSms(ownerPhone, notifMsg, { skipOptOutCheck: true });
+        await sendSms(ownerPhone, notifMsg, { via: "shop", skipOptOutCheck: true });
       }
     } catch (err) {
       log.error("[SMS Bot] Owner notification failed:", err);
