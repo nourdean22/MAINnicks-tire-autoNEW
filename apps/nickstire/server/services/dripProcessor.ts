@@ -274,7 +274,7 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
             `);
             const optedOut = !!((optRows as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
             if (!optedOut) {
-              await sendSms(enrollment.customerPhone, msg);
+              await sendSms(enrollment.customerPhone, msg, { via: "shop" });
             }
           }
         } else if (step.channel === "email") {

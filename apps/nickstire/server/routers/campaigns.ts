@@ -393,7 +393,7 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
         continue; // already claimed by an overlapping run
       }
       try {
-        const result = await sendSms(send.phone, send.messageBody);
+        const result = await sendSms(send.phone, send.messageBody, { via: "shop" });
 
         if (result.success) {
           await d.update(smsCampaignSends).set({
