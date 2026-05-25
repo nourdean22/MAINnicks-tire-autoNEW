@@ -26,31 +26,31 @@ describe("Advanced Features Schema", () => {
   it("should export job_assignments table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.jobAssignments).toBeDefined();
-    expect(schema.jobAssignments.$inferSelect).toBeDefined;
+    expect(schema.jobAssignments.$inferSelect).toBeDefined();
   });
 
   it("should export invoices table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.invoices).toBeDefined();
-    expect(schema.invoices.$inferSelect).toBeDefined;
+    expect(schema.invoices.$inferSelect).toBeDefined();
   });
 
   it("should export customer_metrics table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.customerMetrics).toBeDefined();
-    expect(schema.customerMetrics.$inferSelect).toBeDefined;
+    expect(schema.customerMetrics.$inferSelect).toBeDefined();
   });
 
   it("should export kpi_snapshots table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.kpiSnapshots).toBeDefined();
-    expect(schema.kpiSnapshots.$inferSelect).toBeDefined;
+    expect(schema.kpiSnapshots.$inferSelect).toBeDefined();
   });
 
   it("should export portal_sessions table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.portalSessions).toBeDefined();
-    expect(schema.portalSessions.$inferSelect).toBeDefined;
+    expect(schema.portalSessions.$inferSelect).toBeDefined();
   });
 });
 
