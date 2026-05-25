@@ -62,7 +62,7 @@ export async function runDailyBackup(): Promise<{ recordsProcessed?: number; det
     };
 
     // Push to statenour cloud archive
-    const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+    const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
     const syncKey = process.env.STATENOUR_SYNC_KEY || "";
     try {
       await fetch(`${statenourUrl}/api/sync/backup`, {

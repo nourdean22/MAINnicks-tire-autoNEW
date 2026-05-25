@@ -28,7 +28,7 @@ let lastHealth: EngineHealth = {
  * Check both engines and determine operating mode.
  */
 export async function checkEngineHealth(): Promise<EngineHealth> {
-  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
 
   // Check Railway (self — if we're running, we're healthy)
   const railwayStart = Date.now();

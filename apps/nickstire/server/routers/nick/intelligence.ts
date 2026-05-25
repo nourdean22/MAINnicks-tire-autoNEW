@@ -409,7 +409,7 @@ ${input.context ? "\nADDITIONAL CONTEXT:\n" + Object.entries(input.context).map(
 // ─── Pull insights from statenour brain ──────────────
 
 export async function handlePullFromStatenour() {
-  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
   const syncKey = process.env.STATENOUR_SYNC_KEY || "";
   if (!syncKey) return { success: false, error: "No sync key" };
 

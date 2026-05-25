@@ -462,7 +462,7 @@ export function startTieredScheduler(): void {
       {
         name: "pull-from-statenour-brain", // SECOND: get fresh brain data before intelligence runs
         handler: async () => {
-          const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+          const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
           const syncKey = process.env.STATENOUR_SYNC_KEY || "";
           if (!syncKey) return { details: "No sync key" };
           try {

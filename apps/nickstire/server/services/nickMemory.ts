@@ -386,7 +386,7 @@ export async function syncMemoriesToStatenour(): Promise<number> {
   const memories = await recall({ limit: 30 });
   if (memories.length === 0) return 0;
 
-  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
   const syncKey = process.env.STATENOUR_SYNC_KEY || "";
   if (!syncKey) return 0;
 

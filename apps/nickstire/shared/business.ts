@@ -9,7 +9,10 @@
  * SITE_URL — Configurable domain for the entire site.
  * Set SITE_URL env var on Railway to switch domains instantly.
  * Defaults to nickstire.org (primary domain).
- * For autonicks.com backup: set SITE_URL=https://autonicks.com on Railway.
+ * NOTE · autonicks.com is RETIRED · do not set SITE_URL to it. The
+ * Vercel deployment behind autonicks.com is dead. The statenour
+ * operator domain is now bdnick.info; nickstire.org remains correct
+ * for this customer-facing app.
  */
 export const SITE_URL =
   (typeof process !== "undefined" && process.env?.SITE_URL) ||
