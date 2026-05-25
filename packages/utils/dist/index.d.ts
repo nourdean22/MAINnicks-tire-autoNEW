@@ -9,6 +9,6 @@
  * Cross-cutting infra (logger, telemetry, db) stays per-app · those
  * carry framework + env coupling that doesn't compose cleanly.
  */
-export { cn } from "./cn";
-export { withTimeout, withTimeoutOrFallback, fetchWithTimeout, } from "./with-timeout";
+export { cn } from "./cn.js";
+export { withTimeout, withTimeoutOrFallback, fetchWithTimeout, } from "./with-timeout.js";
 //# sourceMappingURL=index.d.ts.map
