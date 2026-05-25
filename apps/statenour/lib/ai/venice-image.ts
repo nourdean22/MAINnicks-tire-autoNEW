@@ -152,6 +152,30 @@ export async function generateVeniceImage(
     speed?: ImageSpeedMode;
   } = {}
 ): Promise<ImageResult> {
+  // Wave AJ · Cat 8 HF strategy · Replicate FLUX backend
+  // When REPLICATE_FLUX=true (and REPLICATE_API_KEY set), route image
+  // generation through Replicate's flux-schnell (~$0.003/img) instead
+  // of Venice flux-2-pro ($0.04/img) · ~12-20x cheaper at comparable
+  // quality. Same return shape so callers don't need to change.
+  // Falls back to Venice if Replicate throws. See:
+  //   apps/statenour/lib/ai/replicate-flux.ts
+  //   apps/statenour/docs/runbooks/replicate-flux-cutover.md
+  if (process.env.REPLICATE_FLUX === "true" && process.env.REPLICATE_API_KEY) {
+    try {
+      const { generateReplicateFluxImage } = await import("./replicate-flux");
+      const sizeStr = options.size ?? (options.autoAspect !== false ? inferAspectRatio(prompt) : "1024x1024");
+      const [wStr, hStr] = sizeStr.split("x");
+      const width = Math.max(256, Math.min(1792, Number(wStr) || 1024));
+      const height = Math.max(256, Math.min(1792, Number(hStr) || 1024));
+      return await generateReplicateFluxImage(prompt, { width, height });
+    } catch (err) {
+      console.warn(
+        `[venice-image] Replicate FLUX failed · falling back to Venice: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      // Fall through to Venice path below
+    }
+  }
+
   // v6 · Auto-aspect: when size isn't explicitly set, infer from prompt
   // (story → 9:16, instagram → 4:5, billboard → 16:9, default → 1:1).
   // Caller can pass autoAspect=false to force the 512×512 default.
