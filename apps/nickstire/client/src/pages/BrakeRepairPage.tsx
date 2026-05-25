@@ -9,6 +9,11 @@
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 import { BRAKES_PHOTOS } from "@/components/PhotoRibbon";
 import { Disc, Activity, Wrench } from "lucide-react";
+// wave-fix-2026-05-26 (skill-audit PORT 3 · SEO-AEO schema-generator)
+// FAQPageSchema emits Schema.org FAQPage JSON-LD for rich snippets in
+// SERP + AI-citation surface (ChatGPT, Gemini, Perplexity) for the
+// 7 brake-FAQ entries already on this page.
+import FAQPageSchema from "@/components/FAQPageSchema";
 
 const CONFIG: ServicePageConfig = {
   canonicalPath: "/brakes",
@@ -146,5 +151,17 @@ const CONFIG: ServicePageConfig = {
 };
 
 export default function BrakeRepairPage() {
-  return <FocusedServicePage config={CONFIG} />;
+  return (
+    <>
+      {/* wave-fix-2026-05-26 · FAQPage JSON-LD wired to CONFIG.faqs.
+          7 questions × answers · matches visible on-page Q&A per
+          Google's FAQPage spec. Two SEO wins: (1) Google rich-snippet
+          accordion in SERP boosts CTR 15-30% on info-intent queries,
+          (2) AI answer engines (ChatGPT, Gemini, Perplexity, Claude)
+          cite structured Q&A when answering "brake repair Cleveland"
+          · zero schema = zero citations. */}
+      <FAQPageSchema qa={CONFIG.faqs} />
+      <FocusedServicePage config={CONFIG} />
+    </>
+  );
 }
