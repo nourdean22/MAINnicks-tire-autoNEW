@@ -115,7 +115,11 @@ const nextConfig: NextConfig = {
             // Without these, the browser blocks fetch to Ollama and the
             // backup chain is broken at the CSP layer even though the
             // ANTHROPIC_BASE_URL env var routes Claude Code to it.
-            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
+            // wave-fix-2026-05-26 · audit #283 · add api.vapi.ai for the
+            // VAPI voice-agent live-call surface (operator can see VAPI
+            // status, call list, recordings from the statenour cockpit).
+            // Wave H landed Ollama Cloud but missed VAPI · audit caught it.
+            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://api.vapi.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
