@@ -259,11 +259,14 @@ async function checkDatabase(): Promise<void> {
       log.warn("Database down — attempting reconnection", { attempt: comp.recoveryCount });
 
       try {
-        // Clear the cached _db so getDb() creates a fresh connection
-        const dbModule = await import("../db") as any;
-        if (typeof dbModule._db !== "undefined") {
-          dbModule._db = null;
-        }
+        // wave-fix-2026-05-25 (audit #216) · was mutating dbModule._db
+        // through the imported namespace · ESM forbids assigning to
+        // exported namespace bindings, so the line was a SILENT no-op.
+        // Auto-recovery never actually reset the connection · stale
+        // pool kept failing forever. Call the exported resetDbConnection
+        // function which properly nulls the module-local `_db` let.
+        const { resetDbConnection } = await import("../db");
+        resetDbConnection();
         // Force a new connection attempt
         const freshDb = await getDb();
         if (freshDb) {
@@ -295,11 +298,10 @@ async function checkDatabase(): Promise<void> {
     comp.lastRecoveryAttempt = Date.now();
     comp.recoveryCount++;
     try {
-      const dbModule = await import("../db") as any;
-      if (typeof dbModule._db !== "undefined") {
-        dbModule._db = null;
-      }
-      const { getDb } = await import("../db");
+      // wave-fix-2026-05-25 (audit #216) · same ESM mutation bug as
+      // the inner block above · use exported resetDbConnection instead.
+      const { resetDbConnection, getDb } = await import("../db");
+      resetDbConnection();
       const freshDb = await getDb();
       if (freshDb) {
         const { sql } = await import("drizzle-orm");
@@ -365,7 +367,14 @@ function checkMemory(): void {
   const heapCeilingMB = maxMatch ? parseInt(maxMatch[1], 10) : 512;
   const heapPercent = heapCeilingMB > 0 ? Math.round((heapUsedMB / heapCeilingMB) * 100) : 0;
 
-  if (heapPercent >= 95) {
+  // wave-fix-2026-05-25 (audit #217) · thresholds were inverted ·
+  // 95%-down branch ran FIRST, 97%-degraded branch was unreachable
+  // because any heap >=97% also satisfies >=95%. The comment at the
+  // bottom of this block ("Only degrade at 97%+ — 90% is NORMAL")
+  // shows the original intent was the opposite. Fixed: 99%+ now
+  // triggers "down" (truly critical · GC failed to recover · process
+  // likely about to OOM-kill), 95-98% triggers "degraded" (warning).
+  if (heapPercent >= 99) {
     comp.status = "down";
     comp.error = `Critical memory usage: ${heapPercent}% (${heapUsedMB}MB/${heapTotalMB}MB heap, ${rssMB}MB RSS)`;
     log.error("CRITICAL: Memory usage at " + heapPercent + "%", {
@@ -382,8 +391,8 @@ function checkMemory(): void {
       log.info("Triggering forced garbage collection");
       global.gc();
     }
-  } else if (heapPercent >= 97) {
-    // Only degrade at 97%+ — small containers (54MB) routinely run at 90%+ and that's NORMAL
+  } else if (heapPercent >= 95) {
+    // 95-98% · degraded warning · small containers (54MB) routinely run at 90%+ and that's NORMAL
     // Node's V8 heap management is efficient at high utilization; 90% is not a problem
     comp.status = "degraded";
     comp.error = `Critical memory pressure: ${heapPercent}% (${heapUsedMB}MB/${heapTotalMB}MB heap, ${rssMB}MB RSS)`;
@@ -1193,11 +1202,11 @@ export async function triggerManualRecovery(): Promise<{
 
   // Force database reconnection
   try {
-    const dbModule = await import("../db") as any;
-    if (typeof dbModule._db !== "undefined") {
-      dbModule._db = null;
-    }
-    const { getDb } = await import("../db");
+    // wave-fix-2026-05-25 (audit #216) · third site of the same ESM
+    // mutation bug · use exported resetDbConnection. Manual recovery
+    // triggered from admin /system/recovery was a silent no-op before.
+    const { resetDbConnection, getDb } = await import("../db");
+    resetDbConnection();
     const db = await getDb();
     if (db) {
       const { sql } = await import("drizzle-orm");
