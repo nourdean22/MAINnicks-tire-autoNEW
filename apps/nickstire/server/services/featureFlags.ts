@@ -98,6 +98,14 @@ export const FLAG_DEFINITIONS = [
   // Requires HF_API_KEY env var. See docs/runbooks/classifiers.md.
   { key: "classifier_prompt_injection_enabled", description: "Pre-screen VAPI + chat input via protectai/deberta-v3-base-prompt-injection-v2; flags 'ignore previous instructions' style attacks at the input boundary (fail-open)" },
   { key: "classifier_intent_routing_enabled", description: "Pre-classify inbound SMS intent via MoritzLaurer/deberta-v3-large-zeroshot-v2.0 (price · scheduling · complaint · opt-out · off-topic); routes to existing keyword parser as fallback" },
+
+  // ─── XTTS-v2 cloned-voice outbound voicemail (Wave AI) ─
+  // Generates audio in operator's cloned voice via Replicate (XTTS-v2)
+  // or self-hosted Modal endpoint. ONLY generates audio · does NOT
+  // place calls. The full outbound voicemail pipeline (Twilio Voice +
+  // TCPA compliance + DNC list + cohort selection) is documented in
+  // docs/runbooks/voice-clone-setup.md as operator next-steps.
+  { key: "outbound_voicemail_enabled", description: "Allow voice-clone.ts cloneVoice() to generate cloned-voice audio for outbound voicemails. Requires REPLICATE_API_KEY (or XTTS_MODAL_URL) + XTTS_VOICE_SAMPLE_URL. OFF by default · turn on AFTER recording sample + verifying via checkVoiceCloneHealth" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
