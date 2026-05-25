@@ -42,6 +42,12 @@ interface SmsGatewayEvent {
     deliveredAt?: string;
     failedAt?: string;
     reason?: string;
+    // Wave AZ · Capevace exposes MMS attachments in the payload when
+    // the receiving device captures multimedia. Field shape varies by
+    // gateway version · we tolerate both `attachments` (array of URLs)
+    // and `mediaUrl` (single URL).
+    attachments?: string[];
+    mediaUrl?: string;
   };
 }
 
@@ -158,7 +164,36 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
     if (eventType === "sms:received") {
       // ─── Inbound customer text → 216-862-0005 ────────
       const body = payload.message || "";
+
+      // Wave AZ · MMS detection · if Capevace included an attachment
+      // (image), fire the photo-assess pipeline in parallel with the
+      // normal text-handling path. The pipeline runs its own opt-out +
+      // sending-hours checks via sendSms.
+      const mmsUrl = (payload.attachments && payload.attachments[0]) || payload.mediaUrl;
+      if (mmsUrl && phone) {
+        (async () => {
+          try {
+            const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");
+            await runPhotoAssess({
+              phone,
+              photoUrl: mmsUrl,
+              source: "shop_gateway_mms",
+            });
+          } catch (err) {
+            log.warn("photo_assess_shop_mms_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        })().catch(() => undefined);
+      }
+
       if (!phone || !body) {
+        // MMS with no body is still valid · if we just kicked off
+        // photo-assess, return success rather than 400
+        if (mmsUrl && phone) {
+          res.status(200).json({ received: true, mms: true });
+          return;
+        }
         res.status(400).json({ error: "missing_phone_or_message" });
         return;
       }

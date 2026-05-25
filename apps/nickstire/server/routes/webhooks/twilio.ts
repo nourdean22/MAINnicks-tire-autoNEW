@@ -23,9 +23,37 @@ router.use(validateTwilioRequest);
 // ─── Inbound SMS ────────────────────────────────
 router.post("/twilio/incoming-sms", async (req: Request, res: Response) => {
   try {
-    const { Body: body, From: from, To: to, MessageSid: messageSid } = req.body;
+    const { Body: body, From: from, To: to, MessageSid: messageSid, NumMedia: numMediaRaw, MediaUrl0: mediaUrl0 } = req.body;
+
+    // Wave AZ · MMS routing · Twilio sets NumMedia ≥ 1 when an image
+    // is attached. Route to the photo-assess pipeline fire-and-forget
+    // (don't block the TwiML ack on vision-model latency). The pipeline
+    // runs its own opt-out + sending-hours checks via sendSms.
+    const numMedia = Number(numMediaRaw ?? 0);
+    if (numMedia >= 1 && mediaUrl0 && from) {
+      (async () => {
+        try {
+          const { runPhotoAssess } = await import("../../services/photo-assess-pipeline");
+          await runPhotoAssess({
+            phone: from,
+            photoUrl: String(mediaUrl0),
+            source: "twilio_mms",
+          });
+        } catch (err) {
+          log.warn("photo_assess_twilio_mms_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      })().catch(() => undefined);
+    }
 
     if (!body || !from) {
+      // MMS with no body is still a valid inbound · skip the empty-body
+      // bail if we just kicked off photo-assess
+      if (numMedia >= 1) {
+        res.type("text/xml").send("<Response></Response>");
+        return;
+      }
       res.status(400).send("<Response></Response>");
       return;
     }

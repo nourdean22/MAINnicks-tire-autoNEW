@@ -106,6 +106,15 @@ export const FLAG_DEFINITIONS = [
   // TCPA compliance + DNC list + cohort selection) is documented in
   // docs/runbooks/voice-clone-setup.md as operator next-steps.
   { key: "outbound_voicemail_enabled", description: "Allow voice-clone.ts cloneVoice() to generate cloned-voice audio for outbound voicemails. Requires REPLICATE_API_KEY (or XTTS_MODAL_URL) + XTTS_VOICE_SAMPLE_URL. OFF by default · turn on AFTER recording sample + verifying via checkVoiceCloneHealth" },
+
+  // ─── Photo-damage MMS (Wave AZ) ───────────────────
+  // Customer texts a photo (tire/brake/vehicle) · vision-analyzer.ts
+  // describes the damage via Replicate Qwen2-VL · photo-assess-pipeline.ts
+  // optionally drafts a reply via NickGPT (Wave AE) · sends via shop
+  // gateway with { via: "shop" }. New revenue channel · OFF default.
+  // Wired into Twilio MMS (NumMedia ≥ 1) + Capevace gateway
+  // attachments + admin manual route /api/admin/photo-assess.
+  { key: "photo_assess_enabled", description: "Photo-damage MMS pipeline · vision-analyzer + auto-reply. Requires REPLICATE_API_KEY (or HF_API_KEY for fallback). OFF default · enable after testing via /api/admin/photo-assess with skipSmsSend=true to verify model quality on sample photos" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
