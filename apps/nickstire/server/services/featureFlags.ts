@@ -90,6 +90,14 @@ export const FLAG_DEFINITIONS = [
   // running Ollama service. Falls back to Claude/Venice when OFF or
   // when Ollama is unreachable. See docs/runbooks/nickgpt-finetune.md.
   { key: "nickgpt_drafter_enabled", description: "Use fine-tuned NickGPT 3B (Ollama) as SMS-draft engine; falls back to Claude/Venice when disabled or unreachable" },
+
+  // ─── HuggingFace classifier pre-filters ───────────
+  // Wave AF · tiny HF specialist models that pre-filter customer input
+  // before expensive LLM calls. FAIL-OPEN: a classifier outage never
+  // blocks customer flow · the caller proceeds as if no signal arrived.
+  // Requires HF_API_KEY env var. See docs/runbooks/classifiers.md.
+  { key: "classifier_prompt_injection_enabled", description: "Pre-screen VAPI + chat input via protectai/deberta-v3-base-prompt-injection-v2; flags 'ignore previous instructions' style attacks at the input boundary (fail-open)" },
+  { key: "classifier_intent_routing_enabled", description: "Pre-classify inbound SMS intent via MoritzLaurer/deberta-v3-large-zeroshot-v2.0 (price · scheduling · complaint · opt-out · off-topic); routes to existing keyword parser as fallback" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
