@@ -69,6 +69,11 @@ COPY --from=deps /repo/apps/statenour/node_modules ./apps/statenour/node_modules
 # fails to find clsx (the resolution starts from packages/utils, not from
 # apps/statenour). Found by Railway build f88c3359.
 COPY --from=deps /repo/packages/utils/node_modules ./packages/utils/node_modules
+# Wave AN follow-up · packages/lenses/node_modules carries the typescript
+# devDep (5.6.x · tsc binary) that the lenses build script needs. Without
+# this COPY the build stage fires `pnpm run build` in packages/lenses and
+# gets `sh: tsc: not found`. Same pattern as packages/utils above.
+COPY --from=deps /repo/packages/lenses/node_modules ./packages/lenses/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/statenour ./apps/statenour
 # Tier-3 follow-up (2026-05-19): @nour/utils now ships pre-built dist/
