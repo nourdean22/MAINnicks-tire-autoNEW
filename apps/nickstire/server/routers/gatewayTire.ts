@@ -423,11 +423,21 @@ export const gatewayTireRouter = router({
         const { getCachedPrices } = await import("../services/dataPipelines");
         const pipelineCached = getCachedPrices(sizeClean);
         if (pipelineCached && pipelineCached.length > 0) {
-          let tires: PublicTire[] = pipelineCached.map((item, idx) => {
+          let tires: PublicTire[] = pipelineCached.flatMap((item, idx) => {
+            // wave-fix-2026-05-25 (audit #152) · filter $0 cache tires.
+            // wholesaleCost could be 0 if D&K returned a backorder row
+            // with no pricing location attached. Without this filter the
+            // tire renders at $0.00 in TireFinder, customer taps Order,
+            // and placeOrder's `pricePerTireCents: z.number().int().min(0)`
+            // happily accepts the 0 input.
+            if (item.wholesaleCost <= 0) {
+              log.warn(`[gatewayTire:publicSearch] filtered $0 cache tire: ${item.brand} ${item.model}`);
+              return [];
+            }
             const shopPrice = Math.ceil(item.wholesaleCost * (1 + markup / 100) * 100) / 100;
             const pricePerTireCents = Math.round(shopPrice * 100);
             const cat = item.wholesaleCost < 60 ? "budget" : item.wholesaleCost < 90 ? "mid" : "premium";
-            return {
+            return [{
               id: `cache-${idx}-${item.brand.toLowerCase()}`,
               name: `${item.brand} ${item.model}`.trim(),
               brand: item.brand,
@@ -442,7 +452,7 @@ export const gatewayTireRouter = router({
               loadIndex: "",
               inStock: item.localQty > 0,
               estimatedDelivery: item.localQty > 0 ? "Same day" : "1-2 business days",
-            };
+            }];
           });
 
           if (input.category !== "all") tires = tires.filter(t => t.category === input.category);
@@ -471,8 +481,16 @@ export const gatewayTireRouter = router({
 
       if (rawTires && rawTires.length > 0) {
         try {
-          let tires: PublicTire[] = rawTires.map((item, idx) => {
+          let tires: PublicTire[] = rawTires.flatMap((item, idx) => {
             const cost = pickWholesaleCost(item);
+            // wave-fix-2026-05-25 (audit #152) · filter $0 live tires.
+            // pickWholesaleCost returns 0 when D&K's pricing_data is
+            // missing/malformed. Without this filter the tire renders at
+            // $0.00 and placeOrder accepts pricePerTireCents:0 input.
+            if (cost <= 0) {
+              log.warn(`[gatewayTire:publicSearch] filtered $0 live tire: ${item.make} ${item.minor_name}`);
+              return [];
+            }
             // 100% markup: customer pays 2× wholesale
             const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
             const pricePerTireCents = Math.round(shopPrice * 100);
@@ -488,7 +506,7 @@ export const gatewayTireRouter = router({
             const loadIdx = lrsr.match(/^\d+/)?.[0] || "";
             const speedRating = lrsr.replace(/^\d+/, "");
             const onHand = typeof item.on_hand === "number" ? item.on_hand : 0;
-            return {
+            return [{
               id: `gw-${idx}-${item.dk_part_number || sizeClean}`,
               name: String(item.display_name || `${brandRaw} ${model}`).trim(),
               brand: brandRaw,
@@ -503,7 +521,7 @@ export const gatewayTireRouter = router({
               loadIndex: loadIdx,
               inStock: onHand > 0,
               estimatedDelivery: onHand > 0 ? "Same day" : "1-2 business days",
-            };
+            }];
           });
 
           if (input.category !== "all") {
@@ -613,6 +631,91 @@ export const gatewayTireRouter = router({
       if (existingOrder) {
         console.info(`[tireorder:dedup] Duplicate blocked — existing order ${existingOrder}`);
         return { success: true, orderNumber: existingOrder, totalAmount: 0, duplicate: true };
+      }
+
+      // wave-fix-2026-05-25 (audit #151) · server-side price re-derivation.
+      // SECURITY · without this, a malicious customer can manipulate the
+      // tRPC payload to send `pricePerTireCents: 100` for a $200 tire
+      // and Stripe charges $1. The only previous guard was
+      // `z.number().int().min(0)` which allowed any non-negative integer.
+      //
+      // Strategy · re-derive the EXPECTED minimum price from the same
+      // markup formula publicSearch uses (cost × (1 + markup/100), ceil to
+      // cents). Reject if client-sent price is more than 5% below expected
+      // (allow legit sale prices + small rounding drift).
+      //
+      // Fail-safe · if we can't derive expected (Gateway down + cache cold),
+      // fall back to an ABSOLUTE floor of $50 — anything below that is the
+      // pay-a-penny exploit class. Real Nick's tires retail $80+ even
+      // budget tier, so $50 is a safe floor that blocks attacks without
+      // false-rejecting legitimate orders during outages.
+      const markup = await getTireMarkup();
+      const sizeCleanForLookup = input.tireSize.replace(/[\/Rr\s-]/g, "");
+      let expectedPriceCents: number | null = null;
+
+      // Try cache first (populated by daily cron, no live Gateway hit)
+      try {
+        const { getCachedPrices } = await import("../services/dataPipelines");
+        const cached = getCachedPrices(sizeCleanForLookup);
+        if (cached) {
+          const inputBrandUpper = input.tireBrand.toUpperCase();
+          const inputModelUpper = input.tireModel.toUpperCase().replace(/^[A-Z]+\s*-\s*/, "");
+          const match = cached.find(t =>
+            t.brand.toUpperCase() === inputBrandUpper &&
+            t.model.toUpperCase().includes(inputModelUpper)
+          );
+          if (match && match.wholesaleCost > 0) {
+            const shopPrice = Math.ceil(match.wholesaleCost * (1 + markup / 100) * 100) / 100;
+            expectedPriceCents = Math.round(shopPrice * 100);
+          }
+        }
+      } catch (e) {
+        console.warn("[placeOrder:price-derive] cache lookup failed:", e instanceof Error ? e.message : e);
+      }
+
+      // Fall through to live Gateway if cache missed
+      if (expectedPriceCents === null) {
+        try {
+          const sizeFormattedForLookup = sizeCleanForLookup.length >= 7
+            ? `${sizeCleanForLookup.slice(0, 3)}/${sizeCleanForLookup.slice(3, 5)}R${sizeCleanForLookup.slice(5)}`
+            : input.tireSize;
+          const rawTires = await gatewaySearchTires(sizeFormattedForLookup);
+          if (rawTires) {
+            const inputBrandUpper = input.tireBrand.toUpperCase();
+            const inputModelUpper = input.tireModel.toUpperCase();
+            const match = rawTires.find(item =>
+              String(item.make || "").toUpperCase() === inputBrandUpper &&
+              String(item.minor_name || "").toUpperCase().includes(inputModelUpper)
+            );
+            if (match) {
+              const cost = pickWholesaleCost(match);
+              if (cost > 0) {
+                const shopPrice = Math.ceil(cost * (1 + markup / 100) * 100) / 100;
+                expectedPriceCents = Math.round(shopPrice * 100);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("[placeOrder:price-derive] live Gateway lookup failed:", e instanceof Error ? e.message : e);
+        }
+      }
+
+      if (expectedPriceCents !== null) {
+        // Tight floor · 5% below expected = reject (catches manipulated prices)
+        const minAcceptableCents = Math.floor(expectedPriceCents * 0.95);
+        if (input.pricePerTireCents < minAcceptableCents) {
+          console.error(`[placeOrder:price-mismatch] BLOCKED · client=${input.pricePerTireCents}¢ expected=${expectedPriceCents}¢ floor=${minAcceptableCents}¢ tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+          return { success: false, error: "Price has changed. Please refresh and try again." };
+        }
+      } else {
+        // Loose absolute floor · 5000¢ ($50) blocks pay-a-penny class
+        // without false-rejecting during Gateway outages
+        const ABSOLUTE_MIN_TIRE_PRICE_CENTS = 5000;
+        if (input.pricePerTireCents < ABSOLUTE_MIN_TIRE_PRICE_CENTS) {
+          console.error(`[placeOrder:price-floor] BLOCKED · client=${input.pricePerTireCents}¢ < $50 absolute floor · tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+          return { success: false, error: "Invalid price. Please refresh and try again." };
+        }
+        console.warn(`[placeOrder:price-derive] could not derive price for ${input.tireBrand} ${input.tireModel} ${input.tireSize} · proceeding with $50 absolute floor only`);
       }
 
       const orderNumber = generateOrderNumber();
