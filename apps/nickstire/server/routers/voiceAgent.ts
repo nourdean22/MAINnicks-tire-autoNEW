@@ -220,6 +220,24 @@ export const voiceAgentRouter = router({
           utmCampaign: "vapi-receptionist",
         });
         log.info("Voice agent booked slot", { refCode, name: input.name, service: input.service });
+
+        // wave-fix-2026-05-25 (audit #107) · mark this call as converted
+        // so VAPI eval scoring + conversion-rate dashboards count it.
+        // Pre-fix, convertedToLead stayed 0 for every booked call, the
+        // alert thresholds (e.g. "low-quality calls > 30%") fired on
+        // noise. Best-effort · failure here doesn't block the booking.
+        if (input.callId) {
+          try {
+            const { vapiCallLogs } = await import("../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await d.update(vapiCallLogs)
+              .set({ convertedToLead: 1 })
+              .where(eq(vapiCallLogs.vapiCallId, input.callId));
+          } catch (err) {
+            log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for bookSlot", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
+          }
+        }
+
         // PII projection — never echo caller name/service in returned text; AI has them in context.
         return {
           success: true,
@@ -531,6 +549,22 @@ export const voiceAgentRouter = router({
           utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
         });
         log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize });
+
+        // wave-fix-2026-05-25 (audit #107) · same convertedToLead update
+        // as bookSlot. A tire inquiry that creates a real `leads` row IS
+        // a conversion · should not show up in the "wasted call" bucket.
+        if (input.callId) {
+          try {
+            const { vapiCallLogs } = await import("../../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await d.update(vapiCallLogs)
+              .set({ convertedToLead: 1 })
+              .where(eq(vapiCallLogs.vapiCallId, input.callId));
+          } catch (err) {
+            log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for tireInquiry", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });
+          }
+        }
+
         return {
           success: true,
           message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $60 installed.`,
