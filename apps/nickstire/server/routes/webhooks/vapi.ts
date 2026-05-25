@@ -347,7 +347,14 @@ router.post("/vapi", async (req: Request, res: Response) => {
               const summary = (event as { summary?: string; analysis?: { summary?: string } })?.summary
                 ?? (event as { summary?: string; analysis?: { summary?: string } })?.analysis?.summary
                 ?? null;
-              const transcript = (event as { transcript?: string })?.transcript ?? "";
+              // wave-fix-2026-05-25 (audit #106) · VAPI's end-of-call
+              // webhook nests the FULL transcript under event.artifact.
+              // transcript · the top-level event.transcript field is
+              // populated only for live mid-call chunks. Reading
+              // event.transcript only meant service-mention detection
+              // ran on empty text for the events that matter most.
+              // Same silent-loss class as the earlier 5-day VAPI bug.
+              const transcript = (event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string })?.transcript ?? "";
               // Light heuristic for service mention — extract any mention
               // of common services from transcript or summary.
               const text = (typeof transcript === "string" ? transcript : "")
@@ -411,7 +418,12 @@ router.post("/vapi", async (req: Request, res: Response) => {
             const { eq } = await import("drizzle-orm");
             const db = await getDb();
             if (db) {
-              const transcriptText = ((event as { transcript?: string }).transcript ?? "")
+              // wave-fix-2026-05-25 (audit #106) · same artifact-first
+              // fallback as the service-mention path · without this,
+              // confirmation-call evaluation runs on empty transcript
+              // and undercounts every converted call by ~10 eval-score
+              // points.
+              const transcriptText = ((event as { artifact?: { transcript?: string }; transcript?: string }).artifact?.transcript ?? (event as { transcript?: string }).transcript ?? "")
                 + " " + ((event as { summary?: string; analysis?: { summary?: string } }).summary
                   ?? (event as { analysis?: { summary?: string } }).analysis?.summary
                   ?? "");
