@@ -35,9 +35,10 @@ COPY apps/statenour/package.json ./apps/statenour/
 COPY apps/nickstire/package.json ./apps/nickstire/
 COPY apps/worker/package.json ./apps/worker/
 # Tier-2-E: packages/ workspace packages must be declared before install
-# so pnpm can resolve `workspace:*` references (currently @nour/utils ·
-# add new packages here when they ship).
+# so pnpm can resolve `workspace:*` references. Currently @nour/utils +
+# @statenour/lenses · add new packages here when they ship.
 COPY packages/utils/package.json ./packages/utils/
+COPY packages/lenses/package.json ./packages/lenses/
 # Copy patches/ so the pnpm.patchedDependencies entries can apply
 COPY apps/statenour/patches ./apps/statenour/patches
 COPY apps/nickstire/patches ./apps/nickstire/patches
@@ -75,10 +76,22 @@ COPY apps/statenour ./apps/statenour
 # build step below emits packages/utils/dist/ which the Next.js bundler
 # then resolves cleanly under both Bundler and Node16 module resolution.
 COPY packages/utils ./packages/utils
+# Wave AN activation hotfix (2026-05-26) · @statenour/lenses workspace
+# package (OSS lenses extraction · memory #42 + #45 + #48). Missing
+# from this Dockerfile broke 10 consecutive statenour deploys from
+# 2026-05-25 16:40 UTC onward — the consumer at
+# apps/statenour/lib/ai/strategic-frameworks/index.ts:25 imports it
+# but Docker context had no way to resolve. Same pattern as @nour/utils
+# above: copy source + build dist/ before next build.
+COPY packages/lenses ./packages/lenses
 
 # Build @nour/utils first · emits dist/ so statenour's next build can
 # resolve the package via its proper exports map (./dist/index.js).
 WORKDIR /repo/packages/utils
+RUN pnpm run build
+
+# Build @statenour/lenses · emits packages/lenses/dist · same pattern.
+WORKDIR /repo/packages/lenses
 RUN pnpm run build
 
 # Build the Next.js app · produces apps/statenour/.next/standalone/
