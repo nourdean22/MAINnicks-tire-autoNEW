@@ -1157,7 +1157,21 @@ ${urls.join("\n")}
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     if (!webhookSecret) {
-      // Stripe webhooks not configured — skip silently
+      // wave-fix-2026-05-25 (audit #113) · differentiate "Stripe not
+      // configured at all" from "half-configured · webhook secret
+      // missing but API key present". The latter is the silent-failure
+      // case where real payments arrive at Stripe but webhook events
+      // get dropped silently · invoices never mark as paid · customer
+      // pays + we don't know. Force a 500 so the events stack up in
+      // Stripe's retry queue (visible operator signal) instead of
+      // disappearing.
+      const hasSecretKey = !!process.env.STRIPE_SECRET_KEY;
+      if (hasSecretKey) {
+        serverLog.error("[Stripe Webhook] STRIPE_WEBHOOK_SECRET is missing but STRIPE_SECRET_KEY is set — Stripe is half-configured. Real payment events are being DROPPED. Set STRIPE_WEBHOOK_SECRET on Railway or events will continue to fail.");
+        return res.sendStatus(500);
+      }
+      // Stripe not configured at all (no key + no webhook) — silent
+      // 200 is correct · no events expected so don't make noise.
       return res.sendStatus(200);
     }
 
