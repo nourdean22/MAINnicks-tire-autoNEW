@@ -521,6 +521,38 @@ async function startServer() {
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
   });
 
+  // ─── Photo Assess (admin manual trigger · Wave AZ) ──
+  // POST /api/admin/photo-assess  · body: { phone, photoUrl, skipSmsSend? }
+  // Manual fire-button for testing the photo-damage MMS pipeline OR
+  // for operator-driven response to a photo received outside the
+  // normal MMS path (e.g. customer Facebook-DM'd a photo). The
+  // pipeline runs vision analysis → optionally drafts SMS via NickGPT
+  // → sends reply via shop gateway with { via: "shop" }. Returns the
+  // structured assessment + send status.
+  app.post("/api/admin/photo-assess", requireAdminApiKey, express.json({ limit: "8kb" }), async (req, res) => {
+    const { phone, photoUrl, skipSmsSend } = (req.body || {}) as {
+      phone?: string;
+      photoUrl?: string;
+      skipSmsSend?: boolean;
+    };
+    if (!phone || !photoUrl) {
+      res.status(400).json({ error: "phone and photoUrl required" });
+      return;
+    }
+    try {
+      const { runPhotoAssess } = await import("../services/photo-assess-pipeline");
+      const outcome = await runPhotoAssess({
+        phone,
+        photoUrl,
+        source: "manual_admin",
+        skipSmsSend: Boolean(skipSmsSend),
+      });
+      res.json(outcome);
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
   // ─── Feature Flag REST API (admin key auth) ────────
   app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
     const { getAllFlags } = await import("../services/featureFlags");
