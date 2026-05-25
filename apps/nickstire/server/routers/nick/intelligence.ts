@@ -542,6 +542,18 @@ export async function handleRunMigrations() {
       `CREATE TABLE IF NOT EXISTS prediction_impressions (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, shown_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, surface VARCHAR(64) NOT NULL, operator_id VARCHAR(64) NULL, PRIMARY KEY (id), INDEX idx_prediction_shown (prediction_id, shown_at)) ENGINE=InnoDB`,
       `CREATE TABLE IF NOT EXISTS prediction_actions (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, action VARCHAR(32) NOT NULL, acted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, operator_id VARCHAR(64) NULL, PRIMARY KEY (id), INDEX idx_prediction_acted (prediction_id, acted_at), INDEX idx_action_acted (action, acted_at)) ENGINE=InnoDB`,
       `CREATE TABLE IF NOT EXISTS prediction_outcomes (id BIGINT NOT NULL AUTO_INCREMENT, prediction_id BIGINT NOT NULL, invoice_id BIGINT NULL, matched TINYINT(1) NOT NULL, resolved_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, window_days INT NOT NULL, PRIMARY KEY (id), INDEX idx_prediction (prediction_id), INDEX idx_resolved (resolved_at)) ENGINE=InnoDB`,
+      // 2026-05-25 · drizzle/0050_wave_audit_unique_pred_surface.sql — UNIQUE KEY
+      // Wave-fix-2026-05-25 (audit #100). Adds UNIQUE constraint on
+      // (prediction_id, surface) so INSERT IGNORE in crossSellOutreach actually
+      // dedupes impressions now that cross-sell-outreach moved from daily (24h)
+      // to hourly (2h) tier in Wave C. Without this, hourly cross-sell would
+      // bloat prediction_impressions by 12× per prediction per day.
+      //
+      // Step 1 dedupes any existing rows (defensive — table had ~zero rows pre-fix).
+      // Step 2 adds the UNIQUE KEY. The existing catch in this loop recognizes
+      // "Duplicate" in the error message so re-runs are idempotent.
+      `DELETE FROM prediction_impressions WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM prediction_impressions GROUP BY prediction_id, surface) AS keepers)`,
+      `ALTER TABLE prediction_impressions ADD UNIQUE KEY uk_prediction_surface (prediction_id, surface)`,
     ];
 
     let applied = 0;
