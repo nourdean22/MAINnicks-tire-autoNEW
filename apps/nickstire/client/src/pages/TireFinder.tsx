@@ -877,8 +877,15 @@ export default function TireFinder() {
           toast.error(`We couldn't verify payment for order ${order}. Call (216) 862-0005 — we'll sort it out.`);
         },
       });
+      // wave-fix-2026-05-25 (audit #117) · strip ?paid=1&order=X from
+      // the URL after handling. Without this, a page refresh re-fires
+      // the confirmCheckout mutation AND duplicates the toast every
+      // time the user reloads. replaceState (not pushState) so the
+      // back button doesn't return to the dirty URL state.
+      window.history.replaceState({}, "", window.location.pathname);
     } else if (paid === "0" && order) {
       toast(`Payment cancelled — order ${order} is still saved. You can pay anytime.`);
+      window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
 
