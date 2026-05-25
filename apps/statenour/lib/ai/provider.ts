@@ -831,10 +831,23 @@ export function getModelForTask(
 
 /**
  * Whether the active provider supports tool calling.
- * All current providers (Venice, OpenAI, Anthropic) support tools.
+ *
+ * wave-fix-2026-05-25 · audit · was hardcoded `return true` claiming
+ * "All current providers (Venice, OpenAI, Anthropic) support tools" —
+ * but ProviderName ALSO includes `ollama` and `emergency`. Ollama's
+ * tool-calling format differs from OpenAI-compatible providers and is
+ * unreliable for the multi-step tool loops we use (especially with
+ * kimi-k2.5:cloud as a cost-saving backup). `emergency` is a stub
+ * with no tool support. Returning true for them caused tool-loop
+ * dispatch to attempt calls that silently failed mid-conversation.
+ *
+ * Now allowlists exactly the 3 providers we've verified work with
+ * the AI SDK's tool wire format. Adding new providers requires
+ * verification — opt them in by name.
  */
 export function activeProviderSupportsTools(): boolean {
-  return true;
+  const info = getActiveProviderInfo();
+  return info.provider === "venice" || info.provider === "openai" || info.provider === "anthropic";
 }
 
 /**

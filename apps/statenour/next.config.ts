@@ -109,7 +109,13 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https:",
             "font-src 'self' data:",
-            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai wss:",
+            // wave-fix-2026-05-25 · audit · added Ollama Cloud + local
+            // localhost:11434 to support the kimi-k2.5:cloud backup
+            // provider (operator's fallback when primary providers fail).
+            // Without these, the browser blocks fetch to Ollama and the
+            // backup chain is broken at the CSP layer even though the
+            // ANTHROPIC_BASE_URL env var routes Claude Code to it.
+            "connect-src 'self' https://*.openai.com https://*.anthropic.com https://api.venice.ai https://ollama.com https://*.ollama.com http://localhost:11434 wss:",
             "frame-ancestors 'none'",
             "base-uri 'self'",
             "form-action 'self'",
