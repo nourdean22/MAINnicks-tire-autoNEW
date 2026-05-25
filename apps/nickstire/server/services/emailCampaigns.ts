@@ -119,11 +119,35 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
             vehicleMake: cust.vehicleMake || "vehicle",
             vehicleModel: cust.vehicleModel || "",
           });
-          const body = personalizeEmail(template.body, {
+          const bodyRaw = personalizeEmail(template.body, {
             firstName: cust.firstName || "there",
             vehicleMake: cust.vehicleMake || "vehicle",
             vehicleModel: cust.vehicleModel || "",
           });
+          // wave-fix-2026-05-26 (audit #300/#305) · CAN-SPAM Act compliance.
+          // Before this, the operator could enable RESEND_API_KEY and the
+          // very first campaign tick would blast lapsed-customer email
+          // without an unsubscribe link or physical address · FTC fines
+          // are $51k+ per violation · the cron is already wired into the
+          // scheduler so the day the env var lands, marketing email goes
+          // out non-compliant.
+          //
+          // Append a compliance footer to every email body covering:
+          //   1. "Why am I getting this?" identification
+          //   2. Physical address (CAN-SPAM §316.5)
+          //   3. Unsubscribe mechanism (mailto: is CAN-SPAM acceptable)
+          //
+          // Also set the List-Unsubscribe header (RFC 8058 + industry best
+          // practice) · Gmail/Outlook show a one-click unsubscribe button
+          // in their UI when this header is present.
+          const unsubscribeMailto = `mailto:unsubscribe@nickstire.org?subject=Unsubscribe&body=Please%20remove%20${encodeURIComponent(cust.email)}%20from%20Nick%27s%20Tire%20%26%20Auto%20email%20campaigns.`;
+          const footer = `
+<div style="margin-top:32px;padding-top:16px;border-top:1px solid #ddd;color:#666;font-size:12px;font-family:sans-serif;line-height:1.5">
+  <p>You're receiving this because you're a Nick's Tire &amp; Auto customer who hasn't visited in 30+ days. We send these reminders occasionally to help you stay on top of your vehicle.</p>
+  <p><strong>Nick's Tire &amp; Auto</strong><br>21010 Euclid Ave, Euclid, OH 44117<br>(216) 862-0005</p>
+  <p><a href="${unsubscribeMailto}" style="color:#666">Unsubscribe</a> &middot; reply STOP to this email or call us anytime.</p>
+</div>`;
+          const body = bodyRaw + footer;
 
           const res = await fetch("https://api.resend.com/emails", {
             method: "POST",
@@ -133,6 +157,11 @@ export async function autoSendEmailCampaigns(): Promise<{ recordsProcessed: numb
               to: cust.email,
               subject,
               html: body,
+              // CAN-SPAM + RFC 8058 · one-click unsubscribe in Gmail/Outlook UI
+              headers: {
+                "List-Unsubscribe": `<${unsubscribeMailto}>`,
+                "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+              },
             }),
             signal: AbortSignal.timeout(10000),
           });
