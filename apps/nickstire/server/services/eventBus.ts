@@ -452,7 +452,7 @@ async function ensureInitialized(): Promise<void> {
     handles: "all", // Every event reaches statenour brain for processing
     softFail: true,
     handler: async (event) => {
-      const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+      const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
       const syncKey = process.env.STATENOUR_SYNC_KEY || "";
       if (!syncKey) return;
 

@@ -10,7 +10,7 @@ const log = createLogger("cron:statenour-sync");
 const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 
 export async function syncToStatenour(): Promise<{ recordsProcessed: number; details: string }> {
-  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+  const statenourUrl = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
   const syncKey = process.env.STATENOUR_SYNC_KEY || "";
 
   try {

@@ -20,7 +20,7 @@ import { eq, sql } from "drizzle-orm";
 
 import { db } from "../lib/db-helper";
 
-const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
 const SYNC_KEY = process.env.STATENOUR_SYNC_KEY || "";
 
 const log = createLogger("camera-proxy");

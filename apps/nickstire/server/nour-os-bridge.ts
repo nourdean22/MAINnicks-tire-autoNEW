@@ -33,7 +33,7 @@ const log = createLogger("nour-os-bridge");
 // ─── Configuration ───────────────────────────────────
 const NOUR_OS_EVENTS_PATH = process.env.NOUR_OS_EVENTS_PATH
   || "C:/Users/nourd/Documents/nour-os-unified/data/logs/events.jsonl";
-const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-os.vercel.app";
+const STATENOUR_URL = process.env.STATENOUR_SYNC_URL || "https://statenour-web-production.up.railway.app";
 const SYNC_KEY = process.env.STATENOUR_SYNC_KEY || "";
 
 // ─── Circuit Breaker for cloud push ─────────────────
