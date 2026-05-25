@@ -126,6 +126,24 @@ export const referralsRouter = router({
       refereeEmail: z.string().email().optional(),
     }))
     .mutation(async ({ input }) => {
+      // wave-fix-2026-05-25 (audit #135) · self-referral exploit prevention.
+      // Pre-fix, the same person could submit { referrerPhone: X, refereePhone: X }
+      // and collect the $25 referral credit indefinitely. Server-side
+      // normalize-and-compare blocks the obvious case. Email check is
+      // belt-and-suspenders for the variant where attacker uses two
+      // different phone formats (e.g. with vs without country code) ·
+      // normalizePhone collapses those to last-10-digits.
+      const normalizePhone = (p: string) => p.replace(/\D/g, "").slice(-10);
+      const refPhone10 = normalizePhone(input.referrerPhone);
+      const refeePhone10 = normalizePhone(input.refereePhone);
+      if (refPhone10 && refPhone10 === refeePhone10) {
+        console.warn(`[referrals:self-loop] BLOCKED · phone10=${refPhone10} name=${input.referrerName}`);
+        return { success: false, error: "Referrer and referee must be different people." };
+      }
+      if (input.referrerEmail && input.refereeEmail && input.referrerEmail.toLowerCase() === input.refereeEmail.toLowerCase()) {
+        console.warn(`[referrals:self-loop] BLOCKED · same email · ${input.referrerEmail}`);
+        return { success: false, error: "Referrer and referee must be different people." };
+      }
       return createReferral(input);
     }),
   all: adminProcedure.query(async () => {
