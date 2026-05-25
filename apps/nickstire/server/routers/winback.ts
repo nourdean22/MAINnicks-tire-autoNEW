@@ -475,7 +475,7 @@ export const winbackRouter = router({
         continue; // already claimed
       }
 
-      const result = await sendSms(send.phone, send.personalizedBody);
+      const result = await sendSms(send.phone, send.personalizedBody, { via: "shop" });
 
       if (result.success) {
         await d.update(winbackSends).set({
