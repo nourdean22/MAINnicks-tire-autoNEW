@@ -82,6 +82,14 @@ export const FLAG_DEFINITIONS = [
   { key: "daily_wins_digest", description: "End-of-day wins summary to Telegram" },
   { key: "master_intelligence_report", description: "Master intelligence report in morning brief" },
   { key: "safety_monitor_telegram", description: "Safety monitor Telegram alerts for non-critical items" },
+
+  // ─── NICKGPT (fine-tuned SMS drafter) ─────────────
+  // Wave AE · routes SMS draft requests through Ollama-hosted fine-tuned
+  // Llama-3.2-3B trained on operator-approved replies. OFF by default;
+  // requires NICKGPT_OLLAMA_URL + NICKGPT_MODEL_NAME env vars + a
+  // running Ollama service. Falls back to Claude/Venice when OFF or
+  // when Ollama is unreachable. See docs/runbooks/nickgpt-finetune.md.
+  { key: "nickgpt_drafter_enabled", description: "Use fine-tuned NickGPT 3B (Ollama) as SMS-draft engine; falls back to Claude/Venice when disabled or unreachable" },
 ] as const;
 
 export type FlagKey = (typeof FLAG_DEFINITIONS)[number]["key"];
