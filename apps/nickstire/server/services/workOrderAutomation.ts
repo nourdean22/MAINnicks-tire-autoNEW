@@ -341,7 +341,7 @@ export async function autoCampaignRetry(): Promise<{ recordsProcessed: number; d
         : `Hi ${name}, thank you for choosing Nick's Tire & Auto! We truly appreciate your business.\n\nGot 30 sec? A Google review helps other Cleveland drivers find honest repair:\n${REVIEW_URL}\n\nRefer a friend: ${REFER_URL}\n— Nick's Team ${STORE_PHONE}`;
 
       if (campaignSmsEnabled) {
-        const result = await sendSms(c.phone, msg);
+        const result = await sendSms(c.phone, msg, { via: "shop" });
         if (result.success) {
           sent++;
           await db.update(customers)
@@ -422,7 +422,7 @@ export async function enrollInDripCampaign(
     // Gate SMS behind feature flag
     const { isEnabled: isEnabledDrip } = await import("./featureFlags");
     if (await isEnabledDrip("sms_retention_sequences")) {
-      await sendSms(customer.phone, msg);
+      await sendSms(customer.phone, msg, { via: "shop" });
     }
     log.info(`Drip enrolled: ${customer.name} → ${campaign.name} (step 1 sent)`);
   } catch (err: unknown) {

@@ -871,7 +871,7 @@ export const invoicesRouter = router({
           : buildThirtyDayMessage({ name, amountCents: row.estimatedAmount });
 
         try {
-          const smsResult = await sendSms(row.customerPhone, body, { transactional: false });
+          const smsResult = await sendSms(row.customerPhone, body, { via: "shop", transactional: false });
           if (smsResult.success) {
             succeededIds.push(row.id);
             results.push({ id: row.id, sent: true });

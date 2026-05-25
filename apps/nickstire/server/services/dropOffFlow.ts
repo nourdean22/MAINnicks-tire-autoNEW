@@ -164,7 +164,7 @@ export async function sendInProgressUpdate(workOrderId: string): Promise<void> {
       `We'll text you when it's ready. ${STORE_PHONE_DISPLAY}`,
     ].filter(Boolean).join(" ");
 
-    await sendSms(ctx.phone, message);
+    await sendSms(ctx.phone, message, { via: "shop" });
     log.info("In-progress update sent", { workOrderId, phone: ctx.phone.slice(-4) });
   } catch (err) {
     log.error("Failed to send in-progress update", {
@@ -198,7 +198,7 @@ export async function sendReadyForPickup(workOrderId: string): Promise<void> {
       STORE_PHONE_DISPLAY,
     ].filter(Boolean).join(" ");
 
-    await sendSms(ctx.phone, message);
+    await sendSms(ctx.phone, message, { via: "shop" });
     log.info("Ready-for-pickup SMS sent", { workOrderId, phone: ctx.phone.slice(-4) });
   } catch (err) {
     log.error("Failed to send ready-for-pickup SMS", {
