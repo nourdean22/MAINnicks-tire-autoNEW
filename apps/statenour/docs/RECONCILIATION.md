@@ -1,6 +1,58 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-24 LATE-NIGHT-7 (post Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net · 3 bridge pages (`/funnel` · `/radar` · `/seo`) migrated their inline 30-40 LOC fetch loops onto the canonical `usePollingFetch` hook — tab-visibility pause + 401-bounce retry + centralized cleanup are now free for all 3 · their inline 22-LOC down + loading shells absorbed into a new `components/mastery/bridge-shell.tsx` primitive · token cleanup as a side-effect — last `text-white/40` hardcodes gone in favor of `var(--text-tertiary)`). On top of: Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems operator-reachable. On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-25 (post Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net) · the composer chrome — wrapper + `ComposerToolbar` + textarea + `VoiceWaveformOverlay` + `ComposerSendButton` · ~130 LOC inline JSX — lifted into `components/chat/chat-composer.tsx` · pure JSX move · zero state migrations · 17 props pass everything through · `tests/components/mobile-a11y.test.tsx` updated to read the textarea contract from the new file · all gates green (typecheck 0 · lint 0 errors / 369 baseline · vitest 185/2812 · 1 test rewrite caught the source-file move). Pushed with `--no-verify` after pre-push `turbo build` failed ENOSPC on the standalone-output copy step · local disk was at 0 GB free · code is clean, Railway has the disk). On top of: Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net · 3 bridge pages (`/funnel` · `/radar` · `/seo`) migrated their inline 30-40 LOC fetch loops onto the canonical `usePollingFetch` hook · their inline 22-LOC down + loading shells absorbed into a new `components/mastery/bridge-shell.tsx` primitive · token cleanup as a side-effect — last `text-white/40` hardcodes gone in favor of `var(--text-tertiary)`. On top of: Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems operator-reachable. On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-25 · Wave X.h · ChatComposer chrome extraction · 1 ship
+>
+> The medium-risk extraction Wave X.b deferred. The composer chrome —
+> wrapper + `ComposerToolbar` + textarea + `VoiceWaveformOverlay` +
+> `ComposerSendButton` · the visual unit owning the input row — is
+> now a dedicated client component at `components/chat/chat-composer.tsx`.
+>
+> **Ship 1** · `2ac15530` · pure JSX extraction · -111 LOC net
+> - **Pre-flight calibrated the scope.** Wave X.b's reconciliation
+>   estimated this at "~398 LOC (lines 2308-2706)" but the actual
+>   composer chrome JSX was ~130 LOC. The wider range conflated the
+>   composer with above-composer siblings (PromptSuggestionsBar ·
+>   NickSuggestions · AttachmentPreview · PinnedMessagesBar) already
+>   extracted in prior waves. Same X.b lesson applied: re-audit the
+>   deferred backlog before execution.
+> - **Pure JSX move · zero state migrations.** Every ref, setter,
+>   hook return, and callback is passed in as a prop · 17 total.
+>   `app/(mastery)/chat/page.tsx` keeps ownership of input state,
+>   refs, hooks (useVoiceInput · useImageAttachment · useSlashCommands
+>   · useMentionSuggestions · useAudioTranscribe), `personaMode`,
+>   and the send/stop/handleKey handlers. The component is render-only.
+> - **What was preserved verbatim**: wrapper padding + `safe-area-
+>   inset-bottom` for iPhone home indicator · `focus-within:border-
+>   [var(--gold)]/40` chrome · iOS Safari auto-zoom guard via
+>   `text-[16px]` mobile · 44px Apple HIG floor on textarea + Send
+>   chip · `VoiceWaveformOverlay` swap during voice.isRecording ||
+>   voice.continuous · paste-image clipboard handler · all inline
+>   comments documenting the WHY of each className choice.
+> - **page.tsx · 2866 → 2756 LOC (−111 net)** · 130 LOC inline JSX →
+>   18-line `<ChatComposer ...props />` · `VoiceWaveformOverlay`
+>   import removed · `ComposerToolbar` + `ComposerSendButton` imports
+>   collapsed into the single `ChatComposer` import.
+> - **Test update** · `tests/components/mobile-a11y.test.tsx` was
+>   reading the textarea's `min-h-[44px] sm:min-h-[36px]` contract
+>   from `page.tsx`. After extraction the textarea lives in
+>   chat-composer.tsx. Updated the assertion source · 7 → 8 tests
+>   pass · A2 contract still locked.
+>
+> **Operational footnote** · pushed with `--no-verify` after the
+> pre-push `turbo build` failed ENOSPC on the Next.js standalone-
+> output copy step · the local disk was at 0 GB free (recovered
+> ~3 GB by deleting `.next/` + `dist/` + `.turbo/` + `Temp/claude/`
+> but ran out of cleanup options). Code itself built clean (318/318
+> static pages prerendered before the disk error). Operator
+> explicitly authorized the `--no-verify` after typecheck + lint +
+> vitest had already passed locally. Railway built and deployed
+> cleanly with its own disk · prod smoke 200 across `/` ·
+> `/auth/sign-in` · `/api/system/heartbeat`.
+>
+> **Gates** · typecheck 0 · lint 0 errors / 369 baseline · vitest
+> 185 / 2812 pass · Railway build OK · prod smoke 200.
 
 > ## 2026-05-24 LATE-NIGHT-7 · Wave X.g · bridge-page polling refactor + shared shell · 2 ships
 >
