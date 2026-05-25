@@ -199,10 +199,27 @@ Rules for this analysis:
     // the provider/modelId already captured at the top of the route.
     const traceId = mintTraceId();
     const startedAt = Date.now();
+    // wave-fix-2026-05-26 (skill-audit PORT 8 · prompt-caching deepening) ·
+    // page-insight was the gap audit found in #127 · main chat route at
+    // line 1649 already folds system into messages[0] with Anthropic
+    // ephemeral cacheControl, but this route used the raw `system:`
+    // parameter which AI SDK doesn't auto-attach providerOptions to.
+    // Fold enrichedPrompt into messages[0] as a system message with
+    // cacheControl so repeated page-insight calls within Anthropic's
+    // 5-min window get 90% input-token cost reduction. The system
+    // prompt is the cache-stable portion · userPrompt stays fresh.
     const result = streamText({
       model,
-      system: enrichedPrompt,
-      prompt: userPrompt,
+      messages: [
+        {
+          role: "system",
+          content: enrichedPrompt,
+          providerOptions: {
+            anthropic: { cacheControl: { type: "ephemeral" } },
+          },
+        },
+        { role: "user", content: userPrompt },
+      ],
       maxOutputTokens: 600,
       onFinish: async ({ text }) => {
         // Log short empty responses to aid diagnosis
