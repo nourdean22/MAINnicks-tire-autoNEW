@@ -32,6 +32,26 @@ export default defineConfig({
     // Raise the warning ceiling — our main bundle is intentionally larger due
     // to the admin shell. Real target for homepage FCP is the chunks below.
     chunkSizeWarningLimit: 1500,
+    // wave-fix-2026-05-25 (PSI mobile perf) · drop admin/blog/guides/seo-pages
+    // from <link rel="modulepreload"> on the entry HTML. Those chunks are
+    // React.lazy()-loaded · they download on-demand when the user routes to
+    // them. Vite's default preloads ALL reachable chunks · on the homepage
+    // that meant ~150-300 KB of pointless bandwidth + 3 extra HTTP/2 streams
+    // before any LCP work could happen on mobile 3G/4G. Customer-facing
+    // page-chunks aren't named (Rollup's auto-chunker handles them) so this
+    // filter only strips the 4 admin-adjacent named chunks.
+    //
+    // Lazy-loading still works at runtime · the chunks exist on disk + are
+    // fetched via dynamic import() when the React.lazy() route mounts. This
+    // ONLY removes the speculative preload hint.
+    modulePreload: {
+      resolveDependencies: (_filename, deps, { hostType }) => {
+        if (hostType !== "html") return deps;
+        return deps.filter(
+          (dep) => !/\b(admin|blog|guides|seo-pages)-[A-Za-z0-9_-]+\.js$/.test(dep)
+        );
+      },
+    },
     rollupOptions: {
       output: {
         // Split ONLY our own page shells into separate chunks so customer
