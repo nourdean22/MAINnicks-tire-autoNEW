@@ -18,6 +18,7 @@
 
 import { createLogger } from "../lib/logger";
 import { BUSINESS } from "@shared/business";
+import { acquireCronLock, releaseCronLock } from "./index";
 
 const log = createLogger("scheduler");
 
@@ -160,6 +161,24 @@ async function runTier(tier: Tier): Promise<void> {
 
     let jobTimer: ReturnType<typeof setTimeout> | undefined;
     const jobStart = Date.now();
+
+    // wave-fix-2026-05-25 (audit #87) · cross-dyno lock per job. Without
+    // this the tiered scheduler double-fires every job during deploy
+    // churn — old dyno keeps ticking while the new dyno starts ticking,
+    // each fires the same job once. The legacy runJob() in cron/index.ts
+    // already does this; we hadn't mirrored the discipline here. Three
+    // outcomes:
+    //   acquired      → run job, release in finally
+    //   held-by-other → another dyno owns it · skip this tick + log
+    //   fallback      → cron_locks unavailable · proceed under in-memory
+    //                   `tier.running` mutex only (no double-release)
+    const lockResult = await acquireCronLock(job.name);
+    if (lockResult.status === "held-by-other") {
+      skipped++;
+      logTierJob(job.name, "skipped", 0, 0, "cross-dyno lock held by another process").catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
+      continue;
+    }
+
     try {
       const result = await Promise.race([
         job.handler(),
@@ -180,6 +199,11 @@ async function runTier(tier: Tier): Promise<void> {
       logTierJob(job.name, "failed", dur, 0, err instanceof Error ? err.message : String(err)).catch((e) => { log.warn("[cron/scheduler] fire-and-forget failed:", e); });
     } finally {
       if (jobTimer) clearTimeout(jobTimer);
+      // Release the DB lock only if we actually acquired it. Fallback
+      // path never wrote a row, so there's nothing to delete.
+      if (lockResult.status === "acquired") {
+        await releaseCronLock(lockResult);
+      }
     }
   }
 
@@ -1667,11 +1691,24 @@ export async function runTierJobByName(jobName: string): Promise<{ status: strin
   for (const tier of tiers) {
     const job = tier.jobs.find(j => j.name === jobName);
     if (job) {
+      // wave-fix-2026-05-25 (audit #87) · same cross-dyno lock as the
+      // auto-tier loop. Manual admin-triggered runs go through this
+      // path and can race against the scheduler-fired run of the same
+      // job. Without the lock the operator pressing "Run Now" while the
+      // tier was mid-firing the same job → double-fire.
+      const lockResult = await acquireCronLock(job.name);
+      if (lockResult.status === "held-by-other") {
+        return { status: "skipped", details: "manual run skipped — cross-dyno lock held by another process" };
+      }
       try {
         const result = await job.handler();
         return { status: "completed", recordsProcessed: result.recordsProcessed, details: result.details };
       } catch (err) {
         return { status: "failed", details: err instanceof Error ? err.message : String(err) };
+      } finally {
+        if (lockResult.status === "acquired") {
+          await releaseCronLock(lockResult);
+        }
       }
     }
   }

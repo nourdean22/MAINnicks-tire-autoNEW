@@ -99,7 +99,7 @@ const DYNO_ID = `${process.env.RAILWAY_REPLICA_ID || process.env.HOSTNAME || "lo
  * This rev addresses all three without growing the surface.
  */
 type LockToken = string & { readonly __brand: "LockToken" };
-type LockResult =
+export type LockResult =
   | { status: "acquired"; jobName: string; token: LockToken }
   | { status: "held-by-other" }
   | { status: "fallback"; reason: "db-null" | "table-missing" | "query-error"; error?: string };
@@ -119,7 +119,7 @@ let _lockTableMissingLogged = false;
  * concurrent processes. If locked_until is in the past, the UPDATE branch
  * steals; otherwise the row is untouched.
  */
-async function acquireCronLock(jobName: string): Promise<LockResult> {
+export async function acquireCronLock(jobName: string): Promise<LockResult> {
   const { getDb } = await import("../db");
   const { sql } = await import("drizzle-orm");
   const db = await getDb();
@@ -175,7 +175,7 @@ async function acquireCronLock(jobName: string): Promise<LockResult> {
  * into a loud signal — that exact scenario is the double-fire the
  * lock subsystem exists to prevent.
  */
-async function releaseCronLock(lock: Extract<LockResult, { status: "acquired" }>): Promise<void> {
+export async function releaseCronLock(lock: Extract<LockResult, { status: "acquired" }>): Promise<void> {
   try {
     const { getDb } = await import("../db");
     const { sql } = await import("drizzle-orm");
