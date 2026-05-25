@@ -82,6 +82,29 @@ const KILL_LIST = [
   { pattern: /\b(family.owned|locally.owned).{0,30}(operated|business|shop)\b/gi, why: "Cliché — every shop says this · Caregiver uses specific stories instead", fix: "Replace with named-person specificity: 'Moe's been running this since 2019'" },
   { pattern: /\b(experience|professional) (you can trust|driven|first)\b/gi, why: "Trust-me-bro phrase · Caregiver shows up, doesn't beg trust", fix: "Show: '4.9★ / 1,700+ reviews / 12,000+ jobs since 2019'" },
   { pattern: /\bsatisfaction.guaranteed\b/gi, why: "Marketing cliché · means nothing · breaks Caregiver authenticity", fix: "Specific promise: 'free re-do if anything we touched isn't right'" },
+
+  // ─── UNSLOP · LLM-output tells (skill-audit S2 unslop port) ──────
+  // These are ChatGPT/Claude-isms that show up in AI-generated copy
+  // but no human-written shop copy ever uses. Catching them at lint
+  // time prevents the "this was written by AI" smell that erodes
+  // trust without operators realizing why.
+  //
+  // The skill argues the brand-voice problem isn't bad WORDS · it's
+  // structural patterns: preamble verbs, hedge stacking, robotic
+  // transitions, performative reassurance. These are the slop tells.
+  // ────────────────────────────────────────────────────────────────
+  { pattern: /\b(let'?s|let us)\s+(dive in|dive into|get started|break (it|this) down|explore|unpack|tackle)\b/gi, why: "LLM preamble · humans don't say 'let's dive in' before writing", fix: "Cut the preamble · start with the actual point" },
+  { pattern: /\bhere'?s the thing\b/gi, why: "LLM-pivot phrase · marks AI output", fix: "Just state the thing · drop the announce" },
+  { pattern: /\b(in conclusion|to wrap up|to summarize|in summary)\b/gi, why: "LLM closing tic · breaks reader flow", fix: "End with the punchline · let the closing be implicit" },
+  { pattern: /\b(it'?s worth (noting|mentioning)|it should be noted)\b/gi, why: "LLM hedge-stacking · weakens the actual claim", fix: "Make the claim directly · 'Brakes wear faster in city traffic' not 'It's worth noting brakes wear faster'" },
+  { pattern: /\b(i'?d be happy to|i'?m happy to|happy to help)\b/gi, why: "Performative customer-service-bot reassurance", fix: "Just do the thing · 'Call (216) 862-0005 · we'll sort it out'" },
+  { pattern: /\b(feel free to|don'?t hesitate to|please don'?t hesitate)\b/gi, why: "Performative permission · sounds robotic", fix: "Direct: 'Call us', 'Text us', 'Walk in'" },
+  { pattern: /\b(furthermore|moreover|additionally|consequently)\b/gi, why: "Robotic transition · humans use 'plus', 'and', 'so', or just a period", fix: "Replace with 'plus', 'and', or start a new sentence" },
+  { pattern: /\b(buckle up|fasten your seatbelt|hold onto your hat)\b/gi, why: "Forced-enthusiasm LLM tic · cringe-adjacent", fix: "Cut · let the content carry the energy" },
+  { pattern: /\b(it'?s important to remember|remember that|keep in mind that)\b/gi, why: "Lecturing pose · Caregiver doesn't lecture", fix: "Just state the thing · drop the meta-instruction" },
+  { pattern: /\b(in today'?s (fast.paced|digital|modern) (world|landscape|age))\b/gi, why: "LLM filler opener · adds zero value · marks AI output instantly", fix: "Cut entirely · start with the concrete claim" },
+  { pattern: /\b(a wide (range|variety|array) of|a plethora of|a multitude of)\b/gi, why: "LLM elaboration · 'we do brakes, oil, tires' beats 'a wide variety of services'", fix: "List the actual things · or use 'every' / 'all' / 'most'" },
+  { pattern: /\b(unleash|unlock|empower|elevate) (your|the)/gi, why: "Marketing-LLM verb · sounds like a Squarespace template", fix: "Concrete verb: 'fix', 'replace', 'install', 'check'" },
 ];
 
 const IN_SCOPE = [
