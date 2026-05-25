@@ -43,11 +43,12 @@ function readSource(relPath: string): string {
 // ─── 1 · A2 · composer touch targets ─────────────────────────────────
 
 describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () => {
-  // v10.0.529.106 · Wave 83 · the composer chrome was split out of
-  // page.tsx into dedicated components · scan those files for the
-  // touch-target classname contracts. Textarea stayed on page.tsx
-  // so that check still reads chatSrc.
-  const chatSrc = readSource("app/(mastery)/chat/page.tsx");
+  // 2026-05-25 · Wave X.h · the textarea + composer chrome lifted out
+  // of page.tsx into chat-composer.tsx · prior Wave 83 had already
+  // extracted composer-toolbar.tsx + composer-send-button.tsx. All
+  // touch-target classname contracts now live in components/chat/
+  // sibling files · scan each for its specific contract.
+  const composerSrc = readSource("components/chat/chat-composer.tsx");
   const toolbarSrc = readSource("components/chat/composer-toolbar.tsx");
   const sendBtnSrc = readSource("components/chat/composer-send-button.tsx");
 
@@ -76,8 +77,8 @@ describe("A2 · composer buttons + textarea hit 44px Apple HIG on mobile", () =>
     // Was min-h-[40px] sm:min-h-[32px] — both failed Apple HIG (40 < 44)
     // and made the textarea visually shorter than the Send chip on
     // desktop. New contract: min-h-[44px] sm:min-h-[36px].
-    expect(chatSrc).toContain("min-h-[44px] sm:min-h-[36px]");
-    expect(chatSrc).not.toContain("min-h-[40px] sm:min-h-[32px]");
+    expect(composerSrc).toContain("min-h-[44px] sm:min-h-[36px]");
+    expect(composerSrc).not.toContain("min-h-[40px] sm:min-h-[32px]");
   });
 });
 

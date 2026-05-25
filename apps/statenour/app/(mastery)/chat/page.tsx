@@ -126,14 +126,12 @@ import { ConnectionStatus } from "@/components/chat/connection-status";
 import { KeyboardCheatSheet } from "@/components/chat/keyboard-cheat-sheet";
 import { SlashCommandDropdown } from "@/components/chat/slash-command-dropdown";
 import { MentionDropdown } from "@/components/chat/mention-dropdown";
-import { VoiceWaveformOverlay } from "@/components/chat/voice-waveform-overlay";
 import { PinnedMessagesBar } from "@/components/chat/pinned-messages-bar";
 import { MessageEditTextarea } from "@/components/chat/message-edit-textarea";
 import { ErrorDiagnosticPanel } from "@/components/chat/error-diagnostic-panel";
 import { AttachmentPreview } from "@/components/chat/attachment-preview";
 import { StallBanner } from "@/components/chat/stall-banner";
-import { ComposerToolbar } from "@/components/chat/composer-toolbar";
-import { ComposerSendButton } from "@/components/chat/composer-send-button";
+import { ChatComposer } from "@/components/chat/chat-composer";
 import { MessageHoverActions } from "@/components/chat/message-hover-actions";
 import {
   FilePartRenderer,
@@ -2541,143 +2539,35 @@ function Chat() {
           }}
         />
 
-        {/* Input row — Apr 27 · COMPOSER chrome.
-            Wraps the whole composer (mic / attach / textarea / mode /
-            send) in a single rounded container with elevated bg, so
-            the buttons read as one unit. Removes the loose-floating
-            feel and gives the composer real "weight" on the page.
-            Mobile keeps generous padding + safe-area inset; desktop
-            tightens up for density. */}
-        <div
-          className="p-2 sm:p-2"
-          style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}
-        >
-        <div className="flex items-end gap-1.5 sm:gap-1 px-2 py-1.5 sm:py-1 rounded-2xl border border-[var(--border-default)] bg-[var(--bg-elevated)]/40 focus-within:border-[var(--gold)]/40 transition-colors">
-          {/* v10.0.529.106 · Wave 83 · ~130 LOC of mic / paperclip /
-              persona-chip / audio / phone / camera button JSX +
-              hidden file inputs lifted into ComposerToolbar. Voice
-              and image hooks stay on the parent · the toolbar
-              receives intent callbacks. */}
-          <ComposerToolbar
-            voice={voice}
-            isStreaming={isStreaming}
-            audioTranscribing={audioTranscribing}
-            personaMode={personaMode}
-            onPersonaModeChange={setPersonaMode}
-            longPressTimerRef={longPressTimerRef}
-            onMicClick={() => {
-              if (voice.continuous) { voice.stopContinuous(); return; }
-              if (voice.isRecording) { voice.stopRecording(); return; }
-              voice.startRecording();
-            }}
-            onContinuousStart={voice.startContinuous}
-            onContinuousStop={voice.stopContinuous}
-            fileInputRef={img.fileInputRef}
-            cameraInputRef={img.cameraInputRef}
-            audioInputRef={audioInputRef}
-            onFileChange={img.handleFileChange}
-            onAudioChange={handleAudioAttach}
-            onOpenGallery={img.openGallery}
-            onOpenCamera={img.openCamera}
-            onOpenAudio={() => audioInputRef.current?.click()}
-            onOpenVoiceMode={() => setVoiceMode(true)}
-          />
-
-          {/* Textarea (with voice waveform overlay during recording) */}
-          <div className="flex-1 relative">
-            {/* Apr 27 · MOBILE-FLUIDITY — voice waveform.
-                When the mic is active, hide the textarea visually and
-                show 5 bars that bounce to the live audioLevel. Gives
-                Nour real "I see you hearing me" feedback. The textarea
-                stays mounted so transcribed text streams in cleanly
-                when recording stops. */}
-            {(voice.isRecording || voice.continuous) && (
-              <VoiceWaveformOverlay
-                audioLevel={voice.audioLevel}
-                mode={voice.continuous ? "continuous" : "recording"}
-              />
-            )}
-            <textarea
-              ref={inputRef}
-              /* v10.0.526 · a11y A4 fix · the rotating adaptive
-                 placeholder is not a stable accessible name. Screen
-                 readers need a deterministic label. */
-              aria-label="Message Nick"
-              value={input}
-              onChange={(e) => {
-                const val = e.target.value;
-                setInput(val);
-                slash.onInputChange(val);
-                mentions.onInputChange(val, e.target.selectionStart ?? val.length);
-              }}
-              onPaste={(e) => {
-                // v10.0.515 · #2 Multimodal · paste-image support.
-                // If clipboard has an image, attach it and stop the
-                // text-paste path (otherwise the textarea swallows
-                // a blank "image" string). Returns true on hit.
-                const attached = img.attachFromPaste(e);
-                if (attached) {
-                  e.preventDefault();
-                  toast.success("Image attached from clipboard", { duration: 1500 });
-                }
-              }}
-              onKeyDown={handleKey}
-              placeholder={adaptivePlaceholder}
-              rows={1}
-              /* Apr 27 · MOBILE-FLUIDITY:
-                 · text-[16px] on mobile prevents iOS Safari from
-                   auto-zooming on focus (the #1 cause of layout
-                   jank on /chat). sm:text-[13.5px] keeps the
-                   compact desktop look.
-                 · min-h bumped to 44px on mobile so the textarea
-                   reads as a real input not a strip.
-                 · placeholder shows the tap-to-fix idle suggestion;
-                   shrinks slightly on mobile so it fits one line. */
-              className={cn(
-                // Apr 27 · COMPOSER — textarea now sits inside the
-                // shared composer chrome, so drop its own border + bg.
-                // Transparent so the parent's elevated bg shows through;
-                // the focus ring is on the parent's focus-within.
-                //
-                // v7.4 · Apr 29 · Mobile max-h cut 160 → 96px so the
-                // composer can't eat the bottom half of the viewport
-                // when a long placeholder or draft wraps. Desktop
-                // unchanged.
-                // v10.0.528 · a11y A2 fix · min-h was 40 / 32 (mobile /
-                // desktop). Bumped mobile to 44 to match the 44pt Apple
-                // HIG target the composer buttons now hit · bumped
-                // desktop to 36 so the textarea visually anchors to the
-                // taller Send chip (sm:h-9 = 36).
-                "w-full text-[16px] sm:text-[13.5px] leading-[1.5] resize-none px-2 py-2 sm:py-1.5 min-h-[44px] sm:min-h-[36px] max-h-[96px] sm:max-h-[160px]",
-                "bg-transparent border-0 text-[var(--text-primary)]",
-                "placeholder:text-[var(--text-tertiary)] outline-none",
-              )}
-              /* v11.1 Tier-1 · input stays live during stream. Nour can
-                 type the NEXT turn while Nick finishes the current one.
-                 Send fires only when Enter is pressed AND !isStreaming
-                 (handleKey already gates on this). */
-            />
-          </div>
-
-          {/* Mode pill — Apr 27 · COMPOSER-WEIGHT — fully hidden in
-              the composer row (was already hidden on mobile, now
-              hidden on desktop too). The STANDARD chip was tertiary
-              info eating prime composer real estate. Mode detection
-              runs server-side regardless; manual override lives in
-              the ⋯ menu in the header when Nour wants it. */}
-
-          {/* v11.1 Tier-1 · Send / Stop — kinetic button that morphs
-              between send arrow and stop square.
-              v10.0.529.106 · Wave 83 · ~50 LOC of inline button JSX
-              lifted into ComposerSendButton. */}
-          <ComposerSendButton
-            isStreaming={isStreaming}
-            empty={!input.trim()}
-            onSend={send}
-            onStop={stop}
-          />
-        </div>
-        </div>
+        {/* 2026-05-25 · Wave X.h · the composer chrome (wrapper +
+            ComposerToolbar + textarea + VoiceWaveformOverlay +
+            ComposerSendButton · ~130 LOC) lifted into the
+            ChatComposer client component. All state, refs, and
+            hooks stay in the page · the component is pure JSX
+            with props passed through. The visual + behavior
+            contract is byte-for-byte preserved (verified
+            against the prior inline JSX). */}
+        <ChatComposer
+          input={input}
+          setInput={setInput}
+          inputRef={inputRef}
+          adaptivePlaceholder={adaptivePlaceholder}
+          isStreaming={isStreaming}
+          handleKey={handleKey}
+          send={send}
+          stop={stop}
+          voice={voice}
+          onOpenVoiceMode={() => setVoiceMode(true)}
+          audioTranscribing={audioTranscribing}
+          audioInputRef={audioInputRef}
+          onAudioChange={handleAudioAttach}
+          img={img}
+          personaMode={personaMode}
+          onPersonaModeChange={setPersonaMode}
+          longPressTimerRef={longPressTimerRef}
+          slash={slash}
+          mentions={mentions}
+        />
 
         {/* v10.0.529.xx · Center stop-bar removed. Audit Wave 8 flagged
             redundant stop affordances · send-button kinetically morphs
