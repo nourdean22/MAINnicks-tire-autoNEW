@@ -62,6 +62,26 @@ const KILL_LIST = [
   { pattern: /\bwithout your approval\b/gi, why: "Formal/procedural — softer than brand voice", fix: "'you don't pay until you say yes'" },
   { pattern: /\bno surprises\b/gi, why: "Passive — frame it actively instead", fix: "'we tell you the cost before we touch anything'" },
   { pattern: /\bsame great service\b/gi, why: "Generic + KILL LIST 'great'", fix: "Be concrete: 'same shop, same line, same fair price'" },
+
+  // ─── ARCHETYPE VIOLATIONS · port from brand-perception-psychologist ───
+  // Nick's Tire is a CAREGIVER + EVERYMAN archetype: neighborhood
+  // shop, takes-care-of-you, regular-guy-fair-deal. These patterns
+  // are HERO / RULER / SAGE archetype invasions · they break tone.
+  // Caregiver "we look after you" tone gets undercut by Hero swagger
+  // ("BEST", "DOMINANT") or Sage authority ("RESEARCH SHOWS",
+  // "CERTIFIED TECHNICIANS"). When CAREGIVER + HERO mix, customers
+  // sense incongruence even if they can't name it — trust drops.
+  // ───────────────────────────────────────────────────────────────
+  { pattern: /\b(best|#1|number one|leading|world.?class|industry.?leader)\s+(tire|auto|shop|mechanic|service)/gi, why: "HERO archetype invasion · Nick's is CAREGIVER, not the dominant champion", fix: "Replace with proof: '4.9★ on 1,700+ reviews · since 1989' · let the data say best" },
+  { pattern: /\b(dominant|elite|exclusive|prestigious|luxury)\b/gi, why: "RULER archetype invasion · Nick's is everyman, not the gatekeeper", fix: "Drop the word · use 'fair price' or 'straight deal'" },
+  { pattern: /\b(unmatched|unparalleled|second.to.none)\b/gi, why: "HERO swagger · breaks Caregiver tone (you're not bragging, you're taking care of them)", fix: "Replace with specific proof point: 'same-day on 90% of jobs'" },
+  { pattern: /\b(research shows|studies prove|scientifically proven|clinically.tested)\b/gi, why: "SAGE archetype invasion · Caregiver doesn't lecture, Caregiver listens", fix: "Replace with first-person + specific: 'we've seen this 100x · here's what causes it'" },
+  { pattern: /\bcertified.{0,20}(technicians?|mechanics?|professionals?)\b/gi, why: "SAGE / corporate-credential framing · Nick's is regular-guys-who-do-this-every-day", fix: "Replace with concrete: 'same crew who's been turning wrenches here since 2019'" },
+  { pattern: /\b(empowering|empowered) (you|our customers|drivers)\b/gi, why: "Corporate-coach speak · Caregiver doesn't 'empower' · Caregiver does the work for you", fix: "Replace with action verb: 'we tell you what's wrong before anything happens'" },
+  { pattern: /\b(award.winning|highly.rated|five.?star) (shop|service|team)/gi, why: "Fake-corporate self-praise · Caregiver shows proof, doesn't claim award status", fix: "Show the actual award/rating with a year + source ('4.9★ on Google · 2024')" },
+  { pattern: /\b(family.owned|locally.owned).{0,30}(operated|business|shop)\b/gi, why: "Cliché — every shop says this · Caregiver uses specific stories instead", fix: "Replace with named-person specificity: 'Moe's been running this since 2019'" },
+  { pattern: /\b(experience|professional) (you can trust|driven|first)\b/gi, why: "Trust-me-bro phrase · Caregiver shows up, doesn't beg trust", fix: "Show: '4.9★ / 1,700+ reviews / 12,000+ jobs since 2019'" },
+  { pattern: /\bsatisfaction.guaranteed\b/gi, why: "Marketing cliché · means nothing · breaks Caregiver authenticity", fix: "Specific promise: 'free re-do if anything we touched isn't right'" },
 ];
 
 const IN_SCOPE = [
