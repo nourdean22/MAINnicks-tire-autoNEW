@@ -193,9 +193,22 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
         }
       }
     } catch (err) {
-      log.warn("cooldown lookup failed · proceeding without cooldown (risk: re-send)", {
+      // wave-fix-2026-05-25 (audit #101) · ABORT instead of proceeding
+      // with empty cooldownSet. Previously this catch logged warn and
+      // continued — silently routing cross-sell SMS to customers who
+      // had been texted within the cooldown window (or worse, opted-out
+      // customers in some failure modes). Opt-out compliance + TCPA
+      // hygiene + brand trust ALL fail if we send when we don't know
+      // who's in cooldown. Better to skip this run entirely and surface
+      // the DB error than to risk re-spamming customers.
+      log.error("cooldown lookup failed · ABORTING cross-sell run to protect opt-out compliance", {
         err: err instanceof Error ? err.message : String(err),
+        errorId: "CROSS_SELL_COOLDOWN_LOOKUP_FAILED",
       });
+      return {
+        recordsProcessed: 0,
+        details: `cooldown lookup failed · run aborted to protect opt-out compliance · err=${err instanceof Error ? err.message : String(err)}`,
+      };
     }
 
     let sent = 0;
@@ -218,8 +231,16 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       // §2.3 the impression row marks "we considered this prediction"
       // separately from "we acted on it".
       try {
+        // wave-fix-2026-05-25 (audit #100) · INSERT IGNORE prevents
+        // duplicate impressions when the same prediction is processed
+        // twice (relevant once cross-sell-outreach moves from daily to
+        // hourly tier · same prediction could be encountered every 2h
+        // until a new compute run replaces it). The UNIQUE KEY on
+        // (prediction_id, surface) added in migration 0050 makes
+        // INSERT IGNORE meaningful · without that key, IGNORE is a
+        // no-op because there's no duplicate-key error to ignore.
         await db.execute(sql`
-          INSERT INTO prediction_impressions
+          INSERT IGNORE INTO prediction_impressions
             (prediction_id, surface)
           VALUES
             (${p.predictionId}, 'cross_sell_cron')

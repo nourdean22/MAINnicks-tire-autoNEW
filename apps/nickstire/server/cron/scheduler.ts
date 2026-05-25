@@ -784,6 +784,37 @@ export function startTieredScheduler(): void {
           return { recordsProcessed: result.processed, details: `${result.sent} sent, ${result.failed} failed` };
         },
       },
+      // wave-fix-2026-05-25 (audit #98 + #99) · SA v2 compute and
+      // cross-sell-outreach moved from daily tier (24h) to hourly tier
+      // (2h). Original intent per code comment was 4×/day (every 6h);
+      // daily-tier placement made the SA v2 launch effectively broken
+      // (predictions stale by up to 24h, cross-sell sending on stale
+      // data). 2h tier gives 12 fresh computes per day · cross-sell
+      // reads always-fresh predictions. ORDER MATTERS — compute MUST
+      // run before cross-sell in the same tier so cross-sell sees the
+      // predictions from THIS tick, not the previous tick.
+      {
+        // SA v2 per-customer prediction compute · 12×/day in hourly tier.
+        // Writes to service_affinity_predictions with 50/50 A/B arm split.
+        // Flag · service_affinity_v2_compute (was activated 2026-05-24).
+        name: "service-affinity-compute",
+        handler: async () => {
+          const { processServiceAffinityCompute } = await import("./jobs/serviceAffinityCompute");
+          return processServiceAffinityCompute();
+        },
+      },
+      {
+        // Cross-sell SMS · reads service_affinity_predictions written by
+        // the compute job IMMEDIATELY above. businessHoursOnly because
+        // we don't text customers at midnight. Cooldown lookup failure
+        // ABORTS the run (audit #101 fix) to protect opt-out compliance.
+        name: "cross-sell-outreach",
+        businessHoursOnly: true,
+        handler: async () => {
+          const { processCrossSellOutreach } = await import("./jobs/crossSellOutreach");
+          return processCrossSellOutreach();
+        },
+      },
     ],
     running: false,
     lastRun: null,
@@ -991,26 +1022,9 @@ export function startTieredScheduler(): void {
           };
         },
       },
-      {
-        name: "cross-sell-outreach", // Proactive SMS from intelligence engine cross-sell patterns
-        businessHoursOnly: true,
-        handler: async () => {
-          const { processCrossSellOutreach } = await import("./jobs/crossSellOutreach");
-          return processCrossSellOutreach();
-        },
-      },
-      {
-        // wave-181.x SA v2 · per-customer prediction compute · runs 4×/day
-        // and writes predictions to service_affinity_predictions with a
-        // 50/50 A/B arm split. Decoupled from SMS · the cross-sell-outreach
-        // job above (Wave 4) reads these predictions when its own flag is
-        // ON. Flag · service_affinity_v2_compute (starts DISABLED).
-        name: "service-affinity-compute",
-        handler: async () => {
-          const { processServiceAffinityCompute } = await import("./jobs/serviceAffinityCompute");
-          return processServiceAffinityCompute();
-        },
-      },
+      // wave-fix-2026-05-25 · cross-sell-outreach + service-affinity-compute
+      // moved to hourly tier above (see audit #98 + #99 comment there).
+      // Their slots here are intentionally empty.
       {
         name: "warranty-alerts",
         handler: async () => {
