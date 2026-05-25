@@ -130,6 +130,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Cohere is preferred · BGE is the fallback when COHERE_API_KEY is unset.",
     ownerDoc: "docs/runbooks/bge-rerank-cutover.md",
   },
+
+  // ── Wave AJ · Replicate FLUX image generation backend ────────
+  {
+    key: "REPLICATE_FLUX",
+    description: "Routes image generation through Replicate's flux-schnell (~$0.003/img · 4-step distilled) instead of Venice flux-2-pro ($0.04/img). 12-20x cost reduction at comparable quality for marketing/OG/programmatic-SEO images. lib/ai/venice-image.ts checks this flag and delegates to lib/ai/replicate-flux.ts when ON; falls back to Venice on Replicate failure. Requires REPLICATE_API_KEY.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Venice flux-2-pro is the primary; Replicate is only reached when this flag is on AND REPLICATE_API_KEY is set.",
+    ownerDoc: "docs/runbooks/replicate-flux-cutover.md",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
