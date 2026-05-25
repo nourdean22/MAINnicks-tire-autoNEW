@@ -107,6 +107,27 @@ export default function ChatWidget() {
     setInput("");
     setMessages(prev => [...prev, { role: "user", content: text }]);
     sendMessage.mutate({ sessionId, message: text });
+    // Wave AL (Cat 9 HF) · in-browser Spanish auto-detect.
+    // Fire IN PARALLEL with send · zero added latency on the message.
+    // Model loads (~170MB) in background on first call · IDB-cached
+    // afterward. Sub-100ms on subsequent invocations. If detection
+    // returns es with high confidence, surface a one-time toast so
+    // operator knows · the actual reply language is handled server-side
+    // (future wire-up to the chat router · this is the signal).
+    void (async () => {
+      try {
+        const { detectLanguage } = await import("@/lib/transformers/language-detect");
+        const result = await detectLanguage(text);
+        if (result.modelRan && result.language === "es" && result.confidence >= 0.85) {
+          if (typeof window !== "undefined" && !sessionStorage.getItem("nicks_chat_es_detected")) {
+            sessionStorage.setItem("nicks_chat_es_detected", "1");
+            toast("¿Español? Estamos aquí para ayudarte.", { duration: 4000 });
+          }
+        }
+      } catch {
+        /* transformers.js not available · silent fallback · no UX impact */
+      }
+    })();
   };
 
   const handleLeadSubmit = () => {
