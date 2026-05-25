@@ -143,6 +143,33 @@ export function serveStatic(app: Express) {
     );
   }
 
+  // 2026-05-24 · diagnostic + defensive guard. The 12a07432→ca592fe5
+  // PSI/middleware churn surfaced that /assets/*.css and /assets/*.js
+  // were falling through to the catch-all and getting served as
+  // text/html · browsers reject CSS at text/html. Two surgical adds:
+  //   1) log how many files are actually in distPath/assets at boot ·
+  //      tells us at startup whether the build output is where the
+  //      server expects (vs missing/empty).
+  //   2) below in the catch-all, return 404 for /assets/* + extension
+  //      paths instead of HTML · stops the wrong-MIME silent failure.
+  const assetsDir = path.join(distPath, "assets");
+  if (fs.existsSync(assetsDir)) {
+    try {
+      const files = fs.readdirSync(assetsDir);
+      const cssCount = files.filter((f) => f.endsWith(".css")).length;
+      const jsCount = files.filter((f) => f.endsWith(".js")).length;
+      log.info(
+        `[serveStatic] ${assetsDir} · ${files.length} files (${cssCount} css · ${jsCount} js)`
+      );
+    } catch (e) {
+      log.warn(`[serveStatic] failed to list ${assetsDir}:`, e);
+    }
+  } else {
+    log.error(
+      `[serveStatic] assets dir MISSING · ${assetsDir} · client build did not emit hashed bundles here · check vite outDir`
+    );
+  }
+
   // Hashed assets (JS/CSS) get 1-year immutable cache.
   app.use("/assets", express.static(path.join(distPath, "assets"), { maxAge: "1y", immutable: true }));
 
@@ -172,6 +199,27 @@ export function serveStatic(app: Express) {
 
   // fall through to index.html if the file doesn't exist — inject route-specific meta tags for SEO
   app.use("*", (req, res) => {
+    // 2026-05-24 · defensive · never serve index.html for an asset
+    // request that fell through · pre-fix any /assets/*.css or
+    // *.js that wasn't on disk would get the SPA HTML back with
+    // Content-Type: text/html · browsers refuse to apply that as
+    // CSS/JS and the page renders unstyled. 404 + text/plain is
+    // the honest failure mode · CSP also gets a cleaner console.
+    const p = req.originalUrl;
+    const isAssetPath =
+      p.startsWith("/assets/") ||
+      /\.(css|js|mjs|map|woff2?|ttf|otf|eot|svg|png|jpg|jpeg|gif|webp|avif|ico|json|xml|txt|wasm)(\?|$)/i.test(p);
+    if (isAssetPath) {
+      res
+        .status(404)
+        .set({
+          "Content-Type": "text/plain; charset=utf-8",
+          "Cache-Control": "public, max-age=60",
+        })
+        .end(`Not Found: ${p}`);
+      return;
+    }
+
     const indexPath = path.resolve(distPath, "index.html");
     let html = fs.readFileSync(indexPath, "utf-8");
     html = injectRouteMeta(html, req.originalUrl);
