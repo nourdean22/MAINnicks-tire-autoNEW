@@ -20,7 +20,12 @@ const aiChat = makeTracedAiChat("contextual-recall", "chat");
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { cosineSimilarity, semanticSearch } from "@/lib/brain/embedding-utils";
 import { fuseRankings } from "@/lib/brain/rrf";
-import { cohereRerank, isCohereRerankAvailable } from "@/lib/brain/cohere-rerank";
+// Wave AG · rerank orchestrator routes between BGE (HF Inference,
+// $0.0001/call) and Cohere ($2/1000 calls) based on the BGE_RERANK
+// env flag. Same interface as cohereRerank · falls back to identity
+// ordering when neither backend is available. See lib/brain/rerank.ts
+// + docs/runbooks/bge-rerank-cutover.md.
+import { rerank, isRerankAvailable } from "@/lib/brain/rerank";
 import { classifyQuery, coalaKindOf, coalaKindBoost } from "@/lib/brain/coala";
 import { classifyQueryTopics, tagWisdomTopics, topicBoost } from "@/lib/brain/wisdom-topic-tagger";
 // 2026-05-17 follow-up · exclude binary-payload categories from
@@ -419,10 +424,10 @@ export async function getContextualMemories(
   // returns the input unchanged when unavailable, so brain still works
   // without a Cohere account.
   let rerankFired = false;
-  if (isCohereRerankAvailable() && scored.length > 5) {
+  if (isRerankAvailable() && scored.length > 5) {
     const rerankPool = scored.slice(0, 25);
     const reranked = await timed("rerank", () =>
-      cohereRerank({
+      rerank({
         query: queryText,
         candidates: rerankPool.map((m) => ({
           item: m,

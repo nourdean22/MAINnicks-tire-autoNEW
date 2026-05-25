@@ -120,6 +120,16 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Traces stay local · no Braintrust export.",
     ownerDoc: "lib/ai/braintrust-wrap.ts",
   },
+
+  // ── Wave AG · BGE rerank backend (HF Inference) ────────────────
+  {
+    key: "BGE_RERANK",
+    description: "Routes brain rerank through BAAI/bge-reranker-v2-m3 on HuggingFace Inference API ($0.0001/call · ~250ms) instead of Cohere ($2/1000 calls · ~150ms). The orchestrator in lib/brain/rerank.ts handles fallback to Cohere when BGE fails OR when this flag is OFF. Requires HF_API_KEY.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Cohere is preferred · BGE is the fallback when COHERE_API_KEY is unset.",
+    ownerDoc: "docs/runbooks/bge-rerank-cutover.md",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
