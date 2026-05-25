@@ -1504,7 +1504,19 @@ export async function getEmbedding(text: string): Promise<number[]> {
     }
   }
 
-  // 4. OpenAI (final fallback)
+  // 4. HuggingFace Inference (Wave AH · cheap multilingual backend)
+  // Default model: intfloat/multilingual-e5-large · 1024-dim · supports
+  // Spanish + 100 langs · ~$0.0001/call. See lib/ai/hf-embeddings.ts +
+  // docs/runbooks/hf-embeddings-cutover.md.
+  {
+    const { getHfEmbedding, isHfEmbeddingAvailable } = await import("./hf-embeddings");
+    if (isHfEmbeddingAvailable()) {
+      const vec = await getHfEmbedding(input);
+      if (vec && vec.length > 0) return vec;
+    }
+  }
+
+  // 5. OpenAI (final fallback)
   if (OPENAI_API_KEY) {
     try {
       const res = await fetch("https://api.openai.com/v1/embeddings", {
@@ -1531,7 +1543,7 @@ export async function getEmbedding(text: string): Promise<number[]> {
   }
 
   log.warn("embedding.all_failed", {
-    tried: ["venice", "ollama", "cohere", "openai"],
+    tried: ["venice", "ollama", "cohere", "hf", "openai"],
   });
   return [];
 }
