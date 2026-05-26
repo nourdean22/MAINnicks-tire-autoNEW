@@ -62,6 +62,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // TRACK consolidation (2026-05-21) · recent AI-enriched task insights,
 // grouped by 8-axis · rehomed here from the deleted /tasks TRACK tab.
 import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 // KommandoShell dismantle · Phase 2 (2026-05-21) · the goal-authoring
 // surface — was the PLAN tab of the /tasks KommandoShell (KommandoPlan
 // in components/actions/mode-plan.tsx). Relocated + trimmed to
@@ -158,6 +159,15 @@ export default function GoalsPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
         <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />
+
+        {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+         *  Reads from /api/coach/events?surface=goals · displays active
+         *  coach events (prune-candidate today, more once other writers
+         *  migrate). Self-hides when zero events. Polls every 90s with
+         *  tab-visibility pause via usePollingFetch. */}
+        <div className="mt-6">
+          <CoachEventBanner surface="goals" />
+        </div>
 
         {/* Phase AAA (2026-05-19 AM) · Mastery Polyhedron · 8 vertices
             extending from center proportional to each axis score. Tap a
