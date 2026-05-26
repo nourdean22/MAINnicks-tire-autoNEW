@@ -84,6 +84,7 @@ import { usePromptDialog } from "@/components/ui/confirm-dialog";
 // sweep. Mission-create now lives on /goals (GoalBoard's "Plan it" →
 // MilestonesFlow).
 import { NowPanel } from "@/components/actions/now-panel";
+import { MoveFrame } from "@/components/actions/move-frame";
 // IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
 // folds the six intel/reflection widgets below the execution surface ·
 // see its docstring for the simple-on-top rationale.
@@ -1294,6 +1295,15 @@ function TasksPageInner() {
           They now fold into <IntelPanel> directly below, collapsed by
           default. The operator's daily loop (next move · quick-add ·
           task list) is unobstructed; intel is one deliberate tap. */}
+      {/* /tasks v2.2 · Phase 1 (wave-AO · 2026-05-26) · MoveFrame HUD.
+       *   Picks NOW + NEXT + DAILY from the loaded task pool · pure
+       *   client-side selection over the same Task[] NowPanel reads.
+       *   Phase 1 ships as additive (no removals): the operator gets
+       *   the 3-card hero AND the existing LoopStream + IntelPanel.
+       *   Phase 1B (next commit) wires the 4-action surface on NOW
+       *   (Do / Defer 1d / Done / Skip) via the existing handlers
+       *   already plumbed into NowPanel. */}
+      <MoveFrame tasks={tasks} />
       {nowContent}
       {/* IntelPanel · the six intel/reflection widgets, collapsed by
           default — children mount only when expanded, so on the /tasks
