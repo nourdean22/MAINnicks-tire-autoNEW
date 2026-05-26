@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * MoveFrame · Phase 1 of /tasks v2.2 redesign · 2026-05-26
+ * MoveFrame · /tasks v2.2 redesign · 2026-05-26
  *
  * Operator HUD that sits above the LIST on /tasks. Shows 3 cards:
  *
@@ -10,32 +10,32 @@
  *   DAILY  · top habit not yet checked today — "the streak anchor"
  *
  * Selection logic lives in `useMoveFrame` hook. This component owns
- * the layout, the editorial gold-accent treatment, and the focus
- * deep-link that scrolls the underlying list to the selected task.
+ * the layout, the editorial gold-accent treatment, the focus deep-
+ * link, and the 3-action surface on NOW (Phase 1B).
  *
- * Phase 1 scope (this commit) ·
- *   - Read-only HUD · cards display + deep-link to row in list below
- *   - No action buttons yet · operators still use existing row actions
- *   - Additive on top of existing 5 bands · they coexist
- *
- * Phase 1B follow-up (next commit) ·
- *   - 4 actions on NOW: Do ▶ / Defer 1d / Done ✓ / Skip · wired via
- *     existing task tRPC mutations (extracted from page.tsx)
- *   - Auto-rotate · NEXT slides up into NOW on Done (CSS transition)
+ * Phase 1  (commit 8a9be9ec)  · read-only HUD · cards + deep-link
+ * Phase 1B (this commit)      · 3 actions on NOW · Do ▶ / Done ✓ / Skip
+ *                              · Skip is local-only (no DB mutation) ·
+ *                                excludes the task from MoveFrame's
+ *                                selection until page reload · keeps
+ *                                the kaizen surface small (Defer 1d
+ *                                deferred until a snooze mutation is
+ *                                wired in a follow-up)
  *
  * Visual language ·
  *   Editorial-minimalist gold-accent. Matches NextMoveCard / status
- *   pills / shoreboard. No purple gradients, no AI-slop.
+ *   pills / scoreboard. No purple gradients, no AI-slop.
  */
 
 import Link from "next/link";
-import { Sparkles, Target, Repeat, ArrowRight } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Sparkles, Target, Repeat, ArrowRight, Play, Check, X } from "lucide-react";
 import { TipChip } from "@/components/ui/tip-chip";
 import type { Task } from "@/components/actions/shared";
 import { useMoveFrame } from "@/hooks/use-move-frame";
 
 const TIP =
-  "the move frame picks the top non-daily task as NOW · the on-deck task as NEXT · and your most-streaked habit as DAILY. it updates as you check things off. tap → Open to focus the row in the list below.";
+  "the move frame picks the top non-daily task as NOW · the on-deck task as NEXT · and your most-streaked habit as DAILY. it updates as you check things off. Do = mark doing · Done = complete · Skip = pass over this task locally (returns next page load).";
 
 interface MoveFrameProps {
   tasks: Task[];
@@ -43,10 +43,30 @@ interface MoveFrameProps {
    *  the LIST below into view. If omitted, the link just changes the
    *  query string and the page's existing focus-handler does the rest. */
   onFocus?: (taskId: string) => void;
+  /** Mark task as DOING · "Do ▶" button on NOW card. */
+  onStart?: (taskId: string) => void | Promise<void>;
+  /** Mark task as DONE · "Done ✓" button on NOW card. Same handler the
+   *  LIST row uses · keeps the state machine consistent. */
+  onComplete?: (taskId: string) => void | Promise<void>;
 }
 
-export function MoveFrame({ tasks, onFocus }: MoveFrameProps) {
-  const { now, next, daily, isEmpty } = useMoveFrame(tasks);
+export function MoveFrame({ tasks, onFocus, onStart, onComplete }: MoveFrameProps) {
+  // Phase 1B · local-only "skip" state · operator passes over the
+  // current NOW without mutating it. Returns next page load.
+  const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
+  const visibleTasks = useMemo(
+    () => (skippedIds.size === 0 ? tasks : tasks.filter((t) => !skippedIds.has(t.id))),
+    [tasks, skippedIds],
+  );
+  const { now, next, daily, isEmpty } = useMoveFrame(visibleTasks);
+
+  const handleSkip = (taskId: string) => {
+    setSkippedIds((prev) => {
+      const updated = new Set(prev);
+      updated.add(taskId);
+      return updated;
+    });
+  };
 
   if (isEmpty) return null;
 
@@ -68,7 +88,14 @@ export function MoveFrame({ tasks, onFocus }: MoveFrameProps) {
 
       {/* NOW · hero card · full-width · gold-accent left rail */}
       {now ? (
-        <MoveSlot variant="now" task={now} onFocus={onFocus} />
+        <MoveSlot
+          variant="now"
+          task={now}
+          onFocus={onFocus}
+          onStart={onStart}
+          onComplete={onComplete}
+          onSkip={handleSkip}
+        />
       ) : (
         <EmptySlot label="now" />
       )}
@@ -96,9 +123,13 @@ interface MoveSlotProps {
   variant: "now" | "next" | "daily";
   task: Task;
   onFocus?: (taskId: string) => void;
+  /** Phase 1B · only NOW renders these · ignored on next/daily. */
+  onStart?: (taskId: string) => void | Promise<void>;
+  onComplete?: (taskId: string) => void | Promise<void>;
+  onSkip?: (taskId: string) => void;
 }
 
-function MoveSlot({ variant, task, onFocus }: MoveSlotProps) {
+function MoveSlot({ variant, task, onFocus, onStart, onComplete, onSkip }: MoveSlotProps) {
   const accent = variant === "now";
   const Icon = variant === "now" ? Target : variant === "daily" ? Repeat : ArrowRight;
   const label = variant === "now" ? "now" : variant === "daily" ? "daily" : "next";
@@ -159,7 +190,78 @@ function MoveSlot({ variant, task, onFocus }: MoveSlotProps) {
           </p>
         )}
       </Link>
+
+      {/* Phase 1B · 3 actions on NOW only · 44pt min for iOS PWA. */}
+      {variant === "now" && (onStart || onComplete || onSkip) && (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {onStart && task.status !== "DOING" && (
+            <ActionButton
+              icon={<Play size={11} strokeWidth={2} className="fill-current" />}
+              label="Do"
+              onClick={() => void onStart(task.id)}
+              variant="primary"
+              aria-label="start this task"
+            />
+          )}
+          {onComplete && (
+            <ActionButton
+              icon={<Check size={12} strokeWidth={2.25} />}
+              label="Done"
+              onClick={() => void onComplete(task.id)}
+              variant="success"
+              aria-label="mark task complete"
+            />
+          )}
+          {onSkip && (
+            <ActionButton
+              icon={<X size={12} strokeWidth={2} />}
+              label="Skip"
+              onClick={() => onSkip(task.id)}
+              variant="ghost"
+              aria-label="skip this task locally"
+            />
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+/* ─── Action button primitive · gold-accent · iOS-PWA-safe ────── */
+
+interface ActionButtonProps {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  variant: "primary" | "success" | "ghost";
+  "aria-label": string;
+}
+
+function ActionButton({ icon, label, onClick, variant, "aria-label": ariaLabel }: ActionButtonProps) {
+  // Variant styling · primary = gold (Do) · success = emerald (Done) ·
+  // ghost = neutral (Skip). All meet 44pt min-height for iOS PWA touch.
+  const variantClass =
+    variant === "primary"
+      ? "border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15"
+      : variant === "success"
+        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/15"
+        : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.12]";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className={[
+        "inline-flex min-h-[36px] items-center gap-1.5 rounded-md border px-3 py-1.5",
+        "text-[11px] font-medium uppercase tracking-[0.05em] transition-colors",
+        "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
+        variantClass,
+      ].join(" ")}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
   );
 }
 
