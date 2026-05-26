@@ -1309,7 +1309,12 @@ function TasksPageInner() {
        *  nudge, goal-pace-shift) deserve attention before the move
        *  spread. Self-hides when zero events. */}
       <CoachEventBanner surface="tasks" />
-      <MoveFrame tasks={tasks} onStart={startTask} onComplete={completeLoop} />
+      <MoveFrame
+        tasks={tasks}
+        onStart={startTask}
+        onComplete={completeLoop}
+        doneTodayCount={doneToday}
+      />
       {nowContent}
       {/* IntelPanel · the six intel/reflection widgets, collapsed by
           default — children mount only when expanded, so on the /tasks

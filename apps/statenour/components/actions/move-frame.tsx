@@ -50,9 +50,13 @@ interface MoveFrameProps {
   /** Mark task as DONE · "Done ✓" button on NOW card. Same handler the
    *  LIST row uses · keeps the state machine consistent. */
   onComplete?: (taskId: string) => void | Promise<void>;
+  /** Phase 3 · count of tasks completed today · drives the chain
+   *  visualization in the footer. Optional · footer self-hides
+   *  when count is 0 AND no streak is active. */
+  doneTodayCount?: number;
 }
 
-export function MoveFrame({ tasks, onFocus, onStart, onComplete }: MoveFrameProps) {
+export function MoveFrame({ tasks, onFocus, onStart, onComplete, doneTodayCount = 0 }: MoveFrameProps) {
   // Phase 1B · local-only "skip" state · operator passes over the
   // current NOW without mutating it. Returns next page load.
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
@@ -154,7 +158,84 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete }: MoveFrameProp
           <EmptySlot label="daily" />
         )}
       </div>
+
+      {/* Phase 3 light · streak chain footer + max-streak chip.
+       *  Chain renders ●●●●○ for done-today out of ~5 visible slots.
+       *  Max streak comes from the top DAILY card · single source.
+       *  Self-hides when no streak + zero done. */}
+      <StreakChainFooter
+        doneTodayCount={doneTodayCount}
+        topDailyStreak={daily?.streakCount ?? 0}
+      />
     </section>
+  );
+}
+
+/* ─── Phase 3 · simple chain visualization · no SVG, no Framer ─── */
+
+interface StreakChainFooterProps {
+  doneTodayCount: number;
+  topDailyStreak: number;
+}
+
+function StreakChainFooter({ doneTodayCount, topDailyStreak }: StreakChainFooterProps) {
+  if (doneTodayCount === 0 && topDailyStreak === 0) return null;
+
+  // Chain dots · 5 visible slots · fills left-to-right as the day's
+  // done count climbs. Past 5 done, the count number takes over.
+  const VISIBLE_SLOTS = 5;
+  const filled = Math.min(doneTodayCount, VISIBLE_SLOTS);
+  const overflow = doneTodayCount > VISIBLE_SLOTS;
+
+  // Streak milestone tier · per the plan: 4d 🔥 / 7d Started / 30d named
+  const milestone =
+    topDailyStreak >= 30
+      ? { emoji: "🏆", label: `${topDailyStreak}d milestone`, tone: "amber" }
+      : topDailyStreak >= 7
+        ? { emoji: "✨", label: `${topDailyStreak}d streak started`, tone: "gold" }
+        : topDailyStreak >= 4
+          ? { emoji: "🔥", label: `${topDailyStreak}d streak`, tone: "gold" }
+          : topDailyStreak >= 1
+            ? { emoji: "🌱", label: `${topDailyStreak}d growing`, tone: "muted" }
+            : null;
+
+  return (
+    <div className="mt-1 flex items-center justify-between gap-3 px-1 text-[10px] font-mono">
+      <div className="flex items-center gap-1.5">
+        <span className="text-[var(--text-tertiary)] uppercase tracking-[0.18em]">today</span>
+        <div className="flex items-center gap-[3px]">
+          {Array.from({ length: VISIBLE_SLOTS }).map((_, i) => (
+            <span
+              key={i}
+              aria-hidden
+              className={[
+                "inline-block h-1.5 w-1.5 rounded-full",
+                i < filled ? "bg-[var(--gold)]" : "bg-[var(--border-default)]/60",
+              ].join(" ")}
+            />
+          ))}
+        </div>
+        <span className="text-[var(--text-secondary)] tabular-nums">
+          {doneTodayCount} done{overflow ? "+" : ""}
+        </span>
+      </div>
+
+      {milestone && (
+        <div
+          className={[
+            "flex items-center gap-1 tabular-nums",
+            milestone.tone === "amber"
+              ? "text-amber-300"
+              : milestone.tone === "gold"
+                ? "text-[var(--gold)]"
+                : "text-[var(--text-tertiary)]",
+          ].join(" ")}
+        >
+          <span aria-hidden>{milestone.emoji}</span>
+          <span>{milestone.label}</span>
+        </div>
+      )}
+    </div>
   );
 }
 
