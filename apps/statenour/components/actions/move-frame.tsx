@@ -29,10 +29,12 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { Sparkles, Target, Repeat, ArrowRight, Play, Check, X } from "lucide-react";
+import { Sparkles, Target, Repeat, ArrowRight, Play, Check, X, Timer, Coffee } from "lucide-react";
 import { TipChip } from "@/components/ui/tip-chip";
 import type { Task } from "@/components/actions/shared";
 import { useMoveFrame } from "@/hooks/use-move-frame";
+import { useWorkAnchor } from "@/hooks/use-work-anchor";
+import { useIdleDetector } from "@/hooks/use-idle-detector";
 
 const TIP =
   "the move frame picks the top non-daily task as NOW · the on-deck task as NEXT · and your most-streaked habit as DAILY. it updates as you check things off. Do = mark doing · Done = complete · Skip = pass over this task locally (returns next page load).";
@@ -60,12 +62,43 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete }: MoveFrameProp
   );
   const { now, next, daily, isEmpty } = useMoveFrame(visibleTasks);
 
+  // Phase 2 · soft work anchor + idle detector (no forced pomodoro).
+  // Anchor persists in localStorage · idle nudge fires at 5min ·
+  // auto-release at 30min via the extendedIdle threshold.
+  const { anchor, elapsedMs, startWork, reaffirm, release: releaseAnchor } = useWorkAnchor();
+  const { isIdle, isExtendedIdle, reset: resetIdle } = useIdleDetector({
+    thresholdMs: 5 * 60_000,
+    extendedThresholdMs: 30 * 60_000,
+    disabled: anchor === null, // no point watching when there's no anchor
+  });
+
+  // Auto-release after 30 min idle · operator walked away · don't
+  // keep stale anchor across breaks.
+  if (anchor && isExtendedIdle) {
+    releaseAnchor();
+  }
+
   const handleSkip = (taskId: string) => {
     setSkippedIds((prev) => {
       const updated = new Set(prev);
       updated.add(taskId);
       return updated;
     });
+    // If the skipped task IS the current anchor, drop the anchor too.
+    if (anchor?.taskId === taskId) releaseAnchor();
+  };
+
+  // Wrap onStart to also set the work anchor.
+  const handleStart = async (taskId: string) => {
+    startWork(taskId);
+    resetIdle();
+    if (onStart) await onStart(taskId);
+  };
+
+  // Wrap onComplete to release the anchor.
+  const handleComplete = async (taskId: string) => {
+    if (anchor?.taskId === taskId) releaseAnchor();
+    if (onComplete) await onComplete(taskId);
   };
 
   if (isEmpty) return null;
@@ -92,9 +125,17 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete }: MoveFrameProp
           variant="now"
           task={now}
           onFocus={onFocus}
-          onStart={onStart}
-          onComplete={onComplete}
+          onStart={handleStart}
+          onComplete={handleComplete}
           onSkip={handleSkip}
+          anchor={anchor?.taskId === now.id ? anchor : null}
+          anchorElapsedMs={anchor?.taskId === now.id ? elapsedMs : 0}
+          isIdle={anchor?.taskId === now.id && isIdle}
+          onReaffirm={() => {
+            reaffirm();
+            resetIdle();
+          }}
+          onReleaseAnchor={releaseAnchor}
         />
       ) : (
         <EmptySlot label="now" />
@@ -127,9 +168,27 @@ interface MoveSlotProps {
   onStart?: (taskId: string) => void | Promise<void>;
   onComplete?: (taskId: string) => void | Promise<void>;
   onSkip?: (taskId: string) => void;
+  /** Phase 2 · anchor + idle props (NOW slot only). */
+  anchor?: { taskId: string; startedAt: string; reaffirmedAt?: string } | null;
+  anchorElapsedMs?: number;
+  isIdle?: boolean;
+  onReaffirm?: () => void;
+  onReleaseAnchor?: () => void;
 }
 
-function MoveSlot({ variant, task, onFocus, onStart, onComplete, onSkip }: MoveSlotProps) {
+function MoveSlot({
+  variant,
+  task,
+  onFocus,
+  onStart,
+  onComplete,
+  onSkip,
+  anchor,
+  anchorElapsedMs = 0,
+  isIdle = false,
+  onReaffirm,
+  onReleaseAnchor,
+}: MoveSlotProps) {
   const accent = variant === "now";
   const Icon = variant === "now" ? Target : variant === "daily" ? Repeat : ArrowRight;
   const label = variant === "now" ? "now" : variant === "daily" ? "daily" : "next";
@@ -191,13 +250,60 @@ function MoveSlot({ variant, task, onFocus, onStart, onComplete, onSkip }: MoveS
         )}
       </Link>
 
-      {/* Phase 1B · 3 actions on NOW only · 44pt min for iOS PWA. */}
+      {/* Phase 2 · active anchor chip + 10-min milestone (NOW only). */}
+      {variant === "now" && anchor && anchor.taskId === task.id && (
+        <div className="mt-2 flex items-center gap-1.5 text-[10px] font-mono">
+          <Timer size={10} className="text-[var(--gold)]/80" strokeWidth={1.75} />
+          <span className="text-[var(--text-secondary)] tabular-nums">
+            anchored · {formatElapsed(anchorElapsedMs)}
+          </span>
+          {anchorElapsedMs >= 10 * 60_000 && (
+            <span className="text-[var(--gold)]/90">· focused 10 min 🔥</span>
+          )}
+        </div>
+      )}
+
+      {/* Phase 2 · inline idle nudge (NOW only, when isIdle). Replaces
+       *  the plan's side-pane nudge (Phase 5 isn't built yet · this
+       *  inline shape ships standalone). */}
+      {variant === "now" && isIdle && anchor && anchor.taskId === task.id && (
+        <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/[0.06] px-2.5 py-2">
+          <div className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.18em] text-amber-300/80">
+            <Coffee size={11} className="shrink-0" strokeWidth={1.75} />
+            still on this?
+          </div>
+          <p className="mt-1 text-[11px] text-[var(--text-secondary)] leading-snug">
+            {"5+ min since last activity · reaffirm or pick something new"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <ActionButton
+              icon={<Check size={11} strokeWidth={2} />}
+              label="Still on it"
+              onClick={() => onReaffirm?.()}
+              variant="primary"
+              aria-label="reaffirm work anchor"
+            />
+            <ActionButton
+              icon={<X size={11} strokeWidth={2} />}
+              label="Release"
+              onClick={() => onReleaseAnchor?.()}
+              variant="ghost"
+              aria-label="release work anchor"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Phase 1B · 3 actions on NOW only · 44pt min for iOS PWA.
+       *  Phase 2 · "Do" gets a "Doing" pill treatment when this task
+       *  is already the active anchor (don't re-fire startTask if
+       *  it's already DOING + anchored). */}
       {variant === "now" && (onStart || onComplete || onSkip) && (
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           {onStart && task.status !== "DOING" && (
             <ActionButton
               icon={<Play size={11} strokeWidth={2} className="fill-current" />}
-              label="Do"
+              label={anchor?.taskId === task.id ? "Doing" : "Do"}
               onClick={() => void onStart(task.id)}
               variant="primary"
               aria-label="start this task"
@@ -225,6 +331,17 @@ function MoveSlot({ variant, task, onFocus, onStart, onComplete, onSkip }: MoveS
       )}
     </div>
   );
+}
+
+/* ─── Phase 2 helper · format elapsed ms for the anchor chip ───── */
+
+function formatElapsed(ms: number): string {
+  if (ms < 60_000) return `${Math.max(0, Math.floor(ms / 1000))}s`;
+  const m = Math.floor(ms / 60_000);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  const rest = m % 60;
+  return rest === 0 ? `${h}h` : `${h}h ${rest}m`;
 }
 
 /* ─── Action button primitive · gold-accent · iOS-PWA-safe ────── */
