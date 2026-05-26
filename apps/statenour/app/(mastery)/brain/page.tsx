@@ -25,6 +25,7 @@ import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { BeliefsPanel } from "@/components/brain/beliefs-panel";
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
 import { GhostNickStrip } from "@/components/ultron/ghost-nick/ghost-nick-strip";
@@ -96,6 +97,12 @@ function BrainPageInner() {
           <p className="text-xs text-[var(--text-tertiary)] mt-1.5 max-w-[60ch]">
             Everything the system knows about you · learns every day.
           </p>
+          {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+           *  Surfaces system-noticed brain events (anomalies, identity
+           *  shifts, contradictions). Self-hides when zero events. */}
+          <div className="mt-4">
+            <CoachEventBanner surface="brain" />
+          </div>
         </div>
         {/* v10.0.529.49 · deep-dive nav cut from 8 buttons → 1.
             Sub-routes /brain/search · /critique · /improve · /time-travel

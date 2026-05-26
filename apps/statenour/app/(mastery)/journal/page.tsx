@@ -33,6 +33,7 @@ import { sanitizeError } from "@/lib/utils/sanitize-error";
 const log = rootLogger.withSurface("journal/page");
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/ui/section-header";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
@@ -384,6 +385,12 @@ function JournalPageInner() {
           "What's the unresolved tension I keep avoiding?",
         ]}
       />
+
+      {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+       *  Surfaces system-noticed events tagged for journal (pattern
+       *  observations, thread suggestions, learning velocity nudges).
+       *  Self-hides when zero events. */}
+      <CoachEventBanner surface="journal" />
 
       {/* 2026-05-24 · Wave S #7 · Learning-velocity ticker. Wires the
           existing measureLearningVelocity() helper (already computes

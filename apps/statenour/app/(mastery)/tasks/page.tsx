@@ -85,6 +85,7 @@ import { usePromptDialog } from "@/components/ui/confirm-dialog";
 // MilestonesFlow).
 import { NowPanel } from "@/components/actions/now-panel";
 import { MoveFrame } from "@/components/actions/move-frame";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 // IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
 // folds the six intel/reflection widgets below the execution surface ·
 // see its docstring for the simple-on-top rationale.
@@ -1303,6 +1304,11 @@ function TasksPageInner() {
        *   Phase 1B (next commit) wires the 4-action surface on NOW
        *   (Do / Defer 1d / Done / Skip) via the existing handlers
        *   already plumbed into NowPanel. */}
+      {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+       *  Mounts ABOVE MoveFrame · system-noticed events (drift, idle-
+       *  nudge, goal-pace-shift) deserve attention before the move
+       *  spread. Self-hides when zero events. */}
+      <CoachEventBanner surface="tasks" />
       <MoveFrame tasks={tasks} onStart={startTask} onComplete={completeLoop} />
       {nowContent}
       {/* IntelPanel · the six intel/reflection widgets, collapsed by
