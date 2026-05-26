@@ -29,6 +29,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { composeAdvisory } from "@/lib/services/pricing-advisor";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 
 export const maxDuration = 180; // ~5 outliers × (web-search + draft) fits comfortably; cap matches cost-slo-check pattern.
 
@@ -101,6 +102,28 @@ export const GET = cronHandler(async () => {
     } catch {
       telegramOk = false;
     }
+
+    // Mastery Layer Stage A · dual-write to the unified coach channel
+    // (commit d0ced3e0). Surfaces the weekly pricing advisory on the
+    // /scoreboard CoachEventBanner (commit e9355280). subjectId = the
+    // ET date key, so dedup is one-per-week. Telegram + /admin link
+    // continue to work · this just adds a new display surface.
+    await recordCoachEvent({
+      kind: "pricing-advisory",
+      subjectId: today,
+      priority: "P1", // worth attention but not bleeding · weekly cadence
+      title: `Pricing advisory · ${top.service} · ${(top.winRate * 100).toFixed(0)}% win rate`,
+      body: snapshot.headline.slice(0, 200),
+      deepLink: "/admin/pricing-advisory",
+      surfaces: ["scoreboard"],
+      extra: {
+        date: today,
+        outlierCount: snapshot.outliers.length,
+        topService: top.service,
+        topWinRate: top.winRate,
+        fleetMedian: top.fleetMedian,
+      },
+    });
   }
 
   return {
