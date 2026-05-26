@@ -19,7 +19,10 @@ import {
 } from "../db";
 import { storagePut } from "../storage";
 import { sendSms } from "../sms";
+import { createLogger } from "../lib/logger";
 import { z } from "zod";
+
+const log = createLogger("routers:services");
 
 export const couponsRouter = router({
   active: publicProcedure.query(async () => {
@@ -137,11 +140,11 @@ export const referralsRouter = router({
       const refPhone10 = normalizePhone(input.referrerPhone);
       const refeePhone10 = normalizePhone(input.refereePhone);
       if (refPhone10 && refPhone10 === refeePhone10) {
-        console.warn(`[referrals:self-loop] BLOCKED · phone10=${refPhone10} name=${input.referrerName}`);
+        log.warn(`[referrals:self-loop] BLOCKED · phone10=${refPhone10} name=${input.referrerName}`);
         return { success: false, error: "Referrer and referee must be different people." };
       }
       if (input.referrerEmail && input.refereeEmail && input.referrerEmail.toLowerCase() === input.refereeEmail.toLowerCase()) {
-        console.warn(`[referrals:self-loop] BLOCKED · same email · ${input.referrerEmail}`);
+        log.warn(`[referrals:self-loop] BLOCKED · same email · ${input.referrerEmail}`);
         return { success: false, error: "Referrer and referee must be different people." };
       }
       return createReferral(input);

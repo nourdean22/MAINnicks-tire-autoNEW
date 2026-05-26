@@ -670,7 +670,7 @@ export const gatewayTireRouter = router({
           }
         }
       } catch (e) {
-        console.warn("[placeOrder:price-derive] cache lookup failed:", e instanceof Error ? e.message : e);
+        log.warn("[placeOrder:price-derive] cache lookup failed:", e instanceof Error ? e.message : e);
       }
 
       // Fall through to live Gateway if cache missed
@@ -696,7 +696,7 @@ export const gatewayTireRouter = router({
             }
           }
         } catch (e) {
-          console.warn("[placeOrder:price-derive] live Gateway lookup failed:", e instanceof Error ? e.message : e);
+          log.warn("[placeOrder:price-derive] live Gateway lookup failed:", e instanceof Error ? e.message : e);
         }
       }
 
@@ -704,7 +704,7 @@ export const gatewayTireRouter = router({
         // Tight floor · 5% below expected = reject (catches manipulated prices)
         const minAcceptableCents = Math.floor(expectedPriceCents * 0.95);
         if (input.pricePerTireCents < minAcceptableCents) {
-          console.error(`[placeOrder:price-mismatch] BLOCKED · client=${input.pricePerTireCents}¢ expected=${expectedPriceCents}¢ floor=${minAcceptableCents}¢ tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+          log.error(`[placeOrder:price-mismatch] BLOCKED · client=${input.pricePerTireCents}¢ expected=${expectedPriceCents}¢ floor=${minAcceptableCents}¢ tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
           return { success: false, error: "Price has changed. Please refresh and try again." };
         }
       } else {
@@ -712,10 +712,10 @@ export const gatewayTireRouter = router({
         // without false-rejecting during Gateway outages
         const ABSOLUTE_MIN_TIRE_PRICE_CENTS = 5000;
         if (input.pricePerTireCents < ABSOLUTE_MIN_TIRE_PRICE_CENTS) {
-          console.error(`[placeOrder:price-floor] BLOCKED · client=${input.pricePerTireCents}¢ < $50 absolute floor · tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
+          log.error(`[placeOrder:price-floor] BLOCKED · client=${input.pricePerTireCents}¢ < $50 absolute floor · tire=${input.tireBrand}/${input.tireModel}/${input.tireSize}`);
           return { success: false, error: "Invalid price. Please refresh and try again." };
         }
-        console.warn(`[placeOrder:price-derive] could not derive price for ${input.tireBrand} ${input.tireModel} ${input.tireSize} · proceeding with $50 absolute floor only`);
+        log.warn(`[placeOrder:price-derive] could not derive price for ${input.tireBrand} ${input.tireModel} ${input.tireSize} · proceeding with $50 absolute floor only`);
       }
 
       const orderNumber = generateOrderNumber();
