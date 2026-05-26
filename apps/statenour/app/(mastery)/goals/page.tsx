@@ -64,6 +64,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
+import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 // KommandoShell dismantle · Phase 2 (2026-05-21) · the goal-authoring
 // surface — was the PLAN tab of the /tasks KommandoShell (KommandoPlan
 // in components/actions/mode-plan.tsx). Relocated + trimmed to
@@ -191,17 +192,33 @@ export default function GoalsPage() {
             dormant goal. Self-hides when nothing has signal. */}
         <OperatorPulse surface="goals" className="mt-6 px-0 mx-0" />
 
-        {/* Phase G (2026-05-18 PM) · CompoundChain · this week's chain ·
-            which tasks moved which goals · grouped by axis. Reads as
-            a narrative of progress · "this week · 12 tasks · 5 goals ·
-            3 axes moved". Operator sees how the week actually compounded. */}
-        <CompoundChain surface="goals" className="mt-4 px-0 mx-0" />
+        {/* Mastery Layer Stage B adoption · 2026-05-26 · collapse deep-
+         *  dive bands (compound chain + recent insights) into a per-
+         *  surface drawer. MasteryPolyhedron + OperatorPulse + the
+         *  channel banners + GoalBoard stay above-fold (HERO). Deep-
+         *  dive context goes one tap away. Collapsed by default ·
+         *  self-fetching children stay dormant. */}
+        <div className="mt-4">
+          <MasteryContextDrawer
+            surface="goals"
+            label="Deep dive"
+            hint="compound chain · recent insights"
+          >
+            <div className="space-y-6">
+              {/* Phase G (2026-05-18 PM) · CompoundChain · this week's chain ·
+                  which tasks moved which goals · grouped by axis. Reads as
+                  a narrative of progress · "this week · 12 tasks · 5 goals ·
+                  3 axes moved". Operator sees how the week actually compounded. */}
+              <CompoundChain surface="goals" className="px-0 mx-0" />
 
-        {/* TRACK consolidation (2026-05-21) · recent AI-enriched task
-            insights grouped by 8-axis · rehomed from the deleted /tasks
-            TRACK tab. Same conceptual layer as the axis scores + ladder.
-            Self-hides when empty. */}
-        <RecentInsightsPanel />
+              {/* TRACK consolidation (2026-05-21) · recent AI-enriched task
+                  insights grouped by 8-axis · rehomed from the deleted /tasks
+                  TRACK tab. Same conceptual layer as the axis scores + ladder.
+                  Self-hides when empty. */}
+              <RecentInsightsPanel />
+            </div>
+          </MasteryContextDrawer>
+        </div>
 
         {/* Main grid · interactive goal board on left · missions +
             mastery sidebar on right (collapses on mobile).
