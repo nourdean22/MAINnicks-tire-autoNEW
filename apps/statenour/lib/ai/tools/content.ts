@@ -107,7 +107,10 @@ export const contentTools = {
       question: z.string().describe("Natural language question about the data"),
     }),
     execute: async ({ question }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: "You are a SQL expert. Convert the user's question into a PostgreSQL query. The database has tables: customers, jobs, leads, daily_scores, google_reviews, sms_logs, payment_records. Return only the SQL query." },
         { role: "user", content: question },
@@ -123,7 +126,10 @@ export const contentTools = {
       language: z.enum(["typescript", "javascript", "python", "sql"]).default("typescript"),
     }),
     execute: async ({ task, language }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: `You are a ${language} code generator. Write clean, production-ready code. Return only the code.` },
         { role: "user", content: task },
@@ -139,7 +145,10 @@ export const contentTools = {
       style: z.enum(["bullets", "oneliner", "paragraph"]).default("bullets"),
     }),
     execute: async ({ text, style }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const stylePrompt = style === "bullets" ? "as bullet points" : style === "oneliner" ? "in one sentence" : "as a short paragraph";
       const result = await aiChat([
         { role: "system", content: `Summarize the following ${stylePrompt}. Be concise.` },
@@ -155,7 +164,10 @@ export const contentTools = {
       text: z.string().describe("Text to analyze"),
     }),
     execute: async ({ text }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: 'Classify the sentiment as POSITIVE, NEGATIVE, or NEUTRAL. Reply in format: SENTIMENT: [value]\nREASON: [brief reason]' },
         { role: "user", content: text },
@@ -171,7 +183,10 @@ export const contentTools = {
       fields: z.array(z.string()).describe("What to extract, e.g. ['prices', 'services', 'dates']"),
     }),
     execute: async ({ text, fields }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: `Extract these fields from the text: ${fields.join(", ")}. Return as structured key-value pairs.` },
         { role: "user", content: text },
@@ -186,7 +201,10 @@ export const contentTools = {
       problem: z.string().describe("The math problem or financial calculation"),
     }),
     execute: async ({ problem }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: "You are a math expert. Solve the problem step by step, then give the final answer." },
         { role: "user", content: problem },
@@ -204,7 +222,10 @@ export const contentTools = {
       count: z.number().default(3).describe("Number of variations"),
     }),
     execute: async ({ type, topic, tone, count }) => {
-      const { aiChat } = await import("@/lib/ai/provider");
+      // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget).
+      // Migrated to tracedAiChat factory · same drop-in signature.
+      const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+      const aiChat = makeTracedAiChat("content-tool", "tool");
       const result = await aiChat([
         { role: "system", content: `You are a creative writer for Nick's Tire & Auto, a family-owned shop in Euclid, OH. Write ${count} ${tone} ${type.replace("_", " ")} variations.` },
         { role: "user", content: topic },

@@ -62,8 +62,12 @@ export interface TracedAiChatOpts {
  * sweep — each consumer just changes its import line once.
  */
 export function makeTracedAiChat(label: string, source: TraceSource = "brain") {
-  return async (messages: AiMessage[], taskType: TaskType = "reason"): Promise<AiResponse> => {
-    return tracedAiChat({ label, source }, messages, taskType);
+  return async (
+    messages: AiMessage[],
+    taskType: TaskType = "reason",
+    runtimeOpts: { signal?: AbortSignal; force?: boolean } = {},
+  ): Promise<AiResponse> => {
+    return tracedAiChat({ label, source }, messages, taskType, runtimeOpts);
   };
 }
 
@@ -76,6 +80,7 @@ export async function tracedAiChat(
   opts: TracedAiChatOpts,
   messages: AiMessage[],
   taskType: TaskType = "reason",
+  runtimeOpts: { signal?: AbortSignal; force?: boolean } = {},
 ): Promise<AiResponse> {
   const traceId = opts.parentTraceId ?? mintTraceId();
   const startedAt = Date.now();
@@ -110,7 +115,10 @@ export async function tracedAiChat(
   }
 
   try {
-    const result = await aiChat(messages, taskType);
+    // wave-AO follow-up · forward runtime opts (signal, force) so the
+    // factory returned by makeTracedAiChat is a true drop-in for bare
+    // aiChat (callers passing { signal } no longer fail typecheck).
+    const result = await aiChat(messages, taskType, runtimeOpts);
     // v10.0.26 — aiChat returns { provider: "none", content: "<sentinel>" }
     // when every provider in the chain failed (graceful-degradation
     // sentinel, not an exception). Pre-v10.0.26 this was recorded as
