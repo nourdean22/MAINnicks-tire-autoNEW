@@ -116,6 +116,14 @@ export function useStallDetection({
   // detector from killing the stream mid-tool-execution.
   const lastToolStateRef = useRef<string>("");
   const wasStreamingRef = useRef<boolean>(false);
+  // Audit #349 fix · keep latest `messages` in a ref so the tick
+  // effect below does NOT tear down + recreate setInterval on every
+  // token chunk. Previously, `messages` in the deps array thrashed
+  // the interval 200+ times per long reply, leaking timers between
+  // renders. Updated assignment is render-time (safe pattern: ref
+  // mutation outside an effect doesn't cause renders).
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   useEffect(() => {
     if (!isStreaming) {
       setStatus("idle");
@@ -174,7 +182,8 @@ export function useStallDetection({
     if (!isStreaming) return;
 
     const interval = setInterval(() => {
-      const last = messages[messages.length - 1];
+      const m = messagesRef.current;
+      const last = m[m.length - 1];
 
       // SKIP stall check entirely if a tool is actively executing.
       // Tools can legitimately take 30-60s — image generation is the
@@ -203,7 +212,9 @@ export function useStallDetection({
     }, 2_000);
 
     return () => clearInterval(interval);
-  }, [isStreaming, warningMs, abortMs, messages]);
+    // Audit #349 fix · `messages` deliberately omitted · read via
+    // messagesRef.current so interval doesn't tear down per token.
+  }, [isStreaming, warningMs, abortMs]);
 
   return status;
 }
