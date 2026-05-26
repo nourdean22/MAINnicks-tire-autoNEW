@@ -3,35 +3,32 @@
 /**
  * IntelPanel · 2026-05-21 · the /tasks "powerful underneath" drawer.
  *
- * /tasks is the operator's execution surface. Over many waves, six
- * intel / reflection widgets accreted ABOVE the task list — daily
- * brief, Nick's suggestions, operator pulse, today's compound, the
- * compound chain, the context band — each landing "one notch higher-
- * signal than the card below it" until the actual NowPanel was buried
- * under six stacked cards. The operator's verdict: "too much going on."
+ * As of 2026-05-26 (Mastery Layer Stage B), this is a thin wrapper
+ * around `<MasteryContextDrawer surface="tasks">`. The original
+ * /tasks-specific implementation was generalized into the cross-page
+ * primitive · this wrapper preserves the existing API + visual contract
+ * for the /tasks page mount.
  *
- * The fix (Tesla-minimal · simple on top, powerful underneath): the
- * execution surface (NowPanel) renders first and unobstructed; every
- * informational widget collapses into this one disclosure beneath it.
+ * Why keep this wrapper instead of migrating /tasks to MasteryContextDrawer
+ * directly: the /tasks page mount uses signalCount + signalLabel +
+ * the "Today's intel" label · keeping a named wrapper documents the
+ * /tasks-specific contract (signalCount = overdue, label = today's
+ * intel) at a glance. Per-surface signalCount mapping can stay here.
  *
- * Collapsed by default — the operator opens intel deliberately, it
- * isn't pushed at them. Children render only while expanded, so a
- * collapsed panel costs ZERO data fetches on the /tasks load path
- * (each folded widget self-fetches — gating their mount is also a
- * measurable load-time win, not just a layout one).
- *
- * The open/closed choice persists to localStorage so it survives
- * navigation. SSR-safe: defaults collapsed, then reads the stored
- * value after hydration (reading localStorage during render would
- * desync the server markup).
+ * Visual + behavior contract is BYTE-IDENTICAL to the previous shape:
+ * - "Today's intel" header label with the brief/suggestions/pulse hint
+ * - signalCount → amber overdue chip when collapsed
+ * - children mount only while expanded
+ * - localStorage persistence under "mastery_ctx_open_tasks" (the new
+ *   per-surface key · matches Stage B's per-surface contract). The
+ *   pre-Stage B key was "tasks_intel_open" · operators on first
+ *   pageload after this commit will see the drawer in default-closed
+ *   state ONCE until they toggle (which then writes the new key).
+ *   This is acceptable degradation · the drawer is collapsed by default
+ *   anyway. No data is lost.
  */
 
-import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Layers } from "lucide-react";
-import { cn } from "@/lib/utils";
-
-/** localStorage key — "1" = expanded, anything else = collapsed. */
-const STORAGE_KEY = "tasks_intel_open";
+import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 
 interface IntelPanelProps {
   children: React.ReactNode;
@@ -40,8 +37,7 @@ interface IntelPanelProps {
    * count pill — a breadcrumb that the folded widgets are worth
    * opening for, without un-folding (or fetching) them. The /tasks
    * page feeds its overdue count; OperatorPulse inside the drawer is
-   * the strategic read on exactly those. Kept a generic number so the
-   * panel stays decoupled from any one data source.
+   * the strategic read on exactly those.
    */
   signalCount?: number;
   /** Noun rendered after the count, e.g. "overdue" → "3 overdue". */
@@ -49,66 +45,15 @@ interface IntelPanelProps {
 }
 
 export function IntelPanel({ children, signalCount = 0, signalLabel }: IntelPanelProps) {
-  const [open, setOpen] = useState(false);
-
-  // Restore the persisted choice after mount. Done in an effect, not
-  // in useState's initializer, so the server and first client render
-  // agree (both collapsed) — no hydration mismatch.
-  useEffect(() => {
-    try {
-      if (localStorage.getItem(STORAGE_KEY) === "1") setOpen(true);
-    } catch {
-      /* private mode / storage disabled — stay collapsed */
-    }
-  }, []);
-
-  function toggle() {
-    setOpen((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
-      } catch {
-        /* best-effort persistence */
-      }
-      return next;
-    });
-  }
-
   return (
-    <div className="space-y-3">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-expanded={open}
-        className={cn(
-          "flex min-h-[44px] w-full items-center gap-2 rounded-lg border px-3 py-2 text-left transition-colors",
-          open
-            ? "border-[var(--gold)]/25 bg-[var(--gold)]/[0.04]"
-            : "border-[var(--gold)]/15 bg-[var(--gold)]/[0.02] hover:bg-[var(--gold)]/[0.05]",
-        )}
-      >
-        <Layers size={12} className="shrink-0 text-[var(--gold)]/70" />
-        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--gold)]/80">
-          Today&apos;s intel
-        </span>
-        <span className="ml-1 hidden flex-1 truncate text-[9px] italic text-white/30 sm:block">
-          brief · suggestions · pulse · compounding
-        </span>
-        {!open && signalCount > 0 && (
-          <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 font-mono text-[9px] tabular-nums text-amber-300">
-            {signalCount}
-            {signalLabel ? ` ${signalLabel}` : ""}
-          </span>
-        )}
-        {open ? (
-          <ChevronDown size={13} className="ml-auto shrink-0 text-[var(--gold)]/50 sm:ml-0" />
-        ) : (
-          <ChevronRight size={13} className="ml-auto shrink-0 text-[var(--gold)]/50 sm:ml-0" />
-        )}
-      </button>
-      {/* Children mount only while expanded — the six folded widgets
-          each self-fetch, so a collapsed panel does no work. */}
-      {open && children}
-    </div>
+    <MasteryContextDrawer
+      surface="tasks"
+      label="Today's intel"
+      hint="brief · suggestions · pulse · compounding"
+      signalCount={signalCount}
+      signalLabel={signalLabel}
+    >
+      {children}
+    </MasteryContextDrawer>
   );
 }
