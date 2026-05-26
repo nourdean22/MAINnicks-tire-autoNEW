@@ -17,6 +17,7 @@ import {
   compareToWeekAgo,
   pushDriftAlertIfNeeded,
 } from "@/lib/observability/drift-detector";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 
 export const maxDuration = 120;
 
@@ -50,6 +51,32 @@ export const GET = cronHandler(async () => {
   // when worst severity ≥ warn. Idempotent per-day.
   const report = await compareToWeekAgo();
   const pushResult = await pushDriftAlertIfNeeded(report);
+
+  // Mastery Layer Stage A · dual-write to the coach channel when drift
+  // is warn-or-worse. Surfaces on /scoreboard and /brain so the
+  // operator can see code-quality regressions without depending on
+  // Telegram. subjectId = ET date · dedup is one-per-day.
+  if (report.worst === "warn" || report.worst === "critical") {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+    const topRegression = report.regressions[0];
+    await recordCoachEvent({
+      kind: "system-alert",
+      subjectId: `os-drift:${today}`,
+      priority: report.worst === "critical" ? "P0" : "P1",
+      title: `OS drift · ${report.regressions.length} regression${report.regressions.length === 1 ? "" : "s"} vs 7d baseline`,
+      body: topRegression
+        ? `Worst: ${topRegression.metric} · ${topRegression.severity} · today ${topRegression.today.toFixed(1)} vs ${topRegression.baseline.toFixed(1)} avg (${topRegression.pctDelta > 0 ? "+" : ""}${(topRegression.pctDelta * 100).toFixed(0)}%)`
+        : `Worst severity: ${report.worst}`,
+      deepLink: "/system/health",
+      surfaces: ["scoreboard", "brain"],
+      extra: {
+        date: today,
+        worst: report.worst,
+        regressionCount: report.regressions.length,
+        improvementCount: report.improvements.length,
+      },
+    });
+  }
 
   return {
     ok: true,
