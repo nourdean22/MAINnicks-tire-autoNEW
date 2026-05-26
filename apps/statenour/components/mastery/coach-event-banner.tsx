@@ -31,12 +31,16 @@ import Link from "next/link";
 import { useState, useCallback } from "react";
 import { Sparkles, AlertTriangle, ChevronRight, X } from "lucide-react";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
-import { buildCoachEventKey } from "@/lib/services/coach-events";
+// Wave-AO follow-up · import from the client-safe types module · the
+// heavy ./coach-events module imports prisma and would break the
+// client build if pulled in transitively (same v10.0.209 constraint
+// as lib/ai/provider.ts).
+import { buildCoachEventKey } from "@/lib/services/coach-events-types";
 import type {
   CoachEvent,
   CoachEventPriority,
   CoachEventSurface,
-} from "@/lib/services/coach-events";
+} from "@/lib/services/coach-events-types";
 
 interface CoachEventBannerProps {
   surface: CoachEventSurface;
