@@ -29,7 +29,8 @@
  */
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { usePollingFetch } from "@/hooks/use-polling-fetch";
 // Phase WW (2026-05-19 AM) · useAuthedFetch swapped for trpc.
 import { trpc } from "@/lib/trpc/client";
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
@@ -317,46 +318,43 @@ interface MasterReportShape {
 }
 
 function NickHealthSection() {
-  const [data, setData] = useState<MasterReportShape | null>(null);
-  const [bridgeOk, setBridgeOk] = useState<"loading" | "ok" | "down">("loading");
   const [expanded, setExpanded] = useState(false);
+  // Audit #353 / #354 / #355 fix · canonical polling primitive.
+  // - Tab-visibility pause (was a raw setInterval, ran forever)
+  // - Auto-cleanup on unmount
+  // - Cleaner cancellation via the hook's alive flag
+  // 120s interval matches the nickstire 60s memoize cache on
+  // master_report + 60s breathing room.
+  const { data: payload, loading, error } = usePollingFetch<
+    MasterReportShape | { ok: false; reason?: string }
+  >("/api/nickstire/query?q=master_report", { intervalMs: 120_000 });
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/nickstire/query?q=master_report");
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        if (cancelled) return;
-        // Bridge proxy returns { data, query, timestamp } on success
-        // or { error } on failure. Then the inner `data` is the
-        // handler return: { ok: true, summary, ... } OR { ok: false }.
-        const payload = json?.data;
-        if (!payload || payload.ok !== true) {
-          setBridgeOk("down");
-          return;
-        }
-        setData(payload as MasterReportShape);
-        setBridgeOk("ok");
-      } catch {
-        if (!cancelled) setBridgeOk("down");
-      }
-    };
-    void load();
-    // Refresh every 2 minutes · matches the nickstire 60s memoize
-    // cache on master_report + adds 60s breathing room.
-    const id = setInterval(load, 120_000);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
-  }, []);
+  // Audit #354 fix · explicit "bridge unreachable" pill instead of
+  // silent self-hide. Operator can now SEE that Nick's health card is
+  // missing because the nickstire bridge is down · not because the
+  // card silently dropped.
+  // First-render guard · don't flash a pill before the initial fetch
+  // even started · null until we have either data or an error.
+  if (loading && !payload && !error) return null;
+  if (error || !payload || (payload as { ok: boolean }).ok !== true) {
+    const reason = error
+      ? error
+      : (payload as { ok: false; reason?: string } | null)?.reason
+        ?? "master_report unreachable · check nickstire bridge";
+    return (
+      <section
+        aria-label="nick health · bridge unreachable"
+        className="rounded-lg border border-amber-500/20 bg-amber-500/[0.04] px-4 py-2.5"
+      >
+        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-amber-300/80">
+          nick health · bridge unreachable
+        </p>
+        <p className="mt-1 text-[11px] text-amber-100/60 line-clamp-1">{reason}</p>
+      </section>
+    );
+  }
 
-  // Self-hide when bridge is unreachable or hasn't responded yet.
-  // No loading skeleton · this surface is a bonus · the rest of the
-  // page already renders.
-  if (bridgeOk !== "ok" || !data) return null;
+  const data = payload as MasterReportShape;
 
   const score = data.summary.score;
   const scoreLabel = score >= 80 ? "STRONG" : score >= 60 ? "OK" : score >= 40 ? "MIXED" : "WEAK";
