@@ -92,7 +92,12 @@ async function synthesizeProposedRuleChange(
   if (failingReasonings.length === 0) return STATIC_PROPOSED_RULES[axis];
 
   try {
-    const { aiChat } = await import("@/lib/ai/provider");
+    // wave-AO follow-up · audit #438 · was bare aiChat. Migrated to
+    // tracedAiChat factory so the nightly improve-agent run (up to 5
+    // axes · per-axis call) inherits the daily-budget gate. Closes
+    // audit #362.
+    const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+    const aiChat = makeTracedAiChat("improve-agent", "brain");
     const sys = `You are an LLM-rule-edit synthesizer for an operator-grade personal-OS AI named Nick. You read judge reasonings explaining WHY Nick's replies failed the ${axis} axis, then output ONE concrete edit to the rule that governs that axis.
 
 The current rule files live in lib/ai/prompt/policy/operator-rules.ts. Axis → rule mapping:

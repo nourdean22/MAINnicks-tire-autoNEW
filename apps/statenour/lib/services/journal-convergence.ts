@@ -35,9 +35,14 @@ import {
   cosineSimilarity,
   vectorCentroid,
 } from "@/lib/brain/embedding-utils";
-import { getEmbedding, aiChat, type AiMessage } from "@/lib/ai/provider";
+import { getEmbedding, type AiMessage } from "@/lib/ai/provider";
+import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { Prisma } from "@prisma/client";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+
+// wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
+// Factory pattern · drop-in: existing call signature unchanged at use sites.
+const aiChat = makeTracedAiChat("journal-convergence", "journal");
 
 const log = rootLogger.withSurface("services/journal-convergence");
 

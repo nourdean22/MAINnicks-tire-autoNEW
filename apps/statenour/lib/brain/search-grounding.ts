@@ -154,7 +154,11 @@ export async function runMarketScan(): Promise<{ scanned: number; insights: stri
   const stale: string[] = [];
 
   try {
-    const { aiChat } = await import("@/lib/ai/provider");
+    // wave-AO follow-up · audit #438 · was bare aiChat. Migrated to
+    // tracedAiChat factory · search-grounding fires on every chat
+    // context build, so the daily-budget gate matters here.
+    const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+    const aiChat = makeTracedAiChat("search-grounding", "brain");
 
     for (const q of MARKET_QUERIES) {
       // Check cache
