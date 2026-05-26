@@ -140,7 +140,9 @@ async function callSubAgent(
 
   const systemPrompt = resolveSubAgentSystemPrompt(task.persona);
 
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("multi-agent-orchestrator", "brain");
   const reply = await aiChat(
     [
       { role: "system", content: systemPrompt },

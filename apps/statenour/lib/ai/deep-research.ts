@@ -73,7 +73,9 @@ interface PlanArgs {
 // instead of raw fetch to OpenAI. Same Wave 59 pattern as
 // pretask-fanout.ts and multi-agent-orchestrator.ts.
 async function _planSubQueries(args: PlanArgs): Promise<string[]> {
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("deep-research", "brain");
   const reply = await aiChat(
     [
       { role: "system", content: PLANNER_SYSTEM },
@@ -124,7 +126,9 @@ ${dossier}
 
 Synthesize a tight cited report.`;
 
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("deep-research", "brain");
   const reply = await aiChat(
     [
       { role: "system", content: SYNTHESIZER_SYSTEM },

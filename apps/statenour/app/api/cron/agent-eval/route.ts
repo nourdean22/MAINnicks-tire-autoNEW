@@ -80,7 +80,9 @@ async function runOnePrompt(prompt: typeof GOLD_PROMPTS[number]): Promise<EvalCh
 
   // Use the same direct AI call pattern as the canary · cron-only,
   // bypasses chat route, no message persistence.
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("agent-eval-cron", "cron");
 
   let output = "";
   try {
