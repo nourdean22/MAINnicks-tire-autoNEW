@@ -26,6 +26,7 @@
 import { getInngest } from "../client";
 import { onInngestFailure } from "../on-failure";
 import { logger as rootLogger } from "@/lib/logger";
+import { recordCoachEvent, ackCoachEvent, buildCoachEventKey } from "@/lib/services/coach-events";
 
 const log = rootLogger.withSurface("inngest/goal-pruner");
 const inngest = getInngest();
@@ -119,6 +120,30 @@ async function persistFlags(flagged: PruneCandidate[]): Promise<void> {
     });
   });
   await Promise.all(ops);
+
+  // Mastery Layer Stage A · dual-write to the unified coach channel
+  // (commit d0ced3e0 · lib/services/coach-events.ts). The original
+  // goal_prune_candidate write stays for now · /goals page reads from
+  // it directly. Once the CoachEventBanner consumer lands on /goals
+  // (follow-up commit), the original write can be retired.
+  //
+  // recordCoachEvent fire-and-forget — its own catch + log handles
+  // failure · the cron's primary store (goal_prune_candidate above)
+  // is the source of truth during the migration window.
+  await Promise.all(
+    flagged.map((c) =>
+      recordCoachEvent({
+        kind: "prune-candidate",
+        subjectId: c.goalId,
+        priority: "P2", // stale-flag is advisory, not urgent
+        title: `Stale goal · ${c.goalTitle} · ${c.daysSinceActivity}d idle`,
+        body: `No activity on this goal for ${c.daysSinceActivity} days. Review or archive?`,
+        deepLink: `/goals?goalId=${encodeURIComponent(c.goalId)}`,
+        surfaces: ["goals"],
+        extra: { goalTitle: c.goalTitle, horizon: c.horizon, daysSinceActivity: c.daysSinceActivity },
+      }),
+    ),
+  );
 }
 
 async function clearFreshRows(cleared: string[]): Promise<void> {
@@ -128,6 +153,16 @@ async function clearFreshRows(cleared: string[]): Promise<void> {
     where: { category: "goal_prune_candidate", key: { in: cleared } },
     data: { deletedAt: new Date() },
   });
+
+  // Mastery Layer Stage A · also ack the coach-channel mirror so the
+  // /goals CoachEventBanner stops surfacing the stale-flag once the
+  // goal has activity again. Ack-not-delete preserves the event
+  // history in case the operator wants to see what was acted on.
+  await Promise.all(
+    cleared.map((goalId) =>
+      ackCoachEvent(buildCoachEventKey("prune-candidate", goalId)).catch(() => false),
+    ),
+  );
 }
 
 export const goalPruner = inngest.createFunction(
