@@ -35,6 +35,7 @@ import type { Task } from "@/components/actions/shared";
 import { useMoveFrame } from "@/hooks/use-move-frame";
 import { useWorkAnchor } from "@/hooks/use-work-anchor";
 import { useIdleDetector } from "@/hooks/use-idle-detector";
+import { useMissionMode } from "@/hooks/mastery/use-mission-mode";
 
 const TIP =
   "the move frame picks the top non-daily task as NOW · the on-deck task as NEXT · and your most-streaked habit as DAILY. it updates as you check things off. Do = mark doing · Done = complete · Skip = pass over this task locally (returns next page load).";
@@ -105,6 +106,13 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete, doneTodayCount 
     if (onComplete) await onComplete(taskId);
   };
 
+  // Phase 9 lite · mission-mode visual indicator. When ?missionId=X
+  // is in URL, the page-level tRPC fetch (page.tsx) ALREADY filters
+  // tasks to that mission. This hook reads the same URL state to show
+  // a "MISSION · {title}" chip in the header so the operator sees
+  // the visual shift, not just the filtered list.
+  const missionMode = useMissionMode();
+
   if (isEmpty) return null;
 
   return (
@@ -112,14 +120,27 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete, doneTodayCount 
       aria-label="move frame"
       className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.03] p-3 sm:p-4 space-y-3"
     >
-      <header className="flex items-center gap-2">
+      <header className="flex items-center gap-2 flex-wrap">
         <Sparkles size={13} className="text-[var(--gold)]" strokeWidth={1.75} />
         <h2 className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
           move frame
         </h2>
         <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
-          · the move spread
+          {missionMode.active ? "· mission filter active" : "· the move spread"}
         </span>
+        {/* Phase 9 lite · mission chip when filter is active. Operator
+         *  sees WHICH mission narrowed the move spread without needing
+         *  to scroll up to MissionBreadcrumb. The page already filters
+         *  tasks at the tRPC layer (page.tsx) · this is just visual. */}
+        {missionMode.active && missionMode.mission && (
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-[var(--gold)]/40 bg-[var(--gold)]/[0.08] px-2 py-0.5 text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]"
+            data-mission-chip
+          >
+            <span aria-hidden>✦</span>
+            <span className="truncate max-w-[140px]">{missionMode.mission.title}</span>
+          </span>
+        )}
         <TipChip tip={TIP} title="move frame" size="xs" />
       </header>
 
