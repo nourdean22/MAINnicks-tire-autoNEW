@@ -59,18 +59,26 @@ export async function getPipeline(
   // Dynamic import · pays the ~250KB tokenizer + ONNX runtime ONCE
   // across the app · all subsequent getPipeline calls reuse the
   // module-level cache here.
-  const loaderPromise = (async () => {
+  //
+  // Note · `pipeline()` returns a discriminated union of concrete
+  // pipeline subtypes (TextClassificationPipeline | TokenClassification…
+  // | etc.). Each subtype DOES extend the abstract `Pipeline` base, but
+  // TS sees them as structurally distinct because the public surface
+  // omits internal fields like `processor`. We assert through `unknown`
+  // here · the runtime objects are callable + satisfy our usage pattern.
+  const loaderPromise: Promise<Pipeline> = (async () => {
     const { pipeline, env } = await import("@xenova/transformers");
 
     // Quiet Transformers.js · it logs a lot at init by default
     env.allowLocalModels = false; // we use HF CDN
     if (options.forceFreshDownload) env.useBrowserCache = false;
 
-    return pipeline(task, model, {
+    const p = await pipeline(task, model, {
       progress_callback: options.onProgress
         ? (info: { progress: number; status: string }) => options.onProgress?.(info)
         : undefined,
     });
+    return p as unknown as Pipeline;
   })();
 
   cache.set(key, loaderPromise);
