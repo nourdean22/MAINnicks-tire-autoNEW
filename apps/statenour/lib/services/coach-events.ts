@@ -40,31 +40,30 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger as rootLogger } from "@/lib/logger";
 
+// Wave-AO follow-up · types + the pure buildCoachEventKey helper live
+// in a sibling module (coach-events-types.ts) so client components can
+// import the shape without pulling prisma into the client bundle. The
+// CoachEventBanner needs `buildCoachEventKey` for the dismiss button,
+// but this module's prisma import would break next build if reached
+// from a client component chain (same v10.0.209 constraint as
+// lib/ai/provider.ts).
+import {
+  buildCoachEventKey,
+  type CoachEvent,
+  type CoachEventKind,
+  type CoachEventPriority,
+  type CoachEventSurface,
+} from "./coach-events-types";
+
+export {
+  buildCoachEventKey,
+  type CoachEvent,
+  type CoachEventKind,
+  type CoachEventPriority,
+  type CoachEventSurface,
+};
+
 const log = rootLogger.withSurface("services/coach-events");
-
-/* ─── Types ──────────────────────────────────────────────────── */
-
-/**
- * Closed set of event kinds. Adding a new kind requires updating both
- * this union AND a writer that fires it. Closed set = the dashboard
- * + filter UIs can enumerate without round-tripping the DB.
- */
-export type CoachEventKind =
-  | "pricing-advisory" // pricing-advisor cron flagged a margin opportunity
-  | "prune-candidate" // goal-pruner found a stale goal
-  | "drift-recovery" // drift-detector triggered Recovery Crescendo eligibility
-  | "idle-nudge" // operator idle on the current work anchor (Phase 2)
-  | "goal-pace-shift" // goal moved between ON PACE / OFF PACE / MISSED
-  | "mission-deadline-check" // mission has a deadline approaching
-  | "proactive-nick" // generic Nick coaching event (Phase 5 watcher)
-  | "anomaly" // scoreboard detected an unusual number
-  | "system-alert"; // crons or watchers raising operator-relevant infra alerts
-
-/** Priority tiers · sorted top-of-feed. */
-export type CoachEventPriority = "P0" | "P1" | "P2";
-
-/** Surfaces that read coach events. Closed set · matches the 5 daily-driver pages. */
-export type CoachEventSurface = "tasks" | "goals" | "journal" | "brain" | "scoreboard";
 
 /**
  * Writer input shape. The `subjectId` doubles as the dedup key, so the
@@ -94,29 +93,6 @@ export interface CoachEventInput {
   extra?: Record<string, unknown>;
 }
 
-/**
- * Reader output shape · what each surface gets back when calling
- * getActiveCoachEvents.
- */
-export interface CoachEvent {
-  eventId: string;
-  kind: CoachEventKind;
-  subjectId: string;
-  priority: CoachEventPriority;
-  title: string;
-  body?: string;
-  deepLink?: string;
-  surfaces: CoachEventSurface[];
-  expiresAt?: string;
-  ackedAt?: string;
-  dismissable: boolean;
-  extra: Record<string, unknown>;
-  /** When the event was first recorded · BrainMemory.createdAt. */
-  createdAt: string;
-  /** When the event was last touched · BrainMemory.updatedAt. */
-  updatedAt: string;
-}
-
 /* ─── Constants ─────────────────────────────────────────────── */
 
 /** Dedup window · writers calling with the same (kind, subjectId)
@@ -135,16 +111,9 @@ const PRIORITY_RANK: Record<CoachEventPriority, number> = {
 
 /* ─── Writer ────────────────────────────────────────────────── */
 
-/**
- * Build the BrainMemory key for a coach event. Stable per
- * (kind, subjectId) tuple · enables 10-min dedup via upsert.
- *
- * Exported for tests + for writers that want to look up an event by
- * key without going through the reader.
- */
-export function buildCoachEventKey(kind: CoachEventKind, subjectId: string): string {
-  return `coach:${kind}:${subjectId}`;
-}
+// buildCoachEventKey is re-exported from ./coach-events-types so the
+// CoachEventBanner client component can use it without pulling prisma
+// into the client bundle.
 
 /**
  * Record a coach event. Idempotent within the 10-minute dedup window:
