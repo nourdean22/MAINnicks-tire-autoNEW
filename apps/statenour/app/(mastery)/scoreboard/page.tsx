@@ -52,6 +52,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 import { KommandoTrack } from "@/components/actions/mode-track";
 import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 
 type Trend = "up" | "down" | "flat";
 
@@ -123,6 +124,10 @@ export default function ScoreboardPage() {
          *  with tab-visibility pause. Self-hides when zero events. */}
         <div className="mt-4">
           <CoachEventBanner surface="scoreboard" />
+        </div>
+        {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb. */}
+        <div className="mt-2">
+          <MissionBreadcrumb />
         </div>
 
         {/* Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop

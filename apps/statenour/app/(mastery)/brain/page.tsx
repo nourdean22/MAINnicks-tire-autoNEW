@@ -26,6 +26,7 @@ import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { BeliefsPanel } from "@/components/brain/beliefs-panel";
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
 import { GhostNickStrip } from "@/components/ultron/ghost-nick/ghost-nick-strip";
@@ -102,6 +103,10 @@ function BrainPageInner() {
            *  shifts, contradictions). Self-hides when zero events. */}
           <div className="mt-4">
             <CoachEventBanner surface="brain" />
+          </div>
+          {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb. */}
+          <div className="mt-2">
+            <MissionBreadcrumb />
           </div>
         </div>
         {/* v10.0.529.49 · deep-dive nav cut from 8 buttons → 1.
