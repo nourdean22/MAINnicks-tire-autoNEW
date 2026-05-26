@@ -24,7 +24,7 @@
  * itself, just wires the keyboard event to existing setters/callbacks.
  */
 
-import { useEffect, type RefObject, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useRef, type RefObject, type Dispatch, type SetStateAction } from "react";
 import type { useRouter } from "next/navigation";
 import type { ChatOverrides, ProviderOverride } from "@/lib/chat/types";
 
@@ -95,6 +95,13 @@ export function useChatKeyboard(opts: UseChatKeyboardOpts): void {
     setError,
     setShowHistory,
   } = opts;
+
+  // Audit #350 fix · keep latest `messages` in a ref so the window
+  // keydown listener doesn't unbind + rebind per token (deps array
+  // previously included `messages`, which mutates on every stream
+  // chunk). Used only by the Cmd+Shift+E export shortcut.
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -189,8 +196,9 @@ export function useChatKeyboard(opts: UseChatKeyboardOpts): void {
       // Cmd/Ctrl+Shift+E → export conversation as text
       if (mod && e.shiftKey && e.key.toLowerCase() === "e") {
         e.preventDefault();
-        if (messages.length === 0) return;
-        const exported = messages
+        const m = messagesRef.current;
+        if (m.length === 0) return;
+        const exported = m
           .map((m) => {
             const role = m.role === "user" ? "Nour" : "Nick";
             const text = (m.parts ?? [])
@@ -246,7 +254,9 @@ export function useChatKeyboard(opts: UseChatKeyboardOpts): void {
     // The following are refs or stable setters/callbacks; listed here
     // for TS strictness only.
     inputRef,
-    messages,
+    // Audit #350 fix · `messages` deliberately omitted · read via
+    // messagesRef.current so the window keydown listener doesn't
+    // rebind on every stream chunk.
     setShowHistorySearch,
     setShowHelp,
     setInspectorOpen,
