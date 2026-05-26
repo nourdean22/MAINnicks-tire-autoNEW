@@ -53,6 +53,7 @@ import { KommandoTrack } from "@/components/actions/mode-track";
 import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
+import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 
 type Trend = "up" | "down" | "flat";
 
@@ -176,17 +177,34 @@ export default function ScoreboardPage() {
           )}
         </section>
 
-        {/* Phase G (2026-05-18 PM) · CompoundChain · "what compounded
-            INTO these numbers this week" · backward-looking from anchors
-            to the tasks that fed them. Self-hides if no chained work
-            happened in the window. */}
-        <CompoundChain surface="scoreboard" className="mt-8 px-0 mx-0" />
+        {/* Mastery Layer Stage B adoption · 2026-05-26 · collapse the
+         *  deep-dive bands (compound chain + kommando track) into a
+         *  per-surface drawer. The KPI grid, Nick health, pricing
+         *  advisory, and anomaly cards STAY above-fold (operator-
+         *  actionable). Compound + track are context · operator opens
+         *  deliberately. Collapsed by default · self-fetching children
+         *  stay dormant until expanded · saves work on cold loads. */}
+        <div className="mt-8">
+          <MasteryContextDrawer
+            surface="scoreboard"
+            label="Deep dive"
+            hint="compound chain · kommando track"
+          >
+            <div className="space-y-6">
+              {/* Phase G (2026-05-18 PM) · CompoundChain · "what compounded
+                  INTO these numbers this week" · backward-looking from anchors
+                  to the tasks that fed them. Self-hides if no chained work
+                  happened in the window. */}
+              <CompoundChain surface="scoreboard" className="px-0 mx-0" />
 
-        {/* TRACK consolidation (2026-05-21) · task-execution telemetry ·
-            rehomed from the deleted /tasks TRACK tab. Complements the KPI
-            cards above — those are outcomes, this is the work that feeds
-            them. */}
-        <KommandoTrack />
+              {/* TRACK consolidation (2026-05-21) · task-execution telemetry ·
+                  rehomed from the deleted /tasks TRACK tab. Complements the KPI
+                  cards above — those are outcomes, this is the work that feeds
+                  them. */}
+              <KommandoTrack />
+            </div>
+          </MasteryContextDrawer>
+        </div>
 
         <Footer composedAt={data.composedAt} lastBriefAt={data.lastBriefAt} />
       </div>
