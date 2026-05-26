@@ -74,6 +74,45 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
   - `FEATURE_VOICE_RECOVERY=1` (Railway env) · enables recovery cron
 - **Operator runbook:** `docs/OPERATOR_AGENTPHONE_SETUP.md`.
 
+## ⚡ HF / AI stack (2026-05-26 activation)
+
+### LIVE on prod (both services have env vars set)
+
+| Service | Where | What it does | Env var gate |
+|---|---|---|---|
+| **HF prompt-injection screen** | nickstire `classifiers.ts` | Blocks jailbreak attempts via deberta-v3-base before intent routing | `HF_API_KEY` |
+| **HF zero-shot intent classifier** | nickstire `classifiers.ts` | 11-label intent routing for inbound SMS (appointment/tire/brake/etc.) | `HF_API_KEY` |
+| **Transformers.js Spanish detect** | nickstire `ChatWidget.tsx` | Browser-side language detect → `¿Español?` toast on first Spanish message | none (bundled) |
+| **BGE rerank** | statenour `lib/brain/rerank.ts` | Cross-encoder reranker replaces Cohere · parallel single-pair HF Inference calls | `BGE_RERANK=true` + `HF_API_KEY` |
+| **HF Inference embeddings** | statenour `lib/ai/hf-embeddings.ts` | `intfloat/multilingual-e5-large` as chain position #4 in `getEmbedding()` | `HF_API_KEY` |
+
+### Scaffolded / coded — needs operator action to go live
+
+| Service | File | Blocker |
+|---|---|---|
+| **NickGPT SMS drafter** | `server/services/nickgpt-client.ts` | DB feature-flag `nickgpt_drafter_enabled`=false · needs Modal account ($50, ~6h fine-tune) |
+| **XTTS-v2 voice clone** | `server/services/voice-clone.ts` | Needs `REPLICATE_API_KEY` + 10-15s voice sample recording |
+| **Photo-damage MMS assess** | `server/services/photo-assess-pipeline.ts` / `vision-analyzer.ts` | Needs `REPLICATE_API_KEY` · Qwen2-VL-72B backend |
+| **Replicate FLUX image gen** | `apps/statenour/lib/ai/replicate-flux.ts` | Needs `REPLICATE_API_KEY` + `REPLICATE_FLUX=true` env var on statenour |
+| **Bulk Whisper re-transcribe** | `scripts/bulk-whisper.ts` | Needs Modal account (~$14, ~12h batch job) |
+
+### Operator activation queue (what to do next)
+
+1. Sign up Replicate → set `REPLICATE_API_KEY` on Railway (unlocks voice clone + photo assess + FLUX)
+2. Record 10-15s voice sample (Nour's voice) → base64 → `VOICE_SAMPLE_URL` env on Railway
+3. Sign up Modal → run NickGPT LoRA fine-tune per `docs/runbooks/nickgpt-finetune.md`
+4. After fine-tune: `ollama pull nickgpt` on the inference host → flip `nickgpt_drafter_enabled` flag
+5. Wire `lint-pii.mjs` into `.husky/pre-commit` (Wave U scaffolded this, hook not yet wired)
+
+### New env vars (post 2026-05-26)
+
+| Var | Service | Notes |
+|---|---|---|
+| `HF_API_KEY` | nickstire + statenour | Fine-grained token "nour-os-ports-2026-05-26" · currently set on both Railway services |
+| `BGE_RERANK` | statenour | Set to `"true"` · activates BGE reranker in `contextual-recall.ts` |
+| `REPLICATE_API_KEY` | nickstire + statenour | NOT YET SET · required for photo-assess + voice-clone + FLUX |
+| `REPLICATE_FLUX` | statenour | Set to `"true"` alongside `REPLICATE_API_KEY` to activate FLUX |
+
 ## Invariants (do not break)
 
 - **ShopDriver / ALG** integration is load-bearing for shop operations — do not remove without explicit owner decision.
@@ -87,3 +126,9 @@ Implementation: `resolveReviewDisplay()` in `shared/business.ts`; `getGoogleRevi
 - **Recovery cron uses personalized message + scored ranking (wave-181.82).** Customer vehicle + repeat-customer + service category drive a 2× engagement lift. Don't revert to generic-template-only.
 - **AgentPhone API key NEVER goes to any URL other than api.agentphone.to.** Skill rule.
 - **AgentPhone crons are env-gated · safe to ship code without operator flipping flags.** When operator's ready, 5 env vars unlock everything (see Operator runbook above).
+- **HF classifiers are fail-open.** `classifiers.ts` catches all `fetch` errors and returns `allowed:true` / falls through to default intent. This is intentional — a classifier outage must not block inbound SMS processing.
+- **BGE rerank has a 50% failure threshold.** `bge-rerank.ts` returns the original unranked results if more than half the pairs fail. Do not tighten this threshold — HF Inference cold-boot takes 20-40s and single-pair calls may time out during warmup.
+- **HF embeddings are chain position #4 in statenour `getEmbedding()`.** Order: OpenAI → Venice → Cohere → HF → local fallback. Don't move HF above Cohere — Cohere is the latency-optimized default; HF is cost-fallback.
+- **`@nour/utils` dist/ is committed.** `packages/utils/dist/` is in git because Railway's Node ESM runtime needs pre-built `.js` files with explicit extensions. The `.gitignore` at `packages/utils/` has a negation for `!dist/`. Do NOT add `dist/` to a root `.gitignore` or the ESM fix breaks.
+- **`@statenour/lenses` must be in statenour Dockerfile.** Dockerfile deps stage needs `packages/lenses/package.json` + build stage needs source COPY + `pnpm run build` step. Missing this breaks statenour deploys (Module not found: `@statenour/lenses`).
+- **Transformers.js Spanish detect is fire-and-forget.** The `void (async () => { ... })()` pattern in `ChatWidget.tsx::handleSend` means classifier errors are swallowed silently. This is intentional — a Transformers.js failure must not prevent message send. Don't convert to `await`.

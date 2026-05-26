@@ -20,3 +20,41 @@ Read **`CLAUDE.md`** (repo root) for operating rules. Use this file as a **route
 1. Run `pnpm run check` and `pnpm test`.  
 2. If SEO HTML changed, run `pnpm run prerender` before release.  
 3. Bump `truth_os.md` if production behavior or env requirements changed.
+
+## Recent waves (2026-05-24 → 05-26)
+
+| Wave / commit | What landed |
+|---|---|
+| **hotfix-3** · fc4dff16 | `@nour/utils` ESM `.js` extensions · Node ESM at runtime needs explicit extensions · tsc `moduleResolution:Bundler` emits bare specifiers · Dockerfile pre-built dist committed |
+| **hotfix-2** · d16efacd | `packages/lenses/node_modules` COPY added to statenour build stage · `tsc` binary missing in Docker build context |
+| **hotfix-1** · dc13532f | `packages/lenses` wired into statenour Dockerfile · 10 consecutive statenour deploys fixed |
+| **Wave AN** · 99f5697f | Activation · Transformers.js Spanish auto-detect live on `ChatWidget.tsx` · `sessionStorage` toast guard · silent-catch fallback · `@xenova/transformers 2.17.2` in nickstire package.json |
+| **Wave AM** · 84c1408a | Framework docs · B7 `searchfit-seo.md` + B9 `operator-writing-discipline.md` |
+| **Wave AL** · 99003fd1 | Transformers.js browser-side AI scaffold · `client/src/lib/transformers/lazy-load.ts` + `language-detect.ts` · Cat 9 completes all 12 HF categories |
+| **Wave AK** · c1fcf778 | Bulk Whisper re-transcribe script · closes audit #321 eval corpus gap |
+| **Wave AJ** · 8a8910c3 | Replicate FLUX backend · `apps/statenour/lib/ai/replicate-flux.ts` · 12-20× cheaper than gpt-image-1 · NEEDS `REPLICATE_API_KEY` + operator Replicate account |
+| **Wave AZ** · c05e3909 | Photo-damage MMS pipeline · `vision-analyzer.ts` + `photo-assess-pipeline.ts` · Twilio + SmsGateway webhooks wired · Replicate Qwen2-VL-72B + HF LLaVA fallback · NEEDS `REPLICATE_API_KEY` |
+| **Wave AI** · c8a298f4 | XTTS-v2 voice clone client · `voice-clone.ts` · Replicate + Modal backends · NEEDS `REPLICATE_API_KEY` + operator voice sample |
+| **Wave AH** · 8569e6b9 | HF Inference embedding backend · `apps/statenour/lib/ai/hf-embeddings.ts` · `intfloat/multilingual-e5-large` · inserted as chain position #4 in `provider.ts` · LIVE (requires `HF_API_KEY`) |
+| **Wave AG** · 1f324023 | BGE rerank backend · `apps/statenour/lib/brain/bge-rerank.ts` + `rerank.ts` orchestrator · `contextual-recall.ts` consumer rewired · 5000× cheaper than Cohere · LIVE (requires `BGE_RERANK=true` + `HF_API_KEY`) |
+| **Wave AF** · 6b10d520 | HF classifier service · `classifiers.ts` · `screenPromptInjection()` (deberta-v3 prompt-injection screen) + `classifyIntent()` (zeroshot 11-label) · LIVE (requires `HF_API_KEY`) |
+| **Wave AE** · cefcb9e1 | NickGPT fine-tune scaffolding · `scripts/export-sms-corpus.ts` + `nickgpt-client.ts` + `docs/runbooks/nickgpt-finetune.md` · DB feature-flag gated (`nickgpt_drafter_enabled`) · NEEDS Modal account |
+| **Wave AD** · dd5ed253 | 3 framework docs · `security-audit.md` + `data-visualization.md` + `enterprise-search.md` |
+| **Wave AC** · ea8b91e5 | HF model strategy doc · `huggingface-model-strategy.md` · 12-category map + deployment matrix + NickGPT moat |
+| **Wave AB** · f8d50407 | 3 framework docs · `task-intelligence.md` + `code-craft-review.md` + `deep-research.md` |
+
+## New files (HF stack, 2026-05-26)
+
+| File | Purpose |
+|---|---|
+| `server/services/classifiers.ts` | HF prompt-injection screen + 11-label intent classifier (LIVE) |
+| `server/services/nickgpt-client.ts` | NickGPT SMS drafter · Ollama → Claude/Venice fallback (DB-gated, needs Modal) |
+| `server/services/voice-clone.ts` | XTTS-v2 voice clone client (Replicate + Modal, needs keys) |
+| `server/services/vision-analyzer.ts` | Photo-damage vision analysis · Replicate Qwen2-VL + HF LLaVA fallback |
+| `server/services/photo-assess-pipeline.ts` | MMS → vision → reply pipeline (needs `REPLICATE_API_KEY`) |
+| `client/src/lib/transformers/lazy-load.ts` | Transformers.js pipeline factory with IDB cache (LIVE) |
+| `client/src/lib/transformers/language-detect.ts` | Browser-side language detect → Spanish toast trigger (LIVE) |
+| `scripts/export-sms-corpus.ts` | JSONL SMS corpus export for NickGPT LoRA fine-tune |
+| `docs/runbooks/nickgpt-finetune.md` | LoRA fine-tune runbook (Modal A10G, 4-bit quant, SFTTrainer) |
+| `docs/eval-rubrics/huggingface-model-strategy.md` | 12-category HF deployment strategy |
+| `docs/eval-rubrics/task-intelligence.md` + 7 others | Skill-audit framework doc ports (Waves AB–AM) |
