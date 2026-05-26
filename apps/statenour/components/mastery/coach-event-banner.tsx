@@ -28,8 +28,10 @@
  */
 
 import Link from "next/link";
-import { Sparkles, AlertTriangle, ChevronRight } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Sparkles, AlertTriangle, ChevronRight, X } from "lucide-react";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
+import { buildCoachEventKey } from "@/lib/services/coach-events";
 import type {
   CoachEvent,
   CoachEventPriority,
@@ -49,9 +51,36 @@ interface CoachEventsResponse {
 }
 
 export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) {
-  const { data, error } = usePollingFetch<CoachEventsResponse>(
+  const { data, error, reload } = usePollingFetch<CoachEventsResponse>(
     `/api/coach/events?surface=${encodeURIComponent(surface)}&limit=${limit}`,
     { intervalMs: 90_000 },
+  );
+
+  // Optimistic-dismissed event keys · hides them locally before the
+  // poll refreshes. Server-side ack is fire-and-forget · failure
+  // surfaces on next poll when the event reappears.
+  const [dismissedKeys, setDismissedKeys] = useState<Set<string>>(new Set());
+
+  const handleDismiss = useCallback(
+    (event: CoachEvent) => {
+      const key = buildCoachEventKey(event.kind, event.subjectId);
+      // Optimistic local hide.
+      setDismissedKeys((prev) => {
+        const next = new Set(prev);
+        next.add(key);
+        return next;
+      });
+      // Fire-and-forget POST · failure-tolerant · next poll resyncs.
+      void fetch(`/api/coach/events/${encodeURIComponent(key)}/ack`, {
+        method: "POST",
+        credentials: "include",
+      })
+        .then(() => reload())
+        .catch(() => {
+          /* silent · next poll will reflect server state */
+        });
+    },
+    [reload],
   );
 
   // Silent until we have data · zero-event states render nothing.
@@ -60,20 +89,35 @@ export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) 
   // run during the migration window).
   if (error || !data?.events?.length) return null;
 
+  const visibleEvents = data.events.filter(
+    (e) => !dismissedKeys.has(buildCoachEventKey(e.kind, e.subjectId)),
+  );
+  if (visibleEvents.length === 0) return null;
+
   return (
     <section
       aria-label={`coach events · ${surface}`}
       className="space-y-2"
       data-surface={surface}
     >
-      {data.events.map((event) => (
-        <CoachEventCard key={event.eventId} event={event} />
+      {visibleEvents.map((event) => (
+        <CoachEventCard
+          key={event.eventId}
+          event={event}
+          onDismiss={event.dismissable ? () => handleDismiss(event) : undefined}
+        />
       ))}
     </section>
   );
 }
 
-function CoachEventCard({ event }: { event: CoachEvent }) {
+function CoachEventCard({
+  event,
+  onDismiss,
+}: {
+  event: CoachEvent;
+  onDismiss?: () => void;
+}) {
   const tone = toneForPriority(event.priority);
   const Icon = event.priority === "P0" ? AlertTriangle : Sparkles;
 
@@ -119,18 +163,49 @@ function CoachEventCard({ event }: { event: CoachEvent }) {
     </div>
   );
 
-  if (event.deepLink) {
-    return (
-      <Link
-        href={event.deepLink}
-        className="block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-lg"
-        aria-label={event.title}
+  // Wrapper · deep-link if available + dismiss button absolute-positioned.
+  // Dismiss button stops click propagation so tapping X doesn't navigate.
+  const wrapped = event.deepLink ? (
+    <Link
+      href={event.deepLink}
+      className="block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-lg"
+      aria-label={event.title}
+    >
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+
+  if (!onDismiss) return wrapped;
+
+  return (
+    <div className="relative group">
+      {wrapped}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onDismiss();
+        }}
+        aria-label={`dismiss ${event.title}`}
+        className={[
+          "absolute top-1.5 right-1.5 inline-flex h-7 w-7 items-center justify-center",
+          "rounded-md border border-transparent",
+          "text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]",
+          "hover:bg-[var(--bg-raised)]/[0.2] hover:border-[var(--border-default)]",
+          "transition-colors focus-visible:outline-none",
+          "focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
+          "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+          // Always visible on touch (no hover state on iOS PWA)
+          "@media (hover: none) {!important opacity:100}",
+        ].join(" ")}
       >
-        {body}
-      </Link>
-    );
-  }
-  return body;
+        <X size={12} strokeWidth={2} />
+      </button>
+    </div>
+  );
 }
 
 /* ─── Style helpers ────────────────────────────────────────────── */
