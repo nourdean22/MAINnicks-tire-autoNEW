@@ -332,6 +332,22 @@ export const BRAIN_CATEGORIES = {
    *  Written by goal-pruner Inngest cron · read by /goals page +
    *  /api/goals/snapshot. Soft-deleted when activity resumes. */
   GOAL_PRUNE_CANDIDATE: "goal_prune_candidate",
+  /** 2026-05-26 · Mastery Layer Stage A · Unified Coach Channel.
+   *  ONE store for all "system noticed something the operator should
+   *  see" events. Replaces the 5 separate alert mechanisms across
+   *  /tasks (Proactive Nick) · /goals (pruneCandidates) · /scoreboard
+   *  (anomalies + PricingAdvisory) · /journal (BrainSignalsChip) ·
+   *  /brain (ActiveAlertsCard).
+   *
+   *  Key format: `coach:${kind}:${subjectId}` · doubles as the
+   *  10-minute dedup window (writer upserts on same key).
+   *  Metadata shape: { eventId, kind, priority: "P0"|"P1"|"P2",
+   *  title, body?, deepLink?, surfaces: string[], expiresAt?,
+   *  ackedAt?, dismissable?, subjectId? }.
+   *
+   *  Writers: lib/services/coach-events.ts (recordCoachEvent helper).
+   *  Reader:  lib/services/coach-events.ts (getActiveCoachEvents). */
+  COACH_EVENT: "coach_event",
   /** Phase A.3 · daily meta-scoreboard snapshot pinned at brief-time
    *  (10:00 UTC via morning-brief Inngest). Key = YYYY-MM-DD ·
    *  metadata = { numbers: ScoreboardNumber[], state }. Read by
