@@ -51,6 +51,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // numbers; this is the execution layer beneath them.
 import { KommandoTrack } from "@/components/actions/mode-track";
 import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
+import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 
 type Trend = "up" | "down" | "flat";
 
@@ -114,6 +115,15 @@ export default function ScoreboardPage() {
             operator the "right now" story in one strip before the raw
             number grid. */}
         <OperatorPulse surface="scoreboard" className="mt-6 px-0 mx-0" />
+
+        {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+         *  Same component the /goals page mounts · different surface
+         *  filter. Renders pricing-advisory + anomalies + system-alerts
+         *  + future writers tagged for "scoreboard". Polls every 90s
+         *  with tab-visibility pause. Self-hides when zero events. */}
+        <div className="mt-4">
+          <CoachEventBanner surface="scoreboard" />
+        </div>
 
         {/* Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop
             health from the nickstire master_report bridge. Self-hides
