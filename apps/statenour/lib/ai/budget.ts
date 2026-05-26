@@ -139,3 +139,34 @@ export async function assertWithinBudget(): Promise<
 export function _resetBudgetCache(): void {
   cache = null;
 }
+
+/**
+ * Thrown by the edge-wrap budget gate inside tracedAiChat() when today's
+ * spend has crossed the daily cap.
+ *
+ * Caller patterns:
+ *   - Background crons / specialists / brain engines: let the error
+ *     bubble; the cron's try/catch logs the failure and exits gracefully.
+ *     Better than burning more spend during a budget overflow.
+ *   - Interactive surfaces (chat route): gate manually BEFORE calling
+ *     into traced-aichat, returning a 402 with structured payload for
+ *     inline UI rendering. The chat route already does this since
+ *     v10.0.208; the tracedAiChat edge-wrap (wave-AO) inherits the gate
+ *     to every server-side callsite that previously bypassed it.
+ *
+ * Why not in provider.ts? · v10.0.208 tried that and broke `next build`
+ * because provider.ts is reachable from a client component chain
+ * (chat/page.tsx → use-chat-auto-fire → auto-fire-gate → content-intent
+ * → provider). traced-aichat.ts is server-only-reachable, so dynamic-
+ * importing budget.ts here is safe.
+ */
+export class BudgetExceededError extends Error {
+  status: BudgetStatus;
+  constructor(status: BudgetStatus) {
+    super(
+      `Daily AI budget reached ($${(status.spent / 100).toFixed(2)} of $${(status.limit / 100).toFixed(2)}). Raise the cap in Settings → AI.`,
+    );
+    this.name = "BudgetExceededError";
+    this.status = status;
+  }
+}

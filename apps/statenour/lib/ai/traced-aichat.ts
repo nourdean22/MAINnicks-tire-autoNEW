@@ -21,7 +21,15 @@
  *
  * Composes with v9.1.27 markProviderFailed + v10 streamWithFallback;
  * those work below this layer.
+ *
+ * wave-AO · server-only enforcement. tracedAiChat dynamic-imports
+ * budget.ts (which transitively pulls prisma) for the edge-wrap budget
+ * gate. budget.ts has `import "server-only"` — adding the same here
+ * forces a clear compile-time error if any client chain ever reaches
+ * this wrapper. Audited at wave-AO: no client-reach exists today (chain
+ * verified via grep across components/ + hooks/ + app/(mastery)/).
  */
+import "server-only";
 
 import { aiChat, type AiMessage, type AiResponse, type TaskType } from "./provider";
 import {
@@ -75,6 +83,31 @@ export async function tracedAiChat(
   // for "what did this turn cost?" attribution without round-tripping
   // through the model's tokenizer.
   const inputChars = messages.reduce((acc, m) => acc + (m.content?.length ?? 0), 0);
+
+  // wave-AO · edge-wrap budget gate (audit #366). Pre-wave, only the
+  // app/api/ai/chat/route.ts route called assertWithinBudget — every
+  // other callsite (~30 server-side files that use tracedAiChat plus
+  // ~60 that call bare aiChat) bypassed the cap silently. Adding the
+  // gate at this wrapper level makes the cap inherit-by-default for
+  // every traced caller: brain engines, specialists, board/consult,
+  // judge-eval, adversarial-critic, content tools, reasoning engine.
+  //
+  // Bare aiChat callers (~60) still bypass; they're a smaller surface
+  // area and are migrated to tracedAiChat opportunistically as a
+  // separate kaizen sweep (queued).
+  //
+  // Fail-open on budget-check infra errors (DB unavailable, etc): the
+  // cost-cap is a safety net, not an availability dependency.
+  try {
+    const { assertWithinBudget, BudgetExceededError } = await import("./budget");
+    const budget = await assertWithinBudget();
+    if (!budget.ok) {
+      throw new BudgetExceededError(budget.status);
+    }
+  } catch (err) {
+    if (err instanceof Error && err.name === "BudgetExceededError") throw err;
+    // (Fail-open on budget-check-itself failures.)
+  }
 
   try {
     const result = await aiChat(messages, taskType);
