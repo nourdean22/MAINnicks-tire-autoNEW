@@ -63,6 +63,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // grouped by 8-axis · rehomed here from the deleted /tasks TRACK tab.
 import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 // KommandoShell dismantle · Phase 2 (2026-05-21) · the goal-authoring
 // surface — was the PLAN tab of the /tasks KommandoShell (KommandoPlan
 // in components/actions/mode-plan.tsx). Relocated + trimmed to
@@ -159,6 +160,12 @@ export default function GoalsPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
         <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />
+
+        {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb.
+         *  Self-hides when ?missionId is absent · zero cost otherwise. */}
+        <div className="mt-4">
+          <MissionBreadcrumb />
+        </div>
 
         {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
          *  Reads from /api/coach/events?surface=goals · displays active
