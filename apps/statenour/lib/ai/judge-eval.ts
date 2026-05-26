@@ -101,11 +101,16 @@ NICK REPLIED: ${reply}${ctx ? `\n\nBRAIN CONTEXT NICK HAD: ${ctx}` : ""}
 
 Score the reply. Output JSON only.`;
 
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · was bare aiChat (bypassed budget cap). Routed
+  // through tracedAiChat so this fires under the daily-budget edge-
+  // wrap installed in traced-aichat.ts. Closes the judge-eval portion
+  // of audit #338 (uncapped chat-turn cost amplifier).
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const tracedChat = makeTracedAiChat("judge-eval", "brain");
   let text = "";
   let judgedBy = "unknown";
   try {
-    const result = await aiChat(
+    const result = await tracedChat(
       [
         { role: "system", content: JUDGE_SYSTEM },
         { role: "user", content: userPrompt },

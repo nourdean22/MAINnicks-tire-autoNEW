@@ -36,8 +36,15 @@ import { logger as rootLogger } from "@/lib/logger";
 // gpt-4o-mini · bypassed Venice/Ollama free tier entirely. Routes
 // through aiChat with taskType="fast" · gets the project's provider
 // chain + fallback for free · same model class, no quality regression.
-import { aiChat, type AiMessage } from "@/lib/ai/provider";
+//
+// wave-AO follow-up (2026-05-26) · was bare aiChat (bypassed budget
+// cap). Swapped to makeTracedAiChat factory · same drop-in signature ·
+// now fires under the daily-budget edge-wrap in traced-aichat.ts ·
+// closes the adversarial-critic portion of audit #338.
+import { type AiMessage } from "@/lib/ai/provider";
+import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 
+const aiChat = makeTracedAiChat("adversarial-critic", "brain");
 const log = rootLogger.withSurface("ai/adversarial-critic");
 
 export interface AdversarialReport {
