@@ -71,7 +71,9 @@ export async function replayPair(args: {
   v2SystemPrompt?: string;
 }): Promise<ReplayPair> {
   const startedAt = Date.now();
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("judge-eval-replay", "brain");
 
   // Phase CC bug-fix · use AbortSignal.timeout instead of Promise.race +
   // setTimeout. The pre-fix pattern created a setTimeout per call that

@@ -83,7 +83,9 @@ export const LENS_PERSONA_KEY = {
 // Ollama would handle the same 200-word lens call free. Now routes
 // through aiChat() · Venice-first via the provider chain.
 async function callLens(systemPrompt: string, userPrompt: string): Promise<string> {
-  const { aiChat } = await import("@/lib/ai/provider");
+  // wave-AO follow-up · audit #438 Tier-2 · was bare aiChat.
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("pretask-fanout", "brain");
   const reply = await aiChat(
     [
       { role: "system", content: systemPrompt },
