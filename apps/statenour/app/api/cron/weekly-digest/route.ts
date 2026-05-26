@@ -31,9 +31,14 @@ function formatDate(dateStr: string): string {
 }
 
 async function fetchFromAPI(path: string): Promise<any> {
-  const baseUrl = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : "http://localhost:3000";
+  // Service-to-service URL · use the stable Railway platform URL (or
+  // APP_BASE_URL override). Pre-fix used VERCEL_URL → fell back to
+  // localhost:3000 → every internal fetch returned null since the
+  // Vercel → Railway migration · weekly digest emails have been
+  // assembling from empty data every Sunday. Same pattern as cron/mega.
+  const baseUrl =
+    process.env.APP_BASE_URL?.trim()
+    || "https://statenour-web-production.up.railway.app";
 
   try {
     const res = await fetch(`${baseUrl}${path}`, {
@@ -41,10 +46,13 @@ async function fetchFromAPI(path: string): Promise<any> {
         Authorization: `Bearer ${process.env.CRON_SECRET}`,
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      log.warn("internal_fetch_non_ok", { path, baseUrl, status: res.status });
+      return null;
+    }
     return res.json();
   } catch (e) {
-    log.error("internal_fetch_failed", { path, err: e instanceof Error ? e.message : String(e) });
+    log.error("internal_fetch_failed", { path, baseUrl, err: e instanceof Error ? e.message : String(e) });
     return null;
   }
 }
