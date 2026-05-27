@@ -85,6 +85,7 @@ import { usePromptDialog } from "@/components/ui/confirm-dialog";
 // MilestonesFlow).
 import { NowPanel } from "@/components/actions/now-panel";
 import { MoveFrame } from "@/components/actions/move-frame";
+import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 // IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
 // folds the six intel/reflection widgets below the execution surface ·
@@ -747,8 +748,12 @@ function TasksPageInner() {
    * (kind detection, "by <when>" clauses, @domain + /effort tokens)
    * and creates a single Task row with the right loopKind.
    */
-  async function addTask() {
-    const raw = newTask.trim();
+  async function addTask(overrideText?: string) {
+    // Phase 4 lite · overrideText lets the OmniCaptureModal pass its
+    // own buffer directly without race against setNewTask. When
+    // omitted (existing callers · QuickAddBar etc), reads + clears
+    // the in-page newTask state as before.
+    const raw = (overrideText ?? newTask).trim();
     if (!raw) return;
     const parsed = parseQuickAdd(raw);
     if (!parsed) {
@@ -774,7 +779,9 @@ function TasksPageInner() {
         promiseTo: parsed.promiseTo || null,
         dueDate: parsed.dueDate ? parsed.dueDate.toISOString() : null,
       })) as { id?: string; task?: { id?: string } } | null;
-      setNewTask("");
+      // Only clear the in-page input when we used it · omni-capture
+      // owns its own state and doesn't share the page's newTask.
+      if (overrideText === undefined) setNewTask("");
       const newId = created?.task?.id ?? created?.id ?? null;
       // `done:` / `did:` prefix · the operator finished this earlier
       // and is logging it. Complete it right away so it lands in DONE
@@ -1261,6 +1268,11 @@ function TasksPageInner() {
        *   page root so addSubtask() can await its result. Renders null
        *   when closed · no perf cost. */}
       {subtaskDialog}
+      {/* /tasks v2.2 Phase 4 lite · ⌘K omni-capture (commit · 2026-05-26).
+       *  Operator-grade keyboard-driven capture · reuses the existing
+       *  addTask handler via the overrideText arg. Voice continuous +
+       *  batch AI categorization queued for Phase 4 full. */}
+      <OmniCaptureModal onCapture={(text) => addTask(text)} />
       {/* Phase B (2026-05-18) · cross-link filter banner. Renders when
           operator arrives from /goals or /scoreboard via ?goalId or
           ?missionId · X-to-clear returns to unfiltered view. */}
