@@ -483,6 +483,20 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 1 · daily birthday + anniversary ──
+  // Daily 12:00 UTC = 8am ET (DST) / 7am EST push for any PersonProfile
+  // whose birthday or anniversary MM-DD matches today. One Telegram per
+  // match. Idempotent per (personId, ISO date, kind) with 365d TTL.
+  {
+    name: "relationship-birthday",
+    schedule: "0 12 * * *",
+    mode: "active",
+    category: "review",
+    description:
+      "Power Atlas · daily birthday + anniversary push · idempotent per personId+date",
+    maxDuration: 30,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
