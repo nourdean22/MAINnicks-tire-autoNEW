@@ -526,6 +526,19 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 2 · psychographic ladder refresh ──
+  // Weekly Monday 06:00 UTC (1h after behavioral X-ray). Same cap +
+  // gating logic. Silent · writes to PersonProfile.psychographicLadder.
+  {
+    name: "psychographic-ladder-refresh",
+    schedule: "0 6 * * 1",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly psychographic ladder refresh · ≤5 profiles/run · identity/needs/fears/status/values",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
