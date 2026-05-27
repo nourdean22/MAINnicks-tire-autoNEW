@@ -2050,7 +2050,12 @@ model PersonProfile {
   currentStrategy String?  @map("current_strategy")
 
   // 2026-05-27 · Power Atlas Phase 0 ── power dynamics ──
-  powerBalance Float @default(0.0) @map("power_balance")
+  powerBalance           Float   @default(0.0)   @map("power_balance")
+  /// 2026-05-27 · Power Atlas Phase 2 · operator-mandated safety. When
+  /// true, Phase 3 auto-compute MUST SKIP this profile (operator's
+  /// manual slider value is sticky). Set by `updatePowerBalance`
+  /// mutation when the operator drags the gauge slider.
+  powerBalanceManualLock Boolean @default(false) @map("power_balance_manual_lock")
 
   // 2026-05-27 · Power Atlas Phase 2 (columns added now to avoid Phase 2 migration) ──
   behavioralFingerprint Json? @map("behavioral_fingerprint")
@@ -2069,6 +2074,7 @@ model PersonProfile {
   @@index([cadenceDays])
   @@index([greeneType])
   @@index([powerBalance])
+  @@index([powerBalanceManualLock])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
