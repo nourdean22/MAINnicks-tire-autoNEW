@@ -261,7 +261,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
               type="button"
               onClick={() => void send(preset)}
               disabled={streaming}
-              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-2.5 py-1 text-[11px] text-[var(--gold)] hover:bg-[var(--gold)]/[0.10] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] px-3 py-1.5 text-[11px] text-[var(--gold)] hover:bg-[var(--gold)]/[0.10] disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
             >
               {preset}
             </button>
@@ -270,7 +270,8 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
       )}
 
       {/* Composer · text input + send. 16px font (iOS no-zoom) ·
-       *  44pt min-height (iOS PWA touch target). */}
+       *  44pt touch targets on both input + send (Apple HIG mobile floor ·
+       *  bumped from 40 → 44 in the 2026-05-26 mobile-tightening pass). */}
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           type="text"
@@ -278,7 +279,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
           onChange={(e) => setInput(e.target.value)}
           placeholder={turns.length === 0 ? "Ask Nick · type a question…" : "Follow up…"}
           disabled={streaming}
-          className="flex-1 min-h-[40px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.08] px-3 py-1.5 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50"
+          className="flex-1 min-h-[44px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.08] px-3 py-1.5 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50"
           aria-label="message"
           autoComplete="off"
           spellCheck
@@ -287,7 +288,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
           type="submit"
           disabled={!input.trim() || streaming}
           aria-label="send"
-          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+          className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-40 disabled:hover:bg-[var(--gold)]/10 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
         >
           {streaming ? (
             <Loader2 size={14} className="animate-spin" strokeWidth={1.75} />
