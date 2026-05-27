@@ -26,6 +26,7 @@ import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
 import { QualitativeIdentityPanel } from "@/components/brain/qualitative-identity-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { BeliefsPanel } from "@/components/brain/beliefs-panel";
 import { ContradictionResolutionPanel } from "@/components/brain/contradiction-resolution-panel";
@@ -239,9 +240,25 @@ function BrainPageInner() {
 
 export default function BrainPage() {
   return (
-    <Suspense fallback={<div className="text-[11px] text-[var(--text-tertiary)] p-6">loading brain…</div>}>
-      <BrainPageInner />
-    </Suspense>
+    <>
+      <Suspense fallback={<div className="text-[11px] text-[var(--text-tertiary)] p-6">loading brain…</div>}>
+        <BrainPageInner />
+      </Suspense>
+      {/* Phase 5 FULL propagation (2026-05-26) · NickSidePane on /brain.
+       *  Mounted at the page-level (outside Suspense) so the FAB renders
+       *  even before the brain dashboard hydrates. Presets bias toward
+       *  what's known / what's forming / what to consolidate. */}
+      <NickSidePane
+        page="brain"
+        coachSurface="brain"
+        presets={[
+          "What's the strongest signal in this brain snapshot?",
+          "Which memory cluster is growing fastest?",
+          "What should I consolidate or prune today?",
+          "Which identity drift is the most actionable?",
+        ]}
+      />
+    </>
   );
 }
 

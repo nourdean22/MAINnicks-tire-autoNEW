@@ -34,6 +34,7 @@ const log = rootLogger.withSurface("journal/page");
 import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/ui/section-header";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -95,9 +96,26 @@ interface MetacognitionEntry {
 // wrapped in <Suspense> for static prerender to succeed.
 export default function JournalPage() {
   return (
-    <Suspense fallback={null}>
-      <JournalPageInner />
-    </Suspense>
+    <>
+      <Suspense fallback={null}>
+        <JournalPageInner />
+      </Suspense>
+      {/* Phase 5 FULL propagation (2026-05-26) · NickSidePane on
+       *  /journal. Mounted at the page-level (outside Suspense) so the
+       *  FAB renders even before the heavy journal feed hydrates ·
+       *  operator can capture a thought instantly. Presets bias toward
+       *  patterns / threads / blind spots. */}
+      <NickSidePane
+        page="journal"
+        coachSurface="journal"
+        presets={[
+          "What pattern keeps surfacing in this week's entries?",
+          "Which blind spot am I dancing around?",
+          "Which thread is the real story behind today?",
+          "What would I tell a younger me about this entry?",
+        ]}
+      />
+    </>
   );
 }
 
