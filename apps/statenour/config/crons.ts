@@ -80,10 +80,16 @@ export const CRONS: CronDef[] = [
   // ── INGEST ──────────────────────────────────────────────────────────
   {
     name: "ingest-gmail",
-    schedule: "0 8,20 * * *",
+    // 2026-05-27 · greedy multi-account redesign · was twice-daily
+    // (8am + 8pm UTC) · now every 30min during waking hours (8-22
+    // UTC = 4am-6pm ET ≈ operator's day · sleeps 22-08 UTC).
+    // Per-cron cost cap holds because the classifier is gpt-4o-mini
+    // and the per-account caps keep payloads bounded (max 20 inbound
+    // + 30 outgoing per run · ~$0.0006 each).
+    schedule: "0,30 8-22 * * *",
     mode: "active",
     category: "ingest",
-    description: "Gmail pull — 8am + 8pm",
+    description: "Multi-account Gmail pull + AI classify + Telegram nudge on high-urgency needs-reply — every 30min 8-22 UTC",
     memory: 1024,
     maxDuration: 300,
   },

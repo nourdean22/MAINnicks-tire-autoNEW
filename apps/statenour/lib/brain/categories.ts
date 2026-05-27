@@ -271,6 +271,21 @@ export const BRAIN_CATEGORIES = {
    *  cross-reference per week. Written by cron:weekly-review-nudge. */
   WEEKLY_REVIEW_NUDGE: "weekly_review_nudge",
 
+  // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
+  /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
+   *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:
+   *  `gmail_${messageId}`. Content = "Subject: ... From: ... Date: ...
+   *  <body>". Metadata: { messageId, threadId, from, subject, account?,
+   *  classification? (2026-05-27 enrichment: category, urgency,
+   *  needsReply, summary, mentions[]) }. Embedded by embed-backfill so
+   *  /brain semantic search returns captured emails. */
+  GMAIL_THREAD: "gmail_thread",
+  /** Pre-2026-05-27 · raw string `gmail_outgoing` for sent-mail
+   *  capture. Same shape as GMAIL_THREAD but for in:sent · captures
+   *  the operator's decisions + commitments + tone in real
+   *  communication. Read by Nick to ground "did I commit to X" recall. */
+  GMAIL_OUTGOING: "gmail_outgoing",
+
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
   REASONING_TRACE: "reasoning_trace",

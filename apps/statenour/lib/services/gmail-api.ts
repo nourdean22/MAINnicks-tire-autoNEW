@@ -27,9 +27,10 @@ export interface GmailMessage {
  */
 export async function listMessages(
   query: string,
-  maxResults: number = 40
+  maxResults: number = 40,
+  accountKey: string = "primary",
 ): Promise<Array<{ id: string; threadId: string }>> {
-  const token = await getAccessToken();
+  const token = await getAccessToken(accountKey);
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },
@@ -48,8 +49,11 @@ export async function listMessages(
 /**
  * Fetch a single message with headers + parsed body.
  */
-export async function getMessage(messageId: string): Promise<GmailMessage> {
-  const token = await getAccessToken();
+export async function getMessage(
+  messageId: string,
+  accountKey: string = "primary",
+): Promise<GmailMessage> {
+  const token = await getAccessToken(accountKey);
   const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=full`;
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${token}` },

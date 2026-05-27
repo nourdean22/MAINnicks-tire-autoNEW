@@ -40,7 +40,22 @@ export async function GET(req: Request) {
     // the flow with an attacker-chosen state.
     await requireSession(req);
 
-    const state = randomBytes(32).toString("hex");
+    // 2026-05-27 · multi-account · ?account=<key> picks which slot to
+    // write. Default "primary" preserves the legacy "google_oauth"
+    // integration row (moeseuclid in operator's prod). "personal",
+    // "business", etc. land under "google_oauth_<key>". The chosen
+    // account is encoded into the OAuth state alongside the CSRF
+    // random — `<csrf>:<account>` — so the callback can route the
+    // exchange to the right integration row.
+    const url = new URL(req.url);
+    const requestedAccount = (url.searchParams.get("account") ?? "primary")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, "");
+    const accountKey = requestedAccount || "primary";
+
+    const csrf = randomBytes(32).toString("hex");
+    const state = `${csrf}:${accountKey}`;
 
     const cookieStore = await cookies();
     cookieStore.set("__oauth_state", state, {
@@ -51,7 +66,7 @@ export async function GET(req: Request) {
       path: "/api/oauth/google-data",
     });
 
-    const consentUrl = buildAuthUrl(state);
+    const consentUrl = buildAuthUrl(state, accountKey);
     return Response.redirect(consentUrl, 302);
   } catch (err) {
     // v10.0.529 I-3 fix · do not enumerate env var names in the
