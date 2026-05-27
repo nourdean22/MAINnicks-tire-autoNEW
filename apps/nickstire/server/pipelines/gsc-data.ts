@@ -286,18 +286,31 @@ export async function syncSearchPerformance(dateRange: DateRange): Promise<{
 
   for (const row of rows) {
     try {
+      // 2026-05-27 · audit #79 fix · upsert on the unique (date, query, page)
+      // key added by migration 0062. Prior code did plain INSERT which
+      // duplicated every row on every cron run (~30-60× inflation observed
+      // in prod). Now: same row gets overwritten with the latest GSC
+      // numbers (clicks/impressions/CTR/position may shift as the 2-day
+      // delay settles), single canonical row per (date, query, page).
       await d.insert(searchPerformance).values({
         query: row.query,
-        page: row.page || null,
+        page: row.page || "",
         clicks: row.clicks,
         impressions: row.impressions,
         ctr: row.ctr,
         position: row.position,
         date: row.date,
+      }).onDuplicateKeyUpdate({
+        set: {
+          clicks: row.clicks,
+          impressions: row.impressions,
+          ctr: row.ctr,
+          position: row.position,
+        },
       });
       stored++;
     } catch (error) {
-      log.error("[GSC Pipeline] Insert error:", error);
+      log.error("[GSC Pipeline] Upsert error:", error);
     }
   }
 

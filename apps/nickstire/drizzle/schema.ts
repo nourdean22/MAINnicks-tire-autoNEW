@@ -2696,6 +2696,10 @@ export const searchPerformance = mysqlTable("search_performance", {
   index("idx_search_perf_query").on(table.query),
   index("idx_search_perf_date").on(table.date),
   index("idx_search_perf_page").on(table.page),
+  // 2026-05-27 · migration 0062 · unique (date, query, page) so the
+  // gsc-pipeline upsert collapses re-syncs of the same cell instead of
+  // duplicating. NULL pages get normalized to "" in the same migration.
+  uniqueIndex("uq_search_perf_date_query_page").on(table.date, table.query, table.page),
 ]);
 
 // ─── PIPELINE RUNS ──────────────────────────────────────
