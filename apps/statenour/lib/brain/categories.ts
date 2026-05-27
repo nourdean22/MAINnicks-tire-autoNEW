@@ -292,6 +292,17 @@ export const BRAIN_CATEGORIES = {
   /** Birthday push idempotency marker · key = `<personId>:YYYY-MM-DD`.
    *  Prevents double-pings on the same calendar date. 365d TTL. */
   RELATIONSHIP_BIRTHDAY_SENT: "relationship_birthday_sent",
+  /** 2026-05-27 · Power Atlas Phase 2 · promise-extraction log.
+   *  One row per extracted promise · key shape `<personId>:<chatMsgId>`.
+   *  Content = JSON { promise, dueHint, extractedAt, status: "open"
+   *  | "kept" | "broken", resolvedAt? }. Drives trust-score derivation
+   *  via deriveTrustFromKeptWord. Written by cron:kept-word-scan. */
+  KEPT_WORD: "kept_word",
+  /** 2026-05-27 · Power Atlas Phase 2 · operator-pinned alpha moments
+   *  on the relationship ledger. Key shape `<personId>:<ledgerId>`.
+   *  Content = JSON { moment, ledgerId, pinnedAt, kind: "peak" |
+   *  "shift" | "insight" }. Written by tRPC markAlphaMoment. */
+  ALPHA_MOMENT: "alpha_moment",
 
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing

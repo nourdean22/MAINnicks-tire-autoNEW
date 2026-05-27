@@ -497,6 +497,21 @@ export const CRONS: CronDef[] = [
     maxDuration: 30,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 2 · kept-word tracker (silent) ──
+  // Daily 02:00 UTC = 9pm ET (prev night). Scans last 24h chat for
+  // promises made TO the operator BY named persons. Upserts one row
+  // per (personId, chatMessageId) so re-runs are idempotent. Silent ·
+  // operator reads the kept-ratio on /relationships, not the phone.
+  {
+    name: "kept-word-scan",
+    schedule: "0 2 * * *",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · scan last-24h chat for promises made TO operator BY known persons · drives trust-score-from-kept-word",
+    maxDuration: 120,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
