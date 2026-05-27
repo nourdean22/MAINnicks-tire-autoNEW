@@ -64,6 +64,53 @@ function verifyVapiSignature(req: Request): boolean {
   }
 }
 
+// ─── Duration extraction (defensive · handles all VAPI shapes) ─────
+//
+// wave-Y-2026-05-26 · audit #79 baseline surfaced that 100% of today's
+// vapi_call_logs rows have durationSeconds=0. The webhook's prior calc
+// only read `event.call.startedAt`/`endedAt` and produced 0 when VAPI
+// nests duration elsewhere. VAPI's actual end-of-call-report payload
+// varies by event-type and SDK version · this helper tries every known
+// path before giving up. Logs the keys it saw on a 0-fallback so the
+// next miss is diagnosable.
+function extractCallDurationSec(event: unknown): number {
+  const e = event as Record<string, unknown>;
+  if (!e) return 0;
+
+  // 1 · explicit duration fields at message-level (some VAPI events)
+  if (typeof e.durationSeconds === "number" && e.durationSeconds > 0) {
+    return Math.round(e.durationSeconds);
+  }
+  if (typeof e.duration === "number" && e.duration > 0) {
+    // VAPI sometimes emits ms, sometimes seconds. ≥10000 ⇒ ms (3hr cap).
+    return Math.round(e.duration >= 10000 ? e.duration / 1000 : e.duration);
+  }
+
+  // 2 · explicit duration fields under call
+  const c = e.call as Record<string, unknown> | undefined;
+  if (c) {
+    if (typeof c.durationSeconds === "number" && c.durationSeconds > 0) {
+      return Math.round(c.durationSeconds);
+    }
+    if (typeof c.duration === "number" && c.duration > 0) {
+      return Math.round(c.duration >= 10000 ? c.duration / 1000 : c.duration);
+    }
+    // 2b · compute from call.startedAt / call.endedAt
+    if (typeof c.startedAt === "string" && typeof c.endedAt === "string") {
+      const delta = new Date(c.endedAt).getTime() - new Date(c.startedAt).getTime();
+      if (Number.isFinite(delta) && delta > 0) return Math.round(delta / 1000);
+    }
+  }
+
+  // 3 · top-level startedAt / endedAt on message (some call-end events)
+  if (typeof e.startedAt === "string" && typeof e.endedAt === "string") {
+    const delta = new Date(e.endedAt as string).getTime() - new Date(e.startedAt as string).getTime();
+    if (Number.isFinite(delta) && delta > 0) return Math.round(delta / 1000);
+  }
+
+  return 0;
+}
+
 // ─── Tool call dispatcher ──────────────────────────────
 
 interface VapiToolCall {
@@ -220,7 +267,22 @@ router.post("/vapi", async (req: Request, res: Response) => {
   const body = req.body as {
     message: {
       type: string;
-      call?: { id?: string; startedAt?: string; endedAt?: string; endedReason?: string };
+      // wave-Y-2026-05-26 · widened to cover VAPI end-of-call-report shapes.
+      // Some events nest duration under `call`; some put `durationSeconds`
+      // at message-level; some only emit timestamps. The extractor below
+      // handles all paths defensively (see extractCallDurationSec).
+      call?: {
+        id?: string;
+        startedAt?: string;
+        endedAt?: string;
+        duration?: number;
+        durationSeconds?: number;
+        endedReason?: string;
+      };
+      startedAt?: string;
+      endedAt?: string;
+      duration?: number;
+      durationSeconds?: number;
       toolCalls?: VapiToolCall[];
       transcript?: string;
     };
@@ -362,13 +424,26 @@ router.post("/vapi", async (req: Request, res: Response) => {
               const services = ["brake", "tire", "oil change", "alignment", "battery", "engine", "transmission", "ac", "exhaust", "diagnostic", "emission"];
               const serviceMention = services.find((s) => text.toLowerCase().includes(s)) ?? null;
               const customer = (event.call as { customer?: { number?: string; name?: string } })?.customer;
+              // wave-Y-2026-05-26 · multi-path duration extractor (see top
+              // of file). Audit #79 baseline: all 30 today's rows had
+              // duration=0 because the prior inline calc only checked one
+              // path. Now: try message-level → call-level → timestamp
+              // delta · log the event keys on a 0-fallback so we can
+              // diagnose the next miss without re-investigating from scratch.
+              const durationSec = extractCallDurationSec(event);
+              if (durationSec === 0) {
+                log.warn("[vapi webhook] duration=0 fallback · payload shape diagnosis", {
+                  callId,
+                  eventType: event.type,
+                  messageKeys: Object.keys(event as object),
+                  callKeys: event.call ? Object.keys(event.call as object) : [],
+                });
+              }
               await d.insert(vapiCallLogs).values({
                 vapiCallId: String(callId),
                 phoneNumber: customer?.number ?? null,
                 customerName: customer?.name ?? null,
-                durationSeconds: Math.round(((event.call as { startedAt?: string; endedAt?: string })?.endedAt && (event.call as { startedAt?: string })?.startedAt)
-                  ? (new Date((event.call as { endedAt?: string }).endedAt!).getTime() - new Date((event.call as { startedAt?: string }).startedAt!).getTime()) / 1000
-                  : 0),
+                durationSeconds: durationSec,
                 endedReason: event.call?.endedReason ?? null,
                 aiSummary: summary,
                 serviceMention,
