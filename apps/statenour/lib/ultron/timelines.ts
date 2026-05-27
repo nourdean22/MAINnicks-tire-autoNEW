@@ -51,7 +51,7 @@ export async function computeInputs(): Promise<Inputs> {
   // habitsToday filters today's rows from the synthesized habit
   // history; habitsWeek slices the last 7 days. lastScore is the
   // most-recent identity_snapshot row.
-  const [lastScore, habitsToday, habitsWeek, drift, chatMessages] = await Promise.all([
+  const [lastScore, habitsToday, habitsWeek, drift, chatMessages, sleepRows] = await Promise.all([
     (async () => {
       const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
       const all = await recentScoreSnapshots(1);
@@ -69,14 +69,38 @@ export async function computeInputs(): Promise<Inputs> {
       const all = await recentDailyHabits(7);
       return all.map((r) => ({ date: r.date, completed: r.completed }));
     })(),
-    prisma.driftAlert.count({ where: { resolved: false } }).catch(() => 0),
+    prisma.driftAlert.count({ where: { resolved: false } }).catch((err) => {
+      console.warn("[ultron/timelines] driftAlert.count failed:", err instanceof Error ? err.message : err);
+      return 0;
+    }),
     prisma.chatMessage
       .findMany({
         where: { role: "user", createdAt: { gte: daysAgo(14) } },
         select: { content: true, createdAt: true },
         take: 100,
       })
-      .catch((): Array<{ content: string; createdAt: Date }> => []),
+      .catch((err): Array<{ content: string; createdAt: Date }> => {
+        console.warn("[ultron/timelines] chatMessage.findMany failed:", err instanceof Error ? err.message : err);
+        return [];
+      }),
+    // 2026-05-27 · sleep-tracking wire-up. The legacy `sleepHoursAvg7d`
+    // was hardcoded null with "TODO v3 when we have sleep tracking" —
+    // but BodyTracking.sleepHours has been live since Wave 63. The
+    // timeline engine + downstream MODE classifier were flying blind
+    // on the most load-bearing personal variable. Pull the last 7
+    // days · the `take: 7` is safe because `date String @unique` so
+    // there's exactly one row per day.
+    prisma.bodyTracking
+      .findMany({
+        where: { sleepHours: { not: null } },
+        select: { date: true, sleepHours: true },
+        orderBy: { date: "desc" },
+        take: 7,
+      })
+      .catch((err): Array<{ date: string; sleepHours: number | null }> => {
+        console.warn("[ultron/timelines] bodyTracking.findMany failed:", err instanceof Error ? err.message : err);
+        return [];
+      }),
   ]);
 
   // Workout streak = consecutive days with completed=true ending yesterday
@@ -103,9 +127,20 @@ export async function computeInputs(): Promise<Inputs> {
     }
   }
 
-  // Sleep hours avg (if the score rows carry it) — NourState schema doesn't
-  // always expose sleep_hours. We'll use focus as a proxy when sleep is missing.
-  const sleepHoursAvg7d: number | null = null; // TODO v3 when we have sleep tracking
+  // 2026-05-27 · wired-up. BodyTracking.sleepHours (Float?, one row per
+  // date via @unique) feeds the avg. Returns null only when zero rows
+  // have a non-null sleepHours — preserves the legacy "missing data →
+  // null, caller can pick a proxy" contract that downstream MODE
+  // classifier + workout-skip nudges expect. Round to one decimal so
+  // ticker rendering ("6.4h avg sleep · ↓1.2h vs target") stays clean.
+  let sleepHoursAvg7d: number | null = null;
+  const validSleep = sleepRows
+    .map((r) => (typeof r.sleepHours === "number" ? r.sleepHours : null))
+    .filter((v): v is number => v !== null && Number.isFinite(v));
+  if (validSleep.length > 0) {
+    const sum = validSleep.reduce((a, b) => a + b, 0);
+    sleepHoursAvg7d = Math.round((sum / validSleep.length) * 10) / 10;
+  }
 
   return {
     todayScoreLogged: !!lastScore,

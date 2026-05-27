@@ -61,12 +61,24 @@ export async function buildFastStream(
         recordError("chat:db-write", dbErr, { path: messageIdPrefix }),
       );
     // v7.6 · Bump conversation activity for sidebar sort + count.
+    // 2026-05-27 · the bare swallow hid a data mystery (sidebar sort
+    // stuck, message count stale) when the conversation row vanished
+    // mid-write — log so the next operator who hits "why is this
+    // convo at the bottom forever" can grep prod logs.
     prisma.chatConversation
       .update({
         where: { id: convId },
         data: { messageCount: { increment: 1 }, lastActiveAt: new Date() },
       })
-      .catch(() => null);
+      .catch((err) => {
+        console.warn(
+          "[chat/handlers/shared] chatConversation.update failed for",
+          convId,
+          ":",
+          err instanceof Error ? err.message : err,
+        );
+        return null;
+      });
   }
   const messageId = `${messageIdPrefix}_${Date.now()}`;
   const encoder = new TextEncoder();
