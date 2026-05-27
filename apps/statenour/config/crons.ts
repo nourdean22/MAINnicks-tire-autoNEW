@@ -325,6 +325,23 @@ export const CRONS: CronDef[] = [
     maxDuration: 60,
   },
   {
+    name: "reflect-categories",
+    // CoALA per-category synthesis · weekly Sunday 03:00 UTC (Saturday
+    // 23:00 ET) so it lands before Sunday-morning weekly-review surfaces
+    // the new insights. Scoped to high-signal raw-observation categories
+    // (decision_log · pattern · belief · lesson · learning_journal ·
+    // task_insight · task_pattern). Each category has its own ≥5-row
+    // floor + 24h cooldown inside reflectOnCategory · the cron is a
+    // simple iterator. Distinct from `reflect` which writes to the
+    // Reflection table; this one writes BrainMemory rows that show up
+    // in standard recall.
+    schedule: "0 3 * * 0",
+    mode: "active",
+    category: "brain",
+    description: "Per-category CoALA reflection synthesis · weekly Sunday 03:00 UTC",
+    maxDuration: 300,
+  },
+  {
     name: "intelligence",
     schedule: null,
     mode: "folded",
