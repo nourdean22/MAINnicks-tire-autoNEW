@@ -43,6 +43,7 @@ import ArcProjection from "@/components/power-atlas/ArcProjection";
 import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
 import SocialProof from "@/components/power-atlas/SocialProof";
 import ReciprocityCard from "@/components/power-atlas/ReciprocityCard";
+import ToneShiftCard from "@/components/power-atlas/ToneShiftCard";
 
 interface PersonRow {
   id: string;
@@ -473,6 +474,7 @@ function DetailPanel({
           />
           <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
           <ReciprocityCard metadata={person.metadata} />
+          <ToneShiftCard metadata={person.metadata} />
 
           {/* Quick actions */}
           <section
