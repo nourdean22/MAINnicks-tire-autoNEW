@@ -143,7 +143,10 @@ export function NickSidePane({
           "border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm",
           "text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10",
           "hover:bg-[var(--gold)]/[0.08] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40",
-          "transition-all",
+          // Mobile-tightening #2 · active:scale tap feedback (replaces
+          // absent haptic on iOS Safari PWAs · operator sees the FAB
+          // press-down). Subtle enough not to feel "bouncy" on desktop.
+          "active:scale-95 transition-all",
           // Hide FAB when pane is open · pane has its own close affordance
           open && "opacity-0 pointer-events-none",
           // Respect iOS safe area
@@ -201,9 +204,9 @@ export function NickSidePane({
                 type="button"
                 onClick={toggle}
                 aria-label="close nick"
-                className="ml-auto inline-flex h-8 w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+                className="ml-auto inline-flex h-10 w-10 lg:h-8 lg:w-8 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
               >
-                <X size={12} strokeWidth={2} />
+                <X size={14} strokeWidth={2} />
               </button>
             </header>
 
@@ -270,12 +273,15 @@ function CoachChip({ event }: { event: CoachEvent }) {
         : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] text-[var(--text-secondary)]";
   const Icon = event.priority === "P0" ? AlertTriangle : Sparkles;
 
+  // Mobile-tightening #2 (2026-05-27): bumped padding + min-h-[44px]
+  // so a tap lands cleanly on iPhone PWA. Single line clamp-2 stays · the
+  // 44pt floor is met by the padding+icon+text on every chip.
   const body = (
-    <div className={cn("flex items-start gap-2 rounded-md border px-2.5 py-1.5", tone)}>
-      <Icon size={11} strokeWidth={1.75} className="mt-0.5 shrink-0" />
+    <div className={cn("flex items-start gap-2 rounded-md border px-3 py-2.5 min-h-[44px]", tone)}>
+      <Icon size={12} strokeWidth={1.75} className="mt-0.5 shrink-0" />
       <span className="text-[11px] leading-snug line-clamp-2 flex-1">{event.title}</span>
       {event.deepLink && (
-        <ChevronRight size={11} strokeWidth={1.5} className="mt-0.5 shrink-0 opacity-60" />
+        <ChevronRight size={12} strokeWidth={1.5} className="mt-0.5 shrink-0 opacity-60" />
       )}
     </div>
   );
@@ -284,7 +290,7 @@ function CoachChip({ event }: { event: CoachEvent }) {
     return (
       <Link
         href={event.deepLink}
-        className="block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-md"
+        className="block active:scale-[0.98] transition-transform focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-md"
       >
         {body}
       </Link>

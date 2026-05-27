@@ -216,9 +216,9 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
             onClick={clear}
             disabled={streaming}
             aria-label="clear conversation"
-            className="inline-flex items-center gap-1 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded px-1 disabled:opacity-50"
+            className="inline-flex min-h-[36px] items-center gap-1.5 text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded px-2 disabled:opacity-50"
           >
-            <RotateCcw size={10} strokeWidth={1.75} />
+            <RotateCcw size={12} strokeWidth={1.75} />
             clear
           </button>
         </div>

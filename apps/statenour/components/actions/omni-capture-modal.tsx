@@ -139,9 +139,9 @@ export function OmniCaptureModal({
               setText("");
             }}
             aria-label="close"
-            className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
+            className="ml-2 inline-flex h-9 w-9 lg:h-6 lg:w-6 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/[0.15] active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40"
           >
-            <X size={12} strokeWidth={2} />
+            <X size={14} strokeWidth={2} />
           </button>
         </div>
         <form
