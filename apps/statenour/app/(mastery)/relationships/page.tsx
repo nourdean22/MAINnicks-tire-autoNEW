@@ -447,6 +447,7 @@ function DetailPanel({
             }
           />
           <LedgerTimeline
+            personId={person.id}
             entries={ledger.map((e) => ({
               id: e.id,
               createdAt: e.createdAt,
