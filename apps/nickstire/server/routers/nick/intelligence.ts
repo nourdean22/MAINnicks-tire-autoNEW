@@ -554,6 +554,17 @@ export async function handleRunMigrations() {
       // "Duplicate" in the error message so re-runs are idempotent.
       `DELETE FROM prediction_impressions WHERE id NOT IN (SELECT * FROM (SELECT MIN(id) FROM prediction_impressions GROUP BY prediction_id, surface) AS keepers)`,
       `ALTER TABLE prediction_impressions ADD UNIQUE KEY uk_prediction_surface (prediction_id, surface)`,
+      // 2026-05-27 · drizzle/0062_search_performance_dedupe.sql · audit #79
+      // GSC sync was duplicating rows on every cron run (~30-60× inflation
+      // confirmed against live GSC). Fix is three steps · all idempotent:
+      //   1. Normalize NULL pages so unique key applies to every row
+      //   2. Dedupe by deleting all but max(id) per (date, query, page)
+      //   3. Add UNIQUE KEY · downstream syncSearchPerformance uses
+      //      ON DUPLICATE KEY UPDATE (shipped same commit · 864dd621)
+      // The catch block above recognizes "Duplicate" so re-runs are no-ops.
+      `UPDATE search_performance SET page = '' WHERE page IS NULL`,
+      `DELETE sp1 FROM search_performance sp1 INNER JOIN search_performance sp2 WHERE sp1.id < sp2.id AND sp1.date = sp2.date AND sp1.query = sp2.query AND sp1.page = sp2.page`,
+      `ALTER TABLE search_performance ADD UNIQUE KEY uq_search_perf_date_query_page (date, query, page)`,
     ];
 
     let applied = 0;
