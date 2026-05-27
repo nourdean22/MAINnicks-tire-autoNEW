@@ -86,6 +86,7 @@ import { usePromptDialog } from "@/components/ui/confirm-dialog";
 import { NowPanel } from "@/components/actions/now-panel";
 import { MoveFrame } from "@/components/actions/move-frame";
 import { OmniCaptureModal } from "@/components/actions/omni-capture-modal";
+import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 // IntelPanel (2026-05-21) · the "powerful underneath" disclosure that
 // folds the six intel/reflection widgets below the execution surface ·
@@ -1273,6 +1274,19 @@ function TasksPageInner() {
        *  addTask handler via the overrideText arg. Voice continuous +
        *  batch AI categorization queued for Phase 4 full. */}
       <OmniCaptureModal onCapture={(text) => addTask(text)} />
+      {/* /tasks v2.2 Phase 5 lite · persistent Nick side pane (2026-05-26).
+       *  FAB toggle bottom-right · right-pane (desktop) / bottom-sheet
+       *  (mobile) · wraps existing PageNick for streaming Q&A. Multi-
+       *  turn + proactive chip surfaces queued for Phase 5 full. */}
+      <NickSidePane
+        page="tasks"
+        presets={[
+          "What should I focus on right now?",
+          "Which tasks are likely to compound today?",
+          "What patterns am I missing in this list?",
+          "What's the smallest meaningful win I can ship?",
+        ]}
+      />
       {/* Phase B (2026-05-18) · cross-link filter banner. Renders when
           operator arrives from /goals or /scoreboard via ?goalId or
           ?missionId · X-to-clear returns to unfiltered view. */}
