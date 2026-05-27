@@ -1388,4 +1388,21 @@ export const taskRouter = router({
       return { ok: !!output, output };
     }),
 
+  /**
+   * 2026-05-27 · Power Atlas Phase 3 · social proof aggregator.
+   *
+   * Returns the operator's "people who appear alongside this person"
+   * roster · cross-mentions in shared chat messages. Surfaces in the
+   * /relationships detail panel as a Social Proof card. Pure read ·
+   * cached implicitly by tRPC client query cache.
+   */
+  socialProofFor: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { aggregateSocialProof } = await import(
+        "@/lib/brain/social-proof-aggregator"
+      );
+      return aggregateSocialProof(input.personId);
+    }),
+
 });

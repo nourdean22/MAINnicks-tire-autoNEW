@@ -41,6 +41,7 @@ import LogLedgerModal from "@/components/power-atlas/LogLedgerModal";
 import AlphaMoments from "@/components/power-atlas/AlphaMoments";
 import ArcProjection from "@/components/power-atlas/ArcProjection";
 import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
+import SocialProof from "@/components/power-atlas/SocialProof";
 
 interface PersonRow {
   id: string;
@@ -442,6 +443,7 @@ function DetailPanel({
             }))}
           />
           <AlphaMoments personId={person.id} />
+          <SocialProof personId={person.id} />
         </div>
         <div className="space-y-4">
           <PowerBalanceGauge
