@@ -570,6 +570,22 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 3 · tone-shift detection ──
+  // Daily 01:00 UTC = 8pm ET (prev night). Scores trailing-3 vs trailing-
+  // 30 chat-mention sentiment per person, persists snapshot into
+  // PersonProfile.metadata.toneShift. 24h re-compute floor · caps 10
+  // profiles per run (gpt-4o-mini fast tier · ~2 calls/profile).
+  // Silent · operator reads the alert on /relationships.
+  {
+    name: "tone-shift-detect",
+    schedule: "0 1 * * *",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · daily tone-shift detection · trailing-3 vs trailing-30 sentiment delta · ≤10 profiles/run",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
