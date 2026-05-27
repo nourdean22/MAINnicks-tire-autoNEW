@@ -271,6 +271,28 @@ export const BRAIN_CATEGORIES = {
    *  cross-reference per week. Written by cron:weekly-review-nudge. */
   WEEKLY_REVIEW_NUDGE: "weekly_review_nudge",
 
+  // ── Power Atlas · 2026-05-27 ──
+  /** Robert Greene corpus seed · 48 Laws + Mastery + Human Nature +
+   *  Seduction + 33 Strategies of War. Key shape: `law_<N>` for laws,
+   *  `dark_<trait>` for dark traits, `seducer_<type>` for seducer types,
+   *  `mentor_<role>` for mentorship roles, `strategy_<name>` for war
+   *  strategies. Content = JSON { title, summary, fullText, sourceBook,
+   *  applicabilityPrompt }. Seeded once via scripts/seed-greene-corpus. */
+  GREENE_LAW: "greene_law",
+  /** Power-play execution trace · written by power-plays-runner on every
+   *  arc_plan / message_draft / scarcity_play execution. Key shape:
+   *  `play_<personId>_<timestamp>`. Content = JSON { kind, lawApplied,
+   *  inputCtx, output, outcome? }. Surfaces in /relationships per-profile
+   *  "Plays history" tab. */
+  POWER_PLAY: "power_play",
+  /** Sunday digest idempotency marker · one row per ISO week. Key =
+   *  ISO-week string `YYYY-WNN`. Content = the digest text that was sent.
+   *  Prevents double-sends on cron retries (Vercel at-least-once). */
+  RELATIONSHIP_DIGEST_SENT: "relationship_digest_sent",
+  /** Birthday push idempotency marker · key = `<personId>:YYYY-MM-DD`.
+   *  Prevents double-pings on the same calendar date. 365d TTL. */
+  RELATIONSHIP_BIRTHDAY_SENT: "relationship_birthday_sent",
+
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
    *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:
