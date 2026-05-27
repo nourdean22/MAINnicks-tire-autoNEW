@@ -228,18 +228,56 @@ export function GoalBoard() {
   // Apr 27 · archive a stale goal — flips status to "paused" so the
   // board (filter active) hides it. Reusable from any "this is dead"
   // UI affordance on the card.
+  //
+  // 2026-05-27 · ghost-goal defense · busyIds Set guards against
+  // double-tap creating two simultaneous mutations against the same
+  // goal id. iOS PWA + 44pt touch targets make accidental double-tap
+  // routine. Combined with the createGoal() service-layer dedup, this
+  // closes the duplicate-archive race too.
+  const [busyIds, setBusyIds] = useState<Set<string>>(new Set());
+  const isGoalBusy = useCallback(
+    (id: string) => busyIds.has(id),
+    [busyIds],
+  );
+  const markBusy = useCallback((id: string) => {
+    setBusyIds((p) => {
+      const next = new Set(p);
+      next.add(id);
+      return next;
+    });
+  }, []);
+  const clearBusy = useCallback((id: string) => {
+    setBusyIds((p) => {
+      if (!p.has(id)) return p;
+      const next = new Set(p);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const archiveGoal = useCallback(
     async (goalId: string) => {
+      if (busyIds.has(goalId)) return; // double-tap defense
+      markBusy(goalId);
       try {
-        await goalsUpdate.mutateAsync({ id: goalId, status: "paused" });
+        // 2026-05-27 · `archive: true` is the new server-side sugar for
+        // status="paused" + deletedAt=now() — keeps the UI archive
+        // semantically identical to the chat tool's archiveGoal
+        // (lib/ai/tools/tasks.ts:750). Previously the UI only flipped
+        // status, leaving the row alive in every `deletedAt:null`
+        // query (page-data, ai-suggest-goals, telegram cmdGoals) —
+        // that's how the ghost goal kept resurfacing after archive.
+        await goalsUpdate.mutateAsync({ id: goalId, archive: true });
         toast.success("Archived. Find it later in paused goals.");
         notifyDataChanged("goals", { source: "goal-board", detail: "archive", id: goalId });
         await load();
       } catch {
         toast.error("Couldn't archive");
+      } finally {
+        clearBusy(goalId);
       }
     },
-    [load, goalsUpdate],
+    [busyIds, markBusy, clearBusy, load, goalsUpdate],
   );
 
   // Apr 27 · G2 — inline progress-logging submitter. Declared after
@@ -296,8 +334,23 @@ export function GoalBoard() {
     setSuggesting(false);
   }, [suggestGoalsMut]);
 
+  // 2026-05-27 · ghost-goal defense.
+  // Mobile double-tap on Adopt fired two `lifeGoal.create` mutations in
+  // parallel · DB happily wrote duplicates. A title key on the
+  // suggestion (s.title) gates the click; `adoptingTitles` carries the
+  // in-flight set. The service-layer dedup in lib/services/goals.ts is
+  // belt-AND-suspenders — both have to fail before a dupe escapes.
+  const [adoptingTitles, setAdoptingTitles] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+
   const adoptSuggestion = useCallback(
     async (s: SuggestedGoal) => {
+      if (adoptingTitles.has(s.title)) return; // double-tap defense
+      setAdoptingTitles((p) => {
+        const next = new Set(p);
+        next.add(s.title);
+        return next;
+      });
       try {
         await goalsCreate.mutateAsync({
           domain: s.domain,
@@ -314,14 +367,23 @@ export function GoalBoard() {
         load();
       } catch {
         toast.error("Adopt failed");
+      } finally {
+        setAdoptingTitles((p) => {
+          if (!p.has(s.title)) return p;
+          const next = new Set(p);
+          next.delete(s.title);
+          return next;
+        });
       }
     },
-    [load, goalsCreate]
+    [adoptingTitles, load, goalsCreate]
   );
 
   const addManual = useCallback(async () => {
+    if (adding) return; // double-tap defense
     const title = newTitle.trim();
     if (!title) return;
+    setAdding(true);
     try {
       // `horizon` is an optional enum on createGoalSchema · omit it
       // (undefined) when the form field is blank. The legacy code
@@ -342,8 +404,10 @@ export function GoalBoard() {
       load();
     } catch {
       toast.error("Failed");
+    } finally {
+      setAdding(false);
     }
-  }, [newTitle, newWhy, newHorizon, load, goalsCreate]);
+  }, [adding, newTitle, newWhy, newHorizon, load, goalsCreate]);
 
   // Inline edit state — one row at a time. PATCH /api/goals supports
   // title / why / horizon out of the box (see updateGoalSchema).
@@ -514,13 +578,14 @@ export function GoalBoard() {
             />
             <Button
               size="sm"
-              className="h-9 w-9 p-0 bg-zinc-800/80 hover:bg-blue-500/20 hover:text-blue-400 border border-zinc-700/50 shrink-0"
+              disabled={adding}
+              className="h-9 w-9 p-0 bg-zinc-800/80 hover:bg-blue-500/20 hover:text-blue-400 border border-zinc-700/50 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 if (!showAddForm && newTitle.trim()) setShowAddForm(true);
                 else addManual();
               }}
             >
-              <Plus size={14} />
+              {adding ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
             </Button>
           </div>
 
@@ -566,9 +631,11 @@ export function GoalBoard() {
                 </button>
                 <Button
                   size="sm"
-                  className="h-6 px-3 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30"
+                  disabled={adding}
+                  className="h-6 px-3 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={addManual}
                 >
+                  {adding ? <Loader2 size={9} className="inline animate-spin mr-1" /> : null}
                   Add goal
                 </Button>
               </div>
@@ -623,9 +690,14 @@ export function GoalBoard() {
                 <Button
                   size="sm"
                   onClick={() => adoptSuggestion(s)}
-                  className="h-6 px-2 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30 shrink-0"
+                  disabled={adoptingTitles.has(s.title)}
+                  className="h-6 px-2 text-[9px] bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500 hover:text-black font-bold border border-emerald-500/30 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Adopt
+                  {adoptingTitles.has(s.title) ? (
+                    <Loader2 size={9} className="animate-spin" />
+                  ) : (
+                    "Adopt"
+                  )}
                 </Button>
               </div>
               {s.why && <p className="text-[10px] text-zinc-400 italic">{s.why}</p>}

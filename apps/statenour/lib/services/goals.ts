@@ -32,6 +32,16 @@ export const updateGoalSchema = z.object({
   status: z.enum(["active", "completed", "abandoned", "achieved", "missed", "paused"]).optional(),
   horizon: z.enum(HORIZON_VALUES).optional(),
   why: z.string().max(2000).optional().nullable(),
+  // 2026-05-27 · ghost-goal defense · `archive: true` is sugar for
+  // `status: "paused" + soft-delete (deletedAt = now())` so the UI
+  // archive button and the chat tool's archiveGoal both end up with
+  // identical row state. Without this the UI archive only set status
+  // and left deletedAt null — every `deletedAt:null` query (telegram
+  // cmdGoals, ai-suggest-goals, page-data, etc.) kept surfacing the
+  // "paused" goal back to the operator as a "ghost." See history of
+  // the bug in MEMORY.md (Wave Z follow-up · 2026-05-27).
+  archive: z.boolean().optional(),
+  restore: z.boolean().optional(),
 });
 
 export async function getGoals(options: { horizon?: string | null, domain?: string | null, includeDeleted?: boolean } = {}) {
@@ -153,10 +163,44 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
 }
 
 export async function createGoal(rawData: z.infer<typeof createGoalSchema>) {
+  // 2026-05-27 · ghost-goal defense.
+  // Operator surfaced "sometimes I see a second goal that I thought I
+  // deleted." Root cause was a confluence of three things, this is one:
+  // a double-tap on the UI Adopt / +Add button (or any retry path —
+  // network blip, AI tool re-fire, manual create after AI created the
+  // same goal) re-fired `createGoal()` with the same title and the DB
+  // happily wrote a second row. The schema has no UNIQUE(title) on
+  // LifeGoal (and shouldn't — different horizons can legitimately share
+  // a title — "drop 5lb" as a WEEK goal vs a MONTH goal), so dedup has
+  // to live in the service.
+  //
+  // Match is: case-insensitive title + same domain + alive (deletedAt
+  // null) + status="active". A paused/achieved/missed/deleted goal
+  // doesn't count — operator intentionally archived it and explicitly
+  // re-creating it should yield a new active row. Returns the existing
+  // row instead of creating a duplicate — idempotent, swallowed by the
+  // UI's optimistic update, no toast surprise.
+  const trimmedTitle = rawData.title.trim();
+  const existing = await prisma.lifeGoal
+    .findFirst({
+      where: {
+        domain: rawData.domain,
+        title: { equals: trimmedTitle, mode: "insensitive" },
+        status: "active",
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+    })
+    .catch(() => null);
+
+  if (existing) {
+    return existing;
+  }
+
   const goal = await prisma.lifeGoal.create({
     data: {
       domain: rawData.domain,
-      title: rawData.title,
+      title: trimmedTitle,
       metric: rawData.metric ?? "",
       targetValue: rawData.targetValue ?? 0,
       unit: rawData.unit || "",
@@ -165,22 +209,36 @@ export async function createGoal(rawData: z.infer<typeof createGoalSchema>) {
       why: rawData.why ?? null,
     },
   });
-  
+
   emitGoalEventAsync({ goalId: goal.id, kind: "created", source: "api:goals.POST" });
-  
+
   void logCreate("lifeGoal", goal.id, goal as unknown as Record<string, unknown>, {
     source: "api:goals.POST",
   });
-  
+
   return goal;
 }
 
 export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
-  const { id, progressDelta, ...rawData } = parsed;
+  const { id, progressDelta, archive, restore: restoreFlag, ...rawData } = parsed;
   const data: Record<string, unknown> = { ...rawData };
 
   if (rawData.deadline !== undefined) {
     data.deadline = rawData.deadline ? new Date(rawData.deadline) : null;
+  }
+
+  // 2026-05-27 · ghost-goal defense.
+  // `archive: true` → status="paused" + deletedAt=now() (matches the
+  // chat tool's archiveGoal at lib/ai/tools/tasks.ts:750). `restore:
+  // true` → status="active" + deletedAt=null. Explicit flags beat
+  // implicit sugar so callers see exactly what they're asking for.
+  if (archive) {
+    data.status = "paused";
+    data.deletedAt = new Date();
+  }
+  if (restoreFlag) {
+    data.status = "active";
+    data.deletedAt = null;
   }
 
   const before = await prisma.lifeGoal.findUnique({ where: { id } });
