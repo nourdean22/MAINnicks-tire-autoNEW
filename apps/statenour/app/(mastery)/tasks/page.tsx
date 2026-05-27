@@ -1340,6 +1340,7 @@ function TasksPageInner() {
         onStart={startTask}
         onComplete={completeLoop}
         doneTodayCount={doneToday}
+        isDrifting={isDrifting}
       />
       {nowContent}
       {/* IntelPanel · the six intel/reflection widgets, collapsed by
