@@ -50,5 +50,9 @@ WHERE id NOT IN (
 
 -- Step 3 · add the constraint that should have existed from day one.
 -- IF NOT EXISTS makes the re-run path safe (TiDB v5+ supports it).
+-- PREFIX index because (varchar 10 + varchar 500 + varchar 1000) × 4 bytes
+-- (utf8mb4) = ~6040 bytes which exceeds InnoDB's 3072-byte index-key cap.
+-- 255 + 500 prefixes are wide enough to cover real-world GSC values
+-- (query terms <100 chars, this site's URLs <300 chars).
 ALTER TABLE search_performance
-  ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query, page);
+  ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query(255), page(500));

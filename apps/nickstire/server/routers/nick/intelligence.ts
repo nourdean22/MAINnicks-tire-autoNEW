@@ -570,7 +570,13 @@ export async function handleRunMigrations() {
       // version, the duplicate-key add-error gets caught by Duplicate.
       `UPDATE search_performance SET page = '' WHERE page IS NULL`,
       `DELETE FROM search_performance WHERE id NOT IN (SELECT * FROM (SELECT MAX(id) FROM search_performance GROUP BY date, query, page) AS keepers)`,
-      `ALTER TABLE search_performance ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query, page)`,
+      // TiDB / MySQL hard cap on InnoDB index keys: 3072 bytes. The
+      // unconstrained columns (date 10 + query 500 + page 1000) ×4 bytes
+      // utf8mb4 = ~6040 bytes · over the cap. Prefix the wide columns
+      // down to a safe combined index footprint. 255 for query + 500 for
+      // page covers all real-world GSC values (queries are short ·
+      // pages are URLs typically <300 chars on this site).
+      `ALTER TABLE search_performance ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query(255), page(500))`,
     ];
 
     let applied = 0;
