@@ -89,23 +89,24 @@ export function NowOperatorBar({
               4-step weekly review wizard (was: dead-fire on a
               ReviewSheet that never landed visibly). Wizard handles
               triage warnings → confirm goals → confirm projects →
-              pick top 3. Same button, real follow-through. */}
-          {reviewSet.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => setWizardOpen(true)}
-              className="text-left text-[13px] font-bold text-zinc-200 leading-snug hover:text-amber-300 transition-colors group"
-            >
-              <span>{smartHeadline}</span>
-              <span className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[9px] font-medium uppercase tracking-wider text-amber-400 opacity-70 group-hover:opacity-100">
-                → review
-              </span>
-            </button>
-          ) : (
-            <p className="text-[13px] font-bold text-zinc-200 leading-snug">
-              {smartHeadline}
-            </p>
-          )}
+              pick top 3. Same button, real follow-through.
+              2026-05-27 · removed `reviewSet.length > 0` gate · the
+              wizard's value isn't only warning-triage. The Challies
+              Step 5 (Serve & Surprise) + goal confirmation + top-3
+              pick are MORE meaningful when the week is calm. Now
+              the operator can run the review proactively on Sunday
+              regardless of warning count. Label flips to "→ weekly
+              review" when no warnings, "→ review" when there are. */}
+          <button
+            type="button"
+            onClick={() => setWizardOpen(true)}
+            className="text-left text-[13px] font-bold text-zinc-200 leading-snug hover:text-amber-300 transition-colors group"
+          >
+            <span>{smartHeadline}</span>
+            <span className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[9px] font-medium uppercase tracking-wider text-amber-400 opacity-70 group-hover:opacity-100">
+              → {reviewSet.length > 0 ? "review" : "weekly review"}
+            </span>
+          </button>
           {/* v10.0.529.82 · Wave 26 · B2 · stuck-DOING chip · surfaces
               tasks that have been in flight > 2h so the operator can
               re-frame or break them down. Renders inline next to
