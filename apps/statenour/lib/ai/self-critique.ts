@@ -159,6 +159,11 @@ export async function runSelfCritique(): Promise<CritiqueReport> {
   // Deferred to just before the upsert loop so a fetch failure
   // preserves yesterday's flags as the most recent honest snapshot.
 
+  // 2026-05-27 · observability · the bare `.catch(() => [])` made the
+  // self-critique cron silently write "0 messages to improve" to
+  // BrainMemory whenever the DB hiccupped. Eval-regression cron then
+  // sees a 100% pass rate when the table is actually broken. Log so
+  // operator can grep prod for "self-critique fetch failed".
   const rows = (await prisma.chatMessage
     .findMany({
       where: {
@@ -177,7 +182,13 @@ export async function runSelfCritique(): Promise<CritiqueReport> {
         conversationId: true,
       },
     })
-    .catch(() => [])) as MessageRow[];
+    .catch((err) => {
+      console.warn(
+        "[ai/self-critique] chatMessage.findMany failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return [];
+    })) as MessageRow[];
 
   if (rows.length === 0) {
     return {

@@ -98,7 +98,13 @@ export async function calibrateAdvice(
   const padded = padToTargetDim(emb);
   const vecLit = `[${padded.join(",")}]`;
 
-  // 2. Find similar past assistant messages with feedbackScore set
+  // 2. Find similar past assistant messages with feedbackScore set.
+  // 2026-05-27 · observability · the bare `.catch(() => [])` hid a
+  // pgvector outage / schema drift. Caller fell back to a "no
+  // similar advice found" branch with 0 confidence — looked like
+  // legitimate cold-start instead of a broken vector search. Log
+  // the actual error so operator can distinguish "no data yet" from
+  // "vector index missing."
   const similar = await prisma
     .$queryRawUnsafe<
       Array<{
@@ -120,7 +126,13 @@ export async function calibrateAdvice(
        ORDER BY ve.embedding_vec_1536 <=> '${vecLit}'::vector(${TARGET_DIM})
        LIMIT ${KNN_TOP}`,
     )
-    .catch(() => []);
+    .catch((err) => {
+      console.warn(
+        "[ai/calibrated-confidence] KNN query failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return [];
+    });
 
   const filtered = similar.filter(
     (r) => 1 - r.distance >= SIM_THRESHOLD && r.feedback_score !== null,
