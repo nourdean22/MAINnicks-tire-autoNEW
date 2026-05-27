@@ -331,7 +331,21 @@ function AxisBadge({ axis }: { axis: AxisScore }) {
 
 // ── Sidebar · missions + recent activity ────────────────────────────
 
+// Operator-driven UX correction (2026-05-27): missions section
+// removed from /goals · operator's exact words: "the missions should
+// be on the tasks page with all the to do items put into the missions
+// or organized some way like that. Here, it doesn't do me no good."
+// /tasks already hosts <MissionScoreboard /> (task #15) which serves
+// the same operational purpose with richer per-mission signal
+// (progress · velocity · overdue · stale · deadline columns).
+// /goals now focuses on what /goals IS for: the 8-axis mastery model
+// + LifeGoals (rendered in the main GoalBoard, not in this sidebar).
+//
+// `missions` prop kept on the Sidebar interface so the caller's
+// `data.missions` plumbing stays type-stable · void-ed below to
+// silence unused-param lint.
 function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[] }) {
+  void missions;
   return (
     <aside className="space-y-8">
       {/* Mastery summary · compact list view */}
@@ -363,20 +377,6 @@ function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[]
                   </span>
                 </span>
               </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Active missions · the WORK */}
-      <section className="space-y-3">
-        <MasterySectionLabel label="Active missions" count={missions.length} />
-        {missions.length === 0 ? (
-          <p className="text-xs text-white/40">No active missions.</p>
-        ) : (
-          <ul className="space-y-2">
-            {missions.map((m) => (
-              <MissionCard key={m.id} mission={m} />
             ))}
           </ul>
         )}
