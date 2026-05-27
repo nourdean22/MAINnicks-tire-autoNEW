@@ -36,6 +36,7 @@ import { useMoveFrame } from "@/hooks/use-move-frame";
 import { useWorkAnchor } from "@/hooks/use-work-anchor";
 import { useIdleDetector } from "@/hooks/use-idle-detector";
 import { useMissionMode } from "@/hooks/mastery/use-mission-mode";
+import { useSwipeGesture } from "@/hooks/use-swipe-gesture";
 
 const TIP =
   "the move frame picks the top non-daily task as NOW · the on-deck task as NEXT · and your most-streaked habit as DAILY. it updates as you check things off. Do = mark doing · Done = complete · Skip = pass over this task locally (returns next page load).";
@@ -312,6 +313,15 @@ function MoveSlot({
   onReaffirm,
   onReleaseAnchor,
 }: MoveSlotProps) {
+  // Phase 6 lite · native swipe gesture on NOW card.
+  // Swipe right = Done · swipe left = Skip. Other variants stay
+  // tap-only (don't want accidental swipes on NEXT/DAILY cards
+  // changing their content during card switch animation).
+  const swipe = useSwipeGesture({
+    disabled: variant !== "now" || (!onComplete && !onSkip),
+    onSwipeRight: onComplete ? () => void onComplete(task.id) : undefined,
+    onSwipeLeft: onSkip ? () => onSkip(task.id) : undefined,
+  });
   const accent = variant === "now";
   const Icon = variant === "now" ? Target : variant === "daily" ? Repeat : ArrowRight;
   const label = variant === "now" ? "now" : variant === "daily" ? "daily" : "next";
@@ -328,8 +338,24 @@ function MoveSlot({
         accent
           ? "border-[var(--gold)]/40 bg-[var(--gold)]/[0.04]"
           : "border-[var(--border-default)] hover:border-[var(--gold)]/30",
+        // Phase 6 lite · smooth snap when swipe releases without
+        // crossing threshold. transform updates during drag · CSS
+        // transition handles the snap-back.
+        swipe.state.isDragging ? "" : "transition-transform duration-200 ease-out",
       ].join(" ")}
       data-move-slot={variant}
+      {...swipe.handlers}
+      style={{
+        ...swipe.handlers.style,
+        // Translate during drag · 0 when idle. iOS-PWA-safe.
+        transform: swipe.state.dx ? `translateX(${swipe.state.dx}px)` : undefined,
+        // Subtle opacity shift past the threshold so operator feels
+        // "this is about to fire" · 80px threshold → fade to ~80%.
+        opacity:
+          variant === "now" && Math.abs(swipe.state.dx) > 40
+            ? Math.max(0.7, 1 - Math.abs(swipe.state.dx) / 400)
+            : undefined,
+      }}
     >
       {accent && (
         <span
@@ -372,6 +398,18 @@ function MoveSlot({
           </p>
         )}
       </Link>
+
+      {/* Phase 6 lite · swipe hint · only on NOW + only when swipe is
+       *  available (operator hasn't moved yet · isDragging false).
+       *  Mobile-first affordance · desktop just sees the static hint. */}
+      {variant === "now" && (onComplete || onSkip) && !swipe.state.isDragging && (
+        <p
+          aria-hidden
+          className="absolute right-3 top-3 text-[8px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/40 select-none pointer-events-none"
+        >
+          ← skip · done →
+        </p>
+      )}
 
       {/* Phase 2 · active anchor chip + 10-min milestone (NOW only). */}
       {variant === "now" && anchor && anchor.taskId === task.id && (
