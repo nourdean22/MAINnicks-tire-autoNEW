@@ -32,8 +32,69 @@ export const GOOGLE_DATA_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
 ];
 
-/** Name of the Integration row where we store the google_oauth token. */
+/**
+ * Name of the Integration row where we store the google_oauth token.
+ *
+ * 2026-05-27 · multi-account upgrade. Operator has TWO Gmail accounts
+ * (nourdean22@gmail.com + moeseuclid@gmail.com). The pre-2026-05-27
+ * design had ONE slot named "google_oauth" — the existing row holds
+ * moeseuclid (currently expired, needs re-grant). To support both,
+ * all helpers now accept an optional `accountKey` parameter. The
+ * stored integration name becomes `google_oauth_${accountKey}` when
+ * accountKey is provided · stays as "google_oauth" (legacy slot) when
+ * accountKey is the literal default. The legacy slot stays as
+ * moeseuclid's home so re-grant doesn't lose history; nourdean22
+ * lands under "google_oauth_personal" on first connect.
+ *
+ * Default key "primary" maps to the legacy "google_oauth" row · so
+ * code that doesn't pass an accountKey continues to read/write the
+ * existing single slot (backwards compat).
+ */
 export const GOOGLE_INTEGRATION_NAME = "google_oauth";
+
+/** Resolve the integration row name for a given account key.
+ *  "primary" → legacy "google_oauth" (preserves existing moeseuclid row).
+ *  anything else → "google_oauth_<key>". */
+export function integrationNameFor(accountKey: string = "primary"): string {
+  return accountKey === "primary"
+    ? GOOGLE_INTEGRATION_NAME
+    : `google_oauth_${accountKey}`;
+}
+
+/** Return all configured google_oauth* integration rows. The ingest
+ *  cron iterates this so adding a new account just means clicking
+ *  /api/oauth/google-data/start?account=<key> once. */
+export async function listConfiguredAccounts(): Promise<
+  Array<{ accountKey: string; integrationName: string; email: string | null }>
+> {
+  const rows = await prisma.integration
+    .findMany({
+      where: {
+        OR: [
+          { name: GOOGLE_INTEGRATION_NAME },
+          { name: { startsWith: "google_oauth_" } },
+        ],
+      },
+    })
+    .catch(() => []);
+  return rows
+    .filter((r) => {
+      const cfg = r.config as unknown as StoredToken | null;
+      return cfg?.refreshToken;
+    })
+    .map((r) => {
+      const cfg = r.config as unknown as StoredToken;
+      const accountKey =
+        r.name === GOOGLE_INTEGRATION_NAME
+          ? "primary"
+          : r.name.replace(/^google_oauth_/, "");
+      return {
+        accountKey,
+        integrationName: r.name,
+        email: cfg.email ?? null,
+      };
+    });
+}
 
 interface StoredToken {
   refreshToken: string;
@@ -81,8 +142,14 @@ function getClientCreds(): { clientId: string; clientSecret: string; redirectUri
  * Build the consent-screen URL. Admin clicks this once to grant
  * Gmail/Drive/Calendar read access. Requests offline access so we
  * get a refresh token back.
+ *
+ * 2026-05-27 · multi-account · also forces `prompt=select_account
+ * consent` when accountKey != "primary" so Google shows the
+ * account-picker (lets the operator switch from nourdean22 to
+ * moeseuclid for the second grant) AND re-mints a fresh refresh
+ * token (consent prompt only).
  */
-export function buildAuthUrl(state: string = ""): string {
+export function buildAuthUrl(state: string = "", accountKey: string = "primary"): string {
   const { clientId, redirectUri } = getClientCreds();
   const params = new URLSearchParams({
     client_id: clientId,
@@ -90,7 +157,7 @@ export function buildAuthUrl(state: string = ""): string {
     response_type: "code",
     scope: GOOGLE_DATA_SCOPES.join(" "),
     access_type: "offline",
-    prompt: "consent", // Force refresh token delivery even on re-consent
+    prompt: accountKey === "primary" ? "consent" : "select_account consent",
     include_granted_scopes: "true",
     state,
   });
@@ -102,11 +169,15 @@ export function buildAuthUrl(state: string = ""): string {
  * access_token. Stores the refresh token in the Integration table
  * so future cron runs can mint access tokens headlessly.
  */
-export async function exchangeCodeForToken(code: string): Promise<{
+export async function exchangeCodeForToken(
+  code: string,
+  accountKey: string = "primary",
+): Promise<{
   accessToken: string;
   refreshToken: string;
   email?: string;
   expiresIn: number;
+  integrationName: string;
 }> {
   const { clientId, clientSecret, redirectUri } = getClientCreds();
 
@@ -160,10 +231,12 @@ export async function exchangeCodeForToken(code: string): Promise<{
     grantedAt: new Date().toISOString(),
   };
 
+  const integrationName = integrationNameFor(accountKey);
+
   await prisma.integration.upsert({
-    where: { name: GOOGLE_INTEGRATION_NAME },
+    where: { name: integrationName },
     create: {
-      name: GOOGLE_INTEGRATION_NAME,
+      name: integrationName,
       type: "oauth",
       enabled: true,
       status: "healthy",
@@ -184,11 +257,14 @@ export async function exchangeCodeForToken(code: string): Promise<{
     refreshToken: data.refresh_token,
     email,
     expiresIn: data.expires_in,
+    integrationName,
   };
 }
 
 // Cache access tokens in-process so concurrent API calls share one
 // refresh. Access tokens live 1h so cache for 55min to be safe.
+// 2026-05-27 · multi-account · keyed by accountKey so caches don't
+// collide across accounts.
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 
 /**
@@ -197,24 +273,25 @@ const tokenCache = new Map<string, { token: string; expiresAt: number }>();
  * expire. Throws if no refresh token has been stored yet (setup
  * flow hasn't been completed).
  */
-export async function getAccessToken(): Promise<string> {
-  const cached = tokenCache.get("default");
+export async function getAccessToken(accountKey: string = "primary"): Promise<string> {
+  const cached = tokenCache.get(accountKey);
   if (cached && cached.expiresAt > Date.now() + 60_000) {
     return cached.token;
   }
 
+  const integrationName = integrationNameFor(accountKey);
   const integration = await prisma.integration.findUnique({
-    where: { name: GOOGLE_INTEGRATION_NAME },
+    where: { name: integrationName },
   });
   if (!integration?.config) {
     throw new Error(
-      "Google OAuth not configured. Click /api/oauth/google-data/start to grant access."
+      `Google OAuth not configured for account "${accountKey}". Click /api/oauth/google-data/start${accountKey === "primary" ? "" : `?account=${accountKey}`} to grant access.`
     );
   }
 
   const stored = integration.config as unknown as StoredToken;
   if (!stored.refreshToken) {
-    throw new Error("Google OAuth refresh token missing from Integration config.");
+    throw new Error(`Google OAuth refresh token missing for account "${accountKey}".`);
   }
 
   const { clientId, clientSecret } = getClientCreds();
@@ -234,7 +311,7 @@ export async function getAccessToken(): Promise<string> {
     const text = await res.text().catch(() => "");
     await prisma.integration
       .update({
-        where: { name: GOOGLE_INTEGRATION_NAME },
+        where: { name: integrationName },
         data: {
           status: "failed",
           errorCount: { increment: 1 },
@@ -242,12 +319,12 @@ export async function getAccessToken(): Promise<string> {
         },
       })
       .catch(() => {});
-    throw new Error(`Google refresh failed: ${res.status} ${text}`);
+    throw new Error(`Google refresh failed for "${accountKey}": ${res.status} ${text}`);
   }
 
   const data = (await res.json()) as { access_token: string; expires_in: number };
 
-  tokenCache.set("default", {
+  tokenCache.set(accountKey, {
     token: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
   });
@@ -255,7 +332,7 @@ export async function getAccessToken(): Promise<string> {
   // Mark integration healthy on successful refresh
   await prisma.integration
     .update({
-      where: { name: GOOGLE_INTEGRATION_NAME },
+      where: { name: integrationName },
       data: {
         status: "healthy",
         consecutiveFailures: 0,
@@ -284,10 +361,10 @@ export async function getAccessToken(): Promise<string> {
  * distinguishes missing/expired/stale/healthy. This function stays
  * for backwards compat with cron routes that just want a yes/no.
  */
-export async function isGoogleOauthConfigured(): Promise<boolean> {
+export async function isGoogleOauthConfigured(accountKey: string = "primary"): Promise<boolean> {
   try {
     const integration = await prisma.integration.findUnique({
-      where: { name: GOOGLE_INTEGRATION_NAME },
+      where: { name: integrationNameFor(accountKey) },
     });
     if (!integration?.config) return false;
     const stored = integration.config as unknown as StoredToken;

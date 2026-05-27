@@ -80,8 +80,15 @@ export async function GET(req: Request) {
   // Single-use · clear before exchange so a refresh can't replay.
   cookieStore.delete("__oauth_state");
 
+  // 2026-05-27 · multi-account · state shape is `<csrf>:<accountKey>`.
+  // Pre-2026-05-27 state was just the CSRF (no colon) so we tolerate
+  // the legacy shape gracefully — treat colon-less state as primary.
+  const accountKey = providedState.includes(":")
+    ? (providedState.split(":")[1] || "primary").trim().toLowerCase().replace(/[^a-z0-9_-]/g, "") || "primary"
+    : "primary";
+
   try {
-    const result = await exchangeCodeForToken(code);
+    const result = await exchangeCodeForToken(code, accountKey);
     // Apr 27 — once the refresh token lands, force a fresh health
     // digest. Without this, the persisted digest from earlier in the
     // day (which says "Google OAuth not configured") keeps rendering
@@ -102,7 +109,7 @@ export async function GET(req: Request) {
               : String(digestErr),
         });
       });
-    return new Response(successPage(result.email || "(unknown)"), {
+    return new Response(successPage(result.email || "(unknown)", result.integrationName), {
       status: 200,
       headers: { "Content-Type": "text/html" },
     });
@@ -117,7 +124,7 @@ export async function GET(req: Request) {
   }
 }
 
-function successPage(email: string): string {
+function successPage(email: string, integrationName: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -135,11 +142,12 @@ function successPage(email: string): string {
 <body>
 <h1>✓ Google Connected</h1>
 <div class="box">
-  <p><strong>Account:</strong> ${email}</p>
+  <p><strong>Account:</strong> ${escapeHtml(email)}</p>
   <p><strong>Scopes:</strong> Gmail (read), Calendar (read), Drive (read)</p>
-  <p><strong>Stored:</strong> Integration table as <code>google_oauth</code></p>
+  <p><strong>Stored:</strong> Integration table as <code>${escapeHtml(integrationName)}</code></p>
 </div>
 <p>Gmail, Calendar, and Drive ingest crons will now run headlessly on their schedule. You can trigger them immediately from the Nick chat by saying <code>sync my gmail</code>, <code>sync my calendar</code>, or <code>sync my drive</code>.</p>
+<p><strong>Want to add another account?</strong> Visit <code>/api/oauth/google-data/start?account=personal</code> (or any label) and sign in with the second Gmail. Each label gets its own slot.</p>
 <p><a href="/">← Back to HQ</a></p>
 </body>
 </html>`;
