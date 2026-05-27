@@ -35,16 +35,20 @@
 -- Step 1 · normalize NULL pages
 UPDATE search_performance SET page = '' WHERE page IS NULL;
 
--- Step 2 · deduplicate · keep only the max(id) per (date, query, page).
--- This is a self-join DELETE · the row to keep is the one with the
--- LARGEST id (most recent insert) · all earlier duplicates go.
-DELETE sp1 FROM search_performance sp1
-INNER JOIN search_performance sp2
-WHERE sp1.id < sp2.id
-  AND sp1.date = sp2.date
-  AND sp1.query = sp2.query
-  AND sp1.page = sp2.page;
+-- Step 2 · deduplicate · keep only the MAX(id) per (date, query, page).
+-- TiDB compatibility note: the MySQL `DELETE sp1 FROM t sp1 INNER JOIN
+-- t sp2 ...` multi-table delete syntax is rejected by TiDB. The
+-- NOT-IN subquery pattern below works in both MySQL and TiDB · it's
+-- the same shape that ships in prediction_impressions dedup earlier
+-- in this codebase.
+DELETE FROM search_performance
+WHERE id NOT IN (
+  SELECT * FROM (
+    SELECT MAX(id) FROM search_performance GROUP BY date, query, page
+  ) AS keepers
+);
 
--- Step 3 · add the constraint that should have existed from day one
+-- Step 3 · add the constraint that should have existed from day one.
+-- IF NOT EXISTS makes the re-run path safe (TiDB v5+ supports it).
 ALTER TABLE search_performance
-  ADD UNIQUE KEY uq_search_perf_date_query_page (date, query, page);
+  ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query, page);
