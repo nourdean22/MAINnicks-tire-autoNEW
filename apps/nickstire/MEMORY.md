@@ -21,6 +21,50 @@ Read **`CLAUDE.md`** (repo root) for operating rules. Use this file as a **route
 2. If SEO HTML changed, run `pnpm run prerender` before release.  
 3. Bump `truth_os.md` if production behavior or env requirements changed.
 
+## Voice / VAPI · operator-product context (read before evaluating call metrics)
+
+**Tire calls REQUIRE a human transfer to confirm stock.** Stock verification
+is a physical rack check, not a database lookup. The AI (Nick) cannot
+truthfully tell a caller "yes we have your 205/55R16" without someone
+walking the rack. So the designed inbound flow for tire calls is:
+
+```
+caller → Nick greets → Nick collects vehicle/size/new-or-used →
+  if shop open  → live transfer (`escalate` tool · VAPI forwardingPhoneNumber)
+                  → human picks up, confirms stock, books over the phone
+  if shop closed → `checkTireStock` tool · creates urgency=5 lead +
+                   Telegram alert + 15-min callback promise
+```
+
+**Implication for call-evaluation metrics:**
+
+- **Escalation (`assistant-forwarded-call`) is NOT a failure mode for tire calls.**
+  It is the success path during open hours. The metric that matters is
+  *warm-transfer-connected-rate* (= forwarded calls where the human
+  actually picked up + completed the call), not raw escalation count.
+- **`outcome=booked` from `structuredData` undercounts real bookings.**
+  Nick only marks `booked` when HE books via tool. Most tire bookings
+  happen on the human side after warm transfer · those are invisible
+  to the AI-side eval. Pair structuredData.outcome with downstream
+  TiDB writes (work orders · invoices · phone-call → booking match)
+  to compute true conversion.
+- **`outcome=lost` is the real failure signal.** Silent line · drop ·
+  incomplete info · Nick couldn't keep them on the line long enough
+  to either book OR escalate.
+- **The baseline at `docs/baselines/vapi-baseline-2026-05-26.md`
+  initially framed escalation as a problem** · that framing was
+  corrected (see file header) after this operator note. Use the same
+  reframing on all future VAPI reports.
+
+**Open observability gap (task #3 + queue):** We do not currently track
+warm-transfer-connection success. The `voice_call_states` table records
+`forwarded` events but nothing confirms whether the human side picked
+up. The right next eval-cron metric is `warm_transfer_connect_rate_14d`
+· numerator = forwards followed by a logged human-call activity ·
+denominator = all forwards.
+
+## Recent waves (2026-05-24 → 05-26)
+
 ## Recent waves (2026-05-24 → 05-26)
 
 | Wave / commit | What landed |

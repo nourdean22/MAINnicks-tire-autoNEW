@@ -1,5 +1,28 @@
 # VAPI Baseline · 2026-05-26 EOD
 
+> **⚠ READ FIRST · framing correction added 2026-05-26 EOD+**
+>
+> The original draft of this doc framed the 34% escalation rate as a
+> failure mode. **That framing is wrong for this business.** Tire stock
+> verification requires a human physically walking the rack · the AI
+> cannot truthfully confirm stock from a database. Live transfer
+> (`assistant-forwarded-call`) is the **designed success path** during
+> open hours, not a punt.
+>
+> The real failure signal is `outcome=lost` (41.4%) — caller dropped /
+> Nick lost them before either booking OR escalating.
+>
+> The real success metric (yet to be instrumented) is *warm-transfer-
+> connect rate* — % of forwarded calls where the human actually picked
+> up + completed the call. We don't track this yet · `voice_call_states`
+> logs `forwarded` events but nothing confirms the human side. **That's
+> the next observability gap to close** (queue: task #3 + a new resolver
+> in `closedLoop.ts`).
+>
+> Treat the numbers below as ACCURATE; treat the "what counts as a win"
+> section as REVISED — see "Revised win thresholds (post-framing-fix)"
+> at the bottom of this doc.
+
 **Captured:** 2026-05-26 22:00 ET via authenticated admin tRPC
 (`vapi.recentCalls` + `adminDashboard.drilldown`)
 **Sample window:** 100 most-recent inbound calls · 2026-05-22 18:23 ET →
@@ -134,6 +157,49 @@ This is why fixing Nick > shipping the next feature.
 
 ---
 
-*This baseline was committed to git so the 14-day measurement has a
-durable reference. Re-snapshot weekly if the volume window stays at
-≈100 calls in 4 days; monthly if volume grows.*
+## Revised win thresholds (post-framing-fix · 2026-05-26 EOD+)
+
+The original "what counts as a win" section above scored *reducing
+escalation* as a goal. After the operator clarified that **tire stock
+verification requires a live human walking the rack**, that framing is
+wrong. The real win conditions:
+
+| Metric | Today | 14-day target | Why |
+|---|---|---|---|
+| **Lost rate** | 41.4% | ≤ 30% (-11pp) | Real failure mode. Caller dropped before either booking OR escalating. |
+| **Warm-transfer-connect rate** | UNKNOWN (not instrumented) | Instrument first · then ≥ 85% | The actual success metric for tire calls during open hours. % of `assistant-forwarded-call` events where a human-call activity is logged within 60s on the forwarded number. |
+| **Same-day booking rate** | UNKNOWN (mixed signal) | Instrument first | True conversion = `outcome=booked` (AI-side) + work_orders / invoices created within 24h on the caller's phone number (human-side). Without this we can't see post-transfer wins. |
+| Booking rate (AI-side `outcome=booked`) | 3.3% | Hold ≥ 3% | Side-metric only. Most tire bookings should land on the human side after transfer. |
+| Escalation rate (`assistant-forwarded-call`) | 34.3% | HOLD or RISE during open hours | Was incorrectly listed as a reduction target. For tire calls during business hours this IS the success path. |
+
+The original framing's "escalation rate ≤ 29%" target is **canceled**.
+Replacing it with the warm-transfer-connect-rate target above (after
+instrumentation).
+
+## Revised recommended next moves (priority order)
+
+1. **Instrument warm-transfer-connect-rate.** This is the single
+   missing observability piece that makes every other VAPI metric
+   measurable. New resolver in `lib/services/closedLoop.ts`:
+   ```ts
+   warm_transfer_connect_rate_14d: async () => {
+     // numerator: count `assistant-forwarded-call` end-reasons in vapi_call_logs
+     //            where the same phone number has a successful inbound human-call
+     //            within 60s (use voice_call_states or call_events as the proxy)
+     // denominator: total `assistant-forwarded-call` end-reasons in vapi_call_logs
+     // Filter both to last 14d.
+   }
+   ```
+2. **Fix duration-sync webhook bug** (was item #1 pre-correction · still
+   matters because the eval cron grades blind without it).
+3. **Repair eval-cron firing** for today's calls (0/30 graded).
+4. **Then read transcripts** of the 12 "lost" calls — that's where the
+   real fix lives.
+5. **Then ship #75-77 alarms.**
+
+---
+
+*Baseline numbers above remain accurate · the framing-correction only
+changes which numbers are interpreted as "needs improvement" vs
+"already-by-design". Original sections preserved intentionally so the
+post-correction reader sees the reasoning evolution.*
