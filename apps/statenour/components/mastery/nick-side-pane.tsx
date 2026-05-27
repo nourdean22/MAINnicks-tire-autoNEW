@@ -31,7 +31,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Brain, X, GripVertical, AlertTriangle, Sparkles, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { PageNick } from "@/components/ai/page-nick";
+import { MultiTurnChat } from "@/components/mastery/multi-turn-chat";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
 
@@ -223,23 +223,25 @@ export function NickSidePane({
                 </section>
               )}
 
-              {/* Ask Nick · existing PageNick surface */}
-              <PageNick
+              {/* Multi-turn chat · Phase 5 FULL · 2026-05-26.
+               *  Thread state persists per-page in localStorage ·
+               *  POSTs full history to /api/ai/side-pane-chat each
+               *  turn · streams Nick's reply in. Operator can clear
+               *  thread + start fresh anytime. */}
+              <MultiTurnChat
                 page={page}
                 data={data}
                 focus={focus}
                 presets={presets ?? DEFAULT_PRESETS}
-                placeholder="Ask Nick · type a question…"
-                className="w-full"
               />
             </div>
 
-            {/* Footer hint · operator-grade affordance · multi-turn
-             *  chat is the remaining Phase 5 piece. Proactive chips
-             *  shipped above via the Coach Channel polling layer. */}
+            {/* Footer hint · Phase 5 FULL is now live · multi-turn
+             *  thread + proactive chip surfaces both shipped via the
+             *  Coach Channel layer + new side-pane-chat endpoint. */}
             <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
               <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/60">
-                phase 5 · proactive chips live · multi-turn coming
+                phase 5 full · multi-turn · proactive chips · per-device thread
               </p>
             </footer>
           </aside>
