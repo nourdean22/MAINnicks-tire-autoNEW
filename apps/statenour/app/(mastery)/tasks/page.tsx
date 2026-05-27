@@ -1280,6 +1280,7 @@ function TasksPageInner() {
        *  turn + proactive chip surfaces queued for Phase 5 full. */}
       <NickSidePane
         page="tasks"
+        coachSurface="tasks"
         presets={[
           "What should I focus on right now?",
           "Which tasks are likely to compound today?",

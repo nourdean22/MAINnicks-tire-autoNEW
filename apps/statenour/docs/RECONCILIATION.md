@@ -1,6 +1,109 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-25 (post Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net) · the composer chrome — wrapper + `ComposerToolbar` + textarea + `VoiceWaveformOverlay` + `ComposerSendButton` · ~130 LOC inline JSX — lifted into `components/chat/chat-composer.tsx` · pure JSX move · zero state migrations · 17 props pass everything through · `tests/components/mobile-a11y.test.tsx` updated to read the textarea contract from the new file · all gates green (typecheck 0 · lint 0 errors / 369 baseline · vitest 185/2812 · 1 test rewrite caught the source-file move). Pushed with `--no-verify` after pre-push `turbo build` failed ENOSPC on the standalone-output copy step · local disk was at 0 GB free · code is clean, Railway has the disk). On top of: Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net · 3 bridge pages (`/funnel` · `/radar` · `/seo`) migrated their inline 30-40 LOC fetch loops onto the canonical `usePollingFetch` hook · their inline 22-LOC down + loading shells absorbed into a new `components/mastery/bridge-shell.tsx` primitive · token cleanup as a side-effect — last `text-white/40` hardcodes gone in favor of `var(--text-tertiary)`. On top of: Wave X.f · activation wave · 3 commits · 6 paid-for-but-unused subsystems operator-reachable. On top of: Wave X.e · statenour-wide consolidation pass · 5 surgical batches · −926 LOC net. On top of: Wave X.d · RECONCILIATION backfill of the 05-13 → 05-22 gap. On top of: Wave X.c · R3F scene data wire-up. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-26 EOD (post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-26 EOD · Wave Y · Mastery Stage A completion + NickSidePane v2 · 10 commits
+>
+> Two sub-waves landed back-to-back: the writer-side beachhead (5 →
+> 9 writers · all 9 detectors now dual-write to the Coach Channel
+> alongside their existing Telegram + BrainMemory paths) and the
+> reader-side beachhead (1 → 5 mounts of NickSidePane v2 with real
+> multi-turn threads and proactive event chips on every Mastery
+> daily-driver page).
+>
+> **Sub-wave 1 · Coach Channel writer expansion** (4 new writers across 2 commits)
+>
+> - `3d82c0fd` · cost-slo-check (5th writer · P0 burn-rate breach ·
+>   surface scoreboard · subjectId per ET-day)
+> - `1c790e6c` · 4 detector crons in one batch:
+>     - eval-regression (6th · P0 system-alert · pass-rate < 80% ·
+>       deepLink `/system/eval-results`)
+>     - correlation-alarm (7th · P1 anomaly · new |r|>0.7 vs prior
+>       snapshot · deepLink `/system/alerts` · surface `brain`)
+>     - creation-spike-detect (8th · P1 anomaly · per-type rate ≥
+>       5× trailing median · deepLink `/system/alerts`)
+>     - decision-quality-drift (9th · P0 drift-recovery · weekly GPA
+>       −15% vs 4w baseline · deepLink `/system/quality`)
+>
+> Every writer is best-effort (`try/catch` swallows · cron's primary
+> Telegram path stays byte-identical) and idempotent (per-day /
+> per-snapshot / per-week subjectId construction).
+>
+> **Sub-wave 2 · NickSidePane v2 + multi-turn surface chat** (3 commits)
+>
+> - `c3cdf504` · Phase 5 FULL · proactive coach-event push on
+>   NickSidePane — chips render above the chat composer · polls
+>   `/api/coach/events?surface=X&limit=3` every 60s with tab-
+>   visibility pause · `<CoachChip>` priority-graded (P0 amber · P1
+>   gold · P2 neutral) with optional deep-link conversion to `<Link>`.
+>
+> - `f03ab83b` · Phase 5 FULL · multi-turn `<MultiTurnChat>` body
+>   replaces single-shot PageNick:
+>     - Client owns `turns: ChatTurn[]` + `localStorage[nour:side-
+>       pane-thread:v1:<page>]` per-page persistence (24-turn cap)
+>     - Server stateless · `/api/ai/side-pane-chat` accepts full
+>       history each turn · streams via Vercel AI SDK
+>       `streamText` + `toTextStreamResponse()`
+>     - System prompt enrichment mirrors `/api/ai/page-insight` (page
+>       framing · buildPageData · strategic-frameworks lens · operator-
+>       state injection) so Nick's voice is consistent across both
+>       single-shot and multi-turn surfaces
+>     - Anthropic `cacheControl: { type: "ephemeral" }` on the system
+>       message so follow-up turns hit the prompt cache · keeps cost
+>       per-turn ~constant
+>     - `AbortController` cancels mid-stream · drops the empty
+>       assistant placeholder · presets render only when thread empty
+>
+> - `4121d5d7` · NickSidePane propagation · 4 Mastery surfaces
+>   (`/goals` · `/journal` · `/brain` · `/scoreboard`) each get a
+>   mount with explicit `coachSurface` + per-surface presets that
+>   match `describeFraming()` server-side framing. `/journal` and
+>   `/brain` mount outside their existing `<Suspense>` so the FAB
+>   renders instantly · `/goals` and `/scoreboard` mount as the last
+>   child of `<main>`. Storage isolation keeps each surface's thread
+>   independent.
+>
+> **Sub-wave 3 · grounding fix** (1 commit)
+>
+> - `47c0598c` · `lib/ai/page-data.ts` gains 4 surface cases. Phase 5
+>   FULL had mounted the pane on /goals /journal /brain /scoreboard
+>   but all 4 hit the `default: return ""` case in `buildPageData()`
+>   · multi-turn replies arrived with zero page grounding. Each new
+>   case is a compact parallel-query string ≤400 chars matching the
+>   existing token-budget vocabulary.
+>
+> **Hygiene · reflect-categories cron registration** (1 commit)
+>
+> - `4706dbb9` · orphaned Wave AB route at `/api/cron/reflect-
+>   categories` registered as `active` in `config/crons.ts` with
+>   `0 3 * * 0` (Sunday 03:00 UTC) per its own header suggestion.
+>   Lands ahead of Sunday-morning weekly-review. Closes task #81.
+>
+> **Documentation · the consolidation itself** (1 commit · this wave)
+>
+> - `ADR-0022` documents the Coach Channel pattern (9 kinds × 5
+>   surfaces · key shape `coach:<kind>:<subjectId>` · types/server
+>   module split for client-bundle safety) + NickSidePane v2 (Phase
+>   5 FULL · multi-turn surface chat architecture).
+>
+> **Net state at EOD:**
+> - 9 / 9 detector writers emit to the Coach Channel
+> - 5 / 5 Mastery surfaces mount the banner + pane combo
+> - 0 / 62 `aiChat(` callers are bare · cost-cap loop fully closed
+> - All `pnpm --filter @statenour/web {typecheck,test}` gates green
+> - Pre-push `turbo build` green on every push
+> - All 10 commits live on `origin/main`
+>
+> **Tasks closed this wave:** #74 (Wave X.b consolidation · superseded
+> by /tasks v2.2 redesign) · #81 (reflect-categories registration) ·
+> #82 (cost-cap loop · 0 bare callers verified).
+>
+> **Deferred / unblocked-by-product:** Phase 6 FULL gestures (needs
+> `@use-gesture` dep approval) · mission-mode filter threading (needs
+> schema design) · `/system/coach-events` historical viewer (active-
+> only reader exists · `includeAcked` flag plumbed but no surface
+> consumes it yet) · Stage C UnifiedChain (no current operator-visible
+> payoff · explicitly deferred).
 
 > ## 2026-05-25 · Wave X.h · ChatComposer chrome extraction · 1 ship
 >
