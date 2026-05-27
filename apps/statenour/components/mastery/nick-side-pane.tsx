@@ -170,10 +170,13 @@ export function NickSidePane({
             aria-label="nick assistant"
             className={cn(
               "fixed z-50 flex flex-col bg-[var(--bg-base)] border-[var(--border-default)]",
-              // Mobile bottom-sheet · 80vh max
-              "inset-x-0 bottom-0 max-h-[80vh] rounded-t-2xl border-t",
+              // Mobile bottom-sheet · 80vh max · 60vh min (2026-05-26
+              // mobile-tightening · iPhone SE keyboard-up was leaving the
+              // thread region < 30vh, the 60vh floor keeps the chat
+              // usable even with the keyboard open)
+              "inset-x-0 bottom-0 min-h-[60vh] max-h-[80vh] rounded-t-2xl border-t",
               // Desktop right-pane · 380px wide · full height
-              "lg:top-0 lg:right-0 lg:bottom-0 lg:inset-x-auto lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-2xl lg:border-l lg:border-t-0",
+              "lg:top-0 lg:right-0 lg:bottom-0 lg:inset-x-auto lg:min-h-0 lg:max-h-none lg:w-[380px] lg:rounded-none lg:rounded-l-2xl lg:border-l lg:border-t-0",
               // iOS safe-area
               "pb-[env(safe-area-inset-bottom,0px)]",
             )}
@@ -190,7 +193,8 @@ export function NickSidePane({
               <h2 className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
                 nick · {page}
               </h2>
-              <span className="ml-2 text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+              {/* "esc to close" hint · desktop only · phones don't have Esc */}
+              <span className="ml-2 hidden lg:inline text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
                 esc to close
               </span>
               <button
