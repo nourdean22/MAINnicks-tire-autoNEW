@@ -29,7 +29,7 @@
 
 import Link from "next/link";
 import { useState, useMemo } from "react";
-import { Sparkles, Target, Repeat, ArrowRight, Play, Check, X, Timer, Coffee } from "lucide-react";
+import { Sparkles, Target, Repeat, ArrowRight, Play, Check, X, Timer, Coffee, Wind } from "lucide-react";
 import { TipChip } from "@/components/ui/tip-chip";
 import type { Task } from "@/components/actions/shared";
 import { useMoveFrame } from "@/hooks/use-move-frame";
@@ -55,9 +55,20 @@ interface MoveFrameProps {
    *  visualization in the footer. Optional · footer self-hides
    *  when count is 0 AND no streak is active. */
   doneTodayCount?: number;
+  /** Phase 7 lite · when true, MoveFrame replaces NOW with a Recovery
+   *  Crescendo affordance · breath prompt + smallest task suggestion.
+   *  Drives off nourState.currentState === "drift" at the page layer. */
+  isDrifting?: boolean;
 }
 
-export function MoveFrame({ tasks, onFocus, onStart, onComplete, doneTodayCount = 0 }: MoveFrameProps) {
+export function MoveFrame({
+  tasks,
+  onFocus,
+  onStart,
+  onComplete,
+  doneTodayCount = 0,
+  isDrifting = false,
+}: MoveFrameProps) {
   // Phase 1B · local-only "skip" state · operator passes over the
   // current NOW without mutating it. Returns next page load.
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
@@ -144,8 +155,18 @@ export function MoveFrame({ tasks, onFocus, onStart, onComplete, doneTodayCount 
         <TipChip tip={TIP} title="move frame" size="xs" />
       </header>
 
-      {/* NOW · hero card · full-width · gold-accent left rail */}
-      {now ? (
+      {/* Phase 7 lite · Recovery Crescendo · 2026-05-26. When the
+       *  operator is in drift state (per useNourState), replace the
+       *  NOW card with a calmer affordance: breath prompt + smallest
+       *  task suggestion. Drift→flow is tracked separately via the
+       *  Coach Channel (queued for follow-up). */}
+      {isDrifting ? (
+        <RecoveryCrescendoCard
+          smallestTask={pickSmallestTask(visibleTasks)}
+          onStart={handleStart}
+          onComplete={handleComplete}
+        />
+      ) : now ? (
         <MoveSlot
           variant="now"
           task={now}
@@ -433,6 +454,96 @@ function MoveSlot({
       )}
     </div>
   );
+}
+
+/* ─── Phase 7 lite · Recovery Crescendo · drift-mode affordance ─── */
+
+interface RecoveryCrescendoCardProps {
+  smallestTask: Task | null;
+  onStart?: (taskId: string) => void | Promise<void>;
+  onComplete?: (taskId: string) => void | Promise<void>;
+}
+
+function RecoveryCrescendoCard({
+  smallestTask,
+  onStart,
+  onComplete,
+}: RecoveryCrescendoCardProps) {
+  return (
+    <div className="relative rounded-lg border border-sky-400/30 bg-sky-500/[0.04] p-4">
+      <span
+        aria-hidden
+        className="absolute left-0 top-0 bottom-0 w-[2px] rounded-l-lg bg-sky-400/70"
+      />
+
+      <div className="flex items-center gap-2 mb-2">
+        <Wind size={12} className="text-sky-300" strokeWidth={1.75} />
+        <span className="text-[9px] font-mono uppercase tracking-[0.18em] text-sky-300/80">
+          recovery crescendo · drift detected
+        </span>
+      </div>
+
+      <p className="text-[12px] text-[var(--text-secondary)] leading-snug mb-3">
+        Breathe. Pick the smallest possible move · the chain restarts from one.
+      </p>
+
+      {smallestTask ? (
+        <>
+          <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.08] px-3 py-2.5 mb-2.5">
+            <p className="text-[12px] font-medium text-[var(--text-primary)] leading-snug">
+              {smallestTask.title}
+            </p>
+            {smallestTask.effort && (
+              <p className="mt-1 text-[10px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                {smallestTask.effort} · smallest available
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {onStart && smallestTask.status !== "DOING" && (
+              <ActionButton
+                icon={<Play size={11} strokeWidth={2} className="fill-current" />}
+                label="Start small"
+                onClick={() => void onStart(smallestTask.id)}
+                variant="primary"
+                aria-label="start the smallest task"
+              />
+            )}
+            {onComplete && (
+              <ActionButton
+                icon={<Check size={12} strokeWidth={2.25} />}
+                label="Done"
+                onClick={() => void onComplete(smallestTask.id)}
+                variant="success"
+                aria-label="mark smallest task complete"
+              />
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="text-[11px] text-[var(--text-tertiary)] italic">
+          no tasks queued · capture one with ⌘K when you're ready
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Phase 7 lite · pick the task with the smallest declared effort.
+ *  Effort values are like "M5" / "M15" / "M30" / "M60" · parses the
+ *  number after M. Tasks without an effort hint sort last. Falls
+ *  back to the first task when no effort tags exist at all. */
+function pickSmallestTask(tasks: Task[]): Task | null {
+  const HIDDEN = new Set(["DONE", "ARCHIVED", "DELETED"]);
+  const active = tasks.filter((t) => !HIDDEN.has(t.status));
+  if (active.length === 0) return null;
+  const parseEffort = (e: string | undefined): number => {
+    if (!e) return Number.POSITIVE_INFINITY;
+    const match = /M(\d+)/.exec(e);
+    return match ? Number(match[1]) : Number.POSITIVE_INFINITY;
+  };
+  const sorted = [...active].sort((a, b) => parseEffort(a.effort) - parseEffort(b.effort));
+  return sorted[0] ?? null;
 }
 
 /* ─── Phase 2 helper · format elapsed ms for the anchor chip ───── */
