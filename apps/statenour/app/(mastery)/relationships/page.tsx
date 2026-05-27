@@ -44,6 +44,7 @@ import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
 import SocialProof from "@/components/power-atlas/SocialProof";
 import ReciprocityCard from "@/components/power-atlas/ReciprocityCard";
 import ToneShiftCard from "@/components/power-atlas/ToneShiftCard";
+import TopicGoalOverlapCard from "@/components/power-atlas/TopicGoalOverlapCard";
 
 interface PersonRow {
   id: string;
@@ -453,6 +454,7 @@ function DetailPanel({
               source: e.source,
             }))}
           />
+          <TopicGoalOverlapCard metadata={person.metadata} />
           <AlphaMoments personId={person.id} />
           <SocialProof personId={person.id} />
         </div>
