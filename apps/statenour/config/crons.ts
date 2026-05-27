@@ -602,6 +602,23 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 3 · Greene law auto-tagging ──
+  // Weekly Monday 07:00 UTC. Semantic-matches person state (role +
+  // status + trust + power + dark traits + ledger trend) against the
+  // 12 seeded Greene laws' applicabilityPrompts. Top-3 law numbers
+  // persisted into PersonProfile.applicableLaws · already consumed by
+  // the GreeneLawSidebar Phase 1 component. Caps 8 profiles/run.
+  // Silent · operator reads laws on /relationships.
+  {
+    name: "greene-law-tag-refresh",
+    schedule: "0 7 * * 1",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly Greene-law auto-tagging · top-3 applicable laws per person · ≤8 profiles/run",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
