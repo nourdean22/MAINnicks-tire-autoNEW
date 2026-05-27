@@ -2580,7 +2580,15 @@ model AutomationPolicy {
 model AutomationPolicyFire {
   id            String           @id @default(cuid())
   policyId      String           @map("policy_id")
-  policy        AutomationPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  /// 2026-05-27 · was onDelete: Cascade · changed to Restrict because
+  /// AutomationPolicy is in the SOFT_DELETE_MODELS list (lib/db/
+  /// soft-delete.ts:54). The whole point of soft-delete is to preserve
+  /// the audit trail (operator can answer "this policy used to fire ·
+  /// what did it do") — but a stray `prisma.automationPolicy.delete()`
+  /// (bypassing softDelete()) cascaded the fire history into the void
+  /// silently. Restrict forces any hard-delete to error loudly so the
+  /// soft-delete pattern is enforced at the DB level.
+  policy        AutomationPolicy @relation(fields: [policyId], references: [id], onDelete: Restrict)
   firedAt       DateTime         @default(now()) @map("fired_at")
   result        String // "success" | "failure" | "pending_approval" | "rolled_back"
   resultMessage String?          @map("result_message") @db.Text
