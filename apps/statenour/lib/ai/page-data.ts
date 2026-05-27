@@ -209,6 +209,132 @@ export async function buildPageData(page: string): Promise<string> {
     case "knowledge":
       return "Knowledge base search page. User is browsing their personal knowledge files.";
 
+    // ── Mastery surfaces (added 2026-05-26 for Phase 5 FULL propagation)
+    // Each surface has a NickSidePane mount calling /api/ai/side-pane-chat
+    // which falls back to buildPageData(page) when the client omits
+    // explicit data. Before today these 4 surfaces returned "" and Nick
+    // had zero page-specific grounding · now multi-turn replies see
+    // the same data shape the operator sees on screen.
+
+    case "goals": {
+      const [goals, scores] = await Promise.all([
+        prisma.lifeGoal.findMany({
+          where: { deletedAt: null, status: "active" },
+          orderBy: [{ horizon: "asc" }, { progress: "desc" }],
+          take: 12,
+          select: { title: true, domain: true, progress: true, horizon: true },
+        }),
+        prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 8 }),
+      ]);
+      return [
+        `${goals.length} active life goals.`,
+        goals.length > 0
+          ? `Top by progress: ${goals
+              .slice(0, 6)
+              .map(
+                (g) =>
+                  `"${g.title.slice(0, 50)}" ${g.progress}% (${g.domain}${g.horizon ? `/${g.horizon}` : ""})`,
+              )
+              .join(" · ")}`
+          : "",
+        scores.length > 0
+          ? `Axis scores: ${scores.map((s) => `${s.domain}=${s.score}`).join(", ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    case "journal": {
+      const sevenDaysAgo = daysAgo(7);
+      const [threads, recentEntries, dormantCount] = await Promise.all([
+        prisma.journalThread.findMany({
+          where: { status: "active" },
+          orderBy: { lastJoinAt: "desc" },
+          take: 6,
+          select: { name: true, lastJoinAt: true, coherence: true },
+        }),
+        prisma.journalThreadEntry.count({
+          where: { joinedAt: { gte: sevenDaysAgo } },
+        }),
+        prisma.journalThread.count({ where: { status: "dormant" } }),
+      ]);
+      return [
+        `${recentEntries} entries this week · ${threads.length} active threads · ${dormantCount} dormant.`,
+        threads.length > 0
+          ? `Active threads: ${threads
+              .map(
+                (t) =>
+                  `"${t.name.slice(0, 40)}"${t.coherence != null ? ` (c=${t.coherence.toFixed(2)})` : ""}`,
+              )
+              .join(" · ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    case "brain": {
+      const sevenDaysAgo = daysAgo(7);
+      const [recent, totalCount, topCategoriesRaw] = await Promise.all([
+        prisma.brainMemory.findMany({
+          where: { lastSeen: { gte: sevenDaysAgo } },
+          orderBy: { lastSeen: "desc" },
+          take: 6,
+          select: { category: true, content: true, confidence: true },
+        }),
+        prisma.brainMemory.count({ where: { lastSeen: { gte: sevenDaysAgo } } }),
+        prisma.brainMemory.groupBy({
+          by: ["category"],
+          where: { lastSeen: { gte: sevenDaysAgo } },
+          _count: true,
+          orderBy: { _count: { category: "desc" } },
+          take: 5,
+        }),
+      ]);
+      return [
+        `${totalCount} brain memories touched this week.`,
+        topCategoriesRaw.length > 0
+          ? `Top categories: ${topCategoriesRaw
+              .map((c) => `${c.category}(${c._count})`)
+              .join(", ")}.`
+          : "",
+        recent.length > 0
+          ? `Most recent: ${recent
+              .map(
+                (r) =>
+                  `[${r.category}/${r.confidence.toFixed(2)}] ${r.content.slice(0, 80)}`,
+              )
+              .join(" · ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
+    case "scoreboard": {
+      const [snapshot, activeAlerts, latestScores] = await Promise.all([
+        prisma.systemSnapshot
+          .findFirst({
+            where: { scope: "global" },
+            select: { headline: true, focus: true, startupStatus: true },
+          })
+          .catch(() => null),
+        prisma.driftAlert.count({ where: { resolved: false } }),
+        prisma.masteryScore.findMany({ orderBy: { date: "desc" }, take: 8 }),
+      ]);
+      return [
+        snapshot ? `Headline: ${snapshot.headline.slice(0, 120)}.` : "",
+        snapshot?.focus ? `Focus: ${snapshot.focus.slice(0, 80)}.` : "",
+        `${activeAlerts} unresolved drift alerts.`,
+        latestScores.length > 0
+          ? `Axis: ${latestScores.map((s) => `${s.domain}=${s.score}`).join(", ")}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+    }
+
     default:
       return "";
   }
