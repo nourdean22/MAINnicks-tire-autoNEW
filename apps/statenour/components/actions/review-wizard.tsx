@@ -1,19 +1,33 @@
 "use client";
 
 /**
- * ReviewWizard — 4-step weekly review flow.
+ * ReviewWizard — 5-step weekly review flow.
  *
- * Apr 27 · The REVIEW button on the NOW headline used to fire
- * setReviewOpen(true) but the sheet never landed on the layout. This
- * replaces the dead button with a real 4-step wizard:
+ * Apr 27 · Original 4-step wizard replaced the dead REVIEW button.
+ * 2026-05-27 · Step 5 ("Serve & Surprise") added per operator request
+ * to lift Tim Challies' "Do More Better" framework into the loop. The
+ * 4-step wizard already covered Get Clear (triage) + Get Current/Set
+ * (goal+project confirm) + Get Going (pick top 3). What it was missing:
+ * the per-week "where am I serving + where am I delighting?" prompts
+ * that distinguish the Challies framework from vanilla GTD reviews.
+ * Step 5 is two text fields (faithful · surprise) saved to BrainMemory
+ * via task.saveWeeklyReview so next Monday's recall can remind Nick
+ * what the operator pre-committed to.
  *
+ * Steps:
  *   1. Triage warnings   — stale routines, decaying goals, cold
  *                          projects, orphan tasks. keep / kill.
  *   2. Confirm goals     — every active goal: still active? pause?
+ *                          + each goal's "why" surfaced for mission
+ *                          alignment (Challies' "review your mission")
  *   3. Confirm projects  — every active project: still going?
  *                          archive cold ones?
  *   4. Pick top 3        — pin 3 routines for next week. Auto-pins
  *                          on NOW so they surface tomorrow.
+ *   5. Serve & Surprise  — operator types 1 "faithful" move +
+ *                          1 "surprise/delight" move for the week.
+ *                          Persisted to BrainMemory(category=
+ *                          "weekly_review", key=ISO-week).
  *
  * Mounted at the page level so the same instance can be opened from
  * NOW headline OR TRACK's "Run weekly review" button.
@@ -53,6 +67,9 @@ interface GoalRow {
   linkedActiveCount?: number;
   linkedDoneCount?: number;
   loopsThisWeek?: number;
+  /** 2026-05-27 · LifeGoal.why field · the "so that" clause · surfaced
+   *  in Step 2 for mission alignment per the Challies framework. */
+  why?: string | null;
 }
 
 interface ProjectRow {
@@ -74,7 +91,20 @@ interface ReviewWizardProps {
   pinnedIds?: Set<string>;
 }
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
+
+/** ISO week key · "YYYY-WNN" · used as the BrainMemory upsert key
+ *  so re-finishing the same week's review overwrites instead of
+ *  duplicating. Sunday = end of week → if review fires before
+ *  Monday morning, it slots into the *upcoming* week. */
+function isoWeekKey(d: Date = new Date()): string {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
 
 export function ReviewWizard({
   open,
@@ -93,11 +123,22 @@ export function ReviewWizard({
   const updateTask = trpc.task.update.useMutation();
   const goalsUpdate = trpc.task.goalsUpdate.useMutation();
   const missionUpdate = trpc.task.missionUpdate.useMutation();
+  // 2026-05-27 · weekly-review persistence · writes the Step 5 inputs +
+  // accumulator state to BrainMemory(category=weekly_review, key=ISO-week)
+  // on Finish. Idempotent · re-finishing the same week overwrites.
+  const saveReview = trpc.task.saveWeeklyReview.useMutation();
   // Step 1 — local set of warnings the user has already actioned so
   // the row hides without a refetch.
   const [actioned, setActioned] = useState<Set<string>>(new Set());
   // Step 4 — picks for next week (taskIds).
   const [pickedIds, setPickedIds] = useState<Set<string>>(new Set());
+  // Step 5 — Challies' "Serve & Surprise" lane. Two free-text fields ·
+  // operator types ONE "faithful" thing (the duty they owe somewhere)
+  // and ONE "surprise" thing (the act of delight they'll choose to do)
+  // for the upcoming week. Saved verbatim to BrainMemory so the
+  // operator + Nick can pull it back Monday morning.
+  const [serveText, setServeText] = useState("");
+  const [surpriseText, setSurpriseText] = useState("");
 
   // Reset when re-opened so each session is fresh.
   useEffect(() => {
@@ -105,6 +146,8 @@ export function ReviewWizard({
       setStep(1);
       setActioned(new Set());
       setPickedIds(new Set());
+      setServeText("");
+      setSurpriseText("");
     }
   }, [open]);
 
@@ -275,6 +318,25 @@ export function ReviewWizard({
           }
         }
       }
+      // 2026-05-27 · persist the full review to BrainMemory via
+      // task.saveWeeklyReview so Nick can recall the operator's
+      // Serve+Surprise commitments + pinned-for-week picks during
+      // Monday morning chats. Best-effort · localStorage fallback
+      // below preserves delta-panel behavior if the server save fails.
+      const weekKey = isoWeekKey();
+      try {
+        await saveReview.mutateAsync({
+          weekKey,
+          warningsActioned: actioned.size,
+          pickedTaskIds: [...pickedIds],
+          serveText: serveText.trim(),
+          surpriseText: surpriseText.trim(),
+        });
+      } catch (err) {
+        // Server save failed · still close the wizard. The localStorage
+        // snapshot below ensures the delta panel still works.
+        console.warn("[ReviewWizard] saveWeeklyReview failed:", err);
+      }
       // Save snapshot to localStorage so next week's delta panel
       // can compare. Single key, last-snapshot-wins.
       try {
@@ -283,12 +345,15 @@ export function ReviewWizard({
           warningCount: warnings.length + actioned.size,
           actionedCount: actioned.size,
           pickedIds: [...pickedIds],
+          weekKey,
+          serveText: serveText.trim(),
+          surpriseText: surpriseText.trim(),
         };
         localStorage.setItem("nour:lastReview", JSON.stringify(snapshot));
       } catch {
         // ignore
       }
-      toast.success("Weekly review saved · top 3 pinned");
+      toast.success("Weekly review saved · top 3 pinned · serve & surprise locked");
       onClose();
     } finally {
       setBusy(false);
@@ -311,7 +376,7 @@ export function ReviewWizard({
               Weekly review
             </span>
             <span className="text-[9px] text-zinc-600 font-mono">
-              step {step}/4
+              step {step}/5
             </span>
           </div>
           <button
@@ -325,7 +390,7 @@ export function ReviewWizard({
 
         {/* Step indicator */}
         <div className="flex border-b border-zinc-800/40">
-          {[1, 2, 3, 4].map((n) => (
+          {[1, 2, 3, 4, 5].map((n) => (
             <div
               key={n}
               className={cn(
@@ -425,17 +490,25 @@ export function ReviewWizard({
                 {activeGoals.map((g) => (
                   <div
                     key={g.id}
-                    className="flex items-center gap-2 p-2 rounded-md border border-zinc-800/40 bg-zinc-900/30 text-[10px]"
+                    className="flex items-start gap-2 p-2 rounded-md border border-zinc-800/40 bg-zinc-900/30 text-[10px]"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-zinc-200 truncate font-medium">{g.title}</p>
-                      <p className="text-[8px] text-zinc-500 font-mono">
+                      <p className="text-zinc-200 font-medium">{g.title}</p>
+                      <p className="text-[8px] text-zinc-500 font-mono mt-0.5">
                         {g.progress}% · {g.currentValue}/{g.targetValue}
                       </p>
+                      {/* 2026-05-27 · render the "so that" clause when present ·
+                       *  Challies framework: review your mission statements as
+                       *  you confirm goals so the alignment is fresh in your head. */}
+                      {g.why && g.why.trim().length > 0 && (
+                        <p className="text-[9px] italic text-zinc-400 mt-1 leading-snug">
+                          → {g.why}
+                        </p>
+                      )}
                     </div>
                     <button
                       onClick={() => void pauseGoal(g.id, `keep-${g.id}`)}
-                      className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300 hover:bg-amber-500/10"
+                      className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-500/30 text-amber-300 hover:bg-amber-500/10 shrink-0 mt-0.5"
                     >
                       pause
                     </button>
@@ -556,6 +629,62 @@ export function ReviewWizard({
               </p>
             </>
           )}
+
+          {step === 5 && (
+            <>
+              {/* 2026-05-27 · Challies' "Serve & Surprise" lane · the
+               *  unique-to-this-framework step that asks operator to
+               *  pre-commit not just to what they MUST do (faithful) but
+               *  also to one act of delight (surprise). Free-text both ·
+               *  saved verbatim to BrainMemory · Nick can pull these back
+               *  Monday morning to remind operator what they committed to. */}
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[12px]">🎁</span>
+                <h3 className="text-[12px] font-bold text-zinc-100">
+                  Serve &amp; surprise
+                </h3>
+              </div>
+              <p className="text-[10px] text-zinc-500 italic">
+                Two things for the week ahead — one faithful, one to delight someone.
+              </p>
+              <div className="space-y-3 mt-3">
+                <div className="space-y-1">
+                  <label className="block text-[9px] uppercase tracking-wider text-emerald-400/80 font-mono">
+                    Faithful · the duty I owe somewhere
+                  </label>
+                  <textarea
+                    value={serveText}
+                    onChange={(e) => setServeText(e.target.value.slice(0, 500))}
+                    placeholder="What basic act of service do you owe somewhere this week?"
+                    rows={2}
+                    className="w-full rounded-md border border-zinc-700/50 bg-zinc-900/50 px-2 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none resize-none transition-colors"
+                  />
+                  <p className="text-[8px] text-zinc-600 font-mono text-right tabular-nums">
+                    {serveText.length}/500
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-[9px] uppercase tracking-wider text-amber-400/80 font-mono">
+                    Surprise · the act of delight I&apos;ll choose
+                  </label>
+                  <textarea
+                    value={surpriseText}
+                    onChange={(e) => setSurpriseText(e.target.value.slice(0, 500))}
+                    placeholder="Who will you surprise · and how? (Card · gift · call · time · prayer · etc.)"
+                    rows={2}
+                    className="w-full rounded-md border border-zinc-700/50 bg-zinc-900/50 px-2 py-1.5 text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500/40 focus:outline-none resize-none transition-colors"
+                  />
+                  <p className="text-[8px] text-zinc-600 font-mono text-right tabular-nums">
+                    {surpriseText.length}/500
+                  </p>
+                </div>
+                <p className="text-[8px] text-zinc-600 italic leading-snug">
+                  Saved to your brain · Nick will surface these Monday morning so
+                  you don&apos;t forget what you committed to.
+                </p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Footer */}
@@ -569,7 +698,7 @@ export function ReviewWizard({
           >
             {step === 1 ? "cancel" : "← back"}
           </button>
-          {step < 4 ? (
+          {step < 5 ? (
             <button
               onClick={() => setStep((s) => (s + 1) as Step)}
               className="inline-flex items-center gap-1 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/15 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/25"
