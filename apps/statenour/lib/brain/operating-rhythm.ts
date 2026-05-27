@@ -25,14 +25,18 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { queryNick } from "@/lib/nickstire/query";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo } from "@/lib/utils/datetime";
+import { today } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/operating-rhythm");
 
-type RhythmSlot = "peak_start" | "mid_morning" | "operations" | "pre_close" | "shutdown";
+// 2026-05-27 · operator volume cleanup · "shutdown" slot retired.
+// proactive-push evening slot at 9pm ET already covers the same
+// territory (per-day deduplicated, energy-aware) so this was a
+// structurally redundant ping. Down from 5 → 4 slots.
+type RhythmSlot = "peak_start" | "mid_morning" | "operations" | "pre_close";
 
 /**
  * Get the current rhythm slot based on time of day.
@@ -47,8 +51,58 @@ function getCurrentSlot(): RhythmSlot | null {
   if (hour === 11) return "mid_morning";
   if (hour === 14) return "operations";
   if (hour === 17) return "pre_close";
-  if (hour === 21) return "shutdown";
+  // 9pm ET (hour === 21) retired · proactive-push evening covers it.
   return null;
+}
+
+/**
+ * 2026-05-27 · operator volume cleanup · per-slot per-day dedup
+ * marker. Pre-fix: operating-rhythm had ZERO dedup, so Vercel cron
+ * retries / Railway restarts / manual triggers could fire the same
+ * slot's Telegram twice. Up to 5 slots × possible doubles = 10
+ * pings/day risk on this lane alone. Pattern copied from
+ * lib/brain/proactive-pushes.ts:57-81 — reuse PROACTIVE_PUSH_SENT
+ * category with `rhythm_` key prefix so the existing 14d TTL hygiene
+ * cron also reaps these (no new category needed).
+ */
+async function rhythmAlreadyPushed(slot: RhythmSlot, dateKey: string): Promise<boolean> {
+  const row = await prisma.brainMemory
+    .findUnique({
+      where: {
+        category_key: {
+          category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+          key: `rhythm_${slot}_${dateKey}`,
+        },
+      },
+      select: { id: true },
+    })
+    .catch(() => null);
+  return row !== null;
+}
+
+async function markRhythmPushed(slot: RhythmSlot, dateKey: string): Promise<void> {
+  await prisma.brainMemory
+    .upsert({
+      where: {
+        category_key: {
+          category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+          key: `rhythm_${slot}_${dateKey}`,
+        },
+      },
+      create: {
+        category: BRAIN_CATEGORIES.PROACTIVE_PUSH_SENT,
+        key: `rhythm_${slot}_${dateKey}`,
+        content: `rhythm ${slot} pushed at ${new Date().toISOString()}`,
+        source: "operating-rhythm-cron",
+        confidence: 1.0,
+        expiresAt: new Date(Date.now() + 48 * 3600_000),
+      },
+      update: {
+        content: `rhythm ${slot} pushed at ${new Date().toISOString()}`,
+        lastSeen: new Date(),
+      },
+    })
+    .catch(() => undefined);
 }
 
 /**
@@ -174,13 +228,30 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
 
     case "mid_morning":
       // 11 AM — Mid-morning check
-      message =
-        `📊 <b>MID-MORNING CHECK — 11:00 AM</b>\n\n` +
-        `Revenue: <b>$${todayRevenue.toLocaleString()}</b> (${todayJobCount} jobs)\n` +
-        `${staleLeads > 0 ? `🔴 ${staleLeads} stale leads STILL waiting\n` : "✅ No stale leads\n"}` +
-        `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks\n` : ""}` +
-        `Tasks: ${openLoops} | Commitments: ${commitments}\n` +
-        `\n1 hour of peak focus left. Most important call to make?`;
+      // 2026-05-27 · revenue cliff alert prepend. By 11am ET on a
+      // weekday, zero revenue + zero jobs is the single highest-
+      // signal operational anomaly · means dead payment terminal,
+      // closed shop, or down bridge. Pre-fix the mid-morning ping
+      // just rendered "$0 (0 jobs)" buried in the metric line · no
+      // alarm. Now: red banner at the top so the eye lands on it.
+      // Weekends skipped (revenue legitimately zero).
+      {
+        const dayOfWeek = new Date().getDay(); // 0=Sun, 6=Sat (UTC OK · close enough at 11am ET)
+        const isWeekday = dayOfWeek !== 0 && dayOfWeek !== 6;
+        const cliffBanner =
+          isWeekday && todayRevenue === 0 && todayJobCount === 0
+            ? `🔴 <b>ZERO REVENUE — no jobs logged today</b>\nCheck payment terminal · shop open? · bridge alive?\n\n`
+            : "";
+
+        message =
+          cliffBanner +
+          `📊 <b>MID-MORNING CHECK — 11:00 AM</b>\n\n` +
+          `Revenue: <b>$${todayRevenue.toLocaleString()}</b> (${todayJobCount} jobs)\n` +
+          `${staleLeads > 0 ? `🔴 ${staleLeads} stale leads STILL waiting\n` : "✅ No stale leads\n"}` +
+          `${pendingCallbacks > 0 ? `📞 ${pendingCallbacks} callbacks\n` : ""}` +
+          `Tasks: ${openLoops} | Commitments: ${commitments}\n` +
+          `\n1 hour of peak focus left. Most important call to make?`;
+      }
       break;
 
     case "operations":
@@ -229,51 +300,26 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         `• Set tomorrow's MIT`;
       break;
 
-    case "shutdown":
-      // 9 PM — Shutdown ritual
-      // Check for evening commitments pattern
-      const eveningCommitments = await prisma.commitment.count({
-        where: {
-          createdAt: {
-            gte: new Date(new Date().setHours(21, 0, 0, 0)),
-          },
-        },
-      }).catch(() => 0);
-
-      const recentEveningCommitments = await prisma.commitment.findMany({
-        where: {
-          createdAt: {
-            gte: daysAgo(14),
-          },
-          status: { in: ["broken", "abandoned"] },
-          deletedAt: null,
-        },
-        select: { createdAt: true },
-      }).catch((): Array<{ createdAt: Date }> => []);
-
-      const eveningAbandoned = recentEveningCommitments.filter(c => {
-        const hour = new Date(c.createdAt).getHours();
-        return hour >= 21;
-      }).length;
-
-      message =
-        `🌙 <b>SHUTDOWN RITUAL — 9:00 PM</b>\n\n` +
-        `${!todayScore ? "⚠️ SCORE NOT LOGGED — do it NOW (30 seconds)\n\n" : ""}` +
-        `Today: $${todayRevenue.toLocaleString()} revenue\n` +
-        `${openLoops > 5 ? `⚠️ ${openLoops} active tasks — too many. Close 2 tomorrow morning.\n` : ""}` +
-        `\n<b>Rules for tonight:</b>\n` +
-        `❌ No new projects\n` +
-        `❌ No new commitments\n` +
-        `❌ No financial decisions\n` +
-        `✅ Log your score\n` +
-        `✅ Plan tomorrow's MIT\n` +
-        `✅ Phone in another room by 10:30pm` +
-        `${eveningAbandoned >= 2 ? `\n\n⚠️ You've abandoned ${eveningAbandoned} commitments made after 9pm in the last 2 weeks. Your night brain lies to you. Write it down, we evaluate at 9am.` : ""}`;
-      break;
+    // 2026-05-27 · "shutdown" 9pm slot retired · proactive-push
+    // evening slot (1 UTC = 9pm ET) already fires an energy-aware
+    // shutdown nudge with per-day dedup. This case is unreachable
+    // because getCurrentSlot() no longer returns "shutdown" — kept
+    // the surrounding switch shape exhaustive on RhythmSlot.
   }
 
   if (message) {
-    await sendTelegram(message).catch(() => {});
+    // 2026-05-27 · dedup guard. Check BEFORE send · skip + return if
+    // this slot already fired today. Marker is written AFTER successful
+    // send so a transient sendTelegram failure (Telegram outage) leaves
+    // the slot eligible for retry on the next cron tick.
+    if (await rhythmAlreadyPushed(activeSlot, todayStr)) {
+      return { slot: activeSlot, sent: false, message: "already_sent_today" };
+    }
+
+    const sent = await sendTelegram(message).catch(() => false);
+    if (sent) {
+      await markRhythmPushed(activeSlot, todayStr);
+    }
 
     // Store rhythm execution
     await prisma.auditEvent.create({
@@ -281,7 +327,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
         actor: "operating-rhythm",
         eventType: "rhythm_executed",
         detail: `${activeSlot}: ${todayStr}`,
-        payload: { slot: activeSlot, revenue: todayRevenue, tasks: openLoops, staleLeads } as any,
+        payload: { slot: activeSlot, revenue: todayRevenue, tasks: openLoops, staleLeads, sent } as never,
       },
     }).catch(() => {});
 
@@ -292,7 +338,9 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       `RHYTHM [${activeSlot}] ${todayStr}: Revenue $${todayRevenue}, ${staleLeads} stale leads, ${openLoops} tasks, score ${todayScore ? "logged" : "NOT logged"}`,
       "operating-rhythm-engine",
     ).catch(() => {});
+
+    return { slot: activeSlot, sent, message: message.slice(0, 200) };
   }
 
-  return { slot: activeSlot, sent: !!message, message: message.slice(0, 200) };
+  return { slot: activeSlot, sent: false, message: message.slice(0, 200) };
 }

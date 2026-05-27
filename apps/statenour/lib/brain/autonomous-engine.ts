@@ -254,13 +254,26 @@ const RULES: ActionRule[] = [
     targetType: "daily_score",
   },
 
-  // ── Commitment check-in (3 days old) ──────────────────────
+  // ── Commitment check-in (3-5 days old window) ──────────────
+  // 2026-05-27 · operator volume cleanup. Pre-fix this fired on
+  // EVERY active commitment 3+ days old · commitment_escalation_day5
+  // ALSO fired on every commitment 5+ days old · with 3 active
+  // commitments aged 7+ days that's up to 6 Telegram pings per
+  // cron run. The 48h cross-rule suppressor only partially helped.
+  // Fix: this rule now ONLY fires on 3-5d-old commitments · 5+d
+  // belongs to commitment_escalation_day5 exclusively. Hard ceiling
+  // of one rule firing per commitment regardless of age.
   {
     name: "commitment_checkin",
     trigger: async () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+      const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
       return prisma.commitment.findMany({
-        where: { status: "active", createdAt: { lte: threeDaysAgo }, deletedAt: null },
+        where: {
+          status: "active",
+          createdAt: { lte: threeDaysAgo, gte: fiveDaysAgo },
+          deletedAt: null,
+        },
         take: 3,
       });
     },

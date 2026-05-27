@@ -35,6 +35,12 @@ const SOURCE_CATEGORIES = [
   "creation_spike_alert",
   "update_spike_alert",
   "brain_bus_alert",
+  // 2026-05-27 · cron-watcher Telegram gap close. The watcher cron
+  // detects scheduled crons that have gone silent beyond 2× SLA but
+  // wrote to auditEvent only · the bridge couldn't see it. Watcher
+  // now mirrors to BrainMemory(category="watcher_alert") with
+  // per-day idempotency · this row picks it up.
+  "watcher_alert",
 ] as const;
 const PUSHED_MARKER_CATEGORY = "alert_pushed";
 // v9.1.16 · was 30 (with cron firing every 15 min, every run scanned
@@ -52,6 +58,7 @@ const FRIENDLY_LABEL: Record<string, string> = {
   creation_spike_alert: "🌊 Creation spike",
   update_spike_alert: "🔁 Update spike",
   brain_bus_alert: "🛰️ Brain-bus probe",
+  watcher_alert: "🕵️ Cron silent",
 };
 
 export interface PushReport {
