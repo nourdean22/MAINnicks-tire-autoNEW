@@ -26,7 +26,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles, X } from "lucide-react";
+import { Sparkles, X, Plus } from "lucide-react";
 
 interface OmniCaptureModalProps {
   /** Handler called with the operator-typed string when they press Enter.
@@ -102,7 +102,22 @@ export function OmniCaptureModal({
     }
   }, [text, submitting, onCapture]);
 
-  if (!open) return null;
+  // Mobile sweep #3 (2026-05-27) · render a mobile-only "+" FAB when
+  // closed so iOS PWA operators have a tap path to omni-capture (⌘K
+  // is keyboard-only). Positioned bottom-LEFT to stay clear of the
+  // brain FAB (bottom-right). Hidden on desktop where ⌘K dominates.
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="omni capture"
+        className="lg:hidden fixed bottom-4 left-4 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--gold)]/40 bg-[var(--bg-base)]/95 backdrop-blur-sm text-[var(--gold)] shadow-lg shadow-[var(--gold)]/10 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 pb-[env(safe-area-inset-bottom,0px)]"
+      >
+        <Plus size={18} strokeWidth={2} />
+      </button>
+    );
+  }
 
   return (
     <div
@@ -129,7 +144,7 @@ export function OmniCaptureModal({
           <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
             omni capture
           </span>
-          <span className="ml-auto text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
+          <span className="ml-auto hidden lg:inline text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
             ⌘K · esc to close
           </span>
           <button

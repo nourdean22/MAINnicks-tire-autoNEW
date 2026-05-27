@@ -1362,7 +1362,7 @@ export function LoopStream({
           const sectionHeader = showKindHeader ? (
             <div
               key={`section-kind-${kind}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]/95 backdrop-blur-sm"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role
@@ -1382,7 +1382,7 @@ export function LoopStream({
             // have a clean glyph and a colored dot would noise the row.
             <div
               key={`section-status-${task.status}-${idx}`}
-              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]"
+              className="sticky top-0 z-10 flex items-center gap-1.5 px-2 pt-2 pb-1 text-[8px] font-mono uppercase tracking-wider text-zinc-600 bg-[var(--bg-base)]/95 backdrop-blur-sm"
               // 2026-05-24 · Wave U ux-F12 · pre-fix aria-hidden hid
               // real structural cue from VoiceOver · screen-reader
               // operator heard a flat list with no grouping. Now: role

@@ -459,20 +459,37 @@ function LoopRowItemImpl(props: LoopRowItemProps) {
     >
       {/* v10.0.529.19 · F12 swipe-direction hint edges. Gold = right (complete),
           rose = left (snooze). Opacity scales with travel · pointer-events none
-          so they never block the underlying tap targets. */}
+          so they never block the underlying tap targets.
+          Mobile sweep #3 (2026-05-27) · once dx crosses the 60px threshold the
+          edge widens + reveals an inline label · operator gets a "will fire on
+          release" signal instead of guessing the threshold. */}
       {swipeDx > 0 && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 right-0 w-1 rounded-r-lg bg-amber-400"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 right-0 rounded-r-lg bg-amber-400 transition-[width] duration-100",
+            Math.abs(swipeDx) >= 60 ? "w-14 flex items-center justify-center" : "w-1",
+          )}
           style={{ opacity: swipeOpacity }}
-        />
+        >
+          {Math.abs(swipeDx) >= 60 ? (
+            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-950 font-semibold">done</span>
+          ) : null}
+        </div>
       )}
       {swipeDx < 0 && (
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-y-0 left-0 w-1 rounded-l-lg bg-rose-400"
+          className={cn(
+            "pointer-events-none absolute inset-y-0 left-0 rounded-l-lg bg-rose-400 transition-[width] duration-100",
+            Math.abs(swipeDx) >= 60 ? "w-14 flex items-center justify-center" : "w-1",
+          )}
           style={{ opacity: swipeOpacity }}
-        />
+        >
+          {Math.abs(swipeDx) >= 60 ? (
+            <span className="text-[9px] font-mono uppercase tracking-wider text-zinc-950 font-semibold">snooze</span>
+          ) : null}
+        </div>
       )}
       <button
         onClick={() => onComplete(task.id)}

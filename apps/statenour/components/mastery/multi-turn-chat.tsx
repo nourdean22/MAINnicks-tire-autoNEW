@@ -90,12 +90,26 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
   const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   // Restore on mount.
   useEffect(() => {
     setTurns(readStored(page));
   }, [page]);
+
+  // Mobile sweep #3 (2026-05-27) · auto-focus the input on mount so the
+  // operator's first keystroke lands in the chat after tapping the brain
+  // FAB. iOS Safari blocks programmatic focus outside a user gesture, but
+  // the FAB tap that mounts this component IS the user gesture in the
+  // same React tick · the focus call succeeds. If it ever doesn't (iOS
+  // PWA edge cases), the input is still tappable.
+  useEffect(() => {
+    // Small timeout lets the sheet's slide-in animation settle so the
+    // keyboard appearing doesn't fight the panel transition.
+    const t = setTimeout(() => inputRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, []);
 
   // Auto-scroll when turns change or while streaming.
   useEffect(() => {
@@ -274,6 +288,7 @@ export function MultiTurnChat({ page, data, focus, presets }: MultiTurnChatProps
        *  bumped from 40 → 44 in the 2026-05-26 mobile-tightening pass). */}
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
+          ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
