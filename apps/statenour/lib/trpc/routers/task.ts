@@ -1078,4 +1078,159 @@ export const taskRouter = router({
       }
     }),
 
+  // ─── Power Atlas · 2026-05-27 ───────────────────────────────
+  personProfile: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const person = await prisma.personProfile.findUnique({
+        where: { id: input.personId },
+      });
+      if (!person) return null;
+      const ledger = await prisma.relationshipLedger.findMany({
+        where: { personId: input.personId },
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      });
+      const plays = await prisma.relationshipPlay.findMany({
+        where: { personId: input.personId },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+      const applicableLawTexts = person.applicableLaws.length
+        ? await prisma.brainMemory.findMany({
+            where: {
+              category: "greene_law",
+              key: { in: person.applicableLaws.map((n) => `law_${n}`) },
+            },
+            select: { key: true, content: true },
+          })
+        : [];
+      return { person, ledger, plays, applicableLawTexts };
+    }),
+
+  logLedger: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        amount: z.number().int().min(-100).max(100),
+        note: z.string().min(1).max(2000),
+        source: z
+          .enum([
+            "gmail",
+            "calendar",
+            "chat",
+            "telegram",
+            "manual",
+            "auto",
+            "greene_play",
+          ])
+          .default("manual"),
+        metadata: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { enqueueLedgerEmbed } = await import("@/lib/brain/people-embed-hook");
+      const ledger = await prisma.relationshipLedger.create({
+        data: {
+          personId: input.personId,
+          amount: input.amount,
+          note: input.note,
+          source: input.source,
+          metadata: input.metadata as never,
+        },
+      });
+      await prisma.personProfile
+        .update({
+          where: { id: input.personId },
+          data: {
+            interactionCount: { increment: 1 },
+            lastInteraction: new Date(),
+          },
+        })
+        .catch(() => null);
+      void enqueueLedgerEmbed(ledger.id, input.note);
+      return { ok: true, ledger };
+    }),
+
+  flipPersonStatus: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        status: z.enum(["active", "cooling", "dormant", "blown_up"]),
+        blowUpReason: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const before = await prisma.personProfile.findUnique({
+        where: { id: input.personId },
+      });
+      if (!before) throw new Error("Person not found");
+
+      if (
+        input.status === "blown_up" &&
+        (!input.blowUpReason || input.blowUpReason.length < 5)
+      ) {
+        throw new Error("Blow-up requires a reason (min 5 chars)");
+      }
+
+      const data: Record<string, unknown> = { status: input.status };
+      if (input.status === "blown_up") {
+        data.blownUpAt = new Date();
+        data.blowUpReason = input.blowUpReason;
+      } else if (before.status === "blown_up") {
+        // Revive · keep blownUpAt + reason as history but clear status
+        data.blownUpAt = null;
+      }
+
+      const after = await prisma.personProfile.update({
+        where: { id: input.personId },
+        data,
+      });
+
+      // Log the status flip as a ledger event for audit trail
+      const reasonSuffix = input.blowUpReason
+        ? `: ${input.blowUpReason.slice(0, 200)}`
+        : "";
+      await prisma.relationshipLedger
+        .create({
+          data: {
+            personId: input.personId,
+            amount:
+              input.status === "blown_up" ? -50 : input.status === "active" ? 0 : -5,
+            note: `Status: ${before.status} → ${input.status}${reasonSuffix}`,
+            source: "manual",
+            metadata: {
+              kind: "status_flip",
+              before: before.status,
+              after: input.status,
+            } as never,
+          },
+        })
+        .catch(() => null);
+
+      return { ok: true, before: before.status, after: after.status };
+    }),
+
+  updateDossier: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        dossierMd: z.string().max(20000),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { enqueuePersonEmbed } = await import(
+        "@/lib/brain/people-embed-hook"
+      );
+      await prisma.personProfile.update({
+        where: { id: input.personId },
+        data: {
+          dossierMd: input.dossierMd,
+          dossierUpdatedAt: new Date(),
+        },
+      });
+      void enqueuePersonEmbed(input.personId);
+      return { ok: true };
+    }),
+
 });
