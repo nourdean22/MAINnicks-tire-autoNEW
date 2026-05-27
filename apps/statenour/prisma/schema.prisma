@@ -2019,7 +2019,7 @@ model CausalChain {
 model PersonProfile {
   id               String    @id @default(cuid())
   name             String    @unique
-  role             String // employee, customer, vendor, family, competitor, advisor
+  role             String // employee, customer, vendor, family, competitor, advisor, friend, close_friend, mentor, mentee, ex_friend, acquaintance, network_only, romantic, ex_romantic, enemy, rival
   relationship     String    @db.Text // How they relate to Nour
   patterns         Json? // Behavioral patterns observed
   trustScore       Float     @default(0.5) @map("trust_score") // 0-1
@@ -2030,11 +2030,91 @@ model PersonProfile {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
+  // 2026-05-27 · Power Atlas Phase 0 ── core lifecycle ──
+  status           String    @default("active") @map("status")
+  blownUpAt        DateTime? @map("blown_up_at")
+  blowUpReason     String?   @map("blow_up_reason") @db.Text
+  birthday         String? // ISO date "1985-03-14" · year may be 1900 placeholder if unknown
+  anniversary      String?
+  dossierMd        String?   @map("dossier_md") @db.Text
+  dossierUpdatedAt DateTime? @map("dossier_updated_at")
+  cadenceDays      Int?      @map("cadence_days")
+  deletedAt        DateTime? @map("deleted_at")
+
+  // 2026-05-27 · Power Atlas Phase 0 ── Greene corpus ──
+  greeneType      String?  @map("greene_type")
+  applicableLaws  Int[]    @default([]) @map("applicable_laws")
+  darkTraits      String[] @default([]) @map("dark_traits")
+  seducerType     String?  @map("seducer_type")
+  mentorshipRole  String?  @map("mentorship_role")
+  currentStrategy String?  @map("current_strategy")
+
+  // 2026-05-27 · Power Atlas Phase 0 ── power dynamics ──
+  powerBalance Float @default(0.0) @map("power_balance")
+
+  // 2026-05-27 · Power Atlas Phase 2 (columns added now to avoid Phase 2 migration) ──
+  behavioralFingerprint Json? @map("behavioral_fingerprint")
+  psychographicLadder   Json? @map("psychographic_ladder")
+  lastArcPlan           Json? @map("last_arc_plan")
+  powerPlaysHistory     Json? @map("power_plays_history")
+
+  ledger RelationshipLedger[]
+  plays  RelationshipPlay[]
+
   @@index([role])
   @@index([trustScore])
+  @@index([status])
+  @@index([role, status])
+  @@index([birthday])
+  @@index([cadenceDays])
+  @@index([greeneType])
+  @@index([powerBalance])
+  @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
   @@map("person_profiles")
+}
+
+/// 2026-05-27 · Power Atlas Phase 0 · per-person event log.
+/// Each row = one deposit/withdrawal/blow-up/etc. Signed `amount` ·
+/// no kind enum (sign tells the story). `source` distinguishes auto
+/// (gmail/calendar/chat) from manual (operator typed it).
+model RelationshipLedger {
+  id       String        @id @default(cuid())
+  personId String        @map("person_id")
+  person   PersonProfile @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  amount    Int
+  note      String   @db.Text
+  source    String // gmail | calendar | chat | telegram | manual | auto | greene_play
+
+  metadata Json?
+
+  @@index([personId, createdAt])
+  @@index([source])
+  @@index([createdAt])
+  @@map("relationship_ledger")
+}
+
+/// 2026-05-27 · Power Atlas Phase 2 (table added in Phase 0 migration
+/// to avoid Phase 2 schema work) · log of power-plays operator executed.
+/// kind enum: arc_plan | message_draft | scarcity_play | reciprocity_assess
+model RelationshipPlay {
+  id       String        @id @default(cuid())
+  personId String        @map("person_id")
+  person   PersonProfile @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  kind        String
+  inputCtx    Json     @map("input_ctx")
+  output      Json
+  outcome     String?
+  outcomeNote String?  @map("outcome_note") @db.Text
+
+  @@index([personId, createdAt])
+  @@index([kind])
+  @@map("relationship_plays")
 }
 
 // L12: Environmental Awareness — external forces beyond Nour's control
