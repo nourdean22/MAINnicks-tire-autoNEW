@@ -452,6 +452,9 @@ function TasksPageInner() {
             linkedActiveCount: g.linkedActiveCount,
             linkedDoneCount: g.linkedDoneCount,
             loopsThisWeek: g.loopsThisWeek,
+            // 2026-05-27 · thread LifeGoal.why through so the
+            // ReviewWizard Step 2 can surface the "so that" clause.
+            why: (g as GoalCacheEntry & { why?: string | null }).why ?? null,
           })),
       );
       // Brain focus line (non-blocking) · Phase PP migrates to

@@ -256,6 +256,15 @@ export const BRAIN_CATEGORIES = {
    *  /brain/board surface can replay any past consultation. Read by
    *  a future "board history" card. */
   BOARD_CONSULTATION: "board_consultation",
+  /** 2026-05-27 · operator-driven · weekly review snapshot per
+   *  ISO week (key shape `YYYY-WNN`). Written by ReviewWizard's
+   *  finishWizard → task.saveWeeklyReview mutation. Metadata
+   *  carries the operator's "serve & surprise" commitments for
+   *  the week plus the warnings actioned + pinned task IDs. Read
+   *  by Monday-morning recall so Nick remembers what the operator
+   *  committed to. Tim Challies' "Do More Better" framework
+   *  (Get Clear → Get Current → Get Set → Get Going + Serve & Surprise). */
+  WEEKLY_REVIEW: "weekly_review",
 
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */

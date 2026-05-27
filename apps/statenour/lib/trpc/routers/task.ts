@@ -844,6 +844,76 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-05-27 · weekly review persist · operator-driven addition of
+   * Tim Challies' "Serve and Surprise" lane to the ReviewWizard.
+   *
+   * Writes a single BrainMemory(category="weekly_review", key=ISO-week)
+   * row per week. Idempotent · re-saving the same week's review
+   * overwrites (operator can finish + tweak without duplicate rows).
+   *
+   * The review is the operator's pre-commitment for the week ahead ·
+   * Monday morning the brain can pull it back via standard recall to
+   * remind Nick what the operator said they'd do.
+   */
+  saveWeeklyReview: operatorProcedure
+    .input(
+      z.object({
+        weekKey: z.string().min(8).max(20), // YYYY-WNN
+        warningsActioned: z.number().int().min(0).default(0),
+        pickedTaskIds: z.array(z.string().min(1).max(64)).max(10).default([]),
+        serveText: z.string().max(500).default(""),
+        surpriseText: z.string().max(500).default(""),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const { BRAIN_CATEGORIES } = await import("@/lib/brain/categories");
+      const summary = [
+        input.serveText && `serve · ${input.serveText.slice(0, 120)}`,
+        input.surpriseText && `surprise · ${input.surpriseText.slice(0, 120)}`,
+        `${input.warningsActioned} warnings actioned`,
+        `${input.pickedTaskIds.length} pinned`,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const row = await prisma.brainMemory.upsert({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.WEEKLY_REVIEW ?? "weekly_review",
+            key: input.weekKey,
+          },
+        },
+        create: {
+          category: BRAIN_CATEGORIES.WEEKLY_REVIEW ?? "weekly_review",
+          key: input.weekKey,
+          content: summary.slice(0, 500) || `Weekly review · ${input.weekKey}`,
+          confidence: 1.0,
+          source: "review-wizard",
+          metadata: {
+            weekKey: input.weekKey,
+            warningsActioned: input.warningsActioned,
+            pickedTaskIds: input.pickedTaskIds,
+            serveText: input.serveText,
+            surpriseText: input.surpriseText,
+            savedAt: new Date().toISOString(),
+          } as never,
+        },
+        update: {
+          content: summary.slice(0, 500) || `Weekly review · ${input.weekKey}`,
+          metadata: {
+            weekKey: input.weekKey,
+            warningsActioned: input.warningsActioned,
+            pickedTaskIds: input.pickedTaskIds,
+            serveText: input.serveText,
+            surpriseText: input.surpriseText,
+            savedAt: new Date().toISOString(),
+          } as never,
+        },
+      });
+      return { ok: true, id: row.id };
+    }),
+
+  /**
    * Phase WW · owner-only · all mission-to-mission links touching one
    * mission (outbound + inbound). Replaces GET /api/missions/[id]/links
    * · delegates to `mission-links.getLinksFor`. Returns `{ links }` to

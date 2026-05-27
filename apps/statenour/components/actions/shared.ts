@@ -51,6 +51,11 @@ export interface GoalCacheEntry {
   linkedActiveCount?: number;
   linkedDoneCount?: number;
   loopsThisWeek?: number;
+  /** 2026-05-27 · "so that" clause from LifeGoal.why · surfaced in
+   *  ReviewWizard Step 2 so mission alignment is fresh during the
+   *  weekly review (Challies framework). Nullable · operators may
+   *  not have filled this in for older goals. */
+  why?: string | null;
 }
 
 /**
