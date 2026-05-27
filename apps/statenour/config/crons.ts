@@ -465,6 +465,24 @@ export const CRONS: CronDef[] = [
     description: "Sunday 6pm ET Telegram nudge to open the ReviewWizard",
     maxDuration: 30,
   },
+  // ── 2026-05-27 · Power Atlas Phase 1 · Sunday relationship digest ──
+  // Greene-voiced weekly digest of cooling/overdue contacts + upcoming
+  // birthdays. Sunday 22:00 UTC = 6pm ET (DST) / 5pm EST. Idempotent per
+  // ISO week via BrainMemory(category=relationship_digest_sent). One of
+  // the only TWO crons that fires sendTelegram from the Power Atlas
+  // surface (sibling: relationship-birthday). All other Power Atlas
+  // workers compute silently into the DB · operator reads the result
+  // on /relationships, not the phone.
+  {
+    name: "relationship-digest",
+    schedule: "0 22 * * 0",
+    mode: "active",
+    category: "review",
+    description:
+      "Power Atlas · Sunday Greene-voiced relationship digest · cooling + birthdays-this-week · idempotent per ISO week",
+    maxDuration: 60,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
