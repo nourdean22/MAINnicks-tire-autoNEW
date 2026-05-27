@@ -19,6 +19,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { dailyBudgetCents, etDateKey, isOverBudget } from "@/lib/services/cost-slo";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 
 export const maxDuration = 60;
 
@@ -117,6 +118,30 @@ export const GET = cronHandler(async () => {
       },
     })
     .catch(() => undefined);
+
+  // Mastery Layer Stage A · 5th writer migration · dual-write to coach
+  // channel when SLO is breached. Surfaces on /scoreboard CoachEventBanner
+  // alongside cost-anomaly (different but related signals · burn-rate vs
+  // statistical anomaly). subjectId = ET date · dedup one-per-day. P0
+  // since this is an actual budget overrun forecast (not just unusual).
+  await recordCoachEvent({
+    kind: "system-alert",
+    subjectId: `cost-slo:${today}`,
+    priority: "P0",
+    title: `Cost SLO breach · forecast $${forecast$} (${pct}% of $${budget$} budget)`,
+    body: `Burn so far: $${burn$} in ${state.hoursElapsed.toFixed(1)}h · 24h forecast: $${forecast$} · threshold $${(state.thresholdCents / 100).toFixed(2)}`,
+    deepLink: "/system/ai-cost",
+    surfaces: ["scoreboard"],
+    extra: {
+      date: today,
+      burnCents: state.burnCents,
+      forecastCents: state.forecastCents,
+      budgetCents: state.budgetCents,
+      thresholdCents: state.thresholdCents,
+      hoursElapsed: state.hoursElapsed,
+      forecastPctOfBudget: pct,
+    },
+  });
 
   return {
     ok: true,
