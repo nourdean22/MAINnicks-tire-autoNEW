@@ -512,6 +512,20 @@ export const CRONS: CronDef[] = [
     maxDuration: 120,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 2 · behavioral X-ray refresh ──
+  // Weekly Monday 05:00 UTC. Re-runs the behavioral X-ray on profiles
+  // with new ledger activity since last refresh. Caps 5 profiles/run.
+  // Silent · writes to PersonProfile.behavioralFingerprint Json column.
+  {
+    name: "behavioral-xray-refresh",
+    schedule: "0 5 * * 1",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly behavioral X-ray refresh · ≤5 profiles/run · gpt-4o-mini",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
