@@ -100,6 +100,38 @@ export const GET = cronHandler(async () => {
         },
       })
       .catch(() => {});
+
+    // 2026-05-27 · Telegram surfacing for watcher findings. Pre-fix:
+    // the watcher wrote `auditEvent.eventType="brain_insight"` only,
+    // but the alert-telegram-bridge scans BrainMemory not auditEvent,
+    // so the entire cron-watcher safety net was silent on Telegram —
+    // crons could go dead for weeks (like moeseuclid Gmail did) with
+    // no phone ping. Now: mirror to BrainMemory(category="watcher_alert")
+    // with a per-day idempotency key so a single day's findings ping
+    // at most once. The bridge picks up "watcher_alert" on its next
+    // 15-min sweep.
+    await prisma.brainMemory
+      .upsert({
+        where: {
+          category_key: {
+            category: "watcher_alert",
+            key: `cron_stale_${new Date().toISOString().slice(0, 10)}`,
+          },
+        },
+        create: {
+          category: "watcher_alert",
+          key: `cron_stale_${new Date().toISOString().slice(0, 10)}`,
+          content: `${stale.length} cron${stale.length === 1 ? "" : "s"} silent beyond 2× SLA:\n${body}`,
+          source: "cron:watcher",
+          confidence: 1.0,
+          expiresAt: new Date(Date.now() + 7 * 86_400_000),
+        },
+        update: {
+          content: `${stale.length} cron${stale.length === 1 ? "" : "s"} silent beyond 2× SLA:\n${body}`,
+          lastSeen: new Date(),
+        },
+      })
+      .catch(() => undefined);
   }
 
   // ── Embedding coverage drift check ──

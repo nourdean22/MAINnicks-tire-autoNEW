@@ -716,11 +716,18 @@ export const CRONS: CronDef[] = [
   // ── v10.0.88 · fatal-error → Telegram bridge ────────────────────
   {
     name: "error-telegram-push",
-    schedule: "*/5 * * * *",       // every 5min — tighter than alert push (errors are urgent)
+    // 2026-05-27 · operator volume cleanup · was */5 (288 fires/day).
+    // Real-world experience: stack-fingerprint dedup misses async
+    // stack variants, so a single error cluster could burst-ping.
+    // Bumping to */15 (96 fires/day) widens the dedup window and
+    // matches alert-telegram-push cadence. Lookback window is 15min
+    // either way — no lost coverage since the bridge query is
+    // "errors since last_pushed" anchored, not "errors in last 15min".
+    schedule: "*/15 * * * *",
     mode: "active",
     category: "alert",
     description:
-      "Pushes recent fatal/error rows from error_logs to Telegram, deduped by stack-fingerprint (sha1 of message-prefix-160 + path). 15min lookback window. Idempotent via marker rows in BrainMemory category=error_pushed.",
+      "Pushes recent fatal/error rows from error_logs to Telegram, deduped by stack-fingerprint (sha1 of message-prefix-160 + path). 15min lookback window. Idempotent via marker rows in BrainMemory category=error_pushed. 2026-05-27 · cadence loosened 5min → 15min for noise reduction.",
     memory: 512,
     maxDuration: 60,
     addedAt: "2026-05-02",
