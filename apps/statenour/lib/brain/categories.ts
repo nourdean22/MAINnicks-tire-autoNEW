@@ -265,6 +265,11 @@ export const BRAIN_CATEGORIES = {
    *  committed to. Tim Challies' "Do More Better" framework
    *  (Get Clear → Get Current → Get Set → Get Going + Serve & Surprise). */
   WEEKLY_REVIEW: "weekly_review",
+  /** 2026-05-27 · idempotency marker for the Sunday 6pm ET Telegram
+   *  nudge that prompts the operator to open the ReviewWizard.
+   *  Key shape `YYYY-WNN` matches WEEKLY_REVIEW so the two markers
+   *  cross-reference per week. Written by cron:weekly-review-nudge. */
+  WEEKLY_REVIEW_NUDGE: "weekly_review_nudge",
 
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */

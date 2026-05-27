@@ -446,6 +446,20 @@ export const CRONS: CronDef[] = [
     description: "Weekly digest email · runs via mega-evening Sunday batch",
   },
   {
+    name: "weekly-review-nudge",
+    // 2026-05-27 · operator-driven · Sunday 22:00 UTC = 6pm ET (during
+    // DST · 5pm EST winter). Lifts the Tim Challies "Do More Better"
+    // ritual into the operator's actual Sunday phone. The cron does
+    // ONE thing: send a Telegram with the open-warnings count + a
+    // prompt to open bdnick.info/tasks and tap the headline button
+    // to walk the 5-step ReviewWizard. Idempotent per ISO week.
+    schedule: "0 22 * * 0",
+    mode: "active",
+    category: "review",
+    description: "Sunday 6pm ET Telegram nudge to open the ReviewWizard",
+    maxDuration: 30,
+  },
+  {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
     mode: "active",
