@@ -275,7 +275,20 @@ export async function runMultiAgent(args: {
   const successful = results.filter((r) => !r.failed && r.output);
   let synthesis = "";
   if (successful.length > 0) {
-    synthesis = await guardedSynthesizer({ goal: args.goal, results }).catch(() => "");
+    // 2026-05-27 · the bare `.catch(() => "")` returned a blank string
+    // on synthesizer failure · operator got a no-content response with
+    // zero indication of why. Log + surface a visible error message so
+    // the multi-agent UI shows "Synthesis failed — sub-agent output
+    // below" instead of an empty pane.
+    synthesis = await guardedSynthesizer({ goal: args.goal, results }).catch((err) => {
+      console.warn(
+        "[multi-agent-orchestrator] synthesis failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return `_Synthesis stage failed (${
+        err instanceof Error ? err.message.slice(0, 120) : "unknown error"
+      }). Individual sub-agent results are above._`;
+    });
   } else {
     synthesis = "All sub-agents failed · no synthesis available. Check the individual results for errors.";
   }

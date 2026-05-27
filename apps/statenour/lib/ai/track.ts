@@ -240,6 +240,13 @@ export async function getModelLatencyTrend(daysBack: number = 7): Promise<ModelL
 export async function getAiUsageStats(daysBack: number = 7) {
   const since = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
 
+  // 2026-05-27 · the previous bare `.catch(() => [])` meant the
+  // /system/costs per-feature breakdown silently rendered $0 across
+  // the board when the AiGeneration table was unreachable (schema
+  // drift, replica lag, etc.) — operator had no way to tell if cost
+  // tracking itself was broken vs spend was genuinely zero. Log the
+  // failure so the next operator hitting "why does costs show zero"
+  // can grep prod logs.
   const [totalGenerations, byFeature, totalCost] = await Promise.all([
     prisma.aiGeneration.count({ where: { createdAt: { gte: since } } }),
     prisma.aiGeneration.groupBy({
@@ -247,11 +254,23 @@ export async function getAiUsageStats(daysBack: number = 7) {
       where: { createdAt: { gte: since } },
       _count: { id: true },
       _sum: { promptTokens: true, outputTokens: true, costCents: true },
-    }).catch(() => []),
+    }).catch((err) => {
+      console.warn(
+        "[ai/track] aiGeneration.groupBy failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return [];
+    }),
     prisma.aiGeneration.aggregate({
       where: { createdAt: { gte: since } },
       _sum: { costCents: true, promptTokens: true, outputTokens: true },
-    }).catch(() => ({ _sum: { costCents: 0, promptTokens: 0, outputTokens: 0 } })),
+    }).catch((err) => {
+      console.warn(
+        "[ai/track] aiGeneration.aggregate failed:",
+        err instanceof Error ? err.message : err,
+      );
+      return { _sum: { costCents: 0, promptTokens: 0, outputTokens: 0 } };
+    }),
   ]);
 
   return {
