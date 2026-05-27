@@ -1389,6 +1389,38 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-05-27 · Power Atlas Phase 3 polish · mark a play's outcome.
+   *
+   * Lets the operator close the loop on a RelationshipPlay after the
+   * actual interaction has happened · win/partial/loss/not_executed
+   * lands on RelationshipPlay.outcome (already in schema) so future
+   * pattern analysis can compute play success rates per kind.
+   */
+  markPlayOutcome: operatorProcedure
+    .input(
+      z.object({
+        playId: z.string().min(1).max(64),
+        outcome: z.enum([
+          "win",
+          "partial",
+          "loss",
+          "not_executed",
+        ]),
+        outcomeNote: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await prisma.relationshipPlay.update({
+        where: { id: input.playId },
+        data: {
+          outcome: input.outcome,
+          outcomeNote: input.outcomeNote ?? null,
+        },
+      });
+      return { ok: true };
+    }),
+
+  /**
    * 2026-05-27 · Power Atlas Phase 3 · social proof aggregator.
    *
    * Returns the operator's "people who appear alongside this person"
