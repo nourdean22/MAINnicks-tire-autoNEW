@@ -586,6 +586,22 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 3 · topic graph × goal overlap ──
+  // Weekly Monday 05:30 UTC. Cross-references operator's recurring chat
+  // topics for each person against active LifeGoals · derives "is this
+  // person on-mission" alignment score 0.0-1.0. Caps 5 profiles/run for
+  // cost · 7d re-compute floor.
+  // Silent · operator reads alignment on /relationships.
+  {
+    name: "topic-goal-overlap-compute",
+    schedule: "30 5 * * 1",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly topic-graph × LifeGoal overlap score per person · ≤5 profiles/run",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
