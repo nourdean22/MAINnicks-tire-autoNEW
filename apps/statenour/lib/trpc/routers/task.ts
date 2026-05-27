@@ -1233,4 +1233,159 @@ export const taskRouter = router({
       return { ok: true };
     }),
 
+  /**
+   * 2026-05-27 · Power Atlas Phase 2 · operator-driven powerBalance edit.
+   *
+   * The operator drags the slider on PowerBalanceGauge → this mutation
+   * writes both `powerBalance` and `powerBalanceManualLock=true`. The
+   * Phase 3 power-balance auto-compute engine MUST check the lock and
+   * skip any profile where it's true (the operator's value is sticky).
+   *
+   * Pass `manualLock: false` to clear the lock when re-enabling
+   * auto-compute for a profile (rare · use only when wanted).
+   */
+  updatePowerBalance: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        powerBalance: z.number().min(-1).max(1),
+        manualLock: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await prisma.personProfile.update({
+        where: { id: input.personId },
+        data: {
+          powerBalance: input.powerBalance,
+          powerBalanceManualLock: input.manualLock,
+        },
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * 2026-05-27 · Power Atlas Phase 2 · alpha moments archive.
+   *
+   * Operator pins a peak / shift / insight moment from a ledger entry.
+   * Stored in BrainMemory(category="alpha_moment") with key shape
+   * `<personId>:<ledgerId>` for natural dedup + per-person filtering.
+   */
+  markAlphaMoment: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        ledgerId: z.string().min(1).max(64),
+        moment: z.string().min(1).max(1000),
+        kind: z.enum(["peak", "shift", "insight"]).default("peak"),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const payload = JSON.stringify({
+        moment: input.moment,
+        ledgerId: input.ledgerId,
+        pinnedAt: new Date().toISOString(),
+        kind: input.kind,
+      });
+      await prisma.brainMemory.upsert({
+        where: {
+          category_key: {
+            category: "alpha_moment",
+            key: `${input.personId}:${input.ledgerId}`,
+          },
+        },
+        create: {
+          category: "alpha_moment",
+          key: `${input.personId}:${input.ledgerId}`,
+          content: payload,
+          confidence: 1.0,
+          source: "operator-pin",
+        },
+        update: { content: payload },
+      });
+      return { ok: true };
+    }),
+
+  listAlphaMoments: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const rows = await prisma.brainMemory.findMany({
+        where: {
+          category: "alpha_moment",
+          key: { startsWith: `${input.personId}:` },
+        },
+        orderBy: { createdAt: "desc" },
+        select: { content: true, createdAt: true },
+      });
+      return rows
+        .map((r) => {
+          try {
+            const parsed = JSON.parse(r.content) as {
+              moment: string;
+              ledgerId: string;
+              pinnedAt: string;
+              kind: "peak" | "shift" | "insight";
+            };
+            return { ...parsed, createdAt: r.createdAt.toISOString() };
+          } catch {
+            return null;
+          }
+        })
+        .filter((m): m is NonNullable<typeof m> => m !== null);
+    }),
+
+  /**
+   * 2026-05-27 · Power Atlas Phase 2 · 5-year arc projection.
+   *
+   * Calls `projectFiveYearArc` (Sam-flavored strategist · do_nothing /
+   * double_effort / blow_up / recommendation). Caches the output on
+   * `PersonProfile.lastArcPlan` so the panel can show the last-cached
+   * value without re-running the AI every page open.
+   */
+  projectArc: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const { projectFiveYearArc } = await import(
+        "@/lib/brain/relationship-arc-projection"
+      );
+      const projection = await projectFiveYearArc(input.personId);
+      if (!projection) return { ok: false, projection: null };
+      await prisma.personProfile.update({
+        where: { id: input.personId },
+        data: { lastArcPlan: projection as never },
+      });
+      return { ok: true, projection };
+    }),
+
+  /**
+   * 2026-05-27 · Power Atlas Phase 2 · power plays runner.
+   *
+   * 4 play kinds: arc_plan · message_draft · scarcity_play ·
+   * reciprocity_assess. Each persists a RelationshipPlay row for
+   * operator review later. Output is the AI's JSON.
+   */
+  runPowerPlay: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        kind: z.enum([
+          "arc_plan",
+          "message_draft",
+          "scarcity_play",
+          "reciprocity_assess",
+        ]),
+        operatorGoal: z.string().max(2000).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { runPowerPlay } = await import(
+        "@/lib/brain/power-plays-runner"
+      );
+      const output = await runPowerPlay(
+        input.personId,
+        input.kind,
+        input.operatorGoal,
+      );
+      return { ok: !!output, output };
+    }),
+
 });

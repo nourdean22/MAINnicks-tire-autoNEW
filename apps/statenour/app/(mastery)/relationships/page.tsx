@@ -38,6 +38,9 @@ import GreeneLawSidebar from "@/components/power-atlas/GreeneLawSidebar";
 import PowerBalanceGauge from "@/components/power-atlas/PowerBalanceGauge";
 import BlowUpModal from "@/components/power-atlas/BlowUpModal";
 import LogLedgerModal from "@/components/power-atlas/LogLedgerModal";
+import AlphaMoments from "@/components/power-atlas/AlphaMoments";
+import ArcProjection from "@/components/power-atlas/ArcProjection";
+import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
 
 interface PersonRow {
   id: string;
@@ -345,8 +348,10 @@ interface DetailPanelData {
     dossierMd: string | null;
     dossierUpdatedAt: Date | string | null;
     powerBalance: number;
+    powerBalanceManualLock: boolean;
     blowUpReason: string | null;
     blownUpAt: Date | string | null;
+    lastArcPlan: unknown;
   };
   ledger: Array<{
     id: string;
@@ -369,6 +374,12 @@ function DetailPanel({
 }) {
   const { person, ledger, applicableLawTexts } = detail;
   const blownUp = person.status === "blown_up";
+  const utils = trpc.useUtils();
+  const updatePowerBalance = trpc.task.updatePowerBalance.useMutation({
+    onSuccess: () => {
+      void utils.task.personProfile.invalidate({ personId: person.id });
+    },
+  });
 
   return (
     <div className="space-y-4">
@@ -430,9 +441,24 @@ function DetailPanel({
               source: e.source,
             }))}
           />
+          <AlphaMoments personId={person.id} />
         </div>
         <div className="space-y-4">
-          <PowerBalanceGauge value={person.powerBalance} />
+          <PowerBalanceGauge
+            value={person.powerBalance}
+            manualLock={person.powerBalanceManualLock}
+            onUpdate={async (next) => {
+              await updatePowerBalance.mutateAsync({
+                personId: person.id,
+                powerBalance: next,
+                manualLock: true,
+              });
+            }}
+          />
+          <ArcProjection
+            personId={person.id}
+            initialProjection={person.lastArcPlan}
+          />
           <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
 
           {/* Quick actions */}
@@ -461,6 +487,7 @@ function DetailPanel({
                 − withdraw
               </Button>
             </div>
+            <PowerPlaysModal personId={person.id} personName={person.name} />
             <Button
               variant="destructive"
               size="sm"
