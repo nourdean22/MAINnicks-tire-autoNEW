@@ -553,6 +553,23 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 3 · reciprocity gradient ──
+  // Weekly Sunday 03:00 UTC = 10pm ET Saturday. Walks every active person
+  // profile, computes the 90d operator-vs-them initiation %, writes the
+  // snapshot to PersonProfile.metadata.reciprocity. Extended in Task 3.4
+  // to ALSO auto-compute powerBalance with manual-lock respect (operator
+  // slider value is sticky · cron skips locked profiles).
+  // Silent · no Telegram.
+  {
+    name: "reciprocity-tracker-update",
+    schedule: "0 3 * * 0",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly reciprocity-gradient compute · 90d window · stored in PersonProfile.metadata.reciprocity · extended in Phase 3 Task 3.4 to also auto-compute powerBalance (manual-lock respected)",
+    maxDuration: 120,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
