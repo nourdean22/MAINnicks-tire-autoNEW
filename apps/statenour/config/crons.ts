@@ -539,6 +539,20 @@ export const CRONS: CronDef[] = [
     maxDuration: 300,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-27 · Power Atlas Phase 2 · dossier auto-drafter ──
+  // Weekly Monday 04:00 UTC = 11pm ET Sunday. Drafts updated dossierMd
+  // from chat mentions + ledger + alpha moments + behavioral
+  // fingerprint. Operator approves Monday morning. Silent.
+  {
+    name: "dossier-autodraft",
+    schedule: "0 4 * * 1",
+    mode: "active",
+    category: "brain",
+    description:
+      "Power Atlas · weekly dossier auto-drafter · ≤5 profiles/run · operator approves on Monday morning",
+    maxDuration: 300,
+    addedAt: "2026-05-27",
+  },
   {
     name: "operating-rhythm",
     schedule: "0 12,16,21 * * *",
