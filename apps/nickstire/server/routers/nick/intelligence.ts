@@ -587,7 +587,10 @@ export async function handleRunMigrations() {
           skipped++;
         } else {
           skipped++;
-          errors.push(`${rawSql.slice(0, 50)}... \u2192 ${msg.slice(0, 100)}`);
+          // 2026-05-27 \u00b7 widened error slice (100 \u2192 500 chars) so TiDB's
+          // full error surfaces \u00b7 prior 100-char truncation made the
+          // ADD UNIQUE KEY failure undiagnosable.
+          errors.push(`${rawSql.slice(0, 80)}... \u2192 ${msg.slice(0, 500)}`);
         }
       }
     }
