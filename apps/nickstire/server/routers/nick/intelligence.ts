@@ -582,15 +582,18 @@ export async function handleRunMigrations() {
         await d.execute(sqlTag.raw(rawSql));
         applied++;
       } catch (err: unknown) {
-        const msg = (err as Error)?.message || String(err);
-        if (msg.includes("already exists") || msg.includes("Duplicate")) {
+        const e = err as { message?: string; code?: string; cause?: { code?: string; message?: string; errno?: number; sqlMessage?: string } };
+        const msg = e?.message || String(err);
+        const cause = e?.cause;
+        const causeMsg = cause?.sqlMessage || cause?.message || "";
+        // Drizzle wraps the real driver error inside `err.cause` \u00b7 we need
+        // it to diagnose. Check both layers for already-applied markers.
+        const combined = `${msg} | ${causeMsg}`;
+        if (combined.includes("already exists") || combined.includes("Duplicate")) {
           skipped++;
         } else {
           skipped++;
-          // 2026-05-27 \u00b7 widened error slice (100 \u2192 500 chars) so TiDB's
-          // full error surfaces \u00b7 prior 100-char truncation made the
-          // ADD UNIQUE KEY failure undiagnosable.
-          errors.push(`${rawSql.slice(0, 80)}... \u2192 ${msg.slice(0, 500)}`);
+          errors.push(`${rawSql.slice(0, 60)}... \u2192 msg=${msg.slice(0, 200)} | code=${e?.code || cause?.code || ""} | cause=${causeMsg.slice(0, 300)}`);
         }
       }
     }
