@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { SectionHeader } from "@/components/ui/section-header";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
+import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
 import { ActiveFiltersStrip } from "@/components/ui/filter-chip-bar";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
@@ -397,18 +398,34 @@ function JournalPageInner() {
        *  Self-hides when zero events. */}
       <CoachEventBanner surface="journal" />
 
-      {/* 2026-05-24 · Wave S #7 · Learning-velocity ticker. Wires the
-          existing measureLearningVelocity() helper (already computes
-          for /brain) to a one-line surface above the feed. Silent on
-          fetch failure · silent when both deltas are zero (avoids
-          "0 entries · 0 new" noise on a fresh week). */}
-      <LearningVelocityTicker />
+      {/* Mastery Layer Stage B adoption on /journal · 2026-05-26.
+       *  CONSERVATIVE wrap · the two pure info-display bands (learning
+       *  velocity ticker + weekly memoir) move into a collapsible
+       *  drawer. The primary thread navigation (ThreadRadar / ThreadRail
+       *  / ThreadSuggestions) STAYS above-fold — those are the
+       *  operator's primary work surface on /journal. Same for the
+       *  Reflect Composer below. The drawer is collapsed by default
+       *  · self-fetching children stay dormant on cold load. */}
+      <MasteryContextDrawer
+        surface="journal"
+        label="Reflection signals"
+        hint="learning velocity · weekly memoir"
+      >
+        <div className="space-y-4">
+          {/* 2026-05-24 · Wave S #7 · Learning-velocity ticker. Wires the
+              existing measureLearningVelocity() helper (already computes
+              for /brain) to a one-line surface above the feed. Silent on
+              fetch failure · silent when both deltas are zero (avoids
+              "0 entries · 0 new" noise on a fresh week). */}
+          <LearningVelocityTicker />
 
-      {/* 2026-05-24 · Wave S #5 · Weekly memoir block. Surfaces the
-          last 7 days of distilled wisdom / belief promotions from the
-          existing wisdom-distiller cron · top 3 only · silent when
-          fewer than 2 items (operator doesn't need a memoir of zero). */}
-      <WeeklyMemoirBlock />
+          {/* 2026-05-24 · Wave S #5 · Weekly memoir block. Surfaces the
+              last 7 days of distilled wisdom / belief promotions from the
+              existing wisdom-distiller cron · top 3 only · silent when
+              fewer than 2 items (operator doesn't need a memoir of zero). */}
+          <WeeklyMemoirBlock />
+        </div>
+      </MasteryContextDrawer>
 
       {/* Phase D · ADR-0013 · pattern-radar
           ThreadRadar shows convergence candidates the nightly cron
