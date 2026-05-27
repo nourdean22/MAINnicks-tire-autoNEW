@@ -52,6 +52,7 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 import { KommandoTrack } from "@/components/actions/mode-track";
 import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
+import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
 
@@ -208,6 +209,19 @@ export default function ScoreboardPage() {
 
         <Footer composedAt={data.composedAt} lastBriefAt={data.lastBriefAt} />
       </div>
+      {/* Phase 5 FULL propagation (2026-05-26) · NickSidePane on
+       *  /scoreboard. Presets bias toward KPIs / anomalies / what to
+       *  act on (matches describeFraming() server-side framing). */}
+      <NickSidePane
+        page="scoreboard"
+        coachSurface="scoreboard"
+        presets={[
+          "Which KPI is most off-baseline right now?",
+          "What anomaly should I act on first?",
+          "Which input metric drives the biggest output shift?",
+          "What's the single biggest leverage move this week?",
+        ]}
+      />
     </main>
   );
 }

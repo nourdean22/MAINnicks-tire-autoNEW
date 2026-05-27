@@ -65,6 +65,7 @@ import { RecentInsightsPanel } from "@/components/brain/recent-insights-panel";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
+import { NickSidePane } from "@/components/mastery/nick-side-pane";
 // KommandoShell dismantle · Phase 2 (2026-05-21) · the goal-authoring
 // surface — was the PLAN tab of the /tasks KommandoShell (KommandoPlan
 // in components/actions/mode-plan.tsx). Relocated + trimmed to
@@ -242,6 +243,20 @@ export default function GoalsPage() {
           })}
         </p>
       </div>
+      {/* Phase 5 FULL propagation (2026-05-26) · NickSidePane on /goals.
+       *  Multi-turn thread + proactive coach event chips. Per-page
+       *  presets bias Nick toward goal-pace / drift / leverage moves
+       *  (matches describeFraming() server-side framing). */}
+      <NickSidePane
+        page="goals"
+        coachSurface="goals"
+        presets={[
+          "Which axis is drifting fastest right now?",
+          "Where am I underweighting one goal vs another?",
+          "What's the single highest-leverage move this week?",
+          "What pace shift would unblock the slowest goal?",
+        ]}
+      />
     </main>
   );
 }
