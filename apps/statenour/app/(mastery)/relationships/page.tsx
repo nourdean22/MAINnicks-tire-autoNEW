@@ -42,6 +42,7 @@ import AlphaMoments from "@/components/power-atlas/AlphaMoments";
 import ArcProjection from "@/components/power-atlas/ArcProjection";
 import PowerPlaysModal from "@/components/power-atlas/PowerPlaysModal";
 import SocialProof from "@/components/power-atlas/SocialProof";
+import ReciprocityCard from "@/components/power-atlas/ReciprocityCard";
 
 interface PersonRow {
   id: string;
@@ -353,6 +354,7 @@ interface DetailPanelData {
     blowUpReason: string | null;
     blownUpAt: Date | string | null;
     lastArcPlan: unknown;
+    metadata: unknown;
   };
   ledger: Array<{
     id: string;
@@ -360,6 +362,14 @@ interface DetailPanelData {
     amount: number;
     note: string;
     source: string;
+  }>;
+  plays: Array<{
+    id: string;
+    createdAt: Date | string;
+    kind: string;
+    output: unknown;
+    outcome: string | null;
+    outcomeNote: string | null;
   }>;
   applicableLawTexts: Array<{ key: string; content: string }>;
 }
@@ -373,7 +383,7 @@ function DetailPanel({
   onOpenLog: (direction: "deposit" | "withdraw") => void;
   onOpenBlowUp: () => void;
 }) {
-  const { person, ledger, applicableLawTexts } = detail;
+  const { person, ledger, plays, applicableLawTexts } = detail;
   const blownUp = person.status === "blown_up";
   const utils = trpc.useUtils();
   const updatePowerBalance = trpc.task.updatePowerBalance.useMutation({
@@ -462,6 +472,7 @@ function DetailPanel({
             initialProjection={person.lastArcPlan}
           />
           <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
+          <ReciprocityCard metadata={person.metadata} />
 
           {/* Quick actions */}
           <section
