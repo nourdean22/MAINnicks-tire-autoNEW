@@ -28,9 +28,12 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Brain, X, GripVertical } from "lucide-react";
+import { Brain, X, GripVertical, AlertTriangle, Sparkles, ChevronRight } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { PageNick } from "@/components/ai/page-nick";
+import { usePollingFetch } from "@/hooks/use-polling-fetch";
+import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
 
 const STORAGE_KEY = "nour:nick-side-pane:open:v1";
 
@@ -45,6 +48,14 @@ interface NickSidePaneProps {
   /** Quick-question preset pills · max 4 visible. Defaults to
    *  generic operator-grade prompts when omitted. */
   presets?: string[];
+  /** Coach Channel surface this pane subscribes to · drives the
+   *  proactive event chips shown above PageNick. Default: matches
+   *  `page` if it's a valid surface · falls back to no subscription. */
+  coachSurface?: CoachEventSurface;
+}
+
+interface CoachEventsResponse {
+  events: CoachEvent[];
 }
 
 const DEFAULT_PRESETS = [
@@ -53,8 +64,32 @@ const DEFAULT_PRESETS = [
   "What's blocking my biggest goal?",
 ];
 
-export function NickSidePane({ page, data, focus, presets }: NickSidePaneProps) {
+export function NickSidePane({
+  page,
+  data,
+  focus,
+  presets,
+  coachSurface,
+}: NickSidePaneProps) {
   const [open, setOpen] = useState(false);
+
+  // Phase 5 FULL · proactive coach event push (polled).
+  // Subscribes to the Coach Channel for the pane's surface · displays
+  // active events as chips ABOVE PageNick. Polls every 60s with tab-
+  // visibility pause (faster than the CoachEventBanner's 90s because
+  // the pane is a more deliberate operator surface). Skipped when
+  // coachSurface is omitted OR pane is closed (no point fetching
+  // events the operator can't see).
+  const surface =
+    coachSurface ??
+    (["tasks", "goals", "journal", "brain", "scoreboard"].includes(page)
+      ? (page as CoachEventSurface)
+      : undefined);
+  const { data: coachData } = usePollingFetch<CoachEventsResponse>(
+    surface ? `/api/coach/events?surface=${encodeURIComponent(surface)}&limit=3` : "",
+    { intervalMs: 60_000, skip: !surface || !open },
+  );
+  const coachEvents = coachData?.events ?? [];
 
   // Restore persisted state on mount · SSR-safe.
   useEffect(() => {
@@ -168,11 +203,27 @@ export function NickSidePane({ page, data, focus, presets }: NickSidePaneProps) 
               </button>
             </header>
 
-            {/* Body · PageNick streams analysis · scroll-isolated.
-             *  PageNick already owns its full UX (presets, send, copy,
-             *  abort, follow-up-in-chat link). Wrapping it here in a
-             *  flex container that takes remaining space + scrolls. */}
-            <div className="flex-1 overflow-y-auto px-4 py-3">
+            {/* Body · proactive coach chips + PageNick · scroll-isolated.
+             *  Phase 5 FULL piece · operator sees what Nick noticed
+             *  BEFORE they ask · then can either tap a chip's deep-link
+             *  or ask a question via PageNick below. */}
+            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+              {/* Coach event chips · proactive surface (Phase 5 FULL) */}
+              {coachEvents.length > 0 && (
+                <section
+                  aria-label="proactive coach events"
+                  className="space-y-1.5"
+                >
+                  <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/70">
+                    nick noticed
+                  </p>
+                  {coachEvents.map((event) => (
+                    <CoachChip key={event.eventId} event={event} />
+                  ))}
+                </section>
+              )}
+
+              {/* Ask Nick · existing PageNick surface */}
               <PageNick
                 page={page}
                 data={data}
@@ -183,11 +234,12 @@ export function NickSidePane({ page, data, focus, presets }: NickSidePaneProps) 
               />
             </div>
 
-            {/* Footer hint · operator-grade affordance · sets expectation
-             *  that multi-turn + proactive chips are queued. */}
+            {/* Footer hint · operator-grade affordance · multi-turn
+             *  chat is the remaining Phase 5 piece. Proactive chips
+             *  shipped above via the Coach Channel polling layer. */}
             <footer className="px-4 py-2 border-t border-[var(--border-default)]/60 shrink-0">
               <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]/60">
-                phase 5 lite · single-turn · multi-turn coming
+                phase 5 · proactive chips live · multi-turn coming
               </p>
             </footer>
           </aside>
@@ -195,4 +247,42 @@ export function NickSidePane({ page, data, focus, presets }: NickSidePaneProps) 
       )}
     </>
   );
+}
+
+/* ─── Phase 5 FULL helper · coach event chip ──────────────────── */
+
+function CoachChip({ event }: { event: CoachEvent }) {
+  // Priority-gated styling · matches CoachEventBanner aesthetic
+  // (P0 amber · P1 gold · P2 neutral). Compact pane variant ·
+  // single-line title · body suppressed (operator can deep-link
+  // for detail). Truncates long titles to keep the pane scannable.
+  const tone =
+    event.priority === "P0"
+      ? "border-amber-500/30 bg-amber-500/[0.06] text-amber-300/90"
+      : event.priority === "P1"
+        ? "border-[var(--gold)]/30 bg-[var(--gold)]/[0.05] text-[var(--gold)]"
+        : "border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] text-[var(--text-secondary)]";
+  const Icon = event.priority === "P0" ? AlertTriangle : Sparkles;
+
+  const body = (
+    <div className={cn("flex items-start gap-2 rounded-md border px-2.5 py-1.5", tone)}>
+      <Icon size={11} strokeWidth={1.75} className="mt-0.5 shrink-0" />
+      <span className="text-[11px] leading-snug line-clamp-2 flex-1">{event.title}</span>
+      {event.deepLink && (
+        <ChevronRight size={11} strokeWidth={1.5} className="mt-0.5 shrink-0 opacity-60" />
+      )}
+    </div>
+  );
+
+  if (event.deepLink) {
+    return (
+      <Link
+        href={event.deepLink}
+        className="block focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded-md"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return body;
 }
