@@ -17,6 +17,7 @@ import { cronHandler } from "@/lib/utils/http";
 import { runRegressionSuite } from "@/lib/eval/regression-runner";
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
+import { recordCoachEvent } from "@/lib/services/coach-events";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("api/cron/eval-regression");
@@ -106,6 +107,49 @@ export const GET = cronHandler(async () => {
       `<b>Top failures:</b>\n${topFailures || "—"}`;
     const sent = await sendTelegram(msg, undefined, "HTML");
     if (!sent) log.warn("telegram_alert_failed", { passRate: report.passRate });
+
+    // Mastery Layer Stage A · 6th writer migration · dual-write to coach
+    // channel when eval pass-rate drops below threshold. Surfaces on
+    // /scoreboard CoachEventBanner + NickSidePane chips (Phase 5 FULL).
+    // subjectId = ET date · dedup one-per-day (same dayKey used by the
+    // BrainMemory upsert above). P0 since Nick reply-quality regression
+    // is the operator-grade "your AI is broken" signal · same tier as
+    // cost-slo-check breaches. Best-effort · failures don't break the
+    // cron run.
+    try {
+      const topFailureLine = report.perQuestionResults
+        .filter((r) => !r.passed)
+        .slice(0, 3)
+        .map((r) => `${r.id}: ${(r.failures[0] ?? "fail").slice(0, 80)}`)
+        .join(" · ");
+      await recordCoachEvent({
+        kind: "system-alert",
+        subjectId: `eval-regression:${dayKey}`,
+        priority: "P0",
+        title: `Eval regression · ${(report.passRate * 100).toFixed(1)}% pass (${report.passed}/${report.totalRan})`,
+        body:
+          `Score ${report.scoreAvg.toFixed(2)} · threshold ${(ALERT_THRESHOLD * 100).toFixed(0)}%${
+            topFailureLine ? ` · top: ${topFailureLine}` : ""
+          }`.slice(0, 280),
+        deepLink: "/system/eval-results",
+        surfaces: ["scoreboard"],
+        extra: {
+          date: dayKey,
+          ranAt: report.ranAt,
+          totalRan: report.totalRan,
+          passed: report.passed,
+          failed: report.failed,
+          passRate: report.passRate,
+          scoreAvg: report.scoreAvg,
+          worstCategories: report.worstCategories.slice(0, 5),
+          threshold: ALERT_THRESHOLD,
+        },
+      });
+    } catch (err) {
+      log.warn("coach_event_emit_failed", {
+        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
+      });
+    }
   }
 
   return {
