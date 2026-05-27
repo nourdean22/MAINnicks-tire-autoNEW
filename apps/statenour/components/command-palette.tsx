@@ -40,6 +40,11 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+// 2026-05-27 · Power Atlas Phase 1 Task 1.10 · cmdk log-anywhere.
+// Parses `<name> <+|-><number> [<note>]` and surfaces fuzzy-matched
+// PersonProfile candidates as a dedicated CommandGroup. Hidden when
+// the parser returns null (i.e. the query is normal cmdk text).
+import RelationshipLogAction from "@/components/command-palette/relationship-log-action";
 import {
   ActivityIcon,
   BrainIcon,
@@ -553,6 +558,16 @@ export function CommandPalette() {
       />
       <CommandList>
         <CommandEmpty>No results found.</CommandEmpty>
+
+        {/* 2026-05-27 · Power Atlas Task 1.10 · log-anywhere ledger
+            action. Renders ONLY when the typed query matches the
+            `<name> <+|-><number> [<note>]` parser. Sits above the
+            semantic brain-search so a ledger-syntax query lands on
+            the operator's intended action immediately. */}
+        <RelationshipLogAction
+          query={query.trim()}
+          onLogged={() => setOpen(false)}
+        />
 
         {/* 2026-05-24 · Wave W Phase 2 · semantic spotlight group ·
             top-5 RRF-fused hits across brain_memory + chat_message.
