@@ -73,19 +73,31 @@ export function QuickAddBar({
   return (
     <div className="space-y-1" data-no-deep-nudge>
       <div className="flex gap-1.5">
+        {/* 2026-05-27 · operator mobile bug · "i cant add tasks in the
+            add part" · screenshot showed the input was rendering with
+            h-9 (36pt) + text-[13px]. On iOS PWA both are problems:
+            - 36pt is below the 44pt Apple HIG touch floor · the input
+              was hard to tap precisely · operators kept missing it.
+            - text-13px triggers iOS Safari auto-zoom on focus · screen
+              jumps awkwardly · feels broken.
+            Fix: min-h-[44px] for tap target · text-[16px] for no-zoom.
+            Visual rhythm stays close to before · the h-9 button stays
+            (square form is fine for icons), the input gets the 44pt
+            floor (text already wraps cleanly because height is
+            auto-grown not fixed). */}
         <Input
           placeholder="What needs to happen?"
           value={newTask}
           onChange={(e) => setNewTask(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onAdd()}
-          className="h-9 bg-zinc-900/60 border-zinc-800/40 text-[13px] placeholder:text-zinc-600 focus:border-amber-500/30 transition-all"
+          className="min-h-[44px] bg-zinc-900/60 border-zinc-800/40 text-[16px] placeholder:text-zinc-600 focus:border-amber-500/30 transition-all"
         />
         <Button
           size="sm"
-          className="h-9 w-9 p-0 bg-zinc-800/80 hover:bg-amber-500/20 hover:text-amber-400 border border-zinc-700/50 shrink-0"
+          className="min-h-[44px] h-11 w-11 p-0 bg-zinc-800/80 hover:bg-amber-500/20 hover:text-amber-400 border border-zinc-700/50 shrink-0 active:scale-95 transition-all"
           onClick={onAdd}
         >
-          <Plus size={14} />
+          <Plus size={16} />
         </Button>
         {/* Apr 26 · F9 — voice input. Tap to record, tap to
             stop + transcribe (Whisper). Transcript appends to
@@ -107,7 +119,7 @@ export function QuickAddBar({
                 : "Voice add (Whisper)"
           }
           className={cn(
-            "h-9 w-9 p-0 border shrink-0",
+            "min-h-[44px] h-11 w-11 p-0 border shrink-0 active:scale-95 transition-all",
             voice.isRecording
               ? "bg-red-500/15 hover:bg-red-500/25 text-red-300 border-red-500/40 animate-pulse"
               : voice.transcribing
@@ -125,12 +137,12 @@ export function QuickAddBar({
         </Button>
         <Button
           size="sm"
-          className="h-9 px-2.5 bg-zinc-900 hover:bg-amber-500/15 text-zinc-500 hover:text-amber-400 text-[9px] font-bold border border-zinc-800 rounded shrink-0"
+          className="min-h-[44px] h-11 px-3 bg-zinc-900 hover:bg-amber-500/15 text-zinc-500 hover:text-amber-400 text-[9px] font-bold border border-zinc-800 rounded shrink-0 active:scale-95 transition-all"
           onClick={onGenAi}
           disabled={generating}
           title="AI suggest tasks"
         >
-          {generating ? <Loader2 size={11} className="animate-spin" /> : <Sparkles size={11} />}
+          {generating ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
         </Button>
       </div>
       {/* Apr 26 · F4 — Live parse preview, expanded.
