@@ -556,15 +556,21 @@ export async function handleRunMigrations() {
       `ALTER TABLE prediction_impressions ADD UNIQUE KEY uk_prediction_surface (prediction_id, surface)`,
       // 2026-05-27 · drizzle/0062_search_performance_dedupe.sql · audit #79
       // GSC sync was duplicating rows on every cron run (~30-60× inflation
-      // confirmed against live GSC). Fix is three steps · all idempotent:
-      //   1. Normalize NULL pages so unique key applies to every row
-      //   2. Dedupe by deleting all but max(id) per (date, query, page)
-      //   3. Add UNIQUE KEY · downstream syncSearchPerformance uses
-      //      ON DUPLICATE KEY UPDATE (shipped same commit · 864dd621)
-      // The catch block above recognizes "Duplicate" so re-runs are no-ops.
+      // confirmed against live GSC). Three idempotent steps · TiDB-syntax
+      // compatible (first attempt used MySQL `DELETE alias FROM table alias
+      // JOIN` which TiDB rejects · this uses the NOT-IN subquery pattern
+      // that already shipped successfully in the prediction_impressions
+      // dedup above):
+      //   1. Normalize NULL pages so the unique key covers every row
+      //   2. Dedupe · keep only MAX(id) per (date, query, page)
+      //   3. Add UNIQUE KEY IF NOT EXISTS (TiDB v5+ supports IF NOT EXISTS)
+      //
+      // The catch block above recognizes "already exists" + "Duplicate" so
+      // re-runs are no-ops. If TiDB rejects IF NOT EXISTS on a specific
+      // version, the duplicate-key add-error gets caught by Duplicate.
       `UPDATE search_performance SET page = '' WHERE page IS NULL`,
-      `DELETE sp1 FROM search_performance sp1 INNER JOIN search_performance sp2 WHERE sp1.id < sp2.id AND sp1.date = sp2.date AND sp1.query = sp2.query AND sp1.page = sp2.page`,
-      `ALTER TABLE search_performance ADD UNIQUE KEY uq_search_perf_date_query_page (date, query, page)`,
+      `DELETE FROM search_performance WHERE id NOT IN (SELECT * FROM (SELECT MAX(id) FROM search_performance GROUP BY date, query, page) AS keepers)`,
+      `ALTER TABLE search_performance ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query, page)`,
     ];
 
     let applied = 0;
