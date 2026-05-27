@@ -205,6 +205,40 @@ function TasksPageInner() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [aiTasks, setAiTasks] = useState<AiTask[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // 2026-05-27 · operator bug · "when i delete or complete a task it
+  // goes away then comes right back · i have to refresh."
+  // Root cause: load()'s tRPC refetch occasionally hits a Neon read
+  // replica that hasn't seen the just-committed soft-delete yet, so the
+  // optimistic remove + server-confirmed remove gets undone by a stale
+  // read · the task flickers back for ~30-60s until the replica catches
+  // up. Same applies to complete (status flip): rare race where the
+  // optimistic DONE flip is overwritten with a stale INBOX/READY/DOING.
+  //
+  // Defense: keep a 5-second client-side suppression list of task IDs
+  // the operator just acted on · LoopStream filters them out regardless
+  // of what tasks[] says · after 5s the id auto-evicts (covers any
+  // false-positive where the mutation actually failed server-side).
+  const recentlyMutatedRef = useRef<Set<string>>(new Set());
+  const [recentlyMutated, setRecentlyMutated] = useState<Set<string>>(new Set());
+  const suppressTaskForFiveSeconds = useCallback((id: string) => {
+    recentlyMutatedRef.current.add(id);
+    setRecentlyMutated(new Set(recentlyMutatedRef.current));
+    setTimeout(() => {
+      recentlyMutatedRef.current.delete(id);
+      setRecentlyMutated(new Set(recentlyMutatedRef.current));
+    }, 5000);
+  }, []);
+  /** 2026-05-27 · visibleTasks · `tasks` filtered against the
+   *  recentlyMutated set. After delete/complete the LoopStream
+   *  renders against this filtered view · stale-read flickers
+   *  from Neon replica lag can't bring the task back during the
+   *  5s suppression window. After eviction, `visibleTasks` falls
+   *  back to `tasks` and the standard status/deletedAt filters
+   *  in downstream renderers + the server's filter take over. */
+  const visibleTasks = useMemo(() => {
+    if (recentlyMutated.size === 0) return tasks;
+    return tasks.filter((t) => !recentlyMutated.has(t.id));
+  }, [tasks, recentlyMutated]);
   // v10.0.423 · `goals` state DELETED · was a parallel store of /api/goals
   // alongside `goalsCache`. Both fetched the same data. goalsCache now
   // carries the pace fields too (targetValue + deadline + createdAt) so
@@ -901,6 +935,13 @@ function TasksPageInner() {
       );
     } else {
       setTasks((prev) => prev.map((x) => (x.id === id ? { ...x, status: "DONE" } : x)));
+      // 2026-05-27 · suppress ONCE task from re-appearing as INBOX/
+      // READY/DOING for 5s · protects against Neon replica lag where
+      // load() returns the task with its old status because the
+      // replica hasn't seen the complete commit yet. DAILY tasks
+      // are intentionally NOT suppressed · they're recurring habits
+      // that should stay visible with bumped streak.
+      suppressTaskForFiveSeconds(id);
       // 2026-05-23 · task #22 · also optimistically flip open children
       // when cascade is on · keeps the UI consistent with what the
       // server will commit. Server is source of truth on next load.
@@ -914,6 +955,14 @@ function TasksPageInner() {
               : x,
           ),
         );
+        // Also suppress all cascaded children so the same replica-lag
+        // protection applies to subtasks.
+        setTasks((prev) => {
+          for (const child of prev) {
+            if (child.parentTaskId === id) suppressTaskForFiveSeconds(child.id);
+          }
+          return prev;
+        });
       }
     }
     try {
@@ -1031,6 +1080,9 @@ function TasksPageInner() {
     // finally-block load() re-fetches and snaps it back if the
     // server rejected.
     setTasks((p) => p.filter((t) => t.id !== id));
+    // 2026-05-27 · suppress this id from re-appearing for 5s even if
+    // the next load() refetch returns a stale read (Neon replica lag).
+    suppressTaskForFiveSeconds(id);
     try {
       // Phase RR · tRPC migration · pattern detection still happens
       // server-side · typed return + TRPCError shape replaces the
@@ -1047,6 +1099,9 @@ function TasksPageInner() {
 
   async function deleteTask(id: string) {
     setTasks((p) => p.filter((t) => t.id !== id));
+    // 2026-05-27 · suppress this id from re-appearing for 5s even if
+    // the next load() refetch returns a stale read (Neon replica lag).
+    suppressTaskForFiveSeconds(id);
     try {
       // Phase RR · tRPC migration · same soft-delete behavior
       // server-side · typed mutation eliminates the manual r.ok check.
@@ -1207,7 +1262,7 @@ function TasksPageInner() {
   // quadruplet + the useCustomDomains hook call.
   const nowContent = (
     <NowPanel
-      tasks={tasks}
+      tasks={visibleTasks}
       aiTasks={aiTasks}
       projects={projects}
       goalsCache={goalsCache}
@@ -1340,7 +1395,7 @@ function TasksPageInner() {
        *  spread. Self-hides when zero events. */}
       <CoachEventBanner surface="tasks" />
       <MoveFrame
-        tasks={tasks}
+        tasks={visibleTasks}
         onStart={startTask}
         onComplete={completeLoop}
         doneTodayCount={doneToday}
@@ -1391,7 +1446,7 @@ function TasksPageInner() {
           setWizardOpen(false);
           void load();
         }}
-        tasks={tasks}
+        tasks={visibleTasks}
         goals={goalsCache}
         projects={projects}
         onPinTask={togglePin}
