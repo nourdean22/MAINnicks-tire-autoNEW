@@ -136,8 +136,12 @@ export function MissionCard({
 
   return (
     <article
+      id={`mission-${mission.id}`}
+      // Wave AR · 2026-05-28 · row anchor · TopMissionToday CTA points
+      // at #mission-<id> · MissionsHealthStrip chips link here too ·
+      // smooth-scroll lands the operator on the right card.
       className={cn(
-        "rounded-lg border bg-[var(--bg-base)]",
+        "rounded-lg border bg-[var(--bg-base)] scroll-mt-24",
         expanded
           ? "border-[var(--gold)]/30 shadow-[0_0_20px_rgba(253,185,19,0.05)]"
           : "border-[var(--border-default)]",
