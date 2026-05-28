@@ -49,6 +49,13 @@ export const GET = apiHandler(
       : { lastInteraction: "desc" as const };
 
     const rows = await prisma.personProfile.findMany({
+      // 2026-05-28 · Wave AC.b · operator bug · soft-deleted rows still
+      // showed in the relationships list because the findMany was missing
+      // the `deletedAt: null` filter. The softDeletePerson mutation does
+      // set `deletedAt` correctly · the list query just wasn't honoring
+      // it. Single-line fix · all sibling endpoints (watchlist, morning-
+      // brief, search) already filter the same way.
+      where: { deletedAt: null },
       orderBy,
       take: limit,
       select: {
