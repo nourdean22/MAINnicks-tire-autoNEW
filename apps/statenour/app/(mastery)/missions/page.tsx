@@ -87,6 +87,10 @@ function MissionsPageInner() {
   const updateTask = trpc.task.update.useMutation();
   const deleteTaskMut = trpc.task.delete.useMutation();
   const createMission = trpc.task.createMission.useMutation();
+  // Wave AJ · 2026-05-28 · ↑/↓ reorder mutations · server resolves the
+  // swap math + ranks · client just calls (id, direction) + refetches.
+  const reorderMissionMut = trpc.task.reorderMission.useMutation();
+  const reorderTaskMut = trpc.task.reorderTask.useMutation();
 
   // Telemetry · Phase 4 · mark surface-mount + capture mutation events
   // so the 2-week prune analysis has signal. Silent no-op when telemetry
@@ -472,6 +476,32 @@ function MissionsPageInner() {
           setTaskEditTarget(task);
           setTaskEditOpen(true);
           telemetry.event("editTaskOpen", { taskId: task.id });
+        }}
+        onMoveMission={async (missionId, direction) => {
+          try {
+            telemetry.event("reorderMission", { missionId, direction });
+            const res = await reorderMissionMut.mutateAsync({
+              missionId,
+              direction,
+            });
+            if (res.ok) await refetchAll();
+          } catch (err) {
+            log.error("reorderMission_failed", { err });
+            toast.error("Could not reorder mission.");
+          }
+        }}
+        onMoveTask={async (taskId, direction) => {
+          try {
+            telemetry.event("reorderTask", { taskId, direction });
+            const res = await reorderTaskMut.mutateAsync({
+              taskId,
+              direction,
+            });
+            if (res.ok) await refetchAll();
+          } catch (err) {
+            log.error("reorderTask_failed", { err });
+            toast.error("Could not reorder task.");
+          }
         }}
       />
 

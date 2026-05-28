@@ -24,6 +24,10 @@ export interface Project {
   description?: string | null;
   deadline?: string | null;
   planData?: unknown;
+  /** Wave AJ · 2026-05-28 · operator-set sort rank · lower = higher in
+   *  the missions list · nulls sink to bottom. MissionFeed sorts by
+   *  this first so the ↑/↓ reorder buttons actually persist visually. */
+  manualRankOverride?: number | null;
 }
 
 /**

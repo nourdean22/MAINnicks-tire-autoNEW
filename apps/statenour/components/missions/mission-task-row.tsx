@@ -20,7 +20,7 @@
  */
 
 import { useState } from "react";
-import { Check, Pencil, Play, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, Pencil, Play, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
 
@@ -34,6 +34,12 @@ export interface MissionTaskRowProps {
   onEdit?: (task: Task) => void;
   /** Indent level · 0 = top, 1 = subtask. */
   indent?: 0 | 1;
+  /** Wave AJ · 2026-05-28 · ↑/↓ reorder · parent passes index + total
+   *  so the row can disable the arrows at the ends. onMove fires with
+   *  direction · parent computes swap + calls reorderTask mutation. */
+  index?: number;
+  totalTasks?: number;
+  onMove?: (taskId: string, direction: "up" | "down") => void;
 }
 
 export function MissionTaskRow({
@@ -43,10 +49,20 @@ export function MissionTaskRow({
   onDelete,
   onEdit,
   indent = 0,
+  index,
+  totalTasks,
+  onMove,
 }: MissionTaskRowProps) {
   const [busy, setBusy] = useState<"complete" | "start" | "delete" | null>(
     null,
   );
+  const canMoveUp =
+    onMove != null && typeof index === "number" && index > 0;
+  const canMoveDown =
+    onMove != null &&
+    typeof index === "number" &&
+    typeof totalTasks === "number" &&
+    index < totalTasks - 1;
 
   const isDoing = task.status === "DOING";
   const isDone = task.status === "DONE";
@@ -175,6 +191,45 @@ export function MissionTaskRow({
             >
               <Trash2 size={12} strokeWidth={2} />
             </button>
+          )}
+          {/* Wave AJ · 2026-05-28 · task reorder · operator's missing
+           *  resort affordance · ↑/↓ swap rank with neighbor · arrows
+           *  fade at the ends to signal terminal position. */}
+          {onMove && (canMoveUp || canMoveDown) && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (canMoveUp) onMove(task.id, "up");
+                }}
+                disabled={!canMoveUp}
+                aria-label="move up"
+                className={cn(
+                  "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                  canMoveUp
+                    ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05]"
+                    : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                )}
+              >
+                <ArrowUp size={12} strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (canMoveDown) onMove(task.id, "down");
+                }}
+                disabled={!canMoveDown}
+                aria-label="move down"
+                className={cn(
+                  "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                  canMoveDown
+                    ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05]"
+                    : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+                )}
+              >
+                <ArrowDown size={12} strokeWidth={2} />
+              </button>
+            </>
           )}
         </div>
       )}

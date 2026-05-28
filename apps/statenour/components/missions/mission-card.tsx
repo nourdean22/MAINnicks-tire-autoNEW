@@ -25,7 +25,15 @@
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Flag, Pencil, Plus } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  Flag,
+  Pencil,
+  Plus,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
@@ -54,6 +62,15 @@ export interface MissionCardProps {
   nicksPickTaskId?: string;
   /** Optional · Phase 2 · Nick's 1-line rationale for the pick. */
   nicksPickRationale?: string;
+  /** Wave AJ · 2026-05-28 · ↑/↓ reorder. Parent passes index + total
+   *  so the card can disable arrows at the ends. onMove fires with
+   *  direction · parent computes the swap + calls reorderMission. */
+  index?: number;
+  totalMissions?: number;
+  onMoveMission?: (missionId: string, direction: "up" | "down") => void;
+  /** Wave AJ · task reorder within the mission. Same pattern · the
+   *  card passes through to MissionTaskRow per row. */
+  onMoveTask?: (taskId: string, direction: "up" | "down") => void;
 }
 
 export function MissionCard({
@@ -70,7 +87,18 @@ export function MissionCard({
   onEditTask,
   nicksPickTaskId,
   nicksPickRationale,
+  index,
+  totalMissions,
+  onMoveMission,
+  onMoveTask,
 }: MissionCardProps) {
+  const canMoveUp =
+    onMoveMission != null && typeof index === "number" && index > 0;
+  const canMoveDown =
+    onMoveMission != null &&
+    typeof index === "number" &&
+    typeof totalMissions === "number" &&
+    index < totalMissions - 1;
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [adding, setAdding] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -164,6 +192,50 @@ export function MissionCard({
             {deadlineLabel}
           </span>
         )}
+        {/* Wave AJ · 2026-05-28 · mission reorder · operator complaint
+         *  "how come i cant resort or change the orders of the missions
+         *  or the tasks?" — ↑/↓ buttons swap rank with neighbor. Mobile-
+         *  first · no drag-drop complexity (drag is finicky on iOS) ·
+         *  stopPropagation so the outer expand toggle doesn't fire.
+         *  Disabled at the ends (no wraparound · arrows fade visually). */}
+        {onMoveMission && (canMoveUp || canMoveDown) && (
+          <span className="shrink-0 inline-flex">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (canMoveUp) onMoveMission(mission.id, "up");
+              }}
+              disabled={!canMoveUp}
+              aria-label={`move mission ${mission.title} up`}
+              className={cn(
+                "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                canMoveUp
+                  ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+                  : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+              )}
+            >
+              <ArrowUp size={14} strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (canMoveDown) onMoveMission(mission.id, "down");
+              }}
+              disabled={!canMoveDown}
+              aria-label={`move mission ${mission.title} down`}
+              className={cn(
+                "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                canMoveDown
+                  ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+                  : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
+              )}
+            >
+              <ArrowDown size={14} strokeWidth={2} />
+            </button>
+          </span>
+        )}
         {/* wave-AB.c · per-card edit pencil · stopPropagation so the
          *   outer expand toggle doesn't fire on tap.
          *   wave-AB.d-mobile · bumped from h-6 (24px) to h-11 (44px) ·
@@ -227,7 +299,7 @@ export function MissionCard({
                 No tasks yet. Add one below.
               </p>
             )}
-            {sortedOpen.map((task) => (
+            {sortedOpen.map((task, taskIdx) => (
               <div
                 key={task.id}
                 className={cn(
@@ -241,6 +313,9 @@ export function MissionCard({
                   onStart={onStartTask}
                   onDelete={onDeleteTask}
                   onEdit={onEditTask}
+                  index={taskIdx}
+                  totalTasks={sortedOpen.length}
+                  onMove={onMoveTask}
                 />
               </div>
             ))}
