@@ -76,6 +76,7 @@ import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { GoalBoard } from "@/components/goals/goal-board";
 import { NicksGoalsBrief } from "@/components/goals/nicks-goals-brief";
 import { TopGoalToday } from "@/components/goals/top-goal-today";
+import { GoalsHealthStrip } from "@/components/goals/goals-health-strip";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -188,6 +189,16 @@ export default function GoalsPage() {
          *  hides when no qualifying goal exists. */}
         <div className="mt-4">
           <TopGoalToday ladder={data.ladder} />
+        </div>
+
+        {/* Wave AI Phase 3 · 2026-05-28 · GoalsHealthStrip · 1-glance
+         *  board triage. Color-coded chip per active goal · pace-aware ·
+         *  rose for stalled · gold for behind · emerald for healthy ·
+         *  zinc for blank. Tap a chip → smooth-scrolls to that goal in
+         *  GoalBoard via #goal-<id>. Additive sibling to GoalBoard ·
+         *  never touches its 1410 LOC. Self-hides on empty. */}
+        <div className="mt-3">
+          <GoalsHealthStrip ladder={data.ladder} />
         </div>
 
         {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
