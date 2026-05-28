@@ -44,6 +44,8 @@ export interface MissionFeedProps {
   onDeleteTask?: (id: string) => void | Promise<void>;
   onCompleteMission?: (missionId: string) => void | Promise<void>;
   onArchiveMission?: (missionId: string) => void | Promise<void>;
+  onEditMission?: (missionId: string) => void;
+  onEditTask?: (task: Task) => void;
   /** Phase 2 · per-mission Nick's-pick task id + rationale, keyed by
    *  mission id. */
   nicksPicks?: Record<string, { taskId: string; rationale: string }>;
@@ -58,6 +60,8 @@ export function MissionFeed({
   onDeleteTask,
   onCompleteMission,
   onArchiveMission,
+  onEditMission,
+  onEditTask,
   nicksPicks,
 }: MissionFeedProps) {
   const { activeMissions, tasksByMission, unattached } = useMemo(() => {
@@ -186,6 +190,8 @@ export function MissionFeed({
               onDeleteTask={onDeleteTask}
               onCompleteMission={onCompleteMission}
               onArchiveMission={onArchiveMission}
+              onEditMission={onEditMission}
+              onEditTask={onEditTask}
               nicksPickTaskId={nicksPicks?.[mission.id]?.taskId}
               nicksPickRationale={nicksPicks?.[mission.id]?.rationale}
             />
@@ -222,6 +228,7 @@ export function MissionFeed({
                 onComplete={onCompleteTask}
                 onStart={onStartTask}
                 onDelete={onDeleteTask}
+                onEdit={onEditTask}
               />
             ))}
           </div>

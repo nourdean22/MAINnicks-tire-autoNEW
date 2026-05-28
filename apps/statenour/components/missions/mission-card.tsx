@@ -25,7 +25,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Flag, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, Pencil, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
 import { MissionTaskRow } from "./mission-task-row";
@@ -42,6 +42,12 @@ export interface MissionCardProps {
   onDeleteTask?: (id: string) => void | Promise<void>;
   onCompleteMission?: (missionId: string) => void | Promise<void>;
   onArchiveMission?: (missionId: string) => void | Promise<void>;
+  /** Wave AB.c · operator taps the pencil on the header → page opens
+   *  MissionEditDrawer with this mission. */
+  onEditMission?: (missionId: string) => void;
+  /** Wave AB.c · operator taps the pencil on a task row → page opens
+   *  TaskEditSheet with the full task. */
+  onEditTask?: (task: Task) => void;
   /** Optional · Phase 2 · the single Nick-picked task for this mission.
    *  When provided, the row renders pinned at the top with a gold
    *  treatment + a "Nick's pick" eyebrow. */
@@ -60,6 +66,8 @@ export function MissionCard({
   onDeleteTask,
   onCompleteMission,
   onArchiveMission,
+  onEditMission,
+  onEditTask,
   nicksPickTaskId,
   nicksPickRationale,
 }: MissionCardProps) {
@@ -156,6 +164,28 @@ export function MissionCard({
             {deadlineLabel}
           </span>
         )}
+        {/* wave-AB.c · per-card edit pencil · stopPropagation so the
+         *   outer expand toggle doesn't fire on tap. */}
+        {onEditMission && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditMission(mission.id);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                onEditMission(mission.id);
+              }
+            }}
+            aria-label={`edit mission ${mission.title}`}
+            className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+          >
+            <Pencil size={11} strokeWidth={1.75} />
+          </span>
+        )}
       </button>
 
       {/* Progress bar · hidden when mission has 0 tasks total · the
@@ -207,6 +237,7 @@ export function MissionCard({
                   onComplete={onCompleteTask}
                   onStart={onStartTask}
                   onDelete={onDeleteTask}
+                  onEdit={onEditTask}
                 />
               </div>
             ))}
@@ -221,6 +252,7 @@ export function MissionCard({
                       key={task.id}
                       task={task}
                       onComplete={onCompleteTask}
+                      onEdit={onEditTask}
                     />
                   ))}
                 </div>
