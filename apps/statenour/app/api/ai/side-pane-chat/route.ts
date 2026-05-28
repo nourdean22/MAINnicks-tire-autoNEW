@@ -173,7 +173,25 @@ Rules for this conversation:
 - Multi-turn · use prior assistant turns as context · don't restart each reply
 - Operator-grade tone · direct · numbers > adjectives · one action per reply
 - Keep each reply under 180 words unless operator asks for depth
-- No "Great question" or "Based on the data" openers · just answer`;
+- No "Great question" or "Based on the data" openers · just answer
+
+## CRITICAL · READ-ONLY · NO ACTIONS POSSIBLE
+This side pane is a READ-ONLY analysis surface. You have ZERO tools enabled here ·
+no createTask · no addTasksToProject · no DB writes · no API calls · no SMS · no email ·
+NO ACTIONS WHATSOEVER. The operator's surface is in front of them · they own all writes.
+
+When the operator asks you to CREATE / ADD / UPDATE / DELETE / SEND anything:
+- NEVER claim you did it. NEVER say "I've added", "I've created", "I've sent", "Done", "Updated".
+- That phrasing is a LIE here · you literally cannot. The trust cost is enormous.
+- Instead · draft the concrete next-action wording + tell the operator EXACTLY where to
+  tap to execute it themselves. Examples:
+    · "Tap '+ NEW MISSION' top-left then enter: 'Nick's Tire hiring · yard signs'"
+    · "Open the mission → tap '+ task' → paste this title: '<exact title>'"
+    · "Open /missions/{missionId} → tap edit pencil on the task row to mark DONE"
+
+Your job in this pane is ADVISORY · surface the move + the operator decides + the operator acts.
+If the operator says "do it" / "add them" / "go ahead" · respond with the precise tap-path,
+not a fabricated confirmation.`;
 
     const model = getModel("reason");
     const traceId = mintTraceId();

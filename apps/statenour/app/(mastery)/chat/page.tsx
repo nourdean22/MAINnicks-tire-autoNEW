@@ -629,6 +629,26 @@ function Chat() {
   // URL limits truncate around 2KB; an oversized seed would arrive
   // half-mangled. Hard-cap at 2000 chars before setInput so the
   // textarea state stays sane and the model never sees a runaway seed.
+  // Wave AC.c · 2026-05-28 · sessionStorage seed from HomeComposer.
+  // The /home route owns a simple <HomeComposer /> that stashes the
+  // draft in sessionStorage[chat:seed] before router.push("/chat") —
+  // avoids URL-length limits and survives deep links. Read once on
+  // mount, consume + clear so re-mounts don't re-seed.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (input.length > 0) return;
+    try {
+      const stashed = sessionStorage.getItem("chat:seed");
+      if (stashed && stashed.length > 0) {
+        setInput(stashed.slice(0, 2000));
+        sessionStorage.removeItem("chat:seed");
+      }
+    } catch {
+      // Best-effort · sessionStorage blocked = no seed, operator types.
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const seed = params?.get("seed");
     if (!seed || seed.length === 0) return;

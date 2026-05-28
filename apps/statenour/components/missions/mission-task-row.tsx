@@ -75,17 +75,25 @@ export function MissionTaskRow({
         }}
         disabled={busy === "complete" || isDone}
         aria-label={isDone ? "completed" : "mark complete"}
+        // 2026-05-28 · Wave AC.c · operator: "where do you complete a
+        // task on mobile?" The h-4 w-4 circle (16px) was a sub-pt tap
+        // target · invisible to fat fingers. New rule · 44pt tap zone
+        // via outer button padding · the visible circle stays small
+        // but the ENTIRE 44pt area is the click region.
         className={cn(
-          "shrink-0 mt-0.5 h-4 w-4 rounded-full border flex items-center justify-center transition-colors",
+          "shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] -m-2 p-2 rounded-full transition-colors active:scale-95",
+          "[&>span]:h-5 [&>span]:w-5 [&>span]:rounded-full [&>span]:border",
           isDone
-            ? "bg-[var(--gold)]/30 border-[var(--gold)]/60 text-[var(--bg-void)]"
+            ? "[&>span]:bg-[var(--gold)]/30 [&>span]:border-[var(--gold)]/60 text-[var(--bg-void)]"
             : isDoing
-              ? "border-amber-400/70 hover:border-amber-300"
-              : "border-[var(--border-default)] hover:border-[var(--gold)]/60",
-          busy === "complete" && "animate-pulse",
+              ? "[&>span]:border-amber-400/70 hover:[&>span]:border-amber-300"
+              : "[&>span]:border-[var(--border-default)] hover:[&>span]:border-[var(--gold)]/60",
+          busy === "complete" && "[&>span]:animate-pulse",
         )}
       >
-        {isDone && <Check size={10} strokeWidth={3} />}
+        <span className="flex items-center justify-center">
+          {isDone && <Check size={12} strokeWidth={3} />}
+        </span>
       </button>
 
       {/* Title + meta */}
