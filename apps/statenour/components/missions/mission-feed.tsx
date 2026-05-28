@@ -49,6 +49,11 @@ export interface MissionFeedProps {
   /** Phase 2 · per-mission Nick's-pick task id + rationale, keyed by
    *  mission id. */
   nicksPicks?: Record<string, { taskId: string; rationale: string }>;
+  /** Wave AJ · 2026-05-28 · ↑/↓ reorder · the feed passes through to
+   *  MissionCard with index + total computed from activeMissions.
+   *  The page owns the tRPC mutation that writes the new rank. */
+  onMoveMission?: (missionId: string, direction: "up" | "down") => void;
+  onMoveTask?: (taskId: string, direction: "up" | "down") => void;
 }
 
 export function MissionFeed({
@@ -63,11 +68,21 @@ export function MissionFeed({
   onEditMission,
   onEditTask,
   nicksPicks,
+  onMoveMission,
+  onMoveTask,
 }: MissionFeedProps) {
   const { activeMissions, tasksByMission, unattached } = useMemo(() => {
     const activeMissions = missions
       .filter((m) => m.status === "ACTIVE" && isUserProject(m))
       .sort((a, b) => {
+        // Wave AJ · 2026-05-28 · operator's manual rank takes priority.
+        // Mission.manualRankOverride: lower = higher in list · nulls
+        // sink to the bottom so any explicit ranking wins. Pre-AJ this
+        // sort started at deadline; manualRank is now the head key so
+        // the operator's ↑/↓ buttons actually persist visually.
+        const aRank = a.manualRankOverride ?? Number.MAX_SAFE_INTEGER;
+        const bRank = b.manualRankOverride ?? Number.MAX_SAFE_INTEGER;
+        if (aRank !== bRank) return aRank - bRank;
         // Missions with imminent deadlines float to the top, then by
         // open-task count (more = more urgent), then by title for
         // determinism.
@@ -178,7 +193,7 @@ export function MissionFeed({
         <EmptyMissions />
       ) : (
         <div className="space-y-2.5">
-          {activeMissions.map((mission) => (
+          {activeMissions.map((mission, missionIdx) => (
             <MissionCard
               key={mission.id}
               mission={mission}
@@ -194,6 +209,10 @@ export function MissionFeed({
               onEditTask={onEditTask}
               nicksPickTaskId={nicksPicks?.[mission.id]?.taskId}
               nicksPickRationale={nicksPicks?.[mission.id]?.rationale}
+              index={missionIdx}
+              totalMissions={activeMissions.length}
+              onMoveMission={onMoveMission}
+              onMoveTask={onMoveTask}
             />
           ))}
         </div>

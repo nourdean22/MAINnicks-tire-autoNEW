@@ -1381,6 +1381,129 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-05-28 · Wave AJ · operator-grade swap-by-direction on /missions.
+   *
+   * Per operator complaint 2026-05-28 PM: "how come i cant resort or
+   * change the orders of the missions or the tasks?" — manualRank
+   * existed in schema since v6 but no UI ever shipped. This + the
+   * ↑/↓ buttons in MissionCard close the loop.
+   *
+   * Server-side swap · the client just sends `(missionId, direction)`
+   * and the server resolves the current order + swaps `manualRankOverride`
+   * with the neighbor. Keeps the client dumb · all sort math + null-rank
+   * synthesis lives in one place. Lower rank = higher in the list ·
+   * nulls fall back to their current display index × 1000.
+   */
+  reorderMission: operatorProcedure
+    .input(
+      z.object({
+        missionId: z.string().min(1).max(64),
+        direction: z.enum(["up", "down"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const all = await prisma.mission.findMany({
+        where: { status: "ACTIVE", deletedAt: null },
+        orderBy: [
+          { manualRankOverride: { sort: "asc", nulls: "last" } },
+          { deadline: "asc" },
+          { title: "asc" },
+        ],
+        select: { id: true, manualRankOverride: true },
+      });
+      const idx = all.findIndex((m) => m.id === input.missionId);
+      if (idx === -1) return { ok: false as const, reason: "not_found" };
+      const targetIdx = input.direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= all.length) {
+        return { ok: false as const, reason: "at_boundary" };
+      }
+      const a = all[idx];
+      const b = all[targetIdx];
+      const aRank = a.manualRankOverride ?? idx * 1000;
+      const bRank = b.manualRankOverride ?? targetIdx * 1000;
+      await Promise.all([
+        prisma.mission.update({
+          where: { id: a.id },
+          data: { manualRankOverride: bRank, updatedBy: "user" },
+        }),
+        prisma.mission.update({
+          where: { id: b.id },
+          data: { manualRankOverride: aRank, updatedBy: "user" },
+        }),
+      ]);
+      return { ok: true as const, swapped: [a.id, b.id] };
+    }),
+
+  /**
+   * 2026-05-28 · Wave AJ · operator-grade swap-by-direction for TASKS
+   * WITHIN A MISSION. Task model has no manualRankOverride column ·
+   * we overload `autoPriority` (lower = top). The autopriority cron is
+   * aware via `autoPriorityExplanation = "manual reorder ..."` · honors
+   * operator's manual signal for 7 days before re-running its AI sort.
+   *
+   * Client sends `(taskId, direction)` and the SERVER finds the task's
+   * mission + the next task in the SAME mission's current sort order ·
+   * swaps their `autoPriority` values · stamps the explanation marker.
+   */
+  reorderTask: operatorProcedure
+    .input(
+      z.object({
+        taskId: z.string().min(1).max(64),
+        direction: z.enum(["up", "down"]),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const me = await prisma.task.findUnique({
+        where: { id: input.taskId },
+        select: { id: true, missionId: true, autoPriority: true },
+      });
+      if (!me?.missionId) return { ok: false as const, reason: "not_found" };
+      const all = await prisma.task.findMany({
+        where: {
+          missionId: me.missionId,
+          deletedAt: null,
+          status: { notIn: ["DONE", "ARCHIVED"] },
+        },
+        orderBy: [
+          { autoPriority: { sort: "asc", nulls: "last" } },
+          { createdAt: "asc" },
+        ],
+        select: { id: true, autoPriority: true },
+      });
+      const idx = all.findIndex((t) => t.id === input.taskId);
+      if (idx === -1) return { ok: false as const, reason: "not_found" };
+      const targetIdx = input.direction === "up" ? idx - 1 : idx + 1;
+      if (targetIdx < 0 || targetIdx >= all.length) {
+        return { ok: false as const, reason: "at_boundary" };
+      }
+      const a = all[idx];
+      const b = all[targetIdx];
+      const aRank = a.autoPriority ?? idx * 1000;
+      const bRank = b.autoPriority ?? targetIdx * 1000;
+      const today = new Date().toISOString().slice(0, 10);
+      const marker = `manual reorder by operator · ${today} · honor 7d`;
+      await Promise.all([
+        prisma.task.update({
+          where: { id: a.id },
+          data: {
+            autoPriority: bRank,
+            autoPriorityExplanation: marker,
+            updatedBy: "user",
+          },
+        }),
+        prisma.task.update({
+          where: { id: b.id },
+          data: {
+            autoPriority: aRank,
+            autoPriorityExplanation: marker,
+            updatedBy: "user",
+          },
+        }),
+      ]);
+      return { ok: true as const, swapped: [a.id, b.id] };
+    }),
+
+  /**
    * 2026-05-28 · Wave AB.b · DELETE a single RelationshipLedger entry.
    * Used when the operator added an entry in error. We delete the row
    * AND decrement PersonProfile.interactionCount so the rollup stays
