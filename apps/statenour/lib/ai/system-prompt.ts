@@ -1319,5 +1319,35 @@ export async function buildSystemPromptUncached(
     // Module shouldn't fail to load · this is belt-and-suspenders.
   }
 
+  // Wave AH Phase 1 · 2026-05-28 · contextual Greene corpus injection.
+  // Sam audit said the 144-entry Wave Z Greene corpus is one of the most
+  // underused assets — sat in BrainMemory powering only the /relationships
+  // sidebar. Every chat turn about strategy / power / decisions / leverage
+  // / relationships SHOULD have Nick reaching into the corpus.
+  //
+  // Deterministic keyword match · sub-millisecond once the corpus is
+  // module-cached (10min TTL). Self-gates: returns [] when the message
+  // doesn't trip enough triggers · zero cost for casual chat. Capped at 3
+  // matches · ~600 chars max injection vs the ~30K prompt baseline.
+  //
+  // Loaded dynamically so a Greene matcher fault never blocks the
+  // prompt path (defense-in-depth · the matcher itself returns [] on
+  // failure but the import boundary adds another guard).
+  if (userMessage && userMessage.trim().length > 0) {
+    try {
+      const { pickContextualLawsForMessage, renderGreeneBlock } = await import(
+        "@/lib/ai/greene-message-matcher"
+      );
+      const picks = await pickContextualLawsForMessage(userMessage);
+      const block = renderGreeneBlock(picks);
+      if (block) {
+        p.push(block);
+        p.push(``);
+      }
+    } catch {
+      // Best-effort · matcher failures must never poison the prompt.
+    }
+  }
+
   return p.join("\n");
 }
