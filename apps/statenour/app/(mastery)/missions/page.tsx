@@ -230,9 +230,24 @@ function MissionsPageInner() {
     [refetchAll, telemetry],
   );
 
-  // ── Quick-add submit · Phase 1A: unattached task or new mission ──
-  // Phase 1B will call /api/ai/classify-task-mission here and attach to
-  // the best-fit mission silently (or surface a chip if confidence < 60%).
+  // ── Quick-add submit · wave-AA-audit follow-up · background classifier.
+  // Pre-fix · the classifier ran SYNCHRONOUSLY before the create, adding
+  // ~500ms of perceived latency to every quick-add. Operator's response
+  // was just to wait through it · sloppy UX.
+  //
+  // Post-fix · two-phase pattern:
+  //   1. Create immediately as unattached · refetch · operator sees the
+  //      task land in the "Unattached" section in <100ms.
+  //   2. Fire the classifier in the background (no await on the outer
+  //      handler · the operator can type the next thing). On success,
+  //      update the task's missionId via the tRPC update mutation +
+  //      refetch · the task animates from Unattached into its mission
+  //      card on the next render.
+  //
+  // The optimistic path is correct even when the classifier returns null
+  // (low-signal task, model failure): the task simply stays in Unattached
+  // and the operator drags it manually. Telemetry records both paths so
+  // the Phase 4 prune analysis can verify classifier hit-rate over time.
   const [submitting, setSubmitting] = useState(false);
   const handleQuickAdd = useCallback(
     async (text: string) => {
@@ -256,86 +271,111 @@ function MissionsPageInner() {
           return;
         }
 
-        // Phase 1B · AI classifier · attaches the new task to the
-        // best-fit mission silently (or surfaces a chip if conf < 60%).
-        let attachMissionId: string | null = null;
-        let attachConfidence: number | null = null;
-        let attachRationale: string | null = null;
-        try {
-          const res = await fetch("/api/ai/classify-task-mission", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              taskTitle: text,
-              missions: missions
-                .filter((m) => m.status === "ACTIVE")
-                .map((m) => ({
-                  id: m.id,
-                  title: m.title,
-                  domain: m.domain ?? null,
-                })),
-            }),
-          });
-          if (res.ok) {
+        // ── PHASE 1 · CREATE OPTIMISTICALLY (unattached) ──
+        // We need the created task's id to attach it after classify ·
+        // createTaskFromAPI returns the view model with `id`.
+        telemetry.event("addTask", {
+          source: "quickAdd",
+          missionId: null,
+          classifierConfidence: null,
+        });
+        const created = (await createTask.mutateAsync({
+          title: text,
+          missionId: null,
+          status: "READY",
+          originSource: "missions-page:quickAdd-pre-classify",
+        })) as { id: string } | null;
+        await refetchAll();
+
+        if (!created?.id) {
+          // No id back · the task may still have been created · stop
+          // here so we don't try to update a phantom row.
+          return;
+        }
+
+        // ── PHASE 2 · BACKGROUND CLASSIFY + ATTACH ──
+        // The void async block intentionally escapes the handler's
+        // try/finally · the operator's submitting state cleared above.
+        const newTaskId = created.id;
+        const missionsSnapshot = missions
+          .filter((m) => m.status === "ACTIVE")
+          .map((m) => ({
+            id: m.id,
+            title: m.title,
+            domain: m.domain ?? null,
+          }));
+        void (async () => {
+          if (missionsSnapshot.length === 0) return;
+          let attachMissionId: string | null = null;
+          let attachConfidence = 0;
+          try {
+            const res = await fetch("/api/ai/classify-task-mission", {
+              method: "POST",
+              credentials: "include",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                taskTitle: text,
+                missions: missionsSnapshot,
+              }),
+            });
+            if (!res.ok) return;
             const data = (await res.json()) as {
               missionId: string | null;
               confidence: number;
               rationale?: string;
             };
-            if (data.missionId && data.confidence >= 0.6) {
-              attachMissionId = data.missionId;
-            } else if (data.missionId) {
-              attachMissionId = data.missionId;
-              attachConfidence = data.confidence;
-              attachRationale = data.rationale ?? null;
-            }
+            if (!data.missionId) return;
+            attachMissionId = data.missionId;
+            attachConfidence = data.confidence ?? 0;
+          } catch (classifyErr) {
+            log.warn("background_classify_failed", {
+              taskId: newTaskId,
+              err:
+                classifyErr instanceof Error
+                  ? classifyErr.message
+                  : String(classifyErr),
+            });
+            return;
           }
-        } catch (classifyErr) {
-          log.warn("classify_failed_falling_back_to_unattached", {
-            err:
-              classifyErr instanceof Error
-                ? classifyErr.message
-                : String(classifyErr),
-          });
-        }
 
-        telemetry.event("addTask", {
-          source: "quickAdd",
-          missionId: attachMissionId,
-          classifierConfidence: attachConfidence,
-        });
-        await createTask.mutateAsync({
-          title: text,
-          missionId: attachMissionId,
-          status: "READY",
-          originSource: attachMissionId
-            ? attachConfidence === null
-              ? "missions-page:classifier-high-conf"
-              : "missions-page:classifier-low-conf"
-            : "missions-page:unattached",
-          metadata: attachConfidence !== null
-            ? {
-                classifierConfidence: attachConfidence,
-                classifierRationale: attachRationale,
-              }
-            : undefined,
-        });
-        await refetchAll();
+          try {
+            await updateTask.mutateAsync({
+              id: newTaskId,
+              fields: { missionId: attachMissionId },
+            });
+            await refetchAll();
 
-        if (attachMissionId && attachConfidence !== null) {
-          const mission = missions.find((m) => m.id === attachMissionId);
-          toast.message(
-            `Attached to “${mission?.title ?? "mission"}” · ${Math.round(
-              attachConfidence * 100,
-            )}% confident · tap to change`,
-          );
-        }
+            telemetry.event("classifierAttach", {
+              taskId: newTaskId,
+              missionId: attachMissionId,
+              classifierConfidence: attachConfidence,
+            });
+
+            if (attachConfidence < 0.6) {
+              const mission = missionsSnapshot.find(
+                (m) => m.id === attachMissionId,
+              );
+              toast.message(
+                `Attached to “${mission?.title ?? "mission"}” · ${Math.round(
+                  attachConfidence * 100,
+                )}% confident · tap to change`,
+              );
+            }
+          } catch (updateErr) {
+            log.warn("background_attach_update_failed", {
+              taskId: newTaskId,
+              err:
+                updateErr instanceof Error
+                  ? updateErr.message
+                  : String(updateErr),
+            });
+          }
+        })();
       } finally {
         setSubmitting(false);
       }
     },
-    [createTask, createMission, missions, refetchAll, telemetry],
+    [createTask, createMission, missions, refetchAll, telemetry, updateTask],
   );
 
   // ── Loading ──
