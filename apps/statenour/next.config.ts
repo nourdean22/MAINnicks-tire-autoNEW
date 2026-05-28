@@ -145,20 +145,71 @@ const nextConfig: NextConfig = {
   // concept · /dashboard redirect was never updated. /tasks is the
   // operator's actual work dashboard.)
   redirects: async () => [
-    // Wave AA · 2026-05-28 · /tasks → /missions. The Missions-led IA
-    // makes /missions the canonical execution surface; old /tasks deep
-    // links + bookmarks 308-redirect cleanly. The legacy /tasks page
-    // stays on disk for now (one wave of telemetry-driven prune later).
+    // Wave AA · 2026-05-28 · /tasks → /missions.
     { source: "/dashboard", destination: "/missions", permanent: false },
     { source: "/habits", destination: "/missions", permanent: false },
     { source: "/tasks", destination: "/missions", permanent: false },
-    // 2026-05-17 · Phase A.1 · /plan + /mastery MERGED into /goals.
-    // The /goals route NOW exists as the merged surface · the prior
-    // `/goals → /tasks` placeholder (from when /goals was retired) is
-    // gone · sources flip to point AT /goals.
     { source: "/plan", destination: "/goals", permanent: true },
     { source: "/mastery", destination: "/goals", permanent: true },
     { source: "/nick", destination: "/chat", permanent: true },
+
+    // Wave AD · 2026-05-28 · mega-delete redirects · 41 pages deleted ·
+    // routing the previously-canonical paths to their new canonical home
+    // so bookmarks + cached deep links don't 404 mid-flight.
+    // Cockpit: Sam-led / IS the cockpit now (Wave AC).
+    { source: "/cockpit", destination: "/", permanent: false },
+    { source: "/system/cockpit", destination: "/", permanent: false },
+    // Brain consolidation: 4 sub-pages folded into /brain hub.
+    { source: "/brain/health", destination: "/brain", permanent: false },
+    { source: "/brain/identity-trajectory", destination: "/brain", permanent: false },
+    { source: "/brain/link-review", destination: "/brain", permanent: false },
+    { source: "/brain/reflections", destination: "/brain", permanent: false },
+    // Cron triplet → /system/crons only.
+    { source: "/system/cron-diagnostics", destination: "/system/crons", permanent: false },
+    { source: "/system/cron-runs", destination: "/system/crons", permanent: false },
+    // Health triplet → /system/health only.
+    { source: "/system/chat-health", destination: "/system/health", permanent: false },
+    { source: "/system/data-source-health", destination: "/system/health", permanent: false },
+    // Eval quadruplet → /system/calibration (operator-state lens).
+    { source: "/system/coverage", destination: "/system/calibration", permanent: false },
+    { source: "/system/quality", destination: "/system/calibration", permanent: false },
+    { source: "/system/eval-results", destination: "/system/calibration", permanent: false },
+    { source: "/system/judge-eval", destination: "/system/calibration", permanent: false },
+    // Operator-state duplicates → /system/calibration.
+    { source: "/system/operator-state", destination: "/system/calibration", permanent: false },
+    { source: "/system/lens-stats", destination: "/system/calibration", permanent: false },
+    // Cost dedup → /system/ai-cost only.
+    { source: "/system/costs", destination: "/system/ai-cost", permanent: false },
+    { source: "/system/performance", destination: "/system/ai-cost", permanent: false },
+    // Debug surface → /system/logs (the unified tail).
+    { source: "/system/agent-traces", destination: "/system/logs", permanent: false },
+    // Devops sprawl → /system hub.
+    { source: "/system/deployment-truth", destination: "/system", permanent: false },
+    { source: "/system/schema-history", destination: "/system", permanent: false },
+    { source: "/system/migrations", destination: "/system", permanent: false },
+    { source: "/system/repos", destination: "/system", permanent: false },
+    // Admin sprawl → /system hub.
+    { source: "/system/policies", destination: "/system", permanent: false },
+    { source: "/system/skills", destination: "/system", permanent: false },
+    { source: "/system/tools", destination: "/system", permanent: false },
+    { source: "/system/features", destination: "/system", permanent: false },
+    { source: "/system/api-tokens", destination: "/system", permanent: false },
+    { source: "/system/devices", destination: "/system", permanent: false },
+    { source: "/system/brain-bus", destination: "/system", permanent: false },
+    { source: "/system/history", destination: "/system", permanent: false },
+    { source: "/system/prompt", destination: "/system", permanent: false },
+    { source: "/system/providers", destination: "/system", permanent: false },
+    { source: "/system/power", destination: "/system", permanent: false },
+    { source: "/system/ghost-nour", destination: "/system/calibration", permanent: false },
+    // Reason consolidation.
+    { source: "/reason/history", destination: "/reason", permanent: false },
+    { source: "/reason/telemetry", destination: "/reason", permanent: false },
+    // Relationships network graph · the dossier IS the surface now.
+    { source: "/relationships/network", destination: "/relationships", permanent: false },
+    // Nickstire-leakage · external redirect.
+    { source: "/system/tire-stock-requests", destination: "https://nickstire.org/admin", permanent: false },
+    { source: "/system/vapi-calls", destination: "https://nickstire.org/admin", permanent: false },
+    { source: "/customer-360/:customerId*", destination: "https://nickstire.org/admin", permanent: false },
   ],
 };
 
