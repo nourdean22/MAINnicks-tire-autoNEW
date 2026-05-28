@@ -43,6 +43,8 @@ import { MissionFeed } from "@/components/missions/mission-feed";
 import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
+import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
+import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 import type { Project, Task } from "@/components/actions/shared";
 
@@ -98,6 +100,15 @@ function MissionsPageInner() {
     missionId: string;
     title: string;
   } | null>(null);
+
+  // wave-AB.c · CRUD drawer state · mission edit (and create) + task edit.
+  const [missionEditOpen, setMissionEditOpen] = useState(false);
+  const [missionEditId, setMissionEditId] = useState<string | null>(null);
+  const [missionEditInitial, setMissionEditInitial] = useState<
+    React.ComponentProps<typeof MissionEditDrawer>["initial"]
+  >(undefined);
+  const [taskEditOpen, setTaskEditOpen] = useState(false);
+  const [taskEditTarget, setTaskEditTarget] = useState<Task | null>(null);
 
   // ── Mutation wrappers · invalidate task + mission queries on success ──
   const refetchAll = useCallback(async () => {
@@ -409,6 +420,30 @@ function MissionsPageInner() {
       {/* Single quick-add input at top */}
       <MissionsQuickAdd onSubmit={handleQuickAdd} busy={submitting} />
 
+      {/* wave-AB.c · explicit "+ new mission" button so the operator
+       *  doesn't have to type the "create mission X" magic phrase. */}
+      <div className="flex items-center gap-2 px-1">
+        <button
+          type="button"
+          onClick={() => {
+            setMissionEditId(null);
+            setMissionEditInitial(undefined);
+            setMissionEditOpen(true);
+            telemetry.event("createMissionOpen", { source: "button" });
+          }}
+          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-2.5 py-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)]/90 hover:bg-[var(--gold)]/[0.08]"
+        >
+          + new mission
+        </button>
+        <span className="text-[10px] font-mono text-[var(--text-tertiary)]/70">
+          or type{" "}
+          <code className="px-1 rounded bg-[var(--bg-raised)]/10 text-[var(--text-tertiary)]">
+            create mission &lt;name&gt;
+          </code>{" "}
+          above
+        </span>
+      </div>
+
       {/* Mission cards + unattached section */}
       <MissionFeed
         missions={missions}
@@ -419,6 +454,25 @@ function MissionsPageInner() {
         onDeleteTask={handleDeleteTask}
         onCompleteMission={handleCompleteMission}
         onArchiveMission={handleArchiveMission}
+        onEditMission={(missionId) => {
+          const m = missions.find((mm) => mm.id === missionId);
+          if (!m) return;
+          setMissionEditId(missionId);
+          setMissionEditInitial({
+            title: m.title,
+            status: m.status,
+            domain: m.domain ?? null,
+            description: m.description ?? null,
+            deadline: m.deadline ?? null,
+          });
+          setMissionEditOpen(true);
+          telemetry.event("editMissionOpen", { missionId });
+        }}
+        onEditTask={(task) => {
+          setTaskEditTarget(task);
+          setTaskEditOpen(true);
+          telemetry.event("editTaskOpen", { taskId: task.id });
+        }}
       />
 
       {/* Phase 3 retro modal · opens when a mission is completed (either
@@ -436,6 +490,34 @@ function MissionsPageInner() {
           }}
         />
       )}
+
+      {/* wave-AB.c · mission edit/create drawer · key forces remount on
+       *  target switch so useState initializers re-seed cleanly. */}
+      <MissionEditDrawer
+        key={missionEditId ?? "new"}
+        open={missionEditOpen}
+        onClose={() => setMissionEditOpen(false)}
+        missionId={missionEditId}
+        initial={missionEditInitial}
+        onSaved={() => {
+          setMissionEditOpen(false);
+          void refetchAll();
+        }}
+      />
+
+      {/* wave-AB.c · task edit sheet · pass live mission list so the
+       *  operator can reassign tasks between missions inline. */}
+      <TaskEditSheet
+        key={taskEditTarget?.id ?? "none"}
+        open={taskEditOpen}
+        onClose={() => setTaskEditOpen(false)}
+        task={taskEditTarget}
+        missions={missions}
+        onSaved={() => {
+          setTaskEditOpen(false);
+          void refetchAll();
+        }}
+      />
     </div>
   );
 }

@@ -20,7 +20,7 @@
  */
 
 import { useState } from "react";
-import { Check, Play, Trash2 } from "lucide-react";
+import { Check, Pencil, Play, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
 
@@ -29,6 +29,9 @@ export interface MissionTaskRowProps {
   onComplete: (id: string) => void | Promise<void>;
   onStart?: (id: string) => void | Promise<void>;
   onDelete?: (id: string) => void | Promise<void>;
+  /** Wave AB.c · operator taps the pencil → page opens TaskEditSheet
+   *  with this task · move-to-mission + status + due + energy + etc. */
+  onEdit?: (task: Task) => void;
   /** Indent level · 0 = top, 1 = subtask. */
   indent?: 0 | 1;
 }
@@ -38,6 +41,7 @@ export function MissionTaskRow({
   onComplete,
   onStart,
   onDelete,
+  onEdit,
   indent = 0,
 }: MissionTaskRowProps) {
   const [busy, setBusy] = useState<"complete" | "start" | "delete" | null>(
@@ -114,6 +118,16 @@ export function MissionTaskRow({
       {/* Hover actions */}
       {!isDone && (
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(task)}
+              aria-label="edit task"
+              className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10"
+            >
+              <Pencil size={10} strokeWidth={2} />
+            </button>
+          )}
           {onStart && !isDoing && (
             <button
               type="button"
