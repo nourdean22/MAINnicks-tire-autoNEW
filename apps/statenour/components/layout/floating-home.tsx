@@ -34,7 +34,7 @@ import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 // v10.0.529.72 · BrainIcon · ServerIcon · CompassIcon dropped — they
 // only powered the BRAIN / OPS / LIFE rows of the QUICK NAV that were
 // inlined into <ActionsContextBand> on /tasks.
-import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target, Users, Flag } from "lucide-react";
+import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target, Users } from "lucide-react";
 import { useSystemPulse, type SystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
@@ -549,17 +549,11 @@ export function FloatingHome() {
                 Goals
               </span>
             </Link>
-            <Link
-              href="/missions"
-              onClick={() => setState((s) => ({ ...s, expanded: false }))}
-              className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
-              title="missions-led execution surface"
-            >
-              <Flag size={14} strokeWidth={1.5} />
-              <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
-                Missions
-              </span>
-            </Link>
+            {/* wave-AB.e · removed the hardcoded Missions row here ·
+             *  Wave AA renamed the mobile-tab "Actions" → "Missions"
+             *  so this row became a literal duplicate of the entry
+             *  already rendered above from MOBILE_TABS. Operator saw
+             *  Missions twice in the orb menu. */}
             <Link
               href="/relationships"
               onClick={() => setState((s) => ({ ...s, expanded: false }))}
