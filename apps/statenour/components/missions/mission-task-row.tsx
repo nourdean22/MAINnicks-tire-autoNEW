@@ -126,11 +126,31 @@ export function MissionTaskRow({
           task.energyRequired ||
           task.effort ||
           isDoing ||
-          task.waitingOn) && (
+          task.waitingOn ||
+          (task as unknown as { loopKind?: string }).loopKind === "DAILY") && (
           <div className="mt-0.5 flex items-center gap-2 text-[9px] font-mono uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
             {isDoing && <span className="text-amber-400">doing</span>}
             {task.waitingOn && (
               <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
+            )}
+            {(task as unknown as { loopKind?: string }).loopKind === "DAILY" && (
+              <span className="text-[var(--gold)]">
+                ↻ daily
+                {typeof (task as unknown as { streakCount?: number })
+                  .streakCount === "number" &&
+                (task as unknown as { streakCount?: number }).streakCount! >
+                  0 && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    {
+                      (task as unknown as { streakCount?: number })
+                        .streakCount
+                    }
+                    🔥
+                  </>
+                )}
+              </span>
             )}
             {task.energyRequired && <span>{task.energyRequired} energy</span>}
             {task.effort && <span>{task.effort}</span>}
