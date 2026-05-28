@@ -324,7 +324,7 @@ export function FloatingHome() {
         onClick={restoreFromPeek}
         aria-label="Restore navigation orb"
         className={cn(
-          "fixed top-1/2 -translate-y-1/2 z-[9999]",
+          "fixed top-1/2 -translate-y-1/2 z-40",
           "w-2 h-16 rounded-l-full rounded-r-none",
           "bg-[var(--gold)] shadow-[0_0_16px_rgba(253,185,19,0.6)]",
           "hover:w-3 transition-[transform,opacity] duration-200",
@@ -350,7 +350,7 @@ export function FloatingHome() {
   return (
     <div
       ref={wrapperRef}
-      className="fixed z-[9999]"
+      className="fixed z-40"
       style={{
         left: `${state.x}px`,
         top: `${state.y}px`,
