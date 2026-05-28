@@ -364,6 +364,11 @@ export const BRAIN_CATEGORIES = {
    *  home page · key shape `<YYYY-MM-DD>` · synthesis across missions,
    *  relationships, journal, brain. */
   HOME_BRIEF: "home_brief",
+  /** 2026-05-28 · Wave AI · Sam-Altman-shaped goals brief on /goals ·
+   *  key `<YYYY-MM-DD>` · synthesizes active LifeGoals + recent
+   *  reflection activity into a 2-3 sentence brief that names the ONE
+   *  goal that should compound most this week. */
+  GOALS_BRIEF: "goals_brief",
   /** 2026-05-28 · Wave AC Phase 1B · home one-tap moves shelf cache ·
    *  key shape `<YYYY-MM-DD>` · metadata.moves = OneTapMove[] (3 cards). */
   HOME_MOVES: "home_moves",

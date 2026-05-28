@@ -74,6 +74,7 @@ import { NickSidePane } from "@/components/mastery/nick-side-pane";
 // paced + planned. Self-fetches via GET /api/goals (independent of the
 // goalsSnapshot query that still feeds the header axes + missions rail).
 import { GoalBoard } from "@/components/goals/goal-board";
+import { NicksGoalsBrief } from "@/components/goals/nicks-goals-brief";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -167,6 +168,16 @@ export default function GoalsPage() {
          *  Self-hides when ?missionId is absent · zero cost otherwise. */}
         <div className="mt-4">
           <MissionBreadcrumb />
+        </div>
+
+        {/* Wave AI · 2026-05-28 · Sam-Altman frame · the ONE thing that
+         *  matters most this week. NicksGoalsBrief reads /api/ai/goals-
+         *  brief (cached daily) and surfaces 2-3 sentences naming the
+         *  goal that should compound + the single concrete move. Self-
+         *  hides on null. Mirrors NicksRelationshipsBrief + NicksHomeBrief
+         *  voice + tone · goal-state version of those briefs. */}
+        <div className="mt-6">
+          <NicksGoalsBrief />
         </div>
 
         {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
