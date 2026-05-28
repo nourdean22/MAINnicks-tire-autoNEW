@@ -71,8 +71,8 @@ export const NAV_ITEMS: NavItem[] = [
   // CHAT canonical URL still exists for deep-links + ⌘K + back-compat.
   // Mobile users land on / which renders the same experience.
   { href: "/chat",      label: "Nick",        icon: MessageSquare },
-  // COCKPIT — the full Ultron apex dashboard. Was the root pre-Wave-27.
-  { href: "/cockpit",   label: "Cockpit",     icon: Shield },
+  // Wave AD · 2026-05-28 · /cockpit deleted · the Sam-led / IS the
+  // cockpit now (Wave AC). next.config redirects /cockpit → /.
 
   // DEPTH — goals, growth, system, settings (accessible via sidebar + ⌘K)
   // 2026-05-21 · KommandoShell dismantle · Phase 3 · /goals added to the
@@ -111,8 +111,9 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/social",          label: "Publish",         icon: Send },
   { href: "/photo-improver",  label: "Photo Improver",  icon: ImageIcon },
   { href: "/content/history", label: "Content History", icon: History },
-  { href: "/system/prompt",   label: "System Prompt",   icon: Newspaper },
-  { href: "/system/costs",    label: "AI Costs (deep)", icon: TrendingUp },
+  // Wave AD · 2026-05-28 · /system/prompt + /system/costs deleted ·
+  // /system/ai-cost is the only cost surface now · /system/prompt
+  // collapsed into /system. next.config redirects in place.
 
   // 2026-05-24 · Wave X.e (consolidation+activation pass) ·
   // Intelligence Dispersal Wave 3 surfaces · 3 statenour-side bridge
@@ -129,10 +130,8 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/radar",           label: "Radar",           icon: Radar },
   { href: "/seo",             label: "SEO",             icon: Search },
 
-  // 2026-05-24 · Wave X.f activation · data-source-health canary
-  // (v10.0.58 Wave B) had no operator surface · the cron probed
-  // every 6h but nothing rendered the streaks. Now ⌘K reachable.
-  { href: "/system/data-source-health", label: "Data Source Health", icon: Activity },
+  // Wave AD · 2026-05-28 · /system/data-source-health deleted ·
+  // folded into /system/health. next.config redirects in place.
 ];
 
 // Pages accessible via ⌘K command palette or Nick chat (personal OS only):
