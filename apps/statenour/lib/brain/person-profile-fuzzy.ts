@@ -133,15 +133,23 @@ export async function resolvePersonByName(
   }
 
   // ── Tier 1 · exact case-sensitive ──────────────────────────────
+  // Wave AM · 2026-05-28 · soft-delete safety · don't merge new mentions
+  // back INTO a deleted profile · Tier 4 already filtered correctly · this
+  // brings Tiers 1+2 to parity. Otherwise operator deletes "John Smith" ·
+  // a new mention of "John Smith" gets resolved INTO the deleted record ·
+  // creates a phantom-revive scenario.
   const exact = await prisma.personProfile.findFirst({
-    where: { name },
+    where: { name, deletedAt: null },
     select: { id: true, name: true },
   });
   if (exact) return { person: exact, matched: true, matchTier: "exact" };
 
   // ── Tier 2 · case-insensitive ──────────────────────────────────
   const ci = await prisma.personProfile.findFirst({
-    where: { name: { equals: name, mode: "insensitive" } },
+    where: {
+      name: { equals: name, mode: "insensitive" },
+      deletedAt: null,
+    },
     select: { id: true, name: true },
   });
   if (ci) {

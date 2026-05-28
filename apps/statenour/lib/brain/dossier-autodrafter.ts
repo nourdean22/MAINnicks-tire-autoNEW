@@ -24,8 +24,9 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export async function draftDossierFor(
   personId: string,
 ): Promise<string | null> {
-  const person = await prisma.personProfile.findUnique({
-    where: { id: personId },
+  // Wave AM · 2026-05-28 · soft-delete safety
+  const person = await prisma.personProfile.findFirst({
+    where: { id: personId, deletedAt: null },
   });
   if (!person) return null;
 

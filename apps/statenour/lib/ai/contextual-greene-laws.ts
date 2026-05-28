@@ -118,8 +118,12 @@ export async function pickContextualLawsForPerson(
     interactionCount: number;
   } | null = null;
   try {
-    person = await prisma.personProfile.findUnique({
-      where: { id: personId },
+    // Wave AM · 2026-05-28 · soft-delete safety · findFirst+deletedAt:null
+    // replaces findUnique so a soft-deleted person can't bleed into the
+    // chat's Greene-law injection. Operator complaint root cause: brain
+    // layer never filtered deletedAt across 9 PersonProfile readers.
+    person = await prisma.personProfile.findFirst({
+      where: { id: personId, deletedAt: null },
       select: {
         id: true,
         name: true,

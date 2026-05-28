@@ -35,8 +35,10 @@ const log = rootLogger.withSurface("brain/people-embed-hook");
  */
 export async function enqueuePersonEmbed(personId: string): Promise<void> {
   try {
-    const person = await prisma.personProfile.findUnique({
-      where: { id: personId },
+    // Wave AM · 2026-05-28 · soft-delete safety · don't enqueue embeds
+    // for deleted people · they shouldn't bleed into semantic search.
+    const person = await prisma.personProfile.findFirst({
+      where: { id: personId, deletedAt: null },
       select: {
         name: true,
         role: true,

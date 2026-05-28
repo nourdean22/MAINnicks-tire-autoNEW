@@ -27,8 +27,9 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export async function tagApplicableLaws(
   personId: string,
 ): Promise<number[]> {
-  const person = await prisma.personProfile.findUnique({
-    where: { id: personId },
+  // Wave AM · 2026-05-28 · soft-delete safety
+  const person = await prisma.personProfile.findFirst({
+    where: { id: personId, deletedAt: null },
   });
   if (!person) return [];
 

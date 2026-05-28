@@ -29,8 +29,12 @@ export async function runPeopleIntelligence(): Promise<{
 }> {
   const alerts: string[] = [];
 
-  // Get all known people
+  // Get all known people · Wave AM · 2026-05-28 · CRITICAL soft-delete
+  // gap · this is the engine that feeds every chat turn the operator's
+  // people context. Pre-fix it returned soft-deleted profiles · operator
+  // would delete person X · Nick would keep referencing X in chat replies.
   const people = await prisma.personProfile.findMany({
+    where: { deletedAt: null },
     orderBy: { interactionCount: "desc" },
     select: {
       id: true,
