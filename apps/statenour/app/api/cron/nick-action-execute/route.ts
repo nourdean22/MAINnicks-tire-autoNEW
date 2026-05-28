@@ -52,6 +52,30 @@ const NICK_ACTION_TYPES = new Set<string>([
 
 export const GET = cronHandler(async () => {
   const today = new Date().toISOString().slice(0, 10);
+  // Wave AK · 2026-05-28 · operator-grade alerting wrapper. The
+  // executor is operator-trust-critical · a silent fail at 9am means
+  // approved AutonomousActions just sit pending forever with no
+  // visible signal. Telegram on fail.
+  try {
+    return await runExecutorCore(today);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 240) : String(err);
+    console.error("[nick-action-execute] cron_failed", { err: msg, today });
+    try {
+      const { sendTelegram } = await import("@/lib/services/telegram");
+      await sendTelegram(
+        `🚨 <b>Nick executor FAILED · ${today}</b>\n\n${msg}\n\n<i>Approved actions stay pending · /system/approvals shows them · audit /system/logs for the stack.</i>`,
+        undefined,
+        "HTML",
+      );
+    } catch {
+      /* best-effort */
+    }
+    throw err;
+  }
+});
+
+async function runExecutorCore(today: string) {
   const startedAt = Date.now();
 
   // ── Idempotency: skip if today's batch already ran ──
@@ -214,7 +238,7 @@ export const GET = cronHandler(async () => {
     pushed: telegramOk,
     today,
   };
-});
+}
 
 /**
  * Stamp the AutonomousAction row. The cron's per-row catch ensures a

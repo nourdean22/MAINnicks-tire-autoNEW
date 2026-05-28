@@ -35,7 +35,32 @@ export const maxDuration = 60;
 
 export const GET = cronHandler(async () => {
   const today = new Date().toISOString().slice(0, 10);
+  // Wave AK · 2026-05-28 · operator-grade alerting wrapper. The
+  // proposer is operator-trust-critical · a silent fail at 8am means
+  // no Telegram lands and the operator never knows the loop broke
+  // until they manually open /system/approvals at lunch. This
+  // top-level try/catch posts a fail-mode Telegram so the operator
+  // sees "cron failed" before they see "no proposal arrived."
+  try {
+    return await runProposerCore(today);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.slice(0, 240) : String(err);
+    console.error("[nick-action-proposal] cron_failed", { err: msg, today });
+    try {
+      const { sendTelegram } = await import("@/lib/services/telegram");
+      await sendTelegram(
+        `🚨 <b>Nick proposer FAILED · ${today}</b>\n\n${msg}\n\n<i>Audit /system/logs for the stack · operator missed today's queue.</i>`,
+        undefined,
+        "HTML",
+      );
+    } catch {
+      // Best-effort · Telegram down should not mask the original error.
+    }
+    throw err;
+  }
+});
 
+async function runProposerCore(today: string) {
   // ── Idempotency: skip if today's batch already shipped ──
   const existing = await prisma.brainMemory
     .findFirst({
@@ -168,7 +193,7 @@ export const GET = cronHandler(async () => {
     queuedIds,
     pushed: telegramOk,
   };
-});
+}
 
 // ── Action-type → short label for Telegram readability ─────────────
 const LABELS: Record<string, string> = {
