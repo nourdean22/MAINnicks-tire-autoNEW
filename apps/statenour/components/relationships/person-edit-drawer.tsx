@@ -362,8 +362,10 @@ function PersonEditDrawerBody({
   );
 }
 
+// wave-AB.d · mobile · 16px font prevents iOS Safari zoom-on-focus ·
+// 44px min-h meets Apple HIG tap target for selects + inputs.
 const inputCls =
-  "w-full min-h-[40px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] px-2.5 py-1.5 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50";
+  "w-full min-h-[44px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50";
 
 function Field({
   label,

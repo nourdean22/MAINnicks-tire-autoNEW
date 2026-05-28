@@ -165,7 +165,10 @@ export function MissionCard({
           </span>
         )}
         {/* wave-AB.c · per-card edit pencil · stopPropagation so the
-         *   outer expand toggle doesn't fire on tap. */}
+         *   outer expand toggle doesn't fire on tap.
+         *   wave-AB.d-mobile · bumped from h-6 (24px) to h-11 (44px) ·
+         *   Apple HIG tap-target floor · `active:scale-95` adds tap
+         *   feedback since the iOS pressed-state isn't free here. */}
         {onEditMission && (
           <span
             role="button"
@@ -181,9 +184,9 @@ export function MissionCard({
               }
             }}
             aria-label={`edit mission ${mission.title}`}
-            className="shrink-0 inline-flex h-6 w-6 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+            className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] active:scale-95 transition-transform cursor-pointer"
           >
-            <Pencil size={11} strokeWidth={1.75} />
+            <Pencil size={14} strokeWidth={1.75} />
           </span>
         )}
       </button>
@@ -278,7 +281,9 @@ export function MissionCard({
                   }}
                   placeholder="task title…"
                   disabled={submitting}
-                  className="flex-1 min-h-[36px] rounded-md border border-[var(--gold)]/30 bg-[var(--bg-raised)]/[0.06] px-2.5 py-1 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/60 focus:outline-none transition-colors disabled:opacity-50"
+                  // wave-AB.d-mobile · inline add input · bump to 44px
+                  // tap target + 16px font (iOS no-zoom).
+                  className="flex-1 min-h-[44px] rounded-md border border-[var(--gold)]/30 bg-[var(--bg-raised)]/[0.06] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/60 focus:outline-none transition-colors disabled:opacity-50"
                 />
                 <button
                   type="button"

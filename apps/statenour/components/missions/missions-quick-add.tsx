@@ -67,7 +67,10 @@ export function MissionsQuickAdd({
           placeholder="what&apos;s next?"
           disabled={busy}
           className={cn(
-            "w-full min-h-[44px] rounded-md border bg-[var(--bg-raised)]/[0.06] px-3 py-1.5 text-[15px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 transition-colors",
+            // wave-AB.d-mobile · 15px → 16px · iOS Safari zoom-on-focus
+            // floor is 16px · pre-fix every quick-add tap on iPhone PWA
+            // zoomed in jarringly + reset the page layout.
+            "w-full min-h-[44px] rounded-md border bg-[var(--bg-raised)]/[0.06] px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 transition-colors",
             "border-[var(--border-default)] focus:border-[var(--gold)]/40 focus:outline-none focus:shadow-[0_0_18px_rgba(253,185,19,0.12)]",
             "disabled:opacity-50",
           )}

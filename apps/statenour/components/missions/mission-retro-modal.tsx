@@ -150,7 +150,9 @@ export function MissionRetroModal({
             placeholder="2 lines · what shipped, what dragged…"
             rows={4}
             className={cn(
-              "w-full rounded-md border bg-[var(--bg-raised)]/[0.08] px-3 py-2 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 transition-colors",
+              // wave-AB.d-mobile · 14px → 16px · operator types the retro
+              // on phones · iOS no-zoom floor.
+              "w-full rounded-md border bg-[var(--bg-raised)]/[0.08] px-3 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 transition-colors",
               "border-[var(--border-default)] focus:border-[var(--gold)]/40 focus:outline-none focus:shadow-[0_0_18px_rgba(253,185,19,0.12)]",
               "resize-none disabled:opacity-50",
             )}
