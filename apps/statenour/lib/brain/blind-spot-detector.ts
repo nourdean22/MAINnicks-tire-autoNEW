@@ -140,10 +140,13 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       take: 50,
     }).catch((): never[] => []),
 
-    // People not mentioned recently
+    // People not mentioned recently · Wave AM · 2026-05-28 · soft-delete
+    // safety · the blind-spot detector should NOT alert on deleted people
+    // ("you haven't talked to deleted-Jane in 20 days" is wrong).
     prisma.personProfile.findMany({
       where: {
         relationship: { not: { equals: "" } },
+        deletedAt: null,
         OR: [
           { lastInteraction: null },
           { lastInteraction: { lte: fourteenDaysAgo } },

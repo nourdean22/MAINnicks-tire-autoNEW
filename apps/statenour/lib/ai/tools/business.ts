@@ -308,8 +308,12 @@ export const businessTools = {
           take: 8,
           select: { category: true, content: true, confidence: true, createdAt: true },
         }).catch((): never[] => []),
+        // Wave AM · 2026-05-28 · soft-delete safety
         prisma.personProfile.findFirst({
-          where: { name: { contains: nameOrPhone, mode: "insensitive" } },
+          where: {
+            name: { contains: nameOrPhone, mode: "insensitive" },
+            deletedAt: null,
+          },
           select: { name: true, role: true, relationship: true, trustScore: true, interactionCount: true, lastInteraction: true },
         }).catch((): null => null),
       ]);

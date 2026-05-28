@@ -33,8 +33,9 @@ export interface BehavioralFingerprint {
 export async function runBehavioralXray(
   personId: string,
 ): Promise<BehavioralFingerprint | null> {
-  const person = await prisma.personProfile.findUnique({
-    where: { id: personId },
+  // Wave AM · 2026-05-28 · soft-delete safety
+  const person = await prisma.personProfile.findFirst({
+    where: { id: personId, deletedAt: null },
   });
   if (!person) return null;
 
