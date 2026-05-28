@@ -224,6 +224,11 @@ async function commitJournalCandidates(): Promise<NickActionDraft[]> {
       // `summary` populated by the ingest pipeline · uncommitted ones
       // have raw thoughts only.
       summary: null,
+      // Wave AF audit fix · 2026-05-28 · sibling queries all filter
+      // soft-deletes (mission, task). The proposer must not resurface
+      // a soft-deleted dump as a commit_journal candidate · executor
+      // would act on a "deleted" row.
+      deletedAt: null,
     },
     orderBy: { createdAt: "desc" },
     take: 3,
