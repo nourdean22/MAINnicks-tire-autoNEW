@@ -555,7 +555,7 @@ export function FloatingHome() {
              *  already rendered above from MOBILE_TABS. Operator saw
              *  Missions twice in the orb menu. */}
             <Link
-              href="/relationships"
+              href="/people"
               onClick={() => setState((s) => ({ ...s, expanded: false }))}
               className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
               title="power atlas · per-person dossier + Greene law coach"
