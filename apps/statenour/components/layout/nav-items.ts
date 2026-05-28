@@ -58,7 +58,10 @@ export type NavItem = {
 export const NAV_ITEMS: NavItem[] = [
   // CORE 4 — mobile bottom nav. Wave 27 · chat is home.
   { href: "/",          label: "Home",        icon: MessageSquare,  mobileTab: true },
-  { href: "/tasks",     label: "Actions",     icon: ListTodo,       mobileTab: true },
+  // 2026-05-28 · Wave AA · /tasks renamed to /missions (Missions-led IA).
+  // Label stays "Missions" so the mental model is mission-first; the
+  // old /tasks URL 308-redirects via next.config redirects.
+  { href: "/missions",  label: "Missions",    icon: ListTodo,       mobileTab: true },
   { href: "/journal",   label: "Journal",     icon: NotebookPen,    mobileTab: true },
   // Apr 17 separation: /admin on autonicks was retired — business
   // ops live at nickstire.org/admin. Tab now points external so the

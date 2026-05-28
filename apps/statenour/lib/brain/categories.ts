@@ -304,6 +304,33 @@ export const BRAIN_CATEGORIES = {
    *  "shift" | "insight" }. Written by tRPC markAlphaMoment. */
   ALPHA_MOMENT: "alpha_moment",
 
+  // ── Wave AA · Missions-led IA (2026-05-28) ──
+  /** 2026-05-28 · Wave AA Phase 3 · per-mission retrospective captured
+   *  when the operator completes a mission (last task ticked done OR
+   *  explicit "complete mission" tap). Key shape: `<missionId>`. Content
+   *  = the 2-line retro text. Metadata = { missionId, missionTitle,
+   *  taskCount, finishedAt, retroText }. Feeds Nick's "what compounds
+   *  across missions" reflection + WeeklySynthesis cron. */
+  MISSION_RETRO: "mission_retro",
+  /** 2026-05-28 · Wave AA Phase 2 · cached per-mission "Nick's pick"
+   *  (the highest-leverage next task in that mission). Key shape:
+   *  `<missionId>:<YYYY-MM-DD>`. Content = "{taskId} · {rationale}".
+   *  Refreshes daily · /missions reads on mount to render the gold
+   *  border on the picked row. */
+  MISSION_NICKS_PICK: "mission_nicks_pick",
+  /** 2026-05-28 · Wave AA Phase 2 · daily morning brief across all
+   *  active missions. Key shape: `<YYYY-MM-DD>`. Content = 1-paragraph
+   *  brief (max ~120 chars). Refreshes once per day at first /missions
+   *  visit or on major mission state change. */
+  MISSION_MORNING_BRIEF: "mission_morning_brief",
+  /** 2026-05-28 · Wave AA Phase 4 · /missions surface telemetry · daily
+   *  aggregated event counts written by /api/system/mission-surface-stats.
+   *  Key shape: `surface_<YYYY-MM-DD>_<surface>`. Content = day summary
+   *  string. Metadata = { counts: Record<event,count>, events: rolling
+   *  200-event sample, version }. 30-day retention via standard
+   *  BrainMemory decay. Feeds the telemetry-driven prune analysis. */
+  MISSION_SURFACE_TELEMETRY: "mission_surface_telemetry",
+
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
    *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:
