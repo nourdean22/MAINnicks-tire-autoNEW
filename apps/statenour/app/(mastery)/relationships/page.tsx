@@ -21,7 +21,8 @@
  * only). This matches the executor brief.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Component } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 import { useLocalStorageState } from "@/hooks/use-local-storage-state";
@@ -309,15 +310,22 @@ export default function RelationshipsPage() {
               {personDetail.error.message}
             </div>
           )}
+          {personDetail.data === null && !personDetail.isLoading && (
+            <div className="text-sm text-amber-300">
+              Person not found · the profile may have been deleted. Pick another row above.
+            </div>
+          )}
           {personDetail.data && personDetail.data.person && (
-            <DetailPanel
-              detail={personDetail.data}
-              onOpenLog={(direction) => {
-                setLogModalDirection(direction);
-                setLogModalOpen(true);
-              }}
-              onOpenBlowUp={() => setBlowUpOpen(true)}
-            />
+            <DetailPanelErrorBoundary>
+              <DetailPanel
+                detail={personDetail.data}
+                onOpenLog={(direction) => {
+                  setLogModalDirection(direction);
+                  setLogModalOpen(true);
+                }}
+                onOpenBlowUp={() => setBlowUpOpen(true)}
+              />
+            </DetailPanelErrorBoundary>
           )}
 
           {/* Modals */}
@@ -522,6 +530,59 @@ function DetailPanel({
       </div>
     </div>
   );
+}
+
+/**
+ * 2026-05-27 · Power Atlas Phase 3 polish-wave regression guard.
+ *
+ * The polish-wave (commits 4f03c16c → d55c83a8) added 4 new cards into
+ * DetailPanel + new sub-queries inside LedgerTimeline (listAlphaMoments)
+ * and PowerPlaysHistory (markPlayOutcome). If ANY of them throws during
+ * mount (e.g. a tRPC procedure not yet deployed, or a JSON.stringify on
+ * an exotic value, or a tag library version mismatch in prod), the React
+ * tree unmounts the whole DetailPanel SILENTLY in production — leaving
+ * the operator clicking rows with no panel and no console errors.
+ *
+ * This boundary turns that silent failure into a visible diagnostic.
+ * The boundary is local (not the global one) so the people-list above
+ * stays interactive even if the detail panel errors.
+ */
+class DetailPanelErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  override state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo) {
+    // Surface to the prod console so the operator can copy/paste.
+    // eslint-disable-next-line no-console
+    console.error("[DetailPanel error]", error, info.componentStack);
+  }
+
+  override render() {
+    if (this.state.error) {
+      return (
+        <div
+          className="rounded-lg border border-rose-500/30 bg-rose-500/[0.05] p-4 text-sm"
+        >
+          <div className="font-serif text-base text-rose-200 mb-1">
+            Detail panel crashed
+          </div>
+          <p className="text-xs text-rose-200/80">
+            {this.state.error.message || "Unknown render error"}
+          </p>
+          <p className="mt-2 text-[10px] uppercase tracking-wider text-rose-200/60">
+            Pick another person or reload the page · the people list stays usable.
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function Stat({
