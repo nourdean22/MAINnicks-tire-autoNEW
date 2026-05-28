@@ -185,13 +185,19 @@ function PersonEditDrawerBody({
 
   const handleSoftDelete = useCallback(async () => {
     if (!personId) return;
+    // Wave AC.b · operator said "no where to just delete people" · the
+    // soft-delete button WAS here all along, just labeled with the
+    // technical term. Renaming to plain "delete" + simplifying the
+    // confirm copy so the action is obvious. Behaviour unchanged · still
+    // sets deletedAt + leaves ledger intact (revivable via the same
+    // mutation with revive:true).
     const confirmed = window.confirm(
-      `Soft-delete ${initial?.name ?? "this person"}? Their ledger + dossier stay in the DB · you can revive later.`,
+      `Delete ${initial?.name ?? "this person"} from your relationships?\n\nTheir dossier + ledger stay archived — you can ask Nick to revive them later.`,
     );
     if (!confirmed) return;
     try {
       await softDeleteMutation.mutateAsync({ personId });
-      toast.success(`Soft-deleted ${initial?.name ?? "person"}.`);
+      toast.success(`Deleted ${initial?.name ?? "person"}.`);
       onSaved?.(personId);
       onClose();
     } catch (err) {
@@ -330,10 +336,10 @@ function PersonEditDrawerBody({
               type="button"
               onClick={handleSoftDelete}
               disabled={submitting}
-              className="inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300/80 hover:text-rose-300 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-[12px] font-mono uppercase tracking-[0.15em] text-rose-300/90 hover:text-rose-300 disabled:opacity-50"
             >
-              <Trash2 size={11} strokeWidth={1.75} />
-              soft-delete
+              <Trash2 size={13} strokeWidth={1.75} />
+              delete
             </button>
           )}
           <button

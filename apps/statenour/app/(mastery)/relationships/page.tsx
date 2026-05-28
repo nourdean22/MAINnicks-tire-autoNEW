@@ -171,6 +171,31 @@ export default function RelationshipsPage() {
     { enabled: !!selectedPersonId },
   );
 
+  // Wave AC.b · 2026-05-28 · operator complaint "no where to just delete
+  // people in relationships". The drawer already had a delete button but
+  // required Edit → drawer → scroll → tap. Per-row inline delete makes it
+  // 2-tap: confirm → delete. Uses the same softDeletePerson mutation
+  // (deletedAt set · ledger preserved · revivable). Reload triggers an
+  // immediate /api/people refetch which now correctly filters deleted.
+  const softDeleteFromRow = trpc.task.softDeletePerson.useMutation();
+  const handleRowDelete = (personId: string, name: string) => {
+    if (softDeleteFromRow.isPending) return;
+    const confirmed = window.confirm(
+      `Delete ${name}?\n\nDossier + ledger stay archived — ask Nick to revive later.`,
+    );
+    if (!confirmed) return;
+    softDeleteFromRow.mutate(
+      { personId },
+      {
+        onSuccess: () => {
+          if (selectedPersonId === personId) setSelectedPersonId(null);
+          telemetry.event("deletePersonInline", { personId });
+          reload();
+        },
+      },
+    );
+  };
+
   return (
     <StandardPage
       eyebrow="brain · relationships"
@@ -371,6 +396,28 @@ export default function RelationshipsPage() {
                         className="ml-auto inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform cursor-pointer"
                       >
                         edit
+                      </span>
+                      {/* Wave AC.b · operator complaint "no where to just
+                       *  delete people". Per-row inline delete · 44pt tap
+                       *  target · confirm dialog protects against fat-finger.
+                       *  Uses softDeletePerson · revivable. */}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRowDelete(p.id, p.name);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            handleRowDelete(p.id, p.name);
+                          }
+                        }}
+                        aria-label={`delete ${p.name}`}
+                        className="inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider text-rose-300/70 hover:text-rose-300 active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+                      >
+                        delete
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[var(--text-secondary)] line-clamp-2">
