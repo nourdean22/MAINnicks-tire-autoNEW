@@ -369,6 +369,11 @@ export const BRAIN_CATEGORIES = {
    *  reflection activity into a 2-3 sentence brief that names the ONE
    *  goal that should compound most this week. */
   GOALS_BRIEF: "goals_brief",
+  /** 2026-05-28 · Wave AP · Sam-Altman-shaped journal brief on /journal ·
+   *  key `<YYYY-MM-DD>` · synthesizes the last 14 days of reflection +
+   *  brain-dump + thread activity into 2-3 sentences naming what
+   *  compounded + the open question + the stalled thread to revisit. */
+  JOURNAL_BRIEF: "journal_brief",
   /** 2026-05-28 · Wave AC Phase 1B · home one-tap moves shelf cache ·
    *  key shape `<YYYY-MM-DD>` · metadata.moves = OneTapMove[] (3 cards). */
   HOME_MOVES: "home_moves",
