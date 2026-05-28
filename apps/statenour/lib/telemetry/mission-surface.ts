@@ -34,12 +34,13 @@ const FLUSH_BATCH_SIZE = 20;
 const FLUSH_INTERVAL_MS = 30_000;
 const SURFACE_VERSION = "missions/wave-aa-2026-05-28";
 
-// 2026-05-28 · Wave AB · extended to cover /relationships. The same
-// telemetry pipeline + 2-week prune analysis applies to both surfaces ·
-// the Phase 4 prune script reads BrainMemory(mission_surface_telemetry)
-// rows keyed by `surface_<YYYY-MM-DD>_<surface>` so adding a surface
-// here also adds it to the daily aggregation buckets automatically.
-type SurfaceName = "missions" | "tasks-legacy" | "relationships";
+// 2026-05-28 · Wave AB extended to /relationships. Wave AC extended to
+// /home. Same telemetry pipeline + 2-week prune analysis applies across
+// all surfaces · the Phase 4 prune script reads
+// BrainMemory(mission_surface_telemetry) rows keyed by
+// `surface_<YYYY-MM-DD>_<surface>` so adding a surface here also adds it
+// to the daily aggregation buckets automatically.
+type SurfaceName = "missions" | "tasks-legacy" | "relationships" | "home";
 
 interface QueuedEvent {
   surface: SurfaceName;

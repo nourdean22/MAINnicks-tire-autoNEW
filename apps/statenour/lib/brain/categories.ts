@@ -359,6 +359,15 @@ export const BRAIN_CATEGORIES = {
    *  tokens. The component reads metadata.laws directly. */
   GREENE_CONTEXTUAL_PICK: "greene_contextual_pick",
 
+  // ── Wave AC · Sam-led home page (2026-05-28) ──
+  /** 2026-05-28 · Wave AC Phase 2 · cross-surface daily brief on the
+   *  home page · key shape `<YYYY-MM-DD>` · synthesis across missions,
+   *  relationships, journal, brain. */
+  HOME_BRIEF: "home_brief",
+  /** 2026-05-28 · Wave AC Phase 1B · home one-tap moves shelf cache ·
+   *  key shape `<YYYY-MM-DD>` · metadata.moves = OneTapMove[] (3 cards). */
+  HOME_MOVES: "home_moves",
+
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
    *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:
