@@ -268,7 +268,7 @@ export default function LedgerTimeline({
                       disabled={deleteMutation.isPending}
                       aria-label="delete this ledger entry"
                       title="delete"
-                      className="text-rose-300/60 hover:text-rose-300 underline decoration-dotted disabled:opacity-50"
+                      className="inline-flex min-h-[36px] items-center px-2 py-1.5 -my-1 text-rose-300/60 hover:text-rose-300 active:scale-95 transition-transform underline decoration-dotted disabled:opacity-50"
                     >
                       delete
                     </button>

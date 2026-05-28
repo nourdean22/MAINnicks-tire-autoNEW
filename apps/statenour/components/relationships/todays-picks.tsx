@@ -228,9 +228,9 @@ function PickCard({ pick, onDismiss, onLogged }: PickCardProps) {
           type="button"
           onClick={onDismiss}
           aria-label="skip pick"
-          className="shrink-0 inline-flex h-7 w-7 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
+          className="shrink-0 inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15 active:scale-95 transition-transform"
         >
-          <X size={12} strokeWidth={2} />
+          <X size={14} strokeWidth={2} />
         </button>
       </header>
 
@@ -251,9 +251,9 @@ function PickCard({ pick, onDismiss, onLogged }: PickCardProps) {
             onClick={handleRegen}
             disabled={draftLoading || sending}
             aria-label="regenerate draft"
-            className="ml-auto inline-flex items-center gap-1 text-[9px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--gold)] disabled:opacity-50"
+            className="ml-auto inline-flex min-h-[36px] items-center gap-1 px-2 py-1.5 -my-1 text-[10px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform disabled:opacity-50"
           >
-            <RefreshCw size={9} strokeWidth={1.75} />
+            <RefreshCw size={11} strokeWidth={1.75} />
             different angle
           </button>
         </div>
@@ -261,14 +261,16 @@ function PickCard({ pick, onDismiss, onLogged }: PickCardProps) {
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           disabled={draftLoading || sending}
-          rows={2}
+          rows={3}
           placeholder={
             draftLoading
               ? "drafting…"
               : "type the outreach yourself or hit ‘different angle’ above"
           }
           className={cn(
-            "w-full bg-transparent px-2.5 py-1.5 text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 resize-none",
+            // wave-AB.d-mobile · 16px font prevents iOS zoom-on-focus
+            // when the operator taps to edit the draft.
+            "w-full bg-transparent px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 resize-none",
             "focus:outline-none disabled:opacity-50",
           )}
         />
@@ -279,7 +281,7 @@ function PickCard({ pick, onDismiss, onLogged }: PickCardProps) {
           type="button"
           onClick={handleSend}
           disabled={!draft.trim() || sending || draftLoading}
-          className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3 py-1.5 text-[12px] font-medium text-[var(--gold)] hover:bg-[var(--gold)]/15 disabled:opacity-50"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-[var(--gold)]/50 bg-[var(--gold)]/10 px-3.5 py-2 text-[13px] font-medium text-[var(--gold)] hover:bg-[var(--gold)]/15 active:scale-95 transition-transform disabled:opacity-50"
         >
           {sending ? (
             <Loader2 size={12} className="animate-spin" strokeWidth={2} />

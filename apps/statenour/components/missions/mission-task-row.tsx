@@ -115,17 +115,21 @@ export function MissionTaskRow({
         )}
       </div>
 
-      {/* Hover actions */}
+      {/* Hover actions · wave-AB.d-mobile · always visible at touch
+       *  breakpoint (no hover · invisible buttons = invisible features
+       *  on phones). Apple HIG tap-target floor 44pt = h-11 w-11. The
+       *  Pre-fix `opacity-0 group-hover` made mobile operators unable
+       *  to edit/start/delete any task. */}
       {!isDone && (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
           {onEdit && (
             <button
               type="button"
               onClick={() => onEdit(task)}
               aria-label="edit task"
-              className="p-1 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 active:scale-95 transition-transform"
             >
-              <Pencil size={10} strokeWidth={2} />
+              <Pencil size={12} strokeWidth={2} />
             </button>
           )}
           {onStart && !isDoing && (
@@ -141,9 +145,9 @@ export function MissionTaskRow({
               }}
               disabled={busy === "start"}
               aria-label="start"
-              className="p-1 rounded text-[var(--text-tertiary)] hover:text-amber-400 hover:bg-amber-500/10"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-amber-400 hover:bg-amber-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
-              <Play size={10} strokeWidth={2} />
+              <Play size={12} strokeWidth={2} />
             </button>
           )}
           {onDelete && (
@@ -159,9 +163,9 @@ export function MissionTaskRow({
               }}
               disabled={busy === "delete"}
               aria-label="delete"
-              className="p-1 rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10"
+              className="inline-flex h-11 w-11 items-center justify-center rounded text-[var(--text-tertiary)] hover:text-rose-400 hover:bg-rose-500/10 active:scale-95 transition-transform disabled:opacity-50"
             >
-              <Trash2 size={10} strokeWidth={2} />
+              <Trash2 size={12} strokeWidth={2} />
             </button>
           )}
         </div>

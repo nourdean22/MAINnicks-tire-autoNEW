@@ -365,7 +365,10 @@ export default function RelationshipsPage() {
                             setEditPersonOpen(true);
                           }
                         }}
-                        className="ml-auto text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] cursor-pointer"
+                        // wave-AB.d-mobile · sub-44pt text-only link was
+                        // unhittable on phones · padded out to 44pt
+                        // minimum + active scale tap feedback.
+                        className="ml-auto inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-transform cursor-pointer"
                       >
                         edit
                       </span>

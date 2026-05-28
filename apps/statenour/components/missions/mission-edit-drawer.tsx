@@ -293,8 +293,11 @@ function MissionEditDrawerBody({
   );
 }
 
+// wave-AB.d · mobile · text-[16px] is the iOS Safari no-zoom-on-focus
+// floor · min-h-[44px] meets Apple HIG tap-target minimum on selects +
+// inputs (some browsers render selects shorter without it).
 const inputCls =
-  "w-full min-h-[40px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] px-2.5 py-1.5 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50";
+  "w-full min-h-[44px] rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.06] px-2.5 py-2 text-[16px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)]/70 focus:border-[var(--gold)]/40 focus:outline-none transition-colors disabled:opacity-50";
 
 function Field({
   label,
