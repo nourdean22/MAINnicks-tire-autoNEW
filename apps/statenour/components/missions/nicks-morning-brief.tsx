@@ -1,0 +1,134 @@
+"use client";
+
+/**
+ * NicksMorningBrief · Wave AA Phase 2 · 2026-05-28.
+ *
+ * The Sam-layer header that replaces "first move wins the day". A
+ * single 1-paragraph synthesis from Nick across all active missions ·
+ * cached daily in BrainMemory(category=mission_morning_brief, key=YYYY-MM-DD)
+ * so the page doesn't burn AI cost on every navigation.
+ *
+ *   "3 missions in motion · Power Atlas needs the detail-panel
+ *    cleanup to unblock the ledger work. Mobile polish stalled
+ *    for 4 days. Best move now: tick the ErrorBoundary task."
+ *
+ * Refreshes once per day OR on major mission state changes (new
+ * mission created · mission completed · 5+ tasks ticked in 6h).
+ *
+ * Self-hides when the response is empty (operator is mid-build, no
+ * brief content) so the header doesn't show a "Nick is thinking…"
+ * spinner indefinitely.
+ */
+
+import { useEffect, useState } from "react";
+import { Brain } from "lucide-react";
+import type { Project, Task } from "@/components/actions/shared";
+import { isUserProject } from "@/lib/services/mission-helpers";
+
+interface NicksMorningBriefProps {
+  missions: Project[];
+  tasks: Task[];
+}
+
+export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
+  const [brief, setBrief] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Page-mount fetch · cheap (the endpoint hits BrainMemory first; only
+  // calls Nick when the daily key is stale).
+  useEffect(() => {
+    let cancelled = false;
+    const active = missions.filter(
+      (m) => m.status === "ACTIVE" && isUserProject(m),
+    );
+    if (active.length === 0) {
+      setBrief(null);
+      setLoading(false);
+      return;
+    }
+    void (async () => {
+      try {
+        const res = await fetch("/api/ai/missions-morning-brief", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            missions: active.slice(0, 30).map((m) => ({
+              id: m.id,
+              title: m.title,
+              status: m.status,
+              deadline: m.deadline ?? null,
+              domain: m.domain ?? null,
+            })),
+            taskSummary: summarizeTasks(tasks),
+          }),
+        });
+        if (!res.ok) throw new Error("brief_request_failed");
+        const data = (await res.json()) as { brief: string };
+        if (!cancelled) setBrief(data.brief?.trim() || null);
+      } catch {
+        if (!cancelled) setBrief(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally only refetch when the mission COUNT changes, not
+    // on every task tick · the brief is meant to be a daily summary,
+    // not a real-time feed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [missions.length]);
+
+  if (loading || !brief) return null;
+
+  return (
+    <section
+      aria-label="nick's morning brief"
+      className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] px-4 py-3"
+    >
+      <div className="flex items-start gap-2">
+        <Brain
+          size={12}
+          className="text-[var(--gold)] mt-0.5 shrink-0"
+          strokeWidth={1.75}
+        />
+        <div className="flex-1 min-w-0">
+          <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
+            nick · morning brief
+          </p>
+          <p className="mt-1 text-[12px] text-[var(--text-primary)] leading-snug whitespace-pre-line">
+            {brief}
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function summarizeTasks(tasks: Task[]): {
+  open: number;
+  doing: number;
+  doneToday: number;
+  overdue: number;
+} {
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  let open = 0;
+  let doing = 0;
+  let doneToday = 0;
+  let overdue = 0;
+  const now = Date.now();
+  for (const t of tasks) {
+    if (t.status === "DONE") {
+      const at = t.lastTouchedAt ?? t.updatedAt;
+      if (at && new Date(at).getTime() >= todayStart.getTime()) doneToday++;
+    } else {
+      open++;
+      if (t.status === "DOING") doing++;
+      if (t.dueDate && new Date(t.dueDate).getTime() < now) overdue++;
+    }
+  }
+  return { open, doing, doneToday, overdue };
+}

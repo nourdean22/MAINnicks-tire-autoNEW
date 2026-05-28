@@ -145,8 +145,13 @@ const nextConfig: NextConfig = {
   // concept · /dashboard redirect was never updated. /tasks is the
   // operator's actual work dashboard.)
   redirects: async () => [
-    { source: "/dashboard", destination: "/tasks", permanent: false },
-    { source: "/habits", destination: "/tasks", permanent: false },
+    // Wave AA · 2026-05-28 · /tasks → /missions. The Missions-led IA
+    // makes /missions the canonical execution surface; old /tasks deep
+    // links + bookmarks 308-redirect cleanly. The legacy /tasks page
+    // stays on disk for now (one wave of telemetry-driven prune later).
+    { source: "/dashboard", destination: "/missions", permanent: false },
+    { source: "/habits", destination: "/missions", permanent: false },
+    { source: "/tasks", destination: "/missions", permanent: false },
     // 2026-05-17 · Phase A.1 · /plan + /mastery MERGED into /goals.
     // The /goals route NOW exists as the merged surface · the prior
     // `/goals → /tasks` placeholder (from when /goals was retired) is

@@ -550,10 +550,10 @@ export function FloatingHome() {
               </span>
             </Link>
             <Link
-              href="/tasks#missions"
+              href="/missions"
               onClick={() => setState((s) => ({ ...s, expanded: false }))}
               className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
-              title="mission scoreboard · /tasks IntelPanel widget"
+              title="missions-led execution surface"
             >
               <Flag size={14} strokeWidth={1.5} />
               <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
