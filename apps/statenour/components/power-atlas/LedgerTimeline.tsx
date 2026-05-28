@@ -168,6 +168,17 @@ export default function LedgerTimeline({
     personId,
   });
 
+  // wave-AB.b · operator-grade delete · removes a mistakenly-added
+  // ledger entry. Cascades · interactionCount decrement happens server-
+  // side in the mutation. Invalidate the personProfile query on success
+  // so the timeline refetches automatically.
+  const utils = trpc.useUtils();
+  const deleteMutation = trpc.task.deleteLedger.useMutation({
+    onSuccess: () => {
+      void utils.task.personProfile.invalidate({ personId });
+    },
+  });
+
   const pinnedByLedgerId = useMemo(() => {
     const map = new Map<string, AlphaKind>();
     for (const m of alphaMoments) {
@@ -175,6 +186,19 @@ export default function LedgerTimeline({
     }
     return map;
   }, [alphaMoments]);
+
+  const handleDelete = async (ledgerId: string, note: string) => {
+    const trimmed = note.length > 60 ? note.slice(0, 60) + "…" : note;
+    const confirmed = window.confirm(
+      `Delete this ledger entry?\n\n"${trimmed}"\n\nThe row disappears + interactionCount drops by 1.`,
+    );
+    if (!confirmed) return;
+    try {
+      await deleteMutation.mutateAsync({ ledgerId });
+    } catch {
+      window.alert("Couldn't delete the entry. Try again.");
+    }
+  };
 
   return (
     <section
@@ -237,6 +261,17 @@ export default function LedgerTimeline({
                       ledgerId={entry.id}
                       initialKind={pinned}
                     />
+                    <span>·</span>
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete(entry.id, entry.note)}
+                      disabled={deleteMutation.isPending}
+                      aria-label="delete this ledger entry"
+                      title="delete"
+                      className="text-rose-300/60 hover:text-rose-300 underline decoration-dotted disabled:opacity-50"
+                    >
+                      delete
+                    </button>
                   </div>
                 </div>
               </li>

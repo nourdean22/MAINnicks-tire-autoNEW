@@ -352,6 +352,12 @@ export const BRAIN_CATEGORIES = {
    *  Mirrors RelationshipLedger but with the AI rationale + draft text
    *  attached for future Nick reads. */
   RELATIONSHIPS_OUTREACH: "relationships_outreach",
+  /** 2026-05-28 · Wave AB.b · contextual Greene law picks (top 3 of the
+   *  Wave Z 144-entry corpus, ranked per-person + per-day). Key shape:
+   *  `<personId>:<YYYY-MM-DD>`. Metadata = { personId, laws: ContextualLaw[],
+   *  generatedAt }. Caches the AI rank for 24h so dossier opens don't burn
+   *  tokens. The component reads metadata.laws directly. */
+  GREENE_CONTEXTUAL_PICK: "greene_contextual_pick",
 
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing

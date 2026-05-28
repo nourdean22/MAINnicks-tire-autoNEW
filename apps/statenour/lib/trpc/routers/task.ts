@@ -1234,6 +1234,185 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-05-28 · Wave AB.b · operator-grade CREATE PersonProfile.
+   *
+   * The people-intelligence engine auto-creates profiles from chat
+   * mentions · this mutation lets the operator add one manually (e.g.
+   * "I just met X" before any chat references). Uses the fuzzy
+   * resolver to prevent dupes against existing names.
+   */
+  createPerson: operatorProcedure
+    .input(
+      z.object({
+        name: z.string().min(2).max(120),
+        role: z
+          .enum([
+            "employee",
+            "customer",
+            "vendor",
+            "family",
+            "competitor",
+            "advisor",
+            "friend",
+            "close_friend",
+            "mentor",
+            "mentee",
+            "ex_friend",
+            "acquaintance",
+            "network_only",
+            "romantic",
+            "ex_romantic",
+            "enemy",
+            "rival",
+          ])
+          .default("acquaintance"),
+        relationship: z.string().max(2000).default(""),
+        leverageNotes: z.string().max(2000).optional(),
+        birthday: z.string().optional(),
+        anniversary: z.string().optional(),
+        cadenceDays: z.number().int().min(1).max(365).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { resolvePersonByName } = await import(
+        "@/lib/brain/person-profile-fuzzy"
+      );
+      const resolved = await resolvePersonByName(input.name, {
+        role: input.role,
+        relationship: input.relationship,
+      });
+      // If the fuzzy resolver MATCHED an existing person we update its
+      // metadata fields the operator passed in. If it CREATED a new
+      // one, we still apply the optional fields (the resolver's create
+      // path only takes role / relationship / trustScore / metadata).
+      const fieldsToApply: Record<string, unknown> = {};
+      if (input.leverageNotes !== undefined)
+        fieldsToApply.leverageNotes = input.leverageNotes;
+      if (input.birthday !== undefined) fieldsToApply.birthday = input.birthday;
+      if (input.anniversary !== undefined)
+        fieldsToApply.anniversary = input.anniversary;
+      if (input.cadenceDays !== undefined)
+        fieldsToApply.cadenceDays = input.cadenceDays;
+      if (resolved.matched) {
+        // Don't overwrite existing relationship + role · operator-create
+        // shouldn't clobber what's already curated.
+        if (input.relationship && !fieldsToApply.relationship) {
+          // keep the existing relationship · don't overwrite
+        }
+      } else {
+        if (input.role) fieldsToApply.role = input.role;
+        if (input.relationship) fieldsToApply.relationship = input.relationship;
+      }
+      if (Object.keys(fieldsToApply).length > 0) {
+        await prisma.personProfile.update({
+          where: { id: resolved.person.id },
+          data: fieldsToApply,
+        });
+      }
+      return {
+        ok: true,
+        personId: resolved.person.id,
+        matched: resolved.matched,
+        matchTier: resolved.matchTier,
+      };
+    }),
+
+  /**
+   * 2026-05-28 · Wave AB.b · operator-grade UPDATE PersonProfile basic
+   * fields (NOT dossierMd · that has its own mutation). Lets the
+   * operator fix a name typo, change role assignment, set birthday,
+   * adjust cadence, etc. without touching the dossier prose.
+   */
+  updatePerson: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        name: z.string().min(2).max(120).optional(),
+        role: z.string().min(2).max(40).optional(),
+        relationship: z.string().max(2000).optional(),
+        leverageNotes: z.string().max(2000).nullable().optional(),
+        birthday: z.string().nullable().optional(),
+        anniversary: z.string().nullable().optional(),
+        cadenceDays: z.number().int().min(1).max(365).nullable().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const data: Record<string, unknown> = {};
+      if (input.name !== undefined) data.name = input.name;
+      if (input.role !== undefined) data.role = input.role;
+      if (input.relationship !== undefined) data.relationship = input.relationship;
+      if (input.leverageNotes !== undefined) data.leverageNotes = input.leverageNotes;
+      if (input.birthday !== undefined) data.birthday = input.birthday;
+      if (input.anniversary !== undefined) data.anniversary = input.anniversary;
+      if (input.cadenceDays !== undefined) data.cadenceDays = input.cadenceDays;
+      if (Object.keys(data).length === 0) return { ok: true, noop: true };
+      await prisma.personProfile.update({
+        where: { id: input.personId },
+        data,
+      });
+      return { ok: true };
+    }),
+
+  /**
+   * 2026-05-28 · Wave AB.b · operator-grade SOFT-DELETE PersonProfile.
+   * Sets `deletedAt = now()` · the row stays in the DB so cross-refs
+   * (ledger entries, alpha moments, retros) don't break, but the
+   * people-intelligence + Sam-layer surfaces filter them out via the
+   * existing `deletedAt: null` predicate.
+   *
+   * Operator can revive (just set deletedAt back to null) via the same
+   * mutation with revive: true.
+   */
+  softDeletePerson: operatorProcedure
+    .input(
+      z.object({
+        personId: z.string().min(1).max(64),
+        revive: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      await prisma.personProfile.update({
+        where: { id: input.personId },
+        data: {
+          deletedAt: input.revive ? null : new Date(),
+        },
+      });
+      return { ok: true, revived: input.revive === true };
+    }),
+
+  /**
+   * 2026-05-28 · Wave AB.b · DELETE a single RelationshipLedger entry.
+   * Used when the operator added an entry in error. We delete the row
+   * AND decrement PersonProfile.interactionCount so the rollup stays
+   * honest. PersonProfile.lastInteraction is NOT reset · it's not
+   * worth a full scan to find the next-most-recent; the next ledger
+   * write will refresh it.
+   */
+  deleteLedger: operatorProcedure
+    .input(
+      z.object({
+        ledgerId: z.string().min(1).max(64),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const ledger = await prisma.relationshipLedger.findUnique({
+        where: { id: input.ledgerId },
+        select: { personId: true },
+      });
+      if (!ledger) throw new Error("Ledger entry not found");
+      await prisma.relationshipLedger.delete({
+        where: { id: input.ledgerId },
+      });
+      await prisma.personProfile
+        .update({
+          where: { id: ledger.personId },
+          data: { interactionCount: { decrement: 1 } },
+        })
+        .catch(() => null);
+      return { ok: true, personId: ledger.personId };
+    }),
+
+  /**
    * 2026-05-27 · Power Atlas Phase 2 · operator-driven powerBalance edit.
    *
    * The operator drags the slider on PowerBalanceGauge → this mutation
