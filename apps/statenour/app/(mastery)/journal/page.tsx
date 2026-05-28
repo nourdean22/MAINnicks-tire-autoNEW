@@ -48,6 +48,10 @@ import { ReflectComposer } from "@/components/journal/reflect-composer";
 import { ThreadRadar } from "@/components/journal/thread-radar";
 import { ThreadRail } from "@/components/journal/thread-rail";
 import { ThreadSuggestions } from "@/components/journal/thread-suggestions";
+// Wave AP · 2026-05-28 · Sam-led /journal trio · brief + prompt + strip
+import { NicksJournalBrief } from "@/components/journal/nicks-journal-brief";
+import { TodaysPrompt } from "@/components/journal/todays-prompt";
+import { JournalThreadsStrip } from "@/components/journal/journal-threads-strip";
 import {
   TYPE_META,
   type FeedEntry,
@@ -415,6 +419,17 @@ function JournalPageInner() {
        *  observations, thread suggestions, learning velocity nudges).
        *  Self-hides when zero events. */}
       <CoachEventBanner surface="journal" />
+
+      {/* Wave AP · 2026-05-28 · Sam-Altman frame · 3 components ·
+       *  brief (narrative anchor) → today's prompt (hero) → threads
+       *  triage strip. Same pattern shipped on /goals (Wave AI) and
+       *  /missions (Wave AO). Each self-hides on empty so a fresh
+       *  /journal (zero entries, zero threads) stays clean. */}
+      <div className="mt-4 space-y-3">
+        <NicksJournalBrief />
+        <TodaysPrompt />
+        <JournalThreadsStrip />
+      </div>
 
       {/* Mastery Layer Stage B adoption on /journal · 2026-05-26.
        *  CONSERVATIVE wrap · the two pure info-display bands (learning
