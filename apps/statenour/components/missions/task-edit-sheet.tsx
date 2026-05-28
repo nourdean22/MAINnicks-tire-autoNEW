@@ -77,6 +77,14 @@ function TaskEditSheetBody({
   );
   const [waitingOn, setWaitingOn] = useState(() => task.waitingOn ?? "");
   const [missionId, setMissionId] = useState(() => task.missionId ?? "");
+  // Wave AL · 2026-05-28 · recurring tasks · loopKind exposed in UI for
+  // the first time. ONCE = default · DAILY = recur tomorrow via the
+  // existing WAITING+snoozedUntil mechanism + task-resurface cron.
+  // PROMISE is a separate concept (commitment to someone) · we don't
+  // expose it here for now · keeps the UI clean.
+  const [loopKind, setLoopKind] = useState(
+    () => (task as unknown as { loopKind?: string }).loopKind ?? "ONCE",
+  );
 
   const updateMutation = trpc.task.update.useMutation();
   const deleteMutation = trpc.task.delete.useMutation();
@@ -116,6 +124,7 @@ function TaskEditSheetBody({
           finishCondition: finishCondition.trim() || undefined,
           waitingOn: waitingOn.trim() || undefined,
           missionId: missionId || undefined,
+          loopKind: loopKind as "ONCE" | "DAILY" | "PROMISE",
         },
       });
       toast.success("Saved.");
@@ -137,6 +146,7 @@ function TaskEditSheetBody({
     effort,
     finishCondition,
     waitingOn,
+    loopKind,
     missionId,
     updateMutation,
     utils,
@@ -230,6 +240,24 @@ function TaskEditSheetBody({
               />
             </Field>
           </div>
+
+          {/* Wave AL · 2026-05-28 · recurring tasks · "Repeat" select.
+            * DAILY tasks resurface tomorrow on complete (status WAITING +
+            * snoozedUntil = tomorrow midnight + streakCount++ · existing
+            * task-resurface cron flips back to READY). ONCE is the
+            * standard one-shot behavior. PROMISE is reserved for the
+            * commitment-to-someone concept · not exposed here. */}
+          <Field label="repeat · how often does this recur?">
+            <select
+              value={loopKind}
+              onChange={(e) => setLoopKind(e.target.value)}
+              disabled={submitting}
+              className={inputCls}
+            >
+              <option value="ONCE">never · one-shot task</option>
+              <option value="DAILY">daily · habit · resurfaces tomorrow</option>
+            </select>
+          </Field>
 
           <Field label="mission · move to a different one">
             <select

@@ -145,18 +145,49 @@ function MissionsPageInner() {
     async (id: string) => {
       const task = tasks.find((t) => t.id === id);
       const wasOpen = task && task.status !== "DONE";
+      // Wave AL · 2026-05-28 · recurring tasks · DAILY loopKind tasks
+      // never reach DONE forever · they're a habit, not a one-shot.
+      // On complete:
+      //   · streakCount++
+      //   · lastCompletedAt = now
+      //   · status = WAITING + snoozedUntil = tomorrow 00:00 local
+      // The existing task-resurface cron auto-flips WAITING→READY
+      // when snoozedUntil ≤ now · the task reappears tomorrow.
+      const isDaily =
+        (task as unknown as { loopKind?: string } | undefined)?.loopKind ===
+        "DAILY";
       try {
-        telemetry.event("completeTask", { taskId: id });
-        await updateTask.mutateAsync({
-          id,
-          fields: { status: "DONE" },
-        });
+        telemetry.event("completeTask", { taskId: id, isDaily });
+        if (isDaily) {
+          const tomorrow = new Date();
+          tomorrow.setHours(0, 0, 0, 0);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const currentStreak =
+            (task as unknown as { streakCount?: number } | undefined)
+              ?.streakCount ?? 0;
+          await updateTask.mutateAsync({
+            id,
+            fields: {
+              status: "WAITING",
+              snoozedUntil: tomorrow.toISOString(),
+              lastCompletedAt: new Date().toISOString(),
+              streakCount: currentStreak + 1,
+            },
+          });
+        } else {
+          await updateTask.mutateAsync({
+            id,
+            fields: { status: "DONE" },
+          });
+        }
         await refetchAll();
 
         // Phase 3 · cascade · if this was the last open task in an
         // active mission, prompt the operator to mark the mission
-        // complete + capture a retro.
-        if (wasOpen && task?.missionId) {
+        // complete + capture a retro. Wave AL · DAILY tasks come back
+        // tomorrow · they don't actually "close" the mission · skip
+        // the cascade so the retro prompt doesn't fire incorrectly.
+        if (wasOpen && task?.missionId && !isDaily) {
           const mission = missions.find((m) => m.id === task.missionId);
           if (mission && mission.status === "ACTIVE") {
             const remaining = tasks.filter(

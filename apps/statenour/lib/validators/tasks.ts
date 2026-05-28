@@ -49,6 +49,14 @@ const taskBaseSchema = z.object({
   promiseTo: nullableString.optional(),
   lastCompletedAt: nullableDate.optional(),
   streakCount: integerRange(0, 9999).default(0),
+  // ── Wave AL · 2026-05-28 · recurring tasks ──
+  // The schema field has existed since v6 (Task.snoozedUntil DateTime?
+  // + the WAITING→READY auto-resurface cron at app/api/cron/task-
+  // resurface). It was never in the validator · so updates couldn't
+  // touch it. Operator complaint: "how come i cant create recurring
+  // tasks?" — the DAILY completion path needs to set it. Adding it
+  // here unlocks the existing infrastructure end-to-end.
+  snoozedUntil: nullableDate.optional(),
   // ── Lineage + time tracking (Apr 15 pt 2) ──
   goalId: nullableString.optional(),
   phaseName: nullableString.optional(),
