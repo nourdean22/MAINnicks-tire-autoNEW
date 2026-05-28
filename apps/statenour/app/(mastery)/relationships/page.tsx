@@ -39,6 +39,8 @@ import {
   RelationshipsWatchlist,
   type WatchlistItem,
 } from "@/components/relationships/relationships-watchlist";
+import { ContextualGreeneSidebar } from "@/components/relationships/contextual-greene-sidebar";
+import { PersonEditDrawer } from "@/components/relationships/person-edit-drawer";
 import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 
 import DossierEditor from "@/components/power-atlas/DossierEditor";
@@ -127,6 +129,13 @@ export default function RelationshipsPage() {
   const [picksRefetchKey, setPicksRefetchKey] = useState(0);
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const telemetry = useMissionSurfaceTelemetry("relationships");
+
+  // Wave AB.b · person CRUD drawer · `null` = create mode, string = edit mode.
+  const [editPersonOpen, setEditPersonOpen] = useState(false);
+  const [editPersonId, setEditPersonId] = useState<string | null>(null);
+  const [editInitial, setEditInitial] = useState<
+    React.ComponentProps<typeof PersonEditDrawer>["initial"]
+  >(undefined);
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -170,11 +179,27 @@ export default function RelationshipsPage() {
       rhythm="comfortable"
       width="2xl"
       actions={
-        <FreshnessChip
-          lastFetchedAt={data?.generatedAt}
-          source="people-intelligence engine"
-          onReload={reload}
-        />
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditPersonId(null);
+              setEditInitial(undefined);
+              setEditPersonOpen(true);
+              telemetry.event("addPersonOpen");
+            }}
+            className="text-[11px] font-mono uppercase tracking-[0.15em]"
+          >
+            + add person
+          </Button>
+          <FreshnessChip
+            lastFetchedAt={data?.generatedAt}
+            source="people-intelligence engine"
+            onReload={reload}
+          />
+        </div>
       }
     >
       {/* ═══ Wave AB · Sam-layer header trio ═══════════════════════════
@@ -304,6 +329,46 @@ export default function RelationshipsPage() {
                           neglected
                         </Badge>
                       )}
+                      {/* wave-AB.b · per-row Edit affordance · stopPropagation
+                       *  so the outer expand toggle doesn't fire on tap. */}
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditPersonId(p.id);
+                          setEditInitial({
+                            name: p.name,
+                            role: p.role,
+                            relationship: p.relationship || "",
+                            leverageNotes: p.leverageNotes,
+                            birthday: null,
+                            anniversary: null,
+                            cadenceDays: null,
+                          });
+                          setEditPersonOpen(true);
+                          telemetry.event("editPersonOpen", { personId: p.id });
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            setEditPersonId(p.id);
+                            setEditInitial({
+                              name: p.name,
+                              role: p.role,
+                              relationship: p.relationship || "",
+                              leverageNotes: p.leverageNotes,
+                              birthday: null,
+                              anniversary: null,
+                              cadenceDays: null,
+                            });
+                            setEditPersonOpen(true);
+                          }
+                        }}
+                        className="ml-auto text-[10px] uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] cursor-pointer"
+                      >
+                        edit
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-[var(--text-secondary)] line-clamp-2">
                       {p.relationship || "no relationship notes"}
@@ -416,6 +481,24 @@ export default function RelationshipsPage() {
       {/* ═══ Wave AB · close the collapsible "browse all" wrapper ═══════ */}
         </div>
       </details>
+
+      {/* ═══ Wave AB.b · person CRUD drawer · mounted at page root so it
+       *   floats above all content · operates in CREATE mode when
+       *   editPersonId is null. The `key` prop forces a remount when
+       *   the target person changes so useState initializers in the
+       *   drawer body re-seed with fresh `initial` props (avoids the
+       *   setState-in-effect anti-pattern). */}
+      <PersonEditDrawer
+        key={editPersonId ?? "new"}
+        open={editPersonOpen}
+        onClose={() => setEditPersonOpen(false)}
+        personId={editPersonId}
+        initial={editInitial}
+        onSaved={() => {
+          setEditPersonOpen(false);
+          void reload();
+        }}
+      />
     </StandardPage>
   );
 }
@@ -553,6 +636,14 @@ function DetailPanel({
             personId={person.id}
             initialProjection={person.lastArcPlan}
           />
+          {/* wave-AB.b · contextual Greene picks · top 3 from the Wave Z
+           *  144-entry corpus, ranked per-person + per-day, with verbatim
+           *  action strings. Mounted ABOVE the legacy static sidebar so
+           *  the operator sees the dynamic picks first. `key=person.id`
+           *  forces a remount on person switch · useState initializers
+           *  fire with fresh defaults (loading=true) so we don't need
+           *  setState calls in the effect body. */}
+          <ContextualGreeneSidebar key={person.id} personId={person.id} />
           <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
           <ReciprocityCard metadata={person.metadata} />
           <ToneShiftCard metadata={person.metadata} />
