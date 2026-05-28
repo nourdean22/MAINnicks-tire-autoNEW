@@ -491,6 +491,71 @@ h3 { font-family: var(--font-display); font-weight: 600; font-size: 1rem; color:
 }
 
 /* ═══════════════════════════════════════════════════════
+   v10.0.529.110 · Wave AH.b · 2026-05-28 · NATIVE SELECT FIX
+   Operator caught: dropdown options across statenour render
+   white-text-on-white-background (invisible until highlighted)
+   because native <select> popups inherit OS defaults and don't
+   respect the dark theme. 27 native <select> usages affected.
+   Fix lives at the global :root scope so EVERY <select> gets it
+   for free · no per-component fix needed.
+
+   Important · hex colors (not CSS vars). Most browsers render
+   <option> elements through OS-native widgets that don't read
+   CSS custom properties. Using explicit hex guarantees the
+   contrast on Chrome/Safari/Firefox · macOS/iOS/Win/Android.
+   ═══════════════════════════════════════════════════════ */
+select {
+  /* dropdown background when opened · matches --bg-elevated */
+  background-color: #1A1A1A;
+  color: #F0F0F0;
+}
+select option {
+  background-color: #1A1A1A; /* matches --bg-elevated */
+  color: #F0F0F0;             /* matches --text-primary */
+  padding: 8px 12px;          /* breathing room on touch */
+}
+select option:checked,
+select option:hover {
+  background-color: #FDB913;  /* gold accent on hover/active */
+  color: #0A0A0A;             /* inverse for contrast */
+}
+/* Firefox honors this; some Chromes ignore but the base rule above
+   is the actual fix. Keeping this as the polish. */
+select optgroup {
+  background-color: #111111;
+  color: #909090;
+  font-weight: 600;
+}
+
+/* ═══════════════════════════════════════════════════════
+   v10.0.529.110 · Wave AH.b · iOS NO-ZOOM ON FORM FOCUS
+   Operator caught: "another pass on mobile". Audit found 27
+   native <select> + dozens of <input>/<textarea> with
+   text-[10px] / text-[11px] / text-[12px] font sizes. iOS
+   Safari zooms in when a focused form control's computed
+   font-size is < 16px · the page never zooms back out
+   automatically · operator's chat composer + every drawer
+   form is jumbled after tapping a field.
+
+   Fix · at the mobile breakpoint (≤640px), FORCE 16px on every
+   focusable form control. Desktop keeps the operator-grade
+   typographic density · mobile gets the iOS-safe behavior.
+
+   wave-AB.d-mobile (person-edit-drawer · 2026-05-28) already
+   applied this locally · this lifts it to a global guarantee
+   so EVERY form control across the OS is iOS-safe without
+   per-component edits. Affects approximately 60+ form fields
+   spanning 27 components.
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
    MICRO-INTERACTIONS — POWER FEEL
    ═══════════════════════════════════════════════════════ */
 button, a, input, [role="button"] {
