@@ -193,14 +193,20 @@ export function MissionsHealthStrip({
                   ? `${Math.abs(c.daysToDeadline)}d overdue`
                   : style.label;
           return (
-            <span
+            // Wave AR · 2026-05-28 · chips now navigate · <a href="#mission-X">
+            // jumps to the matching MissionCard's row anchor · smooth-scroll
+            // + scroll-mt-24 lands the operator on the card without losing
+            // the sticky header. Closes the Sam-pattern triage → action loop.
+            <a
               key={c.id}
+              href={`#mission-${c.id}`}
               title={`${c.title} · ${c.openTasks} open · ${subtitle}`}
               className={cn(
                 "group inline-flex items-center gap-1.5 px-2 py-1 rounded-md",
                 "bg-[var(--bg-raised)]/[0.04]",
+                "transition-colors hover:bg-[var(--gold)]/10 focus-visible:bg-[var(--gold)]/10 outline-none",
               )}
-              aria-label={`${c.title}: ${c.openTasks} open, ${subtitle}`}
+              aria-label={`${c.title}: ${c.openTasks} open, ${subtitle}. Jump to mission.`}
             >
               <span
                 className={cn(
@@ -210,10 +216,10 @@ export function MissionsHealthStrip({
                 )}
                 aria-hidden
               />
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)] truncate max-w-[140px]">
+              <span className="text-[10px] font-mono text-[var(--text-tertiary)] truncate max-w-[140px] group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]">
                 {c.title}
               </span>
-            </span>
+            </a>
           );
         })}
       </div>

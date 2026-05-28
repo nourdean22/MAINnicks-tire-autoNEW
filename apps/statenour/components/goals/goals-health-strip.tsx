@@ -234,14 +234,20 @@ export function GoalsHealthStrip({ ladder }: GoalsHealthStripProps) {
                 ? `${Math.abs(g.paceGap)}p ahead`
                 : style.label;
           return (
-            <span
+            // Wave AR · 2026-05-28 · chips now navigate · the comment at
+            // the top of this file promised it · now the code matches.
+            // <a href="#goal-X"> + scroll-mt-24 on the GoalBoard row
+            // anchor lands the operator on the right card.
+            <a
               key={g.id}
+              href={`#goal-${g.id}`}
               title={`${g.title} · ${g.progress}% · ${subtitle}`}
               className={cn(
                 "group inline-flex items-center gap-1.5 px-2 py-1 rounded-md",
                 "bg-[var(--bg-raised)]/[0.04]",
+                "transition-colors hover:bg-[var(--gold)]/10 focus-visible:bg-[var(--gold)]/10 outline-none",
               )}
-              aria-label={`${g.title}: ${g.progress}%, ${subtitle}`}
+              aria-label={`${g.title}: ${g.progress}%, ${subtitle}. Jump to goal.`}
             >
               <span
                 className={cn(
@@ -251,10 +257,10 @@ export function GoalsHealthStrip({ ladder }: GoalsHealthStripProps) {
                 )}
                 aria-hidden
               />
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)] truncate max-w-[140px]">
+              <span className="text-[10px] font-mono text-[var(--text-tertiary)] truncate max-w-[140px] group-hover:text-[var(--text-primary)] group-focus-visible:text-[var(--text-primary)]">
                 {g.title}
               </span>
-            </span>
+            </a>
           );
         })}
       </div>

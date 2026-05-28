@@ -783,7 +783,12 @@ export function GoalBoard() {
             return (
               <div
                 key={g.id}
-                className="rounded-xl border border-zinc-800/40 bg-zinc-900/40 overflow-hidden group flex"
+                id={`goal-${g.id}`}
+                // Wave AR · 2026-05-28 · row anchor · TopGoalToday CTA
+                // + GoalsHealthStrip chips point at #goal-<id> · smooth-
+                // scroll lands the operator on the right card. Matches
+                // the MissionCard anchor pattern.
+                className="rounded-xl border border-zinc-800/40 bg-zinc-900/40 overflow-hidden group flex scroll-mt-24"
               >
                 {/* Apr 27 · GH4 — colored vertical stripe per horizon.
                     Glance-readable visual grouping; works alongside
