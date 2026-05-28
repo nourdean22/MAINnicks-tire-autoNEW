@@ -375,12 +375,26 @@ export const CRONS: CronDef[] = [
   },
 
   // ── ACTION (Wave AG · Nick Action Queue) ────────────────────────────
+  // Wave AK · 2026-05-28 · 7am UTC prewarm of the relationships-picks
+  // cache so the 8am proposer's outreach source has data. Audit caught
+  // the silent-degrade · cache was lazy (only on /relationships visit)
+  // so 8am cron at 3-4am ET ran with empty outreach slot every day.
+  {
+    name: "relationship-picks-prewarm",
+    schedule: "0 7 * * *",
+    mode: "active",
+    category: "action",
+    description: "Daily 7am UTC · pre-warms RELATIONSHIPS_PICKS_TODAY cache so the 8am nick-action-proposal has outreach data. Idempotent · returns cached value if already populated.",
+    memory: 512,
+    maxDuration: 60,
+    addedAt: "2026-05-28",
+  },
   {
     name: "nick-action-proposal",
     schedule: "0 8 * * *",
     mode: "active",
     category: "action",
-    description: "Daily 8am UTC · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax.",
+    description: "Daily 8am UTC · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax. Wave AK alerting · sends Telegram on failure.",
     memory: 1024,
     maxDuration: 300,
     addedAt: "2026-05-28",

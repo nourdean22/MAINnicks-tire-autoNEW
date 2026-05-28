@@ -152,7 +152,66 @@ export async function pickContextualLawsForMessage(
   const top = scored[0];
   if (top.score < minScore) return [];
 
-  return scored.slice(0, maxLaws);
+  const picks = scored.slice(0, maxLaws);
+  // Wave AK · 2026-05-28 · observability · per-day fire-rate aggregate.
+  // Operator audit caught: "Wave AH Greene wire has ZERO operator-visible
+  // signal · could be broken, could be working, can't tell." This records
+  // a daily fire count + the top laws so /system/calibration (or a SQL
+  // query) can confirm the corpus is actually firing across real chat
+  // turns. Fire-and-forget · matcher failure path stays silent.
+  void recordGreeneFire(picks).catch(() => undefined);
+  return picks;
+}
+
+/**
+ * Per-day aggregate write · upserts into BrainMemory(GREENE_FIRE_RATE,
+ * key=YYYY-MM-DD). Increments count + appends top-law titles. Cheap
+ * enough to fire from the chat hot path (one upsert per matched turn).
+ * Failure is silent · this is observability, not correctness.
+ */
+async function recordGreeneFire(picks: GreeneMatch[]): Promise<void> {
+  if (picks.length === 0) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const titles = picks.map((p) => p.title);
+  const existing = await prisma.brainMemory.findFirst({
+    where: { category: "greene_fire_rate", key: today },
+    select: { id: true, metadata: true },
+  });
+  if (existing) {
+    const meta = (existing.metadata as Record<string, unknown> | null) ?? {};
+    const prevCount =
+      typeof meta.count === "number" ? (meta.count as number) : 0;
+    const prevTopLaws = Array.isArray(meta.topLaws)
+      ? (meta.topLaws as string[])
+      : [];
+    await prisma.brainMemory.update({
+      where: { id: existing.id },
+      data: {
+        content: `${prevCount + 1} fires on ${today}`,
+        lastSeen: new Date(),
+        metadata: {
+          count: prevCount + 1,
+          topLaws: [...prevTopLaws, ...titles].slice(-20),
+          lastFiredAt: new Date().toISOString(),
+        } as never,
+      },
+    });
+  } else {
+    await prisma.brainMemory.create({
+      data: {
+        category: "greene_fire_rate",
+        key: today,
+        content: `1 fires on ${today}`,
+        confidence: 1,
+        source: "lib/ai/greene-message-matcher",
+        metadata: {
+          count: 1,
+          topLaws: titles,
+          lastFiredAt: new Date().toISOString(),
+        } as never,
+      },
+    });
+  }
 }
 
 /**
