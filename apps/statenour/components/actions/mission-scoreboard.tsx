@@ -96,18 +96,44 @@ export function MissionScoreboard() {
   const activeMissions = missionsRaw.filter(
     (m) => m.status === "ACTIVE" && isUserProject(m),
   );
-  if (activeMissions.length === 0) return null;
 
   // ── Derive matrix ───────────────────────────────────────────────
   const tasks = tasksQuery.data as Task[];
-  const options = buildMissionMatrixOptions(activeMissions, tasks);
+  const options = activeMissions.length > 0
+    ? buildMissionMatrixOptions(activeMissions, tasks)
+    : [];
 
-  // Self-hide when the filter dropped all rows (every active mission
-  // had zero tasks · would be an empty scoreboard).
-  if (options.length === 0) return null;
+  // 2026-05-28 · operator asked "where are the missions". Was returning
+  // `null` here when activeMissions or options were empty — operator saw
+  // a missing widget with no signal of why. Now renders an editorial
+  // empty-state pointing at /goals (mission authoring lives there).
+  // Anchor `id="missions"` lets the floating-home Missions link jump
+  // straight to this section regardless of state.
+  if (activeMissions.length === 0 || options.length === 0) {
+    return (
+      <section id="missions" className="space-y-2 scroll-mt-24">
+        <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] px-4 py-4">
+          <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+            missions · scoreboard
+          </p>
+          <p className="mt-2 text-[12px] text-[var(--text-secondary)] leading-snug">
+            {activeMissions.length === 0
+              ? "No active missions yet. Missions group tasks toward a goal so this scoreboard can rank them."
+              : "Active missions found, but none have tasks attached yet. Attach tasks on /goals to populate the matrix."}
+          </p>
+          <a
+            href="/goals"
+            className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] hover:text-[var(--gold)]/80"
+          >
+            Open Goals →
+          </a>
+        </div>
+      </section>
+    );
+  }
 
   return (
-    <section className="space-y-2">
+    <section id="missions" className="space-y-2 scroll-mt-24">
       <ComparisonMatrix
         title="missions · scoreboard"
         caption="emerald = best in column · rose = worst · amber = middle · deadline column is informational · refreshes on every check-off"
