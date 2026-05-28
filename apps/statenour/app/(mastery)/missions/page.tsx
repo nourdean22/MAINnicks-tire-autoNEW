@@ -42,6 +42,8 @@ import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionFeed } from "@/components/missions/mission-feed";
 import { MissionsQuickAdd } from "@/components/missions/missions-quick-add";
 import { NicksMorningBrief } from "@/components/missions/nicks-morning-brief";
+import { TopMissionToday } from "@/components/missions/top-mission-today";
+import { MissionsHealthStrip } from "@/components/missions/missions-health-strip";
 import { MissionRetroModal } from "@/components/missions/mission-retro-modal";
 import { MissionEditDrawer } from "@/components/missions/mission-edit-drawer";
 import { TaskEditSheet } from "@/components/missions/task-edit-sheet";
@@ -451,6 +453,18 @@ function MissionsPageInner() {
 
       {/* Nick's morning brief · Phase 2 · cross-mission pace summary */}
       <NicksMorningBrief tasks={tasks} missions={missions} />
+
+      {/* Wave AO · 2026-05-28 · Sam-parity with /goals · the ONE
+       *  mission that needs operator attention right now (DOING tasks
+       *  first · then deadline urgency · then open-count). Self-hides
+       *  when nothing qualifies. */}
+      <TopMissionToday missions={missions} tasks={tasks} />
+
+      {/* Wave AO · 2026-05-28 · 1-glance triage chip per active mission ·
+       *  in_flight (amber) · healthy (green) · behind (gold) · stalled
+       *  (rose) · idle (zinc) · done (faint gold). Tap a chip → tooltip
+       *  shows full title + state. Self-hides on empty. */}
+      <MissionsHealthStrip missions={missions} tasks={tasks} />
 
       {/* Single quick-add input at top */}
       <MissionsQuickAdd onSubmit={handleQuickAdd} busy={submitting} />
