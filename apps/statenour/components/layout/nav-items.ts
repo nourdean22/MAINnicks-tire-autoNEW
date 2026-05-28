@@ -21,6 +21,7 @@ import {
   Filter,
   Radar,
   Search,
+  Users,
 } from "lucide-react";
 
 export type NavItem = {
@@ -75,6 +76,10 @@ export const NAV_ITEMS: NavItem[] = [
   // nav. /goals is now the goal-authoring surface (the relocated PLAN
   // tab) — it earns a real nav entry.
   { href: "/goals",         label: "Goals",    icon: Target },
+  // 2026-05-28 · Power Atlas surface lands in the DEPTH section. /relationships
+  // is the per-person CIA dossier + Greene-law coach + RelationshipLedger.
+  // /relationships/network is the SVG graph view (degree centrality + bridges).
+  { href: "/relationships", label: "Relationships", icon: Users },
   { href: "/mastery",       label: "Growth",   icon: Brain },
   { href: "/brain",         label: "Brain",    icon: Brain },
   { href: "/system",        label: "System",   icon: Activity },

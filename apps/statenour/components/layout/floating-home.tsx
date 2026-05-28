@@ -34,7 +34,7 @@ import { CAPTURE_OPEN_EVENT } from "@/components/brain-dump-modal";
 // v10.0.529.72 · BrainIcon · ServerIcon · CompassIcon dropped — they
 // only powered the BRAIN / OPS / LIFE rows of the QUICK NAV that were
 // inlined into <ActionsContextBand> on /tasks.
-import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target } from "lucide-react";
+import { Minus, Shield, GripVertical, ChevronLeft, NotebookPen, Cog as CogIcon, ArrowRight, Clock, Target, Users, Flag } from "lucide-react";
 import { useSystemPulse, type SystemPulse } from "@/lib/hooks/use-system-pulse";
 import { useRecentPages } from "@/lib/hooks/use-recent-pages";
 import { pickSmartNow } from "@/lib/floating-home/smart-now";
@@ -527,7 +527,16 @@ export function FloatingHome() {
               MOBILE_TABS only) never surfaces. On a phone — the
               operator's primary device — that left goals + missions
               reachable only by typing the URL. This row restores
-              one-tap access from the single nav surface. */}
+              one-tap access from the single nav surface.
+
+              2026-05-28 · operator asked "where are the missions" and
+              "the new page needs to be added to the floating home bar".
+              Added two adjacent rows: Missions (deep-link to /goals
+              #missions where MissionScoreboard surfaces) and
+              Relationships (Power Atlas · the per-person CIA dossier +
+              Greene law coach shipped over the last 2 days). All three
+              rows share the same gold hover treatment so the section
+              reads as one unit. */}
           <div className="border-t border-[var(--border-default)]">
             <Link
               href="/goals"
@@ -538,6 +547,28 @@ export function FloatingHome() {
               <Target size={14} strokeWidth={1.5} />
               <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
                 Goals
+              </span>
+            </Link>
+            <Link
+              href="/tasks#missions"
+              onClick={() => setState((s) => ({ ...s, expanded: false }))}
+              className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
+              title="mission scoreboard · /tasks IntelPanel widget"
+            >
+              <Flag size={14} strokeWidth={1.5} />
+              <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
+                Missions
+              </span>
+            </Link>
+            <Link
+              href="/relationships"
+              onClick={() => setState((s) => ({ ...s, expanded: false }))}
+              className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
+              title="power atlas · per-person dossier + Greene law coach"
+            >
+              <Users size={14} strokeWidth={1.5} />
+              <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
+                Relationships
               </span>
             </Link>
           </div>

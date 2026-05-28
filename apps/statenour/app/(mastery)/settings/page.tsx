@@ -223,29 +223,38 @@ const DEFAULT_AUTOPILOT_FLAGS: AutoPilotFlag[] = [
   { key: "auto_weather_campaigns", label: "Weather Campaigns", description: "Auto-trigger marketing when weather events match (freeze, rain, heat, snow)", icon: Bell, enabled: true, category: "comms" },
 ];
 
-// 2026-05-24 · Wave P · resolve initial state from localStorage SYNC
-// before the first render so the operator doesn't see the "everything
-// ON" flash on every page load (Nielsen #1 fix · visibility of system
-// status). The tRPC query still resolves and merges in · localStorage
-// just eliminates the cold-start lie. Falls back to DEFAULT_* if no
-// cache or parse fails (e.g. SSR pass).
-function resolveInitialFlags(): AutoPilotFlag[] {
-  if (typeof window === "undefined") return DEFAULT_AUTOPILOT_FLAGS;
+// 2026-05-24 · Wave P · resolve initial state from localStorage. Was a
+// sync useState initializer · React 19 strict hydration caught the
+// mismatch (server returns DEFAULT_*, client read stored toggle states
+// → "Recoverable Error" in the dev overlay even though tree got
+// regenerated client-side). 2026-05-28 fix · keep the localStorage
+// cache for fast-paint freshness but apply it via useEffect after
+// hydration. Costs one frame of "all defaults" flash on cold load ·
+// the tRPC query merges in immediately after · operator sees the
+// snap from default → cached → server-confirmed in a single tick.
+function readStoredFlags(): AutoPilotFlag[] | null {
+  if (typeof window === "undefined") return null;
   try {
     const stored = window.localStorage.getItem("nour-autopilot-flags");
-    if (!stored) return DEFAULT_AUTOPILOT_FLAGS;
+    if (!stored) return null;
     const parsed = JSON.parse(stored) as Record<string, boolean>;
     return DEFAULT_AUTOPILOT_FLAGS.map((f) => ({
       ...f,
       enabled: parsed[f.key] !== undefined ? parsed[f.key] : f.enabled,
     }));
   } catch {
-    return DEFAULT_AUTOPILOT_FLAGS;
+    return null;
   }
 }
 
 function AutoPilotControls() {
-  const [flags, setFlags] = useState<AutoPilotFlag[]>(resolveInitialFlags);
+  // Hydration-safe · server + client first paint BOTH render defaults ·
+  // localStorage hydration happens in the useEffect below.
+  const [flags, setFlags] = useState<AutoPilotFlag[]>(DEFAULT_AUTOPILOT_FLAGS);
+  useEffect(() => {
+    const cached = readStoredFlags();
+    if (cached) setFlags(cached);
+  }, []);
   // 2026-05-24 · Wave P · surface mutation failures inline · mirror
   // PushNotificationToggle's pattern · was completely silent before
   // (Nielsen #9 fix · help users recognize errors).
