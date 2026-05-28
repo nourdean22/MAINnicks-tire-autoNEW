@@ -66,8 +66,20 @@ function MissionsPageInner() {
     refetchOnWindowFocus: false,
   });
 
-  const tasks = (tasksQuery.data ?? []) as Task[];
-  const missions = (missionsQuery.data ?? []) as Project[];
+  // wave-AA-audit · derived arrays wrapped in useMemo so the useCallback
+  // dependencies below stay stable across renders. Pre-fix, the bare
+  // `(data ?? []) as T[]` recreated a new array reference every render,
+  // which made every handler recompile on every parent state change —
+  // breaking the React.memo at child render sites + producing the
+  // "could make dependencies change on every render" warnings.
+  const tasks = useMemo<Task[]>(
+    () => (tasksQuery.data ?? []) as Task[],
+    [tasksQuery.data],
+  );
+  const missions = useMemo<Project[]>(
+    () => (missionsQuery.data ?? []) as Project[],
+    [missionsQuery.data],
+  );
 
   const createTask = trpc.task.create.useMutation();
   const updateTask = trpc.task.update.useMutation();
@@ -198,11 +210,15 @@ function MissionsPageInner() {
         telemetry.event("archiveMission", { missionId });
         // Use the create mutation surface · the same `record<string,unknown>`
         // shape supports status changes through the legacy POST path.
+        // wave-AA-audit · "Archive" semantics map to MissionStatus.KILLED
+        // (operator decided not to pursue), not PAUSED (might resume).
+        // MissionStatus enum only has ACTIVE/PAUSED/COMPLETE/KILLED ·
+        // we reserve COMPLETE for "shipped" (the retro flow sets it).
         await fetch(`/api/missions/${missionId}`, {
           method: "PATCH",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "PAUSED" }),
+          body: JSON.stringify({ status: "KILLED" }),
         });
         await refetchAll();
         toast.success("Mission archived");

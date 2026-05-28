@@ -136,9 +136,14 @@ export function MissionCard({
         <h3 className="flex-1 text-[13px] font-bold uppercase tracking-[0.1em] text-[var(--text-primary)] truncate">
           {mission.title}
         </h3>
-        <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
-          {progress}%
-        </span>
+        {/* wave-AA-audit · hide "0%" when the mission has no tasks ·
+         *  empty missions show a "+ add task" CTA instead, the 0% chip
+         *  was a misleading anchor on fresh missions. */}
+        {openTasks.length + doneTasks.length > 0 && (
+          <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)] shrink-0">
+            {progress}%
+          </span>
+        )}
         {deadlineLabel && (
           <span
             className={cn(
@@ -153,16 +158,19 @@ export function MissionCard({
         )}
       </button>
 
-      {/* Progress bar · always visible */}
-      <div className="px-3 -mt-2 pb-2">
-        <div className="h-0.5 bg-[var(--border-default)]/40 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[var(--gold)] transition-all duration-500"
-            style={{ width: `${progress}%` }}
-            aria-hidden
-          />
+      {/* Progress bar · hidden when mission has 0 tasks total · the
+       *  0% sliver was misleading for fresh missions. wave-AA-audit */}
+      {openTasks.length + doneTasks.length > 0 && (
+        <div className="px-3 -mt-2 pb-2">
+          <div className="h-0.5 bg-[var(--border-default)]/40 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[var(--gold)] transition-all duration-500"
+              style={{ width: `${progress}%` }}
+              aria-hidden
+            />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Body · task list + add row + footer */}
       {expanded && (

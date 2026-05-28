@@ -73,6 +73,22 @@ export function MissionRetroModal({
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        // wave-AA-audit · partial-success surfaces · if the BrainMemory
+        // write failed but the archive succeeded, the server returns
+        // { ok:true, warning:"retro_write_failed" }. Don't lie to the
+        // operator · keep the modal open with the retro text intact so
+        // they can retry.
+        const data = (await res.json()) as {
+          ok: boolean;
+          warning?: string;
+        };
+        if (data.warning === "retro_write_failed") {
+          setError(
+            "Mission archived, but the retro note didn't save. Try again — your text is still here.",
+          );
+          setSubmitting(false);
+          return;
+        }
         await onSaved();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

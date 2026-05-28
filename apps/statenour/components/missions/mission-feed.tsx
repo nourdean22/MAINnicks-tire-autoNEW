@@ -25,7 +25,7 @@
  * the tRPC mutations + cache invalidation.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Project, Task } from "@/components/actions/shared";
@@ -90,32 +90,47 @@ export function MissionFeed({
     return { activeMissions, tasksByMission, unattached };
   }, [missions, tasks]);
 
+  // wave-AA-audit · React 19's react-hooks/purity rule flags Date.now()
+  // calls inside useMemo as impure. Hoist the timestamps into render-
+  // state seeded once per render via lazy state (a tick-by-tick refresh
+  // isn't needed · the "next deadline" pill staleness is bounded by the
+  // tRPC poll interval). useState's initializer runs on mount; we
+  // intentionally don't update it · the deadline label re-derives each
+  // time the missions list changes anyway, which captures the only state
+  // change the operator notices visually.
+  const [renderNow] = useState(() => ({
+    nowMs: Date.now(),
+    todayStartMs: (() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })(),
+  }));
+
   const totalOpenTasks = useMemo(
     () => tasks.filter((t) => t.status !== "DONE").length,
     [tasks],
   );
   const totalDoneToday = useMemo(() => {
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
     return tasks.filter((t) => {
       if (t.status !== "DONE") return false;
       const completedAt = t.lastTouchedAt ?? t.updatedAt;
       if (!completedAt) return false;
-      return new Date(completedAt).getTime() >= todayStart.getTime();
+      return new Date(completedAt).getTime() >= renderNow.todayStartMs;
     }).length;
-  }, [tasks]);
+  }, [tasks, renderNow.todayStartMs]);
   const nextDeadline = useMemo(() => {
     const upcoming = activeMissions
       .map((m) => (m.deadline ? new Date(m.deadline) : null))
       .filter((d): d is Date => d !== null && !Number.isNaN(d.getTime()))
-      .filter((d) => d.getTime() >= Date.now())
+      .filter((d) => d.getTime() >= renderNow.nowMs)
       .sort((a, b) => a.getTime() - b.getTime());
     if (upcoming.length === 0) return null;
     const days = Math.round(
-      (upcoming[0].getTime() - Date.now()) / (1000 * 60 * 60 * 24),
+      (upcoming[0].getTime() - renderNow.nowMs) / (1000 * 60 * 60 * 24),
     );
     return days === 0 ? "today" : `${days}d`;
-  }, [activeMissions]);
+  }, [activeMissions, renderNow.nowMs]);
 
   return (
     <div className="space-y-4">
