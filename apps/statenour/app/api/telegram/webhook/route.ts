@@ -239,6 +239,11 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
         return await cmdApprove(args.join(" "), chatId);
       case "/reject":
         return await cmdReject(args.join(" "), chatId);
+      // 2026-05-28 · Wave AG · Nick Action Queue · daily approval.
+      // Operator replies "/qa 1 3" / "/qa all" / "/qa none" to the
+      // 8am morning batch · execute cron at 9am ships approved rows.
+      case "/qa":
+        return await cmdQa(args.join(" "), chatId);
       case "/help":
         return await sendTelegram(
           `🤖 <b>Nick Commands — Personal OS</b>\n\n` +
@@ -261,7 +266,11 @@ async function handleCommand(text: string, chatId: string): Promise<void> {
             `/ask [question] — Ask Nick anything\n\n` +
             `\n<b>OUTREACH (Wave-200)</b>\n` +
             `/approve [campaignId] — Approve pending bulk-SMS\n` +
-            `/reject [campaignId] — Reject pending bulk-SMS\n\n` +
+            `/reject [campaignId] — Reject pending bulk-SMS\n` +
+            `\n<b>NICK QUEUE (Wave AG · 2026-05-28)</b>\n` +
+            `/qa 1 3 — approve today's queued moves #1 and #3\n` +
+            `/qa all — approve every move in today's queue\n` +
+            `/qa none — reject every move in today's queue\n\n` +
             `<i>Shop ops (pace, staffing, customers) live in nickstire.org/admin.</i>`,
           chatId
         ).then(() => {});
@@ -1174,6 +1183,135 @@ async function cmdApprove(args: string, chatId: string): Promise<void> {
 
 async function cmdReject(args: string, chatId: string): Promise<void> {
   await emitApprovalResponse(args.trim(), "reject", chatId);
+}
+
+// ── Nick Action Queue (Wave AG · 2026-05-28) ─────────────────
+//
+// Daily approval surface · operator replies to the 8am morning batch
+// with "/qa 1 3" / "/qa all" / "/qa none". Updates AutonomousAction
+// rows whose payload.queueDate = today. The 9am execute cron then
+// dispatches everything approved.
+//
+// Syntax · index list is 1-based and matches the order shown in the
+// proposal Telegram message (which is payload.queueIndex). Anything
+// not in the list stays pending — the operator can defer or run /qa
+// again later.
+
+async function cmdQa(args: string, chatId: string): Promise<void> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { prisma } = await import("@/lib/prisma");
+
+  // Pull today's pending nick_action rows.
+  const rows = await prisma.autonomousAction.findMany({
+    where: {
+      ruleName: { startsWith: "nick_action_" },
+      approval: "pending",
+      idempotencyKey: { startsWith: `nick_action::${today}::` },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      idempotencyKey: true,
+      payload: true,
+      ruleName: true,
+      trigger: true,
+    },
+  });
+
+  if (rows.length === 0) {
+    await sendTelegram(
+      `📭 No pending Nick moves for ${today}. Today's batch may already be approved/executed — check /system/approvals.`,
+      chatId,
+    );
+    return;
+  }
+
+  // Index → row lookup. We trust payload.queueIndex (set by the
+  // proposer) — fall back to insertion order if payload is missing.
+  const byIndex = new Map<number, (typeof rows)[number]>();
+  rows.forEach((r, i) => {
+    const payload = r.payload as Record<string, unknown> | null;
+    const idx =
+      typeof payload?.queueIndex === "number"
+        ? (payload.queueIndex as number)
+        : i + 1;
+    byIndex.set(idx, r);
+  });
+
+  const trimmed = args.trim().toLowerCase();
+  let targets: { idx: number; id: string }[] = [];
+  let decision: "approved" | "rejected" = "approved";
+
+  if (!trimmed) {
+    await sendTelegram(
+      `Usage: <code>/qa 1 3</code> · <code>/qa all</code> · <code>/qa none</code>\n\n${rows.length} pending today.`,
+      chatId,
+    );
+    return;
+  }
+
+  if (trimmed === "all") {
+    targets = [...byIndex.entries()].map(([idx, row]) => ({ idx, id: row.id }));
+  } else if (trimmed === "none") {
+    decision = "rejected";
+    targets = [...byIndex.entries()].map(([idx, row]) => ({ idx, id: row.id }));
+  } else {
+    const indices = trimmed
+      .split(/[\s,]+/)
+      .map((s) => parseInt(s, 10))
+      .filter((n) => Number.isInteger(n) && n > 0);
+    if (indices.length === 0) {
+      await sendTelegram(
+        `Couldn't parse indices from "${args.slice(0, 60)}". Try <code>/qa 1 3</code>, <code>/qa all</code>, or <code>/qa none</code>.`,
+        chatId,
+      );
+      return;
+    }
+    for (const idx of indices) {
+      const row = byIndex.get(idx);
+      if (row) targets.push({ idx, id: row.id });
+    }
+    if (targets.length === 0) {
+      await sendTelegram(
+        `No matching moves for ${indices.join(", ")}. Today has ${rows.length} pending (#${[...byIndex.keys()].sort((a, b) => a - b).join(", #")}).`,
+        chatId,
+      );
+      return;
+    }
+  }
+
+  // Apply the decision in a single transaction so a partial failure
+  // doesn't leave the queue in a torn state.
+  let updated = 0;
+  try {
+    const result = await prisma.autonomousAction.updateMany({
+      where: { id: { in: targets.map((t) => t.id) } },
+      data: {
+        approval: decision,
+        approvedBy: "nour-telegram",
+      },
+    });
+    updated = result.count;
+  } catch (err) {
+    await sendTelegram(
+      `⚠️ Queue update failed: ${err instanceof Error ? err.message.slice(0, 160) : "unknown"}`,
+      chatId,
+    );
+    return;
+  }
+
+  const verb = decision === "approved" ? "approved" : "rejected";
+  const idxList = targets
+    .map((t) => t.idx)
+    .sort((a, b) => a - b)
+    .join(", ");
+  await sendTelegram(
+    `✅ <b>${verb}</b> · ${updated} of ${targets.length} (#${idxList})\n\n` +
+      (decision === "approved"
+        ? "Execute cron at 09:00 UTC ships them."
+        : "Rejected rows stay in the audit trail."),
+    chatId,
+  );
 }
 
 // ── Helpers ───────────────────────────────────────────────

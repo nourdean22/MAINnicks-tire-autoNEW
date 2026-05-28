@@ -368,6 +368,21 @@ export const BRAIN_CATEGORIES = {
    *  key shape `<YYYY-MM-DD>` · metadata.moves = OneTapMove[] (3 cards). */
   HOME_MOVES: "home_moves",
 
+  // ── Wave AG · Nick Action Queue (2026-05-28) ──
+  /** 2026-05-28 · Wave AG · idempotency marker. Written by the 8am
+   *  cron `nick-action-proposal` after a daily batch of pending
+   *  AutonomousAction rows has been generated + pushed to Telegram.
+   *  Key shape: `<YYYY-MM-DD>`. Metadata = { count, ruleNames[], queuedIds[] }.
+   *  Re-firing the cron the same day skips the work. */
+  NICK_ACTION_PROPOSAL_SENT: "nick_action_proposal_sent",
+  /** 2026-05-28 · Wave AG · execution result log. Written by the
+   *  9am cron `nick-action-execute` after a batch of approved rows
+   *  has been dispatched. Key shape: `<YYYY-MM-DD>`. Metadata =
+   *  { executed, failed, skipped, durationMs, results: [{id, actionType,
+   *  ok, summary}] }. Gives the operator a daily record of what Nick
+   *  actually did under their sign-off. */
+  NICK_ACTION_RESULTS: "nick_action_results",
+
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
    *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:
