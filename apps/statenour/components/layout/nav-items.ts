@@ -82,7 +82,7 @@ export const NAV_ITEMS: NavItem[] = [
   // 2026-05-28 · Power Atlas surface lands in the DEPTH section. /relationships
   // is the per-person CIA dossier + Greene-law coach + RelationshipLedger.
   // /relationships/network is the SVG graph view (degree centrality + bridges).
-  { href: "/relationships", label: "Relationships", icon: Users },
+  { href: "/people", label: "People", icon: Users },
   { href: "/mastery",       label: "Growth",   icon: Brain },
   { href: "/brain",         label: "Brain",    icon: Brain },
   { href: "/system",        label: "System",   icon: Activity },

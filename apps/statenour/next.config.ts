@@ -204,8 +204,14 @@ const nextConfig: NextConfig = {
     // Reason consolidation.
     { source: "/reason/history", destination: "/reason", permanent: false },
     { source: "/reason/telemetry", destination: "/reason", permanent: false },
-    // Relationships network graph · the dossier IS the surface now.
-    { source: "/relationships/network", destination: "/relationships", permanent: false },
+    // Wave AN · 2026-05-28 · /relationships RENAMED to /people. Operator:
+    // "lets change the name from relationships to something cool how
+    // about people". Permanent redirect so bookmarks + deep links + the
+    // morning Telegram links don't break. Inner /people/network path
+    // also lands on /people (which is the dossier surface).
+    { source: "/relationships", destination: "/people", permanent: true },
+    { source: "/relationships/:path*", destination: "/people/:path*", permanent: true },
+    { source: "/people/network", destination: "/people", permanent: false },
     // Nickstire-leakage · external redirect.
     { source: "/system/tire-stock-requests", destination: "https://nickstire.org/admin", permanent: false },
     { source: "/system/vapi-calls", destination: "https://nickstire.org/admin", permanent: false },

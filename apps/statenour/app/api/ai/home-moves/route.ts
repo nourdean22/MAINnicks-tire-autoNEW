@@ -141,7 +141,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         title: `Message ${top.personName}`,
         rationale: top.rationale,
         cta: "Log",
-        href: "/relationships",
+        href: "/people",
       });
     }
   } catch (err) {

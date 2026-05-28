@@ -72,7 +72,7 @@ const KIND_META: Record<
 
 export function RelationshipsWatchlist({
   items,
-  hrefTemplate = "/relationships#person-{personId}",
+  hrefTemplate = "/people#person-{personId}",
   onSelect,
 }: WatchlistProps) {
   if (items.length === 0) return null;
