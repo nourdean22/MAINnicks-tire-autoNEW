@@ -51,6 +51,8 @@ import { CompoundChain } from "@/components/operator/compound-chain";
 // numbers; this is the execution layer beneath them.
 import { KommandoTrack } from "@/components/actions/mode-track";
 import { PricingAdvisoryCard } from "@/components/scoreboard/pricing-advisory-card";
+// Wave AQ · 2026-05-28 · Sam-led narrative anchor at the top
+import { NicksScoreboardBrief } from "@/components/scoreboard/nicks-scoreboard-brief";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
@@ -111,6 +113,15 @@ export default function ScoreboardPage() {
     <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <Header state={data.state} lastBriefAt={data.lastBriefAt} />
+
+        {/* Wave AQ · 2026-05-28 · Sam-Altman frame · narrative anchor.
+         *  Names the ONE anchor that matters today + the biggest risk +
+         *  one concrete next move BEFORE the operator scans cards.
+         *  Self-hides on empty (Day-1 operator or AI-down). Reads same
+         *  buildMetaScoreboard() data as the page · zero drift. */}
+        <div className="mt-6">
+          <NicksScoreboardBrief />
+        </div>
 
         {/* Phase E (2026-05-18 PM) · OperatorPulse · top anomaly narration
             + 7d motion across anchors + cross-surface trailing-axis drift.

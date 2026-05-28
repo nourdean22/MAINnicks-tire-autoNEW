@@ -374,6 +374,11 @@ export const BRAIN_CATEGORIES = {
    *  brain-dump + thread activity into 2-3 sentences naming what
    *  compounded + the open question + the stalled thread to revisit. */
   JOURNAL_BRIEF: "journal_brief",
+  /** 2026-05-28 · Wave AQ · Sam-Altman-shaped scoreboard brief on
+   *  /scoreboard · key `<YYYY-MM-DD>` · reads buildMetaScoreboard()
+   *  anchors + anomalies · names the ONE number + the biggest risk +
+   *  the concrete next move. Mirrors the other Nicks*Brief categories. */
+  SCOREBOARD_BRIEF: "scoreboard_brief",
   /** 2026-05-28 · Wave AC Phase 1B · home one-tap moves shelf cache ·
    *  key shape `<YYYY-MM-DD>` · metadata.moves = OneTapMove[] (3 cards). */
   HOME_MOVES: "home_moves",
