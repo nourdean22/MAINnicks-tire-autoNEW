@@ -319,6 +319,15 @@ export const BRAIN_CATEGORIES = {
    *  communication. Read by Nick to ground "did I commit to X" recall. */
   GMAIL_OUTGOING: "gmail_outgoing",
 
+  /** 2026-05-27 · audit log for the fuzzy person-profile resolver
+   *  (lib/brain/person-profile-fuzzy.ts). Written when an
+   *  auto-create call site (conversation-memory · nick-agent
+   *  person.update) finds a case-insensitive / Levenshtein /
+   *  Jaro-Winkler match against an existing PersonProfile instead
+   *  of creating a duplicate. Operator can grep these to verify
+   *  no false merges happened. Key shape: `merge_<ts>_<matched>_<input>`. */
+  PEOPLE_INTELLIGENCE_MERGE: "people_intelligence_merge",
+
   // ── H-series · reasoning engine (2026-05-18 PM) ──
   /** Phase H.2.2 · persisted reasoning_trace rows · 30d age + 500-row cap. */
   REASONING_TRACE: "reasoning_trace",

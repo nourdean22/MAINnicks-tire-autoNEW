@@ -263,24 +263,37 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
 
       // ── People ─────────────────────────────────
       case "person.update": {
-        const person = await prisma.personProfile.upsert({
-          where: { name: String(params.name) },
-          create: {
-            name: String(params.name),
-            role: String(params.role || "unknown"),
-            relationship: String(params.relationship || ""),
-            trustScore: Number(params.trustScore ?? 0.5),
-          },
-          update: {
-            ...(params.role ? { role: String(params.role) } : {}),
-            ...(params.relationship ? { relationship: String(params.relationship) } : {}),
-            ...(params.trustScore != null ? { trustScore: Number(params.trustScore) } : {}),
-            ...(params.leverageNotes ? { leverageNotes: String(params.leverageNotes) } : {}),
-            interactionCount: { increment: 1 },
-            lastInteraction: new Date(),
-          },
+        // 2026-05-27 · routed through fuzzy resolver (lib/brain/person-profile-fuzzy)
+        // to prevent typo dupes. If the AI types "Danai" but operator already
+        // has "Dania", the resolver finds the existing row via Levenshtein
+        // ≤1 instead of creating a ghost.
+        const { resolvePersonByName } = await import("@/lib/brain/person-profile-fuzzy");
+        const resolution = await resolvePersonByName(String(params.name), {
+          role: String(params.role || "unknown"),
+          relationship: String(params.relationship || ""),
+          trustScore: Number(params.trustScore ?? 0.5),
         });
-        return { action: type, success: true, result: { id: person.id, name: person.name } };
+        // Apply any explicit field updates from the tool call · matched or created.
+        if (resolution.matched) {
+          await prisma.personProfile.update({
+            where: { id: resolution.person.id },
+            data: {
+              ...(params.role ? { role: String(params.role) } : {}),
+              ...(params.relationship ? { relationship: String(params.relationship) } : {}),
+              ...(params.trustScore != null ? { trustScore: Number(params.trustScore) } : {}),
+              ...(params.leverageNotes ? { leverageNotes: String(params.leverageNotes) } : {}),
+              interactionCount: { increment: 1 },
+              lastInteraction: new Date(),
+            },
+          });
+        } else if (params.leverageNotes) {
+          // Created path · resolvePersonByName doesn't accept leverageNotes · set if provided.
+          await prisma.personProfile.update({
+            where: { id: resolution.person.id },
+            data: { leverageNotes: String(params.leverageNotes) },
+          });
+        }
+        return { action: type, success: true, result: { id: resolution.person.id, name: resolution.person.name, matched: resolution.matched, matchTier: resolution.matchTier } };
       }
 
       // ═══════════════════════════════════════════
