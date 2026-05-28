@@ -331,6 +331,28 @@ export const BRAIN_CATEGORIES = {
    *  BrainMemory decay. Feeds the telemetry-driven prune analysis. */
   MISSION_SURFACE_TELEMETRY: "mission_surface_telemetry",
 
+  // ── Wave AB · /relationships Sam-led redesign (2026-05-28) ──
+  /** 2026-05-28 · Wave AB Phase 1B · Nick's top 3 daily relationship
+   *  outreach picks. Key shape: `<YYYY-MM-DD>`. Content = "Picks for
+   *  YYYY-MM-DD · <name1>, <name2>, <name3>". Metadata = {
+   *  picks: RelationshipPick[], candidateCount, generatedAt }.
+   *  Invalidated on ledger write so just-logged outreach doesn't keep
+   *  appearing. */
+  RELATIONSHIPS_PICKS_TODAY: "relationships_picks_today",
+  /** 2026-05-28 · Wave AB Phase 2 · daily morning brief across all
+   *  active relationships. Key shape: `<YYYY-MM-DD>`. Mirror of
+   *  MISSION_MORNING_BRIEF but scoped to people. */
+  RELATIONSHIPS_MORNING_BRIEF: "relationships_morning_brief",
+  /** 2026-05-28 · Wave AB Phase 3 · Sunday weekly synthesis · written
+   *  by cron · key shape `<YYYY-WNN>`. Content = 3-paragraph synthesis
+   *  of the week's relationship movement · lands in /journal too. */
+  RELATIONSHIPS_WEEKLY_SYNTHESIS: "relationships_weekly_synthesis",
+  /** 2026-05-28 · Wave AB Phase 2 · outreach log · operator hit "log
+   *  outreach" on a Nick's pick · key shape `<personId>:<timestamp>`.
+   *  Mirrors RelationshipLedger but with the AI rationale + draft text
+   *  attached for future Nick reads. */
+  RELATIONSHIPS_OUTREACH: "relationships_outreach",
+
   // ── Gmail ingest (existed as raw strings · registered 2026-05-27) ──
   /** Pre-2026-05-27 · raw string `gmail_thread` written by the existing
    *  ingest-gmail cron. Per-thread captured INBOUND mail. Key shape:

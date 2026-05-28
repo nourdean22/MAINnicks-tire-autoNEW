@@ -21,7 +21,7 @@
  * only). This matches the executor brief.
  */
 
-import { useState, useMemo, Component } from "react";
+import { useState, useEffect, useMemo, Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
@@ -32,6 +32,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+
+import { NicksRelationshipsBrief } from "@/components/relationships/nicks-relationships-brief";
+import { TodaysPicks } from "@/components/relationships/todays-picks";
+import {
+  RelationshipsWatchlist,
+  type WatchlistItem,
+} from "@/components/relationships/relationships-watchlist";
+import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 
 import DossierEditor from "@/components/power-atlas/DossierEditor";
 import LedgerTimeline from "@/components/power-atlas/LedgerTimeline";
@@ -113,6 +121,31 @@ export default function RelationshipsPage() {
   >("deposit");
   const [blowUpOpen, setBlowUpOpen] = useState(false);
 
+  // ── Wave AB · Sam-layer state ──
+  // Bumped when ledger writes happen · drives the picks refetch so just-
+  // logged outreach immediately drops out of "today's picks".
+  const [picksRefetchKey, setPicksRefetchKey] = useState(0);
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const telemetry = useMissionSurfaceTelemetry("relationships");
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/relationships/watchlist", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("watchlist_failed");
+        const data = (await res.json()) as { items: WatchlistItem[] };
+        if (!cancelled) setWatchlist(data.items ?? []);
+      } catch {
+        if (!cancelled) setWatchlist([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [picksRefetchKey]);
+
   const { data, loading, error, reload } = usePollingFetch<PeopleResponse>(
     `/api/people?sort=${sortKey}&limit=100`,
     { intervalMs: 5 * 60_000 }, // 5min · people change slowly
@@ -144,6 +177,37 @@ export default function RelationshipsPage() {
         />
       }
     >
+      {/* ═══ Wave AB · Sam-layer header trio ═══════════════════════════
+       *  Nick's daily brief → Today's 3 outreach picks → Watchlist.
+       *  This is the page now. The dossier surface below collapses by
+       *  default · the operator opens it only when researching a
+       *  specific person. */}
+      <NicksRelationshipsBrief activePeopleCount={data?.totals.total ?? 0} />
+      <TodaysPicks
+        refetchKey={picksRefetchKey}
+        onLogged={() => {
+          telemetry.event("outreachLogged");
+          setPicksRefetchKey((k) => k + 1);
+          reload();
+        }}
+      />
+      <RelationshipsWatchlist
+        items={watchlist}
+        onSelect={(personId) => {
+          telemetry.event("watchlistOpen", { personId });
+          setSelectedPersonId(personId);
+        }}
+      />
+
+      {/* ═══ The full dossier surface · collapsed by default ═════════
+       *  Operator opens this only when researching a specific person.
+       *  Pre-Wave-AB this was the page · now it's secondary. */}
+      <details className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]">
+        <summary className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none">
+          ▸ browse all people {data ? `(${data.totals.total})` : ""}
+        </summary>
+        <div className="border-t border-[var(--border-default)]/60 p-3 space-y-3">
+
       {/* Roll-up strip · 4 totals */}
       {data && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -348,6 +412,10 @@ export default function RelationshipsPage() {
           )}
         </div>
       )}
+
+      {/* ═══ Wave AB · close the collapsible "browse all" wrapper ═══════ */}
+        </div>
+      </details>
     </StandardPage>
   );
 }
@@ -559,7 +627,6 @@ class DetailPanelErrorBoundary extends Component<
 
   override componentDidCatch(error: Error, info: ErrorInfo) {
     // Surface to the prod console so the operator can copy/paste.
-    // eslint-disable-next-line no-console
     console.error("[DetailPanel error]", error, info.componentStack);
   }
 

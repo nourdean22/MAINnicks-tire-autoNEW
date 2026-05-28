@@ -497,6 +497,23 @@ export const CRONS: CronDef[] = [
     maxDuration: 30,
     addedAt: "2026-05-27",
   },
+  // ── 2026-05-28 · Wave AB Phase 3 · weekly relationship synthesis ──
+  // Sunday 23:00 UTC = 7pm ET (DST). Distinct from relationship-digest
+  // (Greene-voiced Telegram). This writes a 3-paragraph synthesis of
+  // the WEEK'S relationship movement (deposits · withdrawals · alpha ·
+  // outreach sent) to BrainMemory(RELATIONSHIPS_WEEKLY_SYNTHESIS). The
+  // /relationships morning brief reads it as the "what compounded last
+  // week" anchor on Mondays. Idempotent per ISO week. Silent · no push.
+  {
+    name: "relationship-weekly-synthesis",
+    schedule: "0 23 * * 0",
+    mode: "active",
+    category: "review",
+    description:
+      "Wave AB · Sunday 3-paragraph synthesis of week's relationship movement · idempotent per ISO week",
+    maxDuration: 60,
+    addedAt: "2026-05-28",
+  },
   // ── 2026-05-27 · Power Atlas Phase 2 · kept-word tracker (silent) ──
   // Daily 02:00 UTC = 9pm ET (prev night). Scans last 24h chat for
   // promises made TO the operator BY named persons. Upserts one row
