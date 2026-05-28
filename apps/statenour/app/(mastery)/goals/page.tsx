@@ -75,6 +75,7 @@ import { NickSidePane } from "@/components/mastery/nick-side-pane";
 // goalsSnapshot query that still feeds the header axes + missions rail).
 import { GoalBoard } from "@/components/goals/goal-board";
 import { NicksGoalsBrief } from "@/components/goals/nicks-goals-brief";
+import { TopGoalToday } from "@/components/goals/top-goal-today";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
 
@@ -178,6 +179,15 @@ export default function GoalsPage() {
          *  voice + tone · goal-state version of those briefs. */}
         <div className="mt-6">
           <NicksGoalsBrief />
+        </div>
+
+        {/* Wave AI Phase 2 · 2026-05-28 · TopGoalToday hero · deterministic
+         *  pick of the ONE goal that needs operator attention right now ·
+         *  3 numbers (current · should-be · target) + honest pace gap +
+         *  stalled-Nd badge + 1-tap next-60-min CTA to /missions. Self-
+         *  hides when no qualifying goal exists. */}
+        <div className="mt-4">
+          <TopGoalToday ladder={data.ladder} />
         </div>
 
         {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
