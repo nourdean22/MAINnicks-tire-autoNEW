@@ -252,28 +252,38 @@ export async function summarizeAndStoreConversation(
     log.warn("upsert_failed", { error: err instanceof Error ? err.message : String(err) });
   }
 
-  // Feed People Intelligence — upsert any mentioned people
+  // Feed People Intelligence — fuzzy-resolve any mentioned people.
+  //
+  // 2026-05-27 · was `prisma.personProfile.upsert({where:{name}})` which
+  // is case-sensitive exact match. That created a "Danai" ghost row
+  // when this engine parsed "Dania" as "Danai" from one brain dump.
+  // resolvePersonByName now does exact → case-insensitive → Levenshtein
+  // ≤1 → Jaro-Winkler ≥0.92 fuzzy chain before creating a new row, and
+  // logs auto-merges to BrainMemory(category=people_intelligence_merge)
+  // for operator audit.
   for (const person of digest.peopleMentioned) {
     if (!person.name || person.name.length < 2) continue;
     try {
-      await prisma.personProfile.upsert({
-        where: { name: person.name },
-        create: {
-          name: person.name,
-          role: "unknown",
-          relationship: person.context,
-          trustScore: person.sentiment === "positive" ? 0.7 : person.sentiment === "negative" ? 0.3 : 0.5,
-          lastInteraction: new Date(),
-          interactionCount: 1,
-          metadata: { firstMentioned: digest.date, context: person.context },
-        },
-        update: {
-          lastInteraction: new Date(),
-          interactionCount: { increment: 1 },
-          relationship: person.context,
-        },
+      const { resolvePersonByName } = await import("./person-profile-fuzzy");
+      const resolution = await resolvePersonByName(person.name, {
+        role: "unknown",
+        relationship: person.context,
+        trustScore: person.sentiment === "positive" ? 0.7 : person.sentiment === "negative" ? 0.3 : 0.5,
+        metadata: { firstMentioned: digest.date, context: person.context },
       });
-    } catch {} // duplicate or DB issue — non-critical
+      if (resolution.matched) {
+        // Existing profile · just update interaction signal + most-recent context
+        await prisma.personProfile.update({
+          where: { id: resolution.person.id },
+          data: {
+            lastInteraction: new Date(),
+            interactionCount: { increment: 1 },
+            relationship: person.context,
+          },
+        });
+      }
+      // If `created` · resolvePersonByName already set lastInteraction + interactionCount=1
+    } catch {} // non-critical
   }
 
   // Apr 18 — auto-extraction of "open loops" from conversation digests
