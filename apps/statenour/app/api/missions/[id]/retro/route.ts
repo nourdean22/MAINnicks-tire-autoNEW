@@ -90,6 +90,7 @@ export async function POST(
 
   // ── Write the retro to BrainMemory ──
   let retroId: string | undefined;
+  let retroWarning: string | undefined;
   if (retroText) {
     try {
       const memory = await prisma.brainMemory.create({
@@ -117,8 +118,12 @@ export async function POST(
         err: err instanceof Error ? err.message : String(err),
         missionId,
       });
-      // Continue · archiving is still useful even if the retro write
-      // failed.
+      // wave-AA-audit · don't silently lose the retro · surface a
+      // partial-success warning so the caller can re-prompt the operator
+      // to re-enter their retro. Pre-fix this swallowed the loss and
+      // returned ok:true so the modal told the operator "saved" when it
+      // hadn't.
+      retroWarning = "retro_write_failed";
     }
   }
 
@@ -145,5 +150,9 @@ export async function POST(
     }
   }
 
-  return NextResponse.json({ ok: true, retroId });
+  return NextResponse.json({
+    ok: true,
+    retroId,
+    ...(retroWarning ? { warning: retroWarning } : {}),
+  });
 }

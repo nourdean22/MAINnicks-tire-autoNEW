@@ -20,7 +20,7 @@
  * spinner indefinitely.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Brain } from "lucide-react";
 import type { Project, Task } from "@/components/actions/shared";
 import { isUserProject } from "@/lib/services/mission-helpers";
@@ -32,22 +32,31 @@ interface NicksMorningBriefProps {
 
 export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
   const [brief, setBrief] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  // wave-AA-audit · derive the active mission count up here so the
+  // effect's gate condition is a pure derivation, not a setState-bearing
+  // branch inside the effect body. Pre-fix the effect did `if (active
+  // .length === 0) { setBrief(null); setLoading(false); return; }` which
+  // triggered the react-hooks/set-state-in-effect rule. Now we either
+  // run the fetch or no-op, with a single state path.
+  const activeCount = useMemo(
+    () =>
+      missions.filter((m) => m.status === "ACTIVE" && isUserProject(m))
+        .length,
+    [missions],
+  );
 
   // Page-mount fetch · cheap (the endpoint hits BrainMemory first; only
-  // calls Nick when the daily key is stale).
+  // calls Nick when the daily key is stale). Skipped when there are no
+  // active missions (the brief would be empty anyway).
   useEffect(() => {
+    if (activeCount === 0) return;
     let cancelled = false;
-    const active = missions.filter(
-      (m) => m.status === "ACTIVE" && isUserProject(m),
-    );
-    if (active.length === 0) {
-      setBrief(null);
-      setLoading(false);
-      return;
-    }
     void (async () => {
       try {
+        const active = missions.filter(
+          (m) => m.status === "ACTIVE" && isUserProject(m),
+        );
         const res = await fetch("/api/ai/missions-morning-brief", {
           method: "POST",
           credentials: "include",
@@ -67,9 +76,9 @@ export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
         const data = (await res.json()) as { brief: string };
         if (!cancelled) setBrief(data.brief?.trim() || null);
       } catch {
-        if (!cancelled) setBrief(null);
-      } finally {
-        if (!cancelled) setLoading(false);
+        // Silent · the brief is non-essential UX; the page still renders
+        // without it. setBrief stays at its initial null so the section
+        // self-hides via the guard below.
       }
     })();
     return () => {
@@ -79,9 +88,9 @@ export function NicksMorningBrief({ missions, tasks }: NicksMorningBriefProps) {
     // on every task tick · the brief is meant to be a daily summary,
     // not a real-time feed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [missions.length]);
+  }, [activeCount]);
 
-  if (loading || !brief) return null;
+  if (!brief) return null;
 
   return (
     <section
