@@ -548,6 +548,34 @@ function MissionsPageInner() {
             toast.error("Could not reorder task.");
           }
         }}
+        // Wave AV · 2026-05-28 · DAILY task snooze · pill in the row's
+        // meta strip opens a popover with 2 presets. We translate the
+        // tap into the existing task.update mutation + the WAITING flip
+        // the task-resurface cron expects. Empty string = clear snooze.
+        onSnoozeTask={async (taskId, snoozedUntilIso) => {
+          try {
+            const clearing = !snoozedUntilIso;
+            telemetry.event("snoozeTask", {
+              taskId,
+              clearing,
+              snoozedUntil: snoozedUntilIso || null,
+            });
+            await updateTask.mutateAsync({
+              id: taskId,
+              fields: {
+                // null clears the snooze · ISO sets the wake time
+                snoozedUntil: snoozedUntilIso || null,
+                // WAITING parks it for the cron · READY brings it back
+                status: clearing ? "READY" : "WAITING",
+              },
+            });
+            await refetchAll();
+            toast.success(clearing ? "Snooze cleared." : "Task snoozed.");
+          } catch (err) {
+            log.error("snoozeTask_failed", { err });
+            toast.error("Could not update snooze.");
+          }
+        }}
       />
 
       {/* Phase 3 retro modal · opens when a mission is completed (either

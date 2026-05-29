@@ -20,7 +20,15 @@
  */
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, Check, Pencil, Play, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Check,
+  Clock,
+  Pencil,
+  Play,
+  Trash2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
 
@@ -40,6 +48,32 @@ export interface MissionTaskRowProps {
   index?: number;
   totalTasks?: number;
   onMove?: (taskId: string, direction: "up" | "down") => void;
+  /** Wave AV · 2026-05-28 · snooze for recurring (DAILY) tasks.
+   *  Parent calls task.update with { snoozedUntil, status: "WAITING" }
+   *  and the existing task-resurface cron flips WAITING→READY when
+   *  the timestamp matures. snoozedUntilIso is a wall-clock ISO. */
+  onSnooze?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
+}
+
+/** Tomorrow at 6am local · the resurface cron flips WAITING→READY when
+ *  snoozedUntil ≤ now · 6am gives the operator a soft morning re-entry
+ *  rather than 12:01am churn. Pure helper · client-safe. */
+function tomorrow6am(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(6, 0, 0, 0);
+  return d.toISOString();
+}
+
+/** Next Monday at 6am local · "next week" presets to the start of the
+ *  next operator-cadence week (Mon · matches the brain-week mental model). */
+function nextMonday6am(): string {
+  const d = new Date();
+  const dow = d.getDay(); // 0 Sun · 1 Mon · ...
+  const daysUntilNextMon = dow === 1 ? 7 : (8 - dow) % 7 || 7;
+  d.setDate(d.getDate() + daysUntilNextMon);
+  d.setHours(6, 0, 0, 0);
+  return d.toISOString();
 }
 
 export function MissionTaskRow({
@@ -52,10 +86,21 @@ export function MissionTaskRow({
   index,
   totalTasks,
   onMove,
+  onSnooze,
 }: MissionTaskRowProps) {
-  const [busy, setBusy] = useState<"complete" | "start" | "delete" | null>(
-    null,
-  );
+  const [busy, setBusy] = useState<
+    "complete" | "start" | "delete" | "snooze" | null
+  >(null);
+  // Wave AV · 2026-05-28 · snooze popover · open state local to the row.
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const isDaily =
+    (task as unknown as { loopKind?: string }).loopKind === "DAILY";
+  const snoozedUntil = (task as unknown as { snoozedUntil?: string | null })
+    .snoozedUntil;
+  const isSnoozed =
+    isDaily &&
+    typeof snoozedUntil === "string" &&
+    Date.parse(snoozedUntil) > Date.now();
   const canMoveUp =
     onMove != null && typeof index === "number" && index > 0;
   const canMoveDown =
@@ -133,7 +178,7 @@ export function MissionTaskRow({
             {task.waitingOn && (
               <span className="text-violet-300/80">⏸ {task.waitingOn}</span>
             )}
-            {(task as unknown as { loopKind?: string }).loopKind === "DAILY" && (
+            {isDaily && (
               <span className="text-[var(--gold)]">
                 ↻ daily
                 {typeof (task as unknown as { streakCount?: number })
@@ -149,6 +194,95 @@ export function MissionTaskRow({
                     }
                     🔥
                   </>
+                )}
+              </span>
+            )}
+            {/* Wave AV · 2026-05-28 · snooze pill for DAILY tasks.
+             *  Operator complaint precedent (Wave AL): "how come i can't
+             *  create recurring tasks?" · the schema + cron resurfaced,
+             *  but the daily row had no way to defer without breaking
+             *  the streak. Pill opens a tiny popover · 2 presets ·
+             *  Tomorrow 6am · Next Mon 6am · resurface cron flips
+             *  WAITING→READY when the mark matures. */}
+            {isDaily && onSnooze && (
+              <span className="relative inline-flex">
+                <button
+                  type="button"
+                  onClick={() => setSnoozeOpen((v) => !v)}
+                  aria-label={isSnoozed ? "change snooze" : "snooze task"}
+                  aria-expanded={snoozeOpen}
+                  disabled={busy === "snooze"}
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-md border transition-colors min-h-[28px]",
+                    isSnoozed
+                      ? "border-violet-500/30 bg-violet-500/[0.08] text-violet-200"
+                      : "border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.04] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/30",
+                  )}
+                >
+                  <Clock size={9} strokeWidth={2} />
+                  {isSnoozed
+                    ? `until ${formatSnoozedHint(snoozedUntil!)}`
+                    : "snooze"}
+                </button>
+                {snoozeOpen && (
+                  <span
+                    role="menu"
+                    aria-label="snooze options"
+                    className="absolute z-30 top-[110%] left-0 w-44 rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)] shadow-lg overflow-hidden"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        setBusy("snooze");
+                        setSnoozeOpen(false);
+                        try {
+                          await onSnooze(task.id, tomorrow6am());
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-secondary)] hover:bg-[var(--gold)]/[0.06] hover:text-[var(--gold)]"
+                    >
+                      ↪ tomorrow · 6am
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        setBusy("snooze");
+                        setSnoozeOpen(false);
+                        try {
+                          await onSnooze(task.id, nextMonday6am());
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                      className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-secondary)] hover:bg-[var(--gold)]/[0.06] hover:text-[var(--gold)] border-t border-[var(--border-default)]/40"
+                    >
+                      ↪ next mon · 6am
+                    </button>
+                    {isSnoozed && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={async () => {
+                          setBusy("snooze");
+                          setSnoozeOpen(false);
+                          try {
+                            // Pass empty string · parent normalizes to null
+                            // via the validator (snoozedUntil: nullableDate).
+                            await onSnooze(task.id, "");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                        className="block w-full text-left px-3 py-2 text-[11px] font-mono uppercase tracking-[0.15em] text-rose-300 hover:bg-rose-500/[0.06] border-t border-[var(--border-default)]/40"
+                      >
+                        × clear snooze
+                      </button>
+                    )}
+                  </span>
                 )}
               </span>
             )}
@@ -280,4 +414,21 @@ function formatDueHint(due: string | null | undefined): string | null {
   if (days === 1) return "tomorrow";
   if (days < 7) return `${days}d`;
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** Wave AV · 2026-05-28 · compact snooze-pill label. The pill is tiny
+ *  so we lean on weekday-name + day-of-month rather than a full date. */
+function formatSnoozedHint(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "?";
+  const now = new Date();
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = Math.round((d.getTime() - now.getTime()) / msPerDay);
+  if (days === 0) return "tonight";
+  if (days === 1) return "tomorrow";
+  if (days < 7)
+    return d.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
+  return d
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    .toLowerCase();
 }
