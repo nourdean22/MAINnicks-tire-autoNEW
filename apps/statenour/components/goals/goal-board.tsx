@@ -179,6 +179,37 @@ export function GoalBoard() {
   const horizonBuckets = useMemo(() => bucketByHorizon(goals), [goals]);
   const filteredGoals = horizonBuckets[horizonFilter] ?? goals;
 
+  // Wave AW · 2026-05-28 · cross-page hash-anchor wiring. Wave AR added
+  // `id={`goal-${g.id}`}` to each row, but if the operator lands on
+  // `/goals#goal-X` while horizonFilter is anything other than "ALL",
+  // the target row sits in display:none — browser hash-scroll silently
+  // no-ops. operator-pulse.ts ALREADY emits these links from /home for
+  // dormant goals (lib/services/operator-pulse.ts:208) so this is a
+  // real failure path. Mirrors the /people Wave AS pattern: parse
+  // hash → flip filter to ALL → double-rAF + scrollIntoView so the
+  // row is in flow before the scroll fires.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (goals.length === 0) return;
+    const hash = window.location.hash;
+    const m = /^#goal-([\w-]+)$/.exec(hash);
+    if (!m) return;
+    const goalId = m[1];
+    setHorizonFilter("ALL");
+    let r1 = 0;
+    let r2 = 0;
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        const el = document.getElementById(`goal-${goalId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r2);
+    };
+  }, [goals]);
+
   // Apr 27 · G4 — milestones-first PLAN IT flow. When non-null, the
   // panel renders inline below that goal card; null collapses it.
   const [milestonesGoalId, setMilestonesGoalId] = useState<string | null>(null);
