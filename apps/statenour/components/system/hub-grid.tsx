@@ -161,6 +161,20 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "browse", severity: "info" }),
   },
   {
+    // Wave AW · 2026-05-28 · discoverability for the Wave AU viewer.
+    // Without this tile the operator would need to type the URL — the
+    // 9-writer Coach Channel had a write side + 5 read banners but the
+    // historical viewer was orphaned. Mirrors the Alerts Inspector
+    // shape · same group · sibling observability surface.
+    href: "/system/coach-events",
+    title: "Coach Channel",
+    icon: Radio,
+    group: "health",
+    description:
+      "Historical viewer · 9 detectors → 5 surfaces · filter + audit acked",
+    chip: () => ({ label: "browse", severity: "info" }),
+  },
+  {
     href: "/system/performance",
     title: "Performance",
     icon: Timer,
