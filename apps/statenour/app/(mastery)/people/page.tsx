@@ -117,6 +117,11 @@ export default function RelationshipsPage() {
   );
   const [showAll, setShowAll] = useState(false);
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
+  // Wave AS · 2026-05-28 · controlled <details> so external CTAs (e.g.
+  // RelationshipsWatchlist Link href="/people#person-X") can auto-open
+  // the collapsed-by-default browse-all section. Without this, the row
+  // anchor sits in display:none and the smooth-scroll silently no-ops.
+  const [browseOpen, setBrowseOpen] = useState(false);
   const [logModalOpen, setLogModalOpen] = useState(false);
   const [logModalDirection, setLogModalDirection] = useState<
     "deposit" | "withdraw"
@@ -160,6 +165,37 @@ export default function RelationshipsPage() {
     { intervalMs: 5 * 60_000 }, // 5min · people change slowly
   );
 
+  // Wave AS · 2026-05-28 · hash-anchor wiring · when the operator lands
+  // on /people#person-X (e.g. from the watchlist Link or any cross-page
+  // CTA), open the browse <details>, mark the person selected, and
+  // re-scroll once the DOM has the row in flow. The browser's native
+  // scroll fires BEFORE the details opens (the element is still
+  // display:none at first paint) so we re-trigger after a frame.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hash = window.location.hash;
+    const m = /^#person-([\w-]+)$/.exec(hash);
+    if (!m) return;
+    const personId = m[1];
+    setBrowseOpen(true);
+    setSelectedPersonId(personId);
+    setShowAll(true); // ensure row isn't past VISIBLE_CAP
+    // Defer scrollIntoView so the <details> open animation + row render
+    // happen first. Two RAF gets us past Suspense boundaries reliably.
+    let r1 = 0;
+    let r2 = 0;
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        const el = document.getElementById(`person-${personId}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r2);
+    };
+  }, [data]); // re-fire when data lands · row may not exist on first render
+
   const visiblePeople = useMemo(() => {
     if (!data) return [];
     return showAll ? data.people : data.people.slice(0, VISIBLE_CAP);
@@ -198,7 +234,7 @@ export default function RelationshipsPage() {
 
   return (
     <StandardPage
-      eyebrow="brain · relationships"
+      eyebrow="brain · people"
       title="people"
       description="Power Atlas · trust scores · neglect detection · Greene laws · ledger · tap a name to open the dossier"
       rhythm="comfortable"
@@ -245,14 +281,26 @@ export default function RelationshipsPage() {
         items={watchlist}
         onSelect={(personId) => {
           telemetry.event("watchlistOpen", { personId });
+          // Wave AS · 2026-05-28 · open the collapsed browse-all so the
+          // anchor target is in flow · select person · expand visible
+          // cap so the row isn't hidden behind "show more". Mirrors the
+          // hash-anchor useEffect above.
+          setBrowseOpen(true);
           setSelectedPersonId(personId);
+          setShowAll(true);
         }}
       />
 
       {/* ═══ The full dossier surface · collapsed by default ═════════
        *  Operator opens this only when researching a specific person.
-       *  Pre-Wave-AB this was the page · now it's secondary. */}
-      <details className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]">
+       *  Pre-Wave-AB this was the page · now it's secondary.
+       *  Wave AS · controlled `open` state so external CTAs + hash
+       *  anchors can pop the section open when targeting a row inside. */}
+      <details
+        open={browseOpen}
+        onToggle={(e) => setBrowseOpen(e.currentTarget.open)}
+        className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]"
+      >
         <summary className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none">
           ▸ browse all people {data ? `(${data.totals.total})` : ""}
         </summary>
@@ -324,12 +372,18 @@ export default function RelationshipsPage() {
             return (
               <button
                 key={p.id}
+                id={`person-${p.id}`}
                 type="button"
                 onClick={() =>
                   setSelectedPersonId(isSelected ? null : p.id)
                 }
+                // Wave AS · 2026-05-28 · row anchor · RelationshipsWatchlist
+                // (and any external CTA) points at #person-<id> · smooth-
+                // scroll lands on the right row · scroll-mt-24 honors the
+                // sticky header. Matches MissionCard + GoalBoard pattern
+                // from Wave AR.
                 className={cn(
-                  "block w-full text-left rounded-lg border p-3 transition-all hover:scale-[1.005] active:scale-[0.99]",
+                  "block w-full text-left rounded-lg border p-3 transition-all hover:scale-[1.005] active:scale-[0.99] scroll-mt-24",
                   tone.bg,
                   isSelected && "ring-1 ring-[var(--gold)]/50",
                 )}
