@@ -23,34 +23,39 @@ vi.mock("./db", () => ({
 }));
 
 describe("Advanced Features Schema", () => {
+  // wave-138 · `$inferSelect` is a Drizzle TYPE-only phantom — it's `undefined`
+  // at runtime, so `expect(table.$inferSelect).toBeDefined()` could never pass
+  // (the test was a false red since written). Verify the real runtime contract
+  // instead: the table is exported AND is a populated table object (has column
+  // keys). A rename/missing-export still fails this; a type-only ghost doesn't.
   it("should export job_assignments table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.jobAssignments).toBeDefined();
-    expect(schema.jobAssignments.$inferSelect).toBeDefined();
+    expect(Object.keys(schema.jobAssignments).length).toBeGreaterThan(0);
   });
 
   it("should export invoices table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.invoices).toBeDefined();
-    expect(schema.invoices.$inferSelect).toBeDefined();
+    expect(Object.keys(schema.invoices).length).toBeGreaterThan(0);
   });
 
   it("should export customer_metrics table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.customerMetrics).toBeDefined();
-    expect(schema.customerMetrics.$inferSelect).toBeDefined();
+    expect(Object.keys(schema.customerMetrics).length).toBeGreaterThan(0);
   });
 
   it("should export kpi_snapshots table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.kpiSnapshots).toBeDefined();
-    expect(schema.kpiSnapshots.$inferSelect).toBeDefined();
+    expect(Object.keys(schema.kpiSnapshots).length).toBeGreaterThan(0);
   });
 
   it("should export portal_sessions table schema", async () => {
     const schema = await import("../drizzle/schema");
     expect(schema.portalSessions).toBeDefined();
-    expect(schema.portalSessions.$inferSelect).toBeDefined();
+    expect(Object.keys(schema.portalSessions).length).toBeGreaterThan(0);
   });
 });
 
