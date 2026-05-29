@@ -19,8 +19,8 @@ import { router, adminProcedure } from "../_core/trpc";
 import { TRPCError } from "@trpc/server";
 import { createLogger } from "../lib/logger";
 import { getDb } from "../db";
-import { shopSettings } from "../../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { shopSettings, vapiCallLogs, type VapiCallLog } from "../../drizzle/schema";
+import { eq, and, gte, lte, desc } from "drizzle-orm";
 import { pickReceptionistAssistantId, pickFollowUpAssistantId, SHOP_LANDLINE_E164 } from "../services/vapi";
 
 const log = createLogger("vapi");
@@ -103,6 +103,42 @@ function startOfDay(d: Date): Date {
   return out;
 }
 
+/**
+ * Wave BG · 2026-05-29 · historical call reads from the LOCAL
+ * vapi_call_logs table (webhook-fed) instead of VAPI's live list API.
+ *
+ * Root cause this fixes: todayMetrics / todayCalls hit VAPI's /call
+ * list API live on every range change. VAPI caps pagination and times
+ * out beyond ~7 days, so the admin's "Last 30 days" button ALWAYS
+ * returned "VAPI API unreachable" (confirmed live via Chrome 2026-05-29:
+ * 7d=225 calls OK, 30d=unreachable). The local table is the same data
+ * the eval + agentic-audit crons already depend on, never times out,
+ * and history is immutable so there's zero freshness cost. Today-only
+ * stays LIVE — the one window that benefits from sub-webhook-latency
+ * freshness (a call from 30s ago that hasn't posted its webhook yet).
+ *
+ * A range is "historical" when sinceISO predates today's local start.
+ */
+function isHistoricalRange(sinceISO?: string): boolean {
+  if (!sinceISO) return false;
+  return new Date(sinceISO).getTime() < startOfDay(new Date()).getTime();
+}
+
+async function readLocalCallRows(
+  sinceISO: string,
+  untilISO?: string,
+): Promise<VapiCallLog[]> {
+  const db = await getDb();
+  const conds = [gte(vapiCallLogs.createdAt, new Date(sinceISO))];
+  if (untilISO) conds.push(lte(vapiCallLogs.createdAt, new Date(untilISO)));
+  return db
+    .select()
+    .from(vapiCallLogs)
+    .where(and(...conds))
+    .orderBy(desc(vapiCallLogs.createdAt))
+    .limit(1000);
+}
+
 // ─── Transfer preset shape (wave-88) ───────────────────
 interface TransferPreset {
   label: string;
@@ -164,6 +200,42 @@ export const vapiRouter = router({
         const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
         const sinceQ = since.toISOString();
         const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
+
+        // Wave BG · historical ranges read local (live VAPI times out >7d).
+        if (isHistoricalRange(sinceISO)) {
+          try {
+            const rows = await readLocalCallRows(sinceQ, untilISO);
+            const durations = rows
+              .map((r) => r.durationSeconds)
+              .filter((d) => d > 0);
+            const totalSeconds = durations.reduce((s, d) => s + d, 0);
+            const avgSeconds =
+              durations.length > 0 ? totalSeconds / durations.length : 0;
+            const endReasons: Record<string, number> = {};
+            for (const r of rows) {
+              const k = r.endedReason || "unknown";
+              endReasons[k] = (endReasons[k] || 0) + 1;
+            }
+            return {
+              ok: true as const,
+              total: rows.length,
+              inbound: rows.length,
+              outbound: 0,
+              web: 0,
+              forwarded: endReasons["assistant-forwarded-call"] || 0,
+              customerEnded: endReasons["customer-ended-call"] || 0,
+              assistantEnded: endReasons["assistant-ended-call"] || 0,
+              totalSeconds: Math.round(totalSeconds),
+              avgSeconds: Math.round(avgSeconds),
+              endReasons,
+            };
+          } catch (err) {
+            log.warn("local metrics failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            // fall through to live as a last resort
+          }
+        }
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
           `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=500`,
@@ -225,6 +297,37 @@ export const vapiRouter = router({
         const since = sinceISO ? new Date(sinceISO) : startOfDay(new Date());
         const sinceQ = since.toISOString();
         const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
+
+        // Wave BG · historical ranges read local (live VAPI times out >7d).
+        // Maps vapi_call_logs columns → the same row shape the live path
+        // returns, so the client table is source-agnostic. type defaults
+        // to inboundPhoneCall (all receptionist calls are inbound) ·
+        // cost is unstored locally (null) · started/endedAt aren't needed
+        // (the table renders off createdAt + durationSeconds).
+        if (isHistoricalRange(sinceISO)) {
+          try {
+            const rows = await readLocalCallRows(sinceQ, untilISO);
+            return rows.map((r) => ({
+              id: r.vapiCallId,
+              type: "inboundPhoneCall",
+              createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+              startedAt: null as string | null,
+              endedAt: null as string | null,
+              durationSeconds: r.durationSeconds,
+              endedReason: r.endedReason || "unknown",
+              customerNumber: r.phoneNumber,
+              customerName: r.customerName,
+              cost: null as number | null,
+              summary: r.aiSummary,
+              successEvaluation: r.evalOutcome ?? null,
+            }));
+          } catch (err) {
+            log.warn("local calls failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            // fall through to live as a last resort
+          }
+        }
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
           `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=200`,
