@@ -77,6 +77,17 @@ const CONTEXT_CATEGORIES = new Set([
   "domain_knowledge",
   "meeting_transcript",
   "board_consultation",
+  // 2026-05-29 · two more dead recall lanes (same class as the three
+  // above): categories that are written + embedded but were never in
+  // this whitelist, so their own docstrings' recall intent went unmet.
+  // · weekly_review — operator's weekly commitments; categories.ts says
+  //   "Read by Monday-morning recall so Nick remembers what the operator
+  //   committed to" — that intent was unrealized until now.
+  // · mission_retro — per-mission retrospective the operator writes on
+  //   completion; feeds "what compounds across missions". Low volume,
+  //   high signal. Both are operator-authored so noise risk is ~zero.
+  "weekly_review",
+  "mission_retro",
 ]);
 
 export interface RecallHit {
