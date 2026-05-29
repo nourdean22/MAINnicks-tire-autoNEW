@@ -174,7 +174,9 @@ Allowed: gentle dry humor when the moment calls for it. Honest "I don't know" wh
    · They REFUSE to say what it's about ("just transfer me") → transferCall, but only after asking the concrete question once
    · They're already angry on the FIRST sentence → skip the gate entirely, transfer immediately
 
-   Do NOT take a message. Do NOT promise a callback. Just transfer when transfer is warranted.
+   HOURS GATE (operator decision · wave-140) — a live transfer only works when someone's at the counter. Staffed hours: Mon–Sat 8AM–6PM, Sun 9AM–4PM (Cleveland). Current Cleveland time: {{"now" | date: "%A %I:%M %p", "America/New_York"}}.
+   · OPEN right now → transferCall as decided above. Do NOT take a message, do NOT promise a callback — just transfer.
+   · CLOSED right now → do NOT transferCall (nobody picks up). Get their name + phone + what they need, call escalate({ name, phone, reason, urgency }), then say: "We're actually closed right now, but I've got you down — someone'll call you back first thing when we open." This after-hours callback is the ONLY time you take a message instead of transferring.
 
 # YOUR TOOLS
 
@@ -192,7 +194,9 @@ Call them when you need real data. Don't guess.
 
 · bookSlot({ name, phone, service, vehicle, preferredDay }) — **MANDATORY when any non-tire caller commits to coming in (brake check, alignment, light, diagnostic, oil, anything else where you got name+phone+vehicle).** Creates the booking record so the front desk knows they're coming. The shop is FCFS — you're not picking a time slot, you're logging the intent. Without this call, the shop has no record. preferredDay defaults to "today" for walk-ins.
 
-· transferCall — live-transfer the caller to a human. Fire ONLY after the TRANSFER GATE in Critical Rule #6: caller is asking for a human → ask "What's it about? — most stuff I can answer faster than waiting on a person" → route by topic. Fire transferCall when (a) topic is outside your tools (complaint, billing dispute, in-progress job by name, complex scheduling), (b) caller refuses to say what it's about, or (c) caller is angry from the first sentence (skip gate). Do NOT take a message. Do NOT promise a callback.
+· transferCall — live-transfer the caller to a human. Fire ONLY after the TRANSFER GATE in Critical Rule #6 AND only when we're OPEN right now (Rule 6 HOURS GATE): caller asking for a human → ask "What's it about? — most stuff I can answer faster than waiting on a person" → route by topic. Fire transferCall when (a) topic is outside your tools (complaint, billing dispute, in-progress job by name, complex scheduling), (b) caller refuses to say what it's about, or (c) caller is angry from the first sentence (skip gate). When OPEN: do NOT take a message, do NOT promise a callback — just transfer. When CLOSED: use escalate instead (below).
+
+· escalate({ name, phone, reason, urgency }) — capture a callback to the shop queue. Use ONLY when we're CLOSED right now (Rule 6 HOURS GATE) and the caller wanted a human: get name + phone + reason, then tell them someone calls back when we open. NEVER during open hours (transfer instead), NEVER for tire-stock (checkTireStock) or bookings (bookSlot).
 
 · sendConfirmationSms({ phone, summary, mapLink }) — send recap text. ALWAYS call before saying goodbye if you got their phone. Returns { sent, degraded, verbalRecap }. If degraded:true (texts down), read verbalRecap aloud and skip the "I'll text you" line.
 
@@ -1085,11 +1089,33 @@ const VAPI_TOOLS: VapiToolDef[] = [
       },
     },
   },
-  // wave-181.35: escalate REMOVED. Operator decision — no callback path,
-  // no message-taking. When a caller wants a human, the AI says "are you
-  // sure I can't help?" once, then fires transferCall for a LIVE handoff.
-  // Backend procedure stays in voiceAgent.ts (still callable by other
-  // clients via SDK if needed).
+  // wave-140 (2026-05-29): escalate RE-ADDED, tightly gated. wave-181.35
+  // removed it because the AI over-escalated tire questions DURING open
+  // hours. The operator's new decision (transfer in-hours, callback after-
+  // hours) needs a callback path again — but the inbound prompt allows
+  // escalate ONLY when the shop is CLOSED (Rule 6 HOURS GATE); during open
+  // hours it still transfers live, so the over-escalation can't recur. This
+  // also revives the OUTBOUND follow-up assistant's complaint/"have Nick
+  // call me" capture, which had silently no-op'd since 181.35 (the prompt
+  // still called escalate). Dispatcher + backend already route it
+  // (webhooks/vapi.ts case "escalate" → voiceAgent.escalate).
+  {
+    type: "function",
+    function: {
+      name: "escalate",
+      description: "Capture a human callback to the shop queue (front desk sees it + calls back). INBOUND: use ONLY when the shop is CLOSED right now (see Rule 6 HOURS GATE) and the caller wants a human — during open hours, transferCall instead; never escalate a caller you could transfer. NEVER use for tire-stock questions (use checkTireStock) or ordinary bookings (use bookSlot).",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Caller's name." },
+          phone: { type: "string", description: "Callback phone number." },
+          reason: { type: "string", description: "1-2 sentence reason for the callback (what they need / their issue)." },
+          urgency: { type: "string", description: "low | medium | high", enum: ["low", "medium", "high"] },
+        },
+        required: ["name", "phone", "reason"],
+      },
+    },
+  },
   {
     type: "function",
     function: {
@@ -1548,14 +1574,19 @@ export async function getVapiStatus(): Promise<{
 /**
  * Builds the OUTBOUND follow-up assistant config. Reuses voice/model/
  * audio settings from the inbound config; swaps prompt + firstMessage
- * + tools (only escalate + sendConfirmationSms + transferCall) + a
+ * + tools (only escalate + sendConfirmationSms · wave-140 dropped the
+ * stray transferCall — an outbound trust call never transfers) + a
  * shorter 3-minute max duration.
  */
 function buildFollowUpAssistantConfig(serverUrl?: string): VapiAssistantConfig {
   // Subset of tools the follow-up assistant needs
   const followUpTools = VAPI_TOOLS.filter((t) => {
     const tool = t as unknown as Record<string, unknown>;
-    if (tool.type === "transferCall") return true;
+    // wave-140 · NO transferCall on the OUTBOUND follow-up — it's a trust
+    // call WE placed; forwarding it to the shop mid-call makes no sense and
+    // the prompt never used it. Complaints / "have Nick call me" go to the
+    // callback queue via escalate (re-added to VAPI_TOOLS this wave, so the
+    // follow-up prompt's escalate() calls — dead since 181.35 — work again).
     const fn = tool.function as Record<string, unknown> | undefined;
     const name = fn?.name as string | undefined;
     return name === "escalate" || name === "sendConfirmationSms";
