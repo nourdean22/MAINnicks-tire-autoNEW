@@ -19,7 +19,7 @@
  * Phase 4's telemetry-driven prune can delete it.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -93,6 +93,31 @@ export function MissionTaskRow({
   >(null);
   // Wave AV · 2026-05-28 · snooze popover · open state local to the row.
   const [snoozeOpen, setSnoozeOpen] = useState(false);
+  // Wave AW · 2026-05-28 · dismiss path · ref on the popover wrapper so
+  // pointerdown handler can decide "inside or outside" cleanly. Without
+  // this the operator could strand the popover open by tapping any
+  // sibling row · the only escape was finding the original tiny pill
+  // and tapping it again.
+  const snoozeWrapRef = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    if (!snoozeOpen) return;
+    function onOutsidePointer(e: PointerEvent) {
+      const node = snoozeWrapRef.current;
+      if (!node) return;
+      if (e.target instanceof Node && !node.contains(e.target)) {
+        setSnoozeOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setSnoozeOpen(false);
+    }
+    document.addEventListener("pointerdown", onOutsidePointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onOutsidePointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [snoozeOpen]);
   const isDaily =
     (task as unknown as { loopKind?: string }).loopKind === "DAILY";
   const snoozedUntil = (task as unknown as { snoozedUntil?: string | null })
@@ -205,7 +230,10 @@ export function MissionTaskRow({
              *  Tomorrow 6am · Next Mon 6am · resurface cron flips
              *  WAITING→READY when the mark matures. */}
             {isDaily && onSnooze && (
-              <span className="relative inline-flex">
+              <span
+                ref={snoozeWrapRef}
+                className="relative inline-flex"
+              >
                 <button
                   type="button"
                   onClick={() => setSnoozeOpen((v) => !v)}
