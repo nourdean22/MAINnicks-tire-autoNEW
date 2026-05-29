@@ -1080,6 +1080,36 @@ body::after {
   overflow: hidden;
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
+
+/* Wave BF · 2026-05-29 · modal-safe glass variant.
+   The base .neural-glass sets position:relative + overflow:hidden +
+   border-radius + padding — fine for a card, FATAL for a Dialog. A modal
+   needs position:fixed (escape flow) + overflow-y:auto (scroll tall
+   content), and the Dialog primitive owns its own radius/padding via
+   Tailwind. .neural-glass clobbered all of that at equal specificity
+   (hand-CSS later in cascade beats Tailwind utilities), which forced the
+   LogLedgerModal !important paint across waves AY→BD. This variant keeps
+   the brand signature (gradient + backdrop blur + gold top-edge) and
+   drops ONLY the four layout-hostile properties. Slightly more opaque bg
+   than the card because a modal floats over arbitrary content and must
+   obscure it for readability. dialog.tsx swaps neural-glass →
+   neural-glass-modal and the !important band-aid is deleted. */
+.neural-glass-modal {
+  background: linear-gradient(135deg, rgba(17, 17, 17, 0.93), rgba(10, 10, 10, 0.88));
+  backdrop-filter: blur(20px) saturate(1.5);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+}
+.neural-glass-modal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(253, 185, 19, 0.45), transparent);
+  opacity: 0.6;
+  pointer-events: none;
+}
 /* v10.0.294 · gold-edge anchor · always-visible signature top-edge on
    every neural-glass card. Was opacity 0 (only on hover) which left
    cards looking flat at rest. Now resting at 0.45 opacity — clear
