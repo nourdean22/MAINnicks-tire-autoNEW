@@ -815,6 +815,25 @@ export function startTieredScheduler(): void {
           return processCrossSellOutreach();
         },
       },
+      {
+        // wave-146 · THE FLYWHEEL · 7/30/60-day trust-call cadence after a
+        // completed job. It was only registered via the legacy registerJob()
+        // path in cron/index.ts, which NEVER schedules under the tiered
+        // scheduler (startAllJobs no-ops when tiered is active) — so it had
+        // never fired in production. Wiring it into the hourly tier here is
+        // what actually makes it run. Safety is enforced inside the job:
+        // FEATURE_FOLLOWUP_CADENCE gate (off by default · also the requiresEnv
+        // below), FOLLOWUP_CADENCE_DRY_RUN preview, hard daily cap,
+        // at-most-once per (booking,touch), SMS opt-out, and a 9-18 ET window.
+        // businessHoursOnly + daily-cap make the 2h tick safe (paced, not bursty).
+        name: "followup-cadence",
+        businessHoursOnly: true,
+        requiresEnv: "FEATURE_FOLLOWUP_CADENCE",
+        handler: async () => {
+          const { runFollowupCadence } = await import("./jobs/followupCadence");
+          return runFollowupCadence();
+        },
+      },
     ],
     running: false,
     lastRun: null,
