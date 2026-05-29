@@ -201,9 +201,14 @@ export function MissionCard({
          *  or the tasks?" — ↑/↓ buttons swap rank with neighbor. Mobile-
          *  first · no drag-drop complexity (drag is finicky on iOS) ·
          *  stopPropagation so the outer expand toggle doesn't fire.
-         *  Disabled at the ends (no wraparound · arrows fade visually). */}
+         *  Disabled at the ends (no wraparound · arrows fade visually).
+         *  Wave AT · 2026-05-28 · always-on background tint + grouping
+         *  border · pre-this-fix the buttons were color-tertiary at rest
+         *  with hover-only background · invisible on mobile · operators
+         *  didn't know reorder existed. Now they read as tappable at
+         *  idle. Tightened to w-8 to free horizontal budget on mobile. */}
         {onMoveMission && (canMoveUp || canMoveDown) && (
-          <span className="shrink-0 inline-flex">
+          <span className="shrink-0 inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
             <button
               type="button"
               onClick={(e) => {
@@ -212,15 +217,20 @@ export function MissionCard({
               }}
               disabled={!canMoveUp}
               aria-label={`move mission ${mission.title} up`}
+              title="move up"
               className={cn(
-                "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
                 canMoveUp
-                  ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+                  ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
                   : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
               )}
             >
               <ArrowUp size={14} strokeWidth={2} />
             </button>
+            <span
+              aria-hidden
+              className="w-px bg-[var(--border-default)]/60"
+            />
             <button
               type="button"
               onClick={(e) => {
@@ -229,10 +239,11 @@ export function MissionCard({
               }}
               disabled={!canMoveDown}
               aria-label={`move mission ${mission.title} down`}
+              title="move down"
               className={cn(
-                "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
                 canMoveDown
-                  ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05] cursor-pointer"
+                  ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08] cursor-pointer"
                   : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
               )}
             >
