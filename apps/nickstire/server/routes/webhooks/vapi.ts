@@ -111,6 +111,30 @@ function extractCallDurationSec(event: unknown): number {
   return 0;
 }
 
+// ─── Ended-reason extraction (defensive · handles VAPI payload shapes) ─────
+//
+// wave-137-2026-05-29 · the end-of-call-report webhook carries the CLEAN
+// ended reason at MESSAGE level (`message.endedReason` — a REQUIRED field on
+// VAPI's ServerMessageEndOfCallReport · values like customer-ended-call /
+// assistant-forwarded-call / customer-did-not-answer). The nested
+// `message.call.endedReason` is a call snapshot that VAPI's docs say lives on
+// GET /call/:id — on the webhook it is usually unpopulated (→ null) or,
+// mid-call, a transient SIP-layer status (call.in-progress.sip-completed-call).
+// Reading only call.endedReason stored null on 274/283 rows + raw SIP codes on
+// 9, zero clean labels → the Voice local-fallback breakdown was useless. Same
+// wrong-layer class as the wave-fix-2026-05-25 artifact.transcript bug. Prefer
+// message-level; accept a call-level value only when it's a clean label (not a
+// `call.*` SIP transient).
+export function extractEndedReason(event: unknown): string | null {
+  const e = event as { endedReason?: unknown; call?: { endedReason?: unknown } } | undefined;
+  if (!e) return null;
+  const top = typeof e.endedReason === "string" ? e.endedReason.trim() : "";
+  if (top) return top;
+  const nested = typeof e.call?.endedReason === "string" ? e.call.endedReason.trim() : "";
+  if (nested && !nested.startsWith("call.")) return nested;
+  return null;
+}
+
 // ─── Tool call dispatcher ──────────────────────────────
 
 interface VapiToolCall {
@@ -283,6 +307,10 @@ router.post("/vapi", async (req: Request, res: Response) => {
       endedAt?: string;
       duration?: number;
       durationSeconds?: number;
+      // wave-137 · message-level ended reason · VAPI's
+      // ServerMessageEndOfCallReport carries the CLEAN reason here; the nested
+      // call.endedReason above is null/SIP-transient on the webhook.
+      endedReason?: string;
       toolCalls?: VapiToolCall[];
       transcript?: string;
     };
@@ -390,9 +418,13 @@ router.post("/vapi", async (req: Request, res: Response) => {
 
       case "end-of-call-report":
       case "call-end": {
+        // wave-137 · read the CLEAN reason from message-level (see
+        // extractEndedReason). call.endedReason is null/SIP-transient on the
+        // webhook. Computed once, reused for the row insert + state metadata.
+        const cleanEndedReason = extractEndedReason(event);
         log.info("Vapi call ended", {
           callId: event.call?.id,
-          reason: event.call?.endedReason,
+          reason: cleanEndedReason,
         });
         // wave-125 — persist a vapi_call_logs row so calls that didn't
         // explicitly trigger a callback/booking still appear in the
@@ -444,7 +476,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
                 phoneNumber: customer?.number ?? null,
                 customerName: customer?.name ?? null,
                 durationSeconds: durationSec,
-                endedReason: event.call?.endedReason ?? null,
+                endedReason: cleanEndedReason,
                 aiSummary: summary,
                 serviceMention,
                 convertedToLead: 0, // updated later if a lead is created from this call
@@ -475,7 +507,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
               callId: endCallId,
               assistantId: endAssistantId,
               state: "ended",
-              metadata: { reason: event.call?.endedReason, eventType: event.type },
+              metadata: { reason: cleanEndedReason, eventType: event.type },
             })
           ).catch(() => { /* intentionally swallowed */ });
         }
