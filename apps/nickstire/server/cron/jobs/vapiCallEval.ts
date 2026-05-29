@@ -74,6 +74,8 @@ interface VapiCallDetail {
   };
   endedReason?: string;
   durationSeconds?: number;
+  /** VAPI call direction · "inboundPhoneCall" | "outboundPhoneCall" | "webCall" */
+  type?: string;
 }
 
 const LOOKBACK_DAYS = 2; // catch yesterday + today's morning calls
@@ -179,11 +181,13 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   const scored: ScoredCall[] = [];
   let errored = 0;
   let deferred = 0;
+  let outbound = 0;
 
   for (const row of rows) {
     try {
       // Pull VAPI's analysis (already computed server-side per ANALYSIS_PLAN)
       let analysis: VapiCallDetail["analysis"] = undefined;
+      let callType: string | null = null;
       if (VAPI_API_KEY) {
         try {
           const resp = await fetch(`${VAPI_BASE}/call/${row.vapiCallId}`, {
@@ -192,10 +196,30 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
           if (resp.ok) {
             const detail = await resp.json() as VapiCallDetail;
             analysis = detail.analysis;
+            callType = detail.type ?? null;
           }
         } catch (e) {
           log.warn(`[vapi-eval] VAPI fetch failed for ${row.vapiCallId}`, { error: e instanceof Error ? e.message : String(e) });
         }
+      }
+
+      // Synergy (wave-142) · this is the INBOUND receptionist quality loop.
+      // The follow-up caller's OUTBOUND calls (manual trust calls + the
+      // confirmation/recovery crons — all share the follow-up assistant) hit
+      // the same end-of-call webhook and get logged here too, but a trust
+      // call never "books", so inbound scoring tanks the avg and can fire
+      // false wasted/degradation alerts. Their real outcomes live in their
+      // own tables (confirmation_calls · alg_estimates.voice_recovery_*).
+      // Mark them done + exclude from the metrics (evalScore stays null, so
+      // they also drop out of the F6 30d baseline).
+      if (callType === "outboundPhoneCall") {
+        await d.update(vapiCallLogs).set({
+          evalOutcome: "outbound",
+          evalReasoning: "Outbound call (follow-up / confirmation / recovery) — excluded from the inbound receptionist eval.",
+          evalAt: new Date(),
+        }).where(eq(vapiCallLogs.id, row.id));
+        outbound++;
+        continue;
       }
 
       // F4 · defer on incomplete analysis. If VAPI post-processing hasn't
@@ -303,7 +327,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   // 3. Aggregate + Telegram alert
   const totalCalls = scored.length;
   if (totalCalls === 0) {
-    return { recordsProcessed: 0, details: `${rows.length} calls in window · 0 scored · ${deferred} deferred (analysis pending) · ${errored} errors` };
+    return { recordsProcessed: 0, details: `${rows.length} calls in window · 0 scored · ${deferred} deferred (analysis pending) · ${outbound} outbound-skipped · ${errored} errors` };
   }
 
   const avgScore = Math.round(scored.reduce((s, c) => s + c.score, 0) / totalCalls);
@@ -378,10 +402,10 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   }
 
   const durMs = Date.now() - start;
-  log.info(`[vapi-eval] done in ${durMs}ms`, { totalCalls, avgScore, convertedCount, wastedCount, deferred, errored, degraded });
+  log.info(`[vapi-eval] done in ${durMs}ms`, { totalCalls, avgScore, convertedCount, wastedCount, deferred, outbound, errored, degraded });
 
   return {
     recordsProcessed: totalCalls,
-    details: `${totalCalls} scored · avg ${avgScore}/100 · ${convertedCount} converted · ${wastedCount} wasted · ${deferred} deferred · ${errored} errors`,
+    details: `${totalCalls} scored · avg ${avgScore}/100 · ${convertedCount} converted · ${wastedCount} wasted · ${deferred} deferred · ${outbound} outbound-skipped · ${errored} errors`,
   };
 }
