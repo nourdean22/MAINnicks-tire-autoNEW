@@ -425,6 +425,15 @@ export function registerAllJobs(): void {
     return runVoiceRecovery();
   });
 
+  // wave-143 · Follow-up cadence (the flywheel) · daily · gated by
+  // FEATURE_FOLLOWUP_CADENCE=1 (OFF by default · dry-run via
+  // FOLLOWUP_CADENCE_DRY_RUN=1). Places 7/30/60-day trust calls after a
+  // completed job — at-most-once per touch, hard daily cap, opt-out + hours.
+  registerJob("followup-cadence", 24 * 60 * 60 * 1000, async () => {
+    const { runFollowupCadence } = await import("./jobs/followupCadence");
+    return runFollowupCadence();
+  });
+
   registerJob("retention-7day", 24 * 60 * 60 * 1000, async () => {
     const { processRetention7Day } = await import("./jobs/retentionSequences");
     return processRetention7Day();

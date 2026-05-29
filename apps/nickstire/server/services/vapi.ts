@@ -1883,12 +1883,18 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
 export interface VapiPlaceCallParams {
   /** Customer phone in E.164 format · e.g. "+12168620005" */
   customerNumber: string;
-  /** Override the assistant's default firstMessage · "Hi <name>, ..." */
-  firstMessageOverride: string;
-  /** Override the assistant's default systemPrompt · per-call context */
-  systemPromptOverride: string;
+  /** Override the assistant's default firstMessage. OMIT to keep the
+   *  assistant's own firstMessage (templated via variableValues). */
+  firstMessageOverride?: string;
+  /** Override the assistant's default systemPrompt. OMIT to use the
+   *  assistant's base prompt — e.g. the trust-call FOLLOW_UP_SYSTEM_PROMPT,
+   *  filled via variableValues (the wave-143 follow-up cadence does this). */
+  systemPromptOverride?: string;
   /** Optional · max 90s default · keeps cost predictable */
   maxDurationSeconds?: number;
+  /** wave-143 · LiquidJS variables to fill {{name}} / {{lastService}} etc.
+   *  in the assistant's base prompt + firstMessage when not overriding them. */
+  variableValues?: Record<string, string>;
 }
 
 export interface VapiPlaceCallResult {
@@ -1917,20 +1923,26 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
   }
 
   try {
+    // wave-143 · build overrides conditionally. Callers either FULLY override
+    // the prompt (confirmation/recovery) OR keep the assistant's base prompt
+    // and just fill variableValues (the follow-up cadence reuses the
+    // trust-call FOLLOW_UP_SYSTEM_PROMPT via {{name}} / {{lastService}}).
+    const assistantOverrides: Record<string, unknown> = {
+      maxDurationSeconds: params.maxDurationSeconds ?? 90,
+    };
+    if (params.firstMessageOverride !== undefined) assistantOverrides.firstMessage = params.firstMessageOverride;
+    if (params.systemPromptOverride !== undefined) {
+      assistantOverrides.model = { messages: [{ role: "system", content: params.systemPromptOverride }] };
+    }
+    if (params.variableValues) assistantOverrides.variableValues = params.variableValues;
+
     const res = await vapiFetch("/call", {
       method: "POST",
       body: JSON.stringify({
         assistantId,
         phoneNumberId,
         customer: { number: params.customerNumber },
-        // VAPI assistantOverrides · per-call prompt override · same
-        // pattern operators use to A/B different scripts without
-        // creating multiple assistants.
-        assistantOverrides: {
-          firstMessage: params.firstMessageOverride,
-          model: { messages: [{ role: "system", content: params.systemPromptOverride }] },
-          maxDurationSeconds: params.maxDurationSeconds ?? 90,
-        },
+        assistantOverrides,
       }),
     });
     if (!res.ok) {

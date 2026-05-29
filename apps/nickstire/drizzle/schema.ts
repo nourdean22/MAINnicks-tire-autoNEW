@@ -3064,3 +3064,25 @@ export const lifecycleTrackerEvents = mysqlTable("lifecycle_tracker_events", {
   firstSeenAt: timestamp("firstSeenAt").defaultNow().notNull(),
   lastSeenAt: timestamp("lastSeenAt").defaultNow().notNull(),
 });
+
+/**
+ * wave-143 · Follow-up cadence touches (the flywheel). After a completed job,
+ * the follow-up caller reaches out at 7 / 30 / 60 days — catch problems early,
+ * ask for the referral, bring them back. ONE row per (booking, touch); the DB
+ * carries a UNIQUE KEY (bookingId, touch) — the at-most-once guarantee that a
+ * customer is NEVER called twice for the same touch, even across overlapping
+ * cron runs (the cadence cron claims via INSERT and treats a dup-key as
+ * "already done"). Created by handleRunMigrations() · run via the
+ * nickActions.runMigrations admin tRPC.
+ */
+export const voiceFollowups = mysqlTable("voice_followups", {
+  id: int("id").autoincrement().primaryKey(),
+  bookingId: int("bookingId").notNull(),
+  touch: mysqlEnum("touch", ["d7", "d30", "d60"]).notNull(),
+  phone: varchar("phone", { length: 30 }),
+  customerName: varchar("customerName", { length: 255 }),
+  status: mysqlEnum("status", ["called", "failed", "skipped"]).default("called").notNull(),
+  vapiCallId: varchar("vapiCallId", { length: 64 }),
+  errorMessage: varchar("errorMessage", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
