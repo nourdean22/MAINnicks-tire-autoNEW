@@ -15,29 +15,44 @@
  *   digest of worst calls → operator can listen to the 3 worst and
  *   surface fixes for the prompt or memory layer.
  *
- * Score formula (hybrid · heuristic + light LLM critique):
- *   +30 if structuredData.outcome IN ('booked','callback_scheduled')
+ * Score formula (hybrid · heuristic + state ground truth · wave-138):
+ *   +30 if outcome IN ('booked','callback_scheduled') AND a write-tool
+ *        actually fired (state ground truth). A claimed conversion with NO
+ *        tool-fire is a hallucinated outcome → flagged, NOT credited (F3).
  *   +20 if successEvaluation === 'pass'
  *   +15 if sentiment === 'positive'  (-15 if 'negative')
  *   +15 if 30 < durationSeconds < 360 (productive duration)
- *   +10 if tool_called state reached (engaged with tools)
- *   +10 / -25 LLM critique adjustment
+ *   +10 if tool_called/confirmed state reached (engaged · ground truth, F2)
+ *   +10 if convertedToLead
  *   Floor 0 · cap 100.
  *   Sub-50 = wasted · 50-69 = info_only · 70-84 = converted · 85+ = exemplary
  *
+ * Ground truth (F1/F2/F3 · wave-138): outcome/sentiment come from VAPI's
+ * analysis (the model's OPINION). Whether tools actually fired comes from
+ * the state tracker (voice_call_states). We cross-check the two so a
+ * hallucinated "booked" with no bookSlot fire can't inflate the score.
+ *
+ * Defer (F4 · wave-138): if VAPI post-processing hasn't produced an
+ * analysis yet, the call is left unevaluated (evalAt stays null) so the
+ * next run retries — instead of being permanently mis-scored as wasted.
+ * Capped at 24h so an analysis that never lands still scores eventually.
+ *
  * Storage: vapi_call_logs.eval_score, eval_outcome, eval_reasoning, eval_at
  *
- * Alerts: Telegram digest with avg score + 3 worst calls if avg < 60 OR
- * frustrated_count >= 3 (signal of real problem) · silent on healthy days.
+ * Alerts (deduped per-day via cron_alerts_fired): worst-calls digest if
+ * avg < 60 OR wasted >= 3 OR avg degraded >=15 below the 30d baseline (F6) ·
+ * zero-call alert if 0 VAPI calls landed in 24h — pipeline-down guard (F5) ·
+ * silent on healthy days.
  *
  * Per agent-4 research at server/services/vapi.ts ANALYSIS_PLAN (lines
  * 1152-1215), VAPI already extracts most of these signals server-side.
  * We're just persisting + scoring them, not duplicating the analysis.
  */
 
-import { eq, gte, isNull, and, sql, desc } from "drizzle-orm";
+import { eq, gte, isNull, isNotNull, and, sql, desc } from "drizzle-orm";
 import { vapiCallLogs } from "../../../drizzle/schema";
 import { sendTelegram } from "../../services/telegram";
+import { getCallStateHistory } from "../../services/voice-call-state";
 import { createLogger } from "../../lib/logger";
 
 const log = createLogger("cron:vapi-eval");
@@ -90,6 +105,44 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   const d = await getDb();
   if (!d) return { recordsProcessed: 0, details: "No DB" };
 
+  // Claim today's slot for a named alert so F5/F6 alerts fire AT MOST once
+  // per day even if this cron runs more than daily or across multiple pods.
+  // Mirrors the cron_alerts_fired INSERT IGNORE dedup from vapiLatencySync.
+  // Returns true only if THIS run won the claim (i.e., should send).
+  const claimDailyAlert = async (alertKey: string): Promise<boolean> => {
+    try {
+      const [res] = await d.execute(sql`
+        INSERT IGNORE INTO cron_alerts_fired (alert_key, fired_for, fired_at)
+        VALUES (${alertKey}, CURDATE(), NOW())
+      `);
+      return ((res as { affectedRows?: number })?.affectedRows ?? 0) === 1;
+    } catch {
+      // Table may not exist in some envs · degrade to "send" — a possible
+      // dup alert beats silently swallowing a real one.
+      return true;
+    }
+  };
+
+  // F5 · zero-call pipeline guard. If ZERO VAPI calls landed in the last
+  // 24h, the webhook/pipeline may be down (the 5-day-silent-VAPI bug class).
+  // Distinct from "all calls already evaluated" (healthy · silent below).
+  try {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [{ c }] = await d
+      .select({ c: sql<number>`count(*)` })
+      .from(vapiCallLogs)
+      .where(gte(vapiCallLogs.createdAt, dayAgo));
+    if (Number(c) === 0 && (await claimDailyAlert("vapi_zero_calls"))) {
+      await sendTelegram(
+        "⚠️ NICK AI · 0 VAPI calls logged in the last 24h.\n\n" +
+        "Either a genuinely slow day, or the webhook/pipeline is down. " +
+        "Verify api/webhooks/vapi is receiving end-of-call-report events.",
+      ).catch(() => { /* alert is best-effort */ });
+    }
+  } catch (e) {
+    log.warn("[vapi-eval] zero-call check failed", { error: e instanceof Error ? e.message : String(e) });
+  }
+
   // 1. Pull unevaluated calls from last LOOKBACK_DAYS days
   const lookbackCutoff = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const rows = await d
@@ -102,6 +155,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       aiSummary: vapiCallLogs.aiSummary,
       serviceMention: vapiCallLogs.serviceMention,
       convertedToLead: vapiCallLogs.convertedToLead,
+      createdAt: vapiCallLogs.createdAt,
     })
     .from(vapiCallLogs)
     .where(and(
@@ -124,6 +178,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   const VAPI_BASE = "https://api.vapi.ai";
   const scored: ScoredCall[] = [];
   let errored = 0;
+  let deferred = 0;
 
   for (const row of rows) {
     try {
@@ -143,6 +198,29 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         }
       }
 
+      // F4 · defer on incomplete analysis. If VAPI post-processing hasn't
+      // produced a verdict yet (no successEvaluation AND no outcome), leave
+      // the call unevaluated so the next run retries — don't persist a
+      // near-zero "wasted" score that sticks forever. Capped at 24h so an
+      // analysis that never lands still gets scored eventually.
+      const analysisReady = !!analysis && (analysis.successEvaluation != null || analysis.structuredData?.outcome != null);
+      const callAgeMs = Date.now() - (row.createdAt?.getTime() ?? 0);
+      if (!analysisReady && callAgeMs < 24 * 60 * 60 * 1000) {
+        deferred++;
+        continue;
+      }
+
+      // F1/F2/F3 · tool-fire GROUND TRUTH. VAPI's structuredData.outcome is
+      // the model's OPINION; the state trail (voice_call_states, namespaced
+      // in voice_latency_events) is what tools ACTUALLY fired. reachedTool =
+      // a write tool (bookSlot/scheduleCallback/...) or sendConfirmationSms
+      // fired. Used to credit engagement AND to gate the conversion bonus.
+      let reachedTool = false;
+      try {
+        const states = await getCallStateHistory(row.vapiCallId);
+        reachedTool = states.some((s) => s.state === "tool_called" || s.state === "confirmed");
+      } catch { /* state trail is optional · score without it */ }
+
       const outcome = analysis?.structuredData?.outcome ?? "";
       const sentiment = analysis?.structuredData?.sentiment ?? "";
       const success = analysis?.successEvaluation ?? "";
@@ -153,8 +231,14 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       const reasons: string[] = [];
 
       if (CONVERTED_OUTCOMES.has(outcome)) {
-        score += 30;
-        reasons.push(`+30 outcome=${outcome}`);
+        if (reachedTool) {
+          score += 30;
+          reasons.push(`+30 outcome=${outcome} (tool-fire confirmed)`);
+        } else {
+          // F3 · claimed conversion with NO write-tool fire = suspect
+          // hallucination. Do NOT credit it — flag for operator review.
+          reasons.push(`⚠ outcome=${outcome} claimed but no write-tool fired — NOT credited (suspect)`);
+        }
       }
       if (success === "pass") {
         score += 20;
@@ -173,6 +257,10 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
       } else if (duration >= 360) {
         score -= 5;
         reasons.push(`-5 long call duration=${duration}s`);
+      }
+      if (reachedTool) {
+        score += 10;
+        reasons.push("+10 tool_called (engaged · state ground truth)");
       }
       if (row.convertedToLead) {
         score += 10;
@@ -215,7 +303,7 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   // 3. Aggregate + Telegram alert
   const totalCalls = scored.length;
   if (totalCalls === 0) {
-    return { recordsProcessed: 0, details: `${rows.length} calls in window · 0 successfully scored · ${errored} errors` };
+    return { recordsProcessed: 0, details: `${rows.length} calls in window · 0 scored · ${deferred} deferred (analysis pending) · ${errored} errors` };
   }
 
   const avgScore = Math.round(scored.reduce((s, c) => s + c.score, 0) / totalCalls);
@@ -223,8 +311,32 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   const convertedCount = scored.filter((c) => c.outcome === "converted" || c.outcome === "exemplary").length;
   const conversionRate = totalCalls > 0 ? Math.round((convertedCount / totalCalls) * 100) : 0;
 
+  // F6 · degradation alert. Compare today's batch avg to the 30d baseline
+  // built from calls OLDER than the current lookback window (so we never
+  // compare today against itself). Fires even when the absolute avg is
+  // >=60, which the static threshold misses — an 85→68 slide is a real
+  // problem worth a ping. Needs >=20 prior scored calls to trust the trend.
+  let degraded = false;
+  let baselineAvg: number | null = null;
+  try {
+    const baselineCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const [b] = await d
+      .select({ avg: sql<number | null>`avg(${vapiCallLogs.evalScore})`, n: sql<number>`count(*)` })
+      .from(vapiCallLogs)
+      .where(and(
+        isNotNull(vapiCallLogs.evalScore),
+        gte(vapiCallLogs.createdAt, baselineCutoff),
+        sql`${vapiCallLogs.createdAt} < ${lookbackCutoff}`,
+      ));
+    const baselineN = Number(b?.n ?? 0);
+    baselineAvg = b?.avg != null ? Number(b.avg) : null;
+    degraded = baselineN >= 20 && baselineAvg != null && avgScore <= baselineAvg - 15;
+  } catch (e) {
+    log.warn("[vapi-eval] degradation baseline query failed", { error: e instanceof Error ? e.message : String(e) });
+  }
+
   // Alert if quality is concerning (compound learning signal)
-  const shouldAlert = avgScore < 60 || wastedCount >= 3;
+  const shouldAlert = avgScore < 60 || wastedCount >= 3 || degraded;
 
   if (shouldAlert) {
     try {
@@ -241,7 +353,9 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
         `Worst calls (drill down at /admin/voice-receptionist):`,
         ...worst,
         ``,
-        avgScore < 60 ? "⚠ Avg score below 60 — investigate the prompt or memory layer." :
+        degraded && baselineAvg != null
+          ? `⚠ Quality degraded — avg ${avgScore} is ${Math.round(baselineAvg) - avgScore} pts below the 30d baseline (${Math.round(baselineAvg)}). Check recent prompt/memory changes.`
+          : avgScore < 60 ? "⚠ Avg score below 60 — investigate the prompt or memory layer." :
           `${wastedCount} wasted calls — listen to the worst 3 and find the pattern.`,
       ];
       await sendTelegram(lines.join("\n"));
@@ -264,10 +378,10 @@ export async function processVapiCallEval(): Promise<ProcessResult> {
   }
 
   const durMs = Date.now() - start;
-  log.info(`[vapi-eval] done in ${durMs}ms`, { totalCalls, avgScore, convertedCount, wastedCount, errored });
+  log.info(`[vapi-eval] done in ${durMs}ms`, { totalCalls, avgScore, convertedCount, wastedCount, deferred, errored, degraded });
 
   return {
     recordsProcessed: totalCalls,
-    details: `${totalCalls} scored · avg ${avgScore}/100 · ${convertedCount} converted · ${wastedCount} wasted · ${errored} errors`,
+    details: `${totalCalls} scored · avg ${avgScore}/100 · ${convertedCount} converted · ${wastedCount} wasted · ${deferred} deferred · ${errored} errors`,
   };
 }
