@@ -21,7 +21,7 @@
  *   · Add person flow (when opened with no personId, becomes a create form)
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -103,6 +103,43 @@ function PersonEditDrawerBody({
   const createMutation = trpc.task.createPerson.useMutation();
   const updateMutation = trpc.task.updatePerson.useMutation();
   const softDeleteMutation = trpc.task.softDeletePerson.useMutation();
+
+  // Wave BA · 2026-05-28 · operator-reported data-loss bug: "i entered
+  // my wifes b day and our anniv 2 or 3 times clicked saved and it
+  // never saved". Root cause: /api/people doesn't return birthday /
+  // anniversary / cadenceDays · the page builds `initial` with these
+  // forced to null. Operator opens drawer, types value, clicks save,
+  // server DOES persist · but next open shows empty again because the
+  // page's `initial` is still null. They think it failed and re-type.
+  //
+  // Fix: in edit mode, fetch the FULL PersonProfile via the existing
+  // personProfile query and hydrate the form fields ONCE on arrival.
+  // Hydrate ref prevents overwriting values the operator is typing in
+  // the rare race where they start typing before the fetch lands.
+  const fetched = trpc.task.personProfile.useQuery(
+    { personId: personId ?? "" },
+    { enabled: !!personId },
+  );
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    const p = fetched.data?.person as
+      | {
+          birthday?: string | null;
+          anniversary?: string | null;
+          cadenceDays?: number | null;
+          leverageNotes?: string | null;
+        }
+      | undefined;
+    if (!p) return;
+    hydratedRef.current = true;
+    if (p.birthday) setBirthday(p.birthday);
+    if (p.anniversary) setAnniversary(p.anniversary);
+    if (p.cadenceDays != null) setCadenceDays(String(p.cadenceDays));
+    // Also hydrate leverageNotes · the /api/people row may truncate or
+    // miss it depending on the cached snapshot.
+    if (p.leverageNotes) setLeverageNotes(p.leverageNotes);
+  }, [fetched.data]);
 
   const submitting =
     createMutation.isPending ||

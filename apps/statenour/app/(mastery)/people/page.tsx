@@ -269,14 +269,12 @@ export default function RelationshipsPage() {
        *  default · the operator opens it only when researching a
        *  specific person. */}
       <NicksRelationshipsBrief activePeopleCount={data?.totals.total ?? 0} />
-      <TodaysPicks
-        refetchKey={picksRefetchKey}
-        onLogged={() => {
-          telemetry.event("outreachLogged");
-          setPicksRefetchKey((k) => k + 1);
-          reload();
-        }}
-      />
+      {/* Wave BC · 2026-05-28 · reorder · watchlist gives broad triage
+       *  (categorized chips) · picks gives the focused single action.
+       *  Pre-BC the obnoxious TodaysPicks cards came FIRST and pushed
+       *  the watchlist below the fold. Operator: "it doesnt have to be
+       *  the first thing i see". Watchlist now leads · picks follows in
+       *  a one-line collapsed eyebrow (TodaysPicks rewritten BC). */}
       <RelationshipsWatchlist
         items={watchlist}
         onSelect={(personId) => {
@@ -288,6 +286,14 @@ export default function RelationshipsPage() {
           setBrowseOpen(true);
           setSelectedPersonId(personId);
           setShowAll(true);
+        }}
+      />
+      <TodaysPicks
+        refetchKey={picksRefetchKey}
+        onLogged={() => {
+          telemetry.event("outreachLogged");
+          setPicksRefetchKey((k) => k + 1);
+          reload();
         }}
       />
 
