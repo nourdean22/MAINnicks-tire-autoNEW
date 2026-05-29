@@ -106,8 +106,11 @@ export default function LogLedgerModal({
         * sections + preview + footer) exceeded viewport, the footer
         * (cancel + log entry buttons) sat below the screen with no scroll.
         * max-h-[90vh] + overflow-y-auto lets the operator scroll to the
-        * footer. Pairs with the autoFocus useEffect above. */}
-      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+        * footer. Pairs with the autoFocus useEffect above.
+        * Wave AZ · 2026-05-28 · mobile pass · vh → dvh so iOS URL bar
+        * collapse doesn't clip · pb-safe so footer clears the home
+        * indicator · operator is mobile-heavy. */}
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
         <DialogHeader>
           <DialogTitle className="font-serif text-lg">
             Log ledger · {personName}
@@ -144,18 +147,24 @@ export default function LogLedgerModal({
           </button>
         </div>
 
-        {/* Magnitude quick picks */}
+        {/* Magnitude quick picks
+            Wave AZ · 2026-05-28 · mobile pass · flex-wrap + min-h-11 on
+            each button so the row reflows on <375px phones instead of
+            squishing · 44pt tap targets match Apple HIG. The "custom"
+            input gets a tiny label above it so the operator doesn't
+            mistake it for a 6th preset (the unlabeled 5 in the live
+            screenshot triggered the confusion). */}
         <div className="space-y-1">
           <label className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
             Magnitude (1–100)
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 items-end">
             {[1, 3, 5, 10, 25].map((n) => (
               <button
                 key={n}
                 type="button"
                 onClick={() => setMagnitude(n)}
-                className={`flex-1 rounded-md border px-2 py-1.5 font-mono text-xs tabular-nums transition-colors ${
+                className={`flex-1 min-w-[44px] min-h-[44px] rounded-md border px-2 py-1.5 font-mono text-xs tabular-nums transition-colors ${
                   magnitude === n
                     ? "border-[var(--gold)] text-[var(--gold)]"
                     : "border-[rgba(255,255,255,0.06)] text-[var(--text-secondary)] hover:border-[var(--gold)]/50"
@@ -164,18 +173,28 @@ export default function LogLedgerModal({
                 {n}
               </button>
             ))}
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={magnitude}
-              onChange={(e) =>
-                setMagnitude(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
-              }
-              className="w-16 rounded-md border bg-transparent px-2 py-1 text-center font-mono text-xs tabular-nums text-[var(--text-primary)] focus:border-[var(--gold)] focus:outline-none"
-              style={{ borderColor: "rgba(255,255,255,0.06)" }}
-              aria-label="custom magnitude"
-            />
+            <div className="flex flex-col items-center">
+              <label
+                htmlFor="ledger-magnitude-custom"
+                className="text-[8px] uppercase tracking-wider text-[var(--text-tertiary)]/70 mb-0.5"
+              >
+                custom
+              </label>
+              <input
+                id="ledger-magnitude-custom"
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={100}
+                value={magnitude}
+                onChange={(e) =>
+                  setMagnitude(Math.max(1, Math.min(100, Number(e.target.value) || 1)))
+                }
+                className="w-16 min-h-[44px] rounded-md border bg-transparent px-2 py-1 text-center font-mono text-xs tabular-nums text-[var(--text-primary)] focus:border-[var(--gold)] focus:outline-none"
+                style={{ borderColor: "rgba(255,255,255,0.06)" }}
+                aria-label="custom magnitude"
+              />
+            </div>
           </div>
         </div>
 
