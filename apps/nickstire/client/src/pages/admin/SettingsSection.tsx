@@ -982,7 +982,12 @@ function FeatureFlagsPanel() {
     if (filter === "risky" && !isCustomerFacingFlag(f.key)) return false;
     return true;
   });
-  const grouped = categorizeFlags(filtered);
+  // wave-150 · hide the 19 engine_* toggles. They were DECORATIVE — nothing
+  // calls isEnabled() for them; the intelligence engines run unconditionally —
+  // so the toggles gave a false impression of control. Wiring them would be
+  // WORSE (flags default off → would DISABLE every engine on deploy). Stripping
+  // the fake toggles is the honest, zero-risk fix; the engines keep running.
+  const grouped = categorizeFlags(filtered.filter((f) => !f.key.startsWith("engine_")));
 
   return (
     <div className="bg-card border border-border/30 p-4">

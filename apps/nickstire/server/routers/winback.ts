@@ -162,11 +162,12 @@ function buildSegmentFilter(segment: string) {
         sql`${customers.lastVisitDate} < ${d365}`,
         eq(customers.smsOptOut, 0)
       )!;
-    case "declined":
-      return and(
-        eq(customers.segment, "lapsed"),
-        eq(customers.smsOptOut, 0)
-      )!;
+    // wave-150 · "declined" winback segment RETIRED. It targeted
+    // customers.segment='lapsed' (wrong people), and repointing it to the
+    // alg_estimates declined pool would DOUBLE-TEXT the declined-recovery
+    // cron (50/day · FEATURE_DECLINED_RECOVERY), which now owns that pool.
+    // Removed from the targetSegment enum; any legacy "declined" campaign
+    // falls to the default below → segment='declined' matches ~0 rows (safe).
     case "tire_customer":
       return and(
         sql`${customers.lastVisitDate} < ${d90}`,
@@ -254,7 +255,7 @@ export const winbackRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "declined", "tire_customer", "vip", "fleet", "recent"]),
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "tire_customer", "vip", "fleet", "recent"]),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),

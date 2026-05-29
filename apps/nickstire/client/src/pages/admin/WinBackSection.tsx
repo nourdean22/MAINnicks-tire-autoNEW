@@ -53,7 +53,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 
 function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
-  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "declined" | "tire_customer" | "vip" | "fleet" | "recent">("lapsed");
+  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "tire_customer" | "vip" | "fleet" | "recent">("lapsed");
   const [creating, setCreating] = useState(false);
 
   const { data: customerStats } = trpc.customers.stats.useQuery();
@@ -122,7 +122,8 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               at 375px = unusable touch targets. Mobile collapses to
               2 cols (~160px each), 4 cols only at sm+ (640px+). */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {(["lapsed", "dormant", "lost", "declined", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
+            {/* wave-150 · "declined" removed — the 50/day declined-recovery cron now owns that pool (a winback campaign here would double-text it). */}
+            {(["lapsed", "dormant", "lost", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
               const labels: Record<string, string> = {
                 lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
                 declined: "Declined Work", tire_customer: "Tire Customers", vip: "VIP",
@@ -172,13 +173,6 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               <>
                 <StepPreview step={1} delay="Immediately" desc="Re-introduction: A lot has changed, come see what's new" />
                 <StepPreview step={2} delay="Day 10" desc="Incentive: 10% off first service back" />
-              </>
-            )}
-            {segment === "declined" && (
-              <>
-                <StepPreview step={1} delay="Immediately" desc="Follow-up: Did you get the work done? Estimate still valid" />
-                <StepPreview step={2} delay="Day 7" desc="Urgency: Problems get worse + $10 down financing available" />
-                <StepPreview step={3} delay="Day 21" desc="Expiry: Estimate expires in 7 days, re-inspection needed after" />
               </>
             )}
             {segment === "tire_customer" && (
