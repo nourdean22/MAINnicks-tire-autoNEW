@@ -14,6 +14,14 @@ import { prisma } from "../lib/prisma";
 
 const STALE_DAYS = 14;
 
+// Wave BF · 2026-05-29 · status-literal contract lock. Commitment.status
+// is a free-form `String @default("active")` (schema line ~945) — NOT a
+// Prisma enum. The lowercase values "active" | "in_progress" | "expired"
+// below MUST match exactly what the commit-extractor writes; there is no
+// type-checker guarding this string. (Wave BE's mission-retro backfill
+// crashed on the same class of mistake — it queried a nonexistent
+// "ARCHIVED" enum literal.) If you change the writer's casing, change it
+// here too. Verified lowercase via the schema default 2026-05-29.
 (async () => {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - STALE_DAYS);

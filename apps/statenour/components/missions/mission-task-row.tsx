@@ -141,8 +141,14 @@ export function MissionTaskRow({
 
   return (
     <div
+      id={`task-${task.id}`}
+      // Wave BF · 2026-05-29 · row anchor · /home "START →" + operator-pulse
+      // emit /missions#task-<id> deep-links · Wave AR shipped mission-card
+      // + goal anchors but never the task row · clicking a home CTA landed
+      // at the top of /missions and made the operator scan. scroll-mt-24
+      // honors the sticky ticker. Closes the orphan-anchor synergy gap.
       className={cn(
-        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-colors",
+        "group flex items-start gap-2 py-2 px-2.5 rounded-md transition-colors scroll-mt-24",
         "hover:bg-[var(--bg-raised)]/[0.06]",
         isDone && "opacity-50",
         indent === 1 && "ml-6 border-l border-[var(--border-default)]/40 pl-3",

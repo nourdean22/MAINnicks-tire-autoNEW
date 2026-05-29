@@ -53,7 +53,14 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl neural-glass p-4 text-sm text-popover-foreground border border-primary/20 shadow-[0_0_40px_rgba(253,185,19,0.1)] duration-200 outline-none sm:max-w-sm data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Wave BF · 2026-05-29 · neural-glass → neural-glass-modal (the
+          // modal-safe variant that drops position:relative + overflow:hidden)
+          // + max-h-[90dvh] overflow-y-auto so ANY modal that grows past the
+          // viewport scrolls inside its own box instead of clipping. This is
+          // now the default for every Dialog · LogLedgerModal's per-modal
+          // !important overrides are deleted (the primitive handles it).
+          // dvh (not vh) so iOS Safari URL-bar collapse doesn't clip.
+          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] max-h-[90dvh] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl neural-glass-modal p-4 text-sm text-popover-foreground border border-primary/20 shadow-[0_0_40px_rgba(253,185,19,0.1)] duration-200 outline-none overflow-y-auto sm:max-w-sm data-open:animate-fade-in-scale data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

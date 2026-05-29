@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
 const SOURCES = [
@@ -102,37 +101,16 @@ export default function LogLedgerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Wave AY → AZ → BB · operator complaints stacked:
-        *   AY · "i cant see the bottom" → add max-h-[90vh] + overflow
-        *   AZ · mobile pass → dvh + safe-area + 44pt
-        *   BB · "now i cant see the top or bottom when i click deposit"
-        *        → base-ui Dialog centers via top-1/2 -translate-y-1/2 ·
-        *          when content fits the max-h budget, fine · when content
-        *          IS the max-h, the center anchor causes BOTH top
-        *          (header) AND bottom (footer) to be cut by the viewport
-        *          edges even with overflow-y-auto (you can scroll but
-        *          the scroll target isn't reachable on a small screen
-        *          because the modal is dead-center).
-        *
-        *          Fix · pass top-[max(1rem,env(safe-area-inset-top))]
-        *          + top-auto translate-y-0 to override the primitive's
-        *          center anchor with a top-anchor · max-h shrinks to
-        *          fit the actual remaining viewport · scroll stays put. */}
-      {/* Wave BD · 2026-05-28 · operator confirmed via Chrome MCP:
-        * "deposit is still obscured". Root cause found · globals.css
-        * .neural-glass class (line 1078-79) sets position:relative +
-        * overflow:hidden which CLOBBERS my Tailwind `fixed` and
-        * `overflow-y-auto` because hand-written CSS in globals.css
-        * later in the cascade beats Tailwind utilities at equal
-        * specificity. Fix · use `!` prefix to force !important on the
-        * position + overflow + max-h classes so they win the cascade. */}
+      {/* Wave BF · 2026-05-29 · the AY→AZ→BB→BD !important band-aid is
+        * DELETED. Root cause (globals.css .neural-glass clobbering the
+        * Dialog's position/overflow) is now fixed at the primitive:
+        * dialog.tsx uses .neural-glass-modal + max-h-[90dvh] +
+        * overflow-y-auto by default. This modal only keeps the two
+        * things that are genuinely modal-specific: a narrower max-w-md
+        * and the iOS safe-area bottom padding so the footer clears the
+        * home indicator. Everything else inherits from the primitive. */}
       <DialogContent
-        className={cn(
-          "max-w-md !overflow-y-auto",
-          "!fixed !top-[max(1rem,env(safe-area-inset-top))] translate-y-0",
-          "!max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]",
-          "pb-[max(1rem,env(safe-area-inset-bottom))]",
-        )}
+        className="max-w-md pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
         <DialogHeader>
           <DialogTitle className="font-serif text-lg">
