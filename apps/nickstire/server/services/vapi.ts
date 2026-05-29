@@ -1778,12 +1778,73 @@ export async function createProductionAssistant(serverUrl?: string): Promise<{
   }
 }
 
+/**
+ * wave-141 · Merge the LIVE (dashboard-managed) transferCall destinations
+ * into a freshly-built assistant config so a full re-push preserves the
+ * operator's transfer number instead of resetting it to the code default.
+ *
+ * buildAssistantConfig ships the code-default transfer number (the shop
+ * landline). The operator sets the real destination — a manager cell that
+ * changes often — via the VAPI dashboard. Without this merge, every admin
+ * "re-push" (updateAssistant) silently reset that number. Mirrors the
+ * preserve logic in scripts/vapi-update-assistant.ts.
+ *
+ * Pure (no I/O) so it's unit-testable. Mutates + returns `config`. If the
+ * live tools carry no transferCall destination, the code default stands.
+ */
+export function preserveLiveTransferDestinations(
+  config: VapiAssistantConfig,
+  liveTools: Array<Record<string, unknown>>,
+): VapiAssistantConfig {
+  const liveTransfer = liveTools.find((t) => t.type === "transferCall");
+  const liveDestinations = liveTransfer?.destinations as Array<Record<string, unknown>> | undefined;
+  if (!liveDestinations || liveDestinations.length === 0) return config;
+  const idx = config.model.tools.findIndex((t) => t.type === "transferCall");
+  if (idx < 0) return config;
+  const codeTool = config.model.tools[idx];
+  if (codeTool.type !== "transferCall") return config;
+  codeTool.destinations = liveDestinations.map((d) => {
+    // Preserve a dashboard-set transferPlan (e.g. warm-transfer) so a code
+    // re-push doesn't silently revert to a blind transfer that can't connect
+    // from a Vapi number. Fall back to the code default's transferPlan.
+    const transferPlan =
+      (d.transferPlan as { mode: string; message?: string } | undefined) ??
+      codeTool.destinations[0]?.transferPlan;
+    return {
+      type: (d.type as "number") || "number",
+      number: d.number as string,
+      message: (d.message as string) ?? codeTool.destinations[0]?.message,
+      description: (d.description as string) ?? codeTool.destinations[0]?.description,
+      ...(transferPlan ? { transferPlan } : {}),
+    };
+  });
+  return config;
+}
+
 export async function updateAssistant(assistantId: string, serverUrl?: string): Promise<{
   success: boolean;
   error?: string;
 }> {
   try {
     const config = injectWebhookSecret(buildAssistantConfig(serverUrl));
+
+    // wave-141 · pre-fetch the live assistant + carry its dashboard-managed
+    // transferCall destination into the config, so this re-push updates the
+    // prompt + tool list WITHOUT resetting the operator's transfer number.
+    // Best-effort: if the pre-fetch fails, fall through with the code default
+    // rather than block a legitimate prompt/tool update.
+    try {
+      const preRes = await vapiFetch(`/assistant/${assistantId}`);
+      if (preRes.ok) {
+        const preLive = (await preRes.json()) as { model?: { tools?: Array<Record<string, unknown>> } };
+        preserveLiveTransferDestinations(config, preLive.model?.tools ?? []);
+      } else {
+        log.warn("Vapi updateAssistant · transfer-preserve pre-fetch non-OK", { status: preRes.status });
+      }
+    } catch (preErr) {
+      log.warn("Vapi updateAssistant · transfer-preserve skipped", { error: preErr instanceof Error ? preErr.message : String(preErr) });
+    }
+
     const res = await vapiFetch(`/assistant/${assistantId}`, {
       method: "PATCH",
       body: JSON.stringify(config),
