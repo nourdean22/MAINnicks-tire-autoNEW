@@ -535,7 +535,11 @@ export const voiceAgentRouter = router({
         // desk surfaces them above ordinary warm leads (15-min promise).
         const isRackCheck = !!input.notes && /rack.?check/i.test(input.notes);
 
-        await d.insert(leads).values({
+        // wave-149 · capture the new lead's id via $returningId() so the
+        // call→lead FK gets written below. Pre-fix the id was discarded, so
+        // vapi_call_logs.leadId was ALWAYS null for voice tire inquiries —
+        // call-to-conversion traceability was broken (eval + attribution).
+        const insertedLeadRows = await d.insert(leads).values({
           name: input.name,
           phone: input.phone.replace(/\D/g, ""),
           email: null,
@@ -547,8 +551,9 @@ export const voiceAgentRouter = router({
           utmSource: "voice-agent",
           utmMedium: "phone",
           utmCampaign: isRackCheck ? "vapi-rack-check" : "vapi-tire-inquiry",
-        });
-        log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize });
+        }).$returningId();
+        const newLeadId = insertedLeadRows[0]?.id ?? null;
+        log.info("Voice agent tire inquiry captured", { name: input.name, size: input.tireSize, leadId: newLeadId });
 
         // wave-fix-2026-05-25 (audit #107) · same convertedToLead update
         // as bookSlot. A tire inquiry that creates a real `leads` row IS
@@ -558,7 +563,7 @@ export const voiceAgentRouter = router({
             const { vapiCallLogs } = await import("../../drizzle/schema");
             const { eq } = await import("drizzle-orm");
             await d.update(vapiCallLogs)
-              .set({ convertedToLead: 1 })
+              .set({ convertedToLead: 1, leadId: newLeadId })
               .where(eq(vapiCallLogs.vapiCallId, input.callId));
           } catch (err) {
             log.warn("Failed to mark vapi_call_logs.convertedToLead=1 for tireInquiry", { callId: input.callId, err: err instanceof Error ? err.message : String(err) });

@@ -40,7 +40,10 @@ const CONVERSION_WINDOW_DAYS = 14;
  */
 function rollupKey(variantKey: string | null): string {
   if (!variantKey) return "untagged";
-  return variantKey.replace(/_v\d+$/, "");
+  // wave-149 · also strip the declined-recovery profile suffix (_P1/_P2/_P3)
+  // so the 5×3 sequence keys (e.g. "declined_7d_P2") roll up by TOUCH
+  // ("declined_7d"), mirroring the existing A/B variant strip ("_v2").
+  return variantKey.replace(/_(v|P)\d+$/, "");
 }
 
 /**
@@ -57,8 +60,15 @@ function prettyTier(rollup: string): string {
     retention_d90: "Retention · D90",
     retention_d180: "Retention · D180",
     retention_d365: "Retention · D365",
-    declined_d7: "Declined-recovery · D7",
-    declined_d30: "Declined-recovery · D30",
+    // wave-149 · was declined_d7/declined_d30 (digit-LAST) — dead-letter, the
+    // cron emits declined_7d/30d (digit-FIRST), and the 5-touch sequence adds
+    // 3d/14d/45d. All five now labeled so the SMS-perf tile shows real touch
+    // conversion instead of raw keys.
+    declined_3d: "Declined-recovery · D3",
+    declined_7d: "Declined-recovery · D7",
+    declined_14d: "Declined-recovery · D14",
+    declined_30d: "Declined-recovery · D30",
+    declined_45d: "Declined-recovery · D45",
     cross_sell: "Cross-sell",
   };
   return map[rollup] ?? rollup;
