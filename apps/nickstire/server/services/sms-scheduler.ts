@@ -13,6 +13,7 @@ import { getDb } from "../db";
 import { appointmentReminders, bookings } from "../../drizzle/schema";
 import {
   sendSms,
+  isShopGatewayReachable,
   appointmentReminder24hSms,
   appointmentReminder1hSms,
   thankYouSms,
@@ -168,6 +169,18 @@ export async function cancelBookingReminders(bookingId: number) {
 export async function processScheduledSms() {
   const db = await getDb();
   if (!db) return { sent: 0, failed: 0 };
+
+  // Wave BH · 2026-05-29 · gateway-offline gate. If the F25e cloud is
+  // offline, skip the WHOLE drain — claim nothing, mark nothing. Pending
+  // reminders stay pending and deliver exactly once when the cloud is
+  // back (the atomic pending->sent claim below guarantees once). Pre-this,
+  // a gateway-down run claimed each row 'sent' then marked it 'failed' on
+  // the failed send = customer never got the reminder (lost). Holding
+  // beats losing. Operator: "wait till the cloud comes back online."
+  if (!(await isShopGatewayReachable())) {
+    console.info("[sms-scheduler] gateway offline — holding pending reminders (no claim)");
+    return { sent: 0, failed: 0 };
+  }
 
   const now = new Date();
   let sent = 0;

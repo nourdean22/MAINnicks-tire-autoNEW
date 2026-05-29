@@ -142,6 +142,14 @@ export async function processReviewRequestQueue() {
   const settings = await getReviewSettings();
   if (!settings.enabled) return { processed: 0, sent: 0, failed: 0 };
 
+  // Wave BH · 2026-05-29 · gateway-offline gate. Hold (don't claim) review
+  // requests while the F25e cloud is down — they stay pending and drain
+  // once when it's back, instead of being marked 'failed' (lost) per send.
+  const { isShopGatewayReachable } = await import("../sms");
+  if (!(await isShopGatewayReachable())) {
+    return { processed: 0, sent: 0, failed: 0, reason: "gateway offline — held pending" };
+  }
+
   // Quiet-hours guard — only send 9am–7pm Cleveland local (America/New_York).
   const hour = getClevelandHour();
   if (hour < 9 || hour >= 19) {

@@ -26,6 +26,15 @@ export async function processWinbackPending(): Promise<{ recordsProcessed: numbe
       return { recordsProcessed: 0, details: "winback tables not set up" };
     }
 
+    // Wave BH · 2026-05-29 · gateway-offline gate. If the F25e cloud is
+    // down, hold the whole drain — claim nothing. Pending winback rows
+    // stay pending and deliver once when it's back, instead of being
+    // claimed 'sent' then marked 'failed' (lost) per send.
+    const { isShopGatewayReachable } = await import("../sms");
+    if (!(await isShopGatewayReachable())) {
+      return { recordsProcessed: 0, details: "gateway offline — held pending" };
+    }
+
     // Get pending sends that are due and belong to active campaigns
     const [rows] = await db.execute(sql`
       SELECT ws.id, ws.phone, ws.personalizedBody, ws.campaignId, ws.customerId

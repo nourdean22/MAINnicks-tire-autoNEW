@@ -898,6 +898,75 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
  *
  * Set SMS_KILL_SWITCH=false (or unset) when Twilio is restored.
  */
+// ─── Wave BH · 2026-05-29 · shop-gateway reachability gate ──────────
+// Operator directive: "if the cloud goes on or off ... wait till the
+// cloud comes back online if its not on." The automated bulk SMS drains
+// (appointment scheduler · review queue · retention winback) call this
+// BEFORE claiming any message. If the F25e is offline, the drain skips
+// entirely → messages stay 'pending' → delivered exactly once when the
+// gateway returns (the atomic pending->sent claim guarantees once).
+//
+// This replaces the prior gateway-down behavior (claim 'sent' → send
+// fails → mark 'failed' = message LOST, never retried) with
+// hold-and-deliver. It is NOT wired into sendSms itself: transactional /
+// time-sensitive sends (booking confirmations, VAPI recaps) must still
+// attempt + Twilio-fall-back. Only the bulk drains gate on this.
+//
+// Same probe the health monitor uses (Capevace /device + F25e lastSeen
+// within 30 min). Cached 60s (both states) so back-to-back drains don't
+// hammer the cloud. Any probe failure / unconfigured → treated OFFLINE
+// (skip) · never send into uncertainty.
+const GATEWAY_REACHABLE_TTL_MS = 60_000;
+const GATEWAY_OFFLINE_THRESHOLD_MIN = 30;
+let _gatewayReachableCache: { value: boolean; expiresAt: number } | null = null;
+
+async function probeShopGatewayReachable(): Promise<boolean> {
+  const username = process.env.SHOP_SMS_GATEWAY_USERNAME;
+  const password = process.env.SHOP_SMS_GATEWAY_PASSWORD;
+  const baseUrl =
+    process.env.SHOP_SMS_GATEWAY_URL || "https://api.sms-gate.app/3rdparty/v1";
+  if (!username || !password) return false; // no creds → can't send → treat offline
+  const auth = Buffer.from(`${username}:${password}`).toString("base64");
+  try {
+    const res = await fetch(`${baseUrl}/device`, {
+      headers: { Authorization: `Basic ${auth}` },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) return false; // API problem → don't send into uncertainty
+    const devices = (await res.json()) as Array<{ id: string; lastSeen?: string }>;
+    if (!devices.length) return false; // no device registered → offline
+    const targetId = process.env.SHOP_SMS_GATEWAY_DEVICE_ID;
+    const dev = targetId
+      ? devices.find((d) => d.id === targetId)
+      : devices.reduce((freshest, d) => {
+          const t = d.lastSeen ? new Date(d.lastSeen).getTime() : 0;
+          const ft = freshest.lastSeen ? new Date(freshest.lastSeen).getTime() : 0;
+          return t > ft ? d : freshest;
+        });
+    if (!dev) return false; // configured device not among registered → offline
+    const lastSeenMs = dev.lastSeen ? new Date(dev.lastSeen).getTime() : 0;
+    const ageMin = lastSeenMs ? (Date.now() - lastSeenMs) / 60_000 : 999;
+    return ageMin < GATEWAY_OFFLINE_THRESHOLD_MIN;
+  } catch {
+    return false; // unreachable → offline
+  }
+}
+
+/**
+ * Is the shop SMS gateway (F25e) reachable + checked-in right now?
+ * Bulk SMS drains gate on this so they hold (not lose) messages while
+ * the cloud is offline. 60s-cached. See the block comment above.
+ */
+export async function isShopGatewayReachable(): Promise<boolean> {
+  const now = Date.now();
+  if (_gatewayReachableCache && _gatewayReachableCache.expiresAt > now) {
+    return _gatewayReachableCache.value;
+  }
+  const value = await probeShopGatewayReachable();
+  _gatewayReachableCache = { value, expiresAt: now + GATEWAY_REACHABLE_TTL_MS };
+  return value;
+}
+
 export async function sendSms(to: string, body: string, opts?: SendSmsOptions): Promise<SmsResult> {
   // Normalize phone first — both routes need it
   const normalizedEarly = normalizePhone(to);
