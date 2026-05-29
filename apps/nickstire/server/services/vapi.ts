@@ -1515,6 +1515,52 @@ async function vapiFetch(path: string, init: RequestInit = {}): Promise<Response
   });
 }
 
+/**
+ * wave-145 · The outbound caller-ID line. Defaults to Nick's registered VAPI
+ * number — the same line callers reach inbound, so outbound calls show a
+ * number customers recognize. Operator can point elsewhere via env override.
+ */
+const DEFAULT_VAPI_OUTBOUND_NUMBER = "+12164249249";
+let cachedVapiPhoneNumberId: string | null = null;
+
+/**
+ * wave-145 · Resolve the VAPI phoneNumberId required for ALL outbound calls.
+ *
+ * The bug this fixes: every outbound path (confirmationCalls, voiceRecovery,
+ * followupCadence crons + placeVapiOutboundCall) demanded a hand-set
+ * VAPI_PHONE_NUMBER_ID env var that was never set — so all three crons
+ * silently skipped forever, and the whole outbound program (the $321K voice
+ * recovery closer, the 7/30/60 flywheel, confirmation calls) never ran.
+ * But makeFollowUpCall already proved the id is derivable from the VAPI API
+ * by the known shop number. This centralizes that derivation:
+ *   1. VAPI_PHONE_NUMBER_ID env (explicit override) wins if set.
+ *   2. Else look up DEFAULT_VAPI_OUTBOUND_NUMBER (+12164249249) via the API.
+ *   3. Else null → callers skip gracefully (no rogue call from a wrong line).
+ * Cached for the process lifetime on success (ids are stable) so we don't
+ * re-hit the API every cron tick; a transient miss is NOT cached so the next
+ * tick retries.
+ */
+export async function resolveVapiPhoneNumberId(): Promise<string | null> {
+  const override = process.env.VAPI_PHONE_NUMBER_ID;
+  if (override) return override;
+  if (cachedVapiPhoneNumberId) return cachedVapiPhoneNumberId;
+  if (!process.env.VAPI_API_KEY) return null;
+  try {
+    const res = await vapiFetch("/phone-number");
+    if (!res.ok) return null;
+    const numbers = (await res.json()) as Array<{ id: string; number: string }>;
+    if (!Array.isArray(numbers)) return null;
+    const line = numbers.find((n) => n.number === DEFAULT_VAPI_OUTBOUND_NUMBER);
+    if (line?.id) {
+      cachedVapiPhoneNumberId = line.id; // cache only on success — transient failures retry next tick
+      return line.id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // ─── PUBLIC API ──────────────────────────────────────────
 
 export async function getVapiStatus(): Promise<{
@@ -1872,10 +1918,10 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
  * + firstMessage at call-time so the same assistant handles both
  * outbound contexts without needing 2 separate VAPI agents.
  *
- * VAPI requires a registered phoneNumberId for outbound calls · operator
- * sets VAPI_PHONE_NUMBER_ID after buying / importing a number to VAPI
- * (typically the same 216-424-9249 number used for inbound, or a separate
- * outbound number if the operator wants caller ID to differ).
+ * VAPI requires a registered phoneNumberId for outbound calls · wave-145
+ * resolveVapiPhoneNumberId() derives it automatically from the shop's VAPI
+ * line (+12164249249) — VAPI_PHONE_NUMBER_ID env still works as an override
+ * if the operator wants outbound caller ID to differ from inbound.
  *
  * Returns VAPI's call id on success · used as the join key in the
  * confirmation_calls + alg_estimates.voice_recovery_call_id columns.
@@ -1907,9 +1953,9 @@ export async function placeVapiOutboundCall(params: VapiPlaceCallParams): Promis
   if (!process.env.VAPI_API_KEY) {
     return { success: false, error: "VAPI_API_KEY not configured" };
   }
-  const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
+  const phoneNumberId = await resolveVapiPhoneNumberId();
   if (!phoneNumberId) {
-    return { success: false, error: "VAPI_PHONE_NUMBER_ID not configured (operator must register outbound number)" };
+    return { success: false, error: "No VAPI outbound number — set VAPI_PHONE_NUMBER_ID or register +12164249249 in VAPI" };
   }
   // Env-direct lookup · the pickFollowUpAssistantId() helper requires
   // the full assistants array which we don't fetch at call time · just

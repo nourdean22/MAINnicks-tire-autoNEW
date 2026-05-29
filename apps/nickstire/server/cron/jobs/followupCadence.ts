@@ -70,8 +70,12 @@ function getClevelandHour(): number {
 export async function runFollowupCadence(): Promise<RunResult> {
   if (!process.env.VAPI_API_KEY) return { recordsProcessed: 0, details: "Skipped · VAPI_API_KEY missing" };
   if (process.env.FEATURE_FOLLOWUP_CADENCE !== "1") return { recordsProcessed: 0, details: "Skipped · FEATURE_FOLLOWUP_CADENCE != '1' (off by default)" };
-  if (!process.env.VAPI_PHONE_NUMBER_ID) return { recordsProcessed: 0, details: "Skipped · VAPI_PHONE_NUMBER_ID missing (register outbound number)" };
   if (!process.env.VAPI_FOLLOWUP_ASSISTANT_ID) return { recordsProcessed: 0, details: "Skipped · VAPI_FOLLOWUP_ASSISTANT_ID missing" };
+  // wave-145 · resolve the outbound number (env override → else auto-lookup
+  // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID env check that
+  // skipped forever because the var was never set.
+  const { resolveVapiPhoneNumberId } = await import("../../services/vapi");
+  if (!(await resolveVapiPhoneNumberId())) return { recordsProcessed: 0, details: "Skipped · no VAPI outbound number resolvable" };
 
   const dryRun = process.env.FOLLOWUP_CADENCE_DRY_RUN === "1";
   const dailyCap = Math.min(Number(process.env.FOLLOWUP_CADENCE_DAILY_CAP) || 10, 50);
