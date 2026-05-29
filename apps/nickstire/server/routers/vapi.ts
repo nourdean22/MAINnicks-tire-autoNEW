@@ -117,13 +117,11 @@ function startOfDay(d: Date): Date {
  * stays LIVE — the one window that benefits from sub-webhook-latency
  * freshness (a call from 30s ago that hasn't posted its webhook yet).
  *
- * A range is "historical" when sinceISO predates today's local start.
+ * Used as a live-first fallback when VAPI's list API times out (it caps
+ * pagination ~>7 days). Live stays the primary source for accurate
+ * type/endedReason; local catches the long-range timeout so the admin
+ * still returns a count instead of "VAPI unreachable".
  */
-function isHistoricalRange(sinceISO?: string): boolean {
-  if (!sinceISO) return false;
-  return new Date(sinceISO).getTime() < startOfDay(new Date()).getTime();
-}
-
 async function readLocalCallRows(
   sinceISO: string,
   untilISO?: string,
@@ -201,41 +199,14 @@ export const vapiRouter = router({
         const sinceQ = since.toISOString();
         const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
 
-        // Wave BG · historical ranges read local (live VAPI times out >7d).
-        if (isHistoricalRange(sinceISO)) {
-          try {
-            const rows = await readLocalCallRows(sinceQ, untilISO);
-            const durations = rows
-              .map((r) => r.durationSeconds)
-              .filter((d) => d > 0);
-            const totalSeconds = durations.reduce((s, d) => s + d, 0);
-            const avgSeconds =
-              durations.length > 0 ? totalSeconds / durations.length : 0;
-            const endReasons: Record<string, number> = {};
-            for (const r of rows) {
-              const k = r.endedReason || "unknown";
-              endReasons[k] = (endReasons[k] || 0) + 1;
-            }
-            return {
-              ok: true as const,
-              total: rows.length,
-              inbound: rows.length,
-              outbound: 0,
-              web: 0,
-              forwarded: endReasons["assistant-forwarded-call"] || 0,
-              customerEnded: endReasons["customer-ended-call"] || 0,
-              assistantEnded: endReasons["assistant-ended-call"] || 0,
-              totalSeconds: Math.round(totalSeconds),
-              avgSeconds: Math.round(avgSeconds),
-              endReasons,
-            };
-          } catch (err) {
-            log.warn("local metrics failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            // fall through to live as a last resort
-          }
-        }
+      // Wave BG/BH.b · LIVE-FIRST, local-fallback. Try VAPI live (accurate
+      // type + endedReason breakdown · works for today/7d). Only if live
+      // times out (it caps pagination ~>7d → "unreachable") fall back to
+      // the local vapi_call_logs mirror so the range still returns a count.
+      // Local breakdown is limited to whatever the webhook stored (older
+      // rows have null endedReason → "unknown") — count reliable, breakdown
+      // best-effort. This keeps today/7d breakdowns accurate (live) while
+      // fixing the 30d "VAPI unreachable" total failure (local count).
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
           `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=500`,
@@ -268,14 +239,37 @@ export const vapiRouter = router({
           endReasons,
         };
       } catch (err) {
-        log.warn("metrics failed", { error: err instanceof Error ? err.message : String(err) });
-        return {
-          ok: false as const, error: "VAPI API unreachable",
-          total: 0, inbound: 0, outbound: 0, web: 0,
-          forwarded: 0, customerEnded: 0, assistantEnded: 0,
-          totalSeconds: 0, avgSeconds: 0,
-          endReasons: {} as Record<string, number>,
-        };
+        log.warn("metrics live failed — trying local mirror", { error: err instanceof Error ? err.message : String(err) });
+        try {
+          const rows = await readLocalCallRows(sinceQ, untilISO);
+          const durations = rows.map((r) => r.durationSeconds).filter((d) => d > 0);
+          const totalSeconds = durations.reduce((s, d) => s + d, 0);
+          const avgSeconds = durations.length > 0 ? totalSeconds / durations.length : 0;
+          const endReasons: Record<string, number> = {};
+          for (const r of rows) {
+            const k = r.endedReason || "unknown";
+            endReasons[k] = (endReasons[k] || 0) + 1;
+          }
+          return {
+            ok: true as const,
+            total: rows.length, inbound: rows.length, outbound: 0, web: 0,
+            forwarded: endReasons["assistant-forwarded-call"] || 0,
+            customerEnded: endReasons["customer-ended-call"] || 0,
+            assistantEnded: endReasons["assistant-ended-call"] || 0,
+            totalSeconds: Math.round(totalSeconds),
+            avgSeconds: Math.round(avgSeconds),
+            endReasons,
+          };
+        } catch (localErr) {
+          log.warn("metrics local fallback also failed", { error: localErr instanceof Error ? localErr.message : String(localErr) });
+          return {
+            ok: false as const, error: "VAPI API unreachable",
+            total: 0, inbound: 0, outbound: 0, web: 0,
+            forwarded: 0, customerEnded: 0, assistantEnded: 0,
+            totalSeconds: 0, avgSeconds: 0,
+            endReasons: {} as Record<string, number>,
+          };
+        }
       }
       });
     }),
@@ -298,36 +292,13 @@ export const vapiRouter = router({
         const sinceQ = since.toISOString();
         const untilQ = untilISO ? `&createdAtLe=${encodeURIComponent(untilISO)}` : "";
 
-        // Wave BG · historical ranges read local (live VAPI times out >7d).
-        // Maps vapi_call_logs columns → the same row shape the live path
-        // returns, so the client table is source-agnostic. type defaults
-        // to inboundPhoneCall (all receptionist calls are inbound) ·
-        // cost is unstored locally (null) · started/endedAt aren't needed
-        // (the table renders off createdAt + durationSeconds).
-        if (isHistoricalRange(sinceISO)) {
-          try {
-            const rows = await readLocalCallRows(sinceQ, untilISO);
-            return rows.map((r) => ({
-              id: r.vapiCallId,
-              type: "inboundPhoneCall",
-              createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
-              startedAt: null as string | null,
-              endedAt: null as string | null,
-              durationSeconds: r.durationSeconds,
-              endedReason: r.endedReason || "unknown",
-              customerNumber: r.phoneNumber,
-              customerName: r.customerName,
-              cost: null as number | null,
-              summary: r.aiSummary,
-              successEvaluation: r.evalOutcome ?? null,
-            }));
-          } catch (err) {
-            log.warn("local calls failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-            // fall through to live as a last resort
-          }
-        }
+      // Wave BG/BH.b · LIVE-FIRST, local-fallback (mirrors todayMetrics).
+      // Live gives the richest rows (type, cost, real successEvaluation) and
+      // works for today/7d. Only when live times out (>7d pagination cap →
+      // "unreachable") fall back to the local vapi_call_logs mirror so the
+      // range still lists. Local rows map to the same shape · type defaults
+      // inboundPhoneCall (all receptionist calls inbound) · cost unstored
+      // (null) · started/endedAt unused (table renders off createdAt+dur).
       try {
         const calls = await vapiApiFetch<VapiCallSummary[]>(
           `/call?createdAtGe=${encodeURIComponent(sinceQ)}${untilQ}&limit=200`,
@@ -352,14 +323,33 @@ export const vapiRouter = router({
           successEvaluation: c.analysis?.successEvaluation || null,
         }));
       } catch (err) {
-        log.warn("calls list failed", { error: err instanceof Error ? err.message : String(err) });
-        return [] as Array<{
-          id: string; type: string; createdAt: string | null;
-          startedAt: string | null; endedAt: string | null;
-          durationSeconds: number; endedReason: string;
-          customerNumber: string | null; customerName: string | null;
-          cost: number | null; summary: string | null; successEvaluation: string | null;
-        }>;
+        log.warn("calls list live failed — trying local mirror", { error: err instanceof Error ? err.message : String(err) });
+        try {
+          const rows = await readLocalCallRows(sinceQ, untilISO);
+          return rows.map((r) => ({
+            id: r.vapiCallId,
+            type: "inboundPhoneCall",
+            createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+            startedAt: null as string | null,
+            endedAt: null as string | null,
+            durationSeconds: r.durationSeconds,
+            endedReason: r.endedReason || "unknown",
+            customerNumber: r.phoneNumber,
+            customerName: r.customerName,
+            cost: null as number | null,
+            summary: r.aiSummary,
+            successEvaluation: r.evalOutcome ?? null,
+          }));
+        } catch (localErr) {
+          log.warn("calls list local fallback also failed", { error: localErr instanceof Error ? localErr.message : String(localErr) });
+          return [] as Array<{
+            id: string; type: string; createdAt: string | null;
+            startedAt: string | null; endedAt: string | null;
+            durationSeconds: number; endedReason: string;
+            customerNumber: string | null; customerName: string | null;
+            cost: number | null; summary: string | null; successEvaluation: string | null;
+          }>;
+        }
       }
       });
     }),
