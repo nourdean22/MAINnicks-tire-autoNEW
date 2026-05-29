@@ -135,6 +135,18 @@ export function extractEndedReason(event: unknown): string | null {
   return null;
 }
 
+/**
+ * wave-144 · True only for VAPI's `assistant-forwarded-call` ended reason —
+ * the AI handed the caller off to a human. This is the trigger for the
+ * forwarded-call callback safety-net row. Kept deliberately NARROW (matches
+ * only "forward") so the common end reasons — customer-ended-call,
+ * assistant-ended-call, silence-timed-out, etc. — never drop a row and flood
+ * the front-desk queue. Pure + pinned by vapi.forwarded-callback.test.ts.
+ */
+export function isForwardedEndedReason(endedReason: string | null | undefined): boolean {
+  return /forward/i.test(endedReason ?? "");
+}
+
 // ─── Tool call dispatcher ──────────────────────────────
 
 interface VapiToolCall {
@@ -435,7 +447,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
           const callId = event.call?.id;
           if (callId) {
             const { getDb } = await import("../../db");
-            const { vapiCallLogs } = await import("../../../drizzle/schema");
+            const { vapiCallLogs, callbackRequests } = await import("../../../drizzle/schema");
             const d = await getDb();
             if (d) {
               const summary = (event as { summary?: string; analysis?: { summary?: string } })?.summary
@@ -471,6 +483,11 @@ router.post("/vapi", async (req: Request, res: Response) => {
                   callKeys: event.call ? Object.keys(event.call as object) : [],
                 });
               }
+              // firstLog stays true ONLY when this row is newly inserted.
+              // The vapi_call_logs UNIQUE(vapiCallId) makes a webhook retry
+              // throw dup → firstLog=false → one-time side-effects below
+              // (forwarded-call callback) run exactly once per call.
+              let firstLog = true;
               await d.insert(vapiCallLogs).values({
                 vapiCallId: String(callId),
                 phoneNumber: customer?.number ?? null,
@@ -484,11 +501,35 @@ router.post("/vapi", async (req: Request, res: Response) => {
                 recordingUrl: (event.call as { recordingUrl?: string })?.recordingUrl ?? null,
               }).catch((err: unknown) => {
                 // Tolerate dup-key on retry — webhooks can fire twice
+                firstLog = false;
                 const msg = err instanceof Error ? err.message : String(err);
                 if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
                   log.warn("vapi_call_logs insert failed", { error: msg });
                 }
               });
+
+              // wave-144 · forwarded-call safety net. A during-hours
+              // transferCall hands the caller to the shop line; if nobody
+              // picks up (tech mid-bay), that hot caller is lost with NO
+              // follow-up surface — forwards only showed up as a Voice-page
+              // chart bar. On the first end-of-call insert only, drop a row
+              // into the front-desk callback queue so every forwarded caller
+              // is accounted for. This is an INTERNAL queue entry, not an
+              // outbound customer message — worst case is a row the operator
+              // clears in one tap; the win is no forwarded caller falls
+              // through. endedReason "assistant-forwarded-call" → /forward/i.
+              if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
+                await d.insert(callbackRequests).values({
+                  name: customer.name?.trim() || "Voice caller",
+                  phone: customer.number.trim(),
+                  context: "Forwarded to the shop by the AI receptionist — confirm the caller was helped.",
+                  sourcePage: "voice-forwarded",
+                }).catch((err: unknown) => {
+                  log.warn("[vapi webhook] forwarded-call callback insert failed (non-blocking)", {
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                });
+              }
             }
           }
         } catch (persistErr) {
