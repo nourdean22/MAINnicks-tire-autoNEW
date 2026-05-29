@@ -48,8 +48,13 @@ export const GET = apiHandler(
       surface = surfaceParam as CoachEventSurface;
     }
 
-    const limit = limitParam ? Math.max(1, Math.min(20, Number(limitParam))) : 5;
-    const events = await getActiveCoachEvents({ surface, limit });
+    // Wave AU · 2026-05-28 · expose includeAcked + bumped cap to 100.
+    // The dashboard viewer at /system/coach-events consumes both ·
+    // operator filters by surface/kind/priority/acked in-page rather
+    // than round-tripping. Default behavior unchanged (5, active only).
+    const includeAcked = url.searchParams.get("includeAcked") === "1";
+    const limit = limitParam ? Math.max(1, Math.min(100, Number(limitParam))) : 5;
+    const events = await getActiveCoachEvents({ surface, limit, includeAcked });
     return { events };
   },
   { auth: "owner" },
