@@ -1055,7 +1055,13 @@ export function startTieredScheduler(): void {
         name: "alg-declined-work-recovery", // NEW: ALG-sourced walk-in estimates SMS follow-ups
         handler: async () => {
           const { runDeclinedWorkRecovery } = await import("./jobs/declinedWorkRecovery");
-          return runDeclinedWorkRecovery();
+          // wave-148 · operator chose 50/day to drain the ~$321K declined
+          // pool in compliant batches (50/day stays well under the F25e
+          // carrier daily-throughput safe zone — blasting all at once would
+          // flag the SMS number). Env-overridable; default 50. Per-run cap ==
+          // per-day here because this is a once-daily tier job. Activation
+          // still requires FEATURE_DECLINED_RECOVERY=1 (else this is dry-run).
+          return runDeclinedWorkRecovery({ maxSends: Number(process.env.DECLINED_RECOVERY_MAX_PER_RUN) || 50 });
         },
       },
       {
