@@ -40,9 +40,12 @@ async function main(): Promise<void> {
   );
 
   // Pull every closed mission · operator's full historical roster.
+  // MissionStatus enum is ACTIVE | PAUSED | COMPLETE | KILLED · only
+  // COMPLETE counts as "shipped" for retro backfill. KILLED is
+  // intentionally dropped (no lesson worth synthesizing).
   const closed = await prisma.mission.findMany({
     where: {
-      status: { in: ["COMPLETE", "ARCHIVED"] },
+      status: "COMPLETE" as const,
       deletedAt: null,
     },
     select: {
