@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 
 const SOURCES = [
@@ -101,16 +102,30 @@ export default function LogLedgerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      {/* Wave AY · 2026-05-28 · operator complaint: "i cant see the bottom".
-        * Pre-fix: DialogContent had no max-h · when content (header + 4 form
-        * sections + preview + footer) exceeded viewport, the footer
-        * (cancel + log entry buttons) sat below the screen with no scroll.
-        * max-h-[90vh] + overflow-y-auto lets the operator scroll to the
-        * footer. Pairs with the autoFocus useEffect above.
-        * Wave AZ · 2026-05-28 · mobile pass · vh → dvh so iOS URL bar
-        * collapse doesn't clip · pb-safe so footer clears the home
-        * indicator · operator is mobile-heavy. */}
-      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))]">
+      {/* Wave AY → AZ → BB · operator complaints stacked:
+        *   AY · "i cant see the bottom" → add max-h-[90vh] + overflow
+        *   AZ · mobile pass → dvh + safe-area + 44pt
+        *   BB · "now i cant see the top or bottom when i click deposit"
+        *        → base-ui Dialog centers via top-1/2 -translate-y-1/2 ·
+        *          when content fits the max-h budget, fine · when content
+        *          IS the max-h, the center anchor causes BOTH top
+        *          (header) AND bottom (footer) to be cut by the viewport
+        *          edges even with overflow-y-auto (you can scroll but
+        *          the scroll target isn't reachable on a small screen
+        *          because the modal is dead-center).
+        *
+        *          Fix · pass top-[max(1rem,env(safe-area-inset-top))]
+        *          + top-auto translate-y-0 to override the primitive's
+        *          center anchor with a top-anchor · max-h shrinks to
+        *          fit the actual remaining viewport · scroll stays put. */}
+      <DialogContent
+        className={cn(
+          "max-w-md overflow-y-auto",
+          "top-[max(1rem,env(safe-area-inset-top))] translate-y-0",
+          "max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]",
+          "pb-[max(1rem,env(safe-area-inset-bottom))]",
+        )}
+      >
         <DialogHeader>
           <DialogTitle className="font-serif text-lg">
             Log ledger · {personName}
