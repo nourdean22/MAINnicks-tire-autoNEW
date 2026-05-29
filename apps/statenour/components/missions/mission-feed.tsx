@@ -54,6 +54,9 @@ export interface MissionFeedProps {
    *  The page owns the tRPC mutation that writes the new rank. */
   onMoveMission?: (missionId: string, direction: "up" | "down") => void;
   onMoveTask?: (taskId: string, direction: "up" | "down") => void;
+  /** Wave AV · 2026-05-28 · DAILY task snooze · passes through to each
+   *  MissionCard → MissionTaskRow · page wires task.update mutation. */
+  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
 }
 
 export function MissionFeed({
@@ -70,6 +73,7 @@ export function MissionFeed({
   nicksPicks,
   onMoveMission,
   onMoveTask,
+  onSnoozeTask,
 }: MissionFeedProps) {
   const { activeMissions, tasksByMission, unattached } = useMemo(() => {
     const activeMissions = missions
@@ -213,6 +217,7 @@ export function MissionFeed({
               totalMissions={activeMissions.length}
               onMoveMission={onMoveMission}
               onMoveTask={onMoveTask}
+              onSnoozeTask={onSnoozeTask}
             />
           ))}
         </div>
@@ -248,6 +253,7 @@ export function MissionFeed({
                 onStart={onStartTask}
                 onDelete={onDeleteTask}
                 onEdit={onEditTask}
+                onSnooze={onSnoozeTask}
               />
             ))}
           </div>

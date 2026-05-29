@@ -71,6 +71,10 @@ export interface MissionCardProps {
   /** Wave AJ · task reorder within the mission. Same pattern · the
    *  card passes through to MissionTaskRow per row. */
   onMoveTask?: (taskId: string, direction: "up" | "down") => void;
+  /** Wave AV · 2026-05-28 · snooze a DAILY task. Parent sets
+   *  snoozedUntil + flips status to WAITING · cron resurfaces when
+   *  the timestamp matures. Empty string clears the snooze. */
+  onSnoozeTask?: (taskId: string, snoozedUntilIso: string) => void | Promise<void>;
 }
 
 export function MissionCard({
@@ -91,6 +95,7 @@ export function MissionCard({
   totalMissions,
   onMoveMission,
   onMoveTask,
+  onSnoozeTask,
 }: MissionCardProps) {
   const canMoveUp =
     onMoveMission != null && typeof index === "number" && index > 0;
@@ -331,6 +336,7 @@ export function MissionCard({
                   index={taskIdx}
                   totalTasks={sortedOpen.length}
                   onMove={onMoveTask}
+                  onSnooze={onSnoozeTask}
                 />
               </div>
             ))}
