@@ -38,8 +38,12 @@ export async function runConfirmationCalls(): Promise<RunResult> {
   if (process.env.FEATURE_CONFIRMATION_CALLS !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_CONFIRMATION_CALLS != '1'" };
   }
-  if (!process.env.VAPI_PHONE_NUMBER_ID) {
-    return { recordsProcessed: 0, details: "Skipped · VAPI_PHONE_NUMBER_ID missing (operator must register outbound number with VAPI)" };
+  // wave-145 · resolve the outbound number (env override → else auto-lookup
+  // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID check that skipped
+  // forever because the var was never set.
+  const { resolveVapiPhoneNumberId } = await import("../../services/vapi");
+  if (!(await resolveVapiPhoneNumberId())) {
+    return { recordsProcessed: 0, details: "Skipped · no VAPI outbound number resolvable" };
   }
 
   const maxCalls = Math.min(Number(process.env.VAPI_CONFIRMATION_BATCH_SIZE) || 20, 50);

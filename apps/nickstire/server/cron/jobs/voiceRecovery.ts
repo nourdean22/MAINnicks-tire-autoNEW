@@ -40,8 +40,12 @@ export async function runVoiceRecovery(): Promise<RunResult> {
   if (process.env.FEATURE_VOICE_RECOVERY !== "1") {
     return { recordsProcessed: 0, details: "Skipped · FEATURE_VOICE_RECOVERY != '1'" };
   }
-  if (!process.env.VAPI_PHONE_NUMBER_ID) {
-    return { recordsProcessed: 0, details: "Skipped · VAPI_PHONE_NUMBER_ID missing" };
+  // wave-145 · resolve the outbound number (env override → else auto-lookup
+  // the shop's VAPI line). Was a bare VAPI_PHONE_NUMBER_ID check that skipped
+  // forever — the $321K post-D30 closer never ran because the var was unset.
+  const { resolveVapiPhoneNumberId } = await import("../../services/vapi");
+  if (!(await resolveVapiPhoneNumberId())) {
+    return { recordsProcessed: 0, details: "Skipped · no VAPI outbound number resolvable" };
   }
 
   const maxCalls = Math.min(Number(process.env.VAPI_RECOVERY_BATCH_SIZE) || 5, 20);
