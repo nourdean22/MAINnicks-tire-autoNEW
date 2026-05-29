@@ -13,7 +13,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
-import { isPgvectorAvailable, vectorLiteral } from "@/lib/db/pgvector";
+import {
+  isPgvectorAvailable,
+  vectorLiteral,
+  padToVectorDim,
+  VECTOR_DIM_1536,
+} from "@/lib/db/pgvector";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/embedding");
@@ -40,6 +45,28 @@ async function writePgvectorColumn(
       `UPDATE vector_embeddings SET embedding_vec = '${lit}'::vector WHERE id = $1`,
       rowId,
     );
+
+    // Also populate the fixed-1536 column. The opinionated chat-context
+    // recall (lib/brain/memory-recall.ts → recallMemoriesForQuery) reads
+    // ONLY `embedding_vec_1536 IS NOT NULL` through its HNSW index. Pre-
+    // fix that column was filled solely by the WEEKLY embed-backfill
+    // cron, so a freshly-written memory was invisible to Nick's live
+    // recall for up to 7 days. Zero-pad to 1536 (cosine-preserving) with
+    // the same convention the recall query's padToTargetDim uses. Wrapped
+    // in its own try so a missing column / dim issue can never undo the
+    // embedding_vec write above — that statement has already committed.
+    try {
+      const lit1536 = vectorLiteral(padToVectorDim(vec, VECTOR_DIM_1536));
+      await prisma.$executeRawUnsafe(
+        `UPDATE vector_embeddings SET embedding_vec_1536 = '${lit1536}'::vector(${VECTOR_DIM_1536}) WHERE id = $1`,
+        rowId,
+      );
+    } catch (err1536) {
+      log.warn("pgvector_1536_write_failed", {
+        hint: "embedding_vec_1536 column missing or dim mismatch — weekly backfill will still catch it",
+        error: err1536 instanceof Error ? err1536.message : String(err1536),
+      });
+    }
   } catch (err) {
     // Most likely: column doesn't exist yet (migration not applied)
     // or wrong dim. Either way the JSON column has the truth, so we

@@ -116,6 +116,36 @@ export function vectorLiteral(vec: number[]): string {
 }
 
 /**
+ * Canonical fixed dimension for the HNSW-indexed `embedding_vec_1536`
+ * column. The brain's opinionated recall path
+ * (lib/brain/memory-recall.ts) searches this column, so every embedding
+ * written for recall must be normalized to exactly this many dims.
+ */
+export const VECTOR_DIM_1536 = 1536;
+
+/**
+ * Normalize an embedding to exactly `dim` dimensions for a fixed-width
+ * pgvector column.
+ *
+ * - Shorter → zero-pad. This is cosine-preserving: appending zeros
+ *   changes neither the dot product nor either vector's magnitude, so
+ *   `cos(pad(a), pad(b)) === cos(a, b)` exactly. That invariant is what
+ *   lets sub-1536 embeddings (e.g. 1024-dim) live in a `vector(1536)`
+ *   HNSW column alongside native-1536 vectors.
+ * - Longer → truncate (defensive clamp; embeddings should already be
+ *   <= dim, but a misconfigured provider must not throw a dim error).
+ *
+ * Mirrors memory-recall.ts `padToTargetDim` and
+ * scripts/backfill-hnsw-1536.ts so writers and readers agree on the
+ * padding convention.
+ */
+export function padToVectorDim(vec: number[], dim: number): number[] {
+  if (vec.length === dim) return vec;
+  if (vec.length > dim) return vec.slice(0, dim);
+  return [...vec, ...new Array(dim - vec.length).fill(0)];
+}
+
+/**
  * v9.1.15 · Defense-in-depth validator for any string about to be
  * interpolated into a $queryRawUnsafe SQL fragment as a vector literal.
  * The shape is `[float,float,...,float]` — letters, spaces, single

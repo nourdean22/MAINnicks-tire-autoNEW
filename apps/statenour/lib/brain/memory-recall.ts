@@ -46,6 +46,15 @@ const MAX_CONTENT_LEN = 220;
 // the paid Fireflies pipeline was running for nothing. With this
 // addition chat can now surface "you said X in last Tuesday's
 // meeting with Y" the way the cron docstring originally intended.
+//
+// 2026-05-29 · added `board_consultation` · the multi-advisor board
+// persists each run via brainMemory.remember() (embedded inline →
+// recallable once the write-time embedding_vec_1536 fix shipped), but
+// recall never pulled the category, so past board advice never resurfaced
+// in chat. With this, chat can surface "the board advised X on a similar
+// call before". NOTE: `reasoning_trace` is deliberately NOT added — those
+// rows are written via a raw prisma.create (no inline embedding), so the
+// whitelist alone would be a no-op; revisit only with an embedding step.
 const CONTEXT_CATEGORIES = new Set([
   "wisdom",
   "insight",
@@ -67,6 +76,7 @@ const CONTEXT_CATEGORIES = new Set([
   "reflection",
   "domain_knowledge",
   "meeting_transcript",
+  "board_consultation",
 ]);
 
 export interface RecallHit {
