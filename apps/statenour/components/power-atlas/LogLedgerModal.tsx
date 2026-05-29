@@ -118,11 +118,19 @@ export default function LogLedgerModal({
         *          + top-auto translate-y-0 to override the primitive's
         *          center anchor with a top-anchor · max-h shrinks to
         *          fit the actual remaining viewport · scroll stays put. */}
+      {/* Wave BD · 2026-05-28 · operator confirmed via Chrome MCP:
+        * "deposit is still obscured". Root cause found · globals.css
+        * .neural-glass class (line 1078-79) sets position:relative +
+        * overflow:hidden which CLOBBERS my Tailwind `fixed` and
+        * `overflow-y-auto` because hand-written CSS in globals.css
+        * later in the cascade beats Tailwind utilities at equal
+        * specificity. Fix · use `!` prefix to force !important on the
+        * position + overflow + max-h classes so they win the cascade. */}
       <DialogContent
         className={cn(
-          "max-w-md overflow-y-auto",
-          "top-[max(1rem,env(safe-area-inset-top))] translate-y-0",
-          "max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]",
+          "max-w-md !overflow-y-auto",
+          "!fixed !top-[max(1rem,env(safe-area-inset-top))] translate-y-0",
+          "!max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))]",
           "pb-[max(1rem,env(safe-area-inset-bottom))]",
         )}
       >
