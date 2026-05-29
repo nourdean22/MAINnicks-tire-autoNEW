@@ -12,7 +12,7 @@
  * sources the procedure accepts.
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -61,6 +61,28 @@ export default function LogLedgerModal({
   const [note, setNote] = useState("");
   const [source, setSource] = useState<Source>("manual");
 
+  // Wave AY · 2026-05-28 · operator complaint: "should auto focus to the
+  // pop up". Base-UI Dialog defaults focus to the FIRST focusable element
+  // (the "+ deposit" button) · that's not what the operator wants — they
+  // want to start typing the note immediately. Ref the textarea + focus
+  // it on the open→true transition via double-rAF (lets the dialog mount
+  // + focus-trap settle first).
+  const noteRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let r1 = 0;
+    let r2 = 0;
+    r1 = requestAnimationFrame(() => {
+      r2 = requestAnimationFrame(() => {
+        noteRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelAnimationFrame(r1);
+      cancelAnimationFrame(r2);
+    };
+  }, [open]);
+
   const utils = trpc.useUtils();
   const logLedger = trpc.task.logLedger.useMutation({
     onSuccess: async () => {
@@ -79,7 +101,13 @@ export default function LogLedgerModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      {/* Wave AY · 2026-05-28 · operator complaint: "i cant see the bottom".
+        * Pre-fix: DialogContent had no max-h · when content (header + 4 form
+        * sections + preview + footer) exceeded viewport, the footer
+        * (cancel + log entry buttons) sat below the screen with no scroll.
+        * max-h-[90vh] + overflow-y-auto lets the operator scroll to the
+        * footer. Pairs with the autoFocus useEffect above. */}
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-serif text-lg">
             Log ledger · {personName}
@@ -160,6 +188,7 @@ export default function LogLedgerModal({
             Note (required)
           </label>
           <Textarea
+            ref={noteRef}
             id="ledger-note"
             value={note}
             onChange={(e) => setNote(e.target.value)}
