@@ -5,6 +5,8 @@
  *  · status         — connection state + assistant count (admin badge)
  *  · createAssistant — one-time setup mutation
  *  · updateAssistant — re-push the latest prompt + tools to Vapi
+ *      (preserves the dashboard-managed transferCall number · wave-141)
+ *  · updateFollowUpAssistant — re-push the outbound follow-up assistant
  *  · recentCalls    — paginated call log for admin monitor panel
  *  · todayMetrics   — wave-86: derived KPIs for the Voice Receptionist dashboard
  *  · todayCalls     — wave-86: today-only call list with createdAt for the table
@@ -168,6 +170,22 @@ export const vapiRouter = router({
       const { updateAssistant } = await import("../services/vapi");
       const serverUrl = input.serverUrl || "https://nickstire.org/api/webhooks/vapi";
       return updateAssistant(input.assistantId, serverUrl);
+    }),
+
+  // wave-141 · re-push the OUTBOUND follow-up assistant (separate VAPI
+  // assistant · env VAPI_FOLLOWUP_ASSISTANT_ID). Previously only resyncable
+  // via scripts/vapi-create-followup-assistant.ts, so prompt/tool changes to
+  // the follow-up caller (e.g. wave-140's dropped transferCall + revived
+  // escalate) didn't reach live until someone ran the script.
+  updateFollowUpAssistant: adminProcedure
+    .input(z.object({
+      assistantId: z.string().min(1).max(100),
+      serverUrl: z.string().url().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { updateFollowUpAssistant } = await import("../services/vapi");
+      const serverUrl = input.serverUrl || "https://nickstire.org/api/webhooks/vapi";
+      return updateFollowUpAssistant(input.assistantId, serverUrl);
     }),
 
   recentCalls: adminProcedure
