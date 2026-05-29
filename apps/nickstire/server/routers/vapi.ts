@@ -152,6 +152,18 @@ export const vapiRouter = router({
     return getVapiStatus();
   }),
 
+  // wave-147 · one-tap dry-run of the 7/30/60-day follow-up cadence — lets the
+  // operator preview EXACTLY who the flywheel would call before it dials anyone
+  // for real. Runs the live tier job by name; with FOLLOWUP_CADENCE_DRY_RUN=1
+  // it logs the call list and dials NOTHING. Safe to press anytime — the
+  // underlying job is dry-run + FEATURE_FOLLOWUP_CADENCE-gated + daily-capped.
+  // Returns { status, recordsProcessed?, details } — details carries the
+  // "DRY RUN · would call N: <names>" preview.
+  runFollowupCadenceNow: adminProcedure.mutation(async () => {
+    const { runTierJobByName } = await import("../cron/scheduler");
+    return runTierJobByName("followup-cadence");
+  }),
+
   createAssistant: adminProcedure
     .input(z.object({ serverUrl: z.string().url().optional() }).optional())
     .mutation(async ({ input }) => {
