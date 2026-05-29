@@ -214,9 +214,14 @@ export function MissionTaskRow({
           )}
           {/* Wave AJ · 2026-05-28 · task reorder · operator's missing
            *  resort affordance · ↑/↓ swap rank with neighbor · arrows
-           *  fade at the ends to signal terminal position. */}
+           *  fade at the ends to signal terminal position.
+           *  Wave AT · 2026-05-28 · always-on background tint + grouping
+           *  border so the buttons read as tappable at rest on mobile.
+           *  Pre-this-fix the icons were color-tertiary at idle and only
+           *  lit up on hover — invisible on touch. Matches the
+           *  MissionCard mission-reorder polish from this wave. */}
           {onMove && (canMoveUp || canMoveDown) && (
-            <>
+            <span className="inline-flex rounded-md border border-[var(--border-default)]/60 bg-[var(--bg-raised)]/[0.06] overflow-hidden">
               <button
                 type="button"
                 onClick={() => {
@@ -224,15 +229,20 @@ export function MissionTaskRow({
                 }}
                 disabled={!canMoveUp}
                 aria-label="move up"
+                title="move up"
                 className={cn(
-                  "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                  "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
                   canMoveUp
-                    ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05]"
+                    ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]"
                     : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
                 )}
               >
                 <ArrowUp size={12} strokeWidth={2} />
               </button>
+              <span
+                aria-hidden
+                className="w-px bg-[var(--border-default)]/60"
+              />
               <button
                 type="button"
                 onClick={() => {
@@ -240,16 +250,17 @@ export function MissionTaskRow({
                 }}
                 disabled={!canMoveDown}
                 aria-label="move down"
+                title="move down"
                 className={cn(
-                  "inline-flex h-11 w-9 items-center justify-center rounded transition-transform active:scale-95",
+                  "inline-flex h-11 w-8 items-center justify-center transition-transform active:scale-95",
                   canMoveDown
-                    ? "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.05]"
+                    ? "text-[var(--text-secondary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/[0.08]"
                     : "text-[var(--text-tertiary)]/30 cursor-not-allowed",
                 )}
               >
                 <ArrowDown size={12} strokeWidth={2} />
               </button>
-            </>
+            </span>
           )}
         </div>
       )}
