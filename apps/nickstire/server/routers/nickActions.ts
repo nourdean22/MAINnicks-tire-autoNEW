@@ -17,7 +17,7 @@ import { handleOperatorCommand, handlePullFromStatenour, handleRunMigrations, ha
 import {
   handleSocialPost, handleSocialStatus, handleCustomerIntelligence,
   handleCameraFeed, handleCameras, handleSetCamera,
-  handleShopPulse, handleShopDriverStatus, handleSchedulerStatus,
+  handleShopPulse, handleShopDriverStatus, handleSchedulerStatus, handleCronHealth,
   handleTriggerPrerender, handleSyncShopDriver,
   handleRemember, handleMemories, handleSendMedia, handleReviewContent,
 } from "./nick/chat";
@@ -167,6 +167,7 @@ export const nickActionsRouter = router({
   shopPulse: adminProcedure.query(async () => handleShopPulse()),
   shopDriverStatus: adminProcedure.query(async () => handleShopDriverStatus()),
   schedulerStatus: adminProcedure.query(async () => handleSchedulerStatus()),
+  cronHealth: adminProcedure.query(async () => handleCronHealth()), // wave-149 · read-only cron_log feed for the Cron Health panel
 
   // ─── Admin Operations ─────────────────────────────────
   triggerPrerender: adminProcedure.mutation(async () => handleTriggerPrerender()),

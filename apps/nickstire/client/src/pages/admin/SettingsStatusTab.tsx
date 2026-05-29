@@ -165,6 +165,8 @@ export default function SettingsStatusTab() {
   const { data: smsGwHealth } = trpc.sms.gatewayHealth.useQuery(undefined, { refetchInterval: 60_000 });
   const { data: smsStatus } = trpc.sms.status.useQuery(undefined, { staleTime: 60_000 });
   const { data: vapiStatus } = trpc.vapi.status.useQuery(undefined, { staleTime: 60_000 });
+  // wave-149 · cron health — read-only last-24h cron_log feed (failed/skipped surfaced).
+  const { data: cronHealth } = trpc.nickActions.cronHealth.useQuery(undefined, { staleTime: 30_000 });
 
   // Compose open-issues stack · ordered by severity (alert > warning > info)
   const openIssues = useMemo<OpenIssue[]>(() => {
@@ -338,6 +340,35 @@ export default function SettingsStatusTab() {
             offlineIcon={<Search className="w-3.5 h-3.5 text-red-400" />}
           />
         </div>
+      </Panel>
+
+      {/* ── Cron health (wave-149) ──────────────────────────
+          The blind spot that hid the never-scheduled cadence cron this
+          session. Read-only last-24h cron_log feed — failed RED, skipped
+          AMBER — so "what ran / what's failing" is one glance, not a log dive. */}
+      <Panel
+        title="Cron Health"
+        subtitle="Last 24h — failed (red) + skipped (amber) surfaced"
+        icon={<Activity className="w-4 h-4" />}
+      >
+        {(!cronHealth || cronHealth.length === 0) ? (
+          <p className="text-foreground/40 text-[12px] p-2">No cron runs logged in the last 24h.</p>
+        ) : (
+          <div className="space-y-0.5 max-h-72 overflow-y-auto">
+            {cronHealth.slice(0, 80).map((row: { jobName: string; status: string; durationMs: number | null; details: string | null; startedAt: string | Date | null }, i: number) => (
+              <div
+                key={`${row.jobName}-${i}`}
+                className={`flex items-center gap-2 py-1 text-[11px] ${row.status === "failed" ? "text-red-400" : row.status === "skipped" ? "text-amber-400/70" : "text-foreground/50"}`}
+              >
+                <span className="w-40 truncate font-mono shrink-0">{row.jobName}</span>
+                <span className="w-16 shrink-0">{row.status}</span>
+                <span className="w-14 text-right shrink-0">{row.durationMs != null ? `${row.durationMs}ms` : "—"}</span>
+                <span className="flex-1 truncate text-foreground/40">{row.details || ""}</span>
+                <span className="text-foreground/25 shrink-0 hidden sm:inline">{row.startedAt ? new Date(row.startedAt).toLocaleTimeString() : ""}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </Panel>
 
       {/* wave-181.x · Recent-events panel REMOVED for now.
