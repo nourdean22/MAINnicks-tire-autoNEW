@@ -526,6 +526,11 @@ export async function handleRunMigrations() {
       // 2026-05-23 · drizzle/0058_competitor_snapshots.sql — Tier S competitor intel
       // Persistent baselines for the in-memory competitor monitor · survives pod restart.
       `CREATE TABLE IF NOT EXISTS competitor_snapshots (id BIGINT AUTO_INCREMENT PRIMARY KEY, competitor_name VARCHAR(160) NOT NULL, place_id VARCHAR(128) NOT NULL, rating DECIMAL(3,2) NOT NULL DEFAULT 0, review_count INT NOT NULL DEFAULT 0, source VARCHAR(32) NOT NULL DEFAULT 'google_places', captured_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, raw_payload JSON DEFAULT NULL, INDEX idx_competitor_captured (place_id, captured_at), INDEX idx_captured_at (captured_at))`,
+      // wave-143 · follow-up cadence (the flywheel · 7/30/60-day trust calls
+      // after a completed job). The UNIQUE KEY (bookingId, touch) IS the
+      // at-most-once guarantee — a customer can never be auto-called twice for
+      // the same touch, even across overlapping cron runs.
+      `CREATE TABLE IF NOT EXISTS voice_followups (id INT AUTO_INCREMENT PRIMARY KEY, bookingId INT NOT NULL, touch ENUM('d7','d30','d60') NOT NULL, phone VARCHAR(30) DEFAULT NULL, customerName VARCHAR(255) DEFAULT NULL, status ENUM('called','failed','skipped') NOT NULL DEFAULT 'called', vapiCallId VARCHAR(64) DEFAULT NULL, errorMessage VARCHAR(500) DEFAULT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY uniq_booking_touch (bookingId, touch), INDEX idx_followup_created (createdAt))`,
       // 2026-05-23 · drizzle/0059_wave_metrics.sql — Tier A closed-loop delivery
       // Baseline + measurement window per shipped wave · daily cron writes lift/no-lift.
       `CREATE TABLE IF NOT EXISTS wave_metrics (id BIGINT AUTO_INCREMENT PRIMARY KEY, wave_id VARCHAR(64) NOT NULL, metric_key VARCHAR(64) NOT NULL, baseline_value DECIMAL(12,4) NOT NULL, measure_at TIMESTAMP NOT NULL, measured_value DECIMAL(12,4) DEFAULT NULL, delta_percent DECIMAL(8,2) DEFAULT NULL, status ENUM('pending','lifted','no_lift','regression','resolver_error') NOT NULL DEFAULT 'pending', notes TEXT DEFAULT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, measured_at TIMESTAMP NULL DEFAULT NULL, INDEX idx_wave_measure_at (status, measure_at), INDEX idx_wave_id (wave_id))`,
