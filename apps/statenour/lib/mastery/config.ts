@@ -53,7 +53,7 @@ export const DOMAINS = [
   { key: "fortitude", label: "Mental Fortitude", color: "#0EA5E9", baseline: 4.5, icon: "🛡️", branch: "mind" },
   { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂", branch: "mind" },
   { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, icon: "🌊", branch: "mind" },
-  { key: "courage", label: "Courage & Boldness", color: "#60A5FA", baseline: 5.0, icon: "🦁", branch: "mind" },
+  { key: "courage", label: "Courage & Facing Fears", color: "#60A5FA", baseline: 5.0, icon: "🦁", branch: "mind" },
   { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, icon: "🕌", branch: "mind" },
   // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
   { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },

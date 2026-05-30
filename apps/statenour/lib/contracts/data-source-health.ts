@@ -131,20 +131,16 @@ const PROBES: ProbeSpec[] = [
     emptyDaysAlertThreshold: 14,
     kind: "bridge",
   },
-  {
-    name: "bridge.stale_leads_count",
-    label: "queryNick(stale_leads_count)",
-    probe: timed(async () => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const res = await queryNick<{ count?: number }>("stale_leads_count");
-      if ("error" in res) {
-        return { ok: false, rowCount: 0, latencyMs: 0, reason: res.error };
-      }
-      return { ok: true, rowCount: Number(res.data?.count ?? 0), latencyMs: 0 };
-    }),
-    emptyDaysAlertThreshold: 14,
-    kind: "bridge",
-  },
+  // bridge.stale_leads_count probe REMOVED 2026-05-30 · the nickstire
+  // bridge exposes no `stale_leads_count` query — it returns HTTP 400
+  // "Unknown query" (verified live on /system/health), so this probe was
+  // a PERMANENT false P0, not a real health signal. Bridge liveness is
+  // already covered by revenue_today + attention_needed above. NOTE: the
+  // remaining `stale_leads_count` callers (operating-rhythm.ts,
+  // autonomous-engine.ts) hit the same dead query — the stale-leads alert
+  // is silently inert. That's a contract gap to resolve separately (add
+  // the query to the nickstire bridge, or remap to leads_urgent /
+  // attention_needed), NOT a bridge-health problem.
 
   // ── Service-layer probes ──
   // listCustomers + listLeads currently return empty in production
