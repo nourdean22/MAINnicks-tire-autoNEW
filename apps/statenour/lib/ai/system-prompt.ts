@@ -27,6 +27,7 @@
 import { prisma } from "@/lib/prisma";
 import { getBehaviorDirective, resolveIntensity } from "./knowledge/behavior-directive";
 import { DOMAINS } from "@/lib/mastery/config";
+import { computeCharacterSheet, statLine } from "@/lib/mastery/character-sheet";
 import { cached } from "@/lib/utils/cache";
 import { getKnowledgeDigest } from "./knowledge-compiler";
 import { STRATEGIC_MIND } from "./knowledge/strategic-mind";
@@ -629,18 +630,15 @@ export async function buildSystemPromptUncached(
   void recentScores;
 
   // Mastery scores + knowledge digest — parallel (digest compiles 29 files, was sequential)
-  const [allMasteryScores, knowledgeDigest] = await Promise.all([
-    prisma.masteryScore.findMany({
-      where: { domain: { in: DOMAINS.map(d => d.key) } },
-      orderBy: { date: "desc" },
-      distinct: ["domain"],
-      select: { domain: true, score: true },
-    }).catch((): never[] => []),
+  // Mastery rendered as LEVELS (leveling engine · 2026-05-30) so Nick
+  // speaks in "Lvl 4 Active" not "6.4/10". computeCharacterSheet sums each
+  // stat's lifetime XP (its MasteryScore deltas) → level + tier.
+  const [characterSheet, knowledgeDigest] = await Promise.all([
+    computeCharacterSheet().catch((): never[] => []),
     getKnowledgeDigest().catch((): string => ""),
   ]);
 
-  const scoreMap = new Map(allMasteryScores.map(s => [s.domain, s.score] as const));
-  const masteryScores = DOMAINS.map(d => `${d.label}: ${scoreMap.get(d.key) ?? d.baseline}/10`);
+  const masteryScores = characterSheet.map(statLine);
 
   // Compute habit rates (kept for legacy parity — habit-rate prompt
   // section retired, but the map is referenced by /system/prompt
