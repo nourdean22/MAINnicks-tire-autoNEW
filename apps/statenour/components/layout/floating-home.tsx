@@ -538,15 +538,20 @@ export function FloatingHome() {
               rows share the same gold hover treatment so the section
               reads as one unit. */}
           <div className="border-t border-[var(--border-default)]">
+            {/* 2026-05-30 · /scoreboard + /goals consolidated into /stats
+                (personal character sheet + goals). This row pointed at the
+                retired /goals; now it deep-links the combined Stats surface
+                so the orb menu has one personal-progress entry, not a stale
+                "Goals" that 308-redirects. */}
             <Link
-              href="/goals"
+              href="/stats"
               onClick={() => setState((s) => ({ ...s, expanded: false }))}
               className="flex items-center gap-3 px-3 py-2.5 text-xs transition-colors border-l-2 border-l-transparent text-[var(--text-secondary)] hover:bg-[var(--gold)]/10 hover:text-[var(--gold)] hover:border-l-[var(--gold)]"
-              title="goals + missions · the relocated PLAN surface"
+              title="stats · your character sheet + goals + leveling"
             >
               <Target size={14} strokeWidth={1.5} />
               <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
-                Goals
+                Stats
               </span>
             </Link>
             {/* wave-AB.e · removed the hardcoded Missions row here ·
