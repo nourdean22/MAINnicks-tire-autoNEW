@@ -15,13 +15,14 @@ import {
   Eye,
   Flame,
   Lightbulb,
+  Milestone,
   NotebookPen,
   Sparkles,
   Swords,
   Target,
 } from "lucide-react";
 
-export type SourceKey = "all" | "dump" | "reflection" | "situation" | "decision";
+export type SourceKey = "all" | "dump" | "reflection" | "situation" | "decision" | "retro";
 export type TypeKey =
   | "all"
   | "raw"
@@ -35,7 +36,7 @@ export type TypeKey =
 
 export interface FeedEntry {
   id: string;
-  source: "dump" | "reflection" | "situation" | "decision";
+  source: "dump" | "reflection" | "situation" | "decision" | "retro";
   createdAt: string;
   date: string;
   entryType?: TypeKey | string;
@@ -77,4 +78,5 @@ export const SOURCE_ICON: Record<string, IconComponent> = {
   reflection: Eye,
   situation: Swords,
   decision: Target,
+  retro: Milestone,
 };
