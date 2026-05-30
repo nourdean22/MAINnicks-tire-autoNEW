@@ -256,6 +256,10 @@ async function main() {
   // if one hung at networkidle0 the whole batch waited 45s+. With
   // PRERENDER_MODE skipping cron, contention should be low enough that 2
   // works fine and pinpoints which route hangs.
+  // 2026-05-30 · kept at 2. Tried 8 against the real DB and it DEADLOCKED the
+  // mysql pool (connectionLimit ~10; 8 concurrent pages each holding multiple
+  // query connections exhausts it → progress stalls). 2 is pool-safe and
+  // progresses reliably; speed comes from the trimmed render-wait below.
   const BATCH_SIZE = 2;
   for (let i = 0; i < routes.length; i += BATCH_SIZE) {
     const batch = routes.slice(i, i + BATCH_SIZE);
@@ -279,13 +283,22 @@ async function main() {
 
           // Navigate and wait for the page to fully render
           const url = `http://localhost:${port}${routePath}`;
-          await page.goto(url, {
-            waitUntil: "networkidle0",
-            timeout: 45000,
-          });
+          // wave-2026-05-30 · RESILIENT capture. A DB-backed fetch (e.g. the
+          // reviews widget) hangs when regen runs without a live DB, so the
+          // page never reaches network-idle. Don't drop the route on timeout —
+          // the page IS loaded and React has already rendered the static SEO
+          // content (title, FAQ, AEO block, pricing, schema). Catch the
+          // timeout and fall through to capture anyway; only the dynamic
+          // widget degrades to empty, which is fine for prerender/SEO. Shorter
+          // 20s budget so genuinely-hung pages don't waste 45s each.
+          try {
+            await page.goto(url, { waitUntil: "networkidle2", timeout: 12000 });
+          } catch (navErr) {
+            console.log(`    [soft-timeout] ${routePath}: ${String(navErr.message).split("\n")[0]} — capturing rendered HTML anyway`);
+          }
 
           // Wait for React effects (SEOHead useEffect sets title, meta, canonical)
-          await page.evaluate(() => new Promise((r) => setTimeout(r, 6000)));
+          await page.evaluate(() => new Promise((r) => setTimeout(r, 3000)));
 
           // Wait for title to change AWAY from any of the known defaults.
           await page.waitForFunction(
