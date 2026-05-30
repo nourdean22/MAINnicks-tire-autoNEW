@@ -31,7 +31,11 @@ export type AuditAction =
   | "workorder.assigned"
   | "callback.resolved"
   | "estimate.created"
-  | "invoice.created";
+  | "invoice.created"
+  // 2026-05-30 · control-plane actions (operator levers, not entity CRUD)
+  | "flag.toggled"
+  | "customer.sms_manual_send"
+  | "migrations.ran";
 
 // ─── Log an admin action ────────────────────────────
 export async function logAdminAction(data: {
@@ -42,6 +46,10 @@ export async function logAdminAction(data: {
   previousValue?: string;
   newValue?: string;
   metadata?: Record<string, unknown>;
+  // 2026-05-30: optional actor attribution. Pass ctx.user.email/name to record
+  // WHO pulled the lever (the audit table can't otherwise say). Defaults to
+  // "admin" so all existing callers keep working unchanged.
+  actor?: string;
 }): Promise<void> {
   try {
     const { auditLog } = await import("../../drizzle/schema");
@@ -58,7 +66,7 @@ export async function logAdminAction(data: {
 
     await d.insert(auditLog).values({
       id: randomUUID(),
-      actor: "admin",
+      actor: data.actor ?? "admin",
       action: data.action,
       entityType: data.entityType,
       entityId: String(data.entityId),

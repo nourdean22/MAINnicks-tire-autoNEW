@@ -15,6 +15,12 @@ import {
 export default function SiteHealthSection() {
   const { data: health, isLoading, isError, refetch } = trpc.adminDashboard.siteHealth.useQuery();
   const { data: reviews } = trpc.reviews.google.useQuery();
+  // 2026-05-30 · surface the self-healing reliability machinery the operator
+  // couldn't see anywhere. This procedure (generateDiagnosticReport) already
+  // existed but had ZERO consumers — it computes healthScore/state/components/
+  // trends/watchdog every 60s. Poll it here so "Site Health" finally leads with
+  // actual system reliability, not just SEO. Pure read of already-computed data.
+  const { data: diag } = trpc.adminDashboard.systemDiagnostics.useQuery(undefined, { refetchInterval: 60_000 });
 
   if (isLoading) {
     return (
@@ -63,9 +69,74 @@ export default function SiteHealthSection() {
     <div className="space-y-8">
       <PageHeader
         title="Site Health"
-        subtitle="Domain status · search rankings · review velocity · GA4 + GSC · vendor uptime"
+        subtitle="System reliability · domain status · search rankings · review velocity · vendor uptime"
         icon={<Heart className="w-5 h-5" />}
       />
+
+      {/* ── SYSTEM RELIABILITY (2026-05-30) ──────────────────
+          Surfaces server/lib/self-healing.ts — healthScore, self-heal state,
+          per-component recovery, watchdog liveness, trend early-warnings.
+          Was computed every 60s but rendered nowhere. */}
+      {diag && (
+        <div className="bg-card border border-border/30 p-6">
+          <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            SYSTEM RELIABILITY
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className={`p-4 border text-center ${diag.healthScore >= 80 ? "border-emerald-500/30 bg-emerald-500/5" : diag.healthScore >= 50 ? "border-amber-500/30 bg-amber-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+              <p className={`font-bold text-3xl ${diag.healthScore >= 80 ? "text-emerald-400" : diag.healthScore >= 50 ? "text-amber-400" : "text-red-400"}`}>{diag.healthScore}</p>
+              <p className="text-[11px] text-foreground/50 mt-1">Health score · {diag.state}</p>
+            </div>
+            <div className="p-4 border border-border/20 text-center">
+              <p className="font-bold text-3xl text-foreground">{Math.floor(diag.uptime / 3600)}h</p>
+              <p className="text-[11px] text-foreground/50 mt-1">Uptime</p>
+            </div>
+            <div className="p-4 border border-border/20 text-center">
+              <p className="font-bold text-3xl text-foreground">{diag.memory.heapPercent}<span className="text-sm text-foreground/40">%</span></p>
+              <p className="text-[11px] text-foreground/50 mt-1">Heap · {diag.memory.rssMB}MB RSS</p>
+            </div>
+            <div className={`p-4 border text-center ${diag.watchdog.healthy ? "border-emerald-500/30 bg-emerald-500/5" : "border-red-500/30 bg-red-500/5"}`}>
+              <p className={`font-bold text-lg ${diag.watchdog.healthy ? "text-emerald-400" : "text-red-400"}`}>{diag.watchdog.healthy ? "OK" : "STALE"}</p>
+              <p className="text-[11px] text-foreground/50 mt-1">Watchdog · {diag.eventLoopLagMs}ms lag</p>
+            </div>
+          </div>
+
+          {/* Per-component self-heal status */}
+          {Object.keys(diag.components).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
+              {Object.entries(diag.components).map(([name, c]) => (
+                <div key={name} className="flex items-center justify-between p-3 border border-border/20">
+                  <span className="text-[13px] text-foreground capitalize">{name.replace(/-/g, " ")}</span>
+                  <div className="flex items-center gap-2">
+                    {c.recoveryCount > 0 && <span className="text-[11px] text-foreground/40">{c.recoveryCount} heal{c.recoveryCount === 1 ? "" : "s"}</span>}
+                    {c.status === "ok" || c.status === "up"
+                      ? <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      : <XCircle className="w-4 h-4 text-red-400" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Trend early-warnings — only render when a metric is actually flagged */}
+          {diag.trends.some(t => t.warning) && (
+            <div className="mt-3 rounded border border-amber-500/40 bg-amber-500/5 p-3">
+              <p className="text-[12px] font-medium text-amber-400 mb-1">Trend warnings</p>
+              <ul className="text-[12px] text-foreground/60 space-y-0.5">
+                {diag.trends.filter(t => t.warning).map(t => (
+                  <li key={t.metric}>{t.metric}: {t.warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <p className="text-[11px] text-foreground/40 mt-3">
+            Traffic: {diag.requestRate.currentPerMinute}/min now · {diag.requestRate.averagePerMinute}/min avg · {diag.requestRate.peakPerMinute}/min peak
+          </p>
+        </div>
+      )}
+
       {/* Domain Status */}
       <div className="bg-card border border-border/30 p-6">
         <h3 className="font-bold text-sm tracking-wide text-foreground mb-5 flex items-center gap-2">
