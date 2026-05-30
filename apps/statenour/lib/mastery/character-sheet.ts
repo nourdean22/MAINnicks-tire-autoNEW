@@ -10,7 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { DOMAINS } from "./config";
 import { levelProgress, tierForLevel, xpForLevel } from "./leveling";
-import { xpEventTotals } from "./credit";
+import { xpEventTotals, xpEventTotalsSince } from "./credit";
 
 export interface StatLevel {
   key: string;
@@ -27,6 +27,8 @@ export interface StatLevel {
   xpIntoLevel: number;
   xpForNext: number;
   progressPct: number;
+  /** XP gained in the last 7 days — the "slope"/momentum this week. */
+  rising7dXp: number;
 }
 
 /**
@@ -41,15 +43,32 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   // (written by auto-learn), every other signal lives in the mastery_xp
   // event log (written by creditStatXp). Kept separate so we never
   // double-count, combined here for the lifetime total.
-  const [sums, eventTotals] = await Promise.all([
+  // 7-day window powers the "rising this week" slope (momentum, not just
+  // the lifetime level). MasteryScore.date keys are "YYYY-MM-DD" — lexical
+  // >= works for the window.
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const sinceKey = since.toISOString().slice(0, 10);
+  type DomainSum = { domain: string; _sum: { delta: number | null } };
+  const [sums, eventTotals, weekSums, weekEvents] = await Promise.all([
     prisma.masteryScore
       .groupBy({ by: ["domain"], _sum: { delta: true } })
-      .catch(() => [] as { domain: string; _sum: { delta: number | null } }[]),
+      .catch(() => [] as DomainSum[]),
     xpEventTotals(),
+    prisma.masteryScore
+      .groupBy({
+        by: ["domain"],
+        _sum: { delta: true },
+        where: { date: { gte: sinceKey } },
+      })
+      .catch(() => [] as DomainSum[]),
+    xpEventTotalsSince(since),
   ]);
 
   const deltaByDomain = new Map(
     sums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
+  );
+  const weekByDomain = new Map(
+    weekSums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
   );
 
   return DOMAINS.map((d) => {
@@ -65,6 +84,10 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
     const xp = Math.round((baselineXp + earned) * 10) / 10;
     const p = levelProgress(xp);
     const tier = tierForLevel(p.level);
+    const rising7dXp =
+      Math.round(
+        ((weekByDomain.get(d.key) ?? 0) + (weekEvents.get(d.key) ?? 0)) * 10,
+      ) / 10;
     return {
       key: d.key,
       label: d.label,
@@ -78,6 +101,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       xpIntoLevel: p.xpIntoLevel,
       xpForNext: p.xpForNext,
       progressPct: p.progressPct,
+      rising7dXp,
     };
   }).sort((a, b) => b.level - a.level || b.xp - a.xp);
 }

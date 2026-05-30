@@ -74,3 +74,24 @@ export async function xpEventTotals(): Promise<Map<string, number>> {
   }
   return totals;
 }
+
+/** XP per stat from the event log, but only events CREATED since `since`.
+ *  Powers the "rising this week" slope — new momentum, not lifetime total. */
+export async function xpEventTotalsSince(
+  since: Date,
+): Promise<Map<string, number>> {
+  const rows = await prisma.brainMemory
+    .findMany({
+      where: { category: MASTERY_XP_CATEGORY, createdAt: { gte: since } },
+      select: { metadata: true },
+    })
+    .catch((): { metadata: unknown }[] => []);
+  const totals = new Map<string, number>();
+  for (const r of rows) {
+    const m = (r.metadata ?? {}) as { stat?: string; xp?: number };
+    if (typeof m.stat === "string" && typeof m.xp === "number") {
+      totals.set(m.stat, (totals.get(m.stat) ?? 0) + m.xp);
+    }
+  }
+  return totals;
+}

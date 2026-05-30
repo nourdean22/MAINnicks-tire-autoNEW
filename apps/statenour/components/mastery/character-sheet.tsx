@@ -40,6 +40,7 @@ interface StatLevel {
   xpIntoLevel: number;
   xpForNext: number;
   progressPct: number;
+  rising7dXp: number;
 }
 
 export function CharacterSheet() {
@@ -59,6 +60,12 @@ export function CharacterSheet() {
   const totalXp = Math.round(stats.reduce((s, x) => s + x.xp, 0));
   // Highest current tier reached across all stats, for the hero badge.
   const peak = stats[0]; // already sorted by level desc
+  // The slope: the stat that gained the most XP this week. The dopamine is
+  // in the derivative — what's accelerating, not the static level.
+  const topRiser = stats.reduce<StatLevel | null>(
+    (best, x) => (x.rising7dXp > (best?.rising7dXp ?? 0) ? x : best),
+    null,
+  );
 
   return (
     <section className="mt-6 space-y-3">
@@ -77,10 +84,21 @@ export function CharacterSheet() {
             {totalXp.toLocaleString()} XP
           </span>
         </div>
-        <p className="text-[11px] text-white/70 truncate" title="Peak stat">
-          <span className="text-white/35">peak</span> {peak.tierEmoji} {peak.icon}{" "}
-          {peak.label}
-        </p>
+        {topRiser ? (
+          <p
+            className="text-[11px] text-white/70 truncate"
+            title={`Fastest riser this week · +${topRiser.rising7dXp} XP`}
+          >
+            <span style={{ color: topRiser.color }}>▲ week</span> {topRiser.icon}{" "}
+            {topRiser.label}{" "}
+            <span className="tabular-nums text-white/50">+{topRiser.rising7dXp}</span>
+          </p>
+        ) : (
+          <p className="text-[11px] text-white/70 truncate" title="Peak stat">
+            <span className="text-white/35">peak</span> {peak.tierEmoji} {peak.icon}{" "}
+            {peak.label}
+          </p>
+        )}
       </div>
 
       {/* Per-branch skill-tree groups. Stats arrive pre-sorted by level;
@@ -142,9 +160,15 @@ function StatCard({ stat }: { stat: StatLevel }) {
               style={{ width: `${pct}%`, backgroundColor: stat.color }}
             />
           </div>
-          <span className="shrink-0 text-[9px] tabular-nums text-white/35">
-            {stat.xpIntoLevel}/{stat.xpForNext}
-          </span>
+          {stat.rising7dXp > 0 ? (
+            <span
+              className="shrink-0 text-[9px] font-semibold tabular-nums"
+              style={{ color: stat.color }}
+              title={`+${stat.rising7dXp} XP this week`}
+            >
+              ▲{stat.rising7dXp}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
