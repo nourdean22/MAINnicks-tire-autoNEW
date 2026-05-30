@@ -122,124 +122,76 @@ export default function StatsPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <Header state={data.state} lastBriefAt={data.lastBriefAt} />
 
-        {/* Wave AQ · 2026-05-28 · Sam-Altman frame · narrative anchor.
-         *  Names the ONE anchor that matters today + the biggest risk +
-         *  one concrete next move BEFORE the operator scans cards.
-         *  Self-hides on empty (Day-1 operator or AI-down). Reads same
-         *  buildMetaScoreboard() data as the page · zero drift. */}
+        {/* 2026-05-30 · /stats EVOLVED · lead with the PERSONAL surface —
+         *  your character sheet + goals. The shop/business telemetry (Nick's
+         *  brief, pulse, KPIs, anchors/anomalies, deep-dive) moved into the
+         *  collapsed "Business" drawer below so it's one tap away, not
+         *  crowding your stats. Order: ① who you are → ② where you're going
+         *  → ③ what's happening now (collapsed). */}
+
+        {/* ① WHO YOU ARE · the character sheet (hero, top). */}
         <div className="mt-6">
-          <NicksScoreboardBrief />
+          <CharacterSheet />
         </div>
 
-        {/* Phase E (2026-05-18 PM) · OperatorPulse · top anomaly narration
-            + 7d motion across anchors + cross-surface trailing-axis drift.
-            Sits between the state badge and the cards · gives the
-            operator the "right now" story in one strip before the raw
-            number grid. */}
-        <OperatorPulse surface="scoreboard" className="mt-6 px-0 mx-0" />
-
-        {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
-         *  Same component the /goals page mounts · different surface
-         *  filter. Renders pricing-advisory + anomalies + system-alerts
-         *  + future writers tagged for "scoreboard". Polls every 90s
-         *  with tab-visibility pause. Self-hides when zero events. */}
-        <div className="mt-4">
+        {/* Coach Channel · actionable alerts/nudges. Compact · self-hides
+         *  when empty. Both surfaces so stat + goal events both surface. */}
+        <div className="mt-4 space-y-2">
           <CoachEventBanner surface="scoreboard" />
-        </div>
-        {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb. */}
-        <div className="mt-2">
+          <CoachEventBanner surface="goals" />
           <MissionBreadcrumb />
         </div>
 
-        {/* 2026-05-30 · Mastery leveling engine · the operator's character
-         *  sheet — every stat as a level + an overall-power total. Mounted
-         *  high (right under the narrative + pulse) because it's the
-         *  "leveling up" payoff the operator asked for · self-hides on a
-         *  transient query error so it can never break the board. */}
-        <CharacterSheet />
-
-        {/* /stats consolidation (2026-05-30) · the GOALS surface — what
-         *  you're leveling TOWARD — folded in directly under the character
-         *  sheet. The interactive GoalBoard (self-fetching) is the heart of
-         *  the retired /goals page; the goals Coach Channel surfaces prune/
-         *  drift events. Order: who you are (levels) → where you're going
-         *  (goals) → what's happening now (KPIs below). */}
+        {/* ② WHERE YOU'RE GOING · the goals surface (interactive GoalBoard). */}
         <section className="mt-8 space-y-3">
           <MasterySectionLabel label="Goals · what you're climbing toward" />
-          <CoachEventBanner surface="goals" />
           <GoalBoard />
         </section>
 
-        {/* Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop
-            health from the nickstire master_report bridge. Self-hides
-            when bridge is down or returns ok:false. Editorial-mini-
-            malist match to the existing Card visual contract. */}
-        <NickHealthSection />
-
-        {/* 2026-05-24 · Wave X.f activation · Sunday `pricing-advisor`
-            cron writes a weekly pricing advisory · pre-fix operator
-            had to ASK Nick in chat to see it · now mounts on
-            /scoreboard so the computation surfaces every operator
-            open. Silent-hides when no advisory written yet. */}
-        <PricingAdvisoryCard />
-
-        {anomalies.length > 0 ? (
-          <section className="mt-6 space-y-3">
-            <MasterySectionLabel
-              label="Anomalous"
-              count={anomalies.length}
-              tone="amber"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {anomalies.map((n) => (
-                <Card key={n.key} number={n} />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        <section className="mt-6 space-y-3">
-          <MasterySectionLabel
-            label="Anchors"
-            count={anchors.length}
-          />
-          {anchors.length === 0 ? (
-            <p className="text-sm text-[var(--text-secondary)]">
-              No anchor numbers right now.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {anchors.map((n) => (
-                <Card key={n.key} number={n} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* Mastery Layer Stage B adoption · 2026-05-26 · collapse the
-         *  deep-dive bands (compound chain + kommando track) into a
-         *  per-surface drawer. The KPI grid, Nick health, pricing
-         *  advisory, and anomaly cards STAY above-fold (operator-
-         *  actionable). Compound + track are context · operator opens
-         *  deliberately. Collapsed by default · self-fetching children
-         *  stay dormant until expanded · saves work on cold loads. */}
+        {/* ③ WHAT'S HAPPENING NOW · the shop/business telemetry, COLLAPSED.
+         *  On a personal stats page this is context, not the headline — so
+         *  it's one tap away: Nick's narrative + pulse + shop health + the
+         *  anchors/anomalies KPI grid + the compound/track deep-dive. */}
         <div className="mt-8">
           <MasteryContextDrawer
             surface="scoreboard"
-            label="Deep dive"
-            hint="compound chain · kommando track"
+            label="Business & what's happening now"
+            hint="revenue · shop health · anchors · compound · track"
           >
             <div className="space-y-6">
-              {/* Phase G (2026-05-18 PM) · CompoundChain · "what compounded
-                  INTO these numbers this week" · backward-looking from anchors
-                  to the tasks that fed them. Self-hides if no chained work
-                  happened in the window. */}
+              <NicksScoreboardBrief />
+              <OperatorPulse surface="scoreboard" className="px-0 mx-0" />
+              <NickHealthSection />
+              <PricingAdvisoryCard />
+              {anomalies.length > 0 ? (
+                <section className="space-y-3">
+                  <MasterySectionLabel
+                    label="Anomalous"
+                    count={anomalies.length}
+                    tone="amber"
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {anomalies.map((n) => (
+                      <Card key={n.key} number={n} />
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+              <section className="space-y-3">
+                <MasterySectionLabel label="Anchors" count={anchors.length} />
+                {anchors.length === 0 ? (
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    No anchor numbers right now.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {anchors.map((n) => (
+                      <Card key={n.key} number={n} />
+                    ))}
+                  </div>
+                )}
+              </section>
               <CompoundChain surface="scoreboard" className="px-0 mx-0" />
-
-              {/* TRACK consolidation (2026-05-21) · task-execution telemetry ·
-                  rehomed from the deleted /tasks TRACK tab. Complements the KPI
-                  cards above — those are outcomes, this is the work that feeds
-                  them. */}
               <KommandoTrack />
             </div>
           </MasteryContextDrawer>
