@@ -9,10 +9,7 @@
  * dropped from the other · drift was inevitable during the cutover
  * window.
  *
- * Post-fix: arrays live here · both consumers import them. The
- * `mode` field on each entry lets future surfaces (cron health
- * dashboard · diagnostics) reason about which slot a given cron
- * runs in.
+ * Post-fix: arrays live here · both consumers import them.
  *
  * Adding a new cron:
  *   1. Add it to the right array below with a 1-line annotation
@@ -20,9 +17,20 @@
  *      (megaFanoutMorning/Evening) without any further edits
  *
  * Retiring a cron:
- *   1. Remove from the array below
- *   2. Leave the route file in place until the next sweep · the
- *      retirement is "no longer fired" not "deleted from disk"
+ *   1. Remove from the array below  ← this step was skipped in Wave AE
+ *   2. Then the route file may be deleted
+ *
+ * 2026-05-30 CLEANUP · Wave AE (2026-05-28) DELETED ~51 cron route
+ * files (107→35 prune) but never removed their references from these
+ * arrays. The mega fan-out fetched each dead `/api/cron/<x>` → 404 →
+ * dispatchChild threw → `Promise.all` rejected → the WHOLE fan-out run
+ * failed, starving every surviving job that hadn't completed yet. Net
+ * effect: only ~16 of ~50 crons fired for 2 days (morning fan-out was
+ * nearly dead). Confirmed against CronJobLog + filesystem. These arrays
+ * now contain ONLY routes that exist on disk. The fan-out was ALSO
+ * hardened to Promise.allSettled so a future deleted route can never
+ * again starve the rest. `pnpm check:crons` should gain a jobs.ts ↔
+ * filesystem check (it currently only validates the manifest).
  */
 
 /**
@@ -31,43 +39,14 @@
  * digests + the day's outbound surfaces.
  */
 export const MORNING_JOBS: readonly string[] = [
-  "/api/cron/learn",
   "/api/cron/stale-tasks",
-  "/api/cron/brain-cycle",
   "/api/cron/journal-checkin?slot=morning",
   "/api/cron/embed-backfill",
-  "/api/cron/health-digest",
-  // 2026-05-29 · the data-source canary. Probes the nickstire bridge +
-  // service feeders each morning so a fresh data_source_probe row exists
-  // for the day — the /system/health operational rollup reads it to flag
-  // a dead bridge / $0-revenue feeder. The probe pipeline + reader have
-  // existed since v10.0.58 but this cron was never wired, so it ran zero
-  // times — which is why nothing caught the revenue-$0 regression.
+  // 2026-05-29 · data-source canary · probes the nickstire bridge +
+  // service feeders so /system/health can flag a dead bridge / $0 feeder.
   "/api/cron/data-source-health",
-  "/api/cron/cost-regression",
-  "/api/cron/schema-drift-watch",
-  "/api/cron/knowledge-sync",
-  "/api/cron/prediction-streaks",
-  "/api/cron/canary-chat",
-  "/api/cron/morning-brief",
-  "/api/cron/revenue-decision",
-  "/api/cron/decision-replay",
-  "/api/cron/persona-drift",
-  "/api/cron/orphan-task-nudge",
   "/api/cron/task-resurface",
-  // 2026-05-23 OVERDRIVE · 30-day subtask-usage audit · self-gated to
-  // fire only on/after 2026-06-22 · pre-window runs are no-ops.
-  "/api/cron/subtask-usage-audit",
-  "/api/cron/refresh-identity",
-  "/api/cron/auto-linker",
-  "/api/cron/backlog-triage",
   "/api/cron/ingest-drive",
-  "/api/cron/token-age-watch",
-  // 2026-05-24 · Wave X.f · writes today's `DailyStrategy` row so
-  // the cockpit's strategic-briefing tile has fresh data when the
-  // operator opens it. No writer existed before this — the tile was
-  // always null.
-  "/api/cron/daily-strategy",
 ];
 
 /**
@@ -75,56 +54,20 @@ export const MORNING_JOBS: readonly string[] = [
  * Heavier set · post-day reflection + intelligence + maintenance.
  */
 export const EVENING_JOBS: readonly string[] = [
-  "/api/cron/reflect",
   "/api/cron/predict",
-  "/api/cron/think",
   "/api/cron/consolidate",
-  "/api/cron/drift-check",
   "/api/cron/daily-report",
   "/api/cron/data-cleanup",
   "/api/cron/journal-checkin?slot=evening",
   "/api/cron/intelligence",
   "/api/cron/brain-intelligence",
   "/api/cron/embed-backfill",
-  "/api/cron/chat-message-backfill",
-  "/api/cron/image-rot-scan",
-  "/api/cron/semantic-dedup",
-  "/api/cron/pgvector-backfill",
-  "/api/cron/auto-calibrate",
   "/api/cron/correlation-alarm",
-  "/api/cron/mastery-decay",
-  "/api/cron/pattern-cluster",
-  "/api/cron/storage-quota-watch",
-  "/api/cron/audit-retention",
   "/api/cron/creation-spike-detect",
-  "/api/cron/update-spike-detect",
-  "/api/cron/brain-bus-probe",
-  "/api/cron/stale-conversation-archive",
   "/api/cron/conversation-mission-link",
-  "/api/cron/embed-cleanup",
-  "/api/cron/brain-bus-consume",
-  "/api/cron/agent-eval",
-  "/api/cron/extract-knowledge",
-  "/api/cron/brain-feedback-loop",
-  // v10.0.529.98 · suggestion-loop close · pairs operator action signals
-  // (from /api/brain/suggestion-loop) with downstream Task completions
-  // within 24h · writes neutral outcome rows back to brain_memory ·
-  // operator manually upgrades to positive/negative via chat. Grouped
-  // with brain-feedback-loop since both consume the same supervised-
-  // signal data.
-  "/api/cron/suggestion-outcome-rollup",
-  "/api/cron/eval-regression",
   "/api/cron/cost-slo-check",
-  "/api/cron/vapi-latency-sync",
   "/api/cron/os-snapshot",
   "/api/cron/anticipate",
-  "/api/cron/monthly-location-rank",
-  "/api/cron/semantic-link",
-  // Phase X (2026-05-18 PM) · auto-corpus-builder for the AGENT_V1
-  // → AGENT_V2 prompt-builder migration · samples N fresh prompts ·
-  // replays each through V1 + V2 builders · judges + persists ·
-  // closes the last Phase 0 checkbox so canary can unblock.
-  "/api/cron/judge-eval-shadow",
 ];
 
 /**
@@ -135,13 +78,7 @@ export const EVENING_JOBS: readonly string[] = [
 export const WEEKLY_JOBS: readonly string[] = [
   "/api/cron/weekly-digest",
   "/api/cron/weekly-review",
-  "/api/cron/memory-bloat-watch",
-  "/api/cron/voice-clone-train",
   "/api/cron/inbox-janitor",
-  "/api/cron/preference-tune",
-  "/api/cron/pricing-advisor",
-  "/api/cron/extract-skills",
-  "/api/cron/pin-hygiene",
 ];
 
 /**
