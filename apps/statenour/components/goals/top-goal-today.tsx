@@ -253,7 +253,7 @@ export function TopGoalToday({ ladder }: TopGoalTodayProps) {
           href={
             goal.openTaskCount > 0
               ? `/missions?goal=${encodeURIComponent(goal.id)}`
-              : `/goals#goal-${goal.id}`
+              : `/stats#goal-${goal.id}`
           }
           className={cn(
             "inline-flex items-center gap-1.5 rounded-md px-3 py-2 min-h-[44px]",

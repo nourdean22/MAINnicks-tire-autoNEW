@@ -119,13 +119,13 @@ export function MissionScoreboard() {
           <p className="mt-2 text-[12px] text-[var(--text-secondary)] leading-snug">
             {activeMissions.length === 0
               ? "No active missions yet. Missions group tasks toward a goal so this scoreboard can rank them."
-              : "Active missions found, but none have tasks attached yet. Attach tasks on /goals to populate the matrix."}
+              : "Active missions found, but none have tasks attached yet. Attach tasks on /stats to populate the matrix."}
           </p>
           <a
-            href="/goals"
+            href="/stats"
             className="mt-3 inline-flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--gold)] hover:text-[var(--gold)]/80"
           >
-            Open Goals →
+            Open Stats →
           </a>
         </div>
       </section>

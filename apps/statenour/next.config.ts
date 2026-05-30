@@ -149,8 +149,10 @@ const nextConfig: NextConfig = {
     { source: "/dashboard", destination: "/missions", permanent: false },
     { source: "/habits", destination: "/missions", permanent: false },
     { source: "/tasks", destination: "/missions", permanent: false },
-    { source: "/plan", destination: "/goals", permanent: true },
-    { source: "/mastery", destination: "/goals", permanent: true },
+    // 2026-05-30 · /goals consolidated into /stats · point straight at the
+    // final page so these don't double-hop through the /goals→/stats stub.
+    { source: "/plan", destination: "/stats", permanent: true },
+    { source: "/mastery", destination: "/stats", permanent: true },
     { source: "/nick", destination: "/chat", permanent: true },
 
     // Wave AD · 2026-05-28 · mega-delete redirects · 41 pages deleted ·
