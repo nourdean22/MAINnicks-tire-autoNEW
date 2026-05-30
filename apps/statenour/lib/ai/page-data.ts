@@ -82,6 +82,19 @@ export async function buildPageData(page: string): Promise<string> {
           : 0;
       const workoutDays = recentScores.filter((s) => s.workoutDone).length;
       const rev = (revenue?.payload as Record<string, unknown>) ?? {};
+      // nickstire nests revenue as { totalDollars, invoiceCount } — NOT the
+      // old todayEstimate/weekRevenue keys this used to read, which silently
+      // omitted revenue from Nick's mastery context (payload-key drift ·
+      // 2026-05-29 · same class as the /scoreboard $0 bug).
+      const revObj = (rev.revenue ?? {}) as Record<string, unknown>;
+      const revLine =
+        typeof revObj.totalDollars === "number"
+          ? `Revenue today: $${revObj.totalDollars.toLocaleString()}${
+              typeof revObj.invoiceCount === "number"
+                ? ` (${revObj.invoiceCount} jobs)`
+                : ""
+            }.`
+          : "";
       return [
         `Domain scores: ${
           domains.map((d) => `${d.domain}=${d.score}`).join(", ") || "none"
@@ -90,9 +103,7 @@ export async function buildPageData(page: string): Promise<string> {
         `Active goals: ${
           goals.map((g) => `"${g.title}" ${g.progress}%`).join(", ") || "none"
         }.`,
-        rev.todayEstimate
-          ? `Revenue today: $${rev.todayEstimate}, week: $${rev.weekRevenue || 0}.`
-          : "",
+        revLine,
         `Daily scores this week: ${
           recentScores.map((s) => `${s.date}=${s.overallScore}`).join(", ") ||
           "none logged"
