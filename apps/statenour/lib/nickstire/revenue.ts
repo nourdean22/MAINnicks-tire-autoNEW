@@ -68,7 +68,10 @@ export function readNickRevenue(revenueObj: unknown): NickRevenue {
         ? Math.round(weekCents / 100)
         : 0;
 
-  const jobs = firstNumber(r, ["invoiceCount", "jobs", "jobCount", "invoices"]) ?? 0;
+  // `invoiceCount` = live bridge shape · `jobsToday` = pushed-sync shape
+  // (statenourSync.ts builds { jobsToday }). Both must be covered.
+  const jobs =
+    firstNumber(r, ["invoiceCount", "jobsToday", "jobs", "jobCount", "invoices"]) ?? 0;
 
   return {
     todayDollars,
