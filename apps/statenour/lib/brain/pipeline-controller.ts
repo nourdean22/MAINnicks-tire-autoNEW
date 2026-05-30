@@ -163,11 +163,22 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
   if (event.type === "lead" || event.type === "booking") {
     const customerName = String(event.data.name || event.data.customerName || "");
     if (customerName.length > 2) {
-      const res = await queryNick("customer_search", { name: customerName, limit: 1 });
-      const existingCustomer =
-        "data" in res && Array.isArray(res.data) && res.data.length > 0 ? (res.data[0] as any) : null;
+      // 2026-05-30 · three wiring bugs killed repeat-customer detection:
+      // (1) handler reads `filters.term`, not `name` → it errored out every
+      //     time ("Search term required");
+      // (2) it returns `{ customers, count }`, not a bare array → the old
+      //     Array.isArray(res.data) check was always false;
+      // (3) fields are `totalVisits` / `totalSpent`, not `visitCount` /
+      //     `totalSpend`. All three corrected against nour-os-query.ts.
+      type NickCustomerRow = { totalVisits: number; totalSpent: number; segment: string };
+      const res = await queryNick("customer_search", { term: customerName });
+      const matches =
+        "data" in res && Array.isArray((res.data as { customers?: unknown[] })?.customers)
+          ? (res.data as { customers: NickCustomerRow[] }).customers
+          : [];
+      const existingCustomer = matches.length > 0 ? matches[0] : null;
 
-      if (existingCustomer && existingCustomer.visitCount > 1) {
+      if (existingCustomer && existingCustomer.totalVisits > 1) {
         // v10.0.38 — PII fix. Pre-fix: customer full name was the
         // memory key + appeared verbatim in the brain content +
         // surfaced into system prompts forever. Now: hash the name
@@ -179,15 +190,15 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
           .digest("hex")
           .slice(0, 12);
         const spendTier =
-          existingCustomer.totalSpend >= 5000
+          existingCustomer.totalSpent >= 5000
             ? "high"
-            : existingCustomer.totalSpend >= 1000
+            : existingCustomer.totalSpent >= 1000
               ? "mid"
               : "starter";
         await brainMemory.remember(
           "insight",
           `repeat_customer_${nameHash}_${today()}`,
-          `REPEAT CUSTOMER (${existingCustomer.visitCount} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}). High-value — prioritize.`,
+          `REPEAT CUSTOMER (${existingCustomer.totalVisits} visits, ${spendTier}-spend, segment: ${existingCustomer.segment}). High-value — prioritize.`,
           "pipeline_analysis"
         );
         actions.push("insight.repeat_customer");

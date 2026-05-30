@@ -208,10 +208,13 @@ export async function getDashboardSummary() {
     getRevenueStats("month"),
     getCustomerStats(),
     import("@/lib/integrations/google-reviews").then((m) => m.getReviewStats()),
-    fetchBridge<{ count?: number }>("jobs_today"),
+    // 2026-05-30 · "jobs_today" was a dead bridge query (never in nickstire's
+    // registry) → always null → dashboard showed 0 jobs. revenue_today is the
+    // live query; its invoiceCount = jobs booked today.
+    fetchBridge<{ invoiceCount?: number }>("revenue_today"),
   ]);
 
-  const todayJobs = Number(todayJobsData?.count ?? 0);
+  const todayJobs = Number(todayJobsData?.invoiceCount ?? 0);
 
   return {
     revenue,

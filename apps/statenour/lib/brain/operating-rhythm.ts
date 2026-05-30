@@ -24,6 +24,7 @@
 import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { queryNick } from "@/lib/nickstire/query";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { today } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
@@ -141,8 +142,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   // stale leads, 0 callbacks regardless of actual shop state. Now
   // they read live data from nickstire via STATENOUR_SYNC_KEY.
   const todayStr = today();
-  type ShopJob = { totalRevenue?: number };
-  const [todayScore, openLoops, commitments, jobsRes, staleLeadsRes, callbacksRes] = await Promise.all([
+  const [todayScore, openLoops, commitments, revRes, staleLeadsRes, callbacksRes] = await Promise.all([
     // Brain-maturity score (still local — not in nickstire).
     prisma.brainMemory
       .findUnique({
@@ -161,9 +161,9 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
       .catch((): null => null),
     prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch((): number => 0),
     prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch((): number => 0),
-    queryNick<{ jobs: ShopJob[] }>("jobs_today").catch(() => ({ error: "fetch failed" })),
+    queryNick<{ totalDollars?: number; invoiceCount?: number }>("revenue_today").catch(() => ({ error: "fetch failed" })),
     queryNick<{ count?: number; leads?: unknown[]; items?: unknown[] }>("leads_urgent").catch(() => ({ error: "fetch failed" })),
-    queryNick<{ count: number }>("pending_callbacks_count").catch(() => ({ error: "fetch failed" })),
+    queryNick<{ count: number }>("callbacks_pending").catch(() => ({ error: "fetch failed" })),
   ]);
 
   // Unwrap query results — shape is `{ data, query, timestamp }` on
@@ -171,12 +171,15 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   // gracefully to zeros (warn-logged via structured logger so
   // /system/errors surfaces persistent bridge failures with surface
   // attribution).
-  const recentJobs: ShopJob[] =
-    "data" in jobsRes && Array.isArray((jobsRes as { data?: { jobs?: unknown } }).data?.jobs)
-      ? ((jobsRes as { data: { jobs: ShopJob[] } }).data.jobs ?? [])
-      : [];
-  if ("error" in jobsRes) {
-    log.warn("bridge_query_failed", { query: "jobs_today", error: jobsRes.error });
+  // 2026-05-30 · was "jobs_today" (a dead bridge query → recentJobs always
+  // [], silently zeroing revenue). That made the weekday "🔴 ZERO REVENUE"
+  // cliff banner fire EVERY weekday and printed "$0" at every slot regardless
+  // of real shop state. Remapped to the live revenue_today query, read through
+  // the canonical readNickRevenue() so the payload contract can't drift again.
+  const revData = "data" in revRes ? (revRes as { data?: unknown }).data : undefined;
+  const { todayDollars: todayRevenue, jobs: todayJobCount } = readNickRevenue(revData);
+  if ("error" in revRes) {
+    log.warn("bridge_query_failed", { query: "revenue_today", error: revRes.error });
   }
   // 2026-05-30 · was "stale_leads_count" (a dead bridge query → always 0).
   // Remapped to leads_urgent (live). Shape-tolerant: count | leads[] | items[].
@@ -190,17 +193,15 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   if ("error" in staleLeadsRes) {
     log.warn("bridge_query_failed", { query: "leads_urgent", error: staleLeadsRes.error });
   }
+  // 2026-05-30 · was "pending_callbacks_count" (dead → always 0). Remapped to
+  // the live callbacks_pending query ({ pending, count }); we read .count.
   const pendingCallbacks =
     "data" in callbacksRes
       ? Number((callbacksRes as { data?: { count?: number } }).data?.count ?? 0)
       : 0;
   if ("error" in callbacksRes) {
-    log.warn("bridge_query_failed", { query: "pending_callbacks_count", error: callbacksRes.error });
+    log.warn("bridge_query_failed", { query: "callbacks_pending", error: callbacksRes.error });
   }
-
-  let todayRevenue = 0;
-  for (const j of recentJobs) todayRevenue += Number(j.totalRevenue ?? 0);
-  const todayJobCount = recentJobs.length;
 
   let message = "";
 
