@@ -66,10 +66,11 @@ export const GET = cronHandler(async () => {
       ...report,
     };
   } catch (err) {
-    return {
-      ok: false,
-      durationMs: Date.now() - started,
-      error: err instanceof Error ? err.message : "correlation-alarm failed",
-    };
+    // Re-throw so cronHandler → logCronRun records this run FAILED and
+    // fires the cron.failure brain-bus event. Returning {ok:false}
+    // RESOLVED the promise → logCronRun logged status:"success" (it never
+    // inspects the returned .ok), so this detector showed GREEN on
+    // /system/crons while silently dead.
+    throw err instanceof Error ? err : new Error("correlation-alarm failed");
   }
 });

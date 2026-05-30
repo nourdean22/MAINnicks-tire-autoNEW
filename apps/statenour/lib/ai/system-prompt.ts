@@ -914,14 +914,19 @@ export async function buildSystemPromptUncached(
       { query: "leads_urgent" },
     ]);
     const rev = (liveData.revenue_today as { data?: { totalDollars?: number; invoiceCount?: number } })?.data;
-    const alerts = (liveData.attention_needed as { data?: { alerts?: Array<{ msg: string }> } })?.data;
+    // nickstire's attention_needed handler pushes alerts shaped
+    // { level, message, count } — the key is `message`, never `msg`.
+    // Reading a.msg rendered every live shop alert ("3 leads untouched",
+    // "callbacks unanswered") as literal "undefined" in Nick's system
+    // prompt — he was told alerts existed but the text was gone.
+    const alerts = (liveData.attention_needed as { data?: { alerts?: Array<{ message: string }> } })?.data;
     const urgent = (liveData.leads_urgent as { data?: { count?: number } })?.data;
     if (rev || alerts || urgent) {
       p.push(...renderLiveShopStatus({
         liveSnapshot: {
           revenueDollars: rev?.totalDollars ?? null,
           invoiceCount: rev?.invoiceCount ?? null,
-          attentionMessages: alerts?.alerts?.map((a) => a.msg) ?? [],
+          attentionMessages: alerts?.alerts?.map((a) => a.message) ?? [],
           urgentLeadsCount: urgent?.count ?? 0,
         },
         fallbackPulse: null,
