@@ -99,18 +99,18 @@ describe("taskUpdateSchema · task.update call-site payloads", () => {
     ).toThrow();
   });
 
-  it("strips a `snoozedUntil` key — taskUpdateSchema has no such field", () => {
-    // The legacy bulkSnooze PATCH sent { status, snoozedUntil } but
-    // taskUpdateSchema (REST + tRPC) has no snoozedUntil key, so Zod
-    // strips it before reaching Prisma — the snooze date was never
-    // persisted. The migrated call sends only { status: "WAITING" } ·
-    // this test documents that the stripped key is a no-op either way.
+  it("accepts a `snoozedUntil` key — Wave AL added it to the validator", () => {
+    // Pre-Wave-AL the validator had no snoozedUntil, so Zod stripped it and
+    // the snooze date never persisted. Wave AL (2026-05-28) added
+    // `snoozedUntil: nullableDate.optional()` to taskBaseSchema to unlock the
+    // WAITING→READY resurface cron end-to-end — so the key now survives parse.
+    const until = new Date().toISOString();
     const r = taskUpdateSchema.parse({
       status: "WAITING",
-      snoozedUntil: new Date().toISOString(),
+      snoozedUntil: until,
     });
     expect(r.status).toBe("WAITING");
-    expect((r as Record<string, unknown>).snoozedUntil).toBeUndefined();
+    expect((r as Record<string, unknown>).snoozedUntil).toBeDefined();
   });
 });
 

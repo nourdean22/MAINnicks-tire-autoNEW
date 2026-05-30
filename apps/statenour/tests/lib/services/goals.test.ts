@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   lifeGoal: {
     findMany: vi.fn(),
+    findFirst: vi.fn(),
     create: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
@@ -54,6 +55,10 @@ import { createGoal, getGoals, updateGoal, removeGoal } from "@/lib/services/goa
 describe("Goals Service", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // createGoal dedups via lifeGoal.findFirst (ghost-goal fix, task #91) —
+    // default to "no existing goal" so the create path runs. Dedup-specific
+    // tests can override this per-test.
+    mocks.lifeGoal.findFirst.mockResolvedValue(null);
   });
 
   describe("getGoals", () => {
