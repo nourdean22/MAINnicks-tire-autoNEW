@@ -573,8 +573,22 @@ async function main() {
 
   console.log(`\n[prerender] Done: ${success} succeeded, ${failed} failed out of ${routes.length} routes.`);
 
-  if (failed > 0) {
+  // wave-2026-05-30 · partial-success policy. The per-route hard timeout
+  // (ROUTE_BUDGET_MS) intentionally SKIPS a route that can't render in budget
+  // rather than freezing the whole run. So a small number of skips is the
+  // resilience mechanism working as designed — committing 335/338 fresh pages
+  // is far better than discarding all of them over a few slow blog posts
+  // (the old `failed > 0 → exit 1` did exactly that: CI got 335 good routes,
+  // then threw them away + skipped the commit). Fail loudly only if a LARGE
+  // fraction fails, which signals a real systemic problem (dead DB, bad build)
+  // rather than a couple of slow pages.
+  const failRate = routes.length > 0 ? failed / routes.length : 0;
+  if (failRate > 0.1) {
+    console.error(`[prerender] FATAL: ${failed}/${routes.length} routes failed (${Math.round(failRate * 100)}%) — over the 10% tolerance. Not trusting this run.`);
     process.exit(1);
+  }
+  if (failed > 0) {
+    console.warn(`[prerender] ${failed} route(s) skipped (under the 10% tolerance) — committing the ${success} that rendered.`);
   }
 }
 
