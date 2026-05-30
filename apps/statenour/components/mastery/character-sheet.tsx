@@ -25,12 +25,14 @@
  */
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { BRANCHES } from "@/lib/mastery/config";
 
 interface StatLevel {
   key: string;
   label: string;
   icon: string;
   color: string;
+  branch: string;
   xp: number;
   level: number;
   tier: string;
@@ -87,12 +89,30 @@ export function CharacterSheet() {
         </div>
       </div>
 
-      {/* Per-stat level cards. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {stats.map((s) => (
-          <StatCard key={s.key} stat={s} />
-        ))}
-      </div>
+      {/* Per-branch skill-tree groups. Stats arrive pre-sorted by level;
+          we keep that order within each branch so the strongest leads. */}
+      {BRANCHES.map((br) => {
+        const inBranch = stats.filter((s) => s.branch === br.key);
+        if (inBranch.length === 0) return null;
+        return (
+          <div key={br.key} className="space-y-2 pt-1">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm" aria-hidden>
+                {br.icon}
+              </span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
+                {br.label}
+              </span>
+              <span className="text-[10px] text-white/30">· {br.blurb}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {inBranch.map((s) => (
+                <StatCard key={s.key} stat={s} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </section>
   );
 }
