@@ -15,6 +15,7 @@
  * body.data is absent).
  */
 import { prisma } from "@/lib/prisma";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { daysAgo, toDateString } from "@/lib/utils/datetime";
 import { recentScoreSnapshots, recentDailyHabits } from "@/lib/brain/legacy-shims";
 
@@ -86,15 +87,12 @@ export async function buildPageData(page: string): Promise<string> {
       // old todayEstimate/weekRevenue keys this used to read, which silently
       // omitted revenue from Nick's mastery context (payload-key drift ·
       // 2026-05-29 · same class as the /scoreboard $0 bug).
-      const revObj = (rev.revenue ?? {}) as Record<string, unknown>;
-      const revLine =
-        typeof revObj.totalDollars === "number"
-          ? `Revenue today: $${revObj.totalDollars.toLocaleString()}${
-              typeof revObj.invoiceCount === "number"
-                ? ` (${revObj.invoiceCount} jobs)`
-                : ""
-            }.`
-          : "";
+      const nickRev = readNickRevenue(rev.revenue);
+      const revLine = nickRev.hasToday
+        ? `Revenue today: $${nickRev.todayDollars.toLocaleString()}${
+            nickRev.jobs > 0 ? ` (${nickRev.jobs} jobs)` : ""
+          }.`
+        : "";
       return [
         `Domain scores: ${
           domains.map((d) => `${d.domain}=${d.score}`).join(", ") || "none"

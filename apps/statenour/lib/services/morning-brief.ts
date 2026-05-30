@@ -34,6 +34,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
@@ -899,6 +900,18 @@ function extractRevenueLine(
 ): { text: string; payload: Record<string, unknown> } | null {
   const rev = ctx.revenue as Record<string, unknown> | undefined;
   if (!rev) return null;
+  // Prefer the current nickstire shape (totalDollars + invoiceCount) so the
+  // brief shows TODAY's real revenue. The legacy yesterday/target path below
+  // is kept only for old payloads. (2026-05-29 · payload-key drift fix.)
+  const nickRev = readNickRevenue(rev);
+  if (nickRev.hasToday) {
+    return {
+      text: `Rev (today): $${formatMoney(nickRev.todayDollars)}${
+        nickRev.jobs > 0 ? ` · ${nickRev.jobs} jobs` : ""
+      }`,
+      payload: rev,
+    };
+  }
   const yesterday = numericField(rev, [
     "yesterday",
     "yesterdayValue",

@@ -29,6 +29,7 @@ import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { queryNickBatch } from "@/lib/nickstire/query";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 
 const log = rootLogger.withSurface("services/meta-scoreboard");
 
@@ -101,11 +102,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
       })
       .catch(() => null);
     const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
-    const rev = (ctx.revenue ?? ctx.revenueToday ?? {}) as Record<string, unknown>;
-    dollars =
-      typeof rev.totalDollars === "number"
-        ? Math.round(rev.totalDollars)
-        : Math.round(Number(rev.todayCents ?? rev.cents ?? 0) / 100);
+    dollars = readNickRevenue(ctx.revenue ?? ctx.revenueToday).todayDollars;
   }
   return {
     key: "revenue_today",
