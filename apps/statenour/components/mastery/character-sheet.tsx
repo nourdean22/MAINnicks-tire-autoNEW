@@ -65,28 +65,22 @@ export function CharacterSheet() {
       <MasterySectionLabel label="Mastery · character sheet" count={stats.length} />
 
       {/* Overall-power hero · the one number that sums every stat. */}
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 flex items-center justify-between gap-4">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">
-            Overall power
-          </p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-medium tabular-nums text-[var(--brand-gold,#FDB913)]">
-              Lvl {totalLevel}
-            </span>
-            <span className="text-[11px] tabular-nums text-white/40">
-              {totalXp.toLocaleString()} XP
-            </span>
-          </div>
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-3.5 py-2.5 flex items-center justify-between gap-4">
+        <div className="flex items-baseline gap-2">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+            Power
+          </span>
+          <span className="text-2xl font-medium tabular-nums text-[var(--brand-gold,#FDB913)] leading-none">
+            Lvl {totalLevel}
+          </span>
+          <span className="text-[10px] tabular-nums text-white/35">
+            {totalXp.toLocaleString()} XP
+          </span>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-white/40 mb-1">
-            Peak stat
-          </p>
-          <p className="text-[13px] text-white/85">
-            {peak.tierEmoji} {peak.icon} {peak.label}
-          </p>
-        </div>
+        <p className="text-[11px] text-white/70 truncate" title="Peak stat">
+          <span className="text-white/35">peak</span> {peak.tierEmoji} {peak.icon}{" "}
+          {peak.label}
+        </p>
       </div>
 
       {/* Per-branch skill-tree groups. Stats arrive pre-sorted by level;
@@ -105,7 +99,7 @@ export function CharacterSheet() {
               </span>
               <span className="text-[10px] text-white/30">· {br.blurb}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {inBranch.map((s) => (
                 <StatCard key={s.key} stat={s} />
               ))}
@@ -120,45 +114,39 @@ export function CharacterSheet() {
 function StatCard({ stat }: { stat: StatLevel }) {
   const pct = Math.max(0, Math.min(100, stat.progressPct));
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.02] p-4 hover:bg-white/[0.04] transition">
-      {/* icon + label + tier */}
-      <div className="flex items-start justify-between gap-2 mb-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base leading-none shrink-0" aria-hidden>
-            {stat.icon}
-          </span>
-          <span className="text-[12px] font-medium text-white/85 truncate">
+    <div
+      className="flex items-center gap-2.5 rounded-md border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 hover:bg-white/[0.04] transition-colors"
+      title={`${stat.tier} · ${Math.round(stat.xp).toLocaleString()} XP total · ${stat.xpIntoLevel}/${stat.xpForNext} to Lvl ${stat.level + 1}`}
+    >
+      <span className="text-base leading-none shrink-0" aria-hidden>
+        {stat.icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        {/* line 1 · label + level + tier emoji */}
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="truncate text-[11.5px] font-medium text-white/80">
             {stat.label}
           </span>
+          <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/90">
+            Lvl {stat.level}
+            <span className="ml-0.5 text-[10px]" aria-hidden>
+              {stat.tierEmoji}
+            </span>
+          </span>
         </div>
-        <span
-          className="text-[9px] uppercase tracking-[0.14em] text-white/50 shrink-0 whitespace-nowrap"
-          title={`${stat.tier} tier`}
-        >
-          {stat.tierEmoji} {stat.tier}
-        </span>
+        {/* line 2 · thin progress bar (stat color) + xp-into-level */}
+        <div className="mt-1 flex items-center gap-1.5">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
+            <div
+              className="h-full rounded-full"
+              style={{ width: `${pct}%`, backgroundColor: stat.color }}
+            />
+          </div>
+          <span className="shrink-0 text-[9px] tabular-nums text-white/35">
+            {stat.xpIntoLevel}/{stat.xpForNext}
+          </span>
+        </div>
       </div>
-
-      {/* big level */}
-      <div className="flex items-baseline gap-2 mb-2">
-        <span className="text-2xl font-medium tabular-nums text-white">
-          Lvl {stat.level}
-        </span>
-        <span className="text-[10px] tabular-nums text-white/35">
-          {Math.round(stat.xp).toLocaleString()} XP total
-        </span>
-      </div>
-
-      {/* progress bar · stat's own color */}
-      <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-        <div
-          className="h-full rounded-full transition-[width] duration-500"
-          style={{ width: `${pct}%`, backgroundColor: stat.color }}
-        />
-      </div>
-      <p className="mt-1.5 text-[10px] tabular-nums text-white/40">
-        {stat.xpIntoLevel} / {stat.xpForNext} XP → Lvl {stat.level + 1}
-      </p>
     </div>
   );
 }
