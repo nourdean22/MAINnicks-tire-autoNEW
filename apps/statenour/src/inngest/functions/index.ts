@@ -9,6 +9,9 @@
  */
 
 export { megaFanoutMorning, megaFanoutEvening } from "./mega-fanout";
+// 2026-05-30 · out-of-band liveness watchdog for the fan-out (the canary
+// that was missing when the fan-out went ~70% dead for 2 days).
+export { cronHeartbeat } from "./cron-heartbeat";
 export { operatorMorningBrief } from "./morning-brief";
 export { customerPreferencesRecompute } from "./customer-preferences";
 export { bulkSmsApproval } from "./bulk-sms-approval";
