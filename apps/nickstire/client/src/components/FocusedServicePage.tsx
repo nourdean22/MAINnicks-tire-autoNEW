@@ -325,7 +325,9 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
 
 function PricingSection({ config }: { config: ServicePageConfig }) {
   return (
-    <section className="py-16 bg-background">
+    // id="pricing" — scroll target for the hero "What's it cost?" curiosity chip.
+    // PricingSection always renders, so this anchor resolves on every page.
+    <section id="pricing" className="scroll-mt-20 py-16 bg-background">
       <div className="container max-w-5xl">
         <FadeIn>
           <h2 className="font-bold text-3xl sm:text-4xl text-foreground tracking-tight">{config.pricingTitle}</h2>
