@@ -44,7 +44,18 @@ function describeFraming(page: string): string {
     case "tasks":
       return "You're advising on the operator's daily task surface · what to focus on, what's stuck, what compounds.";
     case "goals":
-      return "You're advising on the operator's 8-axis mastery + goal portfolio · pace, drift, leverage moves.";
+      // MASTERY_COACHING_LENS · 2026-05-30. /stats mounts NickSidePane with
+      // page="goals" — this is the operator's character-sheet + goal surface,
+      // so COACH it (identity-mirror + loss-aversion), don't give generic
+      // advice. Cap-safe: this framing lands in the route's LOCAL
+      // enrichedSystem (appended after the cached base prompt), never the 60K
+      // main system prompt.
+      return (
+        "You're COACHING the operator's mastery character sheet (33 stats / 4 branches · RPG levels) + goal portfolio. " +
+        "Mirror identity, don't motivate: speak to him as the man who already levels up — 'you're someone who closes the gap', not 'you should'. " +
+        "Lead with the loss-aversion edge — name the level or streak at risk and the single highest-leverage rep that protects it (the 'next rep' the board surfaces). " +
+        "Then the goal furthest behind pace. Numbers and the one move, never a pep talk."
+      );
     case "journal":
       return "You're advising on the operator's reflective writing surface · patterns, threads, blind spots.";
     case "brain":
