@@ -31,6 +31,7 @@ import {
 } from "@/lib/services/compound-chain";
 import { buildGoalsSnapshot } from "@/lib/services/goals-snapshot";
 import { buildMetaScoreboard } from "@/lib/services/meta-scoreboard";
+import { computeCharacterSheet } from "@/lib/mastery/character-sheet";
 import {
   getBodyTracking,
   logBodyEntry,
@@ -194,6 +195,16 @@ export const operatorRouter = router({
   scoreboardSnapshot: operatorProcedure.query(async () =>
     buildMetaScoreboard(),
   ),
+
+  /**
+   * 2026-05-30 · the mastery leveling engine's read side. One StatLevel
+   * per domain (level · tier · XP-into-level · progress%), computed from
+   * the lifetime sum of MasteryScore.delta (task XP via auto-learn) +
+   * mastery_xp event log (journal/chat/email XP via the nightly cron).
+   * Schema-free · no new tables · delegates to computeCharacterSheet so
+   * the /scoreboard card and Nick's system prompt read the same numbers.
+   */
+  characterSheet: operatorProcedure.query(async () => computeCharacterSheet()),
 
   /**
    * Phase XX (2026-05-19 AM) · owner-only · body tracking timeline +
