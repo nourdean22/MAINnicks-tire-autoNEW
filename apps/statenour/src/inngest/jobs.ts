@@ -37,6 +37,13 @@ export const MORNING_JOBS: readonly string[] = [
   "/api/cron/journal-checkin?slot=morning",
   "/api/cron/embed-backfill",
   "/api/cron/health-digest",
+  // 2026-05-29 · the data-source canary. Probes the nickstire bridge +
+  // service feeders each morning so a fresh data_source_probe row exists
+  // for the day — the /system/health operational rollup reads it to flag
+  // a dead bridge / $0-revenue feeder. The probe pipeline + reader have
+  // existed since v10.0.58 but this cron was never wired, so it ran zero
+  // times — which is why nothing caught the revenue-$0 regression.
+  "/api/cron/data-source-health",
   "/api/cron/cost-regression",
   "/api/cron/schema-drift-watch",
   "/api/cron/knowledge-sync",

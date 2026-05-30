@@ -42,6 +42,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { SchemaDriftCard } from "@/components/system/schema-drift-card";
 import { trpc } from "@/lib/trpc/client";
+import type { HealthReport } from "@/lib/services/system-health";
 
 export default function SystemHealthPage() {
   const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
@@ -127,6 +128,12 @@ export default function SystemHealthPage() {
           </button>
         </div>
       </header>
+
+      {/* 2026-05-29 · "What's broken now" — operational rollup (AI eval
+          pass-rate + nickstire bridge / data-source probes). The two
+          dimensions that broke in prod (revenue $0 · evals 0/75 · bridge
+          down) but weren't surfaced here. Loud (red) only when wrong. */}
+      <OperationalStatus op={data.operational} />
 
       {/* v8.2 BATCH 12 — schema-drift sentinel surface. Loud only when
           something's off; silent (✓ all expectations met) otherwise. */}
@@ -429,6 +436,96 @@ function MetricTile({
       </div>
       {sub && <div className="text-[9px] font-mono text-[var(--text-tertiary)]">{sub}</div>}
     </div>
+  );
+}
+
+function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
+  const ev = op.eval;
+  const evalBad = ev !== null && ev.total > 0 && ev.passRate < 70;
+  const dsBad = op.dataSources.failing > 0;
+  const allGood = !evalBad && !dsBad;
+  return (
+    <section
+      className={cn(
+        "rounded-lg border px-3 py-2.5",
+        allGood
+          ? "border-emerald-500/30 bg-emerald-500/5"
+          : "border-red-500/40 bg-red-500/[0.07]",
+      )}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        {allGood ? (
+          <CheckCircle2 size={12} className="text-emerald-400" />
+        ) : (
+          <AlertTriangle size={12} className="text-red-400" />
+        )}
+        <h2
+          className={cn(
+            "text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em]",
+            allGood ? "text-emerald-300" : "text-red-400",
+          )}
+        >
+          {allGood ? "operational · all clear" : "operational · needs attention"}
+        </h2>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <Link
+          href="/system/eval-results"
+          className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
+        >
+          <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+            AI eval pass-rate
+          </div>
+          {ev && ev.total > 0 ? (
+            <div
+              className={cn(
+                "text-sm font-bold tabular-nums",
+                evalBad ? "text-red-400" : "text-emerald-400",
+              )}
+            >
+              {ev.passRate}%
+              <span className="ml-2 text-[10px] font-mono text-[var(--text-tertiary)]">
+                {ev.passed}/{ev.total}
+              </span>
+            </div>
+          ) : (
+            <div className="text-sm text-[var(--text-tertiary)]">no eval run yet</div>
+          )}
+        </Link>
+        <Link
+          href="/system/data-source-probes"
+          className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
+        >
+          <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
+            bridge · data sources
+          </div>
+          <div
+            className={cn(
+              "text-sm font-bold tabular-nums",
+              dsBad ? "text-red-400" : "text-emerald-400",
+            )}
+          >
+            {op.dataSources.total === 0
+              ? "no probes yet"
+              : dsBad
+                ? `${op.dataSources.failing} failing`
+                : `${op.dataSources.total} OK`}
+          </div>
+        </Link>
+      </div>
+      {dsBad && (
+        <ul className="mt-2 space-y-0.5">
+          {op.dataSources.probes
+            .filter((p) => !p.ok)
+            .slice(0, 4)
+            .map((p) => (
+              <li key={p.name} className="text-[10px] font-mono text-red-300/90 truncate">
+                {p.name}: {p.reason ?? "failing"}
+              </li>
+            ))}
+        </ul>
+      )}
+    </section>
   );
 }
 
