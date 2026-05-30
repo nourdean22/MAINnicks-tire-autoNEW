@@ -40,6 +40,14 @@ Each ADR follows the template:
 | 0013 | [Per-tool daily quota via BrainMemory · cost-DoS defense](./0013-per-tool-daily-quota.md) | Accepted | v10.0.529.4 → .8 |
 | 0014 | [Tool-result data fencing · prompt-injection defense Phase 1](./0014-tool-result-data-fencing.md) | Accepted | v10.0.529.5 |
 | 0015 | [Decision-replay coach pipeline · 30-day retrospective loop](./0015-decision-replay-coach.md) | Accepted | v10.0.528 → .529.7 |
+| 0016 | [Merge Brain + Life + Ops into the Actions IA](./0016-merge-brain-life-ops-ia.md) | Accepted | v10.0.529.72 · Wave 18 |
+| 0017 | [Task subtasks semantics · parentTaskId self-FK](./0017-task-subtasks-semantics.md) | Amended | 2026-05-23 |
+| 0018 | [Multi-advisor board pattern](./0018-multi-advisor-board-pattern.md) | Accepted | 2026-05-23 |
+| 0019 | [Explicit operator-state model](./0019-explicit-operator-state-model.md) | Accepted | 2026-05-23 |
+| 0020 | [Closed-loop calibrated brain](./0020-closed-loop-calibrated-brain.md) | Accepted | 2026-05-23 |
+| 0021 | [P-wave + Chrome extension](./0021-p-wave-and-extension.md) | Accepted | 2026-05-23 |
+| 0022 | [Mastery Stage A + NickSidePane v2 chat](./0022-mastery-stage-a-and-side-pane-chat.md) | Accepted | 2026-05-26 |
+| 0023 | [Recall-freshness + dead-lane sweep](./0023-recall-freshness-and-dead-lane-sweep.md) | Accepted | 2026-05-29 |
 
 ## Adding a new ADR
 
