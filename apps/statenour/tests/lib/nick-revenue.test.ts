@@ -30,9 +30,27 @@ describe("readNickRevenue", () => {
     expect(readNickRevenue({ todayCents: 277220 }).todayDollars).toBe(2772);
   });
 
-  it("reads jobs from alternate keys", () => {
+  it("reads jobs from alternate keys (bridge invoiceCount + sync jobsToday)", () => {
+    expect(readNickRevenue({ totalDollars: 100, invoiceCount: 5 }).jobs).toBe(5);
+    expect(readNickRevenue({ todayEstimate: 100, jobsToday: 6 }).jobs).toBe(6);
     expect(readNickRevenue({ totalDollars: 100, jobs: 3 }).jobs).toBe(3);
     expect(readNickRevenue({ totalDollars: 100, jobCount: 4 }).jobs).toBe(4);
+  });
+
+  it("reads the EXACT pushed-sync revenue shape (statenourSync.ts ground truth)", () => {
+    // The shape nickstire's cron actually sends on ceo_business_context.
+    const r = readNickRevenue({
+      todayEstimate: 2772,
+      weekRevenue: 18400,
+      monthRevenue: 61000,
+      jobsToday: 5,
+      yesterdayRevenue: 1900,
+      avgTicket: 554,
+    });
+    expect(r.todayDollars).toBe(2772);
+    expect(r.weekDollars).toBe(18400);
+    expect(r.jobs).toBe(5);
+    expect(r.hasToday).toBe(true);
   });
 
   it("reads week revenue across key variants", () => {
