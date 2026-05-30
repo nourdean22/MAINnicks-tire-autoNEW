@@ -20,8 +20,8 @@
  * progress bar — identity without noise.
  *
  * Degradation: self-hides on a transient query error (never breaks the
- * page); renders the honest Day-1 state (all Lvl 1) when there's no XP
- * yet — that empty board is the thing that lights up as work lands.
+ * page). Stats open at a starting level seeded from your baseline self-
+ * rating and climb as work lands, so the board reads as who you are today.
  */
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";

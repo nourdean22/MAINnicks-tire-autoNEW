@@ -60,7 +60,7 @@ export const DOMAINS = [
   { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
   { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, icon: "💻", branch: "empire" },
   { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, icon: "♟️", branch: "empire" },
-  { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 4.0, icon: "🧰", branch: "empire" },
+  { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 6.0, icon: "🧰", branch: "empire" },
   { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🎯", branch: "empire" },
   // ── INFLUENCE & PEOPLE · the outer game ───────────────────────────
   { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, icon: "💼", branch: "influence" },
