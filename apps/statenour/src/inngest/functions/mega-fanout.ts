@@ -114,6 +114,35 @@ async function dispatchChild(path: string, cronSecret: string): Promise<{
   return { path, status: res.status, durationMs };
 }
 
+/** Child cron result shape returned by dispatchChild. */
+type ChildResult = { path: string; status: number; durationMs: number };
+
+/**
+ * Summarize an allSettled batch of child-cron dispatches. We use
+ * allSettled (NOT Promise.all) so ONE failing child — a deleted route
+ * (404), a throwing job — can never reject the batch and starve the
+ * jobs that haven't completed yet. That exact failure mode, plus ~51
+ * stale jobs.ts refs to deleted routes left by the Wave AE prune,
+ * silently killed ~70% of the fan-out for 2 days (2026-05). Failures
+ * are still surfaced: the caller logs them and throws a SUMMARY after
+ * every survivor has run, so onFailure (Telegram) fires — a partial
+ * run must never be logged as healthy.
+ */
+function summarizeSettled(settled: PromiseSettledResult<ChildResult>[]) {
+  const ok = settled.filter(
+    (s): s is PromiseFulfilledResult<ChildResult> => s.status === "fulfilled",
+  );
+  const failures = settled
+    .filter((s): s is PromiseRejectedResult => s.status === "rejected")
+    .map((s) => String(s.reason?.message ?? s.reason));
+  return {
+    jobsRun: ok.length,
+    jobsFailed: failures.length,
+    totalDurationMs: ok.reduce((sum, r) => sum + r.value.durationMs, 0),
+    failures,
+  };
+}
+
 const inngest = getInngest();
 
 /**
@@ -149,18 +178,30 @@ export const megaFanoutMorning = inngest.createFunction(
       throw new Error("CRON_SECRET unset · refusing to fan out");
     }
 
-    // Each step.run is a separately-retryable checkpoint. Inngest
-    // schedules them with the concurrency limit set above (6).
-    const results = await Promise.all(
+    // Each step.run is a separately-retryable checkpoint. allSettled
+    // (not Promise.all) so one failing child never starves the rest.
+    const settled = await Promise.allSettled(
       MORNING_JOBS.map((path) =>
         step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
-
+    const sum = summarizeSettled(settled);
+    if (sum.jobsFailed > 0) {
+      log.warn("mega_morning_partial", {
+        ok: sum.jobsRun,
+        failed: sum.jobsFailed,
+        failures: sum.failures.slice(0, 10),
+      });
+      // Survivors have all run (allSettled); throw now so onFailure
+      // fires — a partial fan-out must not be logged as healthy.
+      throw new Error(
+        `mega-morning: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}`,
+      );
+    }
     return {
       slot: "morning",
-      jobsRun: results.length,
-      totalDurationMs: results.reduce((s, r) => s + r.durationMs, 0),
+      jobsRun: sum.jobsRun,
+      totalDurationMs: sum.totalDurationMs,
     };
   },
 );
@@ -195,17 +236,27 @@ export const megaFanoutEvening = inngest.createFunction(
       ? [...EVENING_JOBS, ...WEEKLY_JOBS]
       : EVENING_JOBS;
 
-    const results = await Promise.all(
+    const settled = await Promise.allSettled(
       jobs.map((path) =>
         step.run(stepIdFor(path), () => dispatchChild(path, cronSecret)),
       ),
     );
-
+    const sum = summarizeSettled(settled);
+    if (sum.jobsFailed > 0) {
+      log.warn("mega_evening_partial", {
+        ok: sum.jobsRun,
+        failed: sum.jobsFailed,
+        failures: sum.failures.slice(0, 10),
+      });
+      throw new Error(
+        `mega-evening: ${sum.jobsFailed}/${settled.length} child crons failed · ${sum.failures.slice(0, 8).join(" ; ")}`,
+      );
+    }
     return {
       slot: "evening",
       isSundayET: isSundayET(),
-      jobsRun: results.length,
-      totalDurationMs: results.reduce((s, r) => s + r.durationMs, 0),
+      jobsRun: sum.jobsRun,
+      totalDurationMs: sum.totalDurationMs,
     };
   },
 );
