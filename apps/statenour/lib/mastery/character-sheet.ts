@@ -9,7 +9,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { DOMAINS } from "./config";
-import { levelProgress, tierForLevel } from "./leveling";
+import { levelProgress, tierForLevel, xpForLevel } from "./leveling";
 import { xpEventTotals } from "./credit";
 
 export interface StatLevel {
@@ -31,9 +31,10 @@ export interface StatLevel {
 
 /**
  * Build the full character sheet — one StatLevel per domain, sorted by
- * level (then XP) so the strongest stats lead. Domains with no history
- * yet (e.g. freshly-added persuasion / emotional_intelligence) come back
- * at Level 1 with 0 XP, which is the honest starting point.
+ * level (then XP) so the strongest stats lead. Each stat opens at a
+ * starting level seeded from its 0-10 baseline self-rating (your real
+ * skill on Day 1) and climbs as you log reps on top of that floor — the
+ * RPG "character build", not a dishonest Lvl 1 for everything.
  */
 export async function computeCharacterSheet(): Promise<StatLevel[]> {
   // Two XP sources, summed: task completions live in MasteryScore.delta
@@ -52,10 +53,16 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   );
 
   return DOMAINS.map((d) => {
-    const xp =
-      Math.round(
-        ((deltaByDomain.get(d.key) ?? 0) + (eventTotals.get(d.key) ?? 0)) * 10,
-      ) / 10;
+    // Earned XP — everything you've ever logged in this stat (task bumps +
+    // the AI-attributed signal events).
+    const earned =
+      (deltaByDomain.get(d.key) ?? 0) + (eventTotals.get(d.key) ?? 0);
+    // Starting floor from your 0-10 self-rating: a 7.5 opens around Lvl 8,
+    // so your real craft shows on Day 1; every rep then stacks ON TOP of
+    // it. levelFromXp(xpForLevel(N)) === N, so an untouched stat lands
+    // exactly at its baseline level, 0% into the next.
+    const baselineXp = xpForLevel(Math.max(1, Math.round(d.baseline)));
+    const xp = Math.round((baselineXp + earned) * 10) / 10;
     const p = levelProgress(xp);
     const tier = tierForLevel(p.level);
     return {
