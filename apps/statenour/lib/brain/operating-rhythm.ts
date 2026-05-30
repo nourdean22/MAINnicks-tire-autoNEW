@@ -162,7 +162,7 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
     prisma.task.count({ where: { status: { in: ["INBOX", "READY", "DOING"] } } }).catch((): number => 0),
     prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }).catch((): number => 0),
     queryNick<{ jobs: ShopJob[] }>("jobs_today").catch(() => ({ error: "fetch failed" })),
-    queryNick<{ count: number }>("stale_leads_count").catch(() => ({ error: "fetch failed" })),
+    queryNick<{ count?: number; leads?: unknown[]; items?: unknown[] }>("leads_urgent").catch(() => ({ error: "fetch failed" })),
     queryNick<{ count: number }>("pending_callbacks_count").catch(() => ({ error: "fetch failed" })),
   ]);
 
@@ -178,12 +178,17 @@ export async function executeRhythm(slot?: RhythmSlot): Promise<{
   if ("error" in jobsRes) {
     log.warn("bridge_query_failed", { query: "jobs_today", error: jobsRes.error });
   }
-  const staleLeads =
+  // 2026-05-30 · was "stale_leads_count" (a dead bridge query → always 0).
+  // Remapped to leads_urgent (live). Shape-tolerant: count | leads[] | items[].
+  const staleLeadsData =
     "data" in staleLeadsRes
-      ? Number((staleLeadsRes as { data?: { count?: number } }).data?.count ?? 0)
-      : 0;
+      ? (staleLeadsRes as { data?: { count?: number; leads?: unknown[]; items?: unknown[] } }).data
+      : undefined;
+  const staleLeads = Number(
+    staleLeadsData?.count ?? staleLeadsData?.leads?.length ?? staleLeadsData?.items?.length ?? 0,
+  );
   if ("error" in staleLeadsRes) {
-    log.warn("bridge_query_failed", { query: "stale_leads_count", error: staleLeadsRes.error });
+    log.warn("bridge_query_failed", { query: "leads_urgent", error: staleLeadsRes.error });
   }
   const pendingCallbacks =
     "data" in callbacksRes

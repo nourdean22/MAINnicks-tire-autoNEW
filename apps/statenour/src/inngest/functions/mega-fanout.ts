@@ -170,6 +170,15 @@ export const megaFanoutMorning = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    // 2026-05-30 · double-fire guard. This Inngest cron + the legacy Railway
+    // /api/cron/mega cron share the 9:00 UTC schedule. Until the operator
+    // flips INNGEST_MEGA_V2=true (and disables the Railway cron), the Railway
+    // route is the source of truth — skip here so every child job doesn't run
+    // twice. The trigger stays registered → cutover is one env-flip, no redeploy.
+    if (process.env.INNGEST_MEGA_V2 !== "true") {
+      log.info("mega_morning_skipped_cutover_off", {});
+      return { slot: "morning", skipped: true, reason: "INNGEST_MEGA_V2 off" };
+    }
     const cronSecret = (process.env.CRON_SECRET ?? "").trim();
     if (!cronSecret) {
       // Refuse to fan-out with empty Bearer · same defense as the
@@ -226,6 +235,12 @@ export const megaFanoutEvening = inngest.createFunction(
     onFailure: onInngestFailure,
   },
   async ({ step }) => {
+    // 2026-05-30 · double-fire guard (see morning fn). Skip unless the cutover
+    // flag is on, so the Railway /api/cron/mega cron isn't run twice.
+    if (process.env.INNGEST_MEGA_V2 !== "true") {
+      log.info("mega_evening_skipped_cutover_off", {});
+      return { slot: "evening", skipped: true, reason: "INNGEST_MEGA_V2 off" };
+    }
     const cronSecret = (process.env.CRON_SECRET ?? "").trim();
     if (!cronSecret) {
       log.error("mega_evening_missing_secret", {});

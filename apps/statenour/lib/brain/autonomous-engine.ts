@@ -376,16 +376,20 @@ const RULES: ActionRule[] = [
     trigger: async () => {
       const hour = new Date().getHours();
       if (hour < 9 || hour > 16) return [];
-      const data = await fetchBridge<{ count?: number }>("stale_leads_count", {
-        olderThanHours: 4,
-      });
-      const stale = data?.count ?? 0;
+      // 2026-05-30 · was queryNick("stale_leads_count") — a DEAD bridge query
+      // (HTTP 400 "Unknown query") that left `stale` always 0, so this alert
+      // NEVER fired. Remapped to leads_urgent (a live query). Shape-tolerant
+      // (count | leads[] | items[]) with `?? 0` fallback → strictly no-worse.
+      const data = await fetchBridge<{ count?: number; leads?: unknown[]; items?: unknown[] }>(
+        "leads_urgent",
+      );
+      const stale = data?.count ?? data?.leads?.length ?? data?.items?.length ?? 0;
       if (stale === 0) return [];
       return [{ count: stale }];
     },
     action: async (data) => {
       await sendTelegram(
-        `🔴 <b>${data.count} Leads Waiting 4+ Hours</b>\n\nResponse time is the #1 conversion factor. Every hour = lower close rate.\n\nCall them NOW.`
+        `🔴 <b>${data.count} Urgent Leads Need a Response</b>\n\nResponse time is the #1 conversion factor. Every hour = lower close rate.\n\nCall them NOW.`
       );
       return { result: "success" };
     },
