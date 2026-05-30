@@ -13,6 +13,7 @@ import {
 } from "../db";
 import { sendSms } from "../sms";
 import { sanitizeText, sanitizePhone } from "../sanitize";
+import { logAdminAction } from "../services/auditTrail";
 
 export const smsConversationsRouter = router({
   /** Get all conversations sorted by most recent (admin) */
@@ -71,7 +72,7 @@ export const smsConversationsRouter = router({
       message: z.string().min(1).max(1600),
       customerName: z.string().max(255).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input, ctx }) => {
       try {
         const cleanPhone = sanitizePhone(input.phone);
         const cleanMessage = sanitizeText(input.message);
@@ -95,6 +96,18 @@ export const smsConversationsRouter = router({
           twilioSid: result.sid || undefined,
           status: result.success ? "sent" : "failed",
         });
+
+        // Audit the manual operator SMS send — highest daily-use, TCPA-relevant
+        // outbound action; was silent before. Records who texted which customer.
+        // Fire-and-forget so an audit miss never blocks the send.
+        logAdminAction({
+          action: "customer.sms_manual_send",
+          entityType: "sms_conversation",
+          entityId: conversation.id,
+          details: `Manual SMS to ${normalized}: "${input.message.slice(0, 80)}${input.message.length > 80 ? "…" : ""}"`,
+          newValue: result.success ? "sent" : "failed",
+          actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+        }).catch(() => { /* audit must never break the send */ });
 
         return { success: result.success, conversationId: conversation.id };
       } catch (err) {

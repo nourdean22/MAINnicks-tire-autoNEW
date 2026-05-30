@@ -9,6 +9,7 @@
  */
 import { adminProcedure, router } from "../_core/trpc";
 import { z } from "zod";
+import { logAdminAction } from "../services/auditTrail";
 
 // ─── Sub-module imports ─────────────────────────────────
 import { handleGenerateQuote, handleCompetitorPriceCheck } from "./nick/quotes";
@@ -174,7 +175,21 @@ export const nickActionsRouter = router({
   pullFromStatenour: adminProcedure.mutation(async () => handlePullFromStatenour()),
   syncShopDriver: adminProcedure.mutation(async () => handleSyncShopDriver()),
   importCustomerCSV: adminProcedure.mutation(async () => handleImportCustomerCSV()),
-  runMigrations: adminProcedure.mutation(async () => handleRunMigrations()),
+  runMigrations: adminProcedure.mutation(async ({ ctx }) => {
+    // Raw DDL execution — the single highest-privilege operator lever, and it
+    // was completely unaudited. Log who ran it + the applied/skipped/error
+    // summary the handler returns. Fire-and-forget so audit never blocks the run.
+    const result = await handleRunMigrations();
+    logAdminAction({
+      action: "migrations.ran",
+      entityType: "database",
+      entityId: "migrations",
+      details: "Operator ran DB migrations",
+      metadata: result as Record<string, unknown>,
+      actor: ctx.user?.email ?? ctx.user?.name ?? "admin",
+    }).catch(() => { /* audit must never break the migration run */ });
+    return result;
+  }),
 
   // ─── Nick AI Memory ───────────────────────────────────
   remember: adminProcedure
