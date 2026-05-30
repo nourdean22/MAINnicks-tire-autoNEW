@@ -16,6 +16,7 @@
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
+import AeoAnswerBlock from "@/components/AeoAnswerBlock";
 // wave-2-2026-05-30 (SEO-AEO parity) · /services hub (1,791 imp/90d)
 // carried LocalBusiness + AggregateRating but no FAQPage schema — the
 // AI-answer-engine citation surface its service-page peers already have.
@@ -167,6 +168,13 @@ export default function ServicesOverview() {
           </div>
         </div>
       </section>
+
+      {/* AEO answer-first block — first body content after the hero so AI
+          answer-engines + featured snippets lift a clean, declarative answer
+          for "auto repair Cleveland / Euclid" intent. */}
+      <AeoAnswerBlock
+        answer="Nick's Tire & Auto is a full-service auto repair shop at 17625 Euclid Ave in Cleveland (Euclid), Ohio — brakes, tires, oil changes, engine diagnostics, wheel alignment, and Ohio E-Check emissions for all makes and models, including European. Walk in 7 days a week with no appointment, get a written estimate before any work, and you don't pay until you say yes. Call (216) 862-0005."
+      />
 
       {/* Services Grid */}
       <section className="py-16 lg:py-20">
