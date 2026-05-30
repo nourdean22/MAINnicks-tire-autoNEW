@@ -88,6 +88,17 @@ const CONTEXT_CATEGORIES = new Set([
   //   high signal. Both are operator-authored so noise risk is ~zero.
   "weekly_review",
   "mission_retro",
+  // 2026-05-29 · two more verified dead lanes (embedded, high-signal):
+  // · relationships_weekly_synthesis — Sunday 3-paragraph synthesis of
+  //   the week's relationship movement; 1/week, AI-synthesized, already
+  //   lands in /journal. Low volume.
+  // · gmail_outgoing — the operator's OWN sent mail (decisions, tone,
+  //   commitments). categories.ts: "Read by Nick to ground 'did I commit
+  //   to X' recall" — that intent was unmet without the whitelist entry.
+  //   (gmail_thread / inbound deliberately excluded: higher volume, more
+  //   noise — add later only if recall stays clean.)
+  "relationships_weekly_synthesis",
+  "gmail_outgoing",
 ]);
 
 export interface RecallHit {
