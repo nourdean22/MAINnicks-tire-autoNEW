@@ -28,6 +28,7 @@
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { queryNickBatch } from "@/lib/nickstire/query";
 
 const log = rootLogger.withSurface("services/meta-scoreboard");
 
@@ -68,17 +69,44 @@ export interface MetaScoreboardSnapshot {
 // ── Anchor pickers · cheap reads · always present ───────────────────
 
 async function pickRevenueToday(): Promise<ScoreboardNumber> {
-  const ev = await prisma.auditEvent
-    .findFirst({
-      where: { eventType: "ceo_business_context" },
-      orderBy: { createdAt: "desc" },
-      select: { payload: true },
-    })
-    .catch(() => null);
-  const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
-  const rev = (ctx.revenue ?? ctx.revenueToday ?? {}) as Record<string, unknown>;
-  const cents = Number(rev.todayCents ?? rev.cents ?? 0);
-  const dollars = Math.round(cents / 100);
+  // Source of truth = the SAME live bridge query the top ticker reads
+  // (lib/services/ultron-ticker.ts → queryNickBatch "revenue_today"), so
+  // /scoreboard and the ticker can never disagree. nickstire returns
+  // { totalDollars, invoiceCount } in DOLLARS. Falls back to the mirrored
+  // ceo_business_context audit event when the bridge is unreachable.
+  //
+  // 2026-05-29 bugfix: the old code read `revenue.todayCents`/`cents`
+  // (cents) — keys that don't exist on nickstire's v2 payload — so the
+  // `?? 0` silently floored revenue to $0 on the scoreboard while the
+  // ticker showed the real number (e.g. $2,772 · 5 jobs). Root cause:
+  // payload-key drift between the sync shape and this reader.
+  let dollars: number | null = null;
+  try {
+    const batch = await queryNickBatch([{ query: "revenue_today" }]);
+    const live = (
+      batch.revenue_today as { data?: Record<string, unknown> } | undefined
+    )?.data;
+    if (live && typeof live.totalDollars === "number") {
+      dollars = Math.round(live.totalDollars);
+    }
+  } catch {
+    // bridge unreachable · fall through to the pushed-event mirror below
+  }
+  if (dollars === null) {
+    const ev = await prisma.auditEvent
+      .findFirst({
+        where: { eventType: "ceo_business_context" },
+        orderBy: { createdAt: "desc" },
+        select: { payload: true },
+      })
+      .catch(() => null);
+    const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
+    const rev = (ctx.revenue ?? ctx.revenueToday ?? {}) as Record<string, unknown>;
+    dollars =
+      typeof rev.totalDollars === "number"
+        ? Math.round(rev.totalDollars)
+        : Math.round(Number(rev.todayCents ?? rev.cents ?? 0) / 100);
+  }
   return {
     key: "revenue_today",
     label: "Revenue today",
