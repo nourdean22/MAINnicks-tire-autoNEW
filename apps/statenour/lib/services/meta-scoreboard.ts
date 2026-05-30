@@ -134,23 +134,11 @@ async function pickActiveCommitments(): Promise<ScoreboardNumber> {
   };
 }
 
-async function pickUnresolvedAlerts(): Promise<ScoreboardNumber> {
-  const n = await prisma.driftAlert
-    .count({ where: { resolved: false } })
-    .catch(() => 0);
-  return {
-    key: "unresolved_alerts",
-    label: "Drift alerts",
-    value: n,
-    unit: "",
-    display: n.toString(),
-    delta7d: null,
-    trend: n > 0 ? "down" : "flat",
-    anomalous: false,
-    why: null,
-    link: "/system/logs?view=grouped",
-  };
-}
+// 2026-05-29 · Sam pass · "Drift alerts" (unresolved_alerts) removed from
+// the outcomes scoreboard. It answered "is the machine ok," not "am I
+// winning" — system-health plumbing belongs on /system. Drift recovery
+// still reaches the operator via the CoachEventBanner (drift-recovery
+// events) + /system/logs.
 
 async function pickMasteryTopMover(): Promise<ScoreboardNumber | null> {
   const recent = await prisma.masteryScore
@@ -202,25 +190,9 @@ async function pickMasteryTopMover(): Promise<ScoreboardNumber | null> {
 
 // ── Anomaly detectors · only surface when triggered ─────────────────
 
-async function detectCronFailureBurst(): Promise<ScoreboardNumber | null> {
-  const since24h = new Date(Date.now() - 86_400_000);
-  const failed = await prisma.cronJobLog
-    .count({ where: { status: "failed", createdAt: { gte: since24h } } })
-    .catch(() => 0);
-  if (failed < 3) return null;
-  return {
-    key: "cron_failures_24h",
-    label: "Failed crons · 24h",
-    value: failed,
-    unit: "",
-    display: failed.toString(),
-    delta7d: null,
-    trend: "down",
-    anomalous: true,
-    why: `${failed} cron runs failed in last 24h · expected ~0`,
-    link: "/system/crons",
-  };
-}
+// 2026-05-29 · Sam pass · "Failed crons · 24h" removed from the outcomes
+// scoreboard. Cron health is pure system plumbing — it lives on
+// /system/crons, not the "what matters now" board.
 
 async function detectStaleGoalSurge(): Promise<ScoreboardNumber | null> {
   const stale = await prisma.brainMemory
@@ -267,24 +239,9 @@ async function detectCallbacksWaiting(): Promise<ScoreboardNumber | null> {
   };
 }
 
-async function detectUnresolvedAlertSurge(): Promise<ScoreboardNumber | null> {
-  const n = await prisma.driftAlert
-    .count({ where: { resolved: false } })
-    .catch(() => 0);
-  if (n < 10) return null; // only "anomalous" when 10+ pile up
-  return {
-    key: "alert_surge",
-    label: "Alert surge",
-    value: n,
-    unit: "",
-    display: n.toString(),
-    delta7d: null,
-    trend: "down",
-    anomalous: true,
-    why: `${n} drift alerts unresolved · operator review needed`,
-    link: "/system/logs?view=grouped",
-  };
-}
+// 2026-05-29 · Sam pass · "Alert surge" removed from the outcomes
+// scoreboard. It counted the same unresolved driftAlerts as the former
+// "Drift alerts" anchor — system-health plumbing, now /system-only.
 
 // ── Composer ────────────────────────────────────────────────────────
 
@@ -297,14 +254,11 @@ export async function buildMetaScoreboard(): Promise<MetaScoreboardSnapshot> {
       pickRevenueToday(),
       pickOpenTasks(),
       pickActiveCommitments(),
-      pickUnresolvedAlerts(),
       pickMasteryTopMover(),
     ]).then((r) => r.filter((n): n is ScoreboardNumber => n !== null)),
     Promise.all([
-      detectCronFailureBurst(),
       detectStaleGoalSurge(),
       detectCallbacksWaiting(),
-      detectUnresolvedAlertSurge(),
     ]).then((r) => r.filter((n): n is ScoreboardNumber => n !== null)),
     prisma.brainMemory
       .findFirst({
