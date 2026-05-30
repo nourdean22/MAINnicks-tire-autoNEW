@@ -151,6 +151,15 @@ export const CRONS: CronDef[] = [
     description: "FOLDED into mega-evening · roll-up of fresh BrainMemory into consolidated_belief rows.",
   },
   {
+    name: "mastery-xp",
+    schedule: null,
+    mode: "folded",
+    category: "brain",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening · mastery leveling engine · AI-attributes the day's chat/captures/decisions → stat XP (lib/mastery). Idempotent per sourceKey; first run backfills history, then only new signals nightly.",
+    addedAt: "2026-05-30",
+  },
+  {
     name: "predict",
     schedule: "0 12 * * *",
     mode: "active",
