@@ -32,7 +32,7 @@ console.log("cron manifest · verifying");
 console.log("");
 
 // ── 1 · Every named cron has a route.ts on disk ──────────────────────
-console.log("[1/5]manifest → filesystem");
+console.log("[1/6]manifest → filesystem");
 for (const c of CRONS) {
   if (c.name === "mega-evening") continue; // shares mega route
   const routePath = path.join(cwd, "app/api/cron", c.name, "route.ts");
@@ -44,7 +44,7 @@ if (errors === 0) ok(`${CRONS.length} manifest entries all backed by a route.ts`
 
 // ── 2 · Every route.ts has a manifest entry ──────────────────────────
 console.log("");
-console.log("[2/5]filesystem → manifest (dark code detector)");
+console.log("[2/6]filesystem → manifest (dark code detector)");
 const cronRoot = path.join(cwd, "app/api/cron");
 const cronDirs = fs.existsSync(cronRoot)
   ? fs.readdirSync(cronRoot).filter((d) => fs.statSync(path.join(cronRoot, d)).isDirectory())
@@ -59,7 +59,7 @@ if (errors === 0) ok(`${cronDirs.length} cron routes all documented in the manif
 
 // ── 3 · Retirement warnings ──────────────────────────────────────────
 console.log("");
-console.log("[3/5]retirement window");
+console.log("[3/6]retirement window");
 const today = new Date();
 for (const c of CRONS) {
   if (c.mode === "retired" && c.retireAfter) {
@@ -102,7 +102,7 @@ function fireFrequency(schedule: string): number {
 }
 
 console.log("");
-console.log("[4/5]budget + fold suggestions");
+console.log("[4/6]budget + fold suggestions");
 const activeSchedules = CRONS.filter((c) => c.mode === "active" && c.schedule);
 
 if (activeSchedules.length > SOFT_CAP) {
@@ -151,7 +151,7 @@ if (candidates.length > 0 && activeSchedules.length > SOFT_CAP - 4) {
 // deleted ~51 routes but left their jobs.ts refs, silently killing ~70%
 // of crons for 2 days. No check looked here. Now it does.
 console.log("");
-console.log("[5/5]  jobs.ts fan-out refs -> filesystem");
+console.log("[5/6]  jobs.ts fan-out refs -> filesystem");
 const fanoutRefs = new Set(
   [...MORNING_JOBS, ...EVENING_JOBS, ...WEEKLY_JOBS].map((p) =>
     p.replace(/^\/api\/cron\//, "").replace(/\?.*$/, ""),
@@ -168,6 +168,33 @@ for (const name of fanoutRefs) {
   }
 }
 if (deadFanoutRefs === 0) ok(`${fanoutRefs.size} fan-out refs all backed by a route.ts`);
+
+// ── 6 · manifest "active" → actually fires ───────────────────────────
+// A cron marked mode:"active" claims it runs on its own schedule. It only
+// actually fires if it's in the mega fan-out (jobs.ts) or fires
+// independently (the allowlist). Wave AE left ~10 crons marked "active"
+// that were never wired — the manifest lied. mode:"dormant" is the honest
+// state for a parked cron; this gate stops "active" from drifting back
+// into a claim that isn't true.
+console.log("");
+console.log("[6/6]  manifest active -> actually fires");
+// Crons that legitimately fire OUTSIDE the fan-out (verified live in
+// CronJobLog). Keep this list tiny + evidence-based.
+const INDEPENDENT = new Set([
+  "error-telegram-push", // fires every ~10min via its own path (verified live)
+  "mega", // the morning dispatcher itself (Inngest cron 0 9 * * *)
+  "mega-evening", // the evening dispatcher itself (Inngest cron 0 3 * * *)
+]);
+let phantomActive = 0;
+for (const c of CRONS) {
+  if (c.mode !== "active") continue;
+  if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name)) continue;
+  fail(
+    `${c.name} is mode:"active" but is NOT in the mega fan-out (src/inngest/jobs.ts) and fires nowhere — wire it into jobs.ts or mark it mode:"dormant"`,
+  );
+  phantomActive++;
+}
+if (phantomActive === 0) ok(`all active crons are reachable (fan-out or independent)`);
 
 console.log("");
 if (errors > 0) {

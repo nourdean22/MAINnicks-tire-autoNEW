@@ -26,7 +26,7 @@ import { trpc } from "@/lib/trpc/client";
 interface CronRow {
   name: string;
   schedule: string | null;
-  mode: "active" | "folded" | "retired";
+  mode: "active" | "folded" | "retired" | "dormant";
   category: string;
   description: string;
   foldedInto?: string;

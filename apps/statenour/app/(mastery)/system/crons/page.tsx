@@ -44,7 +44,7 @@ import { Stethoscope } from "lucide-react";
 // `refetchInterval`; per-job busy state stays as local Sets.
 import { trpc } from "@/lib/trpc/client";
 
-type CronMode = "active" | "folded" | "retired";
+type CronMode = "active" | "folded" | "retired" | "dormant";
 type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert";
 
 interface CronRow {

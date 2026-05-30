@@ -23,12 +23,20 @@
  *     ancestry.
  *   · `mode: "retired"` — route still exists but scheduled to be
  *     deleted. Warning surfaced.
+ *   · `mode: "dormant"` — route + code exist and work, but it is
+ *     intentionally NOT wired to fire (operator parked it). Distinct
+ *     from "retired" (no deletion implied). Revive by adding it to
+ *     src/inngest/jobs.ts; the `schedule` field documents the intended
+ *     cadence if revived. Added 2026-05-30 to stop the manifest claiming
+ *     Wave-AE orphans were "active" when they never actually fired.
+ *     `pnpm check:crons` [6/6] enforces: a cron can only be "active" if
+ *     it is genuinely reachable from the fan-out.
  *
  * Schedule syntax is standard cron in UTC. Comments on each line
  * document the intent.
  */
 
-export type CronMode = "active" | "folded" | "retired";
+export type CronMode = "active" | "folded" | "retired" | "dormant";
 export type CronCategory =
   | "ingest"     // pull from external sources (Gmail, Calendar, Drive)
   | "brain"      // memory + learning + identity
@@ -154,7 +162,7 @@ export const CRONS: CronDef[] = [
   {
     name: "reflect-categories",
     schedule: "0 3 * * 0",
-    mode: "active",
+    mode: "dormant",
     category: "brain",
     description: "Weekly Sunday 3am · reflects on BrainMemory category distribution, surfaces deltas, writes operator-facing reflection rows.",
     memory: 512,
@@ -278,7 +286,7 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-digest",
     schedule: "0 22 * * 0",
-    mode: "active",
+    mode: "dormant",
     category: "review",
     description: "Sunday 10pm UTC · Greene-voiced weekly relationship digest · cooling + birthdays-this-week · idempotent per ISO week.",
     memory: 512,
@@ -288,7 +296,7 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-birthday",
     schedule: "0 12 * * *",
-    mode: "active",
+    mode: "dormant",
     category: "review",
     description: "Daily 12pm UTC · birthday + anniversary push · idempotent per personId+date.",
     memory: 256,
@@ -298,7 +306,7 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-weekly-synthesis",
     schedule: "0 23 * * 0",
-    mode: "active",
+    mode: "dormant",
     category: "review",
     description: "Wave AB · Sunday 11pm UTC · 3-paragraph synthesis of week's relationship movement · idempotent per ISO week.",
     memory: 512,
@@ -308,7 +316,7 @@ export const CRONS: CronDef[] = [
   {
     name: "kept-word-scan",
     schedule: "0 2 * * *",
-    mode: "active",
+    mode: "dormant",
     category: "brain",
     description: "Daily 2am UTC · scans last 24h chat for promises · upserts KEPT_WORD rows · drives ledger trust score.",
     memory: 512,
@@ -318,7 +326,7 @@ export const CRONS: CronDef[] = [
   {
     name: "dossier-autodraft",
     schedule: "0 4 * * 1",
-    mode: "active",
+    mode: "dormant",
     category: "brain",
     description: "Monday 4am UTC · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
     memory: 1024,
@@ -328,7 +336,7 @@ export const CRONS: CronDef[] = [
   {
     name: "greene-law-tag-refresh",
     schedule: "0 5 * * 1",
-    mode: "active",
+    mode: "dormant",
     category: "brain",
     description: "Wave Z · Monday 5am UTC · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
     memory: 512,
@@ -349,7 +357,7 @@ export const CRONS: CronDef[] = [
   {
     name: "decision-quality-drift",
     schedule: "0 16 * * 1",
-    mode: "active",
+    mode: "dormant",
     category: "signals",
     description: "Monday 4pm UTC · weekly decision-quality scan · Coach Channel (P0).",
     memory: 512,
@@ -392,7 +400,7 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-picks-prewarm",
     schedule: "0 7 * * *",
-    mode: "active",
+    mode: "dormant",
     category: "action",
     description: "Daily 7am UTC · pre-warms RELATIONSHIPS_PICKS_TODAY cache so the 8am nick-action-proposal has outreach data. Idempotent · returns cached value if already populated.",
     memory: 512,
@@ -402,7 +410,7 @@ export const CRONS: CronDef[] = [
   {
     name: "nick-action-proposal",
     schedule: "0 8 * * *",
-    mode: "active",
+    mode: "dormant",
     category: "action",
     description: "Daily 8am UTC · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax. Wave AK alerting · sends Telegram on failure.",
     memory: 1024,
@@ -412,7 +420,7 @@ export const CRONS: CronDef[] = [
   {
     name: "nick-action-execute",
     schedule: "0 9 * * *",
-    mode: "active",
+    mode: "dormant",
     category: "action",
     description: "Daily 9am UTC · executes operator-approved AutonomousAction rows from the last 24h · logs results to ledger/journal/brain.",
     memory: 1024,
