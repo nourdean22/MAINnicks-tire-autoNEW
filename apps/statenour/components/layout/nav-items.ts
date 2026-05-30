@@ -82,7 +82,9 @@ export const NAV_ITEMS: NavItem[] = [
   // is the per-person CIA dossier + Greene-law coach + RelationshipLedger.
   // /relationships/network is the SVG graph view (degree centrality + bridges).
   { href: "/people", label: "People", icon: Users },
-  { href: "/mastery",       label: "Growth",   icon: Brain },
+  // 2026-05-30 · "/mastery → Growth" entry removed · it 308-redirected to
+  // /stats (a duplicate of the "Stats" entry above). next.config keeps the
+  // /mastery redirect for any external / bookmarked links.
   { href: "/brain",         label: "Brain",    icon: Brain },
   { href: "/system",        label: "System",   icon: Activity },
   { href: "/settings",      label: "Settings", icon: Settings },

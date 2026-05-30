@@ -29,8 +29,9 @@
  * nearly dead). Confirmed against CronJobLog + filesystem. These arrays
  * now contain ONLY routes that exist on disk. The fan-out was ALSO
  * hardened to Promise.allSettled so a future deleted route can never
- * again starve the rest. `pnpm check:crons` should gain a jobs.ts ↔
- * filesystem check (it currently only validates the manifest).
+ * again starve the rest. `pnpm check:crons` now ALSO validates jobs.ts ↔
+ * filesystem (steps 5-6 of scripts/verify-crons.ts) — a dead ref here fails
+ * the gate before it can ship.
  */
 
 /**
