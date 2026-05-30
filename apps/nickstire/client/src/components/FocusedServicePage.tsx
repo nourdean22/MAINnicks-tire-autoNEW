@@ -272,13 +272,32 @@ function Hero({ config }: { config: ServicePageConfig }) {
               { icon: <Star className="w-4 h-4 fill-current" />, text: `${BUSINESS.reviews.rating}★ · ${BUSINESS.reviews.countDisplay} reviews` },
               { icon: <Clock className="w-4 h-4" />, text: "Same-day service" },
               { icon: <ShieldCheck className="w-4 h-4" />, text: "Walk-ins welcome" },
-              config.startingPrice ? { icon: <DollarSign className="w-4 h-4" />, text: config.startingPrice } : null,
-            ].filter(Boolean).map((item, i) => (
-              <div key={i} className="flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-3 py-1.5">
-                <span className="text-nick-blue-light">{item!.icon}</span>
-                <span className="text-foreground/80 text-[12px]">{item!.text}</span>
-              </div>
-            ))}
+              // Operator pref (2026-05-30): keep DOLLAR AMOUNTS out of the hero.
+              // A "$149" pill before the value is framed reads as expensive — the
+              // real number belongs in the mid-page pricing table. FREE/non-dollar
+              // values ("FREE check", "See tire prices") stay as a DRAW. For a
+              // dollar amount, show a CURIOSITY chip instead — an open-loop question
+              // that pulls the reader DOWN to #pricing (where the number, plus the
+              // dealer/chain comparison, lives) rather than pricing them at the door.
+              config.startingPrice && !config.startingPrice.includes("$")
+                ? { icon: <DollarSign className="w-4 h-4" />, text: config.startingPrice }
+                : { icon: <ChevronDown className="w-4 h-4" />, text: "What's it cost?", href: "#pricing" },
+            ].filter(Boolean).map((item, i) => {
+              const cls = "flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-3 py-1.5";
+              const inner = (
+                <>
+                  <span className="text-nick-blue-light">{item!.icon}</span>
+                  <span className="text-foreground/80 text-[12px]">{item!.text}</span>
+                </>
+              );
+              // A chip with an href becomes a jump-link to the pricing section
+              // (the curiosity payoff); the rest stay as plain proof chips.
+              return "href" in item! && item!.href ? (
+                <a key={i} href={item!.href} className={`${cls} hover:bg-nick-blue/20 transition-colors cursor-pointer`}>{inner}</a>
+              ) : (
+                <div key={i} className={cls}>{inner}</div>
+              );
+            })}
           </div>
         </FadeIn>
       </div>
@@ -292,7 +311,10 @@ function Hero({ config }: { config: ServicePageConfig }) {
 // marketing copy. Plain server-rendered text (no hooks/interactivity) so it
 // survives prerender + is visible to non-JS crawlers (GPTBot/ClaudeBot/etc.).
 function AeoAnswer({ config }: { config: ServicePageConfig }) {
-  const priceClause = config.startingPrice
+  // Operator pref (2026-05-30): don't lead the AEO answer with a dollar amount.
+  // Use the price only when it's a non-dollar value ("FREE check"); otherwise
+  // lead with the value framing. The real number lives in the mid-page anchor table.
+  const priceClause = config.startingPrice && !config.startingPrice.includes("$")
     ? config.startingPrice
     : "a free check with a written estimate before any work";
   const answer =
