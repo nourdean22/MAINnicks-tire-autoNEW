@@ -209,7 +209,7 @@ async function pickMasteryTopMover(): Promise<ScoreboardNumber | null> {
     trend: best.delta > 0 ? "up" : "down",
     anomalous: false,
     why: null,
-    link: "/goals",
+    link: "/stats",
   };
 }
 
@@ -233,8 +233,8 @@ async function detectStaleGoalSurge(): Promise<ScoreboardNumber | null> {
     delta7d: null,
     trend: "down",
     anomalous: true,
-    why: `${stale} goals haven't moved in 30+ days · open /goals to prune`,
-    link: "/goals",
+    why: `${stale} goals haven't moved in 30+ days · open /stats to prune`,
+    link: "/stats",
   };
 }
 

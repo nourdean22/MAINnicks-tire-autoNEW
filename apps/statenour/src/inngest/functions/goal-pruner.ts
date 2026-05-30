@@ -138,7 +138,7 @@ async function persistFlags(flagged: PruneCandidate[]): Promise<void> {
         priority: "P2", // stale-flag is advisory, not urgent
         title: `Stale goal · ${c.goalTitle} · ${c.daysSinceActivity}d idle`,
         body: `No activity on this goal for ${c.daysSinceActivity} days. Review or archive?`,
-        deepLink: `/goals?goalId=${encodeURIComponent(c.goalId)}`,
+        deepLink: `/stats#goal-${encodeURIComponent(c.goalId)}`,
         surfaces: ["goals"],
         extra: { goalTitle: c.goalTitle, horizon: c.horizon, daysSinceActivity: c.daysSinceActivity },
       }),
