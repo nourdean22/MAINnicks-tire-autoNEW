@@ -74,11 +74,10 @@ export const NAV_ITEMS: NavItem[] = [
   // Wave AD · 2026-05-28 · /cockpit deleted · the Sam-led / IS the
   // cockpit now (Wave AC). next.config redirects /cockpit → /.
 
-  // DEPTH — goals, growth, system, settings (accessible via sidebar + ⌘K)
-  // 2026-05-21 · KommandoShell dismantle · Phase 3 · /goals added to the
-  // nav. /goals is now the goal-authoring surface (the relocated PLAN
-  // tab) — it earns a real nav entry.
-  { href: "/goals",         label: "Goals",    icon: Target },
+  // DEPTH — stats, people, growth, system, settings (sidebar + ⌘K)
+  // 2026-05-30 · /scoreboard + /goals CONSOLIDATED into /stats (one page:
+  // character sheet → goals → KPIs). Both old routes redirect to /stats.
+  { href: "/stats",         label: "Stats",    icon: Target },
   // 2026-05-28 · Power Atlas surface lands in the DEPTH section. /relationships
   // is the per-person CIA dossier + Greene-law coach + RelationshipLedger.
   // /relationships/network is the SVG graph view (degree centrality + bridges).
