@@ -199,9 +199,9 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
       rows: [
         { label: "Dealer AC diagnostic + recharge", price: "$295" },
         { label: "Chain shop AC service", price: "$195" },
-        { label: "Nick's (free inspection)", price: "Free estimate", ours: true },
+        { label: "Nick's (free check)", price: "Free estimate", ours: true },
       ],
-      source: "Free inspection + system pressure check. Refrigerant recharge, compressor / condenser / evaporator repairs all get a written estimate before any work.",
+      source: "Free check + system pressure test. Refrigerant recharge, compressor / condenser / evaporator repairs all get a written estimate before any work.",
     },
     fearStats: {
       heading: "Why a weak AC today becomes a $1,400 AC tomorrow.",

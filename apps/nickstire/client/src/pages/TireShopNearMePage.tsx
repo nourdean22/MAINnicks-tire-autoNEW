@@ -7,6 +7,7 @@
  * toward top 3 = ~3-4× click volume on ~4,600 monthly impressions.
  */
 
+import { Disc, Wrench, Activity } from "lucide-react";
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
 
 const CONFIG: ServicePageConfig = {
@@ -60,6 +61,65 @@ const CONFIG: ServicePageConfig = {
   serviceType: "Tire Installation",
   ctaHeadline: "WALK IN OR DROP IT OFF",
   ctaSub: "Open 7 days, walk-ins welcome. Call ahead at (216) 862-0005 and we'll have your size ready. 17625 Euclid Ave, Cleveland OH.",
+
+  // ── Conversion scaffold (added 2026-05-30 CRO wave) ──
+  // This is the highest-traffic discovery page (~4,600 imp/mo) but opted
+  // into none of the conversion-architecture sections. price-psychology:
+  // anchor the FREE install package against what chains nickel-and-dime.
+  anchorTable: {
+    serviceName: "What tire install actually costs — Cleveland",
+    rows: [
+      { label: "Chain store (mount + balance + valve + TPMS + disposal)", price: "Add-ons per tire" },
+      { label: "Dealer tire center", price: "Add-ons per tire" },
+      { label: "Nick's — all of it, every tire", price: "$0 with tire", ours: true },
+    ],
+    source: "The big chains quote you the tire, then add mount, balance, valve stems, TPMS reset, and disposal at the counter — it adds up fast. At Nick's the install package is included with every tire, new or used. Walk in or call (216) 862-0005 for a live quote on your size.",
+  },
+  // loss-aversion-designer (honest, NHTSA-sourced — no invented daily $).
+  lossStats: [
+    {
+      amount: 2,
+      unit: "/32\" tread",
+      label: "is the legal-bald line — and stopping distance grows long before it",
+      reason: "On a wet road, worn tread can't channel water away — so worn tires take well over a car length farther to stop than fresh tread, right when you need it most. Cleveland rain and winter slush make that gap a real-world risk, not a stat. A free tread check tells you exactly how many miles you have left before it's a problem.",
+      ctaHref: "#booking",
+      ctaLabel: "FREE TREAD CHECK",
+    },
+  ],
+  // objection-preemptor: high-intent "tire shop near me" visitors who don't
+  // convert on tires often have an adjacent problem — recover them.
+  crossSell: {
+    heading: "Came in for tires, but something else is off?",
+    items: [
+      {
+        tone: "info",
+        icon: <Disc className="w-5 h-5" />,
+        symptom: "New tires wearing on one edge, or the car pulls?",
+        consequence: "Bad alignment eats a fresh set of tires in months — we check it free on every install.",
+        relief: "Free alignment check with your tires. Written estimate only if you actually need the full alignment.",
+        ctaLabel: "ALIGNMENT CHECK",
+        ctaHref: "/wheel-alignment-cleveland",
+      },
+      {
+        tone: "warning",
+        icon: <Wrench className="w-5 h-5" />,
+        symptom: "Grinding or squealing when you stop?",
+        consequence: "Wheels are already off for the tires — cheapest possible time to measure the pads.",
+        relief: "Free brake check while the wheels are off. You see the pads before any quote.",
+        ctaLabel: "BRAKE CHECK",
+        ctaHref: "/brakes",
+      },
+      {
+        tone: "info",
+        icon: <Activity className="w-5 h-5" />,
+        symptom: "Due for an oil change too?",
+        consequence: "Knock both out in one visit instead of two trips across town.",
+        relief: "Oil change while you wait — walk in 7 days, no appointment.",
+        ctaLabel: "OIL CHANGE",
+        ctaHref: "/oil-change",
+      },
+    ],
+  },
 };
 
 export default function TireShopNearMePage() {

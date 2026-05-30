@@ -90,7 +90,7 @@ const CONFIG: ServicePageConfig = {
       },
       {
         value: "$3,800",
-        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. A simple pad replacement caught early can balloon roughly 25× when the cascade finishes — every postponed week makes the eventual repair bigger.",
+        consequence: "Average bill when grinding brakes are ignored long enough to ruin the rotor + caliper + master cylinder. A pad job caught early is a fraction of that — the longer metal grinds on metal, the more parts get dragged into the repair.",
       },
     ],
   },
@@ -99,7 +99,7 @@ const CONFIG: ServicePageConfig = {
       amount: 8.5,
       unit: "per day",
       label: "in compounding rotor damage",
-      reason: "Worn pads grind 0.001\" of rotor surface per stop. Industry data shows the shop average is roughly $8.50/day of rotor-replacement cost compounding. Waiting two weeks typically turns a pads-only job into a pads + rotors job — a meaningful jump on the final invoice. Free check tells you exactly which side of that line you're on.",
+      reason: "Once the pad backing meets the rotor, every stop scores the metal deeper. Wait two weeks and a pads-only job typically becomes a pads + rotors job — a real jump on the final invoice. A free check tells you exactly which side of that line you're on, before it costs more.",
       ctaHref: "#booking",
       ctaLabel: "STOP THE DAMAGE TODAY",
     },

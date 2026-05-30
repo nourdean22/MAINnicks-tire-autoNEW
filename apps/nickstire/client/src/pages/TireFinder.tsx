@@ -1506,10 +1506,10 @@ export default function TireFinder() {
                   <Users className="w-7 h-7 text-primary" />
                 </div>
                 <h2 className="text-xl sm:text-2xl font-semibold text-foreground">
-                  Cleveland's Best Tire Team
+                  Real mechanics. 1,700+ five-star reviews.
                 </h2>
                 <p className="text-sm text-muted-foreground mt-2 max-w-2xl mx-auto leading-relaxed">
-                  We do not just sell tires. We have the most experienced, most honest, and fastest tire technicians in Northeast Ohio. Every person on our team takes pride in doing the job right — the first time.
+                  We do not just sell tires. The same crew has been mounting them on Euclid Ave since 2018 — they show you the tread before they sell you anything, and you don't pay until you say yes.
                 </p>
               </div>
 
@@ -1532,8 +1532,8 @@ export default function TireFinder() {
                   },
                   {
                     icon: <ShieldCheck className="w-5 h-5" />,
-                    title: "Quality Guaranteed",
-                    desc: "Every installation includes our full premium package — mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety inspection.",
+                    title: "Everything Included",
+                    desc: "Every installation includes mounting, balancing, valve stems, TPMS reset, alignment check, and a 20-point safety check — no line-item surprises at the counter.",
                   },
                   {
                     icon: <Heart className="w-5 h-5" />,
@@ -1543,7 +1543,7 @@ export default function TireFinder() {
                   {
                     icon: <MapPin className="w-5 h-5" />,
                     title: "Cleveland Proud",
-                    desc: "Locally owned and operated. We live here, we work here, and we take care of our neighbors. Serving Cleveland, Euclid, and all of Northeast Ohio.",
+                    desc: "We live here, we work here, we fix our neighbors' cars. On Euclid Ave since 2018 — serving Cleveland, Euclid, and all of Northeast Ohio.",
                   },
                 ].map((item) => (
                   <div key={item.title} className="bg-background/50 rounded-lg p-5">

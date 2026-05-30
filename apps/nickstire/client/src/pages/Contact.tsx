@@ -108,7 +108,7 @@ export default function Contact() {
                 <span className="text-primary">CLEVELAND</span> SHOP
               </h1>
               <p className="mt-6 text-lg sm:text-xl text-foreground/70 max-w-2xl leading-relaxed">
-                Call us, stop by, or fill out the form below. Walk-ins are always welcome. We are located on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio.
+                Call us, text us, or just pull up — walk in 7 days a week, no appointment needed. We are on Euclid Avenue in Cleveland, serving drivers across Northeast Ohio. 4.9★ from 1,700+ reviews.
               </p>
               {/* wave-181.48 · Repair Haiku trust line — same phrase as the
                   VAPI prompt, /services hero, /about tile. Cross-touchpoint
@@ -254,7 +254,7 @@ export default function Contact() {
                     DROP IT OFF <span className="text-primary">TODAY</span>
                   </h2>
                   <p className="text-foreground/60 mb-6 leading-relaxed">
-                    Fill out the form and we'll text you back fast. Or just pull up — walk-ins always welcome, 7 days a week.
+                    Tap to call or text and we'll get right back to you. Or just pull up — first come, first served, 7 days a week.
                   </p>
                   <BookingForm />
                 </div>

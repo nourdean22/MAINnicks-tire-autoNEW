@@ -48,7 +48,7 @@ function slugToTitle(path: string): string {
 import BookingForm from "./BookingForm";
 import FadeIn from "./FadeIn";
 import { BUSINESS } from "@shared/business";
-import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown } from "lucide-react";
+import { Phone, CheckCircle, Clock, ShieldCheck, DollarSign, ChevronDown, Star } from "lucide-react";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 // Conversion-architecture overlays (Batch 1 components, plumbed in Batch 3
@@ -265,6 +265,11 @@ function Hero({ config }: { config: ServicePageConfig }) {
         <FadeIn delay={0.4}>
           <div className="mt-8 flex flex-wrap gap-3 text-sm">
             {[
+              // 4.9★ proof chip first — social-proof-architect: place the
+              // strongest credibility signal next to the hero CTA, not buried
+              // mid-page. Single source of truth (BUSINESS.reviews) so it
+              // shows on every FocusedServicePage consumer (~30 routes).
+              { icon: <Star className="w-4 h-4 fill-current" />, text: `${BUSINESS.reviews.rating}★ · ${BUSINESS.reviews.countDisplay} reviews` },
               { icon: <Clock className="w-4 h-4" />, text: "Same-day service" },
               { icon: <ShieldCheck className="w-4 h-4" />, text: "Walk-ins welcome" },
               config.startingPrice ? { icon: <DollarSign className="w-4 h-4" />, text: config.startingPrice } : null,
