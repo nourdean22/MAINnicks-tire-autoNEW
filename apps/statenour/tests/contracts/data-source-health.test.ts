@@ -31,7 +31,9 @@ import {
 describe("data-source-health", () => {
   it("exposes probe specs without the runner function", () => {
     const specs = getProbeSpecs();
-    expect(specs.length).toBeGreaterThanOrEqual(7);
+    // 6 probes since 2026-05-30 (bridge.stale_leads_count removed — it hit a
+    // dead nickstire query and was a permanent false P0; see the module).
+    expect(specs.length).toBeGreaterThanOrEqual(6);
     for (const s of specs) {
       // Probe names are dot-separated namespaces (e.g.
       // "legacy.scoreSnapshots"). Allow camelCase after the dot.
@@ -53,7 +55,7 @@ describe("data-source-health", () => {
 
   it("runs every probe and returns the documented summary shape", async () => {
     const summary = await runHealthProbes();
-    expect(summary.total).toBeGreaterThanOrEqual(7);
+    expect(summary.total).toBeGreaterThanOrEqual(6);
     expect(summary.total).toBe(summary.results.length);
     expect(summary.ok + summary.failed).toBe(summary.total);
     // empty is a subset of ok (probes that succeeded but returned zero rows)
