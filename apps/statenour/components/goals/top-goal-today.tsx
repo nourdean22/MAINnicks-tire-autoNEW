@@ -51,7 +51,7 @@ interface GoalRowSlim {
   openTaskCount: number;
 }
 
-interface TopGoalTodayProps {
+export interface TopGoalTodayProps {
   ladder: {
     DAY: GoalRowSlim[];
     WEEK: GoalRowSlim[];
@@ -104,7 +104,7 @@ function expectedProgressByNow(g: GoalRowSlim): number | null {
   return Math.round(fractionPassed * 100);
 }
 
-function pickTopGoal(ladder: TopGoalTodayProps["ladder"]): GoalRowSlim | null {
+export function pickTopGoal(ladder: TopGoalTodayProps["ladder"]): GoalRowSlim | null {
   for (const horizon of HORIZON_PRIORITY) {
     const candidates = (ladder[horizon] ?? []).filter(
       (g) => !g.pruneCandidate && g.progress < 100 && g.progress > 0,

@@ -52,7 +52,7 @@ interface GoalsHealthStripProps {
   };
 }
 
-type Pace = "ahead" | "on_track" | "behind" | "stalled" | "blank" | "done";
+export type Pace = "ahead" | "on_track" | "behind" | "stalled" | "blank" | "done";
 
 interface GoalDot {
   id: string;
@@ -63,7 +63,7 @@ interface GoalDot {
   paceGap: number | null;
 }
 
-function classifyPace(g: GoalRowSlim): Pace {
+export function classifyPace(g: GoalRowSlim): Pace {
   if (g.progress >= 100) return "done";
   if (g.progress === 0) return "blank";
   if (g.daysSinceActivity !== null && g.daysSinceActivity >= 14)

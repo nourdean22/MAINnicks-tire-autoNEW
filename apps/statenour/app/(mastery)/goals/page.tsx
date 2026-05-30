@@ -49,7 +49,6 @@ const MasteryPolyhedron = dynamic(
 );
 import { MasteryErrorView } from "@/components/mastery/mastery-error-view";
 import { MasterySkeleton } from "@/components/mastery/mastery-skeleton";
-import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 // Phase E (2026-05-18 PM) · OperatorPulse · trailing-axis + 7d shape +
 // dormant-goal drift. Mounts right under the header so the operator
 // sees the forward-looking story BEFORE the static ladder.
@@ -74,8 +73,8 @@ import { NickSidePane } from "@/components/mastery/nick-side-pane";
 // paced + planned. Self-fetches via GET /api/goals (independent of the
 // goalsSnapshot query that still feeds the header axes + missions rail).
 import { GoalBoard } from "@/components/goals/goal-board";
-import { NicksGoalsBrief } from "@/components/goals/nicks-goals-brief";
-import { TopGoalToday } from "@/components/goals/top-goal-today";
+import { GoalsHero } from "@/components/goals/goals-hero";
+import { GoalsStatsBand } from "@/components/goals/goals-stats-band";
 import { GoalsHealthStrip } from "@/components/goals/goals-health-strip";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE" | "UNSCOPED";
@@ -164,7 +163,7 @@ export default function GoalsPage() {
     <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         {/* Header · page title + axis badges */}
-        <Header axes={data.axes} pruneCandidates={data.pruneCandidates} />
+        <Header pruneCandidates={data.pruneCandidates} />
 
         {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb.
          *  Self-hides when ?missionId is absent · zero cost otherwise. */}
@@ -172,99 +171,58 @@ export default function GoalsPage() {
           <MissionBreadcrumb />
         </div>
 
-        {/* Wave AI · 2026-05-28 · Sam-Altman frame · the ONE thing that
-         *  matters most this week. NicksGoalsBrief reads /api/ai/goals-
-         *  brief (cached daily) and surfaces 2-3 sentences naming the
-         *  goal that should compound + the single concrete move. Self-
-         *  hides on null. Mirrors NicksRelationshipsBrief + NicksHomeBrief
-         *  voice + tone · goal-state version of those briefs. */}
+        {/* Sam redesign · 2026-05-29 · HERO · the answer the operator
+         *  opens /goals to get: the ONE thing that compounds (brief) +
+         *  the ONE goal that needs attention (top goal) + an honest
+         *  accountability line on whether that goal is moving. */}
         <div className="mt-6">
-          <NicksGoalsBrief />
+          <GoalsHero ladder={data.ladder} />
         </div>
 
-        {/* Wave AI Phase 2 · 2026-05-28 · TopGoalToday hero · deterministic
-         *  pick of the ONE goal that needs operator attention right now ·
-         *  3 numbers (current · should-be · target) + honest pace gap +
-         *  stalled-Nd badge + 1-tap next-60-min CTA to /missions. Self-
-         *  hides when no qualifying goal exists. */}
-        <div className="mt-4">
-          <TopGoalToday ladder={data.ladder} />
-        </div>
-
-        {/* Wave AI Phase 3 · 2026-05-28 · GoalsHealthStrip · 1-glance
-         *  board triage. Color-coded chip per active goal · pace-aware ·
-         *  rose for stalled · gold for behind · emerald for healthy ·
-         *  zinc for blank. Tap a chip → smooth-scrolls to that goal in
-         *  GoalBoard via #goal-<id>. Additive sibling to GoalBoard ·
-         *  never touches its 1410 LOC. Self-hides on empty. */}
+        {/* Sam redesign · 2026-05-29 · relevant-stats band · replaces the
+         *  3× redundant 8-axis render (header badges + sidebar list +
+         *  polyhedron-as-primary) with ONE decision band: trajectory
+         *  (climber/faller) · pace (on/behind/stalled) · the floor
+         *  (lowest axis · leverage). All re-derived from this snapshot. */}
         <div className="mt-3">
-          <GoalsHealthStrip ladder={data.ladder} />
+          <GoalsStatsBand axes={data.axes} ladder={data.ladder} />
         </div>
 
-        {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
-         *  Reads from /api/coach/events?surface=goals · displays active
-         *  coach events (prune-candidate today, more once other writers
-         *  migrate). Self-hides when zero events. Polls every 90s with
-         *  tab-visibility pause via usePollingFetch. */}
+        {/* Coach Channel surface · prune-candidate + drift events. */}
         <div className="mt-6">
           <CoachEventBanner surface="goals" />
         </div>
 
-        {/* Phase AAA (2026-05-19 AM) · Mastery Polyhedron · 8 vertices
-            extending from center proportional to each axis score. Tap a
-            vertex to focus that axis. A perfectly-balanced operator
-            produces a symmetric octahedron · imbalance dents the shape.
-            Identity moment for /goals · the first non-generic UI surface
-            in NOUR OS that says "this is Nour's OS, not anyone's." */}
-        <div className="mt-8">
-          <MasteryPolyhedron axes={data.axes} onAxisClick={onAxisClick} />
+        {/* Board triage · one chip per active goal · tap → scroll to its
+         *  row in GoalBoard below. Now sits directly above the board. */}
+        <div className="mt-6">
+          <GoalsHealthStrip ladder={data.ladder} />
         </div>
 
-        {/* Phase E (2026-05-18 PM) · OperatorPulse · surface-aware pulse
-            line · trailing-axis insight + 7d pace breakdown + oldest
-            dormant goal. Self-hides when nothing has signal. */}
-        <OperatorPulse surface="goals" className="mt-6 px-0 mx-0" />
-
-        {/* Mastery Layer Stage B adoption · 2026-05-26 · collapse deep-
-         *  dive bands (compound chain + recent insights) into a per-
-         *  surface drawer. MasteryPolyhedron + OperatorPulse + the
-         *  channel banners + GoalBoard stay above-fold (HERO). Deep-
-         *  dive context goes one tap away. Collapsed by default ·
-         *  self-fetching children stay dormant. */}
+        {/* The work · GoalBoard is now full-width (the right axis sidebar
+         *  was the 3rd redundant 8-axis render · folded into the band). */}
         <div className="mt-4">
+          <GoalBoard />
+        </div>
+
+        {/* Deep dive · everything that isn't a daily decision lives one
+         *  tap away: the 3D self-model (polyhedron) · operator pulse ·
+         *  this-week compound chain · recent insights. Collapsed by
+         *  default · the lazy 3D + self-fetching children stay dormant
+         *  until opened — so the page opens lighter than before too. */}
+        <div className="mt-8">
           <MasteryContextDrawer
             surface="goals"
-            label="Deep dive"
-            hint="compound chain · recent insights"
+            label="Self-model & deep dive"
+            hint="8-axis polyhedron · pulse · compound chain · insights"
           >
             <div className="space-y-6">
-              {/* Phase G (2026-05-18 PM) · CompoundChain · this week's chain ·
-                  which tasks moved which goals · grouped by axis. Reads as
-                  a narrative of progress · "this week · 12 tasks · 5 goals ·
-                  3 axes moved". Operator sees how the week actually compounded. */}
+              <MasteryPolyhedron axes={data.axes} onAxisClick={onAxisClick} />
+              <OperatorPulse surface="goals" className="px-0 mx-0" />
               <CompoundChain surface="goals" className="px-0 mx-0" />
-
-              {/* TRACK consolidation (2026-05-21) · recent AI-enriched task
-                  insights grouped by 8-axis · rehomed from the deleted /tasks
-                  TRACK tab. Same conceptual layer as the axis scores + ladder.
-                  Self-hides when empty. */}
               <RecentInsightsPanel />
             </div>
           </MasteryContextDrawer>
-        </div>
-
-        {/* Main grid · interactive goal board on left · missions +
-            mastery sidebar on right (collapses on mobile).
-            KommandoShell dismantle · Phase 2 (2026-05-21) · the
-            read-only <Ladder> was REPLACED by <GoalBoard> — the
-            relocated goal-authoring surface. Goals are now created,
-            coached, paced + planned right here instead of behind the
-            /tasks PLAN tab. The board self-fetches its own goal data;
-            the read-only missions rail + axis list stay (they read
-            from the page's goalsSnapshot query). */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-8">
-          <GoalBoard />
-          <Sidebar missions={data.missions} axes={data.axes} />
         </div>
 
         {/* Meta · footer · fetched timestamp */}
@@ -295,7 +253,7 @@ export default function GoalsPage() {
 
 // ── Header · 8 axis badges + page label ─────────────────────────────
 
-function Header({ axes, pruneCandidates }: { axes: AxisScore[]; pruneCandidates: number }) {
+function Header({ pruneCandidates }: { pruneCandidates: number }) {
   return (
     <header>
       <div className="flex items-baseline justify-between gap-4">
@@ -321,101 +279,14 @@ function Header({ axes, pruneCandidates }: { axes: AxisScore[]; pruneCandidates:
           </Link>
         ) : null}
       </div>
-      {/* Axis badges */}
-      {axes.length > 0 ? (
-        <div className="mt-6 flex flex-wrap gap-2">
-          {axes.map((a) => (
-            <AxisBadge key={a.domain} axis={a} />
-          ))}
-        </div>
-      ) : null}
     </header>
   );
 }
 
-function AxisBadge({ axis }: { axis: AxisScore }) {
-  const score = Math.round(axis.score * 10) / 10;
-  const tone =
-    score >= 7
-      ? "border-emerald-400/30 text-emerald-200"
-      : score >= 4
-      ? "border-white/15 text-white/80"
-      : "border-red-400/30 text-red-200";
-  const deltaStr =
-    axis.delta7d > 0
-      ? `↑${axis.delta7d.toFixed(1)}`
-      : axis.delta7d < 0
-      ? `↓${Math.abs(axis.delta7d).toFixed(1)}`
-      : "—";
-  return (
-    <div
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border ${tone} text-xs`}
-      title={`${axis.domain} · score ${score} · 7d ${deltaStr}`}
-    >
-      <span className="uppercase tracking-wider text-[10px] opacity-70">
-        {axis.domain}
-      </span>
-      <span className="font-medium tabular-nums">{score.toFixed(1)}</span>
-      <span className="opacity-60 text-[10px] tabular-nums">{deltaStr}</span>
-    </div>
-  );
-}
-
-// ── Sidebar · missions + recent activity ────────────────────────────
-
-// Operator-driven UX correction (2026-05-27): missions section
-// removed from /goals · operator's exact words: "the missions should
-// be on the tasks page with all the to do items put into the missions
-// or organized some way like that. Here, it doesn't do me no good."
-// /tasks already hosts <MissionScoreboard /> (task #15) which serves
-// the same operational purpose with richer per-mission signal
-// (progress · velocity · overdue · stale · deadline columns).
-// /goals now focuses on what /goals IS for: the 8-axis mastery model
-// + LifeGoals (rendered in the main GoalBoard, not in this sidebar).
-//
-// `missions` prop kept on the Sidebar interface so the caller's
-// `data.missions` plumbing stays type-stable · void-ed below to
-// silence unused-param lint.
-function Sidebar({ missions, axes }: { missions: MissionRow[]; axes: AxisScore[] }) {
-  void missions;
-  return (
-    <aside className="space-y-8">
-      {/* Mastery summary · compact list view */}
-      <section className="space-y-3">
-        <MasterySectionLabel label="8-axis mastery" />
-        {axes.length === 0 ? (
-          <p className="text-xs text-[var(--text-tertiary)]">No scores yet.</p>
-        ) : (
-          <ul className="space-y-2">
-            {axes.map((a) => (
-              <li
-                key={a.domain}
-                id={`axis-${a.domain}`}
-                className="flex items-center justify-between text-xs scroll-mt-20"
-              >
-                <span className="text-[var(--text-secondary)]">{a.domain}</span>
-                <span className="tabular-nums text-[var(--text-primary)]">
-                  {a.score.toFixed(1)}
-                  <span
-                    className={`ml-2 ${
-                      a.delta7d > 0
-                        ? "text-emerald-300"
-                        : a.delta7d < 0
-                        ? "text-red-300"
-                        : "text-[var(--text-tertiary)]"
-                    }`}
-                  >
-                    {a.delta7d > 0 ? "↑" : a.delta7d < 0 ? "↓" : "—"}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </aside>
-  );
-}
+// ── Page-local helpers removed in the 2026-05-29 Sam redesign:
+//   · AxisBadge — was the header 8-axis render (#1 of 3); cut.
+//   · Sidebar   — was the right-rail 8-axis list (#3 of 3); cut, board
+//     is now full-width. Both folded into <GoalsStatsBand>.
 
 function MissionCard({ mission }: { mission: MissionRow }) {
   return (
