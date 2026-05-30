@@ -57,6 +57,10 @@ import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { MasteryContextDrawer } from "@/components/mastery/mastery-context-drawer";
+// 2026-05-30 · the mastery leveling engine's face · every stat as an
+// RPG level card + overall-power hero. Reads the same character-sheet
+// the AI speaks in. Self-hides on error · honest Day-1 zero state.
+import { CharacterSheet } from "@/components/mastery/character-sheet";
 
 type Trend = "up" | "down" | "flat";
 
@@ -142,6 +146,13 @@ export default function ScoreboardPage() {
         <div className="mt-2">
           <MissionBreadcrumb />
         </div>
+
+        {/* 2026-05-30 · Mastery leveling engine · the operator's character
+         *  sheet — every stat as a level + an overall-power total. Mounted
+         *  high (right under the narrative + pulse) because it's the
+         *  "leveling up" payoff the operator asked for · self-hides on a
+         *  transient query error so it can never break the board. */}
+        <CharacterSheet />
 
         {/* Intelligence Dispersal Wave 1.5 (2026-05-24) · Nick shop
             health from the nickstire master_report bridge. Self-hides
