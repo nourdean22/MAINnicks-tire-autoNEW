@@ -19,7 +19,7 @@
 
 import { prisma } from "@/lib/prisma";
 
-export type FeedSource = "dump" | "reflection" | "situation" | "decision";
+export type FeedSource = "dump" | "reflection" | "situation" | "decision" | "retro";
 
 export interface FeedEntry {
   id: string;
@@ -68,7 +68,7 @@ export async function buildJournalFeed(args: {
   cutoff.setDate(cutoff.getDate() - days);
   const cutoffStr = cutoff.toISOString().split("T")[0];
 
-  const [brainDumps, reflections, situationLogs, decisions] = await Promise.all([
+  const [brainDumps, reflections, situationLogs, decisions, missionRetros] = await Promise.all([
     sourceFilter === "all" || sourceFilter === "dump"
       ? prisma.brainDump
           .findMany({
@@ -106,6 +106,24 @@ export async function buildJournalFeed(args: {
       ? prisma.decisionReplay
           .findMany({
             where: { createdAt: { gte: cutoff } },
+            orderBy: { createdAt: "desc" },
+            take: limit,
+          })
+          .catch((): never[] => [])
+      : Promise.resolve([]),
+
+    // 2026-05-29 · 5th source · mission_retro BrainMemory rows (written
+    // on mission completion). They were embedded + now recall-surfaced
+    // in chat, but /journal — the operator's life-review surface — never
+    // showed them. Same merge-in-memory pattern as the other 4 silos.
+    sourceFilter === "all" || sourceFilter === "retro"
+      ? prisma.brainMemory
+          .findMany({
+            where: {
+              category: "mission_retro",
+              deletedAt: null,
+              createdAt: { gte: cutoff },
+            },
             orderBy: { createdAt: "desc" },
             take: limit,
           })
@@ -208,6 +226,34 @@ export async function buildJournalFeed(args: {
     });
   }
 
+  for (const m of missionRetros) {
+    if (typeFilter && typeFilter !== "all" && typeFilter !== "retro") continue;
+    const meta = (m.metadata ?? {}) as Record<string, unknown>;
+    const missionTitle =
+      typeof meta.missionTitle === "string" ? meta.missionTitle : "";
+    const retroText =
+      typeof meta.retroText === "string" ? meta.retroText : m.content;
+    feed.push({
+      id: m.id,
+      source: "retro",
+      createdAt: m.createdAt,
+      date: m.createdAt.toISOString().split("T")[0],
+      entryType: "retro",
+      title: (missionTitle ? `Mission retro · ${missionTitle}` : retroText).slice(
+        0,
+        120,
+      ),
+      body: retroText,
+      summary: missionTitle || null,
+      mood: null,
+      domains: ["mission"],
+      linkedTopics: [],
+      tasksCreated: typeof meta.taskCount === "number" ? meta.taskCount : 0,
+      confidence: m.confidence,
+      raw: m as unknown as Record<string, unknown>,
+    });
+  }
+
   feed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   const entries = feed.slice(0, limit);
 
@@ -220,6 +266,7 @@ export async function buildJournalFeed(args: {
       reflection: feed.filter((e) => e.source === "reflection").length,
       situation: feed.filter((e) => e.source === "situation").length,
       decision: feed.filter((e) => e.source === "decision").length,
+      retro: feed.filter((e) => e.source === "retro").length,
     },
     byType: {
       raw: feed.filter((e) => e.entryType === "raw").length,

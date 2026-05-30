@@ -639,7 +639,7 @@ function JournalPageInner() {
       {/* ── Source filter row ── */}
       <FilterChipRow<SourceKey>
         label="Source"
-        keys={["all", "dump", "reflection", "situation", "decision"] as const}
+        keys={["all", "dump", "reflection", "situation", "decision", "retro"] as const}
         active={source}
         onChange={setSource}
         counts={
@@ -650,6 +650,7 @@ function JournalPageInner() {
                 reflection: counts.bySource.reflection ?? 0,
                 situation: counts.bySource.situation ?? 0,
                 decision: counts.bySource.decision ?? 0,
+                retro: counts.bySource.retro ?? 0,
               }
             : undefined
         }
