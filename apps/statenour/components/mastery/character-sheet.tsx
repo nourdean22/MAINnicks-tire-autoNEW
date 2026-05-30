@@ -23,6 +23,7 @@
  * page). Stats open at a starting level seeded from your baseline self-
  * rating and climb as work lands, so the board reads as who you are today.
  */
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc/client";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BRANCHES } from "@/lib/mastery/config";
@@ -48,6 +49,35 @@ export function CharacterSheet() {
     staleTime: 60_000,
   });
   const stats = (query.data as StatLevel[] | undefined) ?? [];
+
+  // 2026-05-30 · mobile · collapsible branch sections. 33 stats in one phone
+  // column is a ~4-screen scroll; folding a branch (persisted to localStorage)
+  // cuts it. Default = all expanded (no first-visit regression). These hooks
+  // run BEFORE the early returns below so hook order stays stable.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("nour:stats:collapsed-branches:v1");
+      if (raw) setCollapsed(new Set(JSON.parse(raw) as string[]));
+    } catch {
+      /* corrupt/unavailable storage — stay all-expanded */
+    }
+  }, []);
+  const toggleBranch = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(
+          "nour:stats:collapsed-branches:v1",
+          JSON.stringify([...next]),
+        );
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
 
   // Cold load: render nothing (the scoreboard already has plenty above).
   if (query.isLoading && stats.length === 0) return null;
@@ -142,22 +172,41 @@ export function CharacterSheet() {
       {BRANCHES.map((br) => {
         const inBranch = stats.filter((s) => s.branch === br.key);
         if (inBranch.length === 0) return null;
+        const isCollapsed = collapsed.has(br.key);
         return (
           <div key={br.key} className="space-y-2 pt-1">
-            <div className="flex items-baseline gap-2">
+            {/* Header doubles as a fold toggle · ≥44px tap target · state
+                persists in localStorage · cuts the mobile scroll. */}
+            <button
+              type="button"
+              onClick={() => toggleBranch(br.key)}
+              aria-expanded={!isCollapsed}
+              className="flex w-full items-center gap-2 min-h-[44px] text-left"
+            >
               <span className="text-sm" aria-hidden>
                 {br.icon}
               </span>
               <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/55">
                 {br.label}
               </span>
-              <span className="text-[10px] text-white/30">· {br.blurb}</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
-              {inBranch.map((s) => (
-                <StatCard key={s.key} stat={s} />
-              ))}
-            </div>
+              <span className="truncate text-[10px] text-white/30">· {br.blurb}</span>
+              <span className="ml-auto shrink-0 text-[10px] tabular-nums text-white/30">
+                {inBranch.length}
+              </span>
+              <span
+                className="shrink-0 w-3 text-center text-[11px] text-white/40"
+                aria-hidden
+              >
+                {isCollapsed ? "▸" : "▾"}
+              </span>
+            </button>
+            {isCollapsed ? null : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+                {inBranch.map((s) => (
+                  <StatCard key={s.key} stat={s} />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
