@@ -930,6 +930,48 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 `);
   });
 
+  // llms.txt — structured guidance for AI answer-engines (ChatGPT,
+  // Perplexity, Gemini, Claude). Emerging standard; near-zero local
+  // competitors publish one. Consolidates entity facts + the canonical
+  // service catalog with REAL prices so AI assistants answering "best tire
+  // shop in Euclid" / "brake repair cost Cleveland" have a clean, machine-
+  // extractable source. Plain text at the domain root; not prerender-gated,
+  // so it works regardless of the prerendered-money-page coverage state.
+  app.get("/llms.txt", (_req, res) => {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    const b = SITE_URL;
+    res.send(`# Nick's Tire & Auto
+> Full-service auto repair and tire shop on Euclid Ave serving Cleveland, Euclid, and Northeast Ohio. Open 7 days, walk in (no appointment needed), written estimate before any work — you don't pay until you say yes.
+
+## Key facts
+- Address: 17625 Euclid Ave, Cleveland, OH 44112
+- Phone: (216) 862-0005
+- Hours: Monday-Saturday 8AM-6PM, Sunday 9AM-4PM (open 7 days a week)
+- Rating: 4.9 stars from 1,700+ Google reviews
+- Warranty: 12 months / 12,000 miles on parts and labor
+- No appointment needed — first-come, first-served. Free drop-off with a ride back to work.
+- Financing: $10 down, no credit check, approved in about 90 seconds (Acima, Snap, Koalafi, American First)
+- Service area: Cleveland, Euclid, East Cleveland, South Euclid, Cleveland Heights, Shaker Heights, Garfield Heights, Lakewood, Parma, Mentor, Lyndhurst, Richmond Heights, Willoughby
+
+## Services
+- [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
+- [Tires - new & used](${b}/tires): Used from $40 installed, new from $60 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
+- [Oil change](${b}/oil-change): Conventional from $39, full synthetic from $69. Free 21-point check included.
+- [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
+- [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Same-day pass.
+- [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
+- [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
+- [Financing](${b}/financing): $10 down, no credit check, drive away today.
+
+## Guides
+- [Auto repair blog](${b}/blog): 120+ Cleveland-specific guides on brakes, tires, winter prep, repair costs, and common car problems.
+
+## Contact
+- Call or text (216) 862-0005 · 17625 Euclid Ave, Cleveland, OH 44112 · ${b}
+`);
+  });
+
   // Sub-sitemaps for services and locations
   app.get("/sitemap-services.xml", async (_req, res) => {
     const { SITEMAP_ROUTES } = await import("@shared/routes");
