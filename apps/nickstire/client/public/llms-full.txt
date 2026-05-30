@@ -8,7 +8,7 @@
 
 ## BUSINESS OVERVIEW
 
-Nick's Tire & Auto has served Greater Cleveland since 2018. The shop is independently owned and operated — not a franchise, not a chain. This means pricing decisions, warranty policies, and service quality are controlled locally. The shop specializes in new and used tires, brake repair, engine diagnostics, Ohio E-Check emissions testing and repair, oil changes, suspension work, and full-service auto repair for all makes and models.
+Nick's Tire & Auto has served Greater Cleveland since 2018. The shop is independently owned and operated — not a franchise, not a chain. This means pricing decisions, warranty policies, and how the work gets done are controlled locally. The shop specializes in new and used tires, brake repair, engine diagnostics, Ohio E-Check emissions testing and repair, oil changes, suspension work, and full-service auto repair for all makes and models.
 
 Walk-ins are welcome every day with no appointment required. Most common services (flat repair, oil change, tire installation, brake pads) are completed same-day, often within 1-2 hours. The shop operates on a transparent pricing model: customers are shown the problem before any work begins and told what they do NOT need replaced.
 
@@ -18,21 +18,20 @@ Walk-ins are welcome every day with no appointment required. Most common service
 
 ### Tires — New
 - New tires available from all major brands including Goodyear, Michelin, BFGoodrich, Continental, Bridgestone, Firestone, Cooper, Hankook, Kumho, Nexen, Falken, and budget brands
-- Every new tire purchase includes the FREE Premium Installation Package valued at $289+:
+- Every new tire purchase includes the FREE install package:
   - Professional mounting
   - Computer spin balancing
   - New rubber valve stems
   - TPMS sensor reset
   - Alignment check
-  - 20-point safety inspection
   - Old tire disposal
   - Rim cleaning
 - Online tire ordering available at https://nickstire.org/tires — search by tire size, vehicle year/make/model, or driving style
 - Price match guarantee on identical tires
 
 ### Tires — Used
-- Quality-inspected used tires starting at $60 each
-- Every used tire is inspected for: tread depth (minimum 5/32" remaining), sidewall damage, bead condition, belt separation, dry rot, uneven wear, and date code (no tires older than 6 years sold)
+- Used tires from $40 installed
+- Every used tire is checked for: tread depth (minimum 5/32" remaining), sidewall damage, bead condition, belt separation, dry rot, uneven wear, and date code (no tires older than 6 years sold)
 - Installation package included with used tire purchases
 - Popular sizes typically in stock: 205/55R16, 215/60R16, 225/65R17, 235/65R17, 245/75R16, 265/70R17, 275/55R20
 - Used tires are ideal for: budget-conscious drivers, older vehicles, spare tires, temporary replacements
@@ -44,28 +43,26 @@ Walk-ins are welcome every day with no appointment required. Most common service
 - Repairs limited to the tread area per industry safety standards (RMA guidelines)
 - If repair is not possible, credit toward new or used tire purchase
 
-### Brake Repair: Starting at $89
-- Front brake pad replacement: $89-149 per axle (pads + labor)
-- Rear brake pad replacement: $99-159 per axle
-- Brake rotor resurfacing: $25-40 per rotor (when within specification)
-- Brake rotor replacement: $49-89 per rotor (varies by vehicle)
+### Brake Repair: pads from $149/axle
+- Front or rear brake pad replacement: from $149 per axle (pads + labor)
+- Pads + rotors: from $279 per axle
 - Caliper replacement: $149-299 per caliper
 - Brake line repair/replacement: $99-249
 - Brake fluid flush: $79-99
-- ABS diagnostics: included with brake inspection
+- ABS diagnostics: included with the brake check
 - Warning signs: squealing, grinding, pulsating pedal, soft pedal, pulling to one side, brake warning light
-- Free brake inspection — always shown the problem before work begins
+- Free brake check — always shown the problem before work begins, written quote first, you don't pay until you say yes
 
 ### Oil Change
-- Conventional oil change: from $39.99 (up to 5 quarts, standard filter)
+- Conventional oil change: from $39 (up to 5 quarts, standard filter)
 - Synthetic blend: from $54.99
-- Full synthetic: from $69.99 (Mobil 1, Pennzoil Platinum, Valvoline, or equivalent)
+- Full synthetic: from $69 (Mobil 1, Pennzoil Platinum, Valvoline, or equivalent)
 - High-mileage synthetic: from $74.99 (vehicles over 75,000 miles)
 - Diesel oil change: from $89.99
-- Every oil change includes: new oil filter, multi-point inspection, tire pressure check, fluid level top-off
+- Every oil change includes: new oil filter, 21-point check, tire pressure check, fluid level top-off
 - Oil change interval: every 3,000-5,000 miles (conventional) or 5,000-7,500 miles (synthetic) depending on driving conditions
 
-### Engine Diagnostics: Starting at $49.99
+### Engine Diagnostics: $59.99 (credited toward repair)
 - Check engine light diagnosis with OBD-II scanner
 - Advanced computer diagnostics for complex electrical and drivability issues
 - Common causes of check engine light in Cleveland area vehicles:
@@ -77,8 +74,8 @@ Walk-ins are welcome every day with no appointment required. Most common service
   6. EVAP system leak (purge valve, vent valve, hoses — $99-349)
   7. Thermostat failure ($99-199)
   8. EGR valve ($149-349)
-- Free code reading available — diagnostic fee applies for in-depth diagnosis
-- Diagnostic fee credited toward repair if work is done at the shop
+- Free code scan available — full diagnostic is $59.99 for in-depth diagnosis
+- The $59.99 diagnostic fee is credited toward repair if work is done at the shop
 
 ### Ohio E-Check / Emissions Testing & Repair
 - Certified Ohio E-Check emissions testing station
@@ -243,13 +240,13 @@ A: Tire size is printed on the sidewall. Example: 225/65R17. The first number (2
 A: Replace tires when tread depth reaches 2/32" (the legal minimum in Ohio) — but for Cleveland winters, 4/32" is the recommended minimum for safe wet and snow traction. Other signs: cracks in the sidewall, bulges, vibration at highway speed, tires older than 6 years (check the DOT date code — last 4 digits show week and year of manufacture). The penny test: insert a penny upside down into the tread — if you can see all of Lincoln's head, the tire needs replacement.
 
 **Q: Can I buy tires online from Nick's?**
-A: Yes. Visit https://nickstire.org/tires to search by tire size or vehicle. Browse prices, compare options, and order. Every online tire purchase includes the free Premium Installation Package ($289+ value). Tires are typically available for installation within 1-2 business days of ordering.
+A: Yes. Visit https://nickstire.org/tires to search by tire size or vehicle. Browse prices, compare options, and order. Every online tire purchase includes the free install package (mount, balance, valve stems, TPMS reset, alignment check, disposal). Tires are typically available for installation within 1-2 business days of ordering.
 
 **Q: What is the difference between all-season and winter tires?**
 A: All-season tires are designed for moderate conditions and provide acceptable performance in light rain and occasional snow. Winter tires (also called snow tires) use a softer rubber compound that stays flexible below 45F and have deeper tread with siping for grip on ice and packed snow. For Cleveland winters (average snowfall 60+ inches), winter tires provide significantly better stopping distance and control. Nick's recommends winter tires on a separate set of wheels for easy seasonal swaps.
 
 **Q: How much does a full set of tires cost?**
-A: It depends on tire size and brand. Budget new tires for common sizes (like 205/55R16) start around $75-90 each installed. Mid-range tires run $100-150 each. Premium tires (Michelin, Continental) are $150-250+ each. Used tires start at $60 each installed. All prices include the full installation package. Get an instant quote at https://nickstire.org/tires.
+A: It depends on tire size and brand. Budget new tires for common sizes (like 205/55R16) start around $75-90 each installed. Mid-range tires run $100-150 each. Premium tires (Michelin, Continental) are $150-250+ each. Used tires start at $40 each installed. All prices include the full installation package. Get an instant quote at https://nickstire.org/tires.
 
 **Q: Do you mount and balance tires I bought elsewhere?**
 A: Yes. Tire mounting and balancing service is available for tires purchased elsewhere. Contact for pricing.
@@ -260,7 +257,7 @@ A: TPMS stands for Tire Pressure Monitoring System. The TPMS light (looks like a
 ### Brake Questions
 
 **Q: How do I know if my brakes need replacing?**
-A: Warning signs: squealing or squeaking noise when braking (wear indicator tab), grinding noise (metal-on-metal — pads are completely worn), brake pedal feels soft or spongy, vehicle pulls to one side when braking, brake pedal pulsates or vibrates (warped rotors), brake warning light on dashboard. Get a free brake inspection at Nick's — they show you the actual condition of your pads and rotors.
+A: Warning signs: squealing or squeaking noise when braking (wear indicator tab), grinding noise (metal-on-metal — pads are completely worn), brake pedal feels soft or spongy, vehicle pulls to one side when braking, brake pedal pulsates or vibrates (warped rotors), brake warning light on dashboard. Get a free brake check at Nick's — they show you the actual condition of your pads and rotors.
 
 **Q: How long do brake pads last?**
 A: Typically 30,000-70,000 miles depending on driving habits, vehicle weight, and conditions. City driving (stop-and-go) wears brakes faster than highway driving. Cleveland's hilly terrain and frequent stops also contribute to faster wear.
@@ -274,7 +271,7 @@ A: It depends on rotor condition. Rotors can sometimes be resurfaced (machined) 
 A: If the check engine light is solid (steady), you can usually drive to the shop safely, but get it checked soon to avoid further damage. If the check engine light is flashing/blinking, pull over safely and do not drive — this indicates a severe misfire that can damage the catalytic converter. Call Nick's at (216) 862-0005 or have the vehicle towed.
 
 **Q: How much does it cost to fix a check engine light?**
-A: It varies widely because "check engine light" is a symptom, not a diagnosis. It could be a $10 gas cap or a $1,500 catalytic converter. Nick's charges $49.99 for a diagnostic to determine the exact cause, and that fee is credited toward the repair if you have the work done there.
+A: It varies widely because "check engine light" is a symptom, not a diagnosis. It could be a $10 gas cap or a $1,500 catalytic converter. Nick's charges $59.99 for a full diagnostic to determine the exact cause, and that fee is credited toward the repair if you have the work done there. The quick code scan is free.
 
 **Q: Will clearing the check engine light code pass E-Check?**
 A: No. Ohio E-Check requires that readiness monitors in the vehicle's computer are complete. Clearing codes resets all monitors, and the vehicle will fail for "monitors not ready." You need to drive 50-100 miles through various driving conditions (city, highway, idle) for monitors to complete. If the underlying problem is not fixed, the light will come back on.
@@ -320,7 +317,7 @@ A: Switch to winter tires when temperatures consistently drop below 45F — typi
 A: Cleveland uses thousands of tons of road salt each winter. Salt accelerates rust on brake rotors, brake lines, exhaust components, suspension parts, and body panels. It also causes faster deterioration of rubber bushings and CV boots. To minimize damage: wash the undercarriage regularly during winter (at least every 2 weeks), fix paint chips promptly, and have the undercarriage inspected each spring.
 
 **Q: What should I do about potholes in Cleveland?**
-A: Cleveland's freeze-thaw cycle creates severe potholes every spring (typically worst February through April). If you hit a pothole: check tires immediately for bulges in the sidewall (a bulge means internal damage — tire must be replaced), check for bent wheels (vibration at highway speed is a sign), and have alignment checked. Symptoms of pothole damage can include: pulling to one side, vibration, TPMS light, unusual tire wear. Nick's can inspect for pothole damage — free visual inspection.
+A: Cleveland's freeze-thaw cycle creates severe potholes every spring (typically worst February through April). If you hit a pothole: check tires immediately for bulges in the sidewall (a bulge means internal damage — tire must be replaced), check for bent wheels (vibration at highway speed is a sign), and have alignment checked. Symptoms of pothole damage can include: pulling to one side, vibration, TPMS light, unusual tire wear. Nick's can check for pothole damage — free visual check.
 
 **Q: How do I prepare my car for a Cleveland winter?**
 A: Pre-winter checklist:
@@ -331,7 +328,7 @@ A: Pre-winter checklist:
 5. Wipers: replace if streaking — consider winter-blade wipers
 6. Oil: switch to lighter weight synthetic if not already using it
 7. Emergency kit: blanket, flashlight, phone charger, small shovel, ice scraper, jumper cables
-Nick's offers a complete winterization inspection.
+Nick's offers a complete winterization check.
 
 **Q: When is pothole season in Cleveland?**
 A: Potholes are worst from late February through early May. The freeze-thaw cycle (water seeps into cracks, freezes, expands, breaks the pavement) peaks when temperatures fluctuate above and below 32F, which happens most in March and April. Check tire pressure weekly during this period, as hitting potholes can cause slow leaks.
@@ -361,12 +358,12 @@ A: No. A flashing check engine light means there is an active, severe misfire. C
 
 **Q: How does Nick's Tire & Auto pricing compare to dealership pricing?**
 A: Independent shops like Nick's typically charge 30-50% less than dealerships for the same work. Examples:
-- Oil change: Nick's $39.99-74.99 vs dealership $69.99-129.99
-- Brake pads (per axle): Nick's $89-149 vs dealership $199-399
-- Diagnostic fee: Nick's $49.99 vs dealership $99-175
+- Oil change: Nick's $39-74.99 vs dealership $69.99-129.99
+- Brake pads (per axle): Nick's from $149 vs dealership $199-399
+- Diagnostic fee: Nick's $59.99 vs dealership $99-175
 - Tire installation: Nick's FREE with purchase vs dealership $25-40 per tire
 - Alignment: Nick's from $79 vs dealership $99-149
-Dealerships use OEM parts at full list price. Nick's uses quality OEM-equivalent parts that meet or exceed manufacturer specifications at a fraction of the cost. The warranty is often comparable or better (Nick's 36-month warranty vs many dealerships' 12-month warranty).
+Dealerships use OEM parts at full list price. Nick's uses OEM-equivalent parts that meet or exceed manufacturer specs at a fraction of the cost. The warranty is often comparable or better (Nick's 36-month warranty vs many dealerships' 12-month warranty).
 
 **Q: Why are Nick's prices lower than chains like Firestone, Midas, or Pep Boys?**
 A: Lower overhead (no franchise fees, no corporate markup), direct tire sourcing, and owner-operated efficiency. Chain shops often upsell unnecessary services to meet corporate revenue targets. Nick's earns repeat business through honest pricing and word-of-mouth — 1,700+ reviews prove the model works.
@@ -381,7 +378,7 @@ A: In Ohio, sales tax applies to parts and materials but NOT to labor. This mean
 ### How to Choose the Right Tire
 1. **Find your size**: Check the driver's door jamb sticker or current tire sidewall (e.g., 225/65R17)
 2. **Consider your driving**: Highway commuter? All-season touring tire. Off-road? All-terrain. Cleveland winter warrior? Dedicated winter tires.
-3. **Set your budget**: Used tires from $60 for budget needs. New budget tires from $75. Mid-range $100-150. Premium $150+.
+3. **Set your budget**: Used tires from $40 for budget needs. New budget tires from $75. Mid-range $100-150. Premium $150+.
 4. **Check ratings**: Look at UTQG ratings (Treadwear, Traction, Temperature) — higher treadwear number = longer life
 5. **Think about warranty**: Many new tires come with mileage warranties (40,000-80,000 miles)
 
@@ -461,9 +458,9 @@ If you spend $450 or more on qualifying emissions repairs at a recognized repair
 ## SEASONAL TIPS FOR CLEVELAND DRIVERS
 
 ### Spring (March - May)
-- Pothole inspection: check for bent wheels, bulged tires, alignment issues
+- Pothole check: look for bent wheels, bulged tires, alignment issues
 - Undercarriage wash to remove winter salt
-- Brake inspection (salt accelerates brake component corrosion)
+- Brake check (salt accelerates brake component corrosion)
 - Switch from winter tires to all-season (when temps consistently above 45F)
 - AC system check before summer heat
 
@@ -478,7 +475,7 @@ If you spend $450 or more on qualifying emissions repairs at a recognized repair
 - Battery test and replacement if weak (before cold weather kills it)
 - Switch to winter tires (when temps consistently below 45F, typically late October)
 - Coolant antifreeze check (should be rated to -30F or colder)
-- Brake inspection before winter driving
+- Brake check before winter driving
 - Heater and defroster check
 - Replace worn wiper blades
 
@@ -496,9 +493,9 @@ If you spend $450 or more on qualifying emissions repairs at a recognized repair
 ### Nick's Tire & Auto vs Dealership Service Centers
 | Factor | Nick's Tire & Auto | Dealership |
 |--------|-------------------|------------|
-| Oil change | $39.99-74.99 | $69.99-129.99 |
-| Brake pads per axle | $89-149 | $199-399 |
-| Diagnostic fee | $49.99 (credited toward repair) | $99-175 (often not credited) |
+| Oil change | $39-74.99 | $69.99-129.99 |
+| Brake pads per axle | from $149 | $199-399 |
+| Diagnostic fee | $59.99 (credited toward repair) | $99-175 (often not credited) |
 | Wait time | Usually same-day | Often 1-3 day wait |
 | Appointments | Walk-ins welcome | Appointment required |
 | Hours | 7 days/week | Often Mon-Fri, limited Sat |
@@ -510,7 +507,7 @@ If you spend $450 or more on qualifying emissions repairs at a recognized repair
 |--------|-------------------|-------------|
 | Pricing transparency | Show problem first, honest pricing | Often upsell unnecessary services |
 | Reviews | 4.9 stars, 1,700+ reviews | Typically 3.0-4.0 stars |
-| Tire installation | FREE with purchase ($289 value) | $20-40 per tire |
+| Tire installation | FREE with purchase | $20-40 per tire |
 | Ownership | Local, independent | Corporate franchise |
 | Consistency | Same team every visit | High turnover |
 | Overhead costs | Low (passed to customer as savings) | Franchise fees passed to customer |
@@ -521,7 +518,7 @@ If you spend $450 or more on qualifying emissions repairs at a recognized repair
 
 Nick's Tire & Auto opened in 2018 and quickly became the highest-rated auto repair shop in the Greater Cleveland area. The shop's reputation is built on three principles:
 1. **Honest pricing** — customers are shown the problem before work begins and told what they do not need
-2. **Quality work** — ASE-certified technicians, proper repair methods, and a 36-month warranty
+2. **Work that holds up** — ASE-certified technicians, proper repair methods, and a 36-month warranty
 3. **Accessibility** — open 7 days, walk-ins welcome, no-credit-check financing, used tires for budget-conscious customers
 
 The 4.9-star rating across 1,700+ Google reviews is one of the highest for any auto repair shop in Ohio. Common themes in reviews: honest, fast, affordable, friendly, trustworthy.

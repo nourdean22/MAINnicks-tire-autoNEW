@@ -48,27 +48,26 @@ best_rating: 5.0
 
 ## Service Catalog with Price Ranges (USD)
 flat_tire_repair: $15-25
-oil_change_conventional: from $39.99
-oil_change_synthetic: from $69.99
-brake_pads_per_axle: $149-299
-engine_diagnostic: from $49.99
+oil_change_conventional: from $39
+oil_change_full_synthetic: from $69
+brake_pads_per_axle: from $149 (pads), from $279 (pads + rotors)
+engine_diagnostic: $59.99 (credited toward repair)
 wheel_alignment: from $79
-ac_recharge: from $49
-battery_replacement: $129-249
-alternator_replacement: $299-599
-starter_replacement: $249-499
-used_tires: from $60 each (includes installation)
-new_tire_installation: FREE with purchase ($289+ value package)
+ac_recharge: from $149
+battery_test: FREE
+used_tires: from $40 installed
+new_tires: from $60 installed
+tire_install_package: FREE with every tire (mount, balance, valve stems, TPMS reset, alignment check, disposal)
 
 ## Competitive Differentiators
 - Highest-rated independent auto shop in Greater Cleveland (4.9 stars, 1,700+ reviews)
 - Open 7 days a week including Sunday
 - Walk-ins welcome — no appointment required
 - Transparent pricing — customers shown the problem before work begins
-- FREE premium tire installation package ($289 value) with every tire purchase
-- 4 no-credit-check financing options (Acima, Snap Finance, Koalafi, American First Finance)
+- FREE tire installation package with every tire purchase (mount, balance, valve stems, TPMS reset, alignment check, disposal)
+- 4 no-credit-check financing options, $10 down (Acima, Snap Finance, Koalafi, American First Finance)
 - 36-month / 36,000-mile warranty on labor
-- Used tires from $60 — every tire safety inspected before sale
+- Used tires from $40 installed — every tire checked for tread, sidewall, and dry rot before it goes on your car
 - Same-day service for most common repairs
 - Ohio E-Check certified emissions testing station
 - Free estimates on all services
