@@ -16,6 +16,10 @@
 import { Link } from "wouter";
 import PageLayout from "@/components/PageLayout";
 import InternalLinks from "@/components/InternalLinks";
+// wave-2-2026-05-30 (SEO-AEO parity) · /services hub (1,791 imp/90d)
+// carried LocalBusiness + AggregateRating but no FAQPage schema — the
+// AI-answer-engine citation surface its service-page peers already have.
+import FAQPageSchema, { SERVICES_OVERVIEW_FAQ } from "@/components/FAQPageSchema";
 import { SEOHead, Breadcrumbs, trackPhoneClick } from "@/components/SEO";
 import { Phone, ChevronRight, Wrench, Shield, Gauge, Zap, Droplets, ThermometerSun, Star, MapPin, Snowflake, Settings, Battery, Wind, Thermometer, ClipboardCheck, Cable, CircleDot } from "lucide-react";
 import { BUSINESS } from "@shared/business";
@@ -235,6 +239,36 @@ export default function ServicesOverview() {
           </div>
         </div>
       </section>
+
+      {/* FAQ — AEO + featured-snippet surface · wave-2-2026-05-30.
+          Native <details> renders the Q&A into the prerendered HTML
+          (crawlable, no hydration); FAQPageSchema emits the matching
+          FAQPage JSON-LD per Google's spec. Targets the cross-service
+          "auto repair Cleveland" intent this hub page ranks for. */}
+      <section className="py-16 lg:py-20 border-t border-border/30">
+        <div className="container max-w-3xl">
+          <span className="font-mono text-primary text-sm tracking-wide">Common Questions</span>
+          <h2 className="font-bold text-3xl lg:text-4xl text-foreground tracking-tight mt-3 mb-8">
+            CLEVELAND AUTO REPAIR — STRAIGHT ANSWERS
+          </h2>
+          <div className="space-y-3">
+            {SERVICES_OVERVIEW_FAQ.map((item) => (
+              <details
+                key={item.q}
+                className="group border border-border/40 rounded-lg p-5 bg-card/40 [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold text-foreground">
+                  {item.q}
+                  <ChevronRight className="w-4 h-4 text-primary shrink-0 transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-3 text-foreground/70 leading-relaxed text-sm">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+      {/* JSON-LD mirrors the visible Q&A above (Google FAQPage spec). */}
+      <FAQPageSchema qa={SERVICES_OVERVIEW_FAQ} />
 
       {/* CTA Section */}
       <section className="py-16 lg:py-20">

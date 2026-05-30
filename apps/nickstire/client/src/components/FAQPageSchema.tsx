@@ -177,3 +177,39 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
     a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $40 installed.",
   },
 ];
+
+// wave-2-2026-05-30 (SEO-AEO parity) · broad auto-repair FAQ for the
+// /services hub (2nd-highest-impression page, 1,791 imp/90d, had no
+// FAQPage schema). Answers the cross-service "auto repair Cleveland"
+// intent — appointment, estimates, makes, financing, area, speed,
+// payment. Voice: Caregiver + Everyman · concrete · first-person.
+export const SERVICES_OVERVIEW_FAQ: FAQItem[] = [
+  {
+    q: "Do I need an appointment for auto repair?",
+    a: "No · we're first-come-first-served 7 days a week. Walk in or drop off and we'll text you when it's ready. Calling ahead at (216) 862-0005 just lets us have the right parts staged.",
+  },
+  {
+    q: "Are your repair estimates free?",
+    a: "Yes · the check is free and you get a written quote before any wrench moves. You don't pay until you say yes. No diagnostic-fee games, no surprise line items at pickup.",
+  },
+  {
+    q: "What kinds of cars do you work on?",
+    a: "All makes and models — domestic, import, and European (BMW, Mercedes, Audi, VW, Volvo, and more). Cars, trucks, SUVs, and fleet vehicles. We stock or source OE-spec parts and reset your dashboard sensors after service.",
+  },
+  {
+    q: "Do you offer financing for repairs?",
+    a: "Yes · $10 down, no credit check, approved in about 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most customers approved $500–$5,000 · soft pull only, no FICO ding. Drive away today, pay over time.",
+  },
+  {
+    q: "What areas do you serve?",
+    a: "We're on Euclid Ave and serve all of Northeast Ohio — Cleveland, Euclid, Parma, Lakewood, Cleveland Heights, East Cleveland, Lyndhurst, Shaker Heights, and the neighborhoods between. 17625 Euclid Ave, Cleveland OH 44112.",
+  },
+  {
+    q: "How fast can you fix my car?",
+    a: "Most repairs are same-day if you drop off before mid-morning. Quick jobs (oil, flat repair, battery, brakes) are often done while you wait. We'll give you an honest time estimate with the written quote.",
+  },
+  {
+    q: "What payment methods do you accept?",
+    a: "Cash, Visa, Mastercard, Discover, American Express, and debit. Plus the $10-down financing programs (Acima, Snap, Koalafi, American First) if you'd rather pay over time. No-credit-check options approved on the spot.",
+  },
+];
