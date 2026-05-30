@@ -199,12 +199,18 @@ async function computeCommandData() {
     metricsPayload?.intelligence?.shopPulse?.thisWeek?.walkRate ??
     metricsPayload?.walkRate ??
     0;
+  // shopData is the LIVE bridge ShopSnapshot (keys urgentCount /
+  // pendingCount / totalActive — correct there). metricsPayload is the
+  // PUSHED business_metrics_sync payload (statenourSync.ts), whose keys
+  // are leads.urgent / callbacks.new / leads.total. Reading the bridge
+  // keys off the pushed payload meant the bridge-DOWN fallback — the one
+  // moment it exists for — silently returned 0 for all three.
   const urgentLeads =
-    shopData?.leads?.urgentCount ?? metricsPayload?.leads?.urgentCount ?? 0;
+    shopData?.leads?.urgentCount ?? metricsPayload?.leads?.urgent ?? 0;
   const pendingCallbacks =
-    shopData?.callbacks?.pendingCount ?? metricsPayload?.callbacks?.pendingCount ?? 0;
+    shopData?.callbacks?.pendingCount ?? metricsPayload?.callbacks?.new ?? 0;
   const activeLeads =
-    shopData?.leads?.totalActive ?? metricsPayload?.leads?.totalActive ?? 0;
+    shopData?.leads?.totalActive ?? metricsPayload?.leads?.total ?? 0;
 
   return {
     timestamp: now.toISOString(),

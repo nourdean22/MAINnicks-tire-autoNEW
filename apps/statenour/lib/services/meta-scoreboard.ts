@@ -248,7 +248,14 @@ async function detectCallbacksWaiting(): Promise<ScoreboardNumber | null> {
     .catch(() => null);
   const ctx = (ev?.payload ?? {}) as Record<string, unknown>;
   const cb = (ctx.callbacks ?? {}) as Record<string, unknown>;
-  const pending = Number(cb.pendingCount ?? cb.pending ?? 0);
+  // The pushed ceo_business_context payload (nickstire statenourSync.ts)
+  // emits callbacks:{ total, new, completed, thisWeek } — there is NO
+  // `pendingCount` (that key belongs to the LIVE bridge ShopSnapshot, a
+  // different contract). Reading pendingCount here floored to 0, so this
+  // "callbacks waiting" anomaly NEVER fired even as callbacks piled up —
+  // the same payload-key-drift class as the revenue-$0 bug. `new` is the
+  // unhandled-callback signal; old keys kept as defensive fallbacks.
+  const pending = Number(cb.new ?? cb.pendingCount ?? cb.pending ?? 0);
   if (pending < 1) return null;
   return {
     key: "callbacks_pending",
