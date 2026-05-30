@@ -47,6 +47,15 @@ export const MORNING_JOBS: readonly string[] = [
   "/api/cron/data-source-health",
   "/api/cron/task-resurface",
   "/api/cron/ingest-drive",
+  // 2026-05-30 · re-wired · Wave AE kept gmail + calendar as "active"
+  // survivors in the manifest but never added them to this fan-out, so
+  // email + calendar ingestion into the brain silently died (gmail dead
+  // 7d, calendar 22d). Operator re-enabled. NOTE: ingest-gmail's manifest
+  // cadence is every 30min (timely email nudges); via the morning fan-out
+  // it runs 1×/day — give it a dedicated Inngest 30min trigger if
+  // timeliness matters.
+  "/api/cron/ingest-calendar",
+  "/api/cron/ingest-gmail",
 ];
 
 /**
