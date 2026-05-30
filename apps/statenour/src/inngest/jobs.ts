@@ -77,6 +77,10 @@ export const EVENING_JOBS: readonly string[] = [
   "/api/cron/cost-slo-check",
   "/api/cron/os-snapshot",
   "/api/cron/anticipate",
+  // 2026-05-30 · mastery leveling engine · attributes the day's
+  // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
+  // first run backfills history, then only new signals each night.
+  "/api/cron/mastery-xp",
 ];
 
 /**

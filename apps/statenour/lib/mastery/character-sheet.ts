@@ -10,6 +10,7 @@
 import { prisma } from "@/lib/prisma";
 import { DOMAINS } from "./config";
 import { levelProgress, tierForLevel } from "./leveling";
+import { xpEventTotals } from "./credit";
 
 export interface StatLevel {
   key: string;
@@ -33,16 +34,26 @@ export interface StatLevel {
  * at Level 1 with 0 XP, which is the honest starting point.
  */
 export async function computeCharacterSheet(): Promise<StatLevel[]> {
-  const sums = await prisma.masteryScore
-    .groupBy({ by: ["domain"], _sum: { delta: true } })
-    .catch(() => [] as { domain: string; _sum: { delta: number | null } }[]);
+  // Two XP sources, summed: task completions live in MasteryScore.delta
+  // (written by auto-learn), every other signal lives in the mastery_xp
+  // event log (written by creditStatXp). Kept separate so we never
+  // double-count, combined here for the lifetime total.
+  const [sums, eventTotals] = await Promise.all([
+    prisma.masteryScore
+      .groupBy({ by: ["domain"], _sum: { delta: true } })
+      .catch(() => [] as { domain: string; _sum: { delta: number | null } }[]),
+    xpEventTotals(),
+  ]);
 
-  const xpByDomain = new Map(
+  const deltaByDomain = new Map(
     sums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
   );
 
   return DOMAINS.map((d) => {
-    const xp = Math.round((xpByDomain.get(d.key) ?? 0) * 10) / 10;
+    const xp =
+      Math.round(
+        ((deltaByDomain.get(d.key) ?? 0) + (eventTotals.get(d.key) ?? 0)) * 10,
+      ) / 10;
     const p = levelProgress(xp);
     const tier = tierForLevel(p.level);
     return {
