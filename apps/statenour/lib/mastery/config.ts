@@ -49,7 +49,12 @@ export const DOMAINS = [
   { key: "conditioning", label: "Strength & Conditioning", color: "#EA580C", baseline: 4.5, icon: "🏋️", branch: "body" },
   { key: "mobility", label: "Mobility & Flexibility", color: "#FB923C", baseline: 3.0, icon: "🤸", branch: "body" },
   // ── MIND · the inner game ─────────────────────────────────────────
-  { key: "mental", label: "Mental Clarity", color: "#06B6D4", baseline: 5.0, icon: "🧠", branch: "mind" },
+  // 2026-05-30 · Mental Clarity MERGED into Focus (operator: kill the one
+  // genuine dup). Key stays `mental` to preserve its lifetime XP history;
+  // only the label/icon/color become Focus. The separate `focus` key (added
+  // earlier today, ~no history) is removed below. Future "focus" signals
+  // attribute here since the AI returns the key for label "Focus".
+  { key: "mental", label: "Focus", color: "#38BDF8", baseline: 5.0, icon: "🎯", branch: "mind" },
   { key: "fortitude", label: "Mental Fortitude", color: "#0EA5E9", baseline: 4.5, icon: "🛡️", branch: "mind" },
   { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂", branch: "mind" },
   { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, icon: "🌊", branch: "mind" },
@@ -57,15 +62,12 @@ export const DOMAINS = [
   { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, icon: "🕌", branch: "mind" },
   // 2026-05-30 · operator-added. These overlap existing Mind stats, so the
   // boundaries below keep the AI attributor from double-counting:
-  //   · focus           = sustained attention / deep work
-  //     (Mental Clarity stays = clear thinking · decisions · learning)
   //   · patience        = tolerance of delay + playing the long game
   //     (Mental Fortitude = pushing through pain / discomfort)
   //   · self_confidence = self-belief / self-worth
   //     (Courage & Facing Fears = acting *despite* fear)
   // baselines here are UNVERIFIED placeholder self-ratings — tune them.
   { key: "self_confidence", label: "Inner Self-Confidence", color: "#818CF8", baseline: 5.0, icon: "💎", branch: "mind" },
-  { key: "focus", label: "Focus", color: "#38BDF8", baseline: 4.5, icon: "🎯", branch: "mind" },
   { key: "patience", label: "Patience", color: "#5EEAD4", baseline: 4.0, icon: "⏳", branch: "mind" },
   // 2026-05-30 · "size of my balls, figuratively" → audacity: boldness of
   // moves / risk-appetite / nerve. Distinct from Courage (overcoming fear
