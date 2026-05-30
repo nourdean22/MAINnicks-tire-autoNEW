@@ -1231,7 +1231,11 @@ export async function buildCronRunHistory(opts: {
 
 // ═══════════════════════════ /system/crons ═══════════════════════════
 
-type CronMode = "active" | "folded" | "retired";
+// NOTE: duplicate of config/crons.ts CronMode — should import the
+// canonical type (this local copy is the exact drift hazard the
+// 2026-05-30 manifest reconcile was about). Kept local for now; dedup
+// is a follow-up.
+type CronMode = "active" | "folded" | "retired" | "dormant";
 
 export interface CronDeckRow {
   name: string;
