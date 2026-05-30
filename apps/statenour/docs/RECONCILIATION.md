@@ -1,7 +1,44 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-26 EOD (post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-29 (post Wave Z · recall-freshness fix + dead-lane sweep + retro→journal · 4 commits `d535550c → b48c6e8a` · write-time `embedding_vec_1536` dual-write closes an up-to-7-day chat-recall staleness gap · prod backfill padded 1,599 rows · +5 `CONTEXT_CATEGORIES` recall lanes · `mission_retro` now a 5th `/journal` source · ADR-0023 · 6 "Sam plan" items verified already-built + `decision→goals` migration rejected · gates green. **PRIOR:** post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
 
+> ## 2026-05-29 · Wave Z · Recall-freshness fix + dead-lane sweep + retro→journal · 4 commits
+>
+> Adversarial verification of a Sam-Altman synergy plan (operator: "r u
+> sure check again n deeper") overturned it twice: the headline features
+> were mostly already built, and the real gaps were silent failures the
+> plan never named.
+>
+> **Keystone · recall-freshness fix** (`d535550c`) — `writePgvectorColumn`
+> (embedding-utils.ts) now dual-writes `embedding_vec_1536`, not just
+> `embedding_vec`. Chat recall (`recallMemoriesForQuery`,
+> memory-recall.ts:173) reads ONLY the 1536 column via HNSW; it was filled
+> solely by a weekly cron, so fresh memories were recall-dark up to 7
+> days. New `padToVectorDim` (pgvector.ts) zero-pads cosine-preserving
+> (pinned · tests/db/pgvector-pad.test.ts); the `_1536` write is isolated
+> so it can't regress the proven `embedding_vec` path. Prod backfill
+> (`scripts/backfill-hnsw-1536.ts`) padded 1,599 rows · KNN HNSW 195ms
+> confirmed (~1,200 older `embedding_dim`-NULL rows deferred).
+>
+> **Dead-lane sweep** (`d535550c` board_consultation · `c803f1c8`
+> weekly_review + mission_retro · `5ef9a5df` relationships_weekly_synthesis
+> + gmail_outgoing) — 5 embedded-but-unwhitelisted categories added to
+> `CONTEXT_CATEGORIES`. `reasoning_trace` excluded (noise) · personal-life
+> lanes rejected (already priority-injected in system-prompt.ts:1140).
+>
+> **retro→journal** (`b48c6e8a`) — `mission_retro` is a 5th source in
+> journal-feed.ts (+ SourceKey / FeedEntry.source / SOURCE_ICON Milestone
+> + filter chip).
+>
+> **Scope reduction by verification** — 6 plan items confirmed already-
+> built and NOT rebuilt (goals↔missions FK · reflections · body-state
+> reflectback · content-draft-writer · suggestion-outcome-loop);
+> `decision→goals` migration rejected (semantic recall covers it).
+> Corrected a Sam-report error: `/reason` DOES persist (persistTrace,
+> engine.ts:1158). ADR-0023 records the wave. Gates green: typecheck 0 ·
+> 104 focused tests pass · 4 commits on origin/main · pre-push build
+> passed on every push.
+>
 > ## 2026-05-26 EOD · Wave Y · Mastery Stage A completion + NickSidePane v2 · 10 commits
 >
 > Two sub-waves landed back-to-back: the writer-side beachhead (5 →
