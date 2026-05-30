@@ -21,6 +21,7 @@
  */
 
 import InternalLinks from "./InternalLinks";
+import AeoAnswerBlock from "./AeoAnswerBlock";
 import ResponsivePhoto from "./ResponsivePhoto";
 import RelatedServices from "./RelatedServices";
 import ServiceReviewsBlock from "./ServiceReviewsBlock";
@@ -292,16 +293,7 @@ function AeoAnswer({ config }: { config: ServicePageConfig }) {
   const answer =
     config.aeoAnswer ||
     `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
-  return (
-    <section className="bg-card/20 border-b border-border/20 py-8">
-      <div className="container max-w-3xl">
-        <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-nick-blue-light mb-2">
-          The short answer
-        </p>
-        <p className="text-foreground/90 text-lg leading-relaxed body-pretty">{answer}</p>
-      </div>
-    </section>
-  );
+  return <AeoAnswerBlock answer={answer} />;
 }
 
 function PricingSection({ config }: { config: ServicePageConfig }) {
