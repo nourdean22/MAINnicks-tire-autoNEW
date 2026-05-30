@@ -303,12 +303,33 @@ export async function enrichInsightAsync(args: EnrichArgs): Promise<void> {
   }
 
   // ─── Budget gates ───
-  const hourlyOk = await consumeBudget("hourly", HOURLY_CAP).catch(() => true);
+  const hourlyOk = await consumeBudget("hourly", HOURLY_CAP).catch((err) => {
+    // 2026-05-30 · fail-SAFE, not fail-open. A throwing budget gate (e.g. DB
+    // down) must BLOCK enrichment, never wave it through — a broken cap that
+    // returns `true` is an uncapped LLM spigot on every task-complete. One
+    // skipped background enrichment is cheap; runaway spend is not.
+    log.warn("budget_gate_check_failed", {
+      window: "hourly",
+      cap: HOURLY_CAP,
+      slug,
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return false;
+  });
   if (!hourlyOk) {
     log.warn("budget_hourly_exceeded", { cap: HOURLY_CAP, slug });
     return;
   }
-  const dailyOk = await consumeBudget("daily", DAILY_CAP).catch(() => true);
+  const dailyOk = await consumeBudget("daily", DAILY_CAP).catch((err) => {
+    // 2026-05-30 · fail-SAFE (see hourly gate above).
+    log.warn("budget_gate_check_failed", {
+      window: "daily",
+      cap: DAILY_CAP,
+      slug,
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return false;
+  });
   if (!dailyOk) {
     log.warn("budget_daily_exceeded", { cap: DAILY_CAP, slug });
     return;
