@@ -242,7 +242,8 @@ async function main() {
 
   // Dynamic import of puppeteer
   const puppeteer = await import("puppeteer");
-  const browser = await puppeteer.default.launch({
+  // let (not const): the per-route loop relaunches Chrome if it crashes mid-run.
+  let browser = await puppeteer.default.launch({
     headless: true,
     args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
   });
@@ -261,12 +262,45 @@ async function main() {
   // query connections exhausts it → progress stalls). 2 is pool-safe and
   // progresses reliably; speed comes from the trimmed render-wait below.
   const BATCH_SIZE = 2;
+  // wave-2026-05-30 · PER-ROUTE HARD TIMEOUT + browser-crash recovery.
+  // Root cause of the 0/338 CI cancellations: at ~route 60 Chrome crashes
+  // (OOM on the runner from accumulated heavy React DOMs — crashpad_handler
+  // showed up in the orphan-process list), and the NEXT browser.newPage()
+  // hangs forever on the dead browser. newPage() was OUTSIDE the try, with
+  // no timeout — so the Promise.all never resolved, the for-loop never
+  // advanced, and the whole run froze until the job-level cap killed it
+  // (32 min of zero output after 60 good routes). The committed goto-timeout
+  // never fired (0 soft-timeouts) because the hang isn't in goto.
+  //
+  // Fix: race the ENTIRE per-route task against a hard wall-clock budget so
+  // no single wedged page/newPage/content call can stall the batch, and if
+  // the browser process has died, relaunch it before the next route. This
+  // converts "one crash kills all remaining routes" into "one route fails,
+  // the rest still render." ROUTE_BUDGET_MS covers goto(12s)+wait(3s)+
+  // title-wait(8s)+content/serialize with headroom.
+  const ROUTE_BUDGET_MS = 35000;
   for (let i = 0; i < routes.length; i += BATCH_SIZE) {
     const batch = routes.slice(i, i + BATCH_SIZE);
+    // If Chrome died on the previous batch, relaunch before continuing so
+    // newPage() below doesn't hang on a dead browser. `.connected` is a
+    // getter in puppeteer v22+; older builds expose `.isConnected()` — handle
+    // both so this doesn't silently no-op on a version mismatch.
+    const browserAlive =
+      typeof browser.connected === "boolean" ? browser.connected : browser.isConnected();
+    if (!browserAlive) {
+      console.error("[prerender] browser disconnected — relaunching Chrome…");
+      try { await browser.close(); } catch { /* already dead */ }
+      browser = await puppeteer.default.launch({
+        headless: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu"],
+      });
+    }
     await Promise.all(
       batch.map(async (routePath) => {
-        const page = await browser.newPage();
-        try {
+        let page = null;
+        let timer = null;
+        const renderOne = async () => {
+          page = await browser.newPage();
           // Set a reasonable viewport
           await page.setViewport({ width: 1280, height: 800 });
 
@@ -500,17 +534,38 @@ async function main() {
           const hasTitle = /<title>[^<]+<\/title>/.test(html);
           const status = hasContent && hasTitle ? "✓" : "⚠";
           console.log(`  ${status} ${routePath} (${Math.round(html.length / 1024)}KB)`);
+        };
+
+        try {
+          // Race the whole render against a hard wall-clock budget. If a
+          // wedged page, a dead-browser newPage(), or a hung content() blows
+          // past it, reject so this route is counted failed and the batch
+          // advances — a single stuck route can no longer freeze the run.
+          await Promise.race([
+            renderOne(),
+            new Promise((_, reject) => {
+              timer = setTimeout(
+                () => reject(new Error(`route budget ${ROUTE_BUDGET_MS}ms exceeded — skipping`)),
+                ROUTE_BUDGET_MS,
+              );
+            }),
+          ]);
         } catch (err) {
           failed++;
           console.error(`  ✗ ${routePath}: ${err.message}`);
         } finally {
-          await page.close();
+          if (timer) clearTimeout(timer);
+          // Non-blocking close: on a crashed browser page.close() ITSELF
+          // hangs (the original `await page.close()` in finally was a second
+          // freeze point). Fire-and-forget; the next batch's connected-check
+          // relaunches Chrome if it actually died.
+          if (page) page.close().catch(() => {});
         }
       })
     );
   }
 
-  await browser.close();
+  try { await browser.close(); } catch { /* may already be down */ }
 
   if (serverProc) {
     serverProc.kill("SIGTERM");
