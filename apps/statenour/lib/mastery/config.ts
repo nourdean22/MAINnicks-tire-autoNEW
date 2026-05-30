@@ -74,6 +74,13 @@ export const DOMAINS = [
   // of a specific thing) and Inner Self-Confidence (self-worth) — this is
   // how BIG you're willing to swing.
   { key: "audacity", label: "Audacity", color: "#4F46E5", baseline: 6.0, icon: "🦍", branch: "mind" },
+  // 2026-05-30 · phone-notes coverage pass. Boundaries vs neighbors:
+  //   · wisdom     = accumulated judgment / life-philosophy / mental models
+  //     (Faith = spirituality/meaning · Critical Thinking = live reasoning)
+  //   · discipline = daily consistency / self-control / showing up
+  //     (Fortitude = enduring pain · Follow-Through = closing old loops)
+  { key: "wisdom", label: "Wisdom & Philosophy", color: "#0D9488", baseline: 5.0, icon: "🦉", branch: "mind" },
+  { key: "discipline", label: "Discipline", color: "#0891B2", baseline: 5.5, icon: "🧱", branch: "mind" },
   // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
   { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },
   { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
@@ -81,6 +88,13 @@ export const DOMAINS = [
   { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, icon: "♟️", branch: "empire" },
   { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 6.0, icon: "🧰", branch: "empire" },
   { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🏁", branch: "empire" },
+  // 2026-05-30 · phone-notes coverage. Critical Thinking is the STAT you
+  // level; the critical-thinking LENSES (five-whys · inversion · second-
+  // order) are how Nick reasons it — that's the stat↔lens synergy. Learning
+  // = the meta-skill: speed of acquiring new skills (vs Wisdom = applied
+  // judgment · Technical Craft = an already-built skill).
+  { key: "critical_thinking", label: "Critical Thinking", color: "#4338CA", baseline: 6.0, icon: "🧩", branch: "empire" },
+  { key: "learning", label: "Learning", color: "#22C55E", baseline: 6.0, icon: "📚", branch: "empire" },
   // ── INFLUENCE & PEOPLE · the outer game ───────────────────────────
   { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, icon: "💼", branch: "influence" },
   { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️", branch: "influence" },
@@ -96,6 +110,10 @@ export const DOMAINS = [
   // Sales = closing the deal).
   { key: "advertising", label: "Advertising", color: "#F472B6", baseline: 4.0, icon: "📣", branch: "influence" },
   { key: "seduction", label: "Seduction", color: "#E11D48", baseline: 4.5, icon: "🌹", branch: "influence" },
+  // 2026-05-30 · "would help greatly" add. Networking & Alliances = building
+  // your strategic connections / power network (Greene) — distinct from
+  // Relationships & Family (personal) · Leadership (leading) · Seduction (1:1).
+  { key: "networking", label: "Networking & Alliances", color: "#9333EA", baseline: 4.5, icon: "🤝", branch: "influence" },
 ] as const;
 
 export type DomainKey = typeof DOMAINS[number]["key"];
