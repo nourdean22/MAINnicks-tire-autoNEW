@@ -123,6 +123,14 @@ export interface ServicePageConfig {
   h1: string;
   /** Hero subhead paragraph */
   sub: string;
+  /** AEO extractable-answer block — a self-contained, declarative answer
+   *  (~40-60 words) rendered as the first body content for AI-answer-engine
+   *  (ChatGPT/Perplexity/Google-AIO) + featured-snippet extraction. Per the
+   *  GEO research: AI engines lift the first declarative sentence under a
+   *  question; a cited statistic adds ~+37% citation likelihood. When omitted,
+   *  a sensible default is derived from serviceType + startingPrice + NAP so
+   *  every service page ships an extractable answer. */
+  aeoAnswer?: string;
   /** Optional hero image URL override */
   heroImage?: string;
   /** Optional object-position override (e.g. "center 42%"). Defaults
@@ -267,6 +275,30 @@ function Hero({ config }: { config: ServicePageConfig }) {
             ))}
           </div>
         </FadeIn>
+      </div>
+    </section>
+  );
+}
+
+// AEO extractable-answer block. Renders as the first body content so AI
+// answer-engines + featured-snippet parsers lift a clean, self-contained,
+// declarative answer (price + NAP + walk-in) instead of guessing from
+// marketing copy. Plain server-rendered text (no hooks/interactivity) so it
+// survives prerender + is visible to non-JS crawlers (GPTBot/ClaudeBot/etc.).
+function AeoAnswer({ config }: { config: ServicePageConfig }) {
+  const priceClause = config.startingPrice
+    ? config.startingPrice
+    : "a free check with a written estimate before any work";
+  const answer =
+    config.aeoAnswer ||
+    `${config.serviceType} at Nick's Tire & Auto, 17625 Euclid Ave in Cleveland/Euclid, OH: ${priceClause}. Walk in 7 days a week — no appointment needed, and you don't pay until you say yes. Call (216) 862-0005.`;
+  return (
+    <section className="bg-card/20 border-b border-border/20 py-8">
+      <div className="container max-w-3xl">
+        <p className="text-[11px] font-mono uppercase tracking-[0.18em] text-nick-blue-light mb-2">
+          The short answer
+        </p>
+        <p className="text-foreground/90 text-lg leading-relaxed body-pretty">{answer}</p>
       </div>
     </section>
   );
@@ -604,6 +636,9 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           GenericServicePage). Rich-snippet eligibility = +CTR in SERP. */}
       <Breadcrumbs items={[{ label: slugToTitle(config.canonicalPath) }]} />
       <Hero config={config} />
+      {/* AEO answer-first block — highest-priority extraction unit for AI
+          answer-engines + featured snippets. Lands immediately under the hero. */}
+      <AeoAnswer config={config} />
       {/* 2026-05-06 visual wave 4: each major section is wrapped in
           RiseInView (Framer fade-and-rise on viewport entry, all
           browsers) + .parallax-rise (CSS scroll-driven drift, modern
