@@ -55,13 +55,25 @@ export const DOMAINS = [
   { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, icon: "🌊", branch: "mind" },
   { key: "courage", label: "Courage & Facing Fears", color: "#60A5FA", baseline: 5.0, icon: "🦁", branch: "mind" },
   { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, icon: "🕌", branch: "mind" },
+  // 2026-05-30 · operator-added. These overlap existing Mind stats, so the
+  // boundaries below keep the AI attributor from double-counting:
+  //   · focus           = sustained attention / deep work
+  //     (Mental Clarity stays = clear thinking · decisions · learning)
+  //   · patience        = tolerance of delay + playing the long game
+  //     (Mental Fortitude = pushing through pain / discomfort)
+  //   · self_confidence = self-belief / self-worth
+  //     (Courage & Facing Fears = acting *despite* fear)
+  // baselines here are UNVERIFIED placeholder self-ratings — tune them.
+  { key: "self_confidence", label: "Inner Self-Confidence", color: "#818CF8", baseline: 5.0, icon: "💎", branch: "mind" },
+  { key: "focus", label: "Focus", color: "#38BDF8", baseline: 4.5, icon: "🎯", branch: "mind" },
+  { key: "patience", label: "Patience", color: "#5EEAD4", baseline: 4.0, icon: "⏳", branch: "mind" },
   // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
   { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },
   { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
   { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, icon: "💻", branch: "empire" },
   { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, icon: "♟️", branch: "empire" },
   { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 6.0, icon: "🧰", branch: "empire" },
-  { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🎯", branch: "empire" },
+  { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🏁", branch: "empire" },
   // ── INFLUENCE & PEOPLE · the outer game ───────────────────────────
   { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, icon: "💼", branch: "influence" },
   { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️", branch: "influence" },
