@@ -129,7 +129,7 @@ describe("runRegressionSuite", () => {
     expect(report.worstCategories[0]?.failed).toBe(1);
   });
 
-  it("treats pipeline errors as fails without throwing", async () => {
+  it("counts pipeline errors as 'errored' (harness down), not quality fails", async () => {
     const report = await runRegressionSuite({
       questionsOverride: [makeQ({ id: "boom" })],
       runnerOverride: async () => ({
@@ -141,7 +141,12 @@ describe("runRegressionSuite", () => {
     });
 
     expect(report.totalRan).toBe(1);
-    expect(report.failed).toBe(1);
+    // A pipeline error never ran Nick → it's an infra failure, NOT a
+    // quality fail. So it counts as `errored`, drops out of `failed`, and
+    // raises `harnessError` so consumers alert "offline" not "0% regression".
+    expect(report.errored).toBe(1);
+    expect(report.failed).toBe(0);
+    expect(report.harnessError).toBe("provider exploded");
     const r = report.perQuestionResults[0];
     expect(r.passed).toBe(false);
     expect(r.pipelineError).toBe("provider exploded");

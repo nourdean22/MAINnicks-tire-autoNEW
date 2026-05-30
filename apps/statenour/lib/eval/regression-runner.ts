@@ -203,8 +203,15 @@ export interface RegressionReport {
   failed: number;
   /** Mean of per-question scores. 1.0 = all green. */
   scoreAvg: number;
-  /** Pass rate, 0–1. Same as passed/totalRan but pre-computed for ops. */
+  /** Pass rate, 0–1 — over cases that actually RAN (errored excluded). */
   passRate: number;
+  /** Cases that errored in the pipeline (infra/auth) instead of scoring a
+   *  real pass/fail. Excluded from passRate/failed. */
+  errored: number;
+  /** Set when the SAME pipeline error swamped the suite (e.g. a dead local
+   *  runner / Unauthorized): the harness couldn't run, so this is NOT a
+   *  quality regression. Consumers MUST alert on this distinctly. */
+  harnessError: string | null;
   perQuestionResults: QuestionResult[];
   durationMs: number;
   /** Most-failed categories (sorted desc). Useful for triage. */
@@ -665,10 +672,27 @@ export async function runRegressionSuite(opts: RunOptions = {}): Promise<Regress
   }
 
   const totalRan = results.length;
+  // A case with a pipelineError never actually ran Nick — it's an
+  // infra/auth failure, NOT a quality fail. Count those separately so a
+  // dead runner can't masquerade as "0% pass · severe regression".
+  const erroredResults = results.filter((r) => !!r.pipelineError);
+  const errored = erroredResults.length;
+  const ran = totalRan - errored; // cases that produced a real answer
   const passed = results.filter((r) => r.passed).length;
-  const failed = totalRan - passed;
-  const scoreAvg = totalRan === 0 ? 1 : results.reduce((s, r) => s + r.score, 0) / totalRan;
-  const passRate = totalRan === 0 ? 1 : passed / totalRan;
+  const failed = Math.max(0, ran - passed); // genuine failures only
+  const scoreAvg =
+    ran === 0
+      ? 0
+      : results
+          .filter((r) => !r.pipelineError)
+          .reduce((s, r) => s + r.score, 0) / ran;
+  const passRate = ran === 0 ? 0 : passed / ran;
+  // When the same error swamps half+ the suite, the harness is down —
+  // flag it so consumers alert "offline", not "quality regression".
+  const harnessError =
+    errored >= Math.max(1, Math.ceil(totalRan / 2))
+      ? erroredResults[0]?.pipelineError ?? "harness error"
+      : null;
 
   // worstCategories — count failures by category for quick triage
   const byCategory = new Map<string, { failed: number; total: number }>();
@@ -702,6 +726,8 @@ export async function runRegressionSuite(opts: RunOptions = {}): Promise<Regress
     totalRan,
     passed,
     failed,
+    errored,
+    harnessError,
     scoreAvg: Math.round(scoreAvg * 1000) / 1000,
     passRate: Math.round(passRate * 1000) / 1000,
     perQuestionResults: results,
