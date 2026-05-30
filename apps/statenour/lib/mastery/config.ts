@@ -28,6 +28,12 @@ export const DOMAINS = [
   { key: "leadership", label: "Leadership & People", color: "#EC4899", baseline: 4.0, icon: "👥" },
   { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, icon: "❤️" },
   { key: "strategy", label: "Strategic Thinking", color: "#6366F1", baseline: 6.0, icon: "♟️" },
+  // 2026-05-30 · added per operator. baseline = placeholder self-rating
+  // (0-10) · tune to your honest starting point. NOTE: "sales" above is
+  // labeled "Sales & Persuasion" — persuasion is broken out here as its
+  // own stat; rename sales → "Sales" if you want to avoid double-counting.
+  { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️" },
+  { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂" },
 ] as const;
 
 export type DomainKey = typeof DOMAINS[number]["key"];
