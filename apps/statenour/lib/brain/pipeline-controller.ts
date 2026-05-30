@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { connect } from "@/lib/brain/relational-graph";
 import { recentScoreSnapshots } from "@/lib/brain/legacy-shims";
@@ -654,7 +655,9 @@ export async function runBrainCycle(): Promise<{ alerts: string[]; patterns: str
     // ── Cross-reference: Business telemetry (commented Apr 17 since
     //    workoutDone / mood flows moved into reflection.metadata) ──
     const business = (latestBusinessSync?.payload as any) || {};
-    const shopRevenue = business?.revenue?.todayEstimate ?? business?.intelligence?.shopPulse?.today?.revenue ?? 0;
+    const shopRevenue =
+      readNickRevenue(business?.revenue).todayDollars ||
+      Number(business?.intelligence?.shopPulse?.today?.revenue ?? 0);
 
     // ── Cross-reference: Page visit patterns ──
     const visitedPages = new Set(pageVisits.map((v: any) => v.detail));
