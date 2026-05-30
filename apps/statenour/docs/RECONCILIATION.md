@@ -1,7 +1,66 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-29 (post Wave Z · recall-freshness fix + dead-lane sweep + retro→journal · 4 commits `d535550c → b48c6e8a` · write-time `embedding_vec_1536` dual-write closes an up-to-7-day chat-recall staleness gap · prod backfill padded 1,599 rows · +5 `CONTEXT_CATEGORIES` recall lanes · `mission_retro` now a 5th `/journal` source · ADR-0023 · 6 "Sam plan" items verified already-built + `decision→goals` migration rejected · gates green. **PRIOR:** post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-30 (post the **Stats-consolidation + tech-debt** wave · /scoreboard+/goals → ONE personal `/stats` (business stripped to nickstire admin per operator) · 13 stale `/goals` links retargeted · 4 pre-existing test failures fixed (suite **2875/2875**) · tech-debt wave: Inngest double-fire guard + revived dead stale-leads alert (→ `leads_urgent`) + dead `/mastery` nav removed · 6 commits `a695c174 → 25e31b0a` on origin/main · gates green. **PRIOR:** post Wave Z · recall-freshness fix + dead-lane sweep + retro→journal · 4 commits `d535550c → b48c6e8a` · write-time `embedding_vec_1536` dual-write closes an up-to-7-day chat-recall staleness gap · prod backfill padded 1,599 rows · +5 `CONTEXT_CATEGORIES` recall lanes · `mission_retro` now a 5th `/journal` source · ADR-0023 · 6 "Sam plan" items verified already-built + `decision→goals` migration rejected · gates green. **PRIOR:** post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
 
+> ## 2026-05-30 · Stats consolidation + tech-debt wave · 6 ships
+>
+> The operator merged /scoreboard + /goals into ONE personal "Stats" page,
+> stripped it to personal-only ("business shit belongs on nicks tire admin"),
+> then an engineering:tech-debt + system-design audit (via a code-explorer
+> agent) drove a fix wave. TWO audit findings were dismissed after verifying
+> against source — the agent misread already-correct code (verify-don't-trust).
+>
+> **`a695c174` · /scoreboard + /goals → /stats** — one page: ① the 33-stat
+> mastery character sheet → ② GoalBoard → ③ KPIs. Both old routes 308-redirect
+> to /stats.
+>
+> **`8cf090d8` · /stats personal-only** — removed ALL business from /stats
+> (Nick brief · revenue/shop KPIs · anchors · pricing · compound/track drawer);
+> page is now character sheet + goals only. Orb-menu (floating-home.tsx) "Goals"
+> row → "Stats" → /stats. Needed a `<Suspense>` boundary (MissionBreadcrumb →
+> useMissionMode → useSearchParams bailed to CSR at prerender once the
+> loading-gate was removed).
+>
+> **`0a78d6e5` · /goals → /stats link sweep** — 13 stale `/goals` refs (the
+> retired route) retargeted to /stats across operator-pulse · meta-scoreboard ·
+> mission-scoreboard · top-goal-today · goal-pruner deepLink · next.config
+> /plan+/mastery redirects. `#goal-X` anchors preserved (GoalBoard handles them).
+>
+> **`0787f883` · fix 4 pre-existing test failures** — all 4 were tests that
+> drifted from shipped code, not product bugs: data-source-health ≥7→6 probes
+> (stale_leads_count removed) · goals.test mock missing `lifeGoal.findFirst`
+> (ghost-goal dedup #91) · snooze-schema test (Wave AL added `snoozedUntil`) ·
+> orphaned system-providers test (deleted module). Suite 2875/2875 green.
+>
+> **`25e31b0a` · tech-debt wave** — (a) mega-fanout: BOTH Inngest fan-out fns
+> guarded behind `INNGEST_MEGA_V2` so they no-op until cutover — kills the
+> latent DOUBLE-FIRE (Inngest cron + Railway /api/cron/mega share 0 9 / 0 3
+> UTC). (b) stale-leads alert (autonomous-engine + operating-rhythm) read a DEAD
+> bridge query `stale_leads_count` (HTTP 400) → always 0 → never fired; remapped
+> to `leads_urgent` (live), shape-tolerant, `?? 0` fallback. (c) removed the dead
+> "/mastery → Growth" nav (a redirect dup of /stats). (d) refreshed the stale
+> jobs.ts comment (check:crons gained the jobs.ts↔fs check, steps 5-6).
+>
+> **Dismissed via verify-don't-trust** — check:crons jobs.ts gap (already
+> exists, verify-crons 5-6) · router.ts bare aiChat (already traced,
+> `const aiChat = makeTracedAiChat`).
+>
+> **Flagged · NOT fixed:**
+> - `ingest-gmail` runs 1×/day via the morning fan-out (manifest says every
+>   30min) — urgent-email Telegram nudges wait till morning. A dedicated
+>   Inngest 30-min trigger fixes it (cost/load decision).
+> - `INNGEST_MEGA_V2` cutover still un-flipped: Inngest fan-out is now dormant
+>   (guard); flipping must be paired with disabling the Railway /api/cron/mega
+>   cron or jobs double-fire.
+> - `lib/trpc/routers/system.ts` is a 2,597-LOC God module (Phase-3 split).
+> - `MASTERY_COACHING_LENS` never wired into Nick's mastery coaching (the 49
+>   @statenour/lenses are all business/strategy; masteryScores render raw).
+> - ADR-0022 lists 9 Coach Channel writers but `decision-quality-drift` is
+>   `dormant` (8 active) + `eval-regression` cron was deleted (Wave AE) — stale.
+>
+> Gates: typecheck 0 · eslint clean (changed files) · suite 2875/2875 · pre-push
+> affected build OK on every push. 6 commits on origin/main.
+>
 > ## 2026-05-29 · Wave Z · Recall-freshness fix + dead-lane sweep + retro→journal · 4 commits
 >
 > Adversarial verification of a Sam-Altman synergy plan (operator: "r u
