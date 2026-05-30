@@ -16,27 +16,64 @@ export const HABITS = [
 
 export type HabitKey = typeof HABITS[number]["key"];
 
-// Mastery domains
+// Mastery domains · the operator's character-sheet stats.
+//
+// 2026-05-30 · expanded 12 → 23 ("RuneScape tier") in a design session
+// with the operator. Organized into 4 BRANCHES (body / mind / empire /
+// influence) so the /scoreboard board renders like a skill tree. Maps to
+// Nour's stated purpose:
+//   · fullest self + greatness  → all of BODY + MIND
+//   · helping people            → service · communication · relationships · leadership
+//   · beyond my dreams          → the whole EMPIRE branch
+//   · live unapologetically     → combat · courage · faith · sales
+//
+// IMPORTANT · `key` values are STABLE identifiers — MasteryScore.domain
+// rows key off them, so a key is NEVER renamed, only its label/icon may
+// change. That's why "marketing" now displays as "Communication &
+// Storytelling" and "strategy" as "Strategic Vision": the keys stay so no
+// lifetime XP is orphaned (no migration needed). baseline = placeholder
+// self-rating (0-10) · tune to your honest starting point.
+export const BRANCHES = [
+  { key: "body", label: "Body", icon: "⚔️", blurb: "the vessel" },
+  { key: "mind", label: "Mind", icon: "🧠", blurb: "the inner game" },
+  { key: "empire", label: "Craft & Empire", icon: "🏛️", blurb: "the builder" },
+  { key: "influence", label: "Influence & People", icon: "🗣️", blurb: "the outer game" },
+] as const;
+
+export type BranchKey = typeof BRANCHES[number]["key"];
+
 export const DOMAINS = [
-  { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪" },
-  { key: "sales", label: "Sales & Persuasion", color: "#EF4444", baseline: 3.0, icon: "💼" },
-  { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, icon: "💻" },
-  { key: "marketing", label: "Marketing & Brand", color: "#8B5CF6", baseline: 4.5, icon: "📢" },
-  { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊" },
-  { key: "physical", label: "Physical Mastery", color: "#F97316", baseline: 4.0, icon: "🥊" },
-  { key: "mental", label: "Mental Mastery", color: "#06B6D4", baseline: 5.0, icon: "🧠" },
-  { key: "leadership", label: "Leadership & People", color: "#EC4899", baseline: 4.0, icon: "👥" },
-  { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, icon: "❤️" },
-  { key: "strategy", label: "Strategic Thinking", color: "#6366F1", baseline: 6.0, icon: "♟️" },
-  // 2026-05-30 · added per operator. baseline = placeholder self-rating
-  // (0-10) · tune to your honest starting point. NOTE: "sales" above is
-  // labeled "Sales & Persuasion" — persuasion is broken out here as its
-  // own stat; rename sales → "Sales" if you want to avoid double-counting.
-  { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️" },
-  { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂" },
+  // ── BODY · the vessel ─────────────────────────────────────────────
+  { key: "physical", label: "Physical Vitality", color: "#F97316", baseline: 4.0, icon: "🫀", branch: "body" },
+  { key: "combat", label: "Combat", color: "#DC2626", baseline: 5.0, icon: "🥊", branch: "body" },
+  { key: "conditioning", label: "Strength & Conditioning", color: "#EA580C", baseline: 4.5, icon: "🏋️", branch: "body" },
+  { key: "mobility", label: "Mobility & Flexibility", color: "#FB923C", baseline: 3.0, icon: "🤸", branch: "body" },
+  // ── MIND · the inner game ─────────────────────────────────────────
+  { key: "mental", label: "Mental Clarity", color: "#06B6D4", baseline: 5.0, icon: "🧠", branch: "mind" },
+  { key: "fortitude", label: "Mental Fortitude", color: "#0EA5E9", baseline: 4.5, icon: "🛡️", branch: "mind" },
+  { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂", branch: "mind" },
+  { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, icon: "🌊", branch: "mind" },
+  { key: "courage", label: "Courage & Boldness", color: "#60A5FA", baseline: 5.0, icon: "🦁", branch: "mind" },
+  { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, icon: "🕌", branch: "mind" },
+  // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
+  { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },
+  { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
+  { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, icon: "💻", branch: "empire" },
+  { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, icon: "♟️", branch: "empire" },
+  { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 4.0, icon: "🧰", branch: "empire" },
+  { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🎯", branch: "empire" },
+  // ── INFLUENCE & PEOPLE · the outer game ───────────────────────────
+  { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, icon: "💼", branch: "influence" },
+  { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️", branch: "influence" },
+  { key: "marketing", label: "Communication & Storytelling", color: "#8B5CF6", baseline: 4.5, icon: "🎤", branch: "influence" },
+  { key: "leadership", label: "Leadership & People", color: "#EC4899", baseline: 4.0, icon: "👥", branch: "influence" },
+  { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, icon: "❤️", branch: "influence" },
+  { key: "service", label: "Service & Impact", color: "#D946EF", baseline: 4.0, icon: "👐", branch: "influence" },
+  { key: "languages", label: "Languages", color: "#C026D3", baseline: 2.5, icon: "🌎", branch: "influence" },
 ] as const;
 
 export type DomainKey = typeof DOMAINS[number]["key"];
+export type Domain = typeof DOMAINS[number];
 
 // Drift detection rule definitions
 export interface DriftRule {

@@ -17,6 +17,8 @@ export interface StatLevel {
   label: string;
   icon: string;
   color: string;
+  /** Which skill-tree branch this stat belongs to (body/mind/empire/influence). */
+  branch: string;
   /** Lifetime XP = sum of all deltas ever attributed to this stat. */
   xp: number;
   level: number;
@@ -61,6 +63,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       label: d.label,
       icon: d.icon,
       color: d.color,
+      branch: d.branch,
       xp,
       level: p.level,
       tier: tier.name,
