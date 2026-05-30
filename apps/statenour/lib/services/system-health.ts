@@ -67,6 +67,18 @@ export interface HealthReport {
     cronFailures: number;
     errorTotal: number;
   };
+  /** 2026-05-29 · operational rollup · AI eval quality + nickstire bridge /
+   *  data-source probe health. The "what's broken NOW" dimensions that
+   *  weren't on this page when revenue=$0 / evals=0/75 / bridge=down. */
+  operational: {
+    eval: { passRate: number; passed: number; total: number; at: string } | null;
+    dataSources: {
+      total: number;
+      failing: number;
+      bridgeFailing: number;
+      probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }>;
+    };
+  };
 }
 
 function parseRange(range: HealthRange): { ms: number; label: HealthRange } {
@@ -255,6 +267,65 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
     }
   })();
 
+  // ── Operational rollup (2026-05-29) · the two dimensions that broke in
+  //    prod (revenue $0 · evals 0/75 · bridge down) but weren't surfaced
+  //    here: AI eval quality + nickstire bridge / data-source probes.
+  //    Reads existing stores (eval_result + data_source_probe BrainMemory) ·
+  //    no new cron. ──
+  const [latestEval, probeRows] = await Promise.all([
+    prisma.brainMemory
+      .findFirst({
+        where: { category: "eval_result", deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        select: { metadata: true, createdAt: true },
+      })
+      .catch(() => null),
+    prisma.brainMemory
+      .findMany({
+        where: { category: "data_source_probe", deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+        select: { key: true, content: true },
+      })
+      .catch((): { key: string; content: string }[] => []),
+  ]);
+
+  const evalMeta = (latestEval?.metadata ?? {}) as Record<string, unknown>;
+  const evalHealth = latestEval
+    ? {
+        passRate: Math.round(Number(evalMeta.passRate ?? 0)),
+        passed: Number(evalMeta.passed ?? 0),
+        total: Number(evalMeta.total ?? 0),
+        at: latestEval.createdAt.toISOString(),
+      }
+    : null;
+
+  const seenProbe = new Set<string>();
+  const probes: Array<{ name: string; kind: string; ok: boolean; reason: string | null }> = [];
+  for (const row of probeRows) {
+    let parsed: { probe?: string; kind?: string; ok?: boolean; reason?: string } = {};
+    try {
+      parsed = JSON.parse(row.content) as typeof parsed;
+    } catch {
+      // unparseable probe row · skip
+    }
+    const name = parsed.probe ?? row.key.replace(/_\d{4}-\d{2}-\d{2}$/, "");
+    if (seenProbe.has(name)) continue; // rows are date-keyed · keep the freshest
+    seenProbe.add(name);
+    probes.push({
+      name,
+      kind: parsed.kind ?? "bridge",
+      ok: parsed.ok !== false,
+      reason: parsed.reason ?? null,
+    });
+  }
+  const dataSources = {
+    total: probes.length,
+    failing: probes.filter((p) => !p.ok).length,
+    bridgeFailing: probes.filter((p) => p.kind === "bridge" && !p.ok).length,
+    probes,
+  };
+
   return {
     range: label,
     generatedAt: new Date().toISOString(),
@@ -294,6 +365,10 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       cronTotal: priorCronLogs.length,
       cronFailures: priorCronFailureCount,
       errorTotal: priorErrCount,
+    },
+    operational: {
+      eval: evalHealth,
+      dataSources,
     },
   };
 }
