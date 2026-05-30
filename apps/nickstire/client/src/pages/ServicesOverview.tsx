@@ -221,7 +221,7 @@ export default function ServicesOverview() {
               WHY CLEVELAND DRIVERS CHOOSE US
             </h2>
             <p className="mt-4 text-foreground/70 text-lg leading-relaxed">
-              We do not just fix cars — we earn trust. Every repair starts with an honest look, a clear explanation, and a fair price. We tell you the cost before we touch anything.
+              Every repair starts with a free check, a written quote, and you don't pay until you say yes. We tell you the cost before we touch the car — and you watch it happen if you want to.
             </p>
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-8">
               <div className="text-center">

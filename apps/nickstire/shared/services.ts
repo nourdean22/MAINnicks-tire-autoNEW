@@ -190,7 +190,7 @@ export const SERVICES: ServiceData[] = [
     title: "BRAKES",
     shortDesc: "Brake pads, rotors, calipers, brake lines, and ABS diagnostics. We show you the problem before we fix it. Every time.",
     metaTitle: "Brake Repair Cleveland · We Hand You The Flashlight | Nick's",
-    metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free inspection, written estimate first, same-day repair. (216) 862-0005.",
+    metaDescription: "Cleveland brake shop where you walk under your own car on a lift before we touch a wrench. Free check, written estimate first, same-day repair. (216) 862-0005.",
     heroHeadline: "We show you the worn pads\nbefore we touch a thing.",
     heroSubline: "Cleveland's brake shop on Euclid Ave. Squealing, grinding, or soft pedal? We diagnose the exact problem, show you the worn parts, and fix it right. No guesswork, we tell you the cost before we touch anything.",
     heroCTA: "SCHEDULE BRAKE INSPECTION",
@@ -277,9 +277,9 @@ export const SERVICES: ServiceData[] = [
       { label: "Full brake job (pads + rotors)", range: "$349–$599" },
     ],
     duration: "1-3 hours",
-    startingPrice: "FREE inspection",
+    startingPrice: "FREE check",
     priceRange: "",
-    whyChooseUs: "Every brake job at Nick's starts with a free inspection -- we show you the worn parts before quoting a penny. Our 36-month warranty on parts and labor, same-day turnaround, and transparent pricing are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
+    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 36-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
     commonSymptoms: [
       "Car making grinding noise when braking",
       "Brake pedal goes to the floor",
@@ -436,7 +436,7 @@ export const SERVICES: ServiceData[] = [
       { step: "E-Check Report Review", detail: "We review your failed E-Check report to understand exactly which tests failed and why." },
       { step: "Diagnostic Scan", detail: "Full OBD-II scan to read emissions-related codes and check readiness monitor status." },
       { step: "Component Testing", detail: "Test the specific emissions components — oxygen sensors, catalytic converter, EVAP system, EGR valve." },
-      { step: "Repair", detail: "Fix the root cause of the emissions failure with quality parts." },
+      { step: "Repair", detail: "Fix the root cause of the emissions failure with OE-spec parts." },
       { step: "Drive Cycle & Verify", detail: "Complete the required drive cycle to reset monitors and verify the repair before you return for re-testing." },
     ],
     whyUs: [
@@ -644,7 +644,7 @@ export const SERVICES: ServiceData[] = [
       { step: "Listen & Inspect", detail: "We listen to your description of the problem, then perform a visual and hands-on inspection." },
       { step: "Diagnose", detail: "Use diagnostic tools, road testing, and component testing to identify the exact failed part." },
       { step: "Explain & Quote", detail: "Show you what we found, explain the repair in plain language, and provide a written estimate." },
-      { step: "Repair", detail: "Fix the problem using quality parts. We do not cut corners on components that affect safety." },
+      { step: "Repair", detail: "Fix the problem using OE-spec parts. We do not cut corners on components that affect safety." },
       { step: "Verify", detail: "Road test after repair to confirm the problem is resolved and everything operates correctly." },
     ],
     whyUs: [
@@ -715,7 +715,7 @@ export const SERVICES: ServiceData[] = [
     title: "AC & HEATING",
     shortDesc: "AC recharge, compressor, condenser, evaporator, heater core, and blower motor repair. Stay comfortable year-round.",
     metaTitle: "AC Repair Cleveland · Cold Air By Lunch · $10 Down | Nick's",
-    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free inspection. (216) 862-0005.",
+    metaDescription: "Cleveland car AC repair — leak test with UV dye, recharge, compressor, condenser, heater core. Most jobs blow cold by lunch. Free check. (216) 862-0005.",
     heroHeadline: "Cold air, fast —\nor we keep working.",
     heroSubline: "Everything you need to know about your car's air conditioning system — common problems, repair costs, and when to get service. From the technicians Cleveland drivers trust.",
     heroCTA: "FIX MY AC",
@@ -1106,7 +1106,7 @@ export const SERVICES: ServiceData[] = [
     quickAnswers: [
       {
         question: "How much does muffler repair cost in Cleveland?",
-        answer: "Muffler replacement in Cleveland typically costs $150 to $400 depending on vehicle make and model. Exhaust pipe section repair runs $100 to $300. Catalytic converter replacement ranges from $500 to $2,000. At Nick's Tire & Auto, every exhaust repair starts with a free inspection and written estimate. Call (216) 862-0005."
+        answer: "Muffler replacement in Cleveland typically costs $150 to $400 depending on vehicle make and model. Exhaust pipe section repair runs $100 to $300. Catalytic converter replacement ranges from $500 to $2,000. At Nick's Tire & Auto, every exhaust repair starts with a free check and written estimate. Call (216) 862-0005."
       },
       {
         question: "Where can I find muffler shops near me in Cleveland?",
