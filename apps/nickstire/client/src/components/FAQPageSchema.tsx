@@ -144,3 +144,36 @@ export const OIL_CHANGE_FAQ: FAQItem[] = [
     a: "Yes · free 21-point inspection comes with every oil change. We check tire wear, brakes, fluids, lights, belts, hoses, and battery. We'll tell you what needs attention · you decide what to do.",
   },
 ];
+
+// wave-fix-2026-05-28 (SEO-AEO parity) · tire-BUYING FAQ for /tires.
+// Distinct from TIRE_REPAIR_FAQ above (that's flat/patch repair) · this
+// set targets the buy-tires-near-me / tire-installation-cost intent the
+// money page ranks for. Voice: Caregiver + Everyman · concrete · no
+// corporate-speak. (Wording deliberately avoids the install-package's
+// brand-name adjective so the brand-voice pre-commit lint stays clean.)
+export const TIRE_BUYING_FAQ: FAQItem[] = [
+  {
+    q: "How much do tires cost in Cleveland?",
+    a: "Used tires start at $40 installed · new tires start at $60 installed. Installation is free with every tire — mount, balance, valve stems, and disposal of your old tire all included. We quote your exact size live · no surprise add-ons at the counter.",
+  },
+  {
+    q: "What's included when I buy tires at Nick's?",
+    a: "Every tire purchase includes the full install package free: mount, computer balance, new valve stems, TPMS reset, a tire-pressure set to spec, and disposal of your old tires. You pay for the tire · the install work is on us.",
+  },
+  {
+    q: "Do I need an appointment to get tires?",
+    a: "No · walk in 7 days a week. We're first-come-first-served. Most tire installs are done in 30-45 minutes. Drop off if you'd rather · we'll text you when it's ready.",
+  },
+  {
+    q: "Can I buy tires online and have you install them?",
+    a: "Yes · pick your size on this page, order online, and we install them here. You can also bring tires you bought elsewhere · mount-and-balance starts at $25 per tire. Either way you get the same free pressure check and disposal.",
+  },
+  {
+    q: "Do you offer financing on tires?",
+    a: "Yes · $10 down, no credit check, approved in about 90 seconds. We work with Acima, Snap, Koalafi, and American First. Most customers approved $500–$5,000 · drive away on new tires today and pay over time. Soft pull only · no FICO ding.",
+  },
+  {
+    q: "Are used tires safe to buy?",
+    a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $40 installed.",
+  },
+];

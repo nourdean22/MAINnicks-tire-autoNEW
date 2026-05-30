@@ -12,6 +12,11 @@ import PageLayout from "@/components/PageLayout";
 import { SEOHead, Breadcrumbs } from "@/components/SEO";
 import { trackPhoneClick } from "@/lib/analytics";
 import LocalBusinessSchema from "@/components/LocalBusinessSchema";
+// wave-fix-2026-05-28 (SEO-AEO parity) · /tires was the highest-impression
+// money page lacking FAQPage JSON-LD that /brakes + oil + alignment already
+// have. Visible <details> Q&A below + this schema = AI-answer-engine
+// citations (ChatGPT/Perplexity/Gemini) for buy-tires-near-me intent.
+import FAQPageSchema, { TIRE_BUYING_FAQ } from "@/components/FAQPageSchema";
 import FinancingCTA from "@/components/FinancingCTA";
 // Conversion-architecture overlays (Batch 3 of v1.1 spec). Injected as a
 // compact block right after the search hero so visitors see anchor pricing
@@ -1768,6 +1773,39 @@ export default function TireFinder() {
           </div>
         </div>
       </section>
+
+      {/* ─── FAQ (AEO + featured-snippet surface) ───
+          wave-fix-2026-05-28 · /tires carried AggregateRating but no
+          FAQPage schema — the one high-impression money page missing the
+          AEO parity /brakes already had. Native <details> renders the
+          Q&A into the prerendered HTML (crawlable, no hydration needed),
+          and FAQPageSchema emits the matching JSON-LD per Google's spec
+          (visible Q&A must mirror the markup). Targets the
+          buy-tires-near-me / tire-install-cost intent the page ranks for. */}
+      <section className="container py-12 sm:py-16 border-t border-border/30">
+        <div className="max-w-3xl mx-auto">
+          <p className="text-xs font-semibold tracking-[0.18em] text-primary mb-2">TIRE QUESTIONS</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-8">
+            Buying tires in Cleveland — straight answers
+          </h2>
+          <div className="space-y-3">
+            {TIRE_BUYING_FAQ.map((item) => (
+              <details
+                key={item.q}
+                className="group bg-card/60 border border-border/30 rounded-lg p-5 [&_summary::-webkit-details-marker]:hidden"
+              >
+                <summary className="flex items-center justify-between gap-4 cursor-pointer list-none font-semibold text-foreground text-sm sm:text-base">
+                  {item.q}
+                  <ChevronRight className="w-4 h-4 text-primary shrink-0 transition-transform group-open:rotate-90" />
+                </summary>
+                <p className="mt-3 text-sm text-foreground/70 leading-relaxed">{item.a}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+      {/* JSON-LD mirrors the visible Q&A above (Google FAQPage spec). */}
+      <FAQPageSchema qa={TIRE_BUYING_FAQ} />
 
       {/* ─── ORDER MODAL ─── */}
       {showOrder && (
