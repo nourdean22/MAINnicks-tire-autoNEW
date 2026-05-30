@@ -67,6 +67,11 @@ export const DOMAINS = [
   { key: "self_confidence", label: "Inner Self-Confidence", color: "#818CF8", baseline: 5.0, icon: "💎", branch: "mind" },
   { key: "focus", label: "Focus", color: "#38BDF8", baseline: 4.5, icon: "🎯", branch: "mind" },
   { key: "patience", label: "Patience", color: "#5EEAD4", baseline: 4.0, icon: "⏳", branch: "mind" },
+  // 2026-05-30 · "size of my balls, figuratively" → audacity: boldness of
+  // moves / risk-appetite / nerve. Distinct from Courage (overcoming fear
+  // of a specific thing) and Inner Self-Confidence (self-worth) — this is
+  // how BIG you're willing to swing.
+  { key: "audacity", label: "Audacity", color: "#4F46E5", baseline: 6.0, icon: "🦍", branch: "mind" },
   // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
   { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },
   { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
@@ -82,6 +87,13 @@ export const DOMAINS = [
   { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, icon: "❤️", branch: "influence" },
   { key: "service", label: "Service & Impact", color: "#D946EF", baseline: 4.0, icon: "👐", branch: "influence" },
   { key: "languages", label: "Languages", color: "#C026D3", baseline: 2.5, icon: "🌎", branch: "influence" },
+  // 2026-05-30 · operator-added. Boundaries vs neighbors (no double-count):
+  // advertising = PAID promotion / ad creative / reach-buying (Communication
+  // & Storytelling stays = organic voice / content) · seduction = charm /
+  // allure / magnetism, Greene-style (Persuasion = framing to win a point ·
+  // Sales = closing the deal).
+  { key: "advertising", label: "Advertising", color: "#F472B6", baseline: 4.0, icon: "📣", branch: "influence" },
+  { key: "seduction", label: "Seduction", color: "#E11D48", baseline: 4.5, icon: "🌹", branch: "influence" },
 ] as const;
 
 export type DomainKey = typeof DOMAINS[number]["key"];
