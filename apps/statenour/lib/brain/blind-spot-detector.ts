@@ -96,7 +96,6 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
     overdueCommitments,
     staleLoops,
     recentConversations,
-    neglectedPeople,
     driftAlerts,
     recentBrainDumps,
     staleLEads,
@@ -138,22 +137,6 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       where: { createdAt: { gte: sevenDaysAgo }, role: "user" },
       select: { content: true },
       take: 50,
-    }).catch((): never[] => []),
-
-    // People not mentioned recently · Wave AM · 2026-05-28 · soft-delete
-    // safety · the blind-spot detector should NOT alert on deleted people
-    // ("you haven't talked to deleted-Jane in 20 days" is wrong).
-    prisma.personProfile.findMany({
-      where: {
-        relationship: { not: { equals: "" } },
-        deletedAt: null,
-        OR: [
-          { lastInteraction: null },
-          { lastInteraction: { lte: fourteenDaysAgo } },
-        ],
-      },
-      take: 5,
-      select: { name: true, role: true, relationship: true, lastInteraction: true },
     }).catch((): never[] => []),
 
     // Unresolved drift alerts
@@ -210,24 +193,6 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
   // DailyScore. Self-awareness signal now lives in identity snapshot
   // cadence + chat-recall. Workout signal now fires from
   // PersonalJournal rows (handled by the body/workout detector).
-
-  // ── Neglected relationships ──
-  for (const person of neglectedPeople) {
-    const daysSince = person.lastInteraction
-      ? Math.floor((Date.now() - person.lastInteraction.getTime()) / 86400000)
-      : 30;
-
-    if (person.name.toLowerCase().includes("dania") && daysSince > 5) {
-      blindSpots.push({
-        domain: "relationship",
-        description: `Dania not mentioned in ${daysSince} days`,
-        severity: daysSince > 7 ? "critical" : "high",
-        evidence: `Dania→Performance causation: no mentions in 7+ days → life satisfaction drops`,
-        daysSinceAttention: daysSince,
-        suggestedAction: `One deliberate connection — a real conversation, not logistics`,
-      });
-    }
-  }
 
   // ── Stale leads ──
   if (staleLEads > 0) {
