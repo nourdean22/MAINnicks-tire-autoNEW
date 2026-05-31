@@ -187,24 +187,25 @@ function getTodayDate(): string {
 // ── State detector ──
 
 function detectState(data: Partial<NourState>): NourState["currentState"] {
-  const score = data.todayScore;
-  const energy = score?.energyLevel ?? 5;
-  const discipline = score?.disciplineScore ?? 5;
   const alerts = data.driftAlerts ?? 0;
   const commitments = data.activeCommitments ?? 0;
   const habitRate = data.habitsTotal ? (data.habitsDone ?? 0) / data.habitsTotal : 0.5;
 
-  // Drift: no score logged + alerts
-  if (!score && alerts > 0) return "drift";
+  // 2026-05-31 · score→reflection re-source. Daily-score logging was
+  // retired, so detectState no longer derives energy/discipline from a
+  // (now-absent) score — it reads the LIVE signals already in state.
+  // (The "low_energy" mode has no honest live proxy without the score, so
+  // it stays in the type union but is no longer emitted.)
 
-  // On fire: high scores + working out + habits
-  if (energy >= 7 && discipline >= 7 && habitRate >= 0.6) return "on_fire";
-
-  // Low energy
-  if (energy <= 3) return "low_energy";
+  // Drift: unresolved drift alerts (the live drift signal)
+  if (alerts > 0) return "drift";
 
   // Scattered: too many active commitments (openLoops retired Apr 18)
   if (commitments > 10) return "scattered";
+
+  // On fire: strong habit completion with a clear board (revived — was
+  // gated on the retired score, so it could never fire)
+  if (habitRate >= 0.7) return "on_fire";
 
   return "normal";
 }

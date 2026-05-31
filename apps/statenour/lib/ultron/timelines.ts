@@ -28,10 +28,6 @@ export interface Timeline {
 }
 
 interface Inputs {
-  todayScoreLogged: boolean;
-  energyToday: number | null;
-  focusToday: number | null;
-  disciplineToday: number | null;
   workoutDoneToday: boolean;
   workoutStreak: number;           // days in a row before today
   habitsDone: number;
@@ -47,16 +43,11 @@ export async function computeInputs(): Promise<Inputs> {
   const todayStr = toDateString(now);
   const weekAgo = daysAgo(7);
 
-  // v10.0.59 · Wave A part 2 · scores + habits via legacy-shims.
-  // habitsToday filters today's rows from the synthesized habit
-  // history; habitsWeek slices the last 7 days. lastScore is the
-  // most-recent identity_snapshot row.
-  const [lastScore, habitsToday, habitsWeek, drift, chatMessages, sleepRows] = await Promise.all([
-    (async () => {
-      const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
-      const all = await recentScoreSnapshots(1);
-      return all[0] ?? null;
-    })(),
+  // v10.0.59 · Wave A part 2 · habits via legacy-shims. habitsToday
+  // filters today's rows from the synthesized habit history; habitsWeek
+  // slices the last 7 days. (Daily-score inputs removed 2026-05-31 — the
+  // score-derived timeline items were retired in the score→reflection pivot.)
+  const [habitsToday, habitsWeek, drift, chatMessages, sleepRows] = await Promise.all([
     (async () => {
       const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
       const all = await recentDailyHabits(1);
@@ -143,10 +134,6 @@ export async function computeInputs(): Promise<Inputs> {
   }
 
   return {
-    todayScoreLogged: !!lastScore,
-    energyToday: lastScore?.energyLevel ?? null,
-    focusToday: lastScore?.focusQuality ?? null,
-    disciplineToday: lastScore?.disciplineScore ?? null,
     workoutDoneToday: !!workoutToday?.completed,
     workoutStreak,
     habitsDone,
