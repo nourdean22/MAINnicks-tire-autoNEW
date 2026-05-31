@@ -184,7 +184,7 @@ export function CompoundChain({
           leverage · 1-line · gold dot · links to /tasks for linking */}
       {hasOrphans ? (
         <Link
-          href="/tasks"
+          href="/missions"
           className="block rounded-sm transition hover:bg-white/[0.03] focus-visible:outline-none focus-visible:bg-white/[0.05]"
         >
           <div className="flex items-start gap-2.5 text-sm leading-snug">

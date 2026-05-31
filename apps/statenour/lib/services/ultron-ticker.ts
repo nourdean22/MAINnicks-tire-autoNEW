@@ -387,7 +387,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         label: `${tasksDue} due today${activeStr}`,
         severity: tasksDue >= 5 ? "warn" : "info",
         domain: "life",
-        href: "/tasks",
+        href: "/missions",
       });
     }
 

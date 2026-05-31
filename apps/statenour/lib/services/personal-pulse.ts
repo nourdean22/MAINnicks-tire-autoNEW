@@ -258,7 +258,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
         label: "MIT",
         text: mit.content.slice(0, 140),
         tone: "win",
-        href: "/tasks",
+        href: "/missions",
       });
     } else {
       // Before noon, nudge that MIT isn't set
@@ -271,7 +271,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
           label: "MIT",
           text: "not set today — lock it in",
           tone: "warn",
-          href: "/tasks",
+          href: "/missions",
         });
       }
     }
@@ -322,7 +322,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
         label: "PROMISE",
         text: `owed ${c.toWhom}${daysOverdue > 0 ? ` · ${daysOverdue}d overdue` : ""}: ${c.description.slice(0, 100)}`,
         tone: "warn",
-        href: "/tasks",
+        href: "/missions",
       });
     }
 
@@ -365,7 +365,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
         label: "DONE",
         text: `${ageMins < 60 ? `${ageMins}m ago` : `${Math.round(ageMins / 60)}h ago`} · ${latestWin.title.slice(0, 110)}`,
         tone: "win",
-        href: "/tasks",
+        href: "/missions",
       });
     }
 

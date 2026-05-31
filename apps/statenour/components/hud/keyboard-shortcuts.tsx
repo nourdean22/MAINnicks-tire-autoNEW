@@ -34,11 +34,11 @@ const GO_ROUTES: Record<string, string> = {
   // core surfaces
   h: "/",
   n: "/chat",
-  t: "/tasks",
+  t: "/missions",
   j: "/journal",
   b: "/brain",
   k: "/knowledge",
-  m: "/mastery",
+  m: "/stats",
   f: "/financial",
   y: "/body",                   // y = bodY (b is brain)
   s: "/system",

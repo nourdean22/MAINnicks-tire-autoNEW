@@ -129,7 +129,7 @@ function composeForTasks(i: ComposerInput): OperatorPulseSnapshot["pulse"] exten
     const promiseSuffix = t.promiseTo ? ` · promise to ${t.promiseTo}` : "";
     pulse = {
       text: `Right now · do "${t.title.slice(0, 52)}${t.title.length > 52 ? "…" : ""}" · roi ${t.roiScore}${goalSuffix}${promiseSuffix}`,
-      href: `/tasks#task-row-${t.id}`,
+      href: `/missions#task-row-${t.id}`,
       tone: t.roiScore >= 80 ? "gold" : "neutral",
     };
   }
@@ -151,7 +151,7 @@ function composeForTasks(i: ComposerInput): OperatorPulseSnapshot["pulse"] exten
   const drift: PulseLine | null = i.stalePromise
     ? {
         text: `Promise · "${i.stalePromise.title.slice(0, 40)}${i.stalePromise.title.length > 40 ? "…" : ""}" · ${i.stalePromise.daysSinceUpdate}d quiet${i.stalePromise.promiseTo ? ` (to ${i.stalePromise.promiseTo})` : ""}`,
-        href: `/tasks#task-row-${i.stalePromise.id}`,
+        href: `/missions#task-row-${i.stalePromise.id}`,
         tone: "amber",
       }
     : null;
@@ -276,7 +276,7 @@ function composeForHome(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" |
     const t = i.topOpenTask;
     pulse = {
       text: `Today · "${t.title.slice(0, 56)}${t.title.length > 56 ? "…" : ""}" is the top move`,
-      href: `/tasks#task-row-${t.id}`,
+      href: `/missions#task-row-${t.id}`,
       tone: t.roiScore >= 80 ? "gold" : "neutral",
     };
   }
@@ -300,7 +300,7 @@ function composeForHome(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" |
   if (i.stalePromise) {
     drift = {
       text: `Quiet promise · "${i.stalePromise.title.slice(0, 36)}${i.stalePromise.title.length > 36 ? "…" : ""}" · ${i.stalePromise.daysSinceUpdate}d`,
-      href: `/tasks#task-row-${i.stalePromise.id}`,
+      href: `/missions#task-row-${i.stalePromise.id}`,
       tone: "amber",
     };
   } else if (trailing && trailing.score < 5) {

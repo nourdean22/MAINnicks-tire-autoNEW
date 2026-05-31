@@ -181,7 +181,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Creating tasks…",
     icon: Plus,
     color: "gold",
-    link: { href: "/tasks", label: "View in Actions" },
+    link: { href: "/missions", label: "View in Actions" },
     subtitle: (out) => {
       const o = out as { count?: number; missionId?: string } | null;
       return o?.count ? `${o.count} tasks created` : null;
@@ -193,14 +193,14 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Creating task…",
     icon: Plus,
     color: "gold",
-    link: { href: "/tasks", label: "View in Actions" },
+    link: { href: "/missions", label: "View in Actions" },
     // v10.0.529.91 · Wave 35 · deep-link to the exact task row · the
     // /tasks page already supports #task-row-<id> ring-highlight (see
     // tasks/page.tsx:1147). PageContextBridge then picks up the hash
     // and seeds lastTaskId for the next chat turn.
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
-      return o?.taskId ? { href: `/tasks#task-row-${o.taskId}`, label: "View task" } : null;
+      return o?.taskId ? { href: `/missions#task-row-${o.taskId}`, label: "View task" } : null;
     },
     subtitle: (out) => {
       const o = out as { title?: string; task?: { title?: string } } | null;
@@ -213,10 +213,10 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Completing…",
     icon: CheckCircle2,
     color: "emerald",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
-      return o?.taskId ? { href: `/tasks#task-row-${o.taskId}`, label: "View task" } : null;
+      return o?.taskId ? { href: `/missions#task-row-${o.taskId}`, label: "View task" } : null;
     },
     subtitle: (out) => {
       const o = out as { title?: string; task?: { title?: string } } | null;
@@ -229,10 +229,10 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Updating…",
     icon: Zap,
     color: "blue",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
-      return o?.taskId ? { href: `/tasks#task-row-${o.taskId}`, label: "View task" } : null;
+      return o?.taskId ? { href: `/missions#task-row-${o.taskId}`, label: "View task" } : null;
     },
     subtitle: (out) => {
       const o = out as { title?: string; fieldsChanged?: string[] } | null;
@@ -251,10 +251,10 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Snoozing…",
     icon: Clock,
     color: "blue",
-    link: { href: "/tasks", label: "View in tasks" },
+    link: { href: "/missions", label: "View in tasks" },
     linkFn: (out) => {
       const o = out as { taskId?: string } | null;
-      return o?.taskId ? { href: `/tasks#task-row-${o.taskId}`, label: "View task" } : null;
+      return o?.taskId ? { href: `/missions#task-row-${o.taskId}`, label: "View task" } : null;
     },
     subtitle: (out) => {
       const o = out as { title?: string; label?: string; snoozedUntil?: string } | null;
@@ -271,7 +271,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Archiving…",
     icon: Archive,
     color: "amber",
-    link: { href: "/tasks?mode=PLAN", label: "View goals" },
+    link: { href: "/missions?mode=PLAN", label: "View goals" },
     subtitle: (out) => {
       const o = out as { title?: string } | null;
       return o?.title ? `"${o.title}" · history preserved` : null;
@@ -283,7 +283,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Logging…",
     icon: TrendingUp,
     color: "emerald",
-    link: { href: "/tasks?mode=PLAN", label: "View goals" },
+    link: { href: "/missions?mode=PLAN", label: "View goals" },
     subtitle: (out) => {
       const o = out as {
         title?: string;
@@ -335,7 +335,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Locking MIT…",
     icon: Swords,
     color: "gold",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { text?: string; mit?: string } | null;
       return o?.text || o?.mit || null;
@@ -354,7 +354,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Adding…",
     icon: HandshakeIcon,
     color: "purple",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { description?: string; title?: string } | null;
       return o?.description || o?.title || null;
@@ -403,7 +403,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Adding to INBOX…",
     icon: Target,
     color: "blue",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { title?: string } | null;
       return o?.title || null;
@@ -616,7 +616,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Recording life goal…",
     icon: Target,
     color: "gold",
-    link: { href: "/mastery", label: "Mastery" },
+    link: { href: "/stats", label: "Mastery" },
     subtitle: (out) => {
       const o = out as { id?: string; title?: string; horizon?: string; domain?: string } | null;
       if (!o) return null;
@@ -630,7 +630,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Recording mastery score…",
     icon: TrendingUp,
     color: "emerald",
-    link: { href: "/mastery", label: "Mastery" },
+    link: { href: "/stats", label: "Mastery" },
     subtitle: (out) => {
       const o = out as { domain?: string; score?: number; delta?: number } | null;
       if (!o) return null;
@@ -753,7 +753,7 @@ const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Ranking your next moves…",
     icon: ListChecks,
     color: "gold",
-    link: { href: "/tasks", label: "Actions" },
+    link: { href: "/missions", label: "Actions" },
     subtitle: (out) => {
       const o = out as { count?: number; actions?: unknown[]; top?: { title?: string } } | null;
       if (o?.top?.title) return o.top.title;
