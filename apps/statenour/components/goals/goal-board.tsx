@@ -628,6 +628,7 @@ export function GoalBoard() {
             <Button
               size="sm"
               disabled={adding}
+              aria-label="Add goal"
               className="h-9 w-9 p-0 bg-zinc-800/80 hover:bg-blue-500/20 hover:text-blue-400 border border-zinc-700/50 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={() => {
                 if (!showAddForm && newTitle.trim()) setShowAddForm(true);
