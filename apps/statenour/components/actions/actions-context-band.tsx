@@ -59,7 +59,7 @@ interface LifeSurface {
 // destination routes carry their own depth so blurbs were redundant.
 // Total height went from ~170px → ~32px.
 const LIFE: LifeSurface[] = [
-  { href: "/mastery",   label: "growth",    icon: Target },
+  { href: "/stats",     label: "growth",    icon: Target },
   { href: "/body",      label: "body",      icon: Activity },
   { href: "/financial", label: "money",     icon: DollarSign },
   { href: "/knowledge", label: "knowledge", icon: Library },

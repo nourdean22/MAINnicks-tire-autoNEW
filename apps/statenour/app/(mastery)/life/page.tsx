@@ -34,7 +34,7 @@ interface HubItem {
 
 const ITEMS: HubItem[] = [
   {
-    href: "/mastery",
+    href: "/stats",
     label: "mastery",
     blurb: "8-axis growth radar · goals · domain evidence",
     icon: Target,

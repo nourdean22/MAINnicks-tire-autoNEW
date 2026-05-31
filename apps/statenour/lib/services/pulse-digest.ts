@@ -348,7 +348,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         kind: "win",
         severity: "win",
         at: new Date().toISOString(),
-        link: "/tasks",
+        link: "/missions",
       });
     }
     if (autoActionsToday > 0) {
@@ -384,7 +384,7 @@ export async function buildPulseDigest(): Promise<PulseDigest> {
         kind: "win",
         severity: "win",
         at: brainDigestToday.createdAt.toISOString(),
-        link: "/tasks",
+        link: "/missions",
       });
     }
 

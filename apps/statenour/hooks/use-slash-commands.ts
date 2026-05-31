@@ -43,7 +43,7 @@ export const SLASH_COMMANDS: SlashCommand[] = [
 
   // Apr 19 · Navigation commands (router-push, zero prompt firing)
   { cmd: "/brain", label: "Open Brain Dashboard", icon: "🧠", prompt: "", navigate: "/brain" },
-  { cmd: "/tasks", label: "Open Tasks Queue", icon: "📋", prompt: "", navigate: "/tasks" },
+  { cmd: "/tasks", label: "Open Tasks Queue", icon: "📋", prompt: "", navigate: "/missions" },
   { cmd: "/journal", label: "Open Journal", icon: "📓", prompt: "", navigate: "/journal" },
   { cmd: "/skills", label: "Skill Library in Brain", icon: "🎯", prompt: "", navigate: "/brain#skills" },
   { cmd: "/identity", label: "Identity Snapshot", icon: "🧭", prompt: "", navigate: "/brain#identity" },

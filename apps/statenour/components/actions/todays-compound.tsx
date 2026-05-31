@@ -71,7 +71,7 @@ export function TodaysCompound() {
       key: "mastery",
       label: data.topMastery.domain,
       value: `+${data.topMastery.delta.toFixed(1)} → ${data.topMastery.score}/100`,
-      href: "/mastery",
+      href: "/stats",
       accent: true,
     });
   }

@@ -137,7 +137,7 @@ async function pickOpenTasks(): Promise<ScoreboardNumber> {
     trend: "flat",
     anomalous: false,
     why: null,
-    link: "/tasks",
+    link: "/missions",
   };
 }
 
@@ -155,7 +155,7 @@ async function pickActiveCommitments(): Promise<ScoreboardNumber> {
     trend: "flat",
     anomalous: false,
     why: null,
-    link: "/tasks?filter=commitments",
+    link: "/missions?filter=commitments",
   };
 }
 

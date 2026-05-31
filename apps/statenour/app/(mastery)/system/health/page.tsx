@@ -300,9 +300,9 @@ export default function SystemHealthPage() {
           <dl className="p-3 space-y-1.5 text-[11px] font-mono">
             {/* Apr 18: /commitments /drift /capture pages retired — all
                 flow into the unified /tasks surface now. */}
-            <KVRow k="inbox tasks" v={data.backlog.inboxTasks} href="/tasks" />
-            <KVRow k="active commitments" v={data.backlog.activeCommitments} href="/tasks" />
-            <KVRow k="active captures" v={data.backlog.activeCaptures} href="/tasks" />
+            <KVRow k="inbox tasks" v={data.backlog.inboxTasks} href="/missions" />
+            <KVRow k="active commitments" v={data.backlog.activeCommitments} href="/missions" />
+            <KVRow k="active captures" v={data.backlog.activeCaptures} href="/missions" />
             <KVRow k="unacked drift" v={data.backlog.unackedDriftAlerts} href="/" tone={data.backlog.unackedDriftAlerts > 3 ? "warn" : undefined} />
           </dl>
         </section>

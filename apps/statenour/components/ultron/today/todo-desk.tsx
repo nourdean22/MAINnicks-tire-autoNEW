@@ -279,7 +279,7 @@ export function TodoDesk() {
           </p>
         </div>
         <Link
-          href="/tasks"
+          href="/missions"
           className="text-[9px] font-bold uppercase tracking-wider text-emerald-400 hover:underline flex items-center gap-0.5"
         >
           tasks <ChevronRight size={9} />
@@ -312,7 +312,7 @@ export function TodoDesk() {
        *  count, arrow. Nothing else competes.
        */}
       <Link
-        href="/tasks"
+        href="/missions"
         className={cn(
           "group flex items-center justify-between gap-2 px-3 py-2 border-b border-[var(--border-default)]/60",
           "hover:bg-[var(--bg-raised)]/40 transition-colors",
@@ -382,7 +382,7 @@ export function TodoDesk() {
           ))}
           {data.queue.length > 5 && (
             <Link
-              href="/tasks"
+              href="/missions"
               className="block px-3 py-1.5 text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)]/40 transition-colors text-center"
             >
               +{data.queue.length - 5} more · open tasks →

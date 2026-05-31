@@ -198,13 +198,13 @@ function composeSentence(d: HealthShape, tod: Tod): Composition {
     if (d.tasks.doing > 0) {
       parts.push({
         text: `${d.tasks.doing} in motion`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks currently doing",
       });
     } else if (d.tasks.ready > 0) {
       parts.push({
         text: `${d.tasks.ready} ready`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks ready to start",
       });
     }
@@ -215,14 +215,14 @@ function composeSentence(d: HealthShape, tod: Tod): Composition {
     if (d.tasks.done > 0) {
       parts.push({
         text: `${d.tasks.done} done`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks completed today",
       });
     }
     if (d.tasks.doing > 0) {
       parts.push({
         text: `${d.tasks.doing} in motion`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks currently doing",
       });
     }
@@ -249,7 +249,7 @@ function composeSentence(d: HealthShape, tod: Tod): Composition {
     if (d.tasks.done > 0) {
       parts.push({
         text: `${d.tasks.done} done`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks completed today",
       });
     }
@@ -264,7 +264,7 @@ function composeSentence(d: HealthShape, tod: Tod): Composition {
     if (d.tasks.doing > 0) {
       parts.push({
         text: `${d.tasks.doing} still open`,
-        href: "/tasks",
+        href: "/missions",
         title: "tasks still in motion",
       });
     }
