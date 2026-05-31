@@ -66,7 +66,7 @@ export async function POST(req: Request) {
   const t0 = Date.now();
   const startBoundary = dayBoundaryDate(dayLabel, "start");
   const endBoundary = dayBoundaryDate(dayLabel, "end");
-  const [tasks, calendarEvents, brainItems, recentScores, industry] = await Promise.all([
+  const [tasks, calendarEvents, brainItems, industry] = await Promise.all([
     prisma.task
       .findMany({
         where: { status: { in: ["INBOX", "READY", "DOING", "WAITING"] } },
@@ -100,17 +100,6 @@ export async function POST(req: Request) {
         select: { content: true, category: true, source: true },
       })
       .catch(() => [] as Array<{ content: string; category: string; source: string | null }>),
-    prisma.brainMemory
-      .findMany({
-        where: {
-          category: "daily_score",
-          createdAt: { gte: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
-        },
-        orderBy: { createdAt: "desc" },
-        take: 5,
-        select: { content: true, createdAt: true, metadata: true },
-      })
-      .catch(() => [] as Array<{ content: string; createdAt: Date; metadata: unknown }>),
     recallIndustryIntel({ limit: 5, daysBack: 7 }),
   ]);
 
@@ -136,12 +125,6 @@ export async function POST(req: Request) {
     "",
     `High-priority brain context (${brainItems.length}):`,
     ...brainItems.slice(0, 8).map((b: { category: string; content: string }) => `  · [${b.category}] ${b.content.slice(0, 200)}`),
-    "",
-    `Recent score trend (${recentScores.length} days):`,
-    ...recentScores.map(
-      (s: { content: string; createdAt: Date }) =>
-        `  · ${s.createdAt.toISOString().split("T")[0]} — ${s.content.slice(0, 150)}`,
-    ),
     "",
     `Strategic context — recent industry trends:`,
     ...industry.slice(0, 3).map((i: { category: string; title: string }) => `  · [${i.category}] ${i.title.slice(0, 150)}`),

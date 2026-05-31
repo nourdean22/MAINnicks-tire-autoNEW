@@ -5,7 +5,13 @@
  * Robert Greene strategic laws. Each trigger has REAL conditions
  * that query actual data, not placeholders.
  *
- * Triggers run as part of the daily strategy brief or on-demand.
+ * ⚠ DORMANT (2026-05-31) — `runStrategicTriggers` / `logStrategicTriggers`
+ * have NO live caller: the brain-cycle cron that drove them was deleted in
+ * the Wave-AE prune. Intentionally unwired, kept for revival. Before
+ * re-wiring (e.g. to an inngest cron): RE-SOURCE the score-based triggers
+ * (several read the retired daily-score via the `recentScoreSnapshots` shim
+ * → null-coalesced to 0 → would fire FALSE "depleted/declining" warnings),
+ * and drop/re-source the relationship trigger (blunt regex nag · see D-REL).
  */
 import { prisma } from "@/lib/prisma";
 import { startOfDayET, toDateString } from "@/lib/utils/datetime";

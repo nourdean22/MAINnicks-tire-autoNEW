@@ -671,46 +671,6 @@ const RULES: ActionRule[] = [
     targetType: "commitment",
   },
 
-  // ── Body composition projection ───────────────────────────
-  {
-    name: "body_projection_weekly",
-    trigger: async () => {
-      const day = new Date().getDay();
-      if (day !== 1) return []; // Monday only
-      const weights = await prisma.bodyTracking.findMany({
-        orderBy: { date: "desc" },
-        take: 14,
-        select: { weight: true, date: true },
-      });
-      if (weights.length < 3) return [];
-      return [{ weights }];
-    },
-    action: async (data) => {
-      const weights = data.weights as Array<{ weight: number; date: string }>;
-      const current = weights[0].weight;
-      const target = 186;
-      const oldest = weights[weights.length - 1];
-      const daySpan = Math.max(1, Math.floor((Date.now() - new Date(oldest.date).getTime()) / 86400000));
-      const weeklyLoss = ((oldest.weight - current) / daySpan) * 7;
-
-      if (weeklyLoss <= 0) {
-        await sendTelegram(
-          `⚖️ <b>Weight Check — ${current} lbs</b>\n\nNo progress this period. Weight is flat or increasing.\nTarget: ${target} lbs (${current - target} lbs to go)\n\nCheck: are you tracking calories? Skipping workouts?`
-        );
-      } else {
-        const weeksToTarget = Math.ceil((current - target) / weeklyLoss);
-        const targetDate = new Date(Date.now() + weeksToTarget * 7 * 86400000);
-        await sendTelegram(
-          `⚖️ <b>Weight Projection — ${current} lbs</b>\n\nRate: ${weeklyLoss.toFixed(1)} lbs/week\nTarget: ${target} lbs (${(current - target).toFixed(0)} to go)\n📅 Projected: ${targetDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n\nKeep the pace. Every workout counts.`
-        );
-      }
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "body",
-  },
-
   // ── Memory promotion pipeline ─────────────────────────────
   {
     name: "memory_promotion",
@@ -842,37 +802,6 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "revenue",
-  },
-
-  // ── Dania neglect nudge ───────────────────────────────────
-  {
-    name: "dania_neglect_nudge",
-    trigger: async () => {
-      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      const recentMentions = await prisma.brainMemory.count({
-        where: {
-          category: BRAIN_CATEGORIES.RELATIONSHIP,
-          key: { startsWith: "dania_mention_" },
-          createdAt: { gte: sevenDaysAgo },
-        },
-      });
-      if (recentMentions > 0) return [];
-      // Check if we already nudged this week
-      const alerted = await prisma.autonomousAction.findFirst({
-        where: { ruleName: "dania_neglect_nudge", createdAt: { gte: sevenDaysAgo } },
-      });
-      if (alerted) return [];
-      return [{ daysSinceMention: 7 }];
-    },
-    action: async () => {
-      await sendTelegram(
-        `💛 <b>Relationship Check</b>\n\nNo mention of Dania in 7+ days.\n\nWhen the marriage stalls, everything follows. You know this.\n\nSuggestion: Plan something this weekend. Date night, walk, or just 30 minutes of undivided attention.\n\nSmall investment. Massive ROI.`
-      );
-      return { result: "success" };
-    },
-    approval: "auto",
-    actionType: "send_telegram",
-    targetType: "relationship",
   },
 
   // ── Decision review due ───────────────────────────────────
