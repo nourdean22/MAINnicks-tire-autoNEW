@@ -117,6 +117,14 @@ export const CRONS: CronDef[] = [
     inngest: true,
     description: "Flags dormant journal threads — Inngest-native.",
   },
+  {
+    name: "industry-pull",
+    schedule: "0 8 * * *",
+    mode: "active",
+    category: "brain",
+    inngest: true,
+    description: "Industry-intel RSS feeder → BrainMemory(industry_intel) for recallIndustryIntel (system prompt + /intel + plan-day). Revived 2026-05-31 (was deleted in Wave AE).",
+  },
 
   // ── COMPOSE ─────────────────────────────────────────────────────────
   {
