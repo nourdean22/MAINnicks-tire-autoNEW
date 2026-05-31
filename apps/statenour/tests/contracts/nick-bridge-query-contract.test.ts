@@ -103,6 +103,9 @@ function scanCallsites(): Callsite[] {
   const files = ["lib", "app", "src"].flatMap((d) => walk(join(STATENOUR_ROOT, d)));
   const hits: Callsite[] = [];
   // Direct forms:  queryNick("x")  ·  fetchBridge<T>("x")
+  // Known limitation: only a literal first-arg is scanned. A query name held
+  // in a variable first (`const q = "x"; queryNick(q)`) is NOT caught — every
+  // current callsite passes a literal, so this is a structural gap, not a miss.
   const direct = /(?:queryNick|fetchBridge)\s*(?:<[^>]*>)?\(\s*["']([a-z0-9_]+)["']/g;
   // Batch form:  queryNickBatch([{ query: "x" }, ...]) — only trust `query:`
   // literals in files that actually use the batch helper, so we don't pick up

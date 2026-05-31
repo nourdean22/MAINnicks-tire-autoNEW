@@ -178,7 +178,7 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
           : [];
       const existingCustomer = matches.length > 0 ? matches[0] : null;
 
-      if (existingCustomer && existingCustomer.totalVisits > 1) {
+      if (existingCustomer && Number(existingCustomer.totalVisits) > 1) {
         // v10.0.38 — PII fix. Pre-fix: customer full name was the
         // memory key + appeared verbatim in the brain content +
         // surfaced into system prompts forever. Now: hash the name
@@ -189,12 +189,12 @@ export async function processShopEvent(event: ShopEvent): Promise<{ processed: b
           .update(customerName.toLowerCase().trim())
           .digest("hex")
           .slice(0, 12);
+        // Bridge JSON can deliver totalSpent as a string (TiDB DECIMAL
+        // serializes to a string in some driver configs); Number() keeps
+        // the tier thresholds robust to either number-or-string shape.
+        const spent = Number(existingCustomer.totalSpent);
         const spendTier =
-          existingCustomer.totalSpent >= 5000
-            ? "high"
-            : existingCustomer.totalSpent >= 1000
-              ? "mid"
-              : "starter";
+          spent >= 5000 ? "high" : spent >= 1000 ? "mid" : "starter";
         await brainMemory.remember(
           "insight",
           `repeat_customer_${nameHash}_${today()}`,
