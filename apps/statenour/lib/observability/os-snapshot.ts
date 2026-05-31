@@ -56,7 +56,7 @@ export async function countRoutes(): Promise<number> {
   const matches = await glob("app/api/**/route.ts", {
     cwd: REPO_ROOT,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.next/**"],
+    ignore: ["**/node_modules/**", "**/.next/**", "**/.next-prod/**", "**/standalone/**"],
   });
   return matches.length;
 }
@@ -99,6 +99,8 @@ async function sumLocForDir(dir: string): Promise<number> {
     ignore: [
       "**/node_modules/**",
       "**/.next/**",
+      "**/.next-prod/**",
+      "**/standalone/**",
       "**/dist/**",
       "**/*.d.ts",
     ],
@@ -120,7 +122,7 @@ export async function countTestFiles(): Promise<number> {
   const matches = await glob("tests/**/*.test.{ts,tsx}", {
     cwd: REPO_ROOT,
     nodir: true,
-    ignore: ["**/node_modules/**", "**/.next/**"],
+    ignore: ["**/node_modules/**", "**/.next/**", "**/.next-prod/**", "**/standalone/**"],
   });
   return matches.length;
 }
@@ -138,6 +140,8 @@ export async function countMonsterFiles(
     ignore: [
       "**/node_modules/**",
       "**/.next/**",
+      "**/.next-prod/**",
+      "**/standalone/**",
       "**/dist/**",
       "**/*.d.ts",
     ],
@@ -173,6 +177,8 @@ export async function countAnyUsage(): Promise<number> {
     ignore: [
       "**/node_modules/**",
       "**/.next/**",
+      "**/.next-prod/**",
+      "**/standalone/**",
       "**/dist/**",
       "**/*.d.ts",
     ],
@@ -203,6 +209,8 @@ export async function countConsoleCalls(): Promise<number> {
     ignore: [
       "**/node_modules/**",
       "**/.next/**",
+      "**/.next-prod/**",
+      "**/standalone/**",
       "**/dist/**",
       "**/*.d.ts",
     ],
