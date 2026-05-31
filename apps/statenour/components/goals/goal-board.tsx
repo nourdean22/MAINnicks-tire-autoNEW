@@ -67,7 +67,10 @@ import {
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  Flame,
+  Gauge,
   GitBranch,
+  Skull,
   TrendingUp,
   TrendingDown,
   Activity,
@@ -135,6 +138,13 @@ interface LifeGoal {
   // scalar (seeds the edit-mode parent selector); `ladder` is the
   // server-resolved parent breadcrumb + children with a rolled-up summary.
   parentGoalId?: string | null;
+  // Ambition Engine P3 · kind (card shape) + the anti-stale authoring columns.
+  kind?: string; // metric | milestone | narrative
+  conviction?: number | null;
+  ambition?: string | null;
+  killCriteria?: string | null;
+  killBy?: string | null;
+  identityLine?: string | null;
   ladder?: {
     parent: { id: string; title: string; horizon: string | null } | null;
     children: {
@@ -493,6 +503,13 @@ export function GoalBoard() {
   const [editStatus, setEditStatus] = useState<string>("");
   // Ambition Engine P3 · the ladder parent selector ("" = no parent).
   const [editParentId, setEditParentId] = useState<string>("");
+  // Ambition Engine P3 · kind + anti-stale authoring fields.
+  const [editKind, setEditKind] = useState<string>("");
+  const [editConviction, setEditConviction] = useState<string>("");
+  const [editAmbition, setEditAmbition] = useState<string>("");
+  const [editIdentityLine, setEditIdentityLine] = useState<string>("");
+  const [editKillCriteria, setEditKillCriteria] = useState<string>("");
+  const [editKillBy, setEditKillBy] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const startEdit = useCallback(
@@ -508,6 +525,12 @@ export function GoalBoard() {
       domain?: string | null;
       status?: string | null;
       parentGoalId?: string | null;
+      kind?: string | null;
+      conviction?: number | null;
+      ambition?: string | null;
+      identityLine?: string | null;
+      killCriteria?: string | null;
+      killBy?: string | null;
     }) => {
       setEditingId(g.id);
       setEditTitle(g.title);
@@ -522,6 +545,12 @@ export function GoalBoard() {
       setEditDomain(g.domain || "");
       setEditStatus(g.status || "");
       setEditParentId(g.parentGoalId || "");
+      setEditKind(g.kind || "");
+      setEditConviction(typeof g.conviction === "number" ? String(g.conviction) : "");
+      setEditAmbition(g.ambition || "");
+      setEditIdentityLine(g.identityLine || "");
+      setEditKillCriteria(g.killCriteria || "");
+      setEditKillBy(g.killBy ? g.killBy.slice(0, 10) : "");
     },
     [],
   );
@@ -538,6 +567,12 @@ export function GoalBoard() {
     setEditDomain("");
     setEditStatus("");
     setEditParentId("");
+    setEditKind("");
+    setEditConviction("");
+    setEditAmbition("");
+    setEditIdentityLine("");
+    setEditKillCriteria("");
+    setEditKillBy("");
   }, []);
 
   const saveEdit = useCallback(async () => {
@@ -579,6 +614,13 @@ export function GoalBoard() {
     // validates (no self / cycle / inverted-horizon) and rejects with a
     // message surfaced in the catch below.
     payload.parentGoalId = editParentId || null;
+    // Ambition Engine P3 · kind + anti-stale fields. Empty -> null/clear.
+    if (editKind) payload.kind = editKind as NonNullable<typeof payload.kind>;
+    payload.conviction = editConviction ? parseInt(editConviction, 10) : null;
+    payload.ambition = (editAmbition || null) as typeof payload.ambition;
+    payload.identityLine = editIdentityLine.trim() || null;
+    payload.killCriteria = editKillCriteria.trim() || null;
+    payload.killBy = editKillBy ? `${editKillBy}T23:59:59.000Z` : null;
     setSavingEdit(true);
     try {
       await goalsUpdate.mutateAsync(payload);
@@ -591,7 +633,7 @@ export function GoalBoard() {
     } finally {
       setSavingEdit(false);
     }
-  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, editParentId, cancelEdit, load, goalsUpdate]);
+  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, editParentId, editKind, editConviction, editAmbition, editIdentityLine, editKillCriteria, editKillBy, cancelEdit, load, goalsUpdate]);
 
   const coachGoal = useCallback(
     async (goalId: string) => {
@@ -1023,6 +1065,76 @@ export function GoalBoard() {
                                 </option>
                               ))}
                           </select>
+                          {/* Ambition Engine P3 · kind (card shape) + the
+                              anti-stale ritual: conviction, identity line,
+                              kill-criteria + kill-by, ambition tag. */}
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select
+                              value={editKind}
+                              onChange={(e) => setEditKind(e.target.value)}
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-violet-500/40"
+                            >
+                              <option value="">— kind —</option>
+                              <option value="metric">metric (target)</option>
+                              <option value="milestone">milestone (checklist)</option>
+                              <option value="narrative">narrative (identity)</option>
+                            </select>
+                            <select
+                              value={editConviction}
+                              onChange={(e) => setEditConviction(e.target.value)}
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-pink-500/40"
+                            >
+                              <option value="">— conviction —</option>
+                              <option value="1">1 · meh</option>
+                              <option value="2">2</option>
+                              <option value="3">3</option>
+                              <option value="4">4</option>
+                              <option value="5">5 · devastated to lose</option>
+                            </select>
+                          </div>
+                          <input
+                            type="text"
+                            value={editIdentityLine}
+                            onChange={(e) => setEditIdentityLine(e.target.value)}
+                            placeholder="Identity line: the kind of person who... (narrative)"
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-violet-300/90 italic focus:outline-none focus:border-violet-500/40"
+                          />
+                          <div className="grid grid-cols-[1fr_auto] gap-1.5">
+                            <input
+                              type="text"
+                              value={editKillCriteria}
+                              onChange={(e) => setEditKillCriteria(e.target.value)}
+                              placeholder="Kill if... (pre-committed exit)"
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-rose-500/40"
+                            />
+                            <input
+                              type="date"
+                              value={editKillBy}
+                              onChange={(e) => setEditKillBy(e.target.value)}
+                              title="Kill-by date"
+                              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 focus:outline-none focus:border-rose-500/40"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[8px] text-zinc-600 uppercase tracking-wider">
+                              Ambition:
+                            </span>
+                            {(["tenx", "incremental"] as const).map((a) => (
+                              <button
+                                key={a}
+                                type="button"
+                                onClick={() => setEditAmbition(editAmbition === a ? "" : a)}
+                                className={cn(
+                                  "text-[8px] px-2 py-0.5 rounded border uppercase tracking-wider transition-all",
+                                  editAmbition === a
+                                    ? "text-amber-300 border-amber-500/40 bg-amber-500/10"
+                                    : "text-zinc-600 border-zinc-800/40",
+                                )}
+                              >
+                                {a === "tenx" ? "10x" : "incremental"}
+                              </button>
+                            ))}
+                          </div>
                           <div className="flex items-center gap-2">
                             <select
                               value={editHorizon}
@@ -1073,6 +1185,11 @@ export function GoalBoard() {
                             )}
                           >
                             {horizonMeta.label}
+                          </Badge>
+                        )}
+                        {g.kind && g.kind !== "metric" && (
+                          <Badge className="bg-violet-500/10 text-violet-300 text-[7px] h-3 border border-violet-500/20 shrink-0 uppercase">
+                            {g.kind}
                           </Badge>
                         )}
                         {noLoops && (
@@ -1169,13 +1286,70 @@ export function GoalBoard() {
                             )}
                           </div>
                         )}
+                      {/* Ambition Engine P3 · identity line (narrative goals) */}
+                      {g.identityLine && editingId !== g.id && (
+                        <p className="text-[10px] text-violet-300/80 italic mt-0.5 line-clamp-2">
+                          &ldquo;{g.identityLine}&rdquo;
+                        </p>
+                      )}
+                      {/* Ambition Engine P3 · anti-stale signals — conviction,
+                          ambition tag, pre-committed kill-by, and the Elon
+                          idiot-index (hours invested per 1% of progress). */}
+                      {editingId !== g.id &&
+                        (typeof g.conviction === "number" ||
+                          g.ambition ||
+                          g.killBy ||
+                          ((g.minutesInvested ?? 0) > 0 && g.progress > 0)) && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[9px] font-mono">
+                            {typeof g.conviction === "number" && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded-md border border-pink-500/30 bg-pink-500/5 px-1.5 py-0.5 text-pink-300/90"
+                                title="Conviction — how devastated you'd be to lose this"
+                              >
+                                <Flame size={9} className="shrink-0" />
+                                {g.conviction}/5
+                              </span>
+                            )}
+                            {g.ambition && (
+                              <span
+                                className="inline-flex items-center rounded-md border border-amber-500/30 bg-amber-500/5 px-1.5 py-0.5 text-amber-300/90 uppercase tracking-wider"
+                                title="Ambition tag"
+                              >
+                                {g.ambition === "tenx" ? "10x" : "incremental"}
+                              </span>
+                            )}
+                            {g.killBy && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded-md border border-rose-500/30 bg-rose-500/5 px-1.5 py-0.5 text-rose-300/80"
+                                title={
+                                  g.killCriteria
+                                    ? `Kill if: ${g.killCriteria}`
+                                    : "Pre-committed kill-by date"
+                                }
+                              >
+                                <Skull size={9} className="shrink-0" />
+                                kill by {g.killBy.slice(0, 10)}
+                              </span>
+                            )}
+                            {(g.minutesInvested ?? 0) > 0 && g.progress > 0 && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded-md border border-zinc-700 bg-zinc-800/40 text-zinc-500 px-1.5 py-0.5"
+                                title="Idiot index — hours invested per 1% of progress (lower is better)"
+                              >
+                                <Gauge size={9} className="shrink-0" />
+                                {(Math.round((g.minutesInvested ?? 0) / 60) / g.progress).toFixed(1)}h/%
+                              </span>
+                            )}
+                          </div>
+                        )}
                       <div className="flex items-center gap-2 mt-1 text-[9px] text-zinc-600 font-mono flex-wrap">
                         <Badge className="bg-zinc-800/50 text-zinc-500 text-[8px] h-3 border-0">
                           {g.domain}
                         </Badge>
                         {(g.linkedTaskCount ?? 0) > 0 && (
                           <span>
-                            {g.linkedDoneCount}/{g.linkedTaskCount} loops
+                            {g.linkedDoneCount}/{g.linkedTaskCount}{" "}
+                            {g.kind === "milestone" ? "milestones" : "loops"}
                           </span>
                         )}
                         {/* Apr 27 · GB3 — loops moved this week. The
