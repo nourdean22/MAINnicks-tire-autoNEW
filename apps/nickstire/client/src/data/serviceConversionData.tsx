@@ -22,7 +22,7 @@ import { Disc, Activity, Wrench, AlertTriangle, Clock, Snowflake, Thermometer, B
 /** A subset of ServicePageConfig containing only the conversion fields. */
 export type ConversionFields = Pick<
   ServicePageConfig,
-  "anchorTable" | "fearStats" | "lossStats" | "crossSell"
+  "anchorTable" | "fearStats" | "lossStats" | "crossSell" | "curiosityArc"
 >;
 
 /**
@@ -39,6 +39,13 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
   // OIL CHANGE — info tone (preventive)
   // ════════════════════════════════════════════════════════
   "oil-change": {
+    // Curiosity arc (2026-05-30) — oil change is the "cheaper than you think"
+    // service; hero hook plays the pleasant-surprise gap (no $), stakes hook =
+    // honest compounding cost the fear stats back up.
+    curiosityArc: {
+      heroHook: "Less than you'd guess.",
+      stakesHook: "Skip it twice and the number changes — here's what old oil actually costs.",
+    },
     anchorTable: {
       serviceName: "Synthetic oil change — Cleveland market quotes",
       rows: [

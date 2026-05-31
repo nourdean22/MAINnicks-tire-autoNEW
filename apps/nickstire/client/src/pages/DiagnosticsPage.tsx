@@ -63,6 +63,13 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "diagnostics",
   serviceType: "Vehicle Diagnostics",
+  // Curiosity arc (2026-05-30) — hero hook leans on the real "free scan" draw
+  // (free is a pull, not a price); stakes hook = honest cost-of-delay that the
+  // fear stats substantiate (a $200 sensor cooks a $1,500+ cat the longer it waits).
+  curiosityArc: {
+    heroHook: "Free to find out what's wrong.",
+    stakesHook: "That light gets more expensive the longer it stays on. Here's how.",
+  },
   ctaHeadline: "BRING IT IN · WE'LL TELL YOU WHAT'S WRONG",
   ctaSub: "Free code scan, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland OH.",
 
