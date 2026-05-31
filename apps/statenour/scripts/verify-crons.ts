@@ -34,7 +34,7 @@ console.log("");
 // ── 1 · Every named cron has a route.ts on disk ──────────────────────
 console.log("[1/6]manifest → filesystem");
 for (const c of CRONS) {
-  if (c.name === "mega-evening") continue; // shares mega route
+  if (c.name === "mega-evening" || c.inngest) continue; // shares mega route / Inngest-native (no route file)
   const routePath = path.join(cwd, "app/api/cron", c.name, "route.ts");
   if (!fs.existsSync(routePath)) {
     fail(`${c.name} (mode=${c.mode}) — missing ${path.relative(cwd, routePath)}`);
@@ -188,7 +188,8 @@ const INDEPENDENT = new Set([
 let phantomActive = 0;
 for (const c of CRONS) {
   if (c.mode !== "active") continue;
-  if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name)) continue;
+  // Inngest-native crons fire via their own Inngest cron trigger, not the fan-out.
+  if (fanoutRefs.has(c.name) || INDEPENDENT.has(c.name) || c.inngest) continue;
   fail(
     `${c.name} is mode:"active" but is NOT in the mega fan-out (src/inngest/jobs.ts) and fires nowhere — wire it into jobs.ts or mark it mode:"dormant"`,
   );
