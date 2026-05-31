@@ -930,6 +930,15 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 `);
   });
 
+  // IndexNow key file — verifies host ownership so Bing/IndexNow accepts our
+  // instant URL-submission pings. The key is public by design (published here);
+  // a submission POSTs { host, key, keyLocation, urlList } to bing.com/indexnow.
+  app.get("/d274e03f24e4438599616695d23dab67.txt", (_req, res) => {
+    res.setHeader("Content-Type", "text/plain");
+    res.setHeader("Cache-Control", "public, max-age=86400");
+    res.send("d274e03f24e4438599616695d23dab67");
+  });
+
   // llms.txt — structured guidance for AI answer-engines (ChatGPT,
   // Perplexity, Gemini, Claude). Emerging standard; near-zero local
   // competitors publish one. Consolidates entity facts + the canonical
@@ -957,7 +966,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 ## Services
 - [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
 - [Tires - new & used](${b}/tires): Used from $40 installed, new from $60 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
-- [Oil change](${b}/oil-change): Conventional from $39, full synthetic from $69. Free 21-point check included.
+- [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free 21-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Same-day pass.
 - [Wheel alignment](${b}/alignment): Stops uneven tire wear and pulling. Most vehicles same-day.
