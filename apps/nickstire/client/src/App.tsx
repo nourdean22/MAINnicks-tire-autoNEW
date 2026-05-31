@@ -87,6 +87,7 @@ const UsedTiresClevelandPage = lazy(() => import("./pages/UsedTiresClevelandPage
 const NewTiresClevelandPage = lazy(() => import("./pages/NewTiresClevelandPage"));
 const TireBrandPage = lazy(() => import("./pages/TireBrandPage"));
 const TireShopNearMePage = lazy(() => import("./pages/TireShopNearMePage"));
+const NonstopNickPage = lazy(() => import("./pages/NonstopNickPage"));
 const AutoRepairNearMePage = lazy(() => import("./pages/AutoRepairNearMePage"));
 const TrackJob = lazy(() => import("./pages/TrackJob"));
 const PrivacyPolicy = lazy(() => import("./pages/PrivacyPolicy"));
@@ -195,6 +196,7 @@ function Router() {
             <Route path={"/firestone-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/continental-tires-cleveland"} component={TireBrandPage} />
             <Route path={"/tire-shop-near-me"} component={TireShopNearMePage} />
+            <Route path={"/nonstop-nick"} component={NonstopNickPage} />
             <Route path={"/auto-repair-near-me"} component={AutoRepairNearMePage} />
             {/* /general-repair INTENTIONALLY routes to AutoRepairNearMePage,
                 not GenericServicePage. AutoRepairNearMePage targets the
