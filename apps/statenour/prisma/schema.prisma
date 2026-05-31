@@ -2231,6 +2231,24 @@ model LifeGoal {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
+  // ── Ambition Engine (2026-05-30) · applied to prod via /api/system/apply-pending-migration ──
+  /// Progress semantics + card shape: metric (target/unit) · milestone
+  /// (checklist %) · narrative (Nick + reflection scored, no fake target).
+  kind             String    @default("metric")
+  /// Compounding ladder — the higher-horizon goal this ladders into. Self-relation below.
+  parentGoalId     String?
+  /// Sam/YC · conviction 1-5 ("devastated to lose"). Force-ranks; surfaces zombies.
+  conviction       Int?
+  /// Elon · "tenx" | "incremental" ambition tag.
+  ambition         String?
+  /// Elon · question-the-requirement ritual timestamp (anti-stale core).
+  lastChallengedAt DateTime?
+  /// Annie Duke · pre-committed if-then exit: kill if <killCriteria> by <killBy>.
+  killCriteria     String?
+  killBy           DateTime?
+  /// Atomic Habits · identity line for narrative goals ("the man who…").
+  identityLine     String?
+
   /// v11.0 W5.3 — back-reference for Task.goal. Enables
   /// `prisma.lifeGoal.findMany({ include: { tasks: true } })`.
   tasks  Task[]
@@ -2239,6 +2257,10 @@ model LifeGoal {
   /// Mission.lifeGoalId · enables `lifeGoal.findMany({ include:
   /// { missions: true } })` for the /goals page sidebar.
   missions Mission[]
+  /// Ambition Engine · goal↔mastery-stat spine + the ladder self-relation.
+  statLinks GoalStat[]
+  parent    LifeGoal?  @relation("GoalLadder", fields: [parentGoalId], references: [id], onDelete: SetNull)
+  children  LifeGoal[] @relation("GoalLadder")
 
   @@index([domain, status])
   @@index([horizon, status])
@@ -2246,7 +2268,26 @@ model LifeGoal {
   @@index([createdAt])
   @@index([updatedAt])
   @@index([status])
+  @@index([parentGoalId])
   @@map("life_goals")
+}
+
+/// 2026-05-30 · Ambition Engine spine. A goal declares which mastery stats
+/// it levels (weighted). A completed Task.goalId-tagged rep credits XP to
+/// those stats via the leveling engine.
+model GoalStat {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      LifeGoal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  /// Stat key from lib/mastery/config (e.g. "sales", "leadership", "physical").
+  statKey   String
+  /// 0..1 — share of the goal's effort that levels this stat.
+  weight    Float    @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([goalId, statKey])
+  @@index([statKey])
+  @@map("goal_stats")
 }
 
 /// Apr 26 · GoalEvent — append-only log of progress + lifecycle events
