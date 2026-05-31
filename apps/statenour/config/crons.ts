@@ -102,6 +102,14 @@ export const CRONS: CronDef[] = [
     description: "Prunes stale / abandoned goals — Inngest-native.",
   },
   {
+    name: "goal-drift-detector",
+    schedule: "30 12 * * *",
+    mode: "active",
+    category: "brain",
+    inngest: true,
+    description: "Proactive goal-drift detector (momentum decay + deadline risk) — Inngest-native.",
+  },
+  {
     name: "journal-convergence-scan",
     schedule: "0 22 * * *",
     mode: "active",
