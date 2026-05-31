@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/prisma";
 import { today } from "@/lib/utils/datetime";
 import { logCreate } from "@/lib/db/entity-audit";
+import { creditFromSignal } from "@/lib/mastery/credit-signal";
 
 /** A flat, shallow projection of a MasteryDecision row. */
 export interface DecisionRow {
@@ -120,6 +121,14 @@ export async function createDecision(
     created as unknown as Record<string, unknown>,
     { source: "api:decisions.POST.create" },
   );
+
+  // Ambition/Mastery · a logged decision under stakes is a real rep — credit
+  // the stat it exercised, write-time. The backfill cron also sweeps decisions
+  // batch; the shared `decision:<id>` sourceKey dedupes. Never throws.
+  void creditFromSignal("decision", {
+    text: [input.title, input.reasoning].filter(Boolean).join("\n"),
+    sourceKey: `decision:${created.id}`,
+  });
 
   return { ok: true as const, id: created.id };
 }
