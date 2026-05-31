@@ -132,3 +132,11 @@ apps/statenour/logs/
 .vercel
 .cron-secret.local
 .railway-token.local
+
+# Agent / AI tooling - local, per-machine; never shared to the repo.
+# .serena/ = Serena MCP project config + cache + memories (its own
+# .gitignore only covers /cache, leaving project.yml + memories/ committable).
+# .claude/worktrees/ = transient git worktrees from using-git-worktrees.
+# NOTE: do NOT ignore all of .claude/ - .claude/skills/ is tracked + shared.
+.serena/
+.claude/worktrees/
