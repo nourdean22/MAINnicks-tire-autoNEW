@@ -58,8 +58,11 @@ describe("detectTopicTier — classifier", () => {
     );
   });
 
-  it("returns 'full' for long unclassified prose", () => {
+  it("returns 'core' for long unclassified prose (no domain signal = casual)", () => {
+    // A long keyword-less message is still casual — it must NOT escalate to the
+    // all-29-engines `full` tier (the old behavior silently defeated the ~60%
+    // context saving). `full` is reserved for multi-domain (above) + deep mode.
     const long = "lorem ipsum ".repeat(20);
-    expect(detectTopicTier(long)).toBe("full");
+    expect(detectTopicTier(long)).toBe("core");
   });
 });
