@@ -231,9 +231,9 @@ export function CommandPalette() {
       { id: "nav-hq", label: "HQ Dashboard", group: "Navigate", icon: <ShieldIcon className="size-4" />, action: () => navigate("/"), shortcut: "G H" },
       { id: "nav-chat", label: "Nick (AI Chat)", group: "Navigate", icon: <MessageSquareIcon className="size-4" />, action: () => navigate("/chat"), shortcut: "G N" },
       { id: "nav-brain", label: "Brain Dashboard", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain"), keywords: ["memory", "skill", "identity", "belief", "ghost", "nick"] },
-      { id: "nav-tasks", label: "Tasks / Actions", group: "Navigate", icon: <ClipboardListIcon className="size-4" />, action: () => navigate("/tasks"), shortcut: "G T" },
+      { id: "nav-tasks", label: "Tasks / Actions", group: "Navigate", icon: <ClipboardListIcon className="size-4" />, action: () => navigate("/missions"), shortcut: "G T", keywords: ["tasks", "actions", "missions", "loops", "queue"] },
       { id: "nav-journal", label: "Journal", group: "Navigate", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/journal"), shortcut: "G J", keywords: ["journal", "reflect", "dump"] },
-      { id: "nav-mastery", label: "Growth / Mastery", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/mastery") },
+      { id: "nav-mastery", label: "Stats", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/stats"), keywords: ["mastery", "growth", "goals", "character", "level", "xp", "stats"] },
       { id: "nav-financial", label: "Financial / Money", group: "Navigate", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/financial"), keywords: ["money", "income"] },
       { id: "nav-settings", label: "Settings", group: "Navigate", icon: <CogIcon className="size-4" />, action: () => navigate("/settings") },
 

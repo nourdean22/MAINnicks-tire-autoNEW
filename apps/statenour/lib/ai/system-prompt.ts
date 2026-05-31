@@ -939,14 +939,20 @@ export async function buildSystemPromptUncached(
       });
       if (latestSync?.payload) {
         const m = latestSync.payload as Record<string, any>;
-        const rev = m.revenue || {};
-        if (rev.todayEstimate) {
+        // 2026-05-30 · was `if (rev.todayEstimate)` — the OLD pushed-sync key.
+        // v2 business_metrics_sync payloads carry `totalDollars`, so the guard
+        // was always false and this stale-shop fallback NEVER fired when the
+        // live bridge was down. Route through the canonical readNickRevenue()
+        // (tolerates both shapes) so the fallback works again.
+        const { readNickRevenue } = await import("@/lib/nickstire/revenue");
+        const nickRev = readNickRevenue(m.revenue);
+        if (nickRev.hasToday) {
           p.push(...renderLiveShopStatus({
             liveSnapshot: null,
             fallbackPulse: {
               asOf: new Date(latestSync.createdAt).toLocaleString("en-US", { timeZone: "America/New_York" }),
-              todayEstimate: rev.todayEstimate ?? null,
-              weekRevenue: rev.weekRevenue ?? null,
+              todayEstimate: nickRev.todayDollars,
+              weekRevenue: nickRev.weekDollars || null,
             },
           }));
         }

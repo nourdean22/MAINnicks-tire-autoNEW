@@ -147,15 +147,21 @@ export async function buildAiCostFeed(): Promise<AiCostFeed> {
       ORDER BY 1 ASC
     `,
       start14d,
-    ).catch(
-      () =>
-        [] as {
-          day: string;
-          calls: bigint;
-          cost_cents: bigint;
-          duration_ms: bigint;
-        }[],
-    ),
+    ).catch((err) => {
+      // 2026-05-30 · was a silent `() => []` — a failed sparkline query
+      // rendered 14 flat zero-bars, indistinguishable from "no AI spend."
+      // Keep the empty fallback (sparkline still renders) but leave a
+      // breadcrumb so the failure is diagnosable instead of silent.
+      log.warn("ai_cost_trend_query_failed", {
+        error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+      });
+      return [] as {
+        day: string;
+        calls: bigint;
+        cost_cents: bigint;
+        duration_ms: bigint;
+      }[];
+    }),
   ]);
 
   // Build a dense 14-day series so the sparkline has no gaps.

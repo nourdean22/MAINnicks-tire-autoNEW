@@ -567,7 +567,7 @@ export function FloatingHome() {
             >
               <Users size={14} strokeWidth={1.5} />
               <span className="font-medium uppercase tracking-[0.15em] text-[10px]">
-                Relationships
+                People
               </span>
             </Link>
           </div>
