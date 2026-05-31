@@ -24,7 +24,6 @@ import { prisma } from "@/lib/prisma";
 import { readNickRevenue } from "@/lib/nickstire/revenue";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { connect } from "@/lib/brain/relational-graph";
-import { recentScoreSnapshots } from "@/lib/brain/legacy-shims";
 import { logger as rootLogger } from "@/lib/logger";
 import { recordError } from "@/lib/errors/record-error";
 
@@ -458,20 +457,6 @@ export async function proactiveAlerts(): Promise<{ alerts: string[] }> {
     alerts.push(`${overdueCommitments} overdue commitments`);
     // OpenLoop auto-create retired Apr 18 — duplicated the
     // Nick-Noticed "Overdue" insight which already renders inline.
-  }
-
-  // Check daily score streak
-  // v10.0.55 · scores via legacy-shim.
-  const recentScores = await recentScoreSnapshots(3);
-
-  if (recentScores.length === 0 && hour >= 20) {
-    await brainMemory.remember(
-      "pattern",
-      `no_score_streak_${today()}`,
-      `No daily score logged in 3+ days. This is the #1 drift signal. The system can't help if it can't see.`,
-      "proactive_alert"
-    );
-    alerts.push("no daily scores in 3+ days");
   }
 
   return { alerts };

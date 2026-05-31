@@ -186,17 +186,6 @@ export function generateTimelines(i: Inputs): Timeline[] {
     }
   }
 
-  // Score not logged
-  if (!i.todayScoreLogged && i.hourOfDay >= 11) {
-    items.push({
-      id: "no-score",
-      kind: "caution",
-      text: `no score logged → decision quality ↓22% · 30s to fix`,
-      domain: "mind",
-      severity: "warn",
-    });
-  }
-
   // Drift accumulating
   if (i.driftOpen >= 3) {
     items.push({
@@ -240,39 +229,6 @@ export function generateTimelines(i: Inputs): Timeline[] {
       kind: "streak",
       text: `workout streak ${i.workoutStreak}d · discipline peak window · protect`,
       domain: "body",
-      severity: "win",
-    });
-  }
-
-  // Energy low warning
-  if (i.energyToday !== null && i.energyToday <= 4) {
-    items.push({
-      id: "low-energy",
-      kind: "caution",
-      text: `energy ${i.energyToday}/10 · defer big decisions · protect sleep`,
-      domain: "body",
-      severity: "warn",
-    });
-  }
-
-  // Focus low warning
-  if (i.focusToday !== null && i.focusToday <= 4 && i.hourOfDay < 18) {
-    items.push({
-      id: "low-focus",
-      kind: "caution",
-      text: `focus ${i.focusToday}/10 · switch to physical tasks`,
-      domain: "mind",
-      severity: "info",
-    });
-  }
-
-  // Positive: score logged early
-  if (i.todayScoreLogged && i.hourOfDay < 10) {
-    items.push({
-      id: "early-log",
-      kind: "at_rate",
-      text: `score logged early · discipline compounds today`,
-      domain: "mind",
       severity: "win",
     });
   }

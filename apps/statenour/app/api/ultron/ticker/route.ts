@@ -4,7 +4,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { buildTickerFeed, STATIC_MACRO } from "@/lib/services/ultron-ticker";
+import { buildTickerFeed } from "@/lib/services/ultron-ticker";
 
 /**
  * GET /api/ultron/ticker
@@ -32,7 +32,7 @@ export async function GET() {
     return NextResponse.json(
       {
         data: {
-          items: STATIC_MACRO,
+          items: [],
           generatedAt: new Date().toISOString(),
           softError: String(err),
         },
