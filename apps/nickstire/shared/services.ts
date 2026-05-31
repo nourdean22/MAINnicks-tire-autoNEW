@@ -396,7 +396,7 @@ export const SERVICES: ServiceData[] = [
   {
     slug: "emissions",
     num: "04",
-    title: "EMISSIONS & E-CHECK",
+    title: "EMISSIONS & E-CHECK REPAIR",
     shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
     metaTitle: "Failed E-Check Cleveland · Pass Guaranteed | Nick's",
     metaDescription: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. The state tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
