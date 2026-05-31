@@ -36,6 +36,47 @@ function getPageToken(): string | null {
   return runtimePageToken || process.env.META_PAGE_ACCESS_TOKEN || process.env.FB_PAGE_ACCESS_TOKEN || null;
 }
 
+// ─── Durable token store (survives pod restart) ───────
+// The minted Page token never expires but lives only in memory after a
+// reconnect. We mirror it into the app_secret_kv table so a cold boot can
+// reload it without re-minting — and the token never leaves the server.
+// All DB access is best-effort: failures log but never block posting.
+const TOKEN_KV_KEY = "meta_page_access_token";
+let persistedLoadAttempted = false;
+
+async function persistPageToken(token: string): Promise<void> {
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return;
+    const { appSecretKv } = await import("../../drizzle/schema");
+    await d.insert(appSecretKv).values({ k: TOKEN_KV_KEY, v: token })
+      .onDuplicateKeyUpdate({ set: { v: token } });
+    log.info("Persisted Meta page token to durable store");
+  } catch (err) {
+    log.error("Failed to persist Meta page token:", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
+async function ensurePageTokenLoaded(): Promise<void> {
+  if (runtimePageToken || persistedLoadAttempted) return;
+  persistedLoadAttempted = true;
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return;
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, TOKEN_KV_KEY)).limit(1);
+    if (rows.length && rows[0].v) {
+      runtimePageToken = rows[0].v;
+      log.info("Loaded persisted Meta page token from durable store");
+    }
+  } catch (err) {
+    log.error("Failed to load persisted Meta page token:", { error: err instanceof Error ? err.message : String(err) });
+  }
+}
+
 function getPageId(): string | null {
   return process.env.META_PAGE_ID || null;
 }
@@ -54,6 +95,7 @@ export async function getMetaSocialStatus(): Promise<{
   igUserId: string | null;
   error: string | null;
 }> {
+  await ensurePageTokenLoaded();
   const token = getPageToken();
   const pageId = getPageId();
   const igUserId = getIgUserId();
@@ -139,6 +181,7 @@ export async function reconnectMetaFromUserToken(userToken: string): Promise<{
 
     const pageToken: string = pageData.access_token;
     setRuntimePageToken(pageToken);
+    await persistPageToken(pageToken);
     log.info("Meta page token reconnected (never-expiring) for page", { pageId });
     return { ok: true, pageToken };
   } catch (err) {
@@ -295,6 +338,7 @@ export async function postInstagramCarousel(params: {
   imageUrls: string[];
   caption: string;
 }): Promise<{ success: boolean; postId?: string; error?: string }> {
+  await ensurePageTokenLoaded();
   const token = getPageToken();
   const igUserId = getIgUserId();
 
@@ -381,6 +425,7 @@ export async function socialPost(params: {
 }): Promise<{
   results: Array<{ platform: string; success: boolean; postId?: string; error?: string }>;
 }> {
+  await ensurePageTokenLoaded();
   const results: Array<{ platform: string; success: boolean; postId?: string; error?: string }> = [];
 
   for (const platform of params.platforms) {
