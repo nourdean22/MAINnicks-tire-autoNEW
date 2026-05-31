@@ -8,16 +8,27 @@
  * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
  * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
  * all 7 domain files. Catalog source of truth: lib/ai/tools/catalog.ts.
+ *
+ * Wave 83 · this file was further decomposed into per-domain sub-files
+ * under lib/ai/tools/ (goals · missions · habits · health · finance ·
+ * calendar). The tasks-core tools stay here as tasksCoreTools; the
+ * public `tasksTools` export below recomposes all 46 keys verbatim so
+ * the barrel + every consumer continue to work unchanged.
  */
 
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
-import { detectBlindSpots } from "@/lib/brain/blind-spot-detector";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { goalsTools } from "@/lib/ai/tools/goals";
+import { missionsTools } from "@/lib/ai/tools/missions";
+import { habitsTools } from "@/lib/ai/tools/habits";
+import { healthTools } from "@/lib/ai/tools/health";
+import { financeTools } from "@/lib/ai/tools/finance";
+import { calendarTools } from "@/lib/ai/tools/calendar";
 
-export const tasksTools = {
+const tasksCoreTools = {
   getMasteryScores: tool({
     description: "Get current mastery domain scores",
     inputSchema: z.object({}),
@@ -81,302 +92,13 @@ export const tasksTools = {
     },
   }),
 
-  getMissions: tool({
-    description: "Get active missions",
-    inputSchema: z.object({}),
-    execute: async () => {
-      // v10.0.529.94 · Wave 38 · field projection.
-      return prisma.mission.findMany({
-        where: { status: "ACTIVE", deletedAt: null },
-        select: { id: true, title: true, domain: true, priority: true, status: true },
-        orderBy: { priority: "desc" },
-      }).catch((): never[] => []);
-    },
-  }),
-
-  getHabitStreaks: tool({
-    description: "Get habit completion data — current streaks for daily-loop tasks (workouts, journal, etc).",
-    inputSchema: z.object({}),
-    execute: async () => {
-      // v10.0.54 · Wave A · Replaces retired HabitLog table reads
-      // (Apr 19 deprecation). Source of truth for habits is now
-      // Task with loopKind="DAILY" — streakCount + lastCompletedAt
-      // give the same signal: is this habit being kept on track?
-      // Returns { [taskTitle]: { completed, total } } where completed
-      // = streakCount and total = streakCount + missDaysSinceLast,
-      // matching the legacy 7-day-window contract.
-      const dailyTasks = await prisma.task
-        .findMany({
-          where: { loopKind: "DAILY", deletedAt: null },
-          select: { title: true, streakCount: true, lastCompletedAt: true },
-        })
-        .catch((): Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }> => []);
-      const summary: Record<string, { completed: number; total: number }> = {};
-      for (const t of dailyTasks) {
-        const completed = Math.min(7, t.streakCount); // 7-day window
-        const daysSince = t.lastCompletedAt
-          ? Math.floor((Date.now() - t.lastCompletedAt.getTime()) / 86400000)
-          : 7;
-        const missed = Math.min(7, daysSince);
-        summary[t.title] = { completed, total: completed + Math.max(0, missed - completed) || 7 };
-      }
-      return summary;
-    },
-  }),
-
-  getBodyData: tool({
-    description: "Get recent body tracking entries",
-    inputSchema: z.object({ days: z.number().min(1).max(365).default(30) }),
-    execute: async ({ days }) => {
-      return prisma.bodyTracking.findMany({
-        where: { date: { gte: toDateString(daysAgo(days)) } },
-        orderBy: { date: "desc" },
-      }).catch((): never[] => []);
-    },
-  }),
-
-  getFinancialSnapshot: tool({
-    description: "Get the latest financial snapshot",
-    inputSchema: z.object({}),
-    execute: async () => {
-      return prisma.financialSnapshot.findFirst({ orderBy: { date: "desc" } }).catch((): null => null);
-    },
-  }),
-
   // v10.0.515 · #12 Calendar bidirectional · two-tool minimal set.
   // Read uses the existing calendar.readonly scope (already granted).
   // Write goes through a Google-side compose URL the operator clicks
   // to confirm — no calendar.events scope, no AI writing to the
   // calendar without a human hand on the button.
 
-  getProjections: tool({
-    description: "Get current life-goal progress + business revenue projection. Goals come from the LifeGoal table; revenue projection comes from the nickstire bridge (revenue-trend extrapolation when available).",
-    inputSchema: z.object({ domain: z.string().optional().describe("Filter by domain: business, energy, habits, finance") }),
-    execute: async ({ domain }) => {
-      // v10.0.54 · Wave A · Replaces dead `Promise.resolve([])` for the
-      // Projection table (retired Apr 19). LifeGoal.progress is now the
-      // primary projection signal. Optionally augments with a revenue
-      // projection from nickstire (revenue_range over 30d → annualize).
-      const goals = await prisma.lifeGoal.findMany({
-        where: {
-          deletedAt: null,
-          status: "active",
-          ...(domain ? { domain } : {}),
-        },
-      }).catch((): never[] => []);
-
-      // Best-effort revenue projection from bridge. Bridge failure
-      // returns null → projections array empty, goals still surface.
-      let revenueProjection: { current: number; projectedAnnual: number } | null = null;
-      if (!domain || domain === "business" || domain === "finance") {
-        try {
-          const { queryNick } = await import("@/lib/nickstire/query");
-          const since = new Date(Date.now() - 30 * 86400000).toISOString();
-          const res = await queryNick<{ totalDollars?: number }>("revenue_range", { since });
-          if ("data" in res && typeof res.data?.totalDollars === "number") {
-            const monthly = res.data.totalDollars;
-            revenueProjection = { current: monthly, projectedAnnual: Math.round(monthly * 12) };
-          }
-        } catch {
-          // Bridge unavailable — projections degrade to goals-only.
-        }
-      }
-
-      return {
-        projections: revenueProjection
-          ? [
-              {
-                domain: "business",
-                metric: "revenue_30d",
-                current: revenueProjection.current,
-                projected: revenueProjection.projectedAnnual,
-                target: null,
-                trend: null,
-                insight: "30-day revenue × 12 (linear projection)",
-              },
-            ]
-          : [],
-        goals: goals.map((g) => ({
-          title: g.title,
-          progress: g.progress,
-          target: g.targetValue,
-          unit: g.unit,
-        })),
-      };
-    },
-  }),
-
-  getTodaySchedule: tool({
-    description:
-      "Get the operator's Google Calendar events for today and the next few days. Returns event titles, times, locations, attendees. Use when answering 'what's on my schedule', 'when is X meeting', or reasoning about availability.",
-    inputSchema: z.object({
-      daysAhead: z
-        .number()
-        .int()
-        .min(0)
-        .max(14)
-        .optional()
-        .describe("How many days forward to fetch. Default 1 (today + tomorrow)."),
-    }),
-    execute: async ({ daysAhead }) => {
-      try {
-        const { listEvents, CalendarApiError } = await import(
-          "@/lib/services/calendar-api"
-        );
-        const events = await listEvents({
-          daysAhead: daysAhead ?? 1,
-          maxResults: 50,
-        });
-        return {
-          ok: true,
-          count: events.length,
-          events: events.map((e) => ({
-            id: e.id,
-            summary: e.summary ?? "(no title)",
-            start: e.start ?? null,
-            end: e.end ?? null,
-            location: e.location ?? null,
-            attendees: e.attendees ?? [],
-            link: e.htmlLink ?? null,
-          })),
-        };
-      } catch (err) {
-        // Typed error from calendar-api distinguishes scope/auth issues.
-        const e = err as { tag?: string; status?: number; message?: string };
-        if (e?.tag === "scope_or_api_disabled") {
-          return {
-            ok: false,
-            code: "scope_missing",
-            error:
-              "Calendar access not granted. Reconnect Google with calendar.readonly scope via /api/oauth/google-data/start.",
-          };
-        }
-        if (e?.tag === "auth") {
-          return {
-            ok: false,
-            code: "auth",
-            error: "Google OAuth token invalid. Reconnect via /api/oauth/google-data/start.",
-          };
-        }
-        return {
-          ok: false,
-          code: "unknown",
-          error: e?.message ?? "Calendar fetch failed.",
-        };
-      }
-    },
-  }),
-
-  // v10.0.524 · #10 Anti-pattern surfacing tool. The operator's
-  // brain already auto-promotes D/F decisions to anti-patterns
-  // (lib/brain/anti-pattern-auto-promote.ts) but they only show
-  // in /system/anti-patterns. Surface them in-chat so Nick can
-  // proactively warn ("you said X two weeks ago and broke it").
-  proposeCalendarEvent: tool({
-    description:
-      "Propose a new Google Calendar event. Returns a 'create event' URL with all fields pre-filled. The operator clicks the URL to confirm and create — Nick never writes to the calendar without a human in the loop. Use when Nick suggests scheduling something concrete (a focus block, a meeting, a follow-up).",
-    inputSchema: z.object({
-      title: z.string().min(2).max(120).describe("Event title."),
-      startISO: z
-        .string()
-        .describe(
-          "Event start in ISO 8601 (e.g. '2026-05-13T14:00:00-04:00'). If timezone omitted, operator's local zone is assumed.",
-        ),
-      endISO: z
-        .string()
-        .optional()
-        .describe("Event end in ISO 8601. If omitted, defaults to startISO + 60 minutes."),
-      location: z.string().max(200).optional().describe("Physical or virtual location."),
-      description: z
-        .string()
-        .max(1000)
-        .optional()
-        .describe("Event description / agenda / notes."),
-      attendees: z
-        .array(z.string().email())
-        .max(20)
-        .optional()
-        .describe("Attendee email addresses."),
-    }),
-    execute: async ({ title, startISO, endISO, location, description, attendees }) => {
-      try {
-        const start = new Date(startISO);
-        if (isNaN(start.getTime())) {
-          return { ok: false, error: "Invalid startISO" };
-        }
-        const end = endISO ? new Date(endISO) : new Date(start.getTime() + 60 * 60_000);
-        if (isNaN(end.getTime()) || end.getTime() <= start.getTime()) {
-          return { ok: false, error: "Invalid endISO (must be after startISO)" };
-        }
-        // Google Calendar event-compose URL format. dates= uses
-        // the YYYYMMDDTHHmmssZ form in UTC.
-        const fmt = (d: Date) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
-        const params = new URLSearchParams({
-          action: "TEMPLATE",
-          text: title,
-          dates: `${fmt(start)}/${fmt(end)}`,
-        });
-        if (location) params.set("location", location);
-        if (description) params.set("details", description);
-        if (attendees && attendees.length > 0) {
-          params.set("add", attendees.join(","));
-        }
-        const composeUrl = `https://calendar.google.com/calendar/render?${params.toString()}`;
-        return {
-          ok: true,
-          composeUrl,
-          summary: title,
-          start: start.toISOString(),
-          end: end.toISOString(),
-          // Nick should render the composeUrl as a button in his
-          // reply: "Open in Google Calendar →". Operator clicks
-          // once to confirm and the event is created.
-          instructions:
-            "Render the composeUrl as a clickable 'Add to Calendar' link in the reply.",
-        };
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
-  }),
-
   // ── WRITE TOOLS ──
-
-  addTasksToProject: tool({
-    description: "Create multiple tasks under a mission (project) in bulk. Use when Nour needs to break down a project into several specific tasks at once.",
-    inputSchema: z.object({
-      missionId: z.string(),
-      tasks: z.array(z.object({
-        title: z.string(),
-        nextPhysicalAction: z.string().describe("The literal first physical step"),
-        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
-        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
-      })).min(1),
-    }),
-    execute: async ({ missionId, tasks }) => {
-      const createdTasks = [];
-      for (const t of tasks) {
-        const task = await prisma.task.create({
-          data: {
-            title: t.title,
-            missionId,
-            nextPhysicalAction: t.nextPhysicalAction,
-            effort: t.effort,
-            roiScore: 50,
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-            context: t.context,
-            finishCondition: t.title,
-          },
-        });
-        createdTasks.push({ taskId: task.id, title: task.title });
-      }
-      return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
-    },
-  }),
 
   createTask: tool({
     description:
@@ -710,143 +432,6 @@ export const tasksTools = {
     },
   }),
 
-  archiveGoal: tool({
-    description:
-      "Archive a LifeGoal (soft-delete · preserves CoachLog + GoalEvent history · recoverable). Use when Nour says 'drop this goal' / 'archive that goal'. Pre-Wave-28 the UI hard-deleted goals · now both UI + Nick use soft-delete.",
-    inputSchema: z.object({
-      goalId: z.string().optional(),
-      titleQuery: z
-        .string()
-        .optional()
-        .describe("Fuzzy match against active goal titles if goalId unknown."),
-    }),
-    execute: async ({ goalId, titleQuery }) => {
-      let target = goalId
-        ? await prisma.lifeGoal.findUnique({
-            where: { id: goalId },
-            select: { id: true, title: true, status: true },
-          })
-        : null;
-      if (!target && titleQuery) {
-        const candidates = await prisma.lifeGoal.findMany({
-          where: {
-            status: "active",
-            title: { contains: titleQuery, mode: "insensitive" },
-            deletedAt: null,
-          },
-          orderBy: { updatedAt: "desc" },
-          take: 1,
-          select: { id: true, title: true, status: true },
-        });
-        target = candidates[0] ?? null;
-      }
-      if (!target) {
-        return { success: false, reason: "goal not found" };
-      }
-      // v10.0.529.97 · Wave 41 · snapshot pre-state for undo. archiveGoal
-      // is the second-highest "wrong target" risk · fuzzy titleQuery on
-      // a partial goal name can pick the wrong row.
-      const originalStatus = target.status;
-      await prisma.lifeGoal.update({
-        where: { id: target.id },
-        data: { status: "paused", deletedAt: new Date() },
-      });
-      const undoToken = `undo_${target.id}_${Date.now()}`;
-      const undoExpiresAt = new Date(Date.now() + 30 * 1000);
-      await prisma.brainMemory
-        .create({
-          data: {
-            category: "undo_token",
-            key: undoToken,
-            content: JSON.stringify({
-              toolName: "archiveGoal",
-              goalId: target.id,
-              originalStatus,
-            }),
-            source: "chat-tool",
-            confidence: 1.0,
-            expiresAt: undoExpiresAt,
-            createdBy: "nick",
-          },
-        })
-        .catch(() => null);
-      return {
-        success: true,
-        goalId: target.id,
-        title: target.title,
-        archived: true,
-        undoToken,
-        undoExpiresAt: undoExpiresAt.toISOString(),
-      };
-    },
-  }),
-
-  logGoalProgress: tool({
-    description:
-      "Log progress on a LifeGoal · bumps currentValue + recalculates progress % + appends a GoalEvent(kind=progress_logged). Auto-flips to 'achieved' when currentValue reaches targetValue. Use when Nour says 'logged 200lb bench' or 'hit $500 in sales today'.",
-    inputSchema: z.object({
-      goalId: z.string().optional(),
-      titleQuery: z.string().optional(),
-      delta: z
-        .number()
-        .describe("How much to ADD to currentValue · positive · the increment, not the absolute total"),
-      note: z.string().optional().describe("Short note on this progress · stored in GoalEvent.payload"),
-    }),
-    execute: async ({ goalId, titleQuery, delta, note }) => {
-      let target = goalId
-        ? await prisma.lifeGoal.findUnique({
-            where: { id: goalId },
-            select: { id: true, title: true, currentValue: true, targetValue: true, status: true },
-          })
-        : null;
-      if (!target && titleQuery) {
-        const candidates = await prisma.lifeGoal.findMany({
-          where: {
-            status: "active",
-            title: { contains: titleQuery, mode: "insensitive" },
-            deletedAt: null,
-          },
-          orderBy: { updatedAt: "desc" },
-          take: 1,
-          select: { id: true, title: true, currentValue: true, targetValue: true, status: true },
-        });
-        target = candidates[0] ?? null;
-      }
-      if (!target) return { success: false, reason: "goal not found" };
-
-      const nextValue = Math.min(target.targetValue, target.currentValue + delta);
-      const progress = Math.min(100, Math.round((nextValue / target.targetValue) * 100));
-      const reachedTarget = nextValue >= target.targetValue;
-      const updateData: Record<string, unknown> = {
-        currentValue: nextValue,
-        progress,
-        updatedAt: new Date(),
-      };
-      if (reachedTarget && target.status !== "achieved") {
-        updateData.status = "achieved";
-        updateData.achievedAt = new Date();
-      }
-      await prisma.lifeGoal.update({ where: { id: target.id }, data: updateData });
-      await prisma.goalEvent.create({
-        data: {
-          goalId: target.id,
-          kind: reachedTarget ? "achieved" : "progress_logged",
-          payload: { delta, note: note ?? null, after: nextValue },
-          source: "nick-tool:logGoalProgress",
-        },
-      });
-      return {
-        success: true,
-        goalId: target.id,
-        title: target.title,
-        previousValue: target.currentValue,
-        currentValue: nextValue,
-        progress,
-        achieved: reachedTarget,
-      };
-    },
-  }),
-
   updateTask: tool({
     description:
       "Update task fields · partial mutate (only provided fields change). Covers reframe (title / finishCondition), move (missionId), link/unlink goal (goalId), change kind (loopKind), reschedule (dueDate). Use when Nour says 'reframe this as X', 'move to project Y', 'link to goal Z', 'change to a daily'.",
@@ -1024,80 +609,6 @@ export const tasksTools = {
         create: { date: today(), domain, score, evidence },
       });
       return { updated: true, domain, score };
-    },
-  }),
-
-  setLifeGoal: tool({
-    description: "Set a life or business goal for Nour to track. Examples: revenue target, weight goal, savings goal, habit streak goal.",
-    inputSchema: z.object({
-      domain: z.enum(["business", "fitness", "finance", "personal", "career"]),
-      title: z.string().describe("Human-readable goal title"),
-      metric: z.string().describe("The metric to track: revenue, weight, savings, streak"),
-      targetValue: z.number(),
-      unit: z.string().default(""),
-      deadline: z.string().optional().describe("ISO date string for deadline"),
-    }),
-    execute: async ({ domain, title, metric, targetValue, unit, deadline }) => {
-      const goal = await prisma.lifeGoal.create({
-        data: { domain, title, metric, targetValue, unit, deadline: deadline ? new Date(deadline) : null },
-      });
-      return { created: true, goalId: goal.id, title };
-    },
-  }),
-
-  createMissionPlan: tool({
-    description: "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal.",
-    inputSchema: z.object({
-      title: z.string().describe("Mission title"),
-      domain: z.enum(["BUSINESS", "PERSONAL", "HEALTH", "CONTENT", "FINANCE"]),
-      priority: z.number().min(1).max(100).default(50),
-      successMetric: z.string().optional().describe("How to measure success"),
-      tasks: z.array(z.object({
-        title: z.string(),
-        nextPhysicalAction: z.string().describe("The literal first physical step"),
-        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
-        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
-      })).min(1).max(20),
-    }),
-    execute: async ({ title, domain, priority, successMetric, tasks }) => {
-      // Create mission first
-      const mission = await prisma.mission.create({
-        data: {
-          title,
-          domain,
-          priority,
-          roiScore: priority,
-          neglectCost: Math.round(priority * 0.7),
-          successMetric,
-          status: "ACTIVE",
-        },
-      });
-      // Create tasks linked to mission
-      const createdTasks = [];
-      for (let i = 0; i < tasks.length; i++) {
-        const t = tasks[i];
-        const task = await prisma.task.create({
-          data: {
-            title: t.title,
-            missionId: mission.id,
-            nextPhysicalAction: t.nextPhysicalAction,
-            effort: t.effort,
-            context: t.context,
-            finishCondition: t.title,
-            roiScore: Math.max(10, 90 - i * 10),
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-          },
-        });
-        createdTasks.push(task);
-      }
-      return {
-        created: true,
-        missionId: mission.id,
-        title: mission.title,
-        taskCount: createdTasks.length,
-        tasks: createdTasks.map(t => ({ id: t.id, title: t.title, action: t.nextPhysicalAction })),
-      };
     },
   }),
 
@@ -1524,43 +1035,6 @@ export const tasksTools = {
     },
   }),
 
-  setOKRs: tool({
-    description: "Set quarterly OKRs (Objectives and Key Results). Use when planning the quarter or when Nour asks about goals/OKRs.",
-    inputSchema: z.object({
-      quarter: z.string().describe("e.g., Q2 2026"),
-      objectives: z.array(z.object({
-        title: z.string(),
-        keyResults: z.array(z.object({
-          metric: z.string(),
-          target: z.number(),
-          current: z.number().default(0),
-          unit: z.string().default(""),
-        })),
-      })).describe("1-3 objectives with 2-4 key results each"),
-    }),
-    execute: async ({ quarter, objectives }) => {
-      // Store as commitment records with OKR data in notes
-      const results = [];
-      for (const obj of objectives) {
-        const commitment = await prisma.commitment.create({
-          data: {
-            dateMade: new Date().toISOString().split("T")[0],
-            description: `[OKR ${quarter}] ${obj.title}`,
-            domain: "strategy",
-            status: "active",
-            notes: JSON.stringify({ type: "okr", quarter, keyResults: obj.keyResults }),
-          },
-        });
-        results.push({ id: commitment.id, objective: obj.title, keyResults: obj.keyResults.length });
-      }
-      return {
-        quarter,
-        created: results,
-        message: `${results.length} OKR objectives set for ${quarter}. Track progress with checkCommitments.`,
-      };
-    },
-  }),
-
   // ═══════════════════════════════════════════════════════════════
   // ENRICHMENT TOOLS v1 — writes for daily-driver ops
   //
@@ -1614,62 +1088,6 @@ export const tasksTools = {
    * Wraps lib/brain/blind-spot-detector.ts#detectBlindSpots which
    * runs ~10 parallel Prisma queries and ranks by severity.
    */
-  setWeeklyTargets: tool({
-    description: "Set this week's 3 targets. Call on Monday or when Nour wants to set goals. Stores them so you can reference mid-week.",
-    inputSchema: z.object({
-      revenue: z.string().describe("Revenue/business target for the week"),
-      personal: z.string().describe("Personal/growth target for the week"),
-      health: z.string().describe("Health/body target for the week"),
-    }),
-    execute: async ({ revenue, personal, health }) => {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1); // Monday
-      const weekKey = weekStart.toISOString().slice(0, 10);
-
-      const targets = { revenue, personal, health, setAt: new Date().toISOString() };
-
-      await prisma.brainMemory.upsert({
-        where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
-        create: {
-          category: BRAIN_CATEGORIES.WEEKLY_TARGET,
-          key: `week_${weekKey}`,
-          content: `Week of ${weekKey}: REVENUE: ${revenue} | PERSONAL: ${personal} | HEALTH: ${health}`,
-          confidence: 1.0,
-          source: "weekly_targets",
-          metadata: targets,
-        },
-        update: {
-          content: `Week of ${weekKey}: REVENUE: ${revenue} | PERSONAL: ${personal} | HEALTH: ${health}`,
-          metadata: targets,
-        },
-      });
-
-      return { stored: true, weekOf: weekKey, targets };
-    },
-  }),
-
-  getWeeklyTargets: tool({
-    description: "Get this week's 3 targets to check progress. Use mid-week to reference what was set on Monday.",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
-      const weekKey = weekStart.toISOString().slice(0, 10);
-
-      const target = await prisma.brainMemory.findUnique({
-        where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
-      });
-
-      if (!target) return { hasTargets: false, message: "No targets set for this week. It's time to set them." };
-
-      return {
-        hasTargets: true,
-        weekOf: weekKey,
-        targets: target.metadata,
-        raw: target.content,
-      };
-    },
-  }),
 
   // ═══════════════════════════════════════════════════════════
   // COMMITMENT FOLLOW-THROUGH — Track and check on promises
@@ -1857,168 +1275,18 @@ export const tasksTools = {
     },
   }),
 
-  weeklyReview: tool({
-    description: "Weekly performance review — 7-day revenue trend, task completion rate, habit streaks, drift patterns, wins and misses",
-    inputSchema: z.object({}),
-    execute: async () => {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      const sevenAgo = toDateString(daysAgo(7));
-
-      const [revenue, scoreSnapshots, tasksCompleted, tasksCreated, dailyHabits, alerts] = await Promise.all([
-        queryNick("revenue_range", { from: sevenAgo, to: today() }),
-        // v10.0.54 · 7-day score history → identity_snapshot rows
-        // updatedAt within window. Each row's content is JSON with
-        // {score, date, ...}. We extract date + score for the trend.
-        prisma.brainMemory
-          .findMany({
-            where: {
-              category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-              deletedAt: null,
-              updatedAt: { gte: daysAgo(7) },
-            },
-            orderBy: { updatedAt: "desc" },
-            select: { content: true, updatedAt: true },
-          })
-          .catch((): Array<{ content: string; updatedAt: Date }> => []),
-        prisma.task.count({ where: { status: "DONE", updatedAt: { gte: daysAgo(7) } } }).catch(() => 0),
-        prisma.task.count({ where: { createdAt: { gte: daysAgo(7) } } }).catch(() => 0),
-        // v10.0.54 · habit history → DAILY-loop tasks completed in
-        // last 7d. Streak count is the durable metric; we surface
-        // per-task streaks as the "habits" rollup.
-        prisma.task
-          .findMany({
-            where: {
-              loopKind: "DAILY",
-              deletedAt: null,
-              lastCompletedAt: { gte: daysAgo(7) },
-            },
-            select: { title: true, streakCount: true },
-          })
-          .catch((): Array<{ title: string; streakCount: number }> => []),
-        prisma.driftAlert.findMany({ where: { date: { gte: sevenAgo } } }).catch((): never[] => []),
-      ]);
-
-      // Parse score snapshots
-      const scores: Array<{ date: string; overallScore: number | null }> = [];
-      for (const row of scoreSnapshots) {
-        try {
-          const parsed = JSON.parse(row.content) as { score?: number };
-          scores.push({
-            date: row.updatedAt.toISOString().slice(0, 10),
-            overallScore: typeof parsed.score === "number" ? parsed.score : null,
-          });
-        } catch {
-          // Skip malformed snapshot rows
-        }
-      }
-
-      const habits: Record<string, number> = {};
-      for (const t of dailyHabits) habits[t.title] = t.streakCount;
-
-      return {
-        revenue,
-        scores: scores.map((s) => ({ date: s.date, score: s.overallScore })),
-        avgScore: scores.length > 0
-          ? Math.round(scores.reduce((s, d) => s + (d.overallScore ?? 0), 0) / scores.length * 10) / 10
-          : null,
-        tasks: { completed: tasksCompleted, created: tasksCreated, completionRate: tasksCreated > 0 ? Math.round((tasksCompleted / tasksCreated) * 100) : 0 },
-        habits,
-        driftAlerts: { total: alerts.length, resolved: alerts.filter((a: { resolved: boolean }) => a.resolved).length },
-      };
-    },
-  }),
-
   // ═══════════════════════════════════════════════════════════
   // WEEKLY TARGETS — Track 3 weekly goals (revenue, personal, health)
   // ═══════════════════════════════════════════════════════════
 
-  analyzeWeek: tool({
-    description: "Analyze the past 7 days — identity-snapshot history, tasks completed, drift patterns, daily-loop habit streaks",
-    inputSchema: z.object({}),
-    execute: async () => {
-      // v10.0.54 · Wave A · Replaces retired DailyScore + HabitLog reads.
-      // - "scores" → BrainMemory category="identity_snapshot" history
-      //   (one row per day, content includes the rolled snapshot).
-      // - "habits" → DAILY-loop Tasks completed in last 7d (one entry
-      //   per completion via lastCompletedAt).
-      const sevenDaysAgoDate = daysAgo(7);
-      const sevenDaysAgoStr = toDateString(sevenDaysAgoDate);
+};
 
-      const [snapshotHistory, tasksDone, alerts, dailyTasks] = await Promise.all([
-        prisma.brainMemory
-          .findMany({
-            where: {
-              category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT,
-              deletedAt: null,
-              updatedAt: { gte: sevenDaysAgoDate },
-            },
-            orderBy: { updatedAt: "desc" },
-            select: { content: true, updatedAt: true },
-          })
-          .catch((): Array<{ content: string; updatedAt: Date }> => []),
-        prisma.task.count({ where: { status: "DONE", lastTouchedAt: { gte: sevenDaysAgoDate } } }),
-        prisma.driftAlert.count({ where: { createdAt: { gte: sevenDaysAgoDate } } }),
-        prisma.task
-          .findMany({
-            where: {
-              loopKind: "DAILY",
-              deletedAt: null,
-              lastCompletedAt: { gte: sevenDaysAgoDate },
-            },
-            select: { title: true, streakCount: true },
-          })
-          .catch((): Array<{ title: string; streakCount: number }> => []),
-      ]);
-
-      // Parse snapshot.score from each history row (content is JSON
-      // with {score?, energy?, ...} shape per the identity engine).
-      const scores: Array<{ overallScore: number; workoutDone: boolean; journalDone: boolean }> = [];
-      for (const row of snapshotHistory) {
-        try {
-          const parsed = JSON.parse(row.content) as {
-            score?: number;
-            workoutDone?: boolean;
-            journalDone?: boolean;
-          };
-          scores.push({
-            overallScore: typeof parsed.score === "number" ? parsed.score : 0,
-            workoutDone: !!parsed.workoutDone,
-            journalDone: !!parsed.journalDone,
-          });
-        } catch {
-          // Snapshot row not in JSON shape — skip.
-        }
-      }
-
-      const avgScore =
-        scores.length > 0
-          ? scores.reduce((s, d) => s + d.overallScore, 0) / scores.length
-          : 0;
-      const perfectDays = scores.filter((d) => d.overallScore >= 8).length;
-      const workoutDays = scores.filter((d) => d.workoutDone).length;
-      const journalDays = scores.filter((d) => d.journalDone).length;
-
-      // Habit streak surface — daily tasks with non-zero streak
-      const habitStreaks: Record<string, number> = {};
-      for (const t of dailyTasks) habitStreaks[t.title] = t.streakCount;
-
-      return {
-        period: `${sevenDaysAgoStr} to ${today()}`,
-        avgScore: avgScore.toFixed(1),
-        perfectDays,
-        workoutDays,
-        journalDays,
-        tasksCompleted: tasksDone,
-        driftAlerts: alerts,
-        habitStreaks,
-        assessment:
-          perfectDays >= 5
-            ? "Strong week"
-            : perfectDays >= 3
-              ? "Decent but inconsistent"
-              : "Below standard — focus on fundamentals",
-      };
-    },
-  }),
-
+export const tasksTools = {
+  ...tasksCoreTools,
+  ...goalsTools,
+  ...missionsTools,
+  ...habitsTools,
+  ...healthTools,
+  ...financeTools,
+  ...calendarTools,
 };

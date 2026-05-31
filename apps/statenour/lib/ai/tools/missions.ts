@@ -1,0 +1,118 @@
+/**
+ * Mission + project-planning tools.
+ *
+ * Includes: getMissions · addTasksToProject · createMissionPlan.
+ *
+ * v10.0.529.106 · Wave 82 · extracted from monolithic lib/ai/tools.ts.
+ * Aggregate barrel: lib/ai/tools.ts re-exports nourTools composed from
+ * all 7 domain files. Catalog source of truth: lib/ai/tools/catalog.ts.
+ */
+
+import { tool } from "ai";
+import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+
+export const missionsTools = {
+  getMissions: tool({
+    description: "Get active missions",
+    inputSchema: z.object({}),
+    execute: async () => {
+      // v10.0.529.94 · Wave 38 · field projection.
+      return prisma.mission.findMany({
+        where: { status: "ACTIVE", deletedAt: null },
+        select: { id: true, title: true, domain: true, priority: true, status: true },
+        orderBy: { priority: "desc" },
+      }).catch((): never[] => []);
+    },
+  }),
+
+  addTasksToProject: tool({
+    description: "Create multiple tasks under a mission (project) in bulk. Use when Nour needs to break down a project into several specific tasks at once.",
+    inputSchema: z.object({
+      missionId: z.string(),
+      tasks: z.array(z.object({
+        title: z.string(),
+        nextPhysicalAction: z.string().describe("The literal first physical step"),
+        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
+        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+      })).min(1),
+    }),
+    execute: async ({ missionId, tasks }) => {
+      const createdTasks = [];
+      for (const t of tasks) {
+        const task = await prisma.task.create({
+          data: {
+            title: t.title,
+            missionId,
+            nextPhysicalAction: t.nextPhysicalAction,
+            effort: t.effort,
+            roiScore: 50,
+            frictionScore: 30,
+            energyRequired: "MEDIUM",
+            context: t.context,
+            finishCondition: t.title,
+          },
+        });
+        createdTasks.push({ taskId: task.id, title: task.title });
+      }
+      return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
+    },
+  }),
+
+  createMissionPlan: tool({
+    description: "Create a mission with multiple linked tasks in one call. Use when Nour describes a multi-step project or goal.",
+    inputSchema: z.object({
+      title: z.string().describe("Mission title"),
+      domain: z.enum(["BUSINESS", "PERSONAL", "HEALTH", "CONTENT", "FINANCE"]),
+      priority: z.number().min(1).max(100).default(50),
+      successMetric: z.string().optional().describe("How to measure success"),
+      tasks: z.array(z.object({
+        title: z.string(),
+        nextPhysicalAction: z.string().describe("The literal first physical step"),
+        effort: z.enum(["M5", "M15", "M30", "H1", "H2PLUS"]).default("M30"),
+        context: z.enum(["DESK", "PHONE", "SHOP", "CAR", "HOME", "ANYWHERE"]).default("ANYWHERE"),
+      })).min(1).max(20),
+    }),
+    execute: async ({ title, domain, priority, successMetric, tasks }) => {
+      // Create mission first
+      const mission = await prisma.mission.create({
+        data: {
+          title,
+          domain,
+          priority,
+          roiScore: priority,
+          neglectCost: Math.round(priority * 0.7),
+          successMetric,
+          status: "ACTIVE",
+        },
+      });
+      // Create tasks linked to mission
+      const createdTasks = [];
+      for (let i = 0; i < tasks.length; i++) {
+        const t = tasks[i];
+        const task = await prisma.task.create({
+          data: {
+            title: t.title,
+            missionId: mission.id,
+            nextPhysicalAction: t.nextPhysicalAction,
+            effort: t.effort,
+            context: t.context,
+            finishCondition: t.title,
+            roiScore: Math.max(10, 90 - i * 10),
+            frictionScore: 30,
+            energyRequired: "MEDIUM",
+          },
+        });
+        createdTasks.push(task);
+      }
+      return {
+        created: true,
+        missionId: mission.id,
+        title: mission.title,
+        taskCount: createdTasks.length,
+        tasks: createdTasks.map(t => ({ id: t.id, title: t.title, action: t.nextPhysicalAction })),
+      };
+    },
+  }),
+
+};
