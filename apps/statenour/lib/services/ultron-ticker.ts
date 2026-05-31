@@ -323,7 +323,7 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
     const todayEnd = new Date(todayStart);
     todayEnd.setHours(23, 59, 59, 999);
 
-    const [tasksDue, tasksActive, scoreData, costData] = await Promise.all([
+    const [tasksDue, tasksActive, costData] = await Promise.all([
       prisma.task
         .count({
           where: {
@@ -335,13 +335,6 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
       prisma.task
         .count({ where: { status: { in: ["READY", "DOING", "WAITING"] } } })
         .catch(() => null as number | null),
-      prisma.brainMemory
-        .findFirst({
-          where: { category: "daily_score", createdAt: { gte: todayStart } },
-          orderBy: { createdAt: "desc" },
-          select: { metadata: true },
-        })
-        .catch(() => null),
       prisma.aiGeneration
         .aggregate({
           where: { createdAt: { gte: todayStart } },
@@ -366,26 +359,6 @@ async function fetchPersonalOpsItems(): Promise<TickerItem[]> {
         severity: tasksDue >= 5 ? "warn" : "info",
         domain: "life",
         href: "/missions",
-      });
-    }
-
-    // ── SCORE · only when today's daily score exists ──
-    const scoreToday =
-      scoreData?.metadata &&
-      typeof (scoreData.metadata as { score?: number }).score === "number"
-        ? (scoreData.metadata as { score: number }).score
-        : null;
-    if (scoreToday !== null) {
-      const tone: TickerItem["severity"] =
-        scoreToday >= 80 ? "win" : scoreToday >= 50 ? "info" : "warn";
-      items.push({
-        id: "ops-score",
-        category: BRAIN_CATEGORIES.TIMELINE,
-        symbol: "SCORE",
-        label: `${scoreToday}/100 today`,
-        severity: tone,
-        domain: "life",
-        href: "/journal",
       });
     }
 
