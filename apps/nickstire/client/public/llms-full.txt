@@ -8,7 +8,7 @@
 
 ## BUSINESS OVERVIEW
 
-Nick's Tire & Auto has served Greater Cleveland since 2018. The shop is independently owned and operated — not a franchise, not a chain. This means pricing decisions, warranty policies, and how the work gets done are controlled locally. The shop specializes in new and used tires, brake repair, engine diagnostics, Ohio E-Check emissions testing and repair, oil changes, suspension work, and full-service auto repair for all makes and models.
+Nick's Tire & Auto has served Greater Cleveland since 2018. The shop is independently owned and operated — not a franchise, not a chain. This means pricing decisions, warranty policies, and how the work gets done are controlled locally. The shop specializes in new and used tires, brake repair, engine diagnostics, Ohio E-Check failure diagnosis and repair (the state runs the official E-Check; Nick's runs a free readiness check and fixes failures), oil changes, suspension work, and full-service auto repair for all makes and models.
 
 Walk-ins are welcome every day with no appointment required. Most common services (flat repair, oil change, tire installation, brake pads) are completed same-day, often within 1-2 hours. The shop operates on a transparent pricing model: customers are shown the problem before any work begins and told what they do NOT need replaced.
 
@@ -77,9 +77,10 @@ Walk-ins are welcome every day with no appointment required. Most common service
 - Free code scan available — full diagnostic is $59.99 for in-depth diagnosis
 - The $59.99 diagnostic fee is credited toward repair if work is done at the shop
 
-### Ohio E-Check / Emissions Testing & Repair
-- Certified Ohio E-Check emissions testing station
-- E-Check test: walk-ins welcome, usually completed in 20-30 minutes
+### Ohio E-Check / Emissions Failure Repair
+- The state runs the official Ohio E-Check test, NOT the shop
+- Nick's runs a FREE E-Check readiness check: we scan your monitors + codes and tell you if you'll pass before you go
+- Failed already? Bring the report — we diagnose and repair the failure so you pass the official re-test
 - Ohio requires E-Check for vehicles registered in Cuyahoga, Geauga, Lake, Lorain, Medina, Portage, and Summit counties
 - Vehicles exempt from E-Check: model year 4 years old or newer, electric/hybrid vehicles, diesel vehicles 14,000+ lbs GVWR
 - Common E-Check failures and repair costs:
@@ -229,7 +230,7 @@ A: Yes. Free estimates on all services. No obligation. They will tell you what y
 A: 36-month / 36,000-mile warranty on labor. Parts carry the manufacturer's warranty. If a repair fails within the warranty period, it is corrected at no charge.
 
 **Q: Is Nick's Tire & Auto a certified repair shop?**
-A: Yes. The shop employs ASE-certified technicians and is a certified Ohio E-Check emissions testing station.
+A: Yes. The shop employs ASE-certified technicians. Note: the official Ohio E-Check test is run by the state, not the shop — Nick's runs a free E-Check readiness check and repairs failures so you pass the state test.
 
 ### Tire Questions
 

@@ -51,9 +51,9 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
       rows: [
         { label: "Cleveland-area dealer", price: "$110" },
         { label: "Quick-lube chain (Jiffy / Valvoline)", price: "$89" },
-        { label: "Nick's Tire & Auto", price: "Free quote", ours: true },
+        { label: "Nick's Tire & Auto", price: "From $80", ours: true },
       ],
-      source: "Includes new filter + 27-point multi-point inspection at no extra charge. Walk in or call for a live quote on your vehicle's oil spec.",
+      source: "Full synthetic from $80, conventional/blend from $49 (plus tax). Includes new filter + free multi-point check. Walk in or call for a live quote on your vehicle's oil spec.",
     },
     fearStats: {
       heading: "What skipping oil changes actually does to your engine.",
@@ -128,9 +128,9 @@ const CONVERSION_DATA: Record<string, ConversionFields> = {
       rows: [
         { label: "Cleveland-area dealer (typical fail-fix)", price: "$650" },
         { label: "Independent chain", price: "$420" },
-        { label: "Nick's (state-certified repair facility)", price: "Free estimate", ours: true },
+        { label: "Nick's (free readiness check + repair)", price: "Free estimate", ours: true },
       ],
-      source: "Final price varies with the failure mode (O2 sensor / EVAP / catalytic). State-certified means our repair is recognized by the Ohio E-Check program — no \"do it twice\" risk.",
+      source: "Final price varies with the failure mode (O2 sensor / EVAP / catalytic). The state runs the official E-Check; we run a free readiness check, then fix the failure so you pass — no \"do it twice\" risk.",
     },
     fearStats: {
       heading: "What an E-Check failure actually costs if you let it slide.",
