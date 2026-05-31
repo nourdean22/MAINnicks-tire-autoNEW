@@ -399,9 +399,9 @@ export const SERVICES: ServiceData[] = [
     title: "EMISSIONS & E-CHECK",
     shortDesc: "Failed Ohio E-Check? We diagnose and repair emissions problems — oxygen sensors, EVAP leaks, catalytic converters — and get you passing.",
     metaTitle: "Failed E-Check Cleveland · Pass Guaranteed | Nick's",
-    metaDescription: "Cleveland E-Check shop where the pass guarantee means it. State-certified, O2 sensors, EVAP, catalytics. Same-day fix. (216) 862-0005.",
+    metaDescription: "Failed your Ohio E-Check? Free readiness check + we fix the failure — O2 sensors, EVAP, catalytics. The state tests; we get you passing. Same-day diagnosis. (216) 862-0005.",
     heroHeadline: "Failed E-Check?\nWe'll get you passing.",
-    heroSubline: "Failed your Ohio E-Check? We diagnose the exact emissions problem, repair it, and make sure all monitors complete so you pass inspection.",
+    heroSubline: "The state runs the official E-Check — we run a FREE readiness check that tells you if you'll pass, then diagnose and repair the exact emissions problem and make sure all monitors complete so you pass the official test.",
     heroCTA: "SCHEDULE E-CHECK REPAIR",
     turnaround: "Most emissions repairs completed in 1–2 days. Drive cycle verification included.",
     pricingNote: "Free E-Check report review · Honest assessment if repair cost exceeds vehicle value",
@@ -433,8 +433,8 @@ export const SERVICES: ServiceData[] = [
       },
     ],
     process: [
-      { step: "E-Check Report Review", detail: "We review your failed E-Check report to understand exactly which tests failed and why." },
-      { step: "Diagnostic Scan", detail: "Full OBD-II scan to read emissions-related codes and check readiness monitor status." },
+      { step: "Free Readiness Check", detail: "Free OBD-II scan of your monitors + codes — we tell you if you'll pass the state E-Check before you go." },
+      { step: "Report Review", detail: "Already failed? We review your state E-Check report to understand exactly which tests failed and why." },
       { step: "Component Testing", detail: "Test the specific emissions components — oxygen sensors, catalytic converter, EVAP system, EGR valve." },
       { step: "Repair", detail: "Fix the root cause of the emissions failure with OE-spec parts." },
       { step: "Drive Cycle & Verify", detail: "Complete the required drive cycle to reset monitors and verify the repair before you return for re-testing." },
@@ -475,15 +475,15 @@ export const SERVICES: ServiceData[] = [
       "Drive cycle completion and monitor verification",
     ],
     pricingTiers: [
-      { label: "E-Check test", range: "$24.99" },
+      { label: "E-Check readiness check", range: "FREE" },
       { label: "Oxygen sensor replacement", range: "$150–$350" },
       { label: "EVAP leak repair", range: "$150–$400" },
       { label: "Catalytic converter", range: "$800–$1,500" },
     ],
-    duration: "20-40 min (test) / 1-2 days (repair)",
-    startingPrice: "From $24.99",
+    duration: "Free check now / 1-2 days (repair)",
+    startingPrice: "FREE E-Check check",
     priceRange: "",
-    whyChooseUs: "We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes -- so you pass the first time back. Walk-ins 7 days, same-day diagnosis, and a 36-month warranty on repairs.",
+    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 36-month warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
       "Check engine light before emissions test",
@@ -504,8 +504,8 @@ export const SERVICES: ServiceData[] = [
     // perfect title — the leak is mostly ranking, but we can squeeze
     // clicks with a price + speed promise no Cleveland chain lists in
     // their snippet.
-    metaTitle: "Oil Change Cleveland · From $39 · Same-Day Walk-In | Nick's",
-    metaDescription: "Cleveland oil change from $39 — conventional or synthetic, free 27-point inspection, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
+    metaTitle: "Oil Change Cleveland · From $49 · Same-Day Walk-In | Nick's",
+    metaDescription: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     heroHeadline: "OIL CHANGE\nCLEVELAND OH",
     heroSubline: "Looking for an oil change in Cleveland? Conventional or synthetic, with filter replacement and a free multi-point inspection. In and out before your coffee's cold. Walk-ins welcome — no appointment needed.",
     heroCTA: "SCHEDULE OIL CHANGE",
@@ -561,7 +561,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "How much does an oil change cost in Cleveland?",
-        answer: "A conventional oil change in Cleveland typically costs between $30 and $50. A full synthetic oil change ranges from $40 to $90 depending on the vehicle and oil capacity. At Nick's Tire & Auto, every oil change includes a new filter and a free multi-point vehicle inspection. Call (216) 862-0005."
+        answer: "At Nick's Tire & Auto, a conventional or synthetic-blend oil change starts at $49 and a full synthetic starts at $80, plus tax — depending on your vehicle's oil capacity. Every oil change includes a new filter and a free multi-point check. Call (216) 862-0005."
       },
       {
         question: "What is the difference between synthetic and conventional oil?",
@@ -573,7 +573,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I get an oil change near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland offers oil changes starting at $29.99 for conventional and $69.99 for full synthetic. Every oil change includes a free multi-point inspection. Walk-ins welcome 7 days a week, most oil changes done in under 30 minutes. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112 offers oil changes starting at $49 for conventional/synthetic-blend and $80 for full synthetic, plus tax. Every oil change includes a free multi-point check. Walk-ins welcome 7 days a week, most done in under 30 minutes. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -585,12 +585,11 @@ export const SERVICES: ServiceData[] = [
       "Oil life monitor reset",
     ],
     pricingTiers: [
-      { label: "Conventional oil change", range: "$39.99" },
-      { label: "Synthetic blend", range: "$54.99" },
-      { label: "Full synthetic", range: "$69.99–$89.99" },
+      { label: "Conventional / synthetic blend", range: "From $49" },
+      { label: "Full synthetic", range: "From $80" },
     ],
     duration: "15-30 min",
-    startingPrice: "From $39.99",
+    startingPrice: "From $49",
     priceRange: "",
     whyChooseUs: "Every oil change at Nick's uses the correct oil weight per your manufacturer spec -- not the cheapest option. We include a free multi-point inspection with every service so small problems get caught early. Walk in any day, no appointment needed, and most are done in under 30 minutes.",
     commonSymptoms: [
