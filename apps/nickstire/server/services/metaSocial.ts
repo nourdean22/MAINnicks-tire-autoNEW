@@ -77,6 +77,25 @@ async function ensurePageTokenLoaded(): Promise<void> {
   }
 }
 
+/**
+ * Verification helper — confirms a token round-tripped through app_secret_kv.
+ * Returns only a fingerprint (length + last 6 chars), never the token itself.
+ */
+export async function getPersistedTokenMeta(): Promise<{ present: boolean; len: number; last6: string }> {
+  try {
+    const { db } = await import("../lib/db-helper");
+    const d = await db();
+    if (!d) return { present: false, len: 0, last6: "" };
+    const { appSecretKv } = await import("../../drizzle/schema");
+    const { eq } = await import("drizzle-orm");
+    const rows = await d.select().from(appSecretKv).where(eq(appSecretKv.k, TOKEN_KV_KEY)).limit(1);
+    const v = rows.length ? rows[0].v : "";
+    return { present: !!v, len: v.length, last6: v ? v.slice(-6) : "" };
+  } catch {
+    return { present: false, len: 0, last6: "" };
+  }
+}
+
 function getPageId(): string | null {
   return process.env.META_PAGE_ID || null;
 }
