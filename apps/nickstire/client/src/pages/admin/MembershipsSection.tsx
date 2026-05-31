@@ -1,0 +1,160 @@
+/**
+ * MembershipsSection — Nonstop Nick counter tool (admin).
+ *
+ * The operational make-or-break: staff verify "is this phone an active member?"
+ * and bind the one covered vehicle at first use. Reachable at /admin?tab=memberships.
+ * No sidebar nav slot yet (zero members today — YAGNI; promote when usage proves it).
+ *
+ * Real <input>s, not window.prompt — the admin runs as an iOS PWA where prompt()
+ * is silently suppressed (nickstire-ios-pwa-primitives).
+ */
+import { useState } from "react";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
+import { toast } from "sonner";
+
+type FoundLookup = Extract<RouterOutputs["memberships"]["lookupByPhone"], { found: true }>;
+type MemberRow = FoundLookup["members"][number];
+import { CheckCircle2, XCircle, Search, Loader2, Car, BadgeCheck } from "lucide-react";
+import { PageHeader } from "./shared";
+
+export default function MembershipsSection() {
+  const [query, setQuery] = useState("");
+  const [searchPhone, setSearchPhone] = useState<string | null>(null);
+  const [bindFor, setBindFor] = useState<number | null>(null);
+  const [plate, setPlate] = useState("");
+  const [desc, setDesc] = useState("");
+
+  const lookup = trpc.memberships.lookupByPhone.useQuery(
+    { phone: searchPhone ?? "" },
+    { enabled: !!searchPhone && searchPhone.length >= 4 },
+  );
+
+  const bind = trpc.memberships.bindVehicle.useMutation({
+    onSuccess: () => {
+      toast.success("Vehicle bound to membership.");
+      setBindFor(null);
+      setPlate("");
+      setDesc("");
+      lookup.refetch();
+    },
+    onError: () => toast.error("Couldn't bind the vehicle. Try again."),
+  });
+
+  const runSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const digits = query.replace(/\D/g, "");
+    if (digits.length < 4) {
+      toast.error("Enter at least the last 4 digits of the phone.");
+      return;
+    }
+    setSearchPhone(digits);
+  };
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Nonstop Nick"
+        subtitle="Counter lookup — verify a member by phone, bind their vehicle"
+        icon={<BadgeCheck className="w-5 h-5" />}
+      />
+
+      {/* Search */}
+      <form onSubmit={runSearch} className="flex gap-3">
+        <input
+          type="tel"
+          inputMode="tel"
+          placeholder="Phone (or last 4 digits)"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="flex-1 max-w-sm rounded-md border border-border bg-background px-4 py-2.5 text-foreground placeholder:text-foreground/40 focus:outline-none focus:border-primary"
+          aria-label="Member phone number"
+        />
+        <button
+          type="submit"
+          className="inline-flex items-center gap-1.5 bg-primary text-primary-foreground px-5 py-2.5 rounded-md font-semibold hover:opacity-90 transition-opacity"
+        >
+          <Search className="w-4 h-4" /> Look up
+        </button>
+      </form>
+
+      {/* Results */}
+      {lookup.isFetching && (
+        <div className="flex items-center gap-2 text-foreground/50 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin" /> Searching…
+        </div>
+      )}
+
+      {searchPhone && !lookup.isFetching && lookup.data && !lookup.data.found && (
+        <div className="rounded-lg border border-border/40 bg-card p-6 text-center">
+          <XCircle className="w-7 h-7 text-foreground/25 mx-auto mb-2" />
+          <p className="text-foreground/70 font-medium">No member found for that number.</p>
+          <p className="text-foreground/40 text-sm mt-1">They can join at nickstire.org/nonstop-nick or at the counter.</p>
+        </div>
+      )}
+
+      {lookup.data?.found && lookup.data.members.map((m: MemberRow) => (
+        <div key={m.id} className="rounded-lg border border-border/40 bg-card p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-bold text-foreground">{m.name || "Member"}</p>
+              <p className="font-mono text-sm text-foreground/60">{m.phone}</p>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
+              m.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-400"
+            }`}>
+              {m.isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+              {m.isActive ? "ACTIVE" : m.status.toUpperCase()}
+            </span>
+          </div>
+
+          {/* Covered vehicle */}
+          <div className="mt-4 pt-4 border-t border-border/20">
+            {m.vehiclePlate ? (
+              <p className="flex items-center gap-2 text-sm text-foreground/70">
+                <Car className="w-4 h-4 text-primary" />
+                Covered vehicle: <span className="font-mono font-semibold text-foreground">{m.vehiclePlate}</span>
+                {m.vehicleDesc && <span className="text-foreground/50">· {m.vehicleDesc}</span>}
+              </p>
+            ) : bindFor === m.id ? (
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  placeholder="Plate"
+                  value={plate}
+                  onChange={(e) => setPlate(e.target.value)}
+                  className="rounded-md border border-border bg-background px-3 py-2 text-sm uppercase focus:outline-none focus:border-primary"
+                  aria-label="License plate"
+                />
+                <input
+                  type="text"
+                  placeholder="Vehicle (e.g. silver Civic) — optional"
+                  value={desc}
+                  onChange={(e) => setDesc(e.target.value)}
+                  className="flex-1 rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:border-primary"
+                  aria-label="Vehicle description"
+                />
+                <button
+                  onClick={() => {
+                    if (!plate.trim()) { toast.error("Enter the plate."); return; }
+                    bind.mutate({ membershipId: m.id, vehiclePlate: plate.trim(), vehicleDesc: desc.trim() || undefined });
+                  }}
+                  disabled={bind.isPending}
+                  className="inline-flex items-center justify-center gap-1.5 bg-primary text-primary-foreground px-4 py-2 rounded-md text-sm font-semibold disabled:opacity-60"
+                >
+                  {bind.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Bind"}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => { setBindFor(m.id); setPlate(""); setDesc(""); }}
+                className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+              >
+                <Car className="w-4 h-4" /> Bind the covered vehicle (first use)
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

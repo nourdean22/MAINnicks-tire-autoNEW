@@ -25,7 +25,7 @@ import CountUpNumber from "@/components/CountUpNumber";
 export type AdminSection =
   | "commandCenter" | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
-  | "trafficFunnel" | "voiceReceptionist";
+  | "trafficFunnel" | "voiceReceptionist" | "memberships";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie
 // top-level route after the wave-103 era half-migration to OutreachHub.
 // Now lives ONLY as the 6th OutreachHub tab (campaigns?outreachTab=reengage).
@@ -160,6 +160,7 @@ export const SECTION_TITLES: Record<AdminSection, string> = {
   // wave-181.x Wave 3 · intelligence label removed (section retired) ·
   // URL alias redirects ?tab=intelligence → "overview"
   trafficFunnel: "Traffic → Revenue",
+  memberships: "Nonstop Nick",
 };
 
 // ─── PAGE HEADER ────────────────────────────────────────
