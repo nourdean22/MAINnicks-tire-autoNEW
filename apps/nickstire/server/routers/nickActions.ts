@@ -109,10 +109,11 @@ export const nickActionsRouter = router({
       reveal: z.boolean().default(false),
     }))
     .mutation(async ({ input }) => {
-      const { reconnectMetaFromUserToken, getMetaSocialStatus } = await import("../services/metaSocial");
+      const { reconnectMetaFromUserToken, getMetaSocialStatus, getPersistedTokenMeta } = await import("../services/metaSocial");
       const r = await reconnectMetaFromUserToken(input.userToken);
       if (!r.ok) return { ok: false as const, error: r.error };
       const status = await getMetaSocialStatus();
+      const persisted = await getPersistedTokenMeta();
       const tok = r.pageToken || "";
       return {
         ok: true as const,
@@ -121,6 +122,7 @@ export const nickActionsRouter = router({
         pageId: status.pageId,
         igUserId: status.igUserId,
         tokenFingerprint: tok ? `…${tok.slice(-6)} (len ${tok.length})` : null,
+        persisted,
         pageToken: input.reveal ? tok : undefined,
       };
     }),
