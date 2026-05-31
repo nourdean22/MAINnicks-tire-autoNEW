@@ -1,0 +1,244 @@
+/**
+ * lib/trpc/routers/system/cron.ts
+ *
+ * Per-domain slice of the system router (mechanical split · 2026-05-31).
+ * Exports a plain procedure-object that system.ts spreads back into
+ * `systemRouter` — the client paths stay FLAT as `trpc.system.<proc>`.
+ * Procedures moved VERBATIM · no behavior / input-schema / middleware
+ * change. See system.ts for the recomposition.
+ */
+
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import { operatorProcedure } from "../../trpc";
+import {
+  triggerCronByName,
+  triggerCronByPath,
+  setCronEnabled as setCronEnabledService,
+  listScheduledCrons,
+  listCronControls,
+  getCronStats,
+} from "@/lib/services/cron-control";
+import { ServiceError } from "@/lib/utils/service-error";
+import { buildCronTree } from "@/lib/services/cron-tree";
+import {
+  buildCronRunHistory,
+  buildCronCommandDeck,
+} from "@/lib/services/system-pages";
+import { runManifestCron } from "@/lib/services/cron-control";
+const MEGA_FANOUT = [
+  "device-sync",
+  "learn",
+  "stale-tasks",
+  "device-health",
+  "brain-cycle",
+  "notification-sender",
+  "journal-checkin",
+  "embed-backfill",
+  "reflect",
+  "predict",
+  "think",
+  "consolidate",
+  "drift-check",
+  "daily-report",
+  "data-cleanup",
+  "intelligence",
+];
+
+export const cronProcedures = {
+  /**
+   * Phase NN (2026-05-19 AM) · owner-only · manually fire a cron by
+   * its jobName. Closes the T.4 coexistence carve-out where the
+   * cron-diagnostics page's `runNow` + `enableCron` actions stayed
+   * on REST after the read-side was migrated.
+   *
+   * Pre-fix the page was sending `{jobName}` to a route that
+   * expected `{path}` · button was silently broken since wave-181.4.
+   * New tRPC takes the operator-natural `{jobName}` and derives the
+   * path internally via `triggerCronByName` · drift-proof against
+   * the catalog logic.
+   *
+   * Caller invalidates `system.cronDiagnostics` after success to
+   * refresh the per-job stats table.
+   */
+  runCron: operatorProcedure
+    .input(z.object({ jobName: z.string().min(1).max(80) }))
+    .mutation(async ({ input }) => triggerCronByName(input.jobName)),
+
+  /**
+   * Phase NN · owner-only · toggle a cron's enabled flag (kill-switch
+   * + re-enable from the diagnostics page). `enabled: false` means
+   * the kill-switch is engaged · the cron router skips fanout for
+   * that job until re-enabled.
+   *
+   * Caller invalidates `system.cronDiagnostics` after success.
+   */
+  setCronEnabled: operatorProcedure
+    .input(
+      z.object({
+        jobName: z.string().min(1).max(80),
+        enabled: z.boolean(),
+        note: z.string().max(200).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const next = await setCronEnabledService(
+        input.jobName,
+        input.enabled,
+        input.note,
+      );
+      return { jobName: input.jobName, enabled: next };
+    }),
+
+  // ───────────────── Settings · cron control panel (UU.2) ─────────────────
+
+  /**
+   * Phase UU.2 · owner-only · the CronControlPanel catalog. Replaces
+   * GET /api/settings/crons · scheduled crons (from vercel.json) PLUS
+   * the mega-fanout virtual crons, each joined to its kill-switch
+   * control state + 14-day success/fail stats.
+   *
+   * Assembles from the SAME three `cron-control` service functions the
+   * REST route calls (`listScheduledCrons` · `listCronControls` ·
+   * `getCronStats`) · the mega-fanout merge logic mirrors the route
+   * verbatim · drift impossible. Returns the row array directly (the
+   * panel reads `raw.data` off the legacy envelope · the tRPC query
+   * gives it the array unwrapped).
+   */
+  cronCatalog: operatorProcedure.query(async () => {
+    const [scheduled, controls, stats] = await Promise.all([
+      listScheduledCrons(),
+      listCronControls(),
+      getCronStats(),
+    ]);
+    const controlsMap = new Map(controls.map((c) => [c.jobName, c]));
+    const scheduledNames = new Set(scheduled.map((c) => c.jobName));
+    const virtualCrons = MEGA_FANOUT.filter(
+      (name) => !scheduledNames.has(name),
+    ).map((name) => ({
+      jobName: name,
+      path: `/api/cron/${name}`,
+      schedule: "(mega fanout)",
+    }));
+    const all = [...scheduled, ...virtualCrons];
+    return all.map((c) => {
+      const control = controlsMap.get(c.jobName);
+      const stat = stats[c.jobName] ?? {
+        lastSuccessAt: null,
+        lastFailAt: null,
+        success14d: 0,
+        fail14d: 0,
+      };
+      return {
+        ...c,
+        enabled: control?.enabled ?? true,
+        note: control?.note ?? null,
+        controlUpdatedAt: control?.updatedAt ?? null,
+        ...stat,
+      };
+    });
+  }),
+
+  /**
+   * Phase UU.2 · owner-only · manually fire a cron by its path (e.g.
+   * `/api/cron/drift-check` or `/api/cron/mega?slot=morning`). Replaces
+   * POST /api/settings/crons/trigger · delegates to the same
+   * `triggerCronByPath` the REST route calls · drift impossible.
+   *
+   * The CronControlPanel already knows each cron's path (from
+   * `cronCatalog`), so a path-keyed trigger maps the panel's existing
+   * `trigger(path, jobName)` signature 1:1 · this is deliberately
+   * distinct from the jobName-keyed `runCron` (NN) which the cron-
+   * diagnostics page uses. The path guard mirrors the REST route.
+   */
+  triggerCron: operatorProcedure
+    .input(z.object({ path: z.string().min(1).max(200) }))
+    .mutation(async ({ input }) => {
+      if (!input.path.startsWith("/api/cron/")) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Invalid cron path",
+        });
+      }
+      return triggerCronByPath(input.path);
+    }),
+
+  // ──────────────── Settings · auto-pilot flags (UU.2) ────────────────
+
+  /**
+   * Phase VV · owner-only · the full cron manifest + live stats + the
+   * fold/retire lineage (mode + foldedInto per row). Replaces GET
+   * /api/system/crons · delegates to the shared `cron-tree.buildCronTree`
+   * service. Distinct from `cronCatalog` (UU.2 · the /settings panel) —
+   * this carries the FULL manifest so the CronFoldTree lineage view can
+   * render folded + retired crons, which the scheduled-only catalog
+   * cannot.
+   */
+  cronTree: operatorProcedure.query(async () => buildCronTree()),
+
+  /**
+   * Phase B.7a · owner-only · per-job cron-run history · last N rows +
+   * success-rate / median / p95. Replaces GET
+   * /api/system/cron-runs/[jobName] · delegates to the shared
+   * `system-pages.buildCronRunHistory` service. The legacy `?sinceDays`
+   * (clamped 1-180) / `?limit` (clamped 1-500) query params are
+   * mirrored as typed inputs · CronRunsPage keys on the input so
+   * switching the window refetches.
+   */
+  cronRunHistory: operatorProcedure
+    .input(
+      z.object({
+        jobName: z.string().min(1).max(120),
+        sinceDays: z.number().int().min(1).max(180).optional(),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+    )
+    .query(async ({ input }) =>
+      buildCronRunHistory({
+        jobName: input.jobName,
+        sinceDays: input.sinceDays,
+        limit: input.limit,
+      }),
+    ),
+
+  /**
+   * Phase B.7a · owner-only · the live cron command-deck feed · manifest
+   * + per-job stats + drift + next-run countdown. Replaces GET
+   * /api/system/crons · delegates to the shared
+   * `system-pages.buildCronCommandDeck` service. CronsPage polls this on
+   * a 30s interval. Distinct from `cronTree` (the fold-lineage view) —
+   * this carries the per-row `nextRunAt` + `drift` the control deck
+   * renders.
+   */
+  cronDeck: operatorProcedure.query(async () => buildCronCommandDeck()),
+
+  /**
+   * Phase B.7a · owner-only · fire a cron by jobName, validated against
+   * the `config/crons.ts` manifest. Replaces POST /api/system/crons/run
+   * · delegates to the shared `cron-control.runManifestCron` service.
+   * An unknown jobName throws ServiceError(404) → NOT_FOUND; a retired
+   * one ServiceError(410) → the tRPC code has no 410, so retired maps to
+   * BAD_REQUEST (the page surfaces the message verbatim either way).
+   *
+   * Distinct from `runCron` (NN · the cron-diagnostics page · jobName →
+   * vercel.json catalog via `triggerCronByName`) — this is the
+   * `/system/crons` deck + `/system/cron-runs` drill-down path which
+   * validates the typed CronDef manifest.
+   */
+  runManifestCron: operatorProcedure
+    .input(z.object({ jobName: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      try {
+        return await runManifestCron(input.jobName);
+      } catch (err) {
+        if (err instanceof ServiceError) {
+          throw new TRPCError({
+            code: err.status === 404 ? "NOT_FOUND" : "BAD_REQUEST",
+            message: err.message,
+          });
+        }
+        throw err;
+      }
+    }),
+
+};
