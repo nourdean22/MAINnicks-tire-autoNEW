@@ -1,16 +1,22 @@
--- Ambition Engine P1 · /stats goals redesign · PARKED (additive · zero data loss)
+-- Ambition Engine P1 · /stats goals redesign · ✅ APPLIED 2026-05-30 (additive · zero data loss)
 --
--- WHY PARKED: committed schema fields without prod DB access deploy a Prisma
--- client that SELECTs columns the live Neon DB lacks → "column does not exist"
--- on every LifeGoal CRUD (the exact incident in ../README.md). So the schema
--- fields were reverted; this SQL waits here until applied WITH prod creds.
+-- STATUS: APPLIED to production Neon on 2026-05-30 via the guarded endpoint
+--   POST /api/system/apply-pending-migration { name: "0003_ambition_engine" }
+-- The dev/agent env has no prod creds, so the endpoint runs the idempotent
+-- (IF NOT EXISTS) form of this SQL from inside the deployed app and records it
+-- in _prisma_migrations as "0003_ambition_engine". The schema fields were then
+-- restored + shipped in e285e9dc, so the live Prisma client matches the DB.
 --
--- TO APPLY (see ../README.md): confirm DATABASE_URL is prod (not localhost) →
---   mv prisma/migrations-pending/0003_ambition_engine prisma/migrations/<ts>_ambition_engine
---   pnpm release:db   (= prisma migrate deploy)
--- THEN restore the schema fields (the LifeGoal columns + GoalStat model + the
--- parent/children + statLinks relations + parentGoalId index — see
--- docs/specs/2026-05-30-ambition-engine.md) and commit.
+-- KEPT HERE (NOT moved into prisma/migrations/) on purpose: this folder name
+-- sorts before the existing 2026* migrations but was applied AFTER them, so
+-- moving it could trip `migrate deploy` ordering — and renaming it to a later
+-- timestamp would break the name↔record match and re-run the non-idempotent
+-- ADD COLUMNs below. `migrate deploy` only applies folders in prisma/migrations/,
+-- so leaving it parked is drift-safe: the apply is already recorded.
+--
+-- DO NOT re-run this file directly (the ADD COLUMNs are NOT IF-NOT-EXISTS
+-- guarded — that guarding lives in the endpoint's registry). For any FUTURE
+-- migration, prefer the endpoint path (see ../README.md).
 
 -- AlterTable · LifeGoal — 8 additive nullable/defaulted columns
 ALTER TABLE "life_goals"
