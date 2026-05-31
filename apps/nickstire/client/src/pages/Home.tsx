@@ -151,7 +151,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           className="absolute inset-x-0 top-[280px] h-[420px] md:hidden pointer-events-none"
           style={{
             background:
-              "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(8,10,14,0.55) 15%, rgba(8,10,14,0.85) 50%, rgba(8,10,14,0.55) 85%, rgba(0,0,0,0) 100%)",
+              "linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(8,10,14,0.32) 15%, rgba(8,10,14,0.55) 50%, rgba(8,10,14,0.32) 85%, rgba(0,0,0,0) 100%)",
           }}
         />
         {/* Photo grain — inline-SVG noise, ~250 bytes total. Sells the
@@ -183,16 +183,18 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
             Wave-20's mt-24 (96px) at lg only pushed H1 to y=57 which
             still hid the top half behind the nav. Bumped to mt-40
             (160px) at lg+ to give H1 a clear ~120px starting position. */}
-        {/* 2026-05-07 wave-41 · mobile sign-visibility fix.
-            H1 was overlapping the storefront sign in the vertical mobile
-            hero photo (shopfront-clear-vertical-sign-bays.webp 1122×1402).
-            Sign sits at y=107-428 in the mobile container after object-
-            cover scale; H1 was at y=160-240. Bumping mobile mt-40 → mt-80
-            (320px) so H1 starts below the sign's visible zone. sm
-            breakpoint (640+) keeps mt-48; lg keeps mt-40 (desktop wide
-            photo has the sign anchored right where H1 has max-w-[58%]
-            constraint, no overlap). */}
-        <div className="max-w-full lg:max-w-[58%] mt-80 sm:mt-48 lg:mt-40">
+        {/* 2026-05-31 hero-sky-fix · supersedes wave-41's mt-80 push-down.
+            The mobile photo is portrait (320×400 ≈ 0.80) inside a much
+            taller hero box (≈0.45), so object-cover fills height exactly
+            and the FULL photo shows vertically — object-position Y is a
+            no-op and the dead dark-sky band occupies the top ~40%.
+            wave-41 pushed the H1 DOWN (mt-80) onto the storefront sign,
+            burying the prettiest part of the photo behind text. We invert
+            that: mt-28 seats the headline UP in the empty sky zone (its
+            natural high-contrast home, clear of the nav at ~120px), so the
+            yellow sign below reads unobstructed. sm/lg unchanged — the
+            desktop wide photo keeps its tuned mt-48/mt-40 + max-w-[58%]. */}
+        <div className="max-w-full lg:max-w-[58%] mt-28 sm:mt-48 lg:mt-40">
           {/* 2026-05-06 wave-19 · BrandMark removed from hero. It was
               rendering a "CLEVELAND TOUGH" tagline banner that visually
               overlapped with the SiteNavbar wordmark — both said NICK'S
