@@ -29,6 +29,8 @@ export const membershipsRouter = router({
       phone: z.string().min(7).max(20),
       email: z.string().email().max(320).optional(),
       name: z.string().max(255).optional(),
+      // Which tier: $7.99 base or $9.99+ (15% repair discount). Defaults to base.
+      plan: z.enum(["nonstop-nick", "nonstop-nick-plus"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const phone = sanitizePhone(input.phone).replace(/\D/g, "").slice(-10);
@@ -38,6 +40,7 @@ export const membershipsRouter = router({
       const { createMembershipCheckout } = await import("../services/payments");
       const origin = process.env.SITE_URL || "https://nickstire.org";
       const result = await createMembershipCheckout({
+        plan: input.plan,
         phone,
         customerEmail: input.email,
         customerName: input.name,
@@ -69,6 +72,10 @@ export const membershipsRouter = router({
           id: m.id,
           name: m.name,
           phone: m.phone,
+          plan: m.plan,
+          // plus tier ($9.99) carries the 15%-off-repairs benefit — the counter
+          // applies it manually, so surface it on the lookup card.
+          repairDiscountPct: m.plan === "nonstop-nick-plus" ? 15 : 0,
           status: m.status,
           isActive: m.status === "active",
           vehiclePlate: m.vehiclePlate,

@@ -138,22 +138,34 @@ export async function createTireOrderCheckout(params: {
 }
 
 /**
- * Create a Stripe Checkout Session for the Nonstop Nick membership
- * ($7.99/mo subscription · chunk 3/5).
+ * Nonstop Nick plan registry. Two tiers (2026-05-30):
+ *   - "nonstop-nick" ($7.99/mo) — peace-of-mind quick-tire membership (breakage).
+ *   - "nonstop-nick-plus" ($9.99/mo) — everything in $7.99 PLUS 15% off any repair
+ *     (parts + labor), applied manually by the counter from the lookup card.
+ * Each maps to a Stripe Price created in the dashboard + supplied via env. A plan
+ * with no env price stays dormant (Join degrades to call/walk-in) — so the $9.99
+ * tier can ship in code before its Stripe Price exists.
+ */
+export const MEMBERSHIP_PLANS = {
+  "nonstop-nick": { label: "Nonstop Nick", priceEnv: "STRIPE_NONSTOP_NICK_PRICE_ID" },
+  "nonstop-nick-plus": { label: "Nonstop Nick+", priceEnv: "STRIPE_NONSTOP_NICK_PLUS_PRICE_ID" },
+} as const;
+export type MembershipPlan = keyof typeof MEMBERSHIP_PLANS;
+
+/**
+ * Create a Stripe Checkout Session for a Nonstop Nick membership tier.
  *
- * mode: "subscription" — recurring billing. Unlike the one-time tire-order
- * checkout, this needs a Stripe PRICE object (the $7.99/mo recurring price),
- * created once in the Stripe dashboard and supplied via STRIPE_NONSTOP_NICK_PRICE_ID.
- * Until that env var is set the function returns the call-us fallback, so the
- * page's Join button degrades honestly to "call/walk in to sign up" rather than
- * erroring.
+ * mode: "subscription" — recurring billing, needs a Stripe PRICE object created
+ * in the dashboard and supplied via the plan's price env var (see MEMBERSHIP_PLANS).
+ * Until that env is set the function returns the call-us fallback, so the page's
+ * Join button degrades honestly rather than erroring.
  *
- * On success Stripe fires `checkout.session.completed` + `customer.subscription.created`
- * (handled by the Stripe webhook in chunk 4), which inserts/activates the
- * memberships row. The phone is collected on the page and passed as metadata so
- * the webhook can bind the membership to the right person.
+ * On success Stripe fires checkout.session.completed + customer.subscription.created
+ * (handled by the Stripe webhook), which inserts/activates the memberships row with
+ * the chosen plan. Phone is carried as metadata so the webhook binds the right person.
  */
 export async function createMembershipCheckout(params: {
+  plan?: MembershipPlan;
   phone: string;
   customerEmail?: string;
   customerName?: string;
@@ -164,16 +176,17 @@ export async function createMembershipCheckout(params: {
   if (!stripe) {
     return { error: "Membership signup isn't online yet — call or text (216) 862-0005, or ask at the counter." };
   }
-  const priceId = process.env.STRIPE_NONSTOP_NICK_PRICE_ID;
+  const plan: MembershipPlan = params.plan && params.plan in MEMBERSHIP_PLANS ? params.plan : "nonstop-nick";
+  const priceId = process.env[MEMBERSHIP_PLANS[plan].priceEnv];
   if (!priceId) {
     // Price object not created yet — degrade honestly to the in-person path.
     return { error: "Membership signup isn't online yet — call or text (216) 862-0005, or ask at the counter." };
   }
 
-  // Phone is the counter's lookup key — carry it on both the session and the
-  // subscription so the chunk-4 webhook can bind the membership row to it.
+  // Phone is the counter's lookup key — carry it (+ the plan) on both the session
+  // and the subscription so the webhook can bind the membership row to it.
   const metadata = {
-    plan: "nonstop-nick",
+    plan,
     phone: params.phone,
     customerName: params.customerName || "",
     source: "nickstire.org",
