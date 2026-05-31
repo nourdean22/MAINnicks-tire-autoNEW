@@ -518,14 +518,18 @@ router.post("/vapi", async (req: Request, res: Response) => {
               // outbound customer message — worst case is a row the operator
               // clears in one tap; the win is no forwarded caller falls
               // through. endedReason "assistant-forwarded-call" → /forward/i.
+              // 2026-05-31 · forwarded-call follow-up flipped from an internal
+              // callback to-do (it flooded the Today queue with "Call back Voice
+              // caller" rows) to a self-serve SMS back to the caller. The caller
+              // re-engages on their terms; the operator's callback queue stays clean.
               if (firstLog && isForwardedEndedReason(cleanEndedReason) && customer?.number) {
-                await d.insert(callbackRequests).values({
-                  name: customer.name?.trim() || "Voice caller",
-                  phone: customer.number.trim(),
-                  context: "Forwarded to the shop by the AI receptionist — confirm the caller was helped.",
-                  sourcePage: "voice-forwarded",
-                }).catch((err: unknown) => {
-                  log.warn("[vapi webhook] forwarded-call callback insert failed (non-blocking)", {
+                const { sendSms } = await import("../../sms");
+                await sendSms(
+                  customer.number.trim(),
+                  "Sorry if you couldn't get through just now - try us again any time, or just text us here and we'll help. - Nick's Tire & Auto (216) 862-0005",
+                  { via: "shop" },
+                ).catch((err: unknown) => {
+                  log.warn("[vapi webhook] forwarded-call SMS failed (non-blocking)", {
                     error: err instanceof Error ? err.message : String(err),
                   });
                 });

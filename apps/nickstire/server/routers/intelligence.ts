@@ -313,7 +313,7 @@ export const intelligenceRouter = router({
     // 3. Callbacks unanswered > 2 hours
     type Callback = { id: number; name: string | null; phone: string | null; context: string | null; createdAt: string | Date };
     const callbacks = await safeRowQuery<Callback>(d,
-      rawSql`SELECT id, name, phone, context, createdAt FROM callback_requests WHERE status = 'new' AND createdAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) ORDER BY createdAt ASC LIMIT 8`
+      rawSql`SELECT id, name, phone, context, createdAt FROM callback_requests WHERE status = 'new' AND (sourcePage IS NULL OR sourcePage <> 'voice-forwarded') AND createdAt < DATE_SUB(NOW(), INTERVAL 2 HOUR) ORDER BY createdAt ASC LIMIT 8`
     );
     for (const cb of callbacks) {
       const hoursAgo = Math.round((Date.now() - new Date(cb.createdAt).getTime()) / 3600000);
