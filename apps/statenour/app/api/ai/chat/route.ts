@@ -1,16 +1,9 @@
-import { streamText, convertToModelMessages, stepCountIs } from "ai";
+import { streamText, stepCountIs } from "ai";
 import { getModel, getActiveProviderInfo, type ProviderName, type TaskType } from "@/lib/ai/provider";
 import { buildSystemPrompt, detectTopicTier } from "@/lib/ai/system-prompt";
-import { detectQueryShape, toolFirstDirective } from "@/lib/ai/query-shape";
-import { resolveMediaType } from "@/lib/ai/chat/message-fields";
-import {
-  classifyTurn,
-  buildChainOfThoughtPrompt,
-  buildOutputShapePrompt,
-} from "@/lib/ai/turn-intelligence";
+import { detectQueryShape } from "@/lib/ai/query-shape";
+import { classifyTurn } from "@/lib/ai/turn-intelligence";
 import { rerankContextBlocks, formatRerankSummary } from "@/lib/ai/context-reranker";
-import { buildCitationPrompt } from "@/lib/ai/memory-citations";
-import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
 import { getCachedPrompt, setCachedPrompt } from "@/lib/ai/system-prompt-cache";
 import { detectChatMode, pruneTools, describeMode, type ChatMode } from "@/lib/ai/chat-mode";
 import { prefetchIntents, formatPrefetchContext } from "@/lib/ai/predictive-prefetch";
@@ -671,251 +664,25 @@ async function chatPostInner(req: Request) {
 
   let systemPrompt = rawSystemPrompt;
 
-  // v10.0.529.94 · Wave 38 · NEW-CONVERSATION FALLBACK ANCHOR.
-  // When the operator opens a fresh chat and says "snooze it" / "do it"
-  // with no prior anchor wiring (no contextRoute, no suggestion tap,
-  // no PageContextBridge state), the system prompt previously had
-  // nothing to resolve "it" against and Nick had to fuzzy-match.
-  // Pre-seed lastTaskId from the top-priority active task when ALL
-  // anchors are missing AND this is the first turn. ~5ms cost · zero
-  // impact on later turns (anchors already set).
-  let effectiveLastTaskId = lastTaskId;
-  let effectiveLastGoalId = lastGoalId;
-  let effectiveLastJournalEntryId = lastJournalEntryId;
-  let effectiveLastDecisionId = lastDecisionId;
-  let effectiveLastPinId = lastPinId;
-  let effectiveLastReflectionId = lastReflectionId;
-  let effectiveLastMissionId = lastMissionId;
-  const noAnchors =
-    !lastTaskId &&
-    !lastGoalId &&
-    !lastJournalEntryId &&
-    !lastDecisionId &&
-    !lastPinId &&
-    !lastReflectionId &&
-    !lastMissionId &&
-    !lastSuggestionId;
-  if (noAnchors) {
-    // v10.0.529.98 · Wave 42 · cross-device continuity. Anchors live in
-    // client-side React state + localStorage · operator switching from
-    // desktop to phone loses them. We persist the LATEST anchors to a
-    // single BrainMemory row (cross_device_anchors / latest) on every
-    // chat turn (further down in route.ts) · here we READ them as the
-    // first fallback when no client-side anchors arrived. 2-hour cap
-    // so stale context doesn't bleed into a fresh session next morning.
-    try {
-      const crossDevice = await prisma.brainMemory
-        .findFirst({
-          where: {
-            category: "cross_device_anchors",
-            key: "latest",
-            deletedAt: null,
-            updatedAt: { gte: new Date(Date.now() - 2 * 60 * 60 * 1000) },
-          },
-          select: { content: true },
-        })
-        .catch(() => null);
-      if (crossDevice?.content) {
-        try {
-          const stored = JSON.parse(crossDevice.content) as {
-            lastTaskId?: string;
-            lastGoalId?: string;
-            lastJournalEntryId?: string;
-            lastDecisionId?: string;
-            lastPinId?: string;
-            lastReflectionId?: string;
-            lastMissionId?: string;
-          };
-          effectiveLastTaskId = effectiveLastTaskId ?? stored.lastTaskId;
-          effectiveLastGoalId = effectiveLastGoalId ?? stored.lastGoalId;
-          effectiveLastJournalEntryId =
-            effectiveLastJournalEntryId ?? stored.lastJournalEntryId;
-          effectiveLastDecisionId = effectiveLastDecisionId ?? stored.lastDecisionId;
-          effectiveLastPinId = effectiveLastPinId ?? stored.lastPinId;
-          effectiveLastReflectionId =
-            effectiveLastReflectionId ?? stored.lastReflectionId;
-          effectiveLastMissionId = effectiveLastMissionId ?? stored.lastMissionId;
-        } catch {
-          // ignore malformed JSON
-        }
-      }
-    } catch {
-      // silent · cross-device fallback is best-effort
-    }
-
-    // Fall back to top-priority active task ONLY if cross-device read
-    // also produced nothing AND this is the first turn (Wave 38 logic).
-    if (!effectiveLastTaskId && messages.length === 1) {
-      try {
-        const topTask = await prisma.task
-          .findFirst({
-            where: { status: { in: ["DOING", "READY"] }, deletedAt: null },
-            orderBy: [
-              { status: "asc" }, // DOING ranks before READY alphabetically · semantically correct
-              { autoPriority: "desc" },
-              { lastTouchedAt: "desc" },
-            ],
-            select: { id: true },
-          })
-          .catch(() => null);
-        if (topTask?.id) {
-          effectiveLastTaskId = topTask.id;
-        }
-      } catch {
-        // silent · fallback anchor is best-effort
-      }
-    }
-  }
-
-  // v10.0.529.98 · Wave 42 · WRITE current anchors back to cross-device
-  // storage. Fire-and-forget · doesn't block the chat path. Skip when
-  // every anchor is empty (don't pollute storage with noise rows).
-  // Uses upsert so we keep one canonical "latest" row that gets updated
-  // in place · prevents unbounded growth.
-  const anyAnchorPresent = !!(
-    lastTaskId ||
-    lastGoalId ||
-    lastJournalEntryId ||
-    lastDecisionId ||
-    lastPinId ||
-    lastReflectionId ||
-    lastMissionId
-  );
-  if (anyAnchorPresent) {
-    void prisma.brainMemory
-      .upsert({
-        where: { id: "cross_device_anchors_latest" },
-        create: {
-          id: "cross_device_anchors_latest",
-          category: "cross_device_anchors",
-          key: "latest",
-          content: JSON.stringify({
-            lastTaskId,
-            lastGoalId,
-            lastJournalEntryId,
-            lastDecisionId,
-            lastPinId,
-            lastReflectionId,
-            lastMissionId,
-          }),
-          source: "chat-turn",
-          confidence: 1.0,
-          createdBy: "system",
-        },
-        update: {
-          content: JSON.stringify({
-            lastTaskId,
-            lastGoalId,
-            lastJournalEntryId,
-            lastDecisionId,
-            lastPinId,
-            lastReflectionId,
-            lastMissionId,
-          }),
-          updatedAt: new Date(),
-          deletedAt: null, // un-soft-delete if it was cleared
-        },
-      })
-      .catch(() => null);
-  }
-
-  // v10.0.529.86 · Wave 30 · live context hints. Tells the model
-  // what page the operator is currently on, which task/goal they
-  // last touched, and whether they tapped a NickSuggestions chip.
-  // Resolves "this task" / "do that" / "yes go ahead" without
-  // fuzzy-title gymnastics. Cheap · always ≤ 200 chars. Appended
-  // AFTER the cached base prompt so it doesn't poison the cache.
-  const contextHints: string[] = [];
-  if (contextRoute) {
-    contextHints.push(`The operator is currently on \`${contextRoute}\`.`);
-    // v10.0.529.92 · Wave 36 · surface-aware tool biasing. When the
-    // operator's request is ambiguous between two tool families,
-    // prefer the one that matches the route they're sitting on. Cuts
-    // hallucinated tool calls (e.g. createTask firing when the operator
-    // on /journal really meant journalDecision). Mapping is intentionally
-    // small · only the cases where two tools could plausibly fire.
-    const TOOL_BIAS: Record<string, string> = {
-      "/tasks": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
-      "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
-      "/pins": "pinMemory · searchMemories",
-      "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
-      "/mastery": "updateMasteryScore · setLifeGoal · logGoalProgress",
-      "/life": "setLifeGoal · logGoalProgress · archiveGoal · getCommitments",
-      "/plan": "createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
-      "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
-      "/system": "getCronStatus · toolHealth · getBrainHealth",
-      "/financial": "getFinancialSnapshot · getProjections · compareLiveRevenue",
-      "/body": "getBodyData",
-      "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
-    };
-    const biasKey = Object.keys(TOOL_BIAS).find((k) => contextRoute.startsWith(k));
-    if (biasKey) {
-      contextHints.push(
-        `Surface-aware tool bias · prefer these tools for ambiguous requests on this route: ${TOOL_BIAS[biasKey]}.`,
-      );
-    } else {
-      // v10.0.529.93 · Wave 37 · route-miss fallback. Audit found
-      // 5 routes lacked a TOOL_BIAS entry (/photo-improver /social /
-      // content /cockpit /knowledge sub-paths). Generic fallback so
-      // the model still gets behavioral direction instead of just
-      // a route name. Strips leading "/" and uses the first segment.
-      const surface = contextRoute.split("/").filter(Boolean)[0] ?? "";
-      if (surface) {
-        contextHints.push(
-          `For ambiguous requests on this route, prefer tools whose names match "${surface}" or are read-oriented over write-oriented.`,
-        );
-      }
-    }
-  }
-  if (effectiveLastTaskId) {
-    // Wave 38 · effectiveLastTaskId falls back to the top active task
-    // for new conversations with no anchors · the original lastTaskId
-    // wins when set explicitly via PageContextBridge or suggestion tap.
-    const anchorSource = lastTaskId
-      ? "operator's last touch"
-      : "current top-priority active task (auto-seeded · low confidence · confirm before destructive moves)";
-    contextHints.push(`Their most-recently-touched taskId is \`${effectiveLastTaskId}\` (${anchorSource}) — use it directly when they say "this task" / "snooze this" / "complete it".`);
-  }
-  // v10.0.529.98 · Wave 42 · all 7 entity hints now use `effective*`
-  // values so cross-device fallback flows through. When the value
-  // arrived via fallback (not client-side), annotate the source so
-  // Nick treats it as lower-confidence + confirms before destructive
-  // actions. Same pattern as Wave 38's task fallback annotation.
-  if (effectiveLastGoalId) {
-    const src = lastGoalId ? "" : " (cross-device · confirm before destructive moves)";
-    contextHints.push(`Their most-recently-touched goalId is \`${effectiveLastGoalId}\`${src} — use it for "this goal" / "log progress on it".`);
-  }
-  if (lastSuggestionKind && lastSuggestionId) {
-    contextHints.push(`They just tapped a Nick proactive suggestion (kind="${lastSuggestionKind}", id="${lastSuggestionId}"). "Yes" / "do that" / "go ahead" means proceed with this suggestion's intent.`);
-  }
-  // v10.0.529.90 · Wave 34 · expanded entity anchors. The chat client
-  // extracts entity IDs from suggestion chip IDs (e.g. broken-promise-
-  // <taskId>) AND from /journal#bd-<id> deep-links so Nick can resolve
-  // "this reflection" / "grade this decision" / "unpin this" / "act
-  // on it" without guessing.
-  if (effectiveLastJournalEntryId) {
-    const src = lastJournalEntryId ? "" : " (cross-device · confirm)";
-    contextHints.push(`Their most-recently-touched journalEntryId is \`${effectiveLastJournalEntryId}\`${src} — use it for "this entry" / "this brain dump".`);
-  }
-  if (effectiveLastDecisionId) {
-    const src = lastDecisionId ? "" : " (cross-device · confirm)";
-    contextHints.push(`Their most-recently-touched decisionId is \`${effectiveLastDecisionId}\`${src} — use it for "this decision" / "grade it" / "review that".`);
-  }
-  if (effectiveLastPinId) {
-    const src = lastPinId ? "" : " (cross-device · confirm)";
-    contextHints.push(`Their most-recently-touched pinId is \`${effectiveLastPinId}\`${src} — use it for "this pin" / "unpin it" / "refresh that".`);
-  }
-  if (effectiveLastReflectionId) {
-    const src = lastReflectionId ? "" : " (cross-device · confirm)";
-    contextHints.push(`Their most-recently-touched reflectionId is \`${effectiveLastReflectionId}\`${src} — use it for "this reflection" / "act on it" / "convert to a task".`);
-  }
-  if (effectiveLastMissionId) {
-    const src = lastMissionId ? "" : " (cross-device · confirm)";
-    contextHints.push(`Their most-recently-touched missionId is \`${effectiveLastMissionId}\`${src} — use it for "this mission" / "this project".`);
-  }
-  if (contextHints.length > 0) {
-    systemPrompt += `\n\n# OPERATOR CONTEXT (live)\n${contextHints.join("\n")}`;
-  }
+  // chat-route extract (2026-05-31) · the cross-device anchor read/write
+  // (Wave 42) + Wave 38 top-task fallback + the `# OPERATOR CONTEXT
+  // (live)` hint assembly (Waves 30/34/36/37) moved verbatim to
+  // app/api/ai/chat/context-hints.ts. The route just appends the
+  // returned block. Best-effort DB I/O only — no behavior change.
+  const { buildContextHints } = await import("./context-hints");
+  systemPrompt += await buildContextHints({
+    messageCount: messages.length,
+    contextRoute,
+    lastTaskId,
+    lastGoalId,
+    lastSuggestionKind,
+    lastSuggestionId,
+    lastJournalEntryId,
+    lastDecisionId,
+    lastPinId,
+    lastReflectionId,
+    lastMissionId,
+  });
 
   const [threadContext, contextMemories, prefetchResults] = aux;
 
@@ -1052,143 +819,29 @@ async function chatPostInner(req: Request) {
   const deeperContextCount = brainCtx.deeperContextCount;
   const deeperContextTypes = brainCtx.deeperContextTypes;
 
-  // Context window limits per provider
-  // Venice GLM-4.7-flash: 128K total. Budget split (Apr 15 refactor):
-  //   - System prompt: 65K (raised from 50K after the cold memory +
-  //     engine cap work. The trimmed builder sits around 65K with
-  //     breathing room. Anything beyond that reaches Nick via the
-  //     searchColdMemory tool, so inline truncation is no longer the
-  //     bottleneck it was.)
-  //   - Tools + pruned catalog: ~8K typical, ~45K in full deep mode
-  //     (pruning keeps standard mode lean)
-  //   - Messages + conversation: 10-25K
-  //   - Tool results: 5-15K
-  //   - Output tokens: 2-8K
-  //   Total worst case: 65 + 45 + 25 + 15 + 8 = 158K — OVER 128K.
-  //   Deep mode IS the risk — but deep mode is rare and the model
-  //   handles 128K context gracefully by dropping oldest messages.
-  // Anthropic Claude Sonnet 4.6: ~200K, system prompt can take 120K.
-  const MAX_SYSTEM_CHARS = provider === "anthropic" ? 120000 : 65000;
-  if (systemPrompt.length > MAX_SYSTEM_CHARS) {
-    log.info("system_prompt_truncated", { from: systemPrompt.length, to: MAX_SYSTEM_CHARS, provider });
-    systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
-  }
-
-  // Load Greene strategic law library for context — skip for smaller models
-  const strategicLaws = provider === "anthropic" ? await prisma.strategicLaw.findMany({
-    select: { book: true, number: true, shortTitle: true, essence: true, shopApplication: true, nourApplication: true },
-    orderBy: [{ book: "asc" }, { number: "asc" }],
-  }).catch((): never[] => []) : [];
-  const greeneSummary = strategicLaws.length > 0
-    ? strategicLaws.map(l => `[${l.book} #${l.number}] ${l.shortTitle}: ${l.essence}`).join("\n")
-    : "";
-
-  // ── Personality mode injection ──
-  // Appended LAST so it's the closest instruction to the conversation,
-  // meaning the model weights it most heavily. Each personality changes
-  // Nick's behavior without touching the data sections above.
-  const personalityPrompts: Record<string, string> = {
-    master: `[ACTIVE MODE: MASTER]
-You are in Master mode — Nour's operator + strategist.
-- Default: terse, actionable, 40-60 words. Sales floor focus — "close the deal", not "call the lead."
-- When Nour asks for analysis: go deeper with data, pros/cons, second-order effects. Up to 150 words.
-- Always cite a specific number from his data. Always end with ONE next move.
-- No ALL-CAPS headings. No sections. No bullets unless asked. Just answer.`,
-
-    builder: `[ACTIVE MODE: BUILDER]
-You are in Builder mode — Nour's technical partner.
-- Focus on code, architecture, deployment. Show file paths. Explain WHY not just WHAT.
-- Use githubReadMultiple to read the actual files before asserting.
-- Can be longer (up to 300 words) when explaining architecture decisions.
-- Connect code to business outcomes.
-- When Nour describes a feature, break it into steps and estimate effort.`,
-
-    friend: `[ACTIVE MODE: FRIEND]
-You are in Friend mode — just Nour's friend Nick.
-- Casual. Warm but honest. No data, no metrics, no business unless he asks.
-- Match his vibe. If he's joking, joke back. If he's venting, listen then respond like a real friend would.
-- No "strategic layers", no "next actions", no tools unless asked.
-- Keep it natural. Talk like a person, not a system.
-- Still honest — friends tell the truth. But with warmth.`,
-  };
-
-  const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
-  systemPrompt += `\n\n${personalityBlock}`;
-
-  // ═══ Apr 19 · Turn-aware prompt scaffolds ═══
-  // Chain-of-thought fires on complex/analytical/decision/reflective turns.
-  // Output-shape fires when Nour asked for a specific form (email / SMS /
-  // proposal / code / JSON / table / list / summary). Both are appended
-  // AFTER personality so they're the closest instructions to the
-  // conversation — the model weights them most heavily. Pure overhead is
-  // a few hundred tokens on turns that benefit; zero tokens on casual chat.
-  if (turnSignal.useChainOfThought) {
-    systemPrompt += `\n\n${buildChainOfThoughtPrompt()}`;
-  }
-  const shapePrompt = buildOutputShapePrompt(turnSignal.outputShape);
-  if (shapePrompt) {
-    systemPrompt += `\n\n${shapePrompt}`;
-  }
-
-  // Apr 19 · Citation protocol — added on turns where any brain block
-  // fired. Tells the model it MAY cite sources with [brain:TAG]. We
-  // skip the directive on casual turns to save tokens.
-  const anyBrainBlockFired =
-    contextBlocksFired.recall ||
-    contextBlocksFired.skills ||
-    contextBlocksFired.identity ||
-    contextBlocksFired.ghost ||
-    contextBlocksFired.qualitative ||
-    contextBlocksFired.beliefs ||
-    contextBlocksFired.nudges ||
-    contextBlocksFired.contradictions;
-  if (anyBrainBlockFired && turnSignal.intent !== "casual") {
-    systemPrompt += `\n\n${buildCitationPrompt()}`;
-  }
-
-  // Apr 19 · Nour voice guardrails. Appended on turns where voice
-  // matters most (analytical / decision / creative / reflective /
-  // emotional). Casual / factual turns skip it — short pragmatic
-  // replies naturally avoid the corporate-speak we're guarding against
-  // and the extra tokens would crowd out content.
-  const voiceGuardIntents = new Set<typeof turnSignal.intent>([
-    "analytical",
-    "decision",
-    "creative",
-    "reflective",
-    "emotional",
-    "instructional",
-  ]);
-  if (voiceGuardIntents.has(turnSignal.intent)) {
-    systemPrompt += `\n\n${buildNourVoicePrompt()}`;
-  }
-
-  // Brevity enforcement (except builder which needs length for code explanations)
-  if (mode !== "deep" && personality !== "builder") {
-    systemPrompt += `\nRemember: under 60 words unless analyzing. Nour is on his phone.`;
-  }
-
-  // ── FORBIDDEN PHRASES — universal voice guard ──
-  // Prevention layer for Nick's distinct voice. Without this, Venice
-  // slipped into generic-LLM filler ("Certainly!", "I hope this helps")
-  // on standard + deep. Paired with lib/ai/output-sanitizer.ts which
-  // scrubs the saved history as a cure layer.
-  systemPrompt += `\n\nFORBIDDEN PHRASES — never emit:
-- Pleasantries: "Certainly!" / "Of course!" / "Absolutely!" / "Great question!" / "Sure thing!"
-- Help filler: "I hope this helps" / "Let me know if..." / "Happy to help" / "Feel free to ask"
-- AI disclaimers: "As an AI" / "As a language model" / "I don't have real-time access"
-- Hedges: "It seems like" / "It appears that" / "I think that" / "Based on my analysis"
-- Self-reference: "In this response" / "In my answer"
-- Sentences starting with: However / Additionally / Furthermore / Moreover / In summary / In conclusion
-Speak as Nour's operator. Direct, specific, grounded in his data.`;
-
-  // ── TOOL-FIRST DIRECTIVE (injected only when query is factual) ──
-  // When the user asks a data question Nick has tools for, force the
-  // tool call before the answer. Prevents hallucinated numbers.
-  const toolFirstPrompt = toolFirstDirective(queryShape);
-  if (toolFirstPrompt) {
-    systemPrompt += `\n\n${toolFirstPrompt}`;
-  }
+  // chat-route extract (2026-05-31) · the system-prompt finalization
+  // block (per-provider truncation, Greene-law load, personality
+  // injection, turn-aware CoT/shape scaffolds, citation protocol, Nour
+  // voice guardrails, brevity enforcement, forbidden-phrases guard,
+  // tool-first directive) moved verbatim to
+  // app/api/ai/chat/finalize-system-prompt.ts. Same ordering, same
+  // gating, same I/O (the Greene-law DB read). Returns the finalized
+  // prompt + greeneSummary + law count for the Anthropic chat-layer
+  // prompt below.
+  const { finalizeSystemPrompt } = await import("./finalize-system-prompt");
+  const __finalized = await finalizeSystemPrompt({
+    systemPrompt,
+    provider,
+    personality,
+    turnSignal,
+    contextBlocksFired,
+    mode,
+    queryShape,
+    log,
+  });
+  systemPrompt = __finalized.systemPrompt;
+  const greeneSummary = __finalized.greeneSummary;
+  const strategicLawCount = __finalized.strategicLawCount;
 
   let result;
   try {
@@ -1198,7 +851,7 @@ Speak as Nour's operator. Direct, specific, grounded in his data.`;
 
 # NICK — Chief of Staff, NOUR OS (Chat Layer)
 
-${greeneSummary ? `## Greene Strategic Law Library (${strategicLaws.length} laws loaded)
+${greeneSummary ? `## Greene Strategic Law Library (${strategicLawCount} laws loaded)
 When analyzing patterns, decisions, or strategy, reference specific laws by [BOOK #NUMBER] format.
 For business situations, apply the shopApplication. For personal situations, apply the nourApplication.
 Be specific: not "consider Law 28" but "Law 28 (Enter Action with Boldness) — your 3 pending estimates need follow-up calls TODAY."
@@ -1490,114 +1143,19 @@ ${finalSystemPrompt}`;
     toolFirst: queryShape.needsTool ? queryShape.factualHints : null,
   });
 
-  // Use compressed messages if the conversation hit the compression
-  // threshold. For short conversations this is the original message
-  // array unchanged.
-  const modelMessages = compression.compressed
-    ? compression.messages
-    : await convertToModelMessages(
-        messages as unknown as Parameters<typeof convertToModelMessages>[0],
-      ).catch((err) => {
-        log.error("convert_to_model_messages_failed", { err: sanitizeError(err) });
-        return messages.map((m: any) => {
-          const parts = m.parts || [];
-          const hasImages = parts.some((p: any) => p?.type === "image" || p?.type === "file");
-          if (hasImages) {
-            const content: any[] = [];
-            for (const part of parts) {
-              if (part?.type === "text" && part?.text) {
-                content.push({ type: "text", text: part.text });
-                continue;
-              }
-              // AI SDK v6 UIMessage shape — { type: "file", mediaType, url }.
-              // `url` is a data-URL (data:image/png;base64,...) or http(s).
-              // Images and other files both use the same part type in v6.
-              if (part?.type === "file") {
-                // v10.0.185 · always resolve mediaType (never undef).
-                // Pre-fix this branch let `mediaType: undefined`
-                // through to streamText, triggering the AI SDK's
-                // "'file part media type ' functionality not
-                // supported" error every time. resolveMediaType()
-                // tries part.mediaType → part.mimeType → data-URL
-                // prefix → "application/octet-stream" as last resort.
-                const url: string | undefined = part.url;
-                const media = resolveMediaType(part, url);
-                if (url && media.startsWith("image/")) {
-                  content.push({ type: "image", image: url, mediaType: media });
-                } else if (url) {
-                  content.push({ type: "file", data: url, mediaType: media });
-                } else if (part.data) {
-                  // v4/v5 legacy shape — kept for any queued messages
-                  // that predate the v6 upgrade.
-                  content.push({ type: "file", data: part.data, mediaType: media });
-                }
-                continue;
-              }
-              // v4/v5 "image" part type — still seen in older persisted
-              // conversations. Translate to v6 content shape.
-              if (part?.type === "image" && part?.image) {
-                content.push({
-                  type: "image",
-                  image: part.image,
-                  mediaType: resolveMediaType(part, part.image),
-                });
-              }
-            }
-            return { role: m.role as "user" | "assistant", content };
-          }
-          return {
-            role: m.role as "user" | "assistant",
-            content:
-              typeof m.content === "string"
-                ? m.content
-                : Array.isArray(parts)
-                  ? parts.filter((p: any) => p?.type === "text").map((p: any) => p.text).join(" ")
-                  : JSON.stringify(m.content ?? parts ?? ""),
-          };
-        });
-      });
-
-  // v10.0.529.58 · ITEM_REFERENCE SANITIZER · 43 failed assistant
-  // replies in 24h with 'input[N]: unknown input item type:
-  // "item_reference"' against Ollama Cloud's /v1/chat/completions.
-  // Root cause: AI SDK v6's convertToModelMessages emits item_reference
-  // parts for tool-call continuations in multi-step flows · OpenAI's
-  // Responses API accepts these · Chat Completions endpoints (Venice ·
-  // Ollama · OpenAI chat-compat) reject them as unknown types.
-  // Fix: walk modelMessages · strip part objects whose .type is not
-  // in the chat-completions-safe whitelist. Preserves text · image ·
-  // file · tool-call · tool-result · drops item_reference (and any
-  // future unknown types). Idempotent · adds <1ms per turn.
-  const CHAT_COMPLETIONS_SAFE_TYPES = new Set([
-    "text",
-    "image",
-    "file",
-    "tool-call",
-    "tool-result",
-    "reasoning",
-  ]);
-  const sanitizedModelMessages = (() => {
-    const src = modelMessages as Array<{ role?: string; content?: unknown }>;
-    if (!Array.isArray(src)) return modelMessages;
-    return src.map((msg) => {
-      if (!msg || typeof msg !== "object") return msg;
-      const content = msg.content;
-      if (!Array.isArray(content)) return msg;
-      const filtered = content.filter((part: unknown) => {
-        if (!part || typeof part !== "object") return true;
-        const t = (part as { type?: string }).type;
-        return typeof t !== "string" || CHAT_COMPLETIONS_SAFE_TYPES.has(t);
-      });
-      if (filtered.length === content.length) return msg;
-      // Drop messages whose content array got fully filtered out · they
-      // were 100% item_reference and have no body left to send. Otherwise
-      // the provider would 400 on an empty user/assistant turn.
-      if (filtered.length === 0) {
-        return { ...msg, content: [{ type: "text", text: "" }] };
-      }
-      return { ...msg, content: filtered };
-    });
-  })();
+  // chat-route extract (2026-05-31) · the model-message preparation
+  // (compression branch + convertToModelMessages with the v10.0.185
+  // media-type fallback mapper + the v10.0.529.58 item_reference
+  // sanitizer) moved verbatim to app/api/ai/chat/build-model-messages.ts.
+  // Pure transform — same compression gate, same fallback, same
+  // whitelist. Returns the sanitized array; the streamText call site
+  // below casts it to the AI-SDK messages shape (unchanged).
+  const { buildModelMessages } = await import("./build-model-messages");
+  const sanitizedModelMessages = await buildModelMessages({
+    compression,
+    messages,
+    log,
+  });
 
   // v11.0 W7 strict · the AI SDK's streamText options type is extremely
   // narrow about the shape of tools + messages + onFinish combined.

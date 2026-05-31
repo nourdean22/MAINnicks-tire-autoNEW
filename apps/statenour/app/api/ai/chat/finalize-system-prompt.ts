@@ -1,0 +1,218 @@
+/**
+ * finalizeSystemPrompt · chat-route extract (2026-05-31)
+ *
+ * Lifted VERBATIM from app/api/ai/chat/route.ts (the system-prompt
+ * finalization block, original lines 1055-1191 / post-context-hints
+ * 829-965). Runs AFTER all the brain/context blocks have been appended
+ * and BEFORE the streaming `try`. Owns, in order:
+ *
+ *   1. Per-provider context-window truncation (Venice 65K / Anthropic
+ *      120K) with a telemetry log on truncation.
+ *   2. Greene strategic-law library load (Anthropic only — skipped for
+ *      smaller-context providers). Returns the summary + count so the
+ *      caller can fold them into the Anthropic chat-layer prompt.
+ *   3. Personality-mode injection (master / builder / friend) appended
+ *      LAST so the model weights it most heavily.
+ *   4. Turn-aware scaffolds: chain-of-thought + output-shape templates.
+ *   5. Citation protocol (only when a brain block fired + not casual).
+ *   6. Nour voice guardrails (analytical/decision/creative/reflective/
+ *      emotional/instructional intents only).
+ *   7. Brevity enforcement (non-deep, non-builder).
+ *   8. Universal FORBIDDEN-PHRASES voice guard.
+ *   9. Tool-first directive (factual query shapes only).
+ *
+ * Returns the mutated systemPrompt + greeneSummary + strategicLawCount.
+ * The only I/O is the Greene-law DB read (Anthropic path); everything
+ * else is pure string assembly. No stream coupling, no closures.
+ */
+
+import { prisma } from "@/lib/prisma";
+import { toolFirstDirective } from "@/lib/ai/query-shape";
+import {
+  buildChainOfThoughtPrompt,
+  buildOutputShapePrompt,
+} from "@/lib/ai/turn-intelligence";
+import type { TurnSignal } from "@/lib/ai/turn-intelligence";
+import { buildCitationPrompt } from "@/lib/ai/memory-citations";
+import { buildNourVoicePrompt } from "@/lib/ai/nour-voice-profile";
+import type { ChatMode } from "@/lib/ai/chat-mode";
+import type { ContextBlocksFired } from "@/lib/services/chat/brain-context";
+
+interface ChatLogger {
+  info(event: string, ctx?: Record<string, unknown>): void;
+}
+
+export interface FinalizeSystemPromptInput {
+  /** The system prompt assembled so far (base + all context blocks). */
+  systemPrompt: string;
+  /** Active provider name — drives truncation cap + Greene-law load. */
+  provider: string;
+  /** Persona key from the gate ("master" | "builder" | "friend" | ...). */
+  personality: string;
+  /** Turn classifier output — drives CoT/shape/citation/voice gating. */
+  turnSignal: TurnSignal;
+  /** Brain-block fire flags — gate the citation protocol. */
+  contextBlocksFired: ContextBlocksFired;
+  /** Chat mode — gates brevity enforcement. */
+  mode: ChatMode;
+  /** Query-shape result — drives the tool-first directive. */
+  queryShape: Parameters<typeof toolFirstDirective>[0];
+  log: ChatLogger;
+}
+
+export interface FinalizeSystemPromptOutput {
+  /** The finalized system prompt, ready to feed into the chat-layer prompt. */
+  systemPrompt: string;
+  /** Greene-law index summary (empty unless Anthropic + laws loaded). */
+  greeneSummary: string;
+  /** Number of Greene laws loaded (0 unless Anthropic). */
+  strategicLawCount: number;
+}
+
+export async function finalizeSystemPrompt(
+  input: FinalizeSystemPromptInput,
+): Promise<FinalizeSystemPromptOutput> {
+  const { provider, personality, turnSignal, contextBlocksFired, mode, queryShape, log } =
+    input;
+  let systemPrompt = input.systemPrompt;
+
+  // Context window limits per provider
+  // Venice GLM-4.7-flash: 128K total. Budget split (Apr 15 refactor):
+  //   - System prompt: 65K (raised from 50K after the cold memory +
+  //     engine cap work. The trimmed builder sits around 65K with
+  //     breathing room. Anything beyond that reaches Nick via the
+  //     searchColdMemory tool, so inline truncation is no longer the
+  //     bottleneck it was.)
+  //   - Tools + pruned catalog: ~8K typical, ~45K in full deep mode
+  //     (pruning keeps standard mode lean)
+  //   - Messages + conversation: 10-25K
+  //   - Tool results: 5-15K
+  //   - Output tokens: 2-8K
+  //   Total worst case: 65 + 45 + 25 + 15 + 8 = 158K — OVER 128K.
+  //   Deep mode IS the risk — but deep mode is rare and the model
+  //   handles 128K context gracefully by dropping oldest messages.
+  // Anthropic Claude Sonnet 4.6: ~200K, system prompt can take 120K.
+  const MAX_SYSTEM_CHARS = provider === "anthropic" ? 120000 : 65000;
+  if (systemPrompt.length > MAX_SYSTEM_CHARS) {
+    log.info("system_prompt_truncated", { from: systemPrompt.length, to: MAX_SYSTEM_CHARS, provider });
+    systemPrompt = systemPrompt.slice(0, MAX_SYSTEM_CHARS) + "\n\n[System prompt truncated for model context limits]";
+  }
+
+  // Load Greene strategic law library for context — skip for smaller models
+  const strategicLaws = provider === "anthropic" ? await prisma.strategicLaw.findMany({
+    select: { book: true, number: true, shortTitle: true, essence: true, shopApplication: true, nourApplication: true },
+    orderBy: [{ book: "asc" }, { number: "asc" }],
+  }).catch((): never[] => []) : [];
+  const greeneSummary = strategicLaws.length > 0
+    ? strategicLaws.map(l => `[${l.book} #${l.number}] ${l.shortTitle}: ${l.essence}`).join("\n")
+    : "";
+
+  // ── Personality mode injection ──
+  // Appended LAST so it's the closest instruction to the conversation,
+  // meaning the model weights it most heavily. Each personality changes
+  // Nick's behavior without touching the data sections above.
+  const personalityPrompts: Record<string, string> = {
+    master: `[ACTIVE MODE: MASTER]
+You are in Master mode — Nour's operator + strategist.
+- Default: terse, actionable, 40-60 words. Sales floor focus — "close the deal", not "call the lead."
+- When Nour asks for analysis: go deeper with data, pros/cons, second-order effects. Up to 150 words.
+- Always cite a specific number from his data. Always end with ONE next move.
+- No ALL-CAPS headings. No sections. No bullets unless asked. Just answer.`,
+
+    builder: `[ACTIVE MODE: BUILDER]
+You are in Builder mode — Nour's technical partner.
+- Focus on code, architecture, deployment. Show file paths. Explain WHY not just WHAT.
+- Use githubReadMultiple to read the actual files before asserting.
+- Can be longer (up to 300 words) when explaining architecture decisions.
+- Connect code to business outcomes.
+- When Nour describes a feature, break it into steps and estimate effort.`,
+
+    friend: `[ACTIVE MODE: FRIEND]
+You are in Friend mode — just Nour's friend Nick.
+- Casual. Warm but honest. No data, no metrics, no business unless he asks.
+- Match his vibe. If he's joking, joke back. If he's venting, listen then respond like a real friend would.
+- No "strategic layers", no "next actions", no tools unless asked.
+- Keep it natural. Talk like a person, not a system.
+- Still honest — friends tell the truth. But with warmth.`,
+  };
+
+  const personalityBlock = personalityPrompts[personality] || personalityPrompts.master;
+  systemPrompt += `\n\n${personalityBlock}`;
+
+  // ═══ Apr 19 · Turn-aware prompt scaffolds ═══
+  // Chain-of-thought fires on complex/analytical/decision/reflective turns.
+  // Output-shape fires when Nour asked for a specific form (email / SMS /
+  // proposal / code / JSON / table / list / summary). Both are appended
+  // AFTER personality so they're the closest instructions to the
+  // conversation — the model weights them most heavily. Pure overhead is
+  // a few hundred tokens on turns that benefit; zero tokens on casual chat.
+  if (turnSignal.useChainOfThought) {
+    systemPrompt += `\n\n${buildChainOfThoughtPrompt()}`;
+  }
+  const shapePrompt = buildOutputShapePrompt(turnSignal.outputShape);
+  if (shapePrompt) {
+    systemPrompt += `\n\n${shapePrompt}`;
+  }
+
+  // Apr 19 · Citation protocol — added on turns where any brain block
+  // fired. Tells the model it MAY cite sources with [brain:TAG]. We
+  // skip the directive on casual turns to save tokens.
+  const anyBrainBlockFired =
+    contextBlocksFired.recall ||
+    contextBlocksFired.skills ||
+    contextBlocksFired.identity ||
+    contextBlocksFired.ghost ||
+    contextBlocksFired.qualitative ||
+    contextBlocksFired.beliefs ||
+    contextBlocksFired.nudges ||
+    contextBlocksFired.contradictions;
+  if (anyBrainBlockFired && turnSignal.intent !== "casual") {
+    systemPrompt += `\n\n${buildCitationPrompt()}`;
+  }
+
+  // Apr 19 · Nour voice guardrails. Appended on turns where voice
+  // matters most (analytical / decision / creative / reflective /
+  // emotional). Casual / factual turns skip it — short pragmatic
+  // replies naturally avoid the corporate-speak we're guarding against
+  // and the extra tokens would crowd out content.
+  const voiceGuardIntents = new Set<typeof turnSignal.intent>([
+    "analytical",
+    "decision",
+    "creative",
+    "reflective",
+    "emotional",
+    "instructional",
+  ]);
+  if (voiceGuardIntents.has(turnSignal.intent)) {
+    systemPrompt += `\n\n${buildNourVoicePrompt()}`;
+  }
+
+  // Brevity enforcement (except builder which needs length for code explanations)
+  if (mode !== "deep" && personality !== "builder") {
+    systemPrompt += `\nRemember: under 60 words unless analyzing. Nour is on his phone.`;
+  }
+
+  // ── FORBIDDEN PHRASES — universal voice guard ──
+  // Prevention layer for Nick's distinct voice. Without this, Venice
+  // slipped into generic-LLM filler ("Certainly!", "I hope this helps")
+  // on standard + deep. Paired with lib/ai/output-sanitizer.ts which
+  // scrubs the saved history as a cure layer.
+  systemPrompt += `\n\nFORBIDDEN PHRASES — never emit:
+- Pleasantries: "Certainly!" / "Of course!" / "Absolutely!" / "Great question!" / "Sure thing!"
+- Help filler: "I hope this helps" / "Let me know if..." / "Happy to help" / "Feel free to ask"
+- AI disclaimers: "As an AI" / "As a language model" / "I don't have real-time access"
+- Hedges: "It seems like" / "It appears that" / "I think that" / "Based on my analysis"
+- Self-reference: "In this response" / "In my answer"
+- Sentences starting with: However / Additionally / Furthermore / Moreover / In summary / In conclusion
+Speak as Nour's operator. Direct, specific, grounded in his data.`;
+
+  // ── TOOL-FIRST DIRECTIVE (injected only when query is factual) ──
+  // When the user asks a data question Nick has tools for, force the
+  // tool call before the answer. Prevents hallucinated numbers.
+  const toolFirstPrompt = toolFirstDirective(queryShape);
+  if (toolFirstPrompt) {
+    systemPrompt += `\n\n${toolFirstPrompt}`;
+  }
+
+  return { systemPrompt, greeneSummary, strategicLawCount: strategicLaws.length };
+}
