@@ -16,6 +16,7 @@
 import { apiHandler } from "@/lib/utils/http";
 import { prisma } from "@/lib/prisma";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,15 @@ export const GET = apiHandler(
         select: { id: true, title: true },
         take: 100,
       })
-      .catch((): Array<{ id: string; title: string }> => []);
+      .catch((err): Array<{ id: string; title: string }> => {
+        // 2026-05-30 · was a silent `=> []` — a DB failure here returned
+        // ok:{resurfaced:0} as if nothing was due. Breadcrumb so a real
+        // failure is diagnosable (next run retries; the [] fallback stays).
+        logger.warn("task_resurface_query_failed", {
+          error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+        });
+        return [];
+      });
 
     if (due.length === 0) {
       return { ok: true, resurfaced: 0 };

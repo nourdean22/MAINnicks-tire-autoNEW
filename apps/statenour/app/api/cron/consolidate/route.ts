@@ -1,4 +1,5 @@
 import { cronHandler } from "@/lib/utils/http";
+import { logger } from "@/lib/logger";
 import { runConsolidation } from "@/lib/brain/memory-consolidation";
 import { autoPromoteStableSkillsToWisdom } from "@/lib/brain/skill-extractor";
 import { flushSlowQueriesToSystemMetric } from "@/lib/db/slow-query-tracker";
@@ -29,15 +30,18 @@ export const GET = cronHandler(async () => {
 
   // v10.0.529.106 · Wave 62 · best-effort additional passes · failures
   // here don't block the primary consolidation result.
-  const skillPromote = await autoPromoteStableSkillsToWisdom().catch(() => ({
-    promoted: 0,
-    skipped: 0,
-    promotedKeys: [] as string[],
-  }));
-  const slowQueryFlush = await flushSlowQueriesToSystemMetric().catch(() => ({
-    flushed: 0,
-    topMs: 0,
-  }));
+  const skillPromote = await autoPromoteStableSkillsToWisdom().catch((err) => {
+    logger.warn("consolidate_skill_promote_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return { promoted: 0, skipped: 0, promotedKeys: [] as string[] };
+  });
+  const slowQueryFlush = await flushSlowQueriesToSystemMetric().catch((err) => {
+    logger.warn("consolidate_slow_query_flush_failed", {
+      error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+    });
+    return { flushed: 0, topMs: 0 };
+  });
 
   return {
     ...result,

@@ -17,6 +17,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { logger } from "@/lib/logger";
 
 function todayStr() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
@@ -70,7 +71,12 @@ export async function buildActionsBrain(): Promise<ActionsBrainView> {
     prisma.task.findMany({
       where: { loopKind: "DAILY", status: { in: ["READY", "DOING"] }, deletedAt: null },
       select: { title: true, streakCount: true, lastCompletedAt: true },
-    }).catch(() => [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>),
+    }).catch((err) => {
+      logger.warn("actions_brain_daily_tasks_failed", {
+        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      });
+      return [] as Array<{ title: string; streakCount: number; lastCompletedAt: Date | null }>;
+    }),
     prisma.brainMemory
       .findUnique({
         where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },

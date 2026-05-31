@@ -20,6 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 import {
   KNOWN_BRAIN_CATEGORIES,
   DEPRECATED_CATEGORY_MAP,
@@ -192,10 +193,22 @@ export async function buildBrainMaturity(): Promise<BrainMaturityView> {
     loadGhostAccuracy().catch(() => null),
     prisma.brainMemory
       .count({ where: { category: BRAIN_CATEGORIES.CHAT_IMPORTANCE } })
-      .catch(() => 0),
+      .catch((err) => {
+        logger.warn("brain_memory_count_failed", {
+          category: "CHAT_IMPORTANCE",
+          error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        });
+        return 0;
+      }),
     prisma.brainMemory
       .count({ where: { category: BRAIN_CATEGORIES.CHAT_SUMMARY } })
-      .catch(() => 0),
+      .catch((err) => {
+        logger.warn("brain_memory_count_failed", {
+          category: "CHAT_SUMMARY",
+          error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+        });
+        return 0;
+      }),
   ]);
 
   const graduatedCount = skillsActive.filter((s) => s.graduated).length;
