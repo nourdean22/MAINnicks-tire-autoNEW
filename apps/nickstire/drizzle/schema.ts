@@ -2514,6 +2514,19 @@ export const featureFlags = mysqlTable("feature_flags", {
   index("idx_flag_key").on(table.key),
 ]);
 
+// ─── App secret / token KV · 2026-05-31 ─────────────────
+/**
+ * Server-held secrets that must survive pod restarts — e.g. the minted,
+ * never-expiring Meta Page access token. Keyed by a short string; value is
+ * the raw secret as text. Read/written ONLY server-side; never returned to
+ * any client surface.
+ */
+export const appSecretKv = mysqlTable("app_secret_kv", {
+  k: varchar("k", { length: 64 }).primaryKey(),
+  v: text("v").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ─── DAILY EXECUTION TRACKING ───────────────────────────
 /**
  * Daily execution log — one row per day for mission tracking and status.
