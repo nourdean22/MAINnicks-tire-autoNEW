@@ -45,6 +45,16 @@ export const updateGoalSchema = z.object({
   // Ambition Engine P3 · the compounding ladder. null unlinks; a non-null
   // parent is validated (no self / cycle / inverted-horizon) in updateGoal.
   parentGoalId: z.string().nullable().optional(),
+  // Ambition Engine P3 · kind (card shape) + anti-stale authoring — the
+  // stolen-pattern columns (migrated in P1, dormant until now). conviction
+  // 1-5; killBy is a DateTime (ISO); ambition is a tag; killCriteria /
+  // identityLine are free text. All nullable so the edit panel can clear them.
+  kind: z.enum(["metric", "milestone", "narrative"]).optional(),
+  conviction: z.number().int().min(1).max(5).nullable().optional(),
+  ambition: z.enum(["tenx", "incremental"]).nullable().optional(),
+  killCriteria: z.string().max(500).nullable().optional(),
+  killBy: z.string().datetime().nullable().optional(),
+  identityLine: z.string().max(300).nullable().optional(),
   archive: z.boolean().optional(),
   restore: z.boolean().optional(),
 });
@@ -262,6 +272,11 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
 
   if (rawData.deadline !== undefined) {
     data.deadline = rawData.deadline ? new Date(rawData.deadline) : null;
+  }
+  // Ambition Engine P3 · killBy is a DateTime column — convert like deadline
+  // (conviction / ambition / killCriteria / identityLine pass through as-is).
+  if (rawData.killBy !== undefined) {
+    data.killBy = rawData.killBy ? new Date(rawData.killBy) : null;
   }
 
   // Ambition Engine P3 · validate the ladder link before writing parentGoalId.
