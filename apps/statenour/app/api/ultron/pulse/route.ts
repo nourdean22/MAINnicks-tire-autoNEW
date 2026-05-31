@@ -46,9 +46,6 @@ interface PulsePayload {
     spark: number[];          // last 12 net-worth snapshots
   };
   life: {
-    daniaSilent: number;
-    familySilent: number;
-    topSilent: { name: string; days: number } | null;
     callsPending: number;
   };
   generatedAt: string;
@@ -209,37 +206,12 @@ export async function GET() {
       };
 
       // ── LIFE
-      const now = Date.now();
-      const silenceFor = (p: typeof people[number]): number => {
-        if (!p.lastInteraction) return 30;
-        return Math.floor((now - p.lastInteraction.getTime()) / 86400000);
-      };
-
-      const daniaEntry = people.find(
-        (p) => p.name.toLowerCase().includes("dania") || p.relationship.toLowerCase().includes("wife"),
-      );
-      const familyEntries = people.filter(
-        (p) =>
-          p.role.toLowerCase() === "family" ||
-          p.relationship.toLowerCase().includes("mom") ||
-          p.relationship.toLowerCase().includes("dad") ||
-          p.relationship.toLowerCase().includes("brother") ||
-          p.relationship.toLowerCase().includes("sister"),
-      );
-
-      const daniaSilent = daniaEntry ? silenceFor(daniaEntry) : 0;
-      const familySilent = familyEntries.length > 0
-        ? Math.min(...familyEntries.map(silenceFor))
-        : 0;
-
-      const topSilentPerson = people
-        .map((p) => ({ name: p.name, days: silenceFor(p) }))
-        .sort((a, b) => b.days - a.days)[0] ?? null;
-
+      // 2026-05-31 · relationship-silence exposure scrubbed (D-REL — no
+      // person-silence nags surfaced anywhere). Only the neutral callback
+      // count remains. (`people` query left in the fan-out for now; see the
+      // flagged deeper-cleanup note.)
+      void people;
       const life = {
-        daniaSilent,
-        familySilent,
-        topSilent: topSilentPerson && topSilentPerson.days >= 5 ? topSilentPerson : null,
         callsPending: callbacks,
       };
 

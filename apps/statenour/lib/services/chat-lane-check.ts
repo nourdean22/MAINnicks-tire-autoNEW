@@ -105,59 +105,16 @@ export async function checkLane(args: LaneCheckArgs): Promise<LaneCheckResult> {
   // Pull blind spots + a lightweight "domain last touched" signal.
   // Both go through the shared 2-min cache so the lane-check
   // endpoint doesn't hammer the detector.
-  const [blindSpots, daniaLastMention] = await cached(
+  const blindSpots = await cached(
     hashKey(userMsg, assistantMsg),
     120,
-    async () => {
-      const bs = await detectBlindSpots().catch((): BlindSpot[] => []);
-      // Special case: Dania silence is a permanent watched domain
-      // per the operator's permanent rules — check even if not in
-      // the blind-spot set.
-      const daniaMention = await prisma.chatMessage
-        .findFirst({
-          where: {
-            role: "user",
-            content: { contains: "Dania", mode: "insensitive" },
-            createdAt: { gte: daysAgo(30) },
-          },
-          orderBy: { createdAt: "desc" },
-          select: { createdAt: true },
-        })
-        .catch(() => null);
-      return [bs, daniaMention] as const;
-    },
+    async () => detectBlindSpots().catch((): BlindSpot[] => []),
   );
 
-  // Pick the best blind spot to surface:
-  //   1. Dania silence > 7d is a special override (operator's rule)
-  //   2. No Dania mentions in 30d at all → high-severity surface
-  //   3. Otherwise pick highest-severity adjacent (non-current) blind spot
+  // Surface the highest-severity adjacent (non-current-domain) blind spot.
   let chip: LaneChip | null = null;
 
-  if (daniaLastMention) {
-    const silenceDays = Math.floor(
-      (Date.now() - daniaLastMention.createdAt.getTime()) / 86400_000,
-    );
-    if (silenceDays >= 7 && currentDomain !== "marriage") {
-      chip = {
-        domain: "marriage",
-        text: `Dania silent ${silenceDays}d — surface gently?`,
-        action: "reflect",
-        href: "/journal",
-        severity: "medium",
-      };
-    }
-  } else if (currentDomain !== "marriage") {
-    chip = {
-      domain: "marriage",
-      text: `No Dania mentions in 30d — surface this carefully`,
-      action: "reflect",
-      href: "/journal",
-      severity: "high",
-    };
-  }
-
-  if (!chip && blindSpots.length > 0) {
+  if (blindSpots.length > 0) {
     const adjacent = blindSpots
       .filter((b) => !currentDomain || b.domain.toLowerCase() !== currentDomain)
       .sort((a, b) => {

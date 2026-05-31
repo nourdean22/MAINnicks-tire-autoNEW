@@ -55,7 +55,6 @@ interface EngineInputs {
   overdueCommitments: number;
   openPendingDecisions: number;    // reviewAt past, not reviewed
   driftOpen: number;
-  daniaSilentDays: number;
   recentSkipReasons: string[];     // autoPriorityExplanation from recent skipped tasks
   recentCaptureSamples: string[];  // first 200 chars of today's captures
   recentChatMessages: string[];    // last 10 user chat messages
@@ -118,14 +117,6 @@ function extractTriggerPatterns(i: EngineInputs): string[] {
   if (i.driftOpen >= 3) {
     out.push("scattered_attention", "drift_accumulation",
              "drift_pattern", "mission_drift", "distraction_detected");
-  }
-
-  // ─── DANIA / CONNECTION ───
-  if (i.daniaSilentDays >= 5) {
-    out.push("relationship_gap", "connection_slip");
-  }
-  if (i.daniaSilentDays >= 7) {
-    out.push("disconnection");
   }
 
   // ─── OVEREXPLAINING / CHAT PATTERNS ───
@@ -258,13 +249,6 @@ function watcherTitle(i: EngineInputs): string | null {
 }
 
 function coachTitle(i: EngineInputs): { title: string; body?: string; severity: NarrationSeverity } | null {
-  if (i.daniaSilentDays >= 7) {
-    return {
-      title: `Dania gap ${i.daniaSilentDays} days`,
-      body: "past pattern: rough at 7+ · a 15-min call resets it",
-      severity: "warn",
-    };
-  }
   if (i.workoutSkippedStreakDays >= 3) {
     return {
       title: `workout skipped ${i.workoutSkippedStreakDays}d running`,
@@ -563,24 +547,6 @@ async function computeEngineInputs(): Promise<EngineInputs> {
     t.autoPriorityExplanation?.toLowerCase().includes("skip"),
   ).length;
 
-  // Dania silent days — scan recent messages. Apr 17: previous default
-  // of 14 made the narrator fire "Dania gap 14d" warnings even on days
-  // where we simply had no chat history to check. Feedback log shows
-  // Nour thumbs-down'd those twice. Fallback is now 0 (unknown → quiet)
-  // so we only surface a real gap when we have a signal.
-  const daniaRx = /\bdania\b|\bwife\b/i;
-  let daniaSilentDays = 0;
-  if (chatMessages.length > 0) {
-    const mentioned = chatMessages.some((m) => daniaRx.test(m.content));
-    if (!mentioned) {
-      // Take age of oldest scanned message as rough gap. chatMessages is
-      // sorted desc so last entry is oldest.
-      const oldest = chatMessages[chatMessages.length - 1];
-      const ms = Date.now() - new Date(oldest.createdAt).getTime();
-      daniaSilentDays = Math.max(0, Math.round(ms / 86400_000));
-    }
-  }
-
   const mostRecentDone = tasksToday.find((t) => t.status === "DONE");
 
   return {
@@ -598,7 +564,6 @@ async function computeEngineInputs(): Promise<EngineInputs> {
     overdueCommitments: overdueTasks,
     openPendingDecisions: openDecisions,
     driftOpen,
-    daniaSilentDays,
     recentSkipReasons: tasksToday
       .filter((t) => t.autoPriorityExplanation?.toLowerCase().includes("skip"))
       .map((t) => t.autoPriorityExplanation ?? ""),

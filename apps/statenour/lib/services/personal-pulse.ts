@@ -98,8 +98,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       todaysInsights,
       recentContradictions,
       identitySnap,
-      topSilentPerson,
-      pendingCalls,
       memoryOfDayPick,
     ] = await Promise.all([
       prisma.brainDump.findFirst({
@@ -194,24 +192,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
           select: { content: true },
         })
         .catch(() => null),
-      prisma.personProfile
-        .findFirst({
-          where: {
-            role: { in: ["family", "friend", "partner", "wife", "dania"] },
-            lastInteraction: { not: null },
-          },
-          orderBy: { lastInteraction: "asc" },
-          select: { name: true, lastInteraction: true },
-        })
-        .catch(() => null),
-      prisma.personProfile
-        .count({
-          where: {
-            role: { in: ["family", "friend", "partner", "wife", "dania"] },
-            lastInteraction: { lt: new Date(now - 7 * 86400_000) },
-          },
-        })
-        .catch(() => 0),
       prisma.brainMemory
         .findFirst({
           where: {
@@ -480,36 +460,6 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
       }
     }
 
-    // ── LIFE — person silence + silent-person count ──
-    if (topSilentPerson?.name && topSilentPerson.lastInteraction) {
-      const days = Math.floor(
-        (now - topSilentPerson.lastInteraction.getTime()) / 86400_000,
-      );
-      if (days >= 3) {
-        const firstName = topSilentPerson.name.split(/\s+/)[0];
-        items.push({
-          id: "life-silent",
-          kind: "life",
-          glyph: "♥",
-          label: "LIFE",
-          text: `${firstName} silent ${days}d${
-            pendingCalls > 1 ? ` · ${pendingCalls - 1} more quiet 7d+` : ""
-          }`,
-          tone: days >= 14 ? "warn" : "info",
-          href: "/chat",
-        });
-      }
-    } else if (pendingCalls > 0) {
-      items.push({
-        id: "life-silent",
-        kind: "life",
-        glyph: "♥",
-        label: "LIFE",
-        text: `${pendingCalls} ${pendingCalls === 1 ? "person" : "people"} quiet 7d+`,
-        tone: "info",
-        href: "/chat",
-      });
-    }
 
     // ── Memory of the day ──
     if (memoryOfDayPick?.metadata) {
