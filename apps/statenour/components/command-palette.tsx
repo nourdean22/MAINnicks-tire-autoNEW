@@ -239,8 +239,8 @@ export function CommandPalette() {
 
       // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
       { id: "diag-hub", label: "Diagnostics Hub (all probes)", group: "Diagnostics", icon: <StethoscopeIcon className="size-4" />, action: () => navigate("/system/health"), keywords: ["diagnostics", "health", "push", "pull", "probe", "env", "oauth", "pulse", "stale", "cron"] },
-      { id: "diag-crons", label: "Cron Diagnostics (silent/slow)", group: "Diagnostics", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/cron-diagnostics"), keywords: ["cron", "silent", "slow", "schedule", "diagnose"] },
-      { id: "diag-stale", label: "Stale Data (purge surface)", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/stale"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
+      { id: "diag-crons", label: "Cron Diagnostics (silent/slow)", group: "Diagnostics", icon: <ClockIcon className="size-4" />, action: () => navigate("/system/crons"), keywords: ["cron", "silent", "slow", "schedule", "diagnose"] },
+      { id: "diag-stale", label: "Stale Data (purge surface)", group: "Diagnostics", icon: <DatabaseIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["stale", "purge", "clean", "orphan", "dismissed"] },
       // v10.0.304 · "Live Event Stream" entry removed · /system/events
       // page deleted. /system/logs covers the same data with broader
       // source list, just slower poll. Manual refresh = live enough.
@@ -250,23 +250,23 @@ export function CommandPalette() {
       { id: "sys-errors", label: "Errors · fingerprints", group: "System Ops", icon: <AlertTriangleIcon className="size-4" />, action: () => navigate("/system/logs?view=errors"), keywords: ["error", "log", "stack", "fingerprint"] },
       { id: "sys-ai-cost", label: "AI Cost · burn rate", group: "System Ops", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/system/ai-cost"), keywords: ["cost", "nick", "tokens", "budget", "burn"] },
       { id: "sys-actions", label: "Actions · Nick audit", group: "System Ops", icon: <BotIcon className="size-4" />, action: () => navigate("/system/actions"), keywords: ["action", "autonomous", "rule", "audit", "approval"] },
-      { id: "sys-quality", label: "Nick Quality · trend", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/quality"), keywords: ["quality", "critic", "regen", "specificity", "cliche"] },
-      { id: "sys-anti", label: "Anti-patterns · library", group: "System Ops", icon: <TrendingDownIcon className="size-4" />, action: () => navigate("/system/anti-patterns"), keywords: ["lesson", "failure", "mistake", "antipattern", "revisit"] },
-      { id: "sys-devices", label: "Devices · fleet", group: "System Ops", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system/devices"), keywords: ["device", "ring", "eufy", "tuya", "camera", "agent", "bridge"] },
-      { id: "sys-power", label: "Power · master control", group: "System Ops", icon: <ZapIcon className="size-4" />, action: () => navigate("/system/power"), keywords: ["power", "kill", "provider", "budget", "quiet", "shadow", "emergency"] },
+      { id: "sys-quality", label: "Nick Quality · trend", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["quality", "critic", "regen", "specificity", "cliche"] },
+      { id: "sys-anti", label: "Anti-patterns · library", group: "System Ops", icon: <TrendingDownIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["lesson", "failure", "mistake", "antipattern", "revisit"] },
+      { id: "sys-devices", label: "Devices · fleet", group: "System Ops", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system"), keywords: ["device", "ring", "eufy", "tuya", "camera", "agent", "bridge"] },
+      { id: "sys-power", label: "Power · master control", group: "System Ops", icon: <ZapIcon className="size-4" />, action: () => navigate("/system"), keywords: ["power", "kill", "provider", "budget", "quiet", "shadow", "emergency"] },
       // 2026-05-23 · UI #4 · new surfaces shipped this session
-      { id: "sys-operator-state", label: "Operator State · live pulse", group: "System Ops", icon: <BrainIcon className="size-4" />, action: () => navigate("/system/operator-state"), keywords: ["mood", "focus", "capacity", "drift", "momentum", "lecun", "state", "pulse"] },
+      { id: "sys-operator-state", label: "Operator State · live pulse", group: "System Ops", icon: <BrainIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["mood", "focus", "capacity", "drift", "momentum", "lecun", "state", "pulse"] },
       { id: "sys-calibration", label: "State Calibration · mood × kind", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["calibration", "m1", "heatmap", "mood", "kind", "hit rate", "suggestion"] },
-      { id: "sys-api-tokens", label: "API Tokens · Chrome ext", group: "System Ops", icon: <CogIcon className="size-4" />, action: () => navigate("/system/api-tokens"), keywords: ["token", "api", "chrome", "extension", "bearer", "sn_"] },
-      { id: "sys-judge-eval", label: "Judge-eval · V1↔V2 + calibration", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/judge-eval"), keywords: ["judge", "eval", "v1", "v2", "prompt", "shadow", "calibration", "ground truth"] },
-      { id: "sys-lens-stats", label: "Lens Stats · framework fire-rate", group: "System Ops", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/lens-stats"), keywords: ["lens", "framework", "elon", "pareto", "stats", "fire"] },
+      { id: "sys-api-tokens", label: "API Tokens · Chrome ext", group: "System Ops", icon: <CogIcon className="size-4" />, action: () => navigate("/system"), keywords: ["token", "api", "chrome", "extension", "bearer", "sn_"] },
+      { id: "sys-judge-eval", label: "Judge-eval · V1↔V2 + calibration", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["judge", "eval", "v1", "v2", "prompt", "shadow", "calibration", "ground truth"] },
+      { id: "sys-lens-stats", label: "Lens Stats · framework fire-rate", group: "System Ops", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["lens", "framework", "elon", "pareto", "stats", "fire"] },
       { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain/board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
 
       // ═══ PAGES — remaining live surfaces ═══
       { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/body"), keywords: ["weight", "workout", "boxing"] },
       { id: "nav-knowledge", label: "Knowledge Base", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/knowledge") },
       { id: "nav-integrations", label: "Integrations", group: "Pages", icon: <Layers3Icon className="size-4" />, action: () => navigate("/settings") },
-      { id: "nav-devices", label: "Devices", group: "Pages", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system/devices"), keywords: ["ring", "eufy", "camera"] },
+      { id: "nav-devices", label: "Devices", group: "Pages", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system"), keywords: ["ring", "eufy", "camera"] },
       { id: "nav-system", label: "System (dashboard)", group: "Pages", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system") },
       { id: "nav-shop-admin", label: "Shop Admin (nickstire)", group: "Pages", icon: <TrendingUpIcon className="size-4" />, action: () => openExternal("https://nickstire.org/admin"), keywords: ["admin", "nickstire", "business", "shop"] },
 
