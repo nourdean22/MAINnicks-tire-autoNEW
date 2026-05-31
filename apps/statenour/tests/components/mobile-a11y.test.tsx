@@ -116,15 +116,19 @@ describe("A6 · BottomPulseTicker source declares role=region landmark", () => {
 // ─── 4 · A3 · ticker container ≥ 32px on mobile ──────────────────────
 
 describe("A3 · ticker container bumped to min-h 32px on mobile", () => {
-  it("top-strip/ticker.tsx uses min-h-[32px] sm:h-5 (32 mobile, 20 desktop)", () => {
+  it("top-strip/ticker.tsx uses min-h-[40px] sm:min-h-[28px] (40 mobile, 28 desktop)", () => {
     const src = readSource("components/ultron/top-strip/ticker.tsx");
-    // Was h-5 universally · now scales to 32px on mobile for HIG.
-    expect(src).toContain("min-h-[32px] sm:h-5");
-    // The bare h-5 outer container should be gone — replaced with the
-    // responsive version above. (h-5 still appears in the empty-state
-    // div's responsive sm:h-5 modifier · that's expected.)
+    // 2026-05-31 · Edge Feed rebuild — the 55s marquee (10px, hover-gated
+    // pause/dismiss → dead on touch) became ONE readable/tappable item; the
+    // strip min-height grew to 40px mobile / 28px desktop (≥ the 32px HIG
+    // floor, and now a real tap target that opens the feed sheet).
+    expect(src).toContain("min-h-[40px] sm:min-h-[28px]");
+    // The marquee is gone — no `h-5 overflow-hidden` track and no CSS-scroll
+    // animation (continuous peripheral motion is the banner-blindness trap the
+    // rebuild removed; advance is now a fade on change).
     const bareH5 = src.match(/className="h-5 overflow-hidden/g) ?? [];
     expect(bareH5.length).toBe(0);
+    expect(src).not.toContain("ultron-ticker-track");
   });
 
   it("bottom-pulse-ticker.tsx uses min-h-[32px] sm:h-5 on the visible state", () => {

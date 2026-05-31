@@ -494,13 +494,66 @@ async function fetchBrainPulseItems(): Promise<TickerItem[]> {
 }
 
 /**
+ * Ambition Engine · mastery momentum — the stat rising fastest this week +
+ * the one closest to leveling (the "next rep"). Connects the new goal→stat
+ * spine to the ambient feed. Reads the character sheet (cached by the outer
+ * wrapper). Best-effort: a failure just omits the lane.
+ */
+async function fetchMasteryItems(): Promise<TickerItem[]> {
+  try {
+    const { computeCharacterSheet } = await import("@/lib/mastery/character-sheet");
+    const stats = await computeCharacterSheet().catch((): never[] => []);
+    if (stats.length === 0) return [];
+    const items: TickerItem[] = [];
+
+    // Fastest riser this week — momentum is in the derivative.
+    const riser = stats.reduce<(typeof stats)[number] | null>(
+      (best, s) => (s.rising7dXp > (best?.rising7dXp ?? 0) ? s : best),
+      null,
+    );
+    if (riser && riser.rising7dXp > 0) {
+      items.push({
+        id: "mastery-riser",
+        category: BRAIN_CATEGORIES.TIMELINE,
+        symbol: "LEVEL",
+        label: `${riser.icon} ${riser.label} +${riser.rising7dXp} XP this week`,
+        severity: "win",
+        domain: "mastery",
+        href: "/stats",
+      });
+    }
+
+    // Closest to leveling — the agentic "next rep" (the easiest win to chase).
+    const next = stats.reduce<(typeof stats)[number] | null>(
+      (best, s) => (s.progressPct > (best?.progressPct ?? 0) ? s : best),
+      null,
+    );
+    if (next && next.progressPct >= 50 && next.progressPct < 100) {
+      const xpToGo = Math.max(1, Math.round(next.xpForNext - next.xpIntoLevel));
+      items.push({
+        id: "mastery-next",
+        category: BRAIN_CATEGORIES.TIMELINE,
+        symbol: "NEXT",
+        label: `${next.icon} ${next.label} · ${xpToGo} XP → Lvl ${next.level + 1}`,
+        severity: "info",
+        domain: "mastery",
+        href: "/stats",
+      });
+    }
+    return items;
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Build the full ticker payload · cached 60s (short because personal
  * timelines change intra-day). Both the REST route and the
  * `operator.ticker` tRPC procedure call this.
  */
 export async function buildTickerFeed(): Promise<TickerPayload> {
-  return cached<TickerPayload>("ultron_ticker_v6", 60, async () => {
-    const [inputs, quotes, shopItems, brainItems, selfItems, opsItems] =
+  return cached<TickerPayload>("ultron_ticker_v7", 60, async () => {
+    const [inputs, quotes, shopItems, brainItems, selfItems, opsItems, masteryItems] =
       await Promise.all([
         computeInputs().catch(() => null),
         Promise.all(STOOQ_QUOTES.map((q) => fetchStooqQuote(q.symbol, q.label))),
@@ -508,6 +561,7 @@ export async function buildTickerFeed(): Promise<TickerPayload> {
         fetchBrainPulseItems(),
         fetchSelfMetricsTop(),
         fetchPersonalOpsItems(),
+        fetchMasteryItems(),
       ]);
     const marketItems = quotes.filter((q): q is TickerItem => q !== null);
     const timelineItems = inputs
@@ -518,6 +572,7 @@ export async function buildTickerFeed(): Promise<TickerPayload> {
     // state hits the eye before market noise.
     const items: TickerItem[] = interleave(
       opsItems,
+      masteryItems,
       selfItems,
       brainItems,
       timelineItems,
@@ -534,7 +589,8 @@ export async function buildTickerFeed(): Promise<TickerPayload> {
         shopItems.length === 0 &&
         brainItems.length === 0 &&
         selfItems.length === 0 &&
-        opsItems.length === 0
+        opsItems.length === 0 &&
+        masteryItems.length === 0
           ? "feeds unavailable — showing macro only"
           : undefined,
     };
