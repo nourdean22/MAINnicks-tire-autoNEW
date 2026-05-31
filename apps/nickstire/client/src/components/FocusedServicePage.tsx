@@ -223,6 +223,11 @@ export interface ServicePageConfig {
     heroHook?: string;
     stakesHook?: string;
   };
+
+  /** Optional signup/conversion slot rendered right under the AEO answer (top of
+   *  page, above pricing). Used by membership-style pages (Nonstop Nick) to put a
+   *  one-tap Join card near the fold. Omit → page renders exactly as today. */
+  signupSlot?: React.ReactNode;
 }
 
 function Hero({ config }: { config: ServicePageConfig }) {
@@ -672,6 +677,8 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
       {/* AEO answer-first block — highest-priority extraction unit for AI
           answer-engines + featured snippets. Lands immediately under the hero. */}
       <AeoAnswer config={config} />
+      {/* Optional signup slot (membership pages) — one-tap Join near the fold. */}
+      {config.signupSlot}
       {/* 2026-05-06 visual wave 4: each major section is wrapped in
           RiseInView (Framer fade-and-rise on viewport entry, all
           browsers) + .parallax-rise (CSS scroll-driven drift, modern

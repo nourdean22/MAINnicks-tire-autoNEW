@@ -14,8 +14,12 @@
  * until then it falls back to call/walk-in (honest — you CAN sign up in person).
  */
 import FocusedServicePage, { type ServicePageConfig } from "@/components/FocusedServicePage";
+import NonstopNickJoin from "@/components/NonstopNickJoin";
 
 const CONFIG: ServicePageConfig = {
+  // One-tap Join card rendered near the fold (under the AEO answer). Stripe-backed
+  // when STRIPE_NONSTOP_NICK_PRICE_ID is set; degrades to call/walk-in until then.
+  signupSlot: <NonstopNickJoin />,
   canonicalPath: "/nonstop-nick",
   title: "Nonstop Nick — $7.99/mo Tire Membership | Nick's Tire & Auto",
   description:
