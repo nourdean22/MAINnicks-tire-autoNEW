@@ -64,8 +64,10 @@ import {
   Clock,
   Zap,
   ArrowRight,
+  ArrowUp,
   ChevronDown,
   ChevronUp,
+  GitBranch,
   TrendingUp,
   TrendingDown,
   Activity,
@@ -129,6 +131,21 @@ interface LifeGoal {
   // server-side: declared GoalStat rows, else domain-inferred). A rep on
   // a task tagged with this goal credits XP to these stats.
   stats?: { statKey: string; weight: number }[];
+  // Ambition Engine P3 · the compounding ladder. parentGoalId is the raw
+  // scalar (seeds the edit-mode parent selector); `ladder` is the
+  // server-resolved parent breadcrumb + children with a rolled-up summary.
+  parentGoalId?: string | null;
+  ladder?: {
+    parent: { id: string; title: string; horizon: string | null } | null;
+    children: {
+      id: string;
+      title: string;
+      progress: number;
+      status: string;
+      horizon: string | null;
+    }[];
+    rollup: { childCount: number; doneCount: number; avgChildProgress: number };
+  };
 }
 
 // Ambition Engine P1 · stat key → character-sheet meta (color/icon/label)
@@ -474,6 +491,8 @@ export function GoalBoard() {
   const [editDeadline, setEditDeadline] = useState<string>(""); // YYYY-MM-DD
   const [editDomain, setEditDomain] = useState<string>("");
   const [editStatus, setEditStatus] = useState<string>("");
+  // Ambition Engine P3 · the ladder parent selector ("" = no parent).
+  const [editParentId, setEditParentId] = useState<string>("");
   const [savingEdit, setSavingEdit] = useState(false);
 
   const startEdit = useCallback(
@@ -488,6 +507,7 @@ export function GoalBoard() {
       deadline?: string | null;
       domain?: string | null;
       status?: string | null;
+      parentGoalId?: string | null;
     }) => {
       setEditingId(g.id);
       setEditTitle(g.title);
@@ -501,6 +521,7 @@ export function GoalBoard() {
       setEditDeadline(g.deadline ? g.deadline.slice(0, 10) : "");
       setEditDomain(g.domain || "");
       setEditStatus(g.status || "");
+      setEditParentId(g.parentGoalId || "");
     },
     [],
   );
@@ -516,6 +537,7 @@ export function GoalBoard() {
     setEditDeadline("");
     setEditDomain("");
     setEditStatus("");
+    setEditParentId("");
   }, []);
 
   const saveEdit = useCallback(async () => {
@@ -553,6 +575,10 @@ export function GoalBoard() {
         Parameters<typeof goalsUpdate.mutateAsync>[0]["status"]
       >;
     }
+    // Ambition Engine P3 · ladder link. "" = unlink (null). The server
+    // validates (no self / cycle / inverted-horizon) and rejects with a
+    // message surfaced in the catch below.
+    payload.parentGoalId = editParentId || null;
     setSavingEdit(true);
     try {
       await goalsUpdate.mutateAsync(payload);
@@ -560,12 +586,12 @@ export function GoalBoard() {
       notifyDataChanged("goals", { source: "goal-board", detail: "edit", id: editingId });
       cancelEdit();
       await load();
-    } catch {
-      toast.error("Save failed");
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "Save failed");
     } finally {
       setSavingEdit(false);
     }
-  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, cancelEdit, load, goalsUpdate]);
+  }, [editingId, editTitle, editWhy, editHorizon, editTargetValue, editMetric, editUnit, editDeadline, editDomain, editStatus, editParentId, cancelEdit, load, goalsUpdate]);
 
   const coachGoal = useCallback(
     async (goalId: string) => {
@@ -979,6 +1005,24 @@ export function GoalBoard() {
                               <option value="missed">missed</option>
                             </select>
                           </div>
+                          {/* Ambition Engine P3 · ladder — pick the higher-
+                              horizon goal this one rolls into. Server rejects
+                              self / cycles / inverted horizons. */}
+                          <select
+                            value={editParentId}
+                            onChange={(e) => setEditParentId(e.target.value)}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[9px] text-zinc-300 focus:outline-none focus:border-violet-500/40"
+                          >
+                            <option value="">— no parent goal —</option>
+                            {goals
+                              .filter((o) => o.id !== g.id)
+                              .map((o) => (
+                                <option key={o.id} value={o.id}>
+                                  {o.horizon ? `[${o.horizon}] ` : ""}
+                                  {o.title}
+                                </option>
+                              ))}
+                          </select>
                           <div className="flex items-center gap-2">
                             <select
                               value={editHorizon}
@@ -1085,6 +1129,46 @@ export function GoalBoard() {
                           {g.why}
                         </p>
                       )}
+                      {/* Ambition Engine P3 · ladder position — parent
+                          breadcrumb + children roll-up. Tap to scroll to
+                          the linked goal's card. */}
+                      {editingId !== g.id &&
+                        (g.ladder?.parent || (g.ladder?.rollup.childCount ?? 0) > 0) && (
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap text-[9px] font-mono">
+                            {g.ladder?.parent && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const pid = g.ladder!.parent!.id;
+                                  setHorizonFilter("ALL");
+                                  requestAnimationFrame(() =>
+                                    document
+                                      .getElementById(`goal-${pid}`)
+                                      ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                                  );
+                                }}
+                                title={`Part of: ${g.ladder!.parent!.title}`}
+                                className="inline-flex items-center gap-1 rounded-md border border-violet-500/30 bg-violet-500/5 px-1.5 py-0.5 text-violet-300 hover:bg-violet-500/15 transition-colors max-w-[60%]"
+                              >
+                                <ArrowUp size={9} className="shrink-0" />
+                                <span className="truncate">{g.ladder!.parent!.title}</span>
+                              </button>
+                            )}
+                            {(g.ladder?.rollup.childCount ?? 0) > 0 && (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-md border border-sky-500/25 bg-sky-500/5 px-1.5 py-0.5 text-sky-300/90"
+                                title="Sub-goals laddering into this one"
+                              >
+                                <GitBranch size={9} className="shrink-0" />
+                                {g.ladder!.rollup.childCount} sub-goal
+                                {g.ladder!.rollup.childCount === 1 ? "" : "s"} ·{" "}
+                                {g.ladder!.rollup.doneCount} done ·{" "}
+                                {g.ladder!.rollup.avgChildProgress}% avg
+                              </span>
+                            )}
+                          </div>
+                        )}
                       <div className="flex items-center gap-2 mt-1 text-[9px] text-zinc-600 font-mono flex-wrap">
                         <Badge className="bg-zinc-800/50 text-zinc-500 text-[8px] h-3 border-0">
                           {g.domain}
@@ -1451,6 +1535,42 @@ export function GoalBoard() {
                             : "Ask Nick to analyze this goal"}
                         </span>
                       </button>
+                    )}
+
+                    {/* Ambition Engine P3 · sub-goals list (the ladder's
+                        children) — tap to scroll to that goal's card. */}
+                    {(g.ladder?.children.length ?? 0) > 0 && (
+                      <div className="mt-2 space-y-1">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-sky-400/70">
+                          Sub-goals ({g.ladder!.children.length})
+                        </p>
+                        {g.ladder!.children.map((c) => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHorizonFilter("ALL");
+                              requestAnimationFrame(() =>
+                                document
+                                  .getElementById(`goal-${c.id}`)
+                                  ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                              );
+                            }}
+                            className="w-full flex items-center gap-2 rounded-md border border-zinc-800/40 bg-zinc-900/40 px-2 py-1 hover:bg-zinc-900/70 transition-colors text-left"
+                          >
+                            <span className="text-[9px] font-mono text-zinc-500 w-7 shrink-0 text-right">
+                              {c.progress}%
+                            </span>
+                            <span className="text-[10px] text-zinc-300 truncate flex-1">
+                              {c.title}
+                            </span>
+                            {(c.status === "achieved" || c.status === "completed") && (
+                              <Check size={9} className="text-emerald-400 shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
                     )}
 
                     {/* Actions */}
