@@ -13,6 +13,7 @@ import {
   effectiveGoalStats,
   goalStatXp,
   goalTaskSourceKey,
+  goalsByStat,
 } from "@/lib/mastery/goal-stats";
 
 describe("inferGoalStats · goal.domain → stat", () => {
@@ -76,5 +77,31 @@ describe("goalStatXp · weight → XP (task signal base)", () => {
 describe("goalTaskSourceKey · idempotency key", () => {
   it("is stable per (task, stat) so re-crediting never double-counts", () => {
     expect(goalTaskSourceKey("t1", "physical")).toBe("goal-task:t1:physical");
+  });
+});
+
+describe("goalsByStat · invert goals → stat → contributing goals", () => {
+  it("groups goals under the stats they level (declared + inferred)", () => {
+    const m = goalsByStat([
+      { id: "g1", title: "Lose 44 lbs", domain: "health", statLinks: [] },
+      { id: "g2", title: "$15K month", domain: "finance", statLinks: [] },
+      {
+        id: "g3",
+        title: "Ship statenour",
+        domain: "x",
+        statLinks: [{ statKey: "physical", weight: 1 }],
+      },
+    ]);
+    expect(m.get("physical")).toEqual([
+      { id: "g1", title: "Lose 44 lbs" },
+      { id: "g3", title: "Ship statenour" },
+    ]);
+    expect(m.get("financial")).toEqual([{ id: "g2", title: "$15K month" }]);
+    expect(m.get("marketing")).toBeUndefined();
+  });
+  it("omits a goal with an unmappable domain and no declared stats", () => {
+    expect(
+      goalsByStat([{ id: "g", title: "x", domain: "misc", statLinks: [] }]).size,
+    ).toBe(0);
   });
 });
