@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { DOMAINS } from "./config";
 import { levelProgress, tierForLevel, xpForLevel } from "./leveling";
 import { xpEventTotals, xpEventTotalsSince } from "./credit";
+import { goalsByStat, type GoalForStats } from "./goal-stats";
 
 export interface StatLevel {
   key: string;
@@ -29,6 +30,9 @@ export interface StatLevel {
   progressPct: number;
   /** XP gained in the last 7 days — the "slope"/momentum this week. */
   rising7dXp: number;
+  /** Active goals that level this stat (the reverse of the goal-card
+   *  chips) — the Ambition Engine P1 character-sheet citation. */
+  goals: { id: string; title: string }[];
 }
 
 /**
@@ -49,7 +53,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const sinceKey = since.toISOString().slice(0, 10);
   type DomainSum = { domain: string; _sum: { delta: number | null } };
-  const [sums, eventTotals, weekSums, weekEvents] = await Promise.all([
+  const [sums, eventTotals, weekSums, weekEvents, activeGoals] = await Promise.all([
     prisma.masteryScore
       .groupBy({ by: ["domain"], _sum: { delta: true } })
       .catch(() => [] as DomainSum[]),
@@ -62,6 +66,20 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       })
       .catch(() => [] as DomainSum[]),
     xpEventTotalsSince(since),
+    // Ambition Engine P1 · active goals + their stat links, for the
+    // character-sheet citation (which goals feed each stat). Best-effort —
+    // a goals-query failure must never break the leveling board.
+    prisma.lifeGoal
+      .findMany({
+        where: { deletedAt: null, status: "active" },
+        select: {
+          id: true,
+          title: true,
+          domain: true,
+          statLinks: { select: { statKey: true, weight: true } },
+        },
+      })
+      .catch(() => [] as GoalForStats[]),
   ]);
 
   const deltaByDomain = new Map(
@@ -70,6 +88,10 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   const weekByDomain = new Map(
     weekSums.map((s) => [s.domain, Math.max(0, s._sum.delta ?? 0)]),
   );
+
+  // Reverse map · which active goals level each stat (same resolver as the
+  // goal-card chips, so the citation and the chips can never disagree).
+  const goalCitations = goalsByStat(activeGoals);
 
   return DOMAINS.map((d) => {
     // Earned XP — everything you've ever logged in this stat (task bumps +
@@ -102,6 +124,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
       xpForNext: p.xpForNext,
       progressPct: p.progressPct,
       rising7dXp,
+      goals: goalCitations.get(d.key) ?? [],
     };
   }).sort((a, b) => b.level - a.level || b.xp - a.xp);
 }

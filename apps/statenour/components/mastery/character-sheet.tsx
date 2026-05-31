@@ -42,6 +42,7 @@ interface StatLevel {
   xpForNext: number;
   progressPct: number;
   rising7dXp: number;
+  goals?: { id: string; title: string }[];
 }
 
 export function CharacterSheet() {
@@ -255,6 +256,32 @@ function StatCard({ stat }: { stat: StatLevel }) {
             </span>
           ) : null}
         </div>
+        {/* line 3 · Ambition Engine P1 citation — the active goals feeding
+            this stat (the reverse of the goal-card chips). Each links to its
+            goal card on /stats. Renders only when a goal points here, so most
+            cards stay one-liner clean. */}
+        {Array.isArray(stat.goals) && stat.goals.length > 0 ? (
+          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+            <span className="shrink-0 text-[8px] uppercase tracking-[0.16em] text-white/25">
+              goals
+            </span>
+            {stat.goals.slice(0, 3).map((g) => (
+              <a
+                key={g.id}
+                href={`/stats#goal-${g.id}`}
+                title={g.title}
+                className="max-w-[120px] truncate text-[9px] text-white/45 underline decoration-white/10 underline-offset-2 hover:text-white/75"
+              >
+                {g.title}
+              </a>
+            ))}
+            {stat.goals.length > 3 ? (
+              <span className="shrink-0 text-[9px] text-white/30">
+                +{stat.goals.length - 3}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </div>
   );

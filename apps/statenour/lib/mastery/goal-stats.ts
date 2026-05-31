@@ -99,6 +99,35 @@ export function goalTaskSourceKey(taskId: string, statKey: string): string {
   return `goal-task:${taskId}:${statKey}`;
 }
 
+/** A goal that contributes to stats, for the reverse (stat → goals) map. */
+export interface GoalForStats {
+  id: string;
+  title: string;
+  domain: string;
+  statLinks?: { statKey: string; weight: number }[];
+}
+
+/**
+ * Invert a set of goals into statKey → the goals that level it, using the
+ * SAME declared-else-inferred resolution as the goal-card chips — so the
+ * character-sheet citation and the chips can never disagree. Pure. A goal
+ * whose domain is unmappable and which declares no stats contributes to
+ * nothing (no phantom citation).
+ */
+export function goalsByStat(
+  goals: GoalForStats[],
+): Map<string, { id: string; title: string }[]> {
+  const out = new Map<string, { id: string; title: string }[]>();
+  for (const g of goals ?? []) {
+    for (const s of effectiveGoalStats(g.statLinks ?? [], g.domain)) {
+      const list = out.get(s.statKey) ?? [];
+      list.push({ id: g.id, title: g.title });
+      out.set(s.statKey, list);
+    }
+  }
+  return out;
+}
+
 /**
  * Credit XP to a goal's stats for a completed task tagged with it. Reads
  * the goal's declared GoalStat rows (falling back to domain inference),
