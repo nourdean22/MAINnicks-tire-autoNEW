@@ -62,6 +62,13 @@ const CONFIG: ServicePageConfig = {
   ],
   bookingService: "brakes",
   serviceType: "Brake Repair",
+  // Curiosity arc (2026-05-30) — hero hook = self-relevant gap (no $; the
+  // $149/$279 tiers below are the payoff); stakes hook reframes "can it wait?"
+  // and pulls into the fear stats (which substantiate the cascade cost).
+  curiosityArc: {
+    heroHook: "Two prices. Which one's your car?",
+    stakesHook: "Wondering if it can wait? Worn pads draw a line — and every week pushes you past it.",
+  },
   ctaHeadline: "BOOK YOUR BRAKE SERVICE",
   ctaSub: "Free check, written quote, you don't pay until you say yes. Walk in or drop off — 17625 Euclid Ave, Cleveland OH.",
 

@@ -211,6 +211,18 @@ export interface ServicePageConfig {
     headingLine2?: string;
     subhead?: string;
   };
+
+  /** Optional curiosity arc (2026-05-30) — open-loop micro-hooks that pull the
+   *  reader down the page. Money-pages only; per docs/2026-05-30-curiosity-arc-design.md.
+   *  - heroHook: replaces the hero "What's it cost?" chip text. MUST be a gap with
+   *    NO dollar figure (the number lives at #pricing — that's the payoff).
+   *  - stakesHook: an honest one-line stakes-reveal rendered at the Pricing→Fear
+   *    seam — must resolve true in the FearStats section it points to.
+   *  Both optional: omit → page renders exactly as today. */
+  curiosityArc?: {
+    heroHook?: string;
+    stakesHook?: string;
+  };
 }
 
 function Hero({ config }: { config: ServicePageConfig }) {
@@ -281,7 +293,7 @@ function Hero({ config }: { config: ServicePageConfig }) {
               // dealer/chain comparison, lives) rather than pricing them at the door.
               config.startingPrice && !config.startingPrice.includes("$")
                 ? { icon: <DollarSign className="w-4 h-4" />, text: config.startingPrice }
-                : { icon: <ChevronDown className="w-4 h-4" />, text: "What's it cost?", href: "#pricing" },
+                : { icon: <ChevronDown className="w-4 h-4" />, text: config.curiosityArc?.heroHook ?? "What's it cost?", href: "#pricing" },
             ].filter(Boolean).map((item, i) => {
               const cls = "flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-3 py-1.5";
               const inner = (
@@ -671,6 +683,18 @@ export default function FocusedServicePage({ config }: { config: ServicePageConf
           reference frame so Nick's price feels like rescue. */}
       <RiseInView className="parallax-rise"><AnchorSection config={config} /></RiseInView>
       <RiseInView className="parallax-rise"><PricingSection config={config} /></RiseInView>
+      {/* Curiosity-arc stakes hook (2026-05-30) — honest open-loop at the
+          Pricing→Fear seam. Reader just saw the price; this line reframes to
+          "can it wait?" and pulls them into the fear stats that answer it.
+          Renders only when set (money pages); absent → no change. */}
+      {config.curiosityArc?.stakesHook && (
+        <div className="container max-w-3xl py-6 text-center">
+          <p className="text-foreground/70 text-base sm:text-lg">
+            {config.curiosityArc.stakesHook}
+            <span className="text-nick-blue-light ml-1" aria-hidden="true">↓</span>
+          </p>
+        </div>
+      )}
       {/* Fear-calibration AFTER pricing — readers who saw the price are now
           asking "is it worth it?" The fear stats answer with quantified risk. */}
       <RiseInView className="parallax-rise"><FearStatsSection config={config} /></RiseInView>
