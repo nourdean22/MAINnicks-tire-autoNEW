@@ -4,13 +4,14 @@
  * Features emergency request form and floating action button
  */
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { AlertTriangle, Phone, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useBusinessHours } from "@/hooks/useBusinessHours";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface EmergencyFormData {
   name: string;
@@ -32,6 +33,15 @@ export function EmergencyMode() {
     urgency: "emergency",
   });
   const [submitted, setSubmitted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  // a11y: trap focus inside the emergency modal, autofocus first field,
+  // Escape closes (unless mid-success), restore focus to opener on close.
+  useFocusTrap(dialogRef, showForm, {
+    onEscape: () => {
+      if (!submitted) setShowForm(false);
+    },
+  });
 
   const submitEmergency = trpc.emergency.submit.useMutation({
     onSuccess: () => {
@@ -123,24 +133,29 @@ export function EmergencyMode() {
             onClick={() => !submitted && setShowForm(false)}
           >
             <motion.div
+              ref={dialogRef}
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="bg-background border border-border/50 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto p-6 lg:p-8"
               onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="emergency-request-title"
             >
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-red-500/20 rounded-lg flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
-                  <h2 className="font-bold text-foreground text-lg tracking-wide">EMERGENCY REQUEST</h2>
+                  <h2 id="emergency-request-title" className="font-bold text-foreground text-lg tracking-wide">EMERGENCY REQUEST</h2>
                 </div>
                 <button
                   onClick={() => setShowForm(false)}
                   className="text-foreground/70 hover:text-foreground transition-colors"
+                  aria-label="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
 

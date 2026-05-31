@@ -94,10 +94,21 @@ export function CostSloTile({ state }: Props) {
 
   const handleClick = top.length > 0 ? () => setExpanded((x) => !x) : undefined;
 
+  // When there's a drilldown, the tile is an explicit <button> (real
+  // button semantics · keyboard-operable · focus-visible). With no
+  // conversations to expand it stays a plain, non-interactive card.
+  const cardProps = handleClick
+    ? ({
+        as: "button" as const,
+        onClick: handleClick,
+        ariaLabel: `Cost today ${formatUsd(burn)}. ${expanded ? "Collapse" : "Expand"} top ${top.length} costliest ${top.length === 1 ? "conversation" : "conversations"}.`,
+      } as const)
+    : {};
+
   return (
     <GlassCard
-      className={cn("relative", tierBorder, "min-h-[112px]")}
-      onClick={handleClick}
+      className={cn("relative w-full text-left", tierBorder, "min-h-[112px]")}
+      {...cardProps}
     >
       {/* Header strip · label + freshness/tier dot · matches the
           existing tile vocabulary (uppercase gold mono label). */}

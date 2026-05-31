@@ -141,8 +141,8 @@ export default function DrilldownDrawer() {
             {/* Body */}
             <div className="flex-1 overflow-y-auto">
               {isLoading && (
-                <div className="flex items-center justify-center py-20">
-                  <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+                <div className="flex items-center justify-center py-20" role="status" aria-label="Loading">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary/60" aria-hidden="true" />
                 </div>
               )}
 

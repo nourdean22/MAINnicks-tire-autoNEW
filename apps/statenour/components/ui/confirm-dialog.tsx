@@ -249,6 +249,7 @@ export function usePromptDialog(): {
           <input
             ref={inputRef}
             type="text"
+            aria-label={state.title}
             value={state.value}
             onChange={(e) =>
               setState((s) => ({ ...s, value: e.target.value }))

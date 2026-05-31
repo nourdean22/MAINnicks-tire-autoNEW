@@ -56,6 +56,17 @@ export default function ChatWidget() {
     }
   }, [pulseActive, open]);
 
+  // a11y: Escape closes the chat window. No focus trap / aria-modal — this is
+  // a non-blocking floating widget that must not capture focus from the page.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const sendMessage = trpc.chat.message.useMutation({
     onSuccess: (data) => {
       // wave-146 — was `messages.length >= 4` evaluated against the
@@ -177,6 +188,8 @@ export default function ChatWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ duration: 0.2, ease: "easeOut" }}
+            role="dialog"
+            aria-label="Chat with Nick's AI mechanic"
             className="fixed bottom-36 lg:bottom-6 right-4 z-[90] w-[360px] max-w-[calc(100vw-2rem)] bg-[oklch(0.08_0.004_260/0.97)] backdrop-blur-2xl border border-[oklch(0.17_0.004_260)] rounded-2xl shadow-2xl shadow-black/30 flex flex-col overflow-hidden"
             style={{ height: "480px" }}
           >
@@ -312,6 +325,7 @@ export default function ChatWidget() {
                     placeholder="Your name"
                     value={leadForm.name}
                     onChange={e => setLeadForm(f => ({ ...f, name: e.target.value }))}
+                    aria-label="Your name"
                     className="w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[12px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all"
                   />
                   <input
@@ -319,6 +333,7 @@ export default function ChatWidget() {
                     placeholder="Phone number"
                     value={leadForm.phone}
                     onChange={e => setLeadForm(f => ({ ...f, phone: e.target.value }))}
+                    aria-label="Phone number"
                     className="w-full bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[12px] placeholder:text-foreground/25 focus:border-primary/30 focus:outline-none transition-all"
                   />
                   <button
@@ -349,7 +364,7 @@ export default function ChatWidget() {
                 onKeyDown={e => e.key === "Enter" && handleSend()}
                 placeholder="What's your car doing?"
                 aria-label="Describe your car problem"
-                className="flex-1 bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[13px] placeholder:text-foreground/25 focus:border-foreground/15 focus:outline-none transition-all"
+                className="flex-1 bg-foreground/[0.04] border border-[oklch(0.17_0.004_260)] rounded-lg text-foreground px-3 py-2 text-[13px] placeholder:text-foreground/25 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-all"
               />
               <button
                 onClick={handleSend}

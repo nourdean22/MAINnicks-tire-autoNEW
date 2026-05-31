@@ -976,6 +976,7 @@ export function GoalBoard() {
                             type="text"
                             value={editTitle}
                             onChange={(e) => setEditTitle(e.target.value)}
+                            aria-label="Goal title"
                             placeholder="Goal title"
                             className="w-full bg-zinc-900 border border-amber-500/40 rounded px-2 py-1 text-[13px] font-bold text-zinc-100 focus:outline-none focus:border-amber-500"
                             autoFocus
@@ -984,6 +985,7 @@ export function GoalBoard() {
                             type="text"
                             value={editWhy}
                             onChange={(e) => setEditWhy(e.target.value)}
+                            aria-label="Why this goal"
                             placeholder="Why does this matter? (optional)"
                             className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-[10px] text-zinc-300 italic focus:outline-none focus:border-amber-500/40"
                           />
@@ -995,6 +997,7 @@ export function GoalBoard() {
                               step="any"
                               value={editTargetValue}
                               onChange={(e) => setEditTargetValue(e.target.value)}
+                              aria-label="Target value"
                               placeholder="target"
                               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
                             />
@@ -1002,6 +1005,7 @@ export function GoalBoard() {
                               type="text"
                               value={editMetric}
                               onChange={(e) => setEditMetric(e.target.value)}
+                              aria-label="Metric"
                               placeholder="metric"
                               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
                             />
@@ -1009,6 +1013,7 @@ export function GoalBoard() {
                               type="text"
                               value={editUnit}
                               onChange={(e) => setEditUnit(e.target.value)}
+                              aria-label="Unit"
                               placeholder="unit"
                               className="bg-zinc-900 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-zinc-300 focus:outline-none focus:border-amber-500/40"
                             />

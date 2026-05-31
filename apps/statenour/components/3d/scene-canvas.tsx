@@ -104,7 +104,10 @@ export function SceneCanvas({ children, className }: SceneCanvasProps) {
   }, []);
 
   return (
-    <div ref={hostRef} className={className}>
+    // Purely decorative ambient 3D — meaning is carried by text
+    // elsewhere, so the entire WebGL subtree is hidden from the a11y
+    // tree (aria-hidden on the outermost host covers the whole scene).
+    <div ref={hostRef} className={className} aria-hidden="true">
       <CanvasInner inView={inView} reducedMotion={reducedMotion}>
         {children}
       </CanvasInner>

@@ -764,6 +764,14 @@ button:active, [role="button"]:active {
     min-height: 44px;
     -webkit-tap-highlight-color: transparent;
   }
+  /* WCAG 2.5.5 target size — width companion to the min-height above.
+     Scoped to button / [role=button] (where icon-only 32px controls
+     live); intentionally NOT applied to bare <a>, so inline text links
+     inside prose aren't stretched to a 44px box (and per 2.5.5 inline
+     links in a sentence are exempt anyway). */
+  button, [role="button"] {
+    min-width: 44px;
+  }
   .touch-feedback:active {
     transform: scale(0.96);
     transition: transform 0.05s ease;

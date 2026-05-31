@@ -59,6 +59,15 @@ function bgForScore(n: number): string {
   if (n > 0) return "bg-gradient-to-t from-rose-700 to-rose-300";
   return "bg-zinc-800";
 }
+// a11y (WCAG 1.4.1): status is also conveyed by hue (emerald/amber/rose).
+// statusForScore supplies the matching word so color isn't the sole cue —
+// fed into title/aria-label on the colored bars + indicators.
+function statusForScore(n: number): "good" | "warning" | "critical" | "no data" {
+  if (n >= 80) return "good";
+  if (n >= 65) return "warning";
+  if (n > 0) return "critical";
+  return "no data";
+}
 
 function AnimatedScore({ value }: { value: number }) {
   const [display, setDisplay] = useState(value);
@@ -88,7 +97,12 @@ function AxisBar({ label, value }: { label: string; value: number }) {
         <span>{label}</span>
         <span className={cn("font-mono tabular-nums", tintForScore(value))}>{value}</span>
       </div>
-      <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-900">
+      <div
+        className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-900"
+        role="img"
+        aria-label={`${value}/100 · ${statusForScore(value)}`}
+        title={`${value}/100 · ${statusForScore(value)}`}
+      >
         <div
           className={cn("h-full rounded-full transition-all duration-500", bgForScore(value))}
           style={{ width: `${Math.max(2, value)}%` }}
@@ -117,7 +131,9 @@ function TrendBars({ trend }: { trend: Feed["trend"] }) {
                   isToday && "ring-1 ring-white/20",
                 )}
                 style={{ height: t.mean === 0 ? "4px" : `${h}px` }}
-                title={`${t.day} · avg ${t.mean}/100 · n=${t.count}`}
+                role="img"
+                aria-label={`${t.day} · avg ${t.mean}/100 · ${statusForScore(t.mean)} · n=${t.count}`}
+                title={`${t.day} · avg ${t.mean}/100 · ${statusForScore(t.mean)} · n=${t.count}`}
               />
             </div>
             <span className="hidden text-[9px] text-zinc-600 sm:block">{t.day.slice(5)}</span>
@@ -208,7 +224,11 @@ export function QualityNickView() {
                 )}>
                   <AnimatedCounter value={active.regenRate} /><span className="text-xl text-zinc-500">%</span>
                 </div>
-                <div className="mt-0.5 text-[11px] text-zinc-500">would regenerate</div>
+                {/* a11y (WCAG 1.4.1): status word so the rose/amber/emerald
+                    hue isn't the only signal of severity. */}
+                <div className="mt-0.5 text-[11px] text-zinc-500">
+                  would regenerate · {active.regenRate > 25 ? "critical" : active.regenRate > 10 ? "warning" : "good"}
+                </div>
               </div>
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-zinc-500">spread · p25 — p75</div>

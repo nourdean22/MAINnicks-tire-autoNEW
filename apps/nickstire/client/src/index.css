@@ -584,8 +584,9 @@
 
   /* ─── FOCUS VISIBLE ─── */
   :focus-visible {
-    outline: 2px solid rgba(253, 185, 19, 0.4);
+    outline: 2px solid rgba(253, 185, 19, 0.8) !important;
     outline-offset: 2px;
+    box-shadow: 0 0 0 3px rgba(253, 185, 19, 0.25) !important;
   }
 
   /* ─── TABLE ─── */

@@ -70,8 +70,8 @@ export function CustomerDrawer({ customerId, onClose, onNavigateToSection }: Pro
   return (
     <SideDrawer isOpen={!!customerId} onClose={onClose} title="Customer Details" width="md">
       {isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-5 h-5 animate-spin text-primary/60" />
+        <div className="flex items-center justify-center py-20" role="status" aria-label="Loading">
+          <Loader2 className="w-5 h-5 animate-spin text-primary/60" aria-hidden="true" />
         </div>
       ) : !customer ? (
         <div className="p-5 text-sm text-foreground/50">Customer not found.</div>

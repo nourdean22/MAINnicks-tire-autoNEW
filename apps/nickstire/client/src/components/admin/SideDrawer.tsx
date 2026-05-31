@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 
 interface SideDrawerProps {
   isOpen: boolean;
@@ -18,13 +19,8 @@ const WIDTH_MAP = { sm: "w-80", md: "w-[480px]", lg: "w-[640px]" };
 export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: SideDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape
-  useEffect(() => {
-    if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
+  // Focus trap + Escape + focus restore (WCAG 2.4.3 / 2.1.2).
+  useFocusTrap(drawerRef, isOpen, { onEscape: onClose });
 
   // Lock body scroll when open
   useEffect(() => {
@@ -48,13 +44,16 @@ export function SideDrawer({ isOpen, onClose, title, children, width = "md" }: S
       {/* Drawer */}
       <div
         ref={drawerRef}
+        role="dialog"
+        aria-modal="true"
+        {...(title ? { "aria-labelledby": "side-drawer-title" } : { "aria-label": "Drawer" })}
         className={`fixed top-0 right-0 h-full z-50 bg-card border-l border-border/30 shadow-2xl flex flex-col
           ${WIDTH_MAP[width]} max-w-[100vw]
           animate-in slide-in-from-right duration-200`}
       >
         {/* Header — wave-131 minimalist match */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border/20 shrink-0">
-          <h2 className="text-[15px] font-semibold text-foreground tracking-tight">{title}</h2>
+          <h2 id="side-drawer-title" className="text-[15px] font-semibold text-foreground tracking-tight">{title}</h2>
           <button
             onClick={onClose}
             className="inline-flex items-center justify-center w-8 h-8 -mr-1 text-foreground/45 hover:text-foreground hover:bg-foreground/5 rounded-md transition-colors"
