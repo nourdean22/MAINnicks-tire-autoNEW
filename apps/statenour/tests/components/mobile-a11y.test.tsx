@@ -131,9 +131,13 @@ describe("A3 · ticker container bumped to min-h 32px on mobile", () => {
     expect(src).not.toContain("ultron-ticker-track");
   });
 
-  it("bottom-pulse-ticker.tsx uses min-h-[32px] sm:h-5 on the visible state", () => {
+  it("bottom-pulse-ticker.tsx uses min-h-[32px] sm:h-5 (Edge Feed rebuild — no marquee)", () => {
     const src = readSource("components/ultron/bottom-pulse-ticker.tsx");
     expect(src).toContain("min-h-[32px] sm:h-5");
+    // 2026-05-31 · Edge Feed rebuild — the 60s marquee (hover-pause → dead on
+    // touch) became a one-item static strip + tap-to-open pulse feed, matching
+    // the top ticker. The CSS-scroll track + its keyframes are gone.
+    expect(src).not.toContain("ultron-bottom-ticker-track");
   });
 });
 
