@@ -180,6 +180,9 @@ interface GoalCacheRow {
   minutesInvested: number;
   nextMove: { id: string; title: string; status: string } | null;
   loopsThisWeek: number;
+  /** Ambition Engine P1 · resolved mastery stats this goal levels (a
+   *  rep on a task tagged with this goal credits XP to these). */
+  stats: { statKey: string; weight: number }[];
 }
 
 export const taskRouter = router({

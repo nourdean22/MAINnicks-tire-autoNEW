@@ -88,6 +88,7 @@ import { classifyStaleness } from "@/lib/brain/goal-staleness";
 import { MilestonesFlow } from "@/components/actions/milestones-flow";
 
 import { trpc } from "@/lib/trpc/client";
+import { DOMAINS } from "@/lib/mastery/config";
 
 type Horizon = "DAY" | "WEEK" | "MONTH" | "QUARTER" | "YEAR" | "LIFE";
 
@@ -124,7 +125,24 @@ interface LifeGoal {
   // Apr 27 · GB1 + GB3 — server-enriched fields from /api/goals
   nextMove?: { id: string; title: string; status: string } | null;
   loopsThisWeek?: number;
+  // Ambition Engine P1 · the mastery stats this goal levels (resolved
+  // server-side: declared GoalStat rows, else domain-inferred). A rep on
+  // a task tagged with this goal credits XP to these stats.
+  stats?: { statKey: string; weight: number }[];
 }
+
+// Ambition Engine P1 · stat key → character-sheet meta (color/icon/label)
+// for the goal-card stat chips. Built once from the mastery config so the
+// chips match the /stats board exactly.
+const STAT_BY_KEY: Record<string, { label: string; color: string; icon: string }> =
+  Object.fromEntries(
+    DOMAINS.map(
+      (d): [string, { label: string; color: string; icon: string }] => [
+        d.key,
+        { label: d.label, color: d.color, icon: d.icon },
+      ],
+    ),
+  );
 
 interface SuggestedGoal {
   title: string;
@@ -1167,6 +1185,35 @@ export function GoalBoard() {
                           <span>{g.currentValue} {g.unit}</span>
                         )}
                       </div>
+
+                      {/* Ambition Engine P1 · stat chips — the spine to
+                          the character sheet. Each chip is a mastery stat
+                          this goal levels (character-sheet color);
+                          completing a task tagged with this goal credits
+                          XP to it. Hover explains the link. */}
+                      {Array.isArray(g.stats) && g.stats.length > 0 && (
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                          {g.stats.map((s) => {
+                            const d = STAT_BY_KEY[s.statKey];
+                            if (!d) return null;
+                            return (
+                              <span
+                                key={s.statKey}
+                                className="inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[8px] font-mono uppercase tracking-wider"
+                                style={{
+                                  color: d.color,
+                                  borderColor: `${d.color}40`,
+                                  backgroundColor: `${d.color}14`,
+                                }}
+                                title={`Reps on this goal level ${d.label}`}
+                              >
+                                <span aria-hidden>{d.icon}</span>
+                                <span>{d.label}</span>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
 
                       {/* Apr 26 · G1 — pace projection chip. Computes
                           required-vs-actual rate from currentValue,
