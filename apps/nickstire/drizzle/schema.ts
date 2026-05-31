@@ -545,6 +545,49 @@ export type LoyaltyReward = typeof loyaltyRewards.$inferSelect;
 export type InsertLoyaltyReward = typeof loyaltyRewards.$inferInsert;
 
 /**
+ * Nonstop Nick memberships — the $7.99/mo tire membership (chunk 2/5).
+ *
+ * One row per paid membership. Designed around 3 access patterns:
+ *   1. Counter lookup: "is this phone an active member?" → idx on (phone, status)
+ *   2. Stripe webhook upsert: find by stripeSubscriptionId → unique idx
+ *   3. Vehicle binding at FIRST USE (not signup — keeps signup one-tap):
+ *      vehiclePlate is nullable, set the first time the member pulls up.
+ *
+ * status is driven by Stripe webhook events (subscription.created/updated/
+ * deleted) — `active`/`past_due`/`canceled` mirror Stripe's subscription
+ * status so the counter never has to call Stripe live. Migration: drizzle/0063.
+ */
+export const memberships = mysqlTable("memberships", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Plan key — single plan today ("nonstop-nick"); column future-proofs tiers. */
+  plan: varchar("plan", { length: 64 }).default("nonstop-nick").notNull(),
+  /** Member contact — the counter's primary lookup key. */
+  phone: varchar("phone", { length: 20 }).notNull(),
+  name: varchar("name", { length: 255 }),
+  email: varchar("email", { length: 320 }),
+  /** Bound at first use, not signup (one vehicle per membership). */
+  vehiclePlate: varchar("vehiclePlate", { length: 16 }),
+  vehicleDesc: varchar("vehicleDesc", { length: 255 }),
+  /** Mirrors Stripe subscription status — set by webhook, read by counter. */
+  status: mysqlEnum("status", ["active", "past_due", "canceled", "incomplete"]).default("incomplete").notNull(),
+  /** Stripe linkage — webhook finds the row by subscriptionId. */
+  stripeCustomerId: varchar("stripeCustomerId", { length: 64 }),
+  stripeSubscriptionId: varchar("stripeSubscriptionId", { length: 64 }),
+  /** End of the current paid period (from Stripe) — grace window for past_due. */
+  currentPeriodEnd: timestamp("currentPeriodEnd"),
+  canceledAt: timestamp("canceledAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, (table) => [
+  index("idx_membership_phone").on(table.phone),
+  index("idx_membership_status").on(table.status),
+  uniqueIndex("uq_membership_stripe_sub").on(table.stripeSubscriptionId),
+]);
+
+export type Membership = typeof memberships.$inferSelect;
+export type InsertMembership = typeof memberships.$inferInsert;
+
+/**
  * Loyalty point transactions (earn/redeem history)
  */
 export const loyaltyTransactions = mysqlTable("loyalty_transactions", {
