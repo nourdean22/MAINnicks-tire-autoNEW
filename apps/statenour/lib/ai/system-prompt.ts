@@ -269,8 +269,12 @@ export function detectTopicTier(message: string): TopicTier {
   if (hasPersonal) return "personal";
   if (hasStrategy) return "strategy";
   // Short casual message → core only
-  if (message.length < 30) return "core";
-  return "full";
+  // No domain signal matched → casual/general message → core only (of ANY
+  // length). `full` stays reserved for multi-domain messages (above) +
+  // explicit deep mode (forced upstream). The old `length < 30 ? core : full`
+  // sent every longer keyword-less message to the all-29-engines `full` tier,
+  // silently defeating the ~60% context-savings this tiering exists for.
+  return "core";
 }
 
 /**
