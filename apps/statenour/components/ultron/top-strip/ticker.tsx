@@ -22,6 +22,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import type { UltronMode } from "@/lib/ultron/mode-classifier";
 
@@ -70,6 +71,26 @@ const SEVERITY_COLORS: Record<NonNullable<TickerItem["severity"]>, string> = {
 // always leads (it's the operator's current operating state).
 const SEVERITY_RANK: Record<string, number> = { warn: 0, win: 1, info: 2 };
 
+// A dismissal from the top strip is a 24h snooze, not a permanent mute, so
+// live/recurring lanes (market, shop) return tomorrow rather than being
+// silently lost forever (Edge Feed spec — "snooze ≠ dismiss").
+const SNOOZE_MS = 24 * 60 * 60 * 1000;
+
+// Soft page-context boost: which lanes matter most on the current page.
+// Applied as a tiebreaker AFTER mode + severity, so urgent items still lead
+// globally — page context only reorders the calm middle (Edge Feed spec).
+function pagePreferred(pathname: string | null): Set<string> {
+  const p = pathname ?? "";
+  if (p.startsWith("/money") || p.startsWith("/scoreboard") || p.startsWith("/funnel"))
+    return new Set(["shop", "market", "macro"]);
+  if (p.startsWith("/stats") || p.startsWith("/goals"))
+    return new Set(["timeline", "brain"]);
+  if (p.startsWith("/brain") || p.startsWith("/radar") || p.startsWith("/seo"))
+    return new Set(["brain", "industry"]);
+  if (p.startsWith("/journal")) return new Set(["timeline", "brain"]);
+  return new Set<string>();
+}
+
 interface TickerProps {
   mode?: UltronMode;
   reason?: string;
@@ -81,6 +102,8 @@ export function Ticker({ mode, reason }: TickerProps = {}) {
     retry: false,
   });
   const { dismissed, dismiss } = useDismissedTicker();
+  const pathname = usePathname();
+  const pref = useMemo(() => pagePreferred(pathname), [pathname]);
 
   const items = useMemo<TickerItem[]>(() => {
     const base = (data?.items ?? []) as TickerItem[];
@@ -103,9 +126,14 @@ export function Ticker({ mode, reason }: TickerProps = {}) {
       if (am !== bm) return am - bm;
       const ar = SEVERITY_RANK[a.severity ?? ""] ?? 3;
       const br = SEVERITY_RANK[b.severity ?? ""] ?? 3;
-      return ar - br;
+      if (ar !== br) return ar - br;
+      // Soft page-context boost — only reorders within a severity tier, so
+      // an urgent item on an "off-topic" page still leads.
+      const ap = pref.has(a.category) ? 0 : 1;
+      const bp = pref.has(b.category) ? 0 : 1;
+      return ap - bp;
     });
-  }, [data, mode, reason, dismissed]);
+  }, [data, mode, reason, dismissed, pref]);
 
   const [idx, setIdx] = useState(0);
   const [open, setOpen] = useState(false);
@@ -170,9 +198,9 @@ export function Ticker({ mode, reason }: TickerProps = {}) {
         <DismissButton
           onClick={(e) => {
             e.stopPropagation();
-            dismiss(current.id, { kind: current.category, source: "top" });
+            dismiss(current.id, { kind: current.category, source: "top", ttlMs: SNOOZE_MS });
           }}
-          label="Dismiss item"
+          label="Snooze item for a day"
           size="sm"
           className="shrink-0 hover:text-rose-400"
         />
@@ -184,7 +212,7 @@ export function Ticker({ mode, reason }: TickerProps = {}) {
           activeIdx={safeIdx}
           onClose={() => setOpen(false)}
           onDismiss={(id, cat) =>
-            dismiss(id, { kind: cat, source: "top" })
+            dismiss(id, { kind: cat, source: "top", ttlMs: SNOOZE_MS })
           }
           onPick={(i) => {
             setIdx(i);
@@ -326,7 +354,7 @@ function FeedSheet({
                   e.stopPropagation();
                   onDismiss(it.id, it.category);
                 }}
-                label="Dismiss item"
+                label="Snooze item for a day"
                 size="sm"
                 className="shrink-0 hover:text-rose-400"
               />

@@ -1,72 +1,121 @@
 "use client";
 
 /**
- * Shared dismissal cache for ticker items · May 02.
+ * Shared dismissal cache for ticker items · May 02 · TTL added 2026-05-31.
  *
  * Both tickers (GlobalTopTicker + BottomPulseTicker) pull from
- * heterogeneous sources — live market data, hardcoded macro fallbacks,
- * shop pulse, brain insights, captures, commitments. Some items go
- * stale (the fallback macro headlines from Apr 19 are a known case).
- * This hook lets the user X-out any item; the ID is persisted to
- * localStorage so it stays dismissed across reloads.
+ * heterogeneous sources — live market data, shop pulse, brain insights,
+ * captures, commitments. The user can X-out any item; the dismissal is
+ * persisted to localStorage so it survives reloads.
  *
- * Implementation: simple Set<string> kept in state + localStorage.
- * No expiry — if a server source re-emits a dismissed ID after some
- * window, the user can un-dismiss by clearing the cache (Settings →
- * "reset dismissed ticker items"). Out of scope here.
+ * 2026-05-31 · Edge Feed: dismissal can now be **time-bound**. The old
+ * behaviour was forever-dismiss (a `Set<string>`), which silently lost
+ * live/recurring lanes — X-ing out today's market line killed the market
+ * lane permanently. Callers may now pass `ttlMs` to make a dismissal a
+ * snooze (e.g. 24h) instead of a permanent mute; the top ticker uses 24h
+ * so live lanes return tomorrow. Omitting `ttlMs` preserves the original
+ * forever-dismiss (the bottom ticker is unchanged).
+ *
+ * Storage: `{ [id]: expiryMs | null }` (null = forever). The legacy
+ * `["id", ...]` array format is migrated on read to forever-dismissals,
+ * so existing dismissals are preserved. Expired entries are pruned on
+ * write. Reset via Settings → "reset dismissed ticker items" (clearAll).
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "nour:dismissed-ticker-items";
 
-function readDismissed(): Set<string> {
-  if (typeof window === "undefined") return new Set();
+/** id → expiry timestamp (ms). `null` = dismissed forever. */
+type DismissMap = Record<string, number | null>;
+
+export interface DismissMeta {
+  kind?: string;
+  source?: "top" | "bottom";
+  /** If set, the dismissal expires after this many ms (a snooze). Omit for
+   *  a permanent dismissal. */
+  ttlMs?: number;
+}
+
+function readMap(): DismissMap {
+  if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr.filter((x): x is string => typeof x === "string") : []);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    // Legacy format: array of string ids → forever-dismissed (preserve).
+    if (Array.isArray(parsed)) {
+      const m: DismissMap = {};
+      for (const id of parsed) if (typeof id === "string") m[id] = null;
+      return m;
+    }
+    if (parsed && typeof parsed === "object") {
+      const m: DismissMap = {};
+      for (const [k, v] of Object.entries(parsed)) {
+        if (v === null || typeof v === "number") m[k] = v as number | null;
+      }
+      return m;
+    }
+    return {};
   } catch {
-    return new Set();
+    return {};
   }
 }
 
-function writeDismissed(ids: Set<string>) {
+/** Drop entries whose snooze has elapsed (forever-entries are kept). */
+function pruneExpired(m: DismissMap): DismissMap {
+  const now = Date.now();
+  const out: DismissMap = {};
+  for (const [id, exp] of Object.entries(m)) {
+    if (exp === null || exp > now) out[id] = exp;
+  }
+  return out;
+}
+
+function writeMap(m: DismissMap) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([...ids]));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(m));
   } catch {
     // localStorage may be full / blocked; silently no-op.
   }
 }
 
-export function useDismissedTicker() {
-  const [dismissed, setDismissed] = useState<Set<string>>(() => readDismissed());
+/** The set of ids currently still dismissed (forever, or not-yet-expired). */
+function activeSet(m: DismissMap): Set<string> {
+  const now = Date.now();
+  const s = new Set<string>();
+  for (const [id, exp] of Object.entries(m)) {
+    if (exp === null || exp > now) s.add(id);
+  }
+  return s;
+}
 
-  // Sync across tabs — if another tab dismisses, mirror here so the
-  // marquee doesn't surface the same item again.
+export function useDismissedTicker() {
+  const [map, setMap] = useState<DismissMap>(() => readMap());
+
+  // Sync across tabs — if another tab dismisses, mirror here so the same
+  // item doesn't surface again.
   useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setDismissed(readDismissed());
+      if (e.key === STORAGE_KEY) setMap(readMap());
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  const dismiss = useCallback((id: string, meta?: { kind?: string; source?: "top" | "bottom" }) => {
-    setDismissed((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      writeDismissed(next);
+  const dismissed = useMemo(() => activeSet(map), [map]);
+
+  const dismiss = useCallback((id: string, meta?: DismissMeta) => {
+    setMap((prev) => {
+      const expiry = meta?.ttlMs ? Date.now() + meta.ttlMs : null;
+      const next = pruneExpired({ ...prev, [id]: expiry });
+      writeMap(next);
       return next;
     });
     // May 02 · server-side ack — "exit means I acknowledge it." Fire and
-    // forget; failure here just means localStorage is the only record
-    // (Nour still sees the item hidden, brain just doesn't get the
-    // signal for this dismissal). No retry — the marquee item is gone
-    // either way.
+    // forget; failure here just means localStorage is the only record. No
+    // retry — the item is hidden either way.
     void fetch("/api/ultron/ticker/ack", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,18 +125,18 @@ export function useDismissedTicker() {
   }, []);
 
   const undismiss = useCallback((id: string) => {
-    setDismissed((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.delete(id);
-      writeDismissed(next);
+    setMap((prev) => {
+      if (!(id in prev)) return prev;
+      const next = { ...prev };
+      delete next[id];
+      writeMap(next);
       return next;
     });
   }, []);
 
   const clearAll = useCallback(() => {
-    setDismissed(new Set());
-    writeDismissed(new Set());
+    setMap({});
+    writeMap({});
   }, []);
 
   return { dismissed, dismiss, undismiss, clearAll };
