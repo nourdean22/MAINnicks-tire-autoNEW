@@ -18,6 +18,7 @@ import { checkAiRateLimit } from "@/lib/rate-limit";
 // → task INBOX → commitments → embeddings) so action items inside a
 // reflection don't silently drop on the floor.
 import { ingestJournal } from "@/lib/brain/journal-ingest";
+import { creditFromSignal } from "@/lib/mastery/credit-signal";
 // v10.0.529.34 · Arc B F7 · apply the operator's 8-axis preference
 // style to Nick's pushback counter-question · same dial as /chat ·
 // "one consistent voice across surfaces."
@@ -141,6 +142,15 @@ export async function POST(req: Request) {
           createdFrom: "ultron-reflect",
         },
       },
+    });
+
+    // Ambition/Mastery · credit the character sheet for this reflection (the
+    // daily-score replacement fed ZERO XP before). Idempotent by sourceKey
+    // (shared with the journal-reflect service path so they can't double-count);
+    // null for no-skill entries (the noise floor). Never throws.
+    void creditFromSignal("journal", {
+      text: insight,
+      sourceKey: `journal:${reflection.id}`,
     });
 
     // v10.0.78 · brain-bus emit on reflection creation. Downstream

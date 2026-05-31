@@ -29,6 +29,7 @@ import { logger as rootLogger } from "@/lib/logger";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 import { ingestJournal } from "@/lib/brain/journal-ingest";
 import { applyOperatorStyle } from "@/lib/ai/style-adapter";
+import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import type { ReflectSubmitInput } from "@/lib/validators/journal";
 
 const log = rootLogger.withSurface("services/journal-reflect");
@@ -127,6 +128,16 @@ export async function createReflection(
     category: "reflection",
     insight: insight.slice(0, 280),
     actionable: reflection.actionable,
+  });
+
+  // Ambition/Mastery · credit the character sheet for this reflection. The
+  // daily-reflection replaced the retired daily-score but fed ZERO XP by any
+  // path (the backfill cron sweeps chat/captures/decisions, not reflections),
+  // so showing up daily earned nothing. Idempotent by sourceKey; the AI
+  // attributor returns null for no-skill entries (the noise floor). Never throws.
+  void creditFromSignal("journal", {
+    text: insight,
+    sourceKey: `journal:${reflection.id}`,
   });
 
   // Opt-in extraction · when the operator toggled "extract action
