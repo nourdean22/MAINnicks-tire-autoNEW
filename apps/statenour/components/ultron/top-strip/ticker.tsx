@@ -1,26 +1,34 @@
 "use client";
 
 /**
- * AMBIENT TICKER — scrolling strip of markets + macro headlines +
- * (v3) current Ultron MODE when it's non-NORMAL.
+ * THE EDGE FEED — the global ambient intelligence strip at the top of every
+ * statenour page.
  *
- * Sits thin at the very top of Ultron. CSS-only infinite scroll (marquee)
- * — no JS animation loop burning cycles. Duplicates the items once inline
- * so the scroll seam is invisible.
+ * 2026-05-31 · REBUILT (was a 55s CSS marquee at 10px). The marquee became
+ * wallpaper you tuned out + was unreadable/untappable on a phone (pause +
+ * dismiss were :hover-gated → dead on touch). New form (per the multi-agent
+ * review · docs/specs/2026-05-31-edge-feed.md):
+ *   · ONE item at a time — static, ≥13px, the whole strip is a ≥40px tap
+ *     target that opens the full feed.
+ *   · severity-first ordering so the highest-signal item leads (warn → win →
+ *     info); a fade (not a slide) advances every 10s; pauses while the feed
+ *     sheet is open.
+ *   · a VISIBLE dismiss (touch-friendly, not hover-gated).
+ *   · the full ranked feed opens in a tap-to-open sheet below the strip.
  *
- * MODE placement rationale: the old standalone ModePill ate header real
- * estate even when idle (NORMAL = most of the time). Moving it into the
- * ticker means it only surfaces when meaningful (BATTLE/SURGICAL/
- * RECOVERY/SHUTDOWN), and it scrolls past naturally rather than camping
- * next to the wordmark.
+ * Data still comes from `trpc.operator.ticker` (cached 60s, AI-free read
+ * path); this is a pure presentation rebuild — the lanes/colors/glyphs are
+ * preserved.
  */
 
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import type { UltronMode } from "@/lib/ultron/mode-classifier";
 
 import { trpc } from "@/lib/trpc/client";
 import { useDismissedTicker } from "@/hooks/use-dismissed-ticker";
 import { DismissButton } from "@/components/ui/dismiss-button";
+
 interface TickerItem {
   id: string;
   category: "market" | "macro" | "industry" | "local" | "timeline" | "mode" | "shop" | "brain";
@@ -34,29 +42,33 @@ interface TickerItem {
 }
 
 const CATEGORY_COLORS: Record<TickerItem["category"], string> = {
-  market:   "text-emerald-400/80",
-  macro:    "text-blue-400/80",
+  market: "text-emerald-400/80",
+  macro: "text-blue-400/80",
   industry: "text-amber-400/80",
-  local:    "text-violet-400/70",
-  timeline: "text-[var(--gold)]",  // default — overridden by severity below
-  mode:     "text-[var(--text-primary)]",
-  shop:     "text-[var(--gold)]/90", // oversight from nickstire — gold to signal "your stuff"
-  brain:    "text-violet-400",       // self-model signal
+  local: "text-violet-400/70",
+  timeline: "text-[var(--gold)]",
+  mode: "text-[var(--text-primary)]",
+  shop: "text-[var(--gold)]/90",
+  brain: "text-violet-400",
 };
 
 const MODE_COLORS: Record<UltronMode, string> = {
-  BATTLE:   "text-red-400",
+  BATTLE: "text-red-400",
   SURGICAL: "text-[var(--gold)]",
   RECOVERY: "text-amber-400",
   SHUTDOWN: "text-blue-400",
-  NORMAL:   "text-[var(--text-tertiary)]",
+  NORMAL: "text-[var(--text-tertiary)]",
 };
 
-const TIMELINE_SEVERITY: Record<NonNullable<TickerItem["severity"]>, string> = {
+const SEVERITY_COLORS: Record<NonNullable<TickerItem["severity"]>, string> = {
   warn: "text-amber-400",
   info: "text-[var(--gold)]/90",
-  win:  "text-emerald-400",
+  win: "text-emerald-400",
 };
+
+// Important-first: warn > win > info > (none). The mode item, when present,
+// always leads (it's the operator's current operating state).
+const SEVERITY_RANK: Record<string, number> = { warn: 0, win: 1, info: 2 };
 
 interface TickerProps {
   mode?: UltronMode;
@@ -64,183 +76,264 @@ interface TickerProps {
 }
 
 export function Ticker({ mode, reason }: TickerProps = {}) {
-  // Phase B.6a (2026-05-22) · migrated off `authedFetch` onto
-  // `trpc.operator.ticker`. React Query's refetchInterval replaces
-  // the manual setInterval (5-min cadence preserved) · the query is
-  // silent on failure (the ticker is ambient, not critical) so no
-  // error branch is wired. `data` is the TickerData payload directly
-  // — the procedure returns it unwrapped (the legacy route's `data`
-  // envelope is gone).
   const { data } = trpc.operator.ticker.useQuery(undefined, {
     refetchInterval: 300_000,
     retry: false,
   });
-
-  // May 02 · per-item dismissal. localStorage-backed Set; X button on
-  // each cell adds to it. STATIC_MACRO fallbacks (Apr 19 hardcoded
-  // headlines) are common dismissal candidates — Nour can clear them
-  // out and the marquee shrinks to live items only.
   const { dismissed, dismiss } = useDismissedTicker();
 
-  // Prepend a MODE item only when mode is non-NORMAL. Gives the pill
-  // a home in the ticker without hijacking the header row.
-  const items: TickerItem[] = (() => {
-    const base = data?.items ?? [];
-    if (!mode || mode === "NORMAL") return base;
-    const modeItem: TickerItem = {
-      id: `mode-${mode}`,
-      category: "mode",
-      symbol: mode,
-      label: reason ?? mode.toLowerCase(),
+  const items = useMemo<TickerItem[]>(() => {
+    const base = (data?.items ?? []) as TickerItem[];
+    const withMode =
+      !mode || mode === "NORMAL"
+        ? base
+        : [
+            {
+              id: `mode-${mode}`,
+              category: "mode" as const,
+              symbol: mode,
+              label: reason ?? mode.toLowerCase(),
+            },
+            ...base,
+          ];
+    const live = withMode.filter((it) => !dismissed.has(it.id));
+    return [...live].sort((a, b) => {
+      const am = a.category === "mode" ? -1 : 0;
+      const bm = b.category === "mode" ? -1 : 0;
+      if (am !== bm) return am - bm;
+      const ar = SEVERITY_RANK[a.severity ?? ""] ?? 3;
+      const br = SEVERITY_RANK[b.severity ?? ""] ?? 3;
+      return ar - br;
+    });
+  }, [data, mode, reason, dismissed]);
+
+  const [idx, setIdx] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  // Auto-advance every 10s (fade-on-change via the item key below). Pauses
+  // while the feed sheet is open. Motion only on change — no continuous
+  // scroll to habituate to.
+  useEffect(() => {
+    if (open || items.length <= 1) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 10_000);
+    return () => clearInterval(t);
+  }, [open, items.length]);
+
+  // Close the sheet on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
     };
-    return [modeItem, ...base];
-  })().filter((it) => !dismissed.has(it.id));
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   if (items.length === 0) {
     return (
-      <div className="min-h-[32px] sm:h-5 overflow-hidden border-b border-[var(--border-default)] bg-[var(--bg-void)]/60" aria-hidden />
+      <div
+        className="min-h-[36px] sm:h-7 border-b border-[var(--border-default)] bg-[var(--bg-void)]/60"
+        aria-hidden
+      />
     );
   }
 
+  const safeIdx = idx % items.length;
+  const current = items[safeIdx];
+
   return (
-    // v10.0.528 · a11y A3 fix · mobile bumped to min-h-[32px] (was h-5
-    // = 20px) so tickers reach a tappable height per Apple HIG; desktop
-    // stays compact at sm:h-5 since precision-pointer touch isn't the
-    // constraint and density matters for the macro/market info-flow.
-    <div className="min-h-[32px] sm:h-5 overflow-hidden border-b border-[var(--border-default)] bg-[var(--bg-void)]/60 relative group/ticker">
-      <div className="ultron-ticker-track flex items-center gap-6 whitespace-nowrap py-0.5 absolute inset-0">
-        {[...items, ...items].map((item, i) => (
-          <TickerCell
-            key={`${item.id}-${i}`}
-            item={item}
-            onDismiss={(id) => dismiss(id, { kind: item.category, source: "top" })}
-          />
-        ))}
+    <div className="relative border-b border-[var(--border-default)] bg-[var(--bg-void)]/60">
+      <div className="flex items-center gap-2 px-3 min-h-[40px] sm:min-h-[28px]">
+        {/* The one item · tap anywhere to open the full feed. */}
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 min-w-0 flex items-center h-full py-2 text-left outline-none focus-visible:ring-1 focus-visible:ring-[var(--gold)]/40 rounded"
+          aria-label={open ? "Close feed" : "Open feed"}
+          aria-expanded={open}
+        >
+          <span key={current.id} className="edge-fade flex-1 min-w-0">
+            <ItemView item={current} />
+          </span>
+        </button>
+
+        {items.length > 1 && (
+          <span
+            className="shrink-0 text-[9px] tabular-nums text-[var(--text-tertiary)] select-none"
+            aria-hidden
+          >
+            {safeIdx + 1}/{items.length}
+          </span>
+        )}
+
+        {/* Visible, touch-friendly dismiss for the current item. */}
+        <DismissButton
+          onClick={(e) => {
+            e.stopPropagation();
+            dismiss(current.id, { kind: current.category, source: "top" });
+          }}
+          label="Dismiss item"
+          size="sm"
+          className="shrink-0 hover:text-rose-400"
+        />
       </div>
+
+      {open && (
+        <FeedSheet
+          items={items}
+          activeIdx={safeIdx}
+          onClose={() => setOpen(false)}
+          onDismiss={(id, cat) =>
+            dismiss(id, { kind: cat, source: "top" })
+          }
+          onPick={(i) => {
+            setIdx(i);
+            setOpen(false);
+          }}
+        />
+      )}
+
       <style jsx>{`
-        .ultron-ticker-track {
-          animation: ultron-ticker 55s linear infinite;
-          will-change: transform;
+        .edge-fade {
+          animation: edgeFade 400ms ease-out;
         }
-        @keyframes ultron-ticker {
-          0%   { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .ultron-ticker-track:hover {
-          animation-play-state: paused;
+        @keyframes edgeFade {
+          from {
+            opacity: 0;
+          }
+          to {
+            opacity: 1;
+          }
         }
       `}</style>
     </div>
   );
 }
 
-function TickerCell({ item, onDismiss }: { item: TickerItem; onDismiss?: (id: string) => void }) {
-  const deltaColor =
+/** Resolve an item's accent color (category, with severity/mode overrides). */
+function itemColor(item: TickerItem): string {
+  if (item.category === "mode") {
+    const m = item.symbol as UltronMode | undefined;
+    return m && m in MODE_COLORS ? MODE_COLORS[m] : CATEGORY_COLORS.mode;
+  }
+  if (item.severity && (item.category === "timeline" || item.category === "shop" || item.category === "brain")) {
+    return SEVERITY_COLORS[item.severity];
+  }
+  return CATEGORY_COLORS[item.category];
+}
+
+const GLYPH: Partial<Record<TickerItem["category"], string>> = {
+  timeline: "◆",
+  shop: "●",
+  mode: "▲",
+  brain: "◉",
+};
+
+/** One item's content — readable (≥12px), single-line in the strip, wrapping
+ *  in the sheet. Reused by the strip + the feed rows. */
+function ItemView({ item, row = false }: { item: TickerItem; row?: boolean }) {
+  const color = itemColor(item);
+  const glyph = GLYPH[item.category];
+  const delta =
     item.deltaPct === undefined || item.deltaPct === null
-      ? ""
-      : item.deltaPct > 0
-        ? "text-emerald-400"
-        : item.deltaPct < 0
-          ? "text-red-400"
-          : "text-[var(--text-tertiary)]";
+      ? null
+      : item.deltaPct;
+  const deltaColor =
+    delta == null ? "" : delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-[var(--text-tertiary)]";
+  const label = item.symbol
+    ? item.label.replace(new RegExp(`^${item.symbol}\\s*`), "")
+    : item.label;
 
-  // Timeline + shop items get severity-based coloring so urgent shop
-  // alerts read differently than routine ones. Shop uses the same
-  // amber/gold/emerald scheme as timeline to keep the eye anchored.
-  const isTimeline = item.category === "timeline";
-  const isMode = item.category === "mode";
-  const isShop = item.category === "shop";
-  const isBrain = item.category === "brain";
-  const timelineColor =
-    isTimeline && item.severity ? TIMELINE_SEVERITY[item.severity] : CATEGORY_COLORS.timeline;
-  const shopColor =
-    isShop && item.severity ? TIMELINE_SEVERITY[item.severity] : CATEGORY_COLORS.shop;
-  const brainColor =
-    isBrain && item.severity ? TIMELINE_SEVERITY[item.severity] : CATEGORY_COLORS.brain;
-
-  // Mode items use the per-mode color (red/gold/amber/blue)
-  const modeColor =
-    isMode && item.symbol && (item.symbol as UltronMode) in MODE_COLORS
-      ? MODE_COLORS[item.symbol as UltronMode]
-      : CATEGORY_COLORS.mode;
-
-  const baseColor = isTimeline
-    ? timelineColor
-    : isShop
-      ? shopColor
-      : isMode
-        ? modeColor
-        : isBrain
-          ? brainColor
-          : CATEGORY_COLORS[item.category];
-
-  const content = (
-    <span className={cn("inline-flex items-center gap-1.5 text-[10px] font-mono", baseColor)}>
-      {isTimeline && <span className="opacity-70">◆</span>}
-      {isShop && <span className="opacity-80">●</span>}
-      {isMode && <span className="opacity-80">▲</span>}
-      {isBrain && <span className="opacity-90">◉</span>}
+  return (
+    <span className={cn("inline-flex items-center gap-1.5 min-w-0", row ? "text-[12.5px]" : "text-[13px]", color)}>
+      {glyph && <span className="shrink-0 opacity-75" aria-hidden>{glyph}</span>}
       {item.symbol && (
-        <span className={cn(
-          "font-bold uppercase tracking-wider",
-          isTimeline && "text-[9px] tracking-[0.2em]",
-          isMode && "text-[9px] tracking-[0.22em]",
-        )}>
-          {item.symbol}
-        </span>
+        <span className="shrink-0 font-bold uppercase tracking-wider text-[10px]">{item.symbol}</span>
       )}
-      <span className={cn(
-        item.symbol ? "text-[var(--text-secondary)]" : "",
-        isMode && "italic",
-      )}>
-        {item.label.replace(new RegExp(`^${item.symbol}\\s*`), "")}
-      </span>
-      {item.deltaPct !== undefined && item.deltaPct !== null && (
-        <span className={cn("tabular-nums", deltaColor)}>
-          {item.deltaPct > 0 ? "▲" : item.deltaPct < 0 ? "▼" : "·"}
-          {Math.abs(item.deltaPct).toFixed(1)}%
+      <span className={cn(row ? "" : "truncate", item.symbol && "text-[var(--text-secondary)]")}>{label}</span>
+      {delta != null && (
+        <span className={cn("shrink-0 tabular-nums", deltaColor)}>
+          {delta > 0 ? "▲" : delta < 0 ? "▼" : "·"}
+          {Math.abs(delta).toFixed(1)}%
         </span>
       )}
     </span>
   );
+}
 
-  // May 02 · X button only mounts when an onDismiss handler is wired.
-  // Renders inside a hover-revealed wrapper so the marquee stays clean
-  // when nothing's hovered. Click stops propagation so it never trips
-  // the parent <a> nav.
-  const dismissBtn = onDismiss ? (
-    <DismissButton
-      onClick={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-        onDismiss(item.id);
-      }}
-      label="Dismiss ticker item"
-      hoverGate="cell"
-      size="sm"
-      className="hover:text-rose-400"
-    />
-  ) : null;
-
-  if (item.href) {
-    return (
-      <span className="inline-flex items-center group/cell">
-        <a
-          href={item.href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:brightness-150 transition-all"
-        >
-          {content}
-        </a>
-        {dismissBtn}
-      </span>
-    );
-  }
+/** The full feed — opens below the strip on tap. Every item readable +
+ *  tappable (≥44px rows) with a visible dismiss. */
+function FeedSheet({
+  items,
+  activeIdx,
+  onClose,
+  onDismiss,
+  onPick,
+}: {
+  items: TickerItem[];
+  activeIdx: number;
+  onClose: () => void;
+  onDismiss: (id: string, category: TickerItem["category"]) => void;
+  onPick: (i: number) => void;
+}) {
   return (
-    <span className="inline-flex items-center group/cell">
-      {content}
-      {dismissBtn}
-    </span>
+    <>
+      {/* backdrop — tap outside to close */}
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden />
+      <div className="absolute left-0 right-0 top-full z-50 max-h-[60vh] overflow-y-auto border-b border-[var(--border-default)] bg-[var(--bg-void)]/95 backdrop-blur-sm shadow-xl">
+        <div className="sticky top-0 flex items-center justify-between px-3 py-2 border-b border-[var(--border-default)]/50 bg-[var(--bg-void)]/95">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+            Feed · {items.length}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] px-2 min-h-[36px]"
+          >
+            Close
+          </button>
+        </div>
+        <ul>
+          {items.map((it, i) => (
+            <li
+              key={it.id}
+              className={cn(
+                "flex items-center gap-2 px-3 min-h-[44px] border-b border-[var(--border-default)]/25",
+                i === activeIdx && "bg-white/[0.03]",
+              )}
+            >
+              {it.href ? (
+                <a
+                  href={it.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 min-w-0 py-2 hover:brightness-150 transition-all"
+                  onClick={onClose}
+                >
+                  <ItemView item={it} row />
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onPick(i)}
+                  className="flex-1 min-w-0 py-2 text-left"
+                >
+                  <ItemView item={it} row />
+                </button>
+              )}
+              <DismissButton
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismiss(it.id, it.category);
+                }}
+                label="Dismiss item"
+                size="sm"
+                className="shrink-0 hover:text-rose-400"
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </>
   );
 }
