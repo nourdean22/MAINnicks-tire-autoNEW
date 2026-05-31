@@ -192,7 +192,13 @@ export default function FinancialPage() {
                 </span>
                 {" · "}${paceNeeded > 0 ? `need $${paceNeeded}/day` : "on pace"}
               </>
-            ) : "Loading revenue data..."}
+            ) : revenueQuery.isLoading ? (
+              "Loading revenue data..."
+            ) : revenueQuery.isError ? (
+              "Revenue feed unavailable — shop bridge not responding"
+            ) : (
+              "$0 this month so far — check the shop bridge if unexpected"
+            )}
           </p>
         </div>
         <div className="text-right flex flex-col items-end gap-1">
