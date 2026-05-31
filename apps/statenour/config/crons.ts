@@ -61,9 +61,63 @@ export interface CronDef {
   path?: string;
   /** YYYY-MM-DD first-declared · drives silence-detector grace. */
   addedAt?: string;
+  /**
+   * Inngest-native scheduled function: fires via its OWN Inngest cron
+   * trigger (src/inngest/functions/*), NOT a Railway /api/cron route and
+   * NOT the mega fan-out. `pnpm check:crons` skips the route-file check
+   * for these and treats them as independently-reachable.
+   */
+  inngest?: boolean;
 }
 
 export const CRONS: CronDef[] = [
+  // ── INNGEST-NATIVE ──────────────────────────────────────────────────
+  // Fire via their own Inngest cron trigger (src/inngest/functions/*),
+  // NOT a Railway /api/cron route and NOT the mega fan-out. Registered
+  // 2026-05-30: they were firing live but invisible to this manifest,
+  // /system/crons, and `pnpm check:crons`. `inngest: true` tells the
+  // verifier to skip the route-file check + treat them as reachable.
+  {
+    name: "cron-heartbeat",
+    schedule: "0 12 * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Out-of-band fan-out liveness watchdog — the canary added after the 2-day fan-out outage.",
+  },
+  {
+    name: "operator-morning-brief",
+    schedule: "0 10 * * *",
+    mode: "active",
+    category: "review",
+    inngest: true,
+    description: "Operator morning brief — Inngest-native.",
+  },
+  {
+    name: "goal-pruner",
+    schedule: "0 12 * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Prunes stale / abandoned goals — Inngest-native.",
+  },
+  {
+    name: "journal-convergence-scan",
+    schedule: "0 22 * * *",
+    mode: "active",
+    category: "brain",
+    inngest: true,
+    description: "Scans journal threads for convergence / patterns — Inngest-native.",
+  },
+  {
+    name: "journal-thread-dormancy",
+    schedule: "0 23 * * *",
+    mode: "active",
+    category: "hygiene",
+    inngest: true,
+    description: "Flags dormant journal threads — Inngest-native.",
+  },
+
   // ── COMPOSE ─────────────────────────────────────────────────────────
   {
     name: "mega",
@@ -442,8 +496,8 @@ export const CRONS: CronDef[] = [
 export function expectedCronRouteNames(): Set<string> {
   const names = new Set<string>();
   for (const c of CRONS) {
-    // Skip mega-evening (same route as mega).
-    if (c.name === "mega-evening") continue;
+    // Skip mega-evening (same route as mega) + Inngest-native crons (no route).
+    if (c.name === "mega-evening" || c.inngest) continue;
     names.add(c.name);
   }
   return names;
