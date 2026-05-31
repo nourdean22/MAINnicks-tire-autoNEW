@@ -1,0 +1,97 @@
+/**
+ * Memberships Router — Nonstop Nick ($7.99/mo tire membership · chunk 5/5).
+ *
+ * Two surfaces:
+ *   - PUBLIC `startCheckout` — the page's Join button calls this to get a Stripe
+ *     hosted-checkout URL. Degrades honestly (returns null url + a call-us
+ *     message) until STRIPE_NONSTOP_NICK_PRICE_ID is set.
+ *   - ADMIN `lookupByPhone` — the counter verifies "is this phone an active
+ *     member?" This is the operational make-or-break: without it, staff can't
+ *     run the program day-to-day. Reads the memberships table directly (status
+ *     mirrors Stripe via the webhook, so no live Stripe call needed).
+ *   - ADMIN `bindVehicle` — one-vehicle binding at FIRST USE: the counter
+ *     records the plate the first time the member pulls up.
+ */
+import { z } from "zod";
+import { eq, like, desc } from "drizzle-orm";
+import { publicProcedure, adminProcedure, router } from "../_core/trpc";
+import { memberships, type Membership } from "../../drizzle/schema";
+import { db } from "../lib/db-helper";
+import { sanitizePhone } from "../sanitize";
+import { createLogger } from "../lib/logger";
+
+const log = createLogger("routers:memberships");
+
+export const membershipsRouter = router({
+  /** Start a Nonstop Nick signup — returns a Stripe Checkout URL (public). */
+  startCheckout: publicProcedure
+    .input(z.object({
+      phone: z.string().min(7).max(20),
+      email: z.string().email().max(320).optional(),
+      name: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const phone = sanitizePhone(input.phone).replace(/\D/g, "").slice(-10);
+      if (phone.length !== 10) {
+        return { url: null as string | null, error: "Please enter a valid 10-digit phone number." };
+      }
+      const { createMembershipCheckout } = await import("../services/payments");
+      const origin = process.env.SITE_URL || "https://nickstire.org";
+      const result = await createMembershipCheckout({
+        phone,
+        customerEmail: input.email,
+        customerName: input.name,
+        successUrl: `${origin}/nonstop-nick?joined=1`,
+        cancelUrl: `${origin}/nonstop-nick`,
+      });
+      if ("error" in result) {
+        return { url: null as string | null, error: result.error };
+      }
+      return { url: result.url, error: null as string | null };
+    }),
+
+  /** Counter lookup — is this phone an active member? (admin) */
+  lookupByPhone: adminProcedure
+    .input(z.object({ phone: z.string().min(4).max(20) }))
+    .query(async ({ input }) => {
+      const d = await db();
+      if (!d) return { found: false as const };
+      const phone = sanitizePhone(input.phone).replace(/\D/g, "").slice(-10);
+      // LIKE on the last digits so a partial entry at the counter still matches.
+      const rows = await d.select().from(memberships)
+        .where(like(memberships.phone, `%${phone}`))
+        .orderBy(desc(memberships.createdAt))
+        .limit(5);
+      if (rows.length === 0) return { found: false as const };
+      return {
+        found: true as const,
+        members: rows.map((m: Membership) => ({
+          id: m.id,
+          name: m.name,
+          phone: m.phone,
+          status: m.status,
+          isActive: m.status === "active",
+          vehiclePlate: m.vehiclePlate,
+          vehicleDesc: m.vehicleDesc,
+          currentPeriodEnd: m.currentPeriodEnd,
+        })),
+      };
+    }),
+
+  /** Bind the one covered vehicle at first use (admin). */
+  bindVehicle: adminProcedure
+    .input(z.object({
+      membershipId: z.number().int(),
+      vehiclePlate: z.string().min(1).max(16),
+      vehicleDesc: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const d = await db();
+      if (!d) throw new Error("Database unavailable");
+      await d.update(memberships)
+        .set({ vehiclePlate: input.vehiclePlate.toUpperCase().trim(), vehicleDesc: input.vehicleDesc })
+        .where(eq(memberships.id, input.membershipId));
+      log.info(`Nonstop Nick membership ${input.membershipId} bound to ${input.vehiclePlate}`);
+      return { success: true };
+    }),
+});
