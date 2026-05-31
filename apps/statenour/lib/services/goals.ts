@@ -4,6 +4,7 @@ import { emitGoalTransition } from "@/lib/db/brain-bus-emit";
 import { softDelete, activeOnly } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
+import { validateParentLink, rollUpChildren } from "@/lib/mastery/goal-ladder";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -41,6 +42,9 @@ export const updateGoalSchema = z.object({
   // cmdGoals, ai-suggest-goals, page-data, etc.) kept surfacing the
   // "paused" goal back to the operator as a "ghost." See history of
   // the bug in MEMORY.md (Wave Z follow-up · 2026-05-27).
+  // Ambition Engine P3 · the compounding ladder. null unlinks; a non-null
+  // parent is validated (no self / cycle / inverted-horizon) in updateGoal.
+  parentGoalId: z.string().nullable().optional(),
   archive: z.boolean().optional(),
   restore: z.boolean().optional(),
 });
@@ -60,7 +64,18 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     // Ambition Engine P1 · the goal's declared stat links (if any) so
     // each enriched row can carry its resolved mastery stats for the
     // GoalBoard chips. Shallow select keeps the AppRouter type flat.
-    include: { statLinks: { select: { statKey: true, weight: true } } },
+    include: {
+      statLinks: { select: { statKey: true, weight: true } },
+      // Ambition Engine P3 · the compounding ladder — the parent this goal
+      // rolls into + its (alive) children, fetched per-goal so a horizon
+      // filter on the list never hides a cross-horizon ladder link.
+      parent: { select: { id: true, title: true, horizon: true } },
+      children: {
+        where: { deletedAt: null },
+        select: { id: true, title: true, progress: true, status: true, horizon: true },
+        orderBy: [{ status: "asc" }, { progress: "desc" }],
+      },
+    },
   });
 
   const goalIds = goals.map((g) => g.id);
@@ -150,8 +165,11 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
     // (declared GoalStat rows, else domain-inferred) for the card chips.
     // statLinks is pulled out of the spread so the raw relation doesn't
     // ride along in the payload — only the resolved `stats` does.
-    const { statLinks, ...goalRest } = g;
+    const { statLinks, parent, children, ...goalRest } = g;
     const stats = effectiveGoalStats(statLinks ?? [], g.domain);
+    // Defensive: a goal fetched without the ladder include (or a test mock)
+    // has no `children` relation — never assume it's an array.
+    const childList = Array.isArray(children) ? children : [];
     return {
       ...goalRest,
       progress: computedProgress,
@@ -168,6 +186,13 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
       stats,
+      // Ambition Engine P3 · ladder position for the card — parent breadcrumb
+      // + children with a rolled-up summary ("3 sub-goals · 2 done · 64% avg").
+      ladder: {
+        parent: parent ?? null,
+        children: childList,
+        rollup: rollUpChildren(childList),
+      },
     };
   });
 
@@ -237,6 +262,33 @@ export async function updateGoal(parsed: z.infer<typeof updateGoalSchema>) {
 
   if (rawData.deadline !== undefined) {
     data.deadline = rawData.deadline ? new Date(rawData.deadline) : null;
+  }
+
+  // Ambition Engine P3 · validate the ladder link before writing parentGoalId.
+  // null unlinks (no check). A non-null parent must exist (alive), not be self,
+  // not create a cycle, and not be a shorter horizon than this goal.
+  if (parsed.parentGoalId !== undefined && parsed.parentGoalId !== null) {
+    const pid = parsed.parentGoalId;
+    const all = await prisma.lifeGoal.findMany({
+      where: { deletedAt: null },
+      select: { id: true, horizon: true, parentGoalId: true },
+    });
+    if (!all.some((g) => g.id === pid)) throw new Error("Parent goal not found");
+    const verdict = validateParentLink({
+      goalId: id,
+      parentGoalId: pid,
+      horizonOf: new Map(all.map((g) => [g.id, g.horizon] as const)),
+      parentOf: new Map(all.map((g) => [g.id, g.parentGoalId] as const)),
+    });
+    if (!verdict.ok) {
+      throw new Error(
+        verdict.reason === "self"
+          ? "A goal cannot be its own parent"
+          : verdict.reason === "cycle"
+            ? "That link would create a goal-ladder cycle"
+            : "A goal's parent must be a higher or equal time horizon",
+      );
+    }
   }
 
   // 2026-05-27 · ghost-goal defense.
