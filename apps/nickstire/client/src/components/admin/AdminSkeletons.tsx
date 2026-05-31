@@ -24,6 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function SkeletonStatCard({ tall = false }: { tall?: boolean }) {
   return (
     <div
+      role="status"
+      aria-busy="true"
       className={[
         "p-3 lg:p-4 rounded-[1rem]",
         "bg-[var(--bg-card-raised)] ring-1 ring-[var(--ring-neutral)]",
@@ -31,9 +33,10 @@ export function SkeletonStatCard({ tall = false }: { tall?: boolean }) {
         tall ? "min-h-[112px]" : "min-h-[96px]",
       ].join(" ")}
     >
-      <Skeleton className="h-3 w-24 mb-3 bg-foreground/10" />
-      <Skeleton className="h-7 w-32 mb-2 bg-foreground/15" />
-      <Skeleton className="h-2.5 w-20 bg-foreground/8" />
+      <span className="sr-only">Loading…</span>
+      <Skeleton aria-hidden="true" className="h-3 w-24 mb-3 bg-foreground/10" />
+      <Skeleton aria-hidden="true" className="h-7 w-32 mb-2 bg-foreground/15" />
+      <Skeleton aria-hidden="true" className="h-2.5 w-20 bg-foreground/8" />
     </div>
   );
 }
@@ -56,10 +59,12 @@ export function SkeletonKpiGrid({ cols = 6 }: { cols?: 4 | 5 | 6 }) {
 /** Single table-row placeholder. */
 export function SkeletonRow({ cells = 4 }: { cells?: number }) {
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/20">
+    <div role="status" aria-busy="true" className="flex items-center gap-3 px-3 py-2.5 border-b border-border/20">
+      <span className="sr-only">Loading…</span>
       {Array.from({ length: cells }).map((_, i) => (
         <Skeleton
           key={i}
+          aria-hidden="true"
           className={`h-4 bg-foreground/10 ${
             i === 0 ? "w-32" : i === cells - 1 ? "w-16 ml-auto" : "w-24"
           }`}
@@ -72,8 +77,9 @@ export function SkeletonRow({ cells = 4 }: { cells?: number }) {
 /** A skeleton table — header row + N body rows. */
 export function SkeletonTable({ rows = 6, cells = 4 }: { rows?: number; cells?: number }) {
   return (
-    <div className="bg-card border border-border/30 rounded">
-      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/30 bg-foreground/[0.02]">
+    <div role="status" aria-busy="true" className="bg-card border border-border/30 rounded">
+      <span className="sr-only">Loading…</span>
+      <div className="flex items-center gap-3 px-3 py-2.5 border-b border-border/30 bg-foreground/[0.02]" aria-hidden="true">
         {Array.from({ length: cells }).map((_, i) => (
           <Skeleton
             key={i}
@@ -94,11 +100,14 @@ export function SkeletonTable({ rows = 6, cells = 4 }: { rows?: number; cells?: 
 export function SkeletonChart({ height = 240 }: { height?: number }) {
   return (
     <div
+      role="status"
+      aria-busy="true"
       className="w-full bg-[var(--bg-card-raised)] ring-1 ring-[var(--ring-neutral)] rounded-[1rem] p-4 flex flex-col gap-3"
       style={{ height }}
     >
-      <Skeleton className="h-4 w-32 bg-foreground/12" />
-      <div className="flex-1 flex items-end gap-2">
+      <span className="sr-only">Loading…</span>
+      <Skeleton aria-hidden="true" className="h-4 w-32 bg-foreground/12" />
+      <div className="flex-1 flex items-end gap-2" aria-hidden="true">
         {Array.from({ length: 12 }).map((_, i) => (
           <Skeleton
             key={i}
@@ -114,12 +123,13 @@ export function SkeletonChart({ height = 240 }: { height?: number }) {
 /** Panel wrapper skeleton — header + body. */
 export function SkeletonPanel({ rows = 4 }: { rows?: number }) {
   return (
-    <div className="bg-card border border-border/30 rounded">
-      <div className="flex items-center gap-3 p-4 border-b border-border/10">
+    <div role="status" aria-busy="true" className="bg-card border border-border/30 rounded">
+      <span className="sr-only">Loading…</span>
+      <div className="flex items-center gap-3 p-4 border-b border-border/10" aria-hidden="true">
         <Skeleton className="h-4 w-40 bg-foreground/12" />
         <Skeleton className="h-3 w-24 ml-auto bg-foreground/8" />
       </div>
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-3" aria-hidden="true">
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="flex items-center gap-3">
             <Skeleton className="w-8 h-8 rounded-full bg-foreground/10 shrink-0" />

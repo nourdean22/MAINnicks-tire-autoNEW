@@ -28,7 +28,7 @@ interface Props {
 export default function DegradedDataBanner({ stats }: Props) {
   if (!stats?._degraded) return null;
   return (
-    <div className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 flex items-start gap-3">
+    <div role="alert" className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 flex items-start gap-3">
       <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" aria-hidden />
       <div className="flex-1">
         <p className="font-semibold text-red-300 text-sm">Dashboard data is degraded</p>

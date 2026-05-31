@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { Search, Users, CalendarClock, Phone, X, LayoutDashboard, Zap, RefreshCw, Sparkles, AlertTriangle, DollarSign, Star, Crown, PhoneCall, FileText, Activity, Send, MessageSquare, RotateCcw, LayoutGrid } from "lucide-react";
 // wave-181.x Customers Phase 4 · additional icons used by the new
 // Customers Cmd+K shortcuts (Users · Crown · AlertTriangle reused).
@@ -84,6 +85,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const debouncedQuery = useDebounce(query, 300);
 
   // Fetch customers when query looks like a search
@@ -636,6 +638,10 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
     setSelectedIndex(-1);
   }, []);
 
+  // Trap Tab inside the palette + restore focus on close (WCAG 2.4.3).
+  // autoFocus disabled — the input already self-focuses (effect below).
+  useFocusTrap(overlayRef, open, { onEscape: close, autoFocus: false });
+
   const customers = customerResults?.customers || [];
   const hasResults = customers.length > 0 || matchingSections.length > 0 || matchingActions.length > 0;
 
@@ -704,7 +710,23 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
         <>
           <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50" onClick={close} />
           <div className="fixed top-[15%] left-1/2 -translate-x-1/2 z-50 w-full max-w-lg">
-            <div className="bg-card border border-border/30 shadow-2xl overflow-hidden">
+            <div
+              ref={overlayRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Command search"
+              className="bg-card border border-border/30 shadow-2xl overflow-hidden"
+            >
+              {/* SR-only status — announces result count as the operator types. */}
+              <div aria-live="polite" className="sr-only">
+                {query.length >= 1
+                  ? hasResults
+                    ? `${totalResults} result${totalResults === 1 ? "" : "s"}`
+                    : query.length >= 2
+                      ? "No results"
+                      : ""
+                  : ""}
+              </div>
               {/* Search input */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-border/20">
                 <Search className="w-4 h-4 text-foreground/40 shrink-0" />
@@ -713,6 +735,11 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder="Search customers, navigate sections..."
+                  role="combobox"
+                  aria-expanded={totalResults > 0}
+                  aria-controls="command-search-listbox"
+                  aria-activedescendant={selectedIndex >= 0 ? `cmd-opt-${selectedIndex}` : undefined}
+                  aria-autocomplete="list"
                   className="flex-1 bg-transparent text-sm text-foreground placeholder:text-foreground/30 outline-none"
                 />
                 {query && (
@@ -724,7 +751,7 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
 
               {/* Results */}
               {query.length >= 1 && (
-                <div className="max-h-[50vh] overflow-y-auto">
+                <div role="listbox" id="command-search-listbox" className="max-h-[50vh] overflow-y-auto">
                   {/* Section shortcuts */}
                   {matchingSections.length > 0 && (
                     <div className="px-2 py-2">
@@ -732,6 +759,9 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                       {matchingSections.map((s, i) => (
                         <button
                           key={s.id}
+                          role="option"
+                          id={`cmd-opt-${i}`}
+                          aria-selected={selectedIndex === i}
                           onClick={() => { onNavigate(s.id); close(); }}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors ${
                             selectedIndex === i ? "bg-primary/15 text-primary" : "hover:bg-primary/10"
@@ -756,6 +786,9 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                         return (
                           <button
                             key={a.id}
+                            role="option"
+                            id={`cmd-opt-${idx}`}
+                            aria-selected={selectedIndex === idx}
                             onClick={() => { void a.run(); close(); }}
                             disabled={isPending}
                             className={`w-full flex items-center gap-3 px-3 py-2.5 text-left text-sm text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -775,12 +808,17 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                   {customers.length > 0 && (
                     <div className="px-2 py-2 border-t border-border/10">
                       <div className="px-2 py-1 text-[10px] font-semibold text-foreground/40 tracking-wider uppercase">Customers</div>
-                      {customers.map((c: any, ci: number) => (
+                      {customers.map((c: any, ci: number) => {
+                        const idx = matchingSections.length + matchingActions.length + ci;
+                        return (
                         <button
                           key={c.id}
+                          role="option"
+                          id={`cmd-opt-${idx}`}
+                          aria-selected={selectedIndex === idx}
                           onClick={() => { onSelectCustomer(c.id); close(); }}
                           className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors group ${
-                            selectedIndex === matchingSections.length + matchingActions.length + ci ? "bg-primary/15" : "hover:bg-primary/10"
+                            selectedIndex === idx ? "bg-primary/15" : "hover:bg-primary/10"
                           }`}
                         >
                           <Users className="w-4 h-4 text-foreground/40 group-hover:text-primary" />
@@ -793,7 +831,8 @@ export function CommandSearch({ onNavigate, onSelectCustomer }: Props) {
                             </span>
                           </div>
                         </button>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 

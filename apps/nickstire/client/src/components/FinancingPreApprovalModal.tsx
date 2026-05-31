@@ -5,10 +5,11 @@
  * Server-side handles SMS confirmation + Telegram alert.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useRef } from "react";
 import { X, CreditCard, CheckCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { BUSINESS } from "@shared/business";
 
 interface FinancingPreApprovalModalProps {
@@ -22,6 +23,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
   const [email, setEmail] = useState("");
   const [amount, setAmount] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const submitMutation = trpc.lead.submit.useMutation({
     onSuccess: () => {
@@ -60,17 +62,10 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
     onClose();
   }, [onClose]);
 
-  // wave-144 — a11y: Escape closes the modal (WCAG 2.1 keyboard
-  // operability). Combined with role="dialog" + aria-modal="true"
-  // below, this brings the modal to WCAG 2.1 Level A.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, handleClose]);
+  // wave-144 + a11y hardening — focus trap + Escape + autofocus + focus-restore
+  // via useFocusTrap (replaces the hand-rolled Esc listener). Combined with
+  // role="dialog" + aria-modal="true" below, this brings the modal to WCAG 2.1.
+  useFocusTrap(dialogRef, open, { onEscape: handleClose });
 
   return (
     <AnimatePresence>
@@ -96,7 +91,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
             aria-labelledby="financing-modal-title"
             className="fixed inset-0 flex items-center justify-center z-50 p-4"
           >
-            <div className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div ref={dialogRef} className="bg-[#1A1A1A] border border-[#2A2A2A] rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
               {/* Header */}
               <div className="bg-gradient-to-r from-[#FDB913]/20 to-transparent px-6 py-5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -115,7 +110,7 @@ export default function FinancingPreApprovalModal({ open, onClose }: FinancingPr
                   className="text-white/40 hover:text-white/70 focus-visible:text-white focus-visible:ring-2 focus-visible:ring-[#FDB913]/50 focus-visible:outline-none rounded-md p-1 -mr-1 transition-colors"
                   aria-label="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5" aria-hidden="true" />
                 </button>
               </div>
 

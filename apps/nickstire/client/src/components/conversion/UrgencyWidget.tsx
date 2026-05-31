@@ -21,6 +21,7 @@ import { Clock, X, Phone, Check, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "urgency-widget-dismissed-until";
@@ -31,6 +32,7 @@ const DISMISS_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 const SUPPRESS_PATHS = ["/admin", "/booking", "/contact"];
 
 export default function UrgencyWidget() {
+  const reduced = useReducedMotion();
   const [location] = useLocation();
   const [visible, setVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -127,10 +129,10 @@ export default function UrgencyWidget() {
       <AnimatePresence>
         {visible && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.95 }}
+            initial={reduced ? false : { opacity: 0, y: 50, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 50, scale: 0.95 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            exit={reduced ? { opacity: 0 } : { opacity: 0, y: 50, scale: 0.95 }}
+            transition={reduced ? { duration: 0 } : { duration: 0.35, ease: "easeOut" }}
             onMouseEnter={() => setCollapsed(false)}
             className="fixed bottom-4 right-4 z-50 max-w-sm shadow-2xl"
           >
@@ -150,7 +152,7 @@ export default function UrgencyWidget() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/60" />
+                      <span className={`absolute inline-flex h-full w-full ${reduced ? "" : "animate-ping"} rounded-full bg-emerald-400/60`} />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
                     </span>
                     <span className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase">Live</span>

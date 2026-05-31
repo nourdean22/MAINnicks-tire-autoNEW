@@ -18,7 +18,7 @@
  * cache invalidates, the next chat request picks up the new value.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useId } from "react";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "@/components/ui/glass-card";
 import { ConfirmHold } from "@/components/ui/confirm-hold";
@@ -398,6 +398,7 @@ export function AiSettingsPanel() {
             value={disabledTool}
             onChange={(e) => setDisabledTool(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addDisabledTool()}
+            aria-label="Tool name to add to blocklist"
             placeholder="e.g. generateImage"
             className="flex-1 h-8 px-2 bg-[var(--bg-elevated)] border border-[var(--border-default)] rounded text-[11px] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] focus:border-[var(--gold)]/40 outline-none font-mono"
           />
@@ -437,10 +438,15 @@ export function AiSettingsPanel() {
 // ── Helper components ──
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  // a11y (WCAG 1.3.1/4.1.2): controls here are heterogeneous (button groups,
+  // role=switch toggles, native range/select). A single htmlFor can't name a
+  // button group, so we give the label an id and expose the control container
+  // as a named group via aria-labelledby — every control inherits the name.
+  const labelId = useId();
   return (
     <div className="flex items-center justify-between py-2 border-b border-[var(--border-default)]/40 last:border-b-0">
-      <span className="text-[11px] text-[var(--text-secondary)]">{label}</span>
-      <div className="flex items-center gap-2">{children}</div>
+      <label id={labelId} className="text-[11px] text-[var(--text-secondary)]">{label}</label>
+      <div role="group" aria-labelledby={labelId} className="flex items-center gap-2">{children}</div>
     </div>
   );
 }

@@ -18,12 +18,13 @@
  * promise is verifiable + matches the booking-page promise (single
  * source of truth for the brand commitment).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertTriangle, X, Phone, Check, Loader2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { BUSINESS } from "@shared/business";
 
 const STORAGE_KEY = "exit-intent-shown-until";
@@ -35,6 +36,7 @@ export default function ExitIntentModal() {
   const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const submit = trpc.callback.submit.useMutation({
     onSuccess: () => {
@@ -89,6 +91,10 @@ export default function ExitIntentModal() {
     setOpen(false);
   }
 
+  // a11y: trap focus inside the dialog + Escape closes + restore focus on close.
+  // autoFocus:false — the phone input already has autoFocus; don't fight it.
+  useFocusTrap(dialogRef, open, { onEscape: dismiss, autoFocus: false });
+
   return (
     <AnimatePresence>
       {open && (
@@ -100,11 +106,15 @@ export default function ExitIntentModal() {
           onClick={dismiss}
         >
           <motion.div
+            ref={dialogRef}
             initial={{ scale: 0.92, y: 20 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.92, y: 20 }}
             transition={{ duration: 0.25 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="exit-intent-title"
             className="relative max-w-md w-full rounded-lg border border-red-500/40 bg-card p-6 shadow-2xl ring-1 ring-red-500/20"
           >
             <button
@@ -112,7 +122,7 @@ export default function ExitIntentModal() {
               aria-label="Close"
               className="absolute top-3 right-3 text-foreground/40 hover:text-foreground/70 transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
 
             <div className="flex items-center gap-2 mb-3">
@@ -120,7 +130,7 @@ export default function ExitIntentModal() {
               <span className="text-[10px] font-bold tracking-wider text-red-400 uppercase">Wait</span>
             </div>
 
-            <h2 className="font-bold text-2xl text-foreground tracking-tight mb-2">
+            <h2 id="exit-intent-title" className="font-bold text-2xl text-foreground tracking-tight mb-2">
               Don't break down before you fix it.
             </h2>
 

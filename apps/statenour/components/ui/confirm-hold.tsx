@@ -84,6 +84,22 @@ export function ConfirmHold({
     rafRef.current = requestAnimationFrame(tick);
   }, [disabled, holdMs, onConfirm, stopLoop]);
 
+  // Keyboard path (WCAG 2.1.1) — a timed "hold" has no keyboard analog,
+  // so Enter/Space confirm immediately. Space gets preventDefault to
+  // stop the default button click from firing a second confirm.
+  const onKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (disabled) return;
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        cancel();
+        haptic.success();
+        onConfirm();
+      }
+    },
+    [disabled, cancel, onConfirm],
+  );
+
   const colorMap = {
     default: {
       border: "border-[var(--border-default)]",
@@ -115,6 +131,7 @@ export function ConfirmHold({
       onPointerUp={cancel}
       onPointerLeave={cancel}
       onPointerCancel={cancel}
+      onKeyDown={onKeyDown}
       disabled={disabled}
       className={cn(
         "relative flex items-center gap-2 h-9 px-3 rounded-md border text-[11px] font-bold uppercase tracking-wider transition-all select-none touch-none",

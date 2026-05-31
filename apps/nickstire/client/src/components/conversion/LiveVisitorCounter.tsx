@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Eye } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 interface Props {
   /** Minimum count to display. Below this, the component hides. Default 3. */
@@ -36,6 +37,7 @@ export default function LiveVisitorCounter({
   className = "",
   geoLabel = "in Cleveland",
 }: Props) {
+  const reduced = useReducedMotion();
   const { data } = trpc.conversion.liveSessions.useQuery(undefined, {
     refetchInterval: 30_000,
     staleTime: 25_000,
@@ -61,14 +63,14 @@ export default function LiveVisitorCounter({
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 4 }}
+      initial={reduced ? false : { opacity: 0, y: 4 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
+      transition={reduced ? { duration: 0 } : { duration: 0.4 }}
       className={`inline-flex items-center gap-2 text-[11px] font-medium text-foreground/60 ${className}`}
       aria-live="polite"
     >
       <span className="relative flex h-1.5 w-1.5">
-        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400/40" />
+        <span className={`absolute inline-flex h-full w-full ${reduced ? "" : "animate-ping"} rounded-full bg-emerald-400/40`} />
         <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
       </span>
       <Eye className="w-3 h-3 text-foreground/40" />

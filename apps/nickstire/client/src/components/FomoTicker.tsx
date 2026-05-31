@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { X, Star, Clock, Wrench, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 // ── Data ─────────────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ function getIcon(type: FomoEntry["type"]) {
 // ── Component ────────────────────────────────────────────────────────
 
 export default function FomoTicker() {
+  const reduced = useReducedMotion();
   const [currentEntry, setCurrentEntry] = useState<FomoEntry | null>(null);
   const [visible, setVisible] = useState(false);
   const [dismissed, setDismissed] = useState(false);
@@ -183,10 +185,10 @@ export default function FomoTicker() {
     <AnimatePresence>
       {visible && currentEntry && !shouldHide && (
         <motion.div
-          initial={{ y: 80, opacity: 0 }}
+          initial={reduced ? false : { y: 80, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          exit={{ y: 80, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          exit={reduced ? { opacity: 0 } : { y: 80, opacity: 0 }}
+          transition={reduced ? { duration: 0 } : { type: "spring", stiffness: 400, damping: 30 }}
           style={{
             position: "fixed",
             bottom: 20,

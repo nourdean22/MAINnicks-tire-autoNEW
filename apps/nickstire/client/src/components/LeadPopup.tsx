@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { X, Phone, AlertTriangle, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { trpc } from "@/lib/trpc";
+import { useFocusTrap } from "@/hooks/useFocusTrap";
 import { trackLeadSubmission, getUserDataForCAPI } from "@/lib/metaPixel";
 import { getUtmData } from "@/lib/utm";
 import { BUSINESS } from "@shared/business";
@@ -37,6 +38,7 @@ export default function LeadPopup() {
 
   // Track how long the user has been on the page
   const mountTimeRef = useRef(Date.now());
+  const dialogRef = useRef<HTMLDivElement | null>(null);
 
   const submitLead = trpc.lead.submit.useMutation({
     onSuccess: () => setSubmitted(true),
@@ -128,17 +130,10 @@ export default function LeadPopup() {
     };
   }, [show]);
 
-  // wave-144 — Escape closes the popup (WCAG 2.1 keyboard operability).
-  // Combined with role="dialog" + aria-modal="true" on the container
-  // below, the popup now satisfies WCAG 2.1 Level A.
-  useEffect(() => {
-    if (!visible) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") dismiss();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [visible, dismiss]);
+  // wave-144 + a11y hardening — focus trap + Escape + autofocus + focus-restore
+  // via useFocusTrap. Combined with role="dialog" + aria-modal="true" on the
+  // container below, the popup satisfies WCAG 2.1 keyboard operability.
+  useFocusTrap(dialogRef, visible, { onEscape: dismiss });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -184,6 +179,7 @@ export default function LeadPopup() {
 
           {/* Popup */}
           <motion.div
+            ref={dialogRef}
             initial={{ scale: 0.95, y: 16 }}
             animate={{ scale: 1, y: 0 }}
             exit={{ scale: 0.95, y: 16 }}
@@ -204,7 +200,7 @@ export default function LeadPopup() {
                 className="text-foreground/50 hover:text-foreground focus-visible:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:outline-none rounded-md p-1 transition-colors"
                 aria-label="Close popup"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
 

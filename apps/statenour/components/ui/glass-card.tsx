@@ -86,9 +86,31 @@ export function GlassCard(props: GlassCardProps) {
     );
   }
 
-  return (
-    <div onClick={props.onClick} className={classes}>
-      {children}
-    </div>
-  );
+  // Default div branch. A bare <div onClick> is a keyboard- and
+  // screen-reader-invisible trap, so when an onClick is supplied we
+  // promote the div to a real button role: focusable (tabIndex 0) and
+  // operable via Enter/Space (Space gets preventDefault to stop the
+  // page from scrolling). Without an onClick it stays a plain,
+  // non-interactive container — no spurious role/tabindex.
+  if (props.onClick) {
+    const onClick = props.onClick;
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            if (e.key === " ") e.preventDefault();
+            onClick();
+          }
+        }}
+        className={classes}
+      >
+        {children}
+      </div>
+    );
+  }
+
+  return <div className={classes}>{children}</div>;
 }
