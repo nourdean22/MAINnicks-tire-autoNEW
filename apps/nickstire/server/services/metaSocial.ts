@@ -23,8 +23,17 @@ const log = createLogger("meta-social");
 const API_VERSION = "v25.0";
 const GRAPH_URL = `https://graph.facebook.com/${API_VERSION}`;
 
+// Runtime Page token — set by reconnectMetaFromUserToken() after a
+// server-side token exchange. Takes precedence over the env var so a
+// freshly-minted token works immediately, without waiting on a redeploy.
+let runtimePageToken: string | null = null;
+
+export function setRuntimePageToken(token: string): void {
+  runtimePageToken = token;
+}
+
 function getPageToken(): string | null {
-  return process.env.META_PAGE_ACCESS_TOKEN || process.env.FB_PAGE_ACCESS_TOKEN || null;
+  return runtimePageToken || process.env.META_PAGE_ACCESS_TOKEN || process.env.FB_PAGE_ACCESS_TOKEN || null;
 }
 
 function getPageId(): string | null {
@@ -68,6 +77,75 @@ export async function getMetaSocialStatus(): Promise<{
     igUserId,
     error: null,
   };
+}
+
+// ─── Token Reconnect (User token → never-expiring Page token) ───
+
+/**
+ * Mint a never-expiring Page access token from a freshly-generated
+ * (short-lived) User access token — e.g. one created in the Graph API
+ * Explorer with pages_manage_posts + instagram_content_publish.
+ *
+ * Runs server-side because graph.facebook.com is reachable from Railway
+ * (it is DNS-blocked on the operator's local machine). Two steps:
+ *   1. short-lived user token → long-lived user token (60d) via
+ *      fb_exchange_token (needs META_APP_ID + META_APP_SECRET).
+ *   2. long-lived user token → Page token for META_PAGE_ID. Page tokens
+ *      derived from a long-lived user token do not expire.
+ *
+ * On success the Page token is cached in-process (setRuntimePageToken)
+ * so postToFacebook / postToInstagram work immediately. The caller may
+ * also persist it to META_PAGE_ACCESS_TOKEN for cross-restart durability.
+ */
+export async function reconnectMetaFromUserToken(userToken: string): Promise<{
+  ok: boolean;
+  pageToken?: string;
+  error?: string;
+}> {
+  const appId = process.env.META_APP_ID;
+  const appSecret = process.env.META_APP_SECRET || process.env.FB_APP_SECRET;
+  const pageId = getPageId();
+
+  if (!appId || !appSecret) return { ok: false, error: "META_APP_ID / META_APP_SECRET not set" };
+  if (!pageId) return { ok: false, error: "META_PAGE_ID not set" };
+
+  try {
+    // Step 1 — exchange short-lived user token for a long-lived one.
+    const exchangeUrl =
+      `${GRAPH_URL}/oauth/access_token?grant_type=fb_exchange_token` +
+      `&client_id=${encodeURIComponent(appId)}` +
+      `&client_secret=${encodeURIComponent(appSecret)}` +
+      `&fb_exchange_token=${encodeURIComponent(userToken)}`;
+    const llRes = await fetch(exchangeUrl, { signal: AbortSignal.timeout(15000) });
+    const llData = await llRes.json();
+    if (!llRes.ok || !llData.access_token) {
+      const errMsg = llData?.error?.message || `long-lived exchange failed: HTTP ${llRes.status}`;
+      log.error("Meta long-lived exchange failed:", { error: errMsg });
+      return { ok: false, error: errMsg };
+    }
+    const longLivedUserToken: string = llData.access_token;
+
+    // Step 2 — fetch the Page access token (non-expiring) for our page.
+    const pageRes = await fetch(
+      `${GRAPH_URL}/${pageId}?fields=access_token&access_token=${encodeURIComponent(longLivedUserToken)}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    const pageData = await pageRes.json();
+    if (!pageRes.ok || !pageData.access_token) {
+      const errMsg = pageData?.error?.message || `page token fetch failed: HTTP ${pageRes.status}`;
+      log.error("Meta page token fetch failed:", { error: errMsg });
+      return { ok: false, error: errMsg };
+    }
+
+    const pageToken: string = pageData.access_token;
+    setRuntimePageToken(pageToken);
+    log.info("Meta page token reconnected (never-expiring) for page", { pageId });
+    return { ok: true, pageToken };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    log.error("Meta reconnect error:", { error: errMsg });
+    return { ok: false, error: errMsg };
+  }
 }
 
 // ─── Facebook Page Post ───────────────────────────────
