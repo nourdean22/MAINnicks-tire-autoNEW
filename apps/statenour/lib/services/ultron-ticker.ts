@@ -94,33 +94,11 @@ async function fetchStooqQuote(
   }
 }
 
-// AP headline fallbacks — deliberately hardcoded seed items so the
-// ticker is never empty. Each is X-dismissable from the client via
-// the useDismissedTicker hook.
-export const STATIC_MACRO: TickerItem[] = [
-  {
-    id: "macro-fed",
-    category: BRAIN_CATEGORIES.MACRO,
-    label: "Fed holds rates — watching CPI print next week",
-    href: "https://www.federalreserve.gov/monetarypolicy.htm",
-  },
-  {
-    id: "macro-autos",
-    category: BRAIN_CATEGORIES.INDUSTRY,
-    label: "Auto lease originations +6% YoY — demand softening",
-    href: "https://www.autonews.com/",
-  },
-  {
-    id: "macro-tires",
-    category: BRAIN_CATEGORIES.INDUSTRY,
-    label: "Tire futures ▼ 2% on Q2 import data",
-  },
-  {
-    id: "local-weather",
-    category: BRAIN_CATEGORIES.LOCAL,
-    label: "Ontario snow advisory Thursday — morning rush impact",
-  },
-];
+// STATIC_MACRO removed 2026-05-31 — was 4 hardcoded fake macro/weather
+// headlines ("Fed holds rates next week", "Tire futures ▼2% Q2", "Ontario
+// snow advisory Thursday", …) that never updated. Real market data is live
+// from Stooq above; the empty-feed case is handled by the softError below.
+export const STATIC_MACRO: TickerItem[] = [];
 
 function timelineToTickerItem(t: Timeline): TickerItem {
   return {
@@ -544,7 +522,6 @@ export async function buildTickerFeed(): Promise<TickerPayload> {
       brainItems,
       timelineItems,
       marketItems,
-      STATIC_MACRO,
       shopItems,
     );
 
