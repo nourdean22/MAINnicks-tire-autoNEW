@@ -138,6 +138,72 @@ export async function createTireOrderCheckout(params: {
 }
 
 /**
+ * Create a Stripe Checkout Session for the Nonstop Nick membership
+ * ($7.99/mo subscription · chunk 3/5).
+ *
+ * mode: "subscription" — recurring billing. Unlike the one-time tire-order
+ * checkout, this needs a Stripe PRICE object (the $7.99/mo recurring price),
+ * created once in the Stripe dashboard and supplied via STRIPE_NONSTOP_NICK_PRICE_ID.
+ * Until that env var is set the function returns the call-us fallback, so the
+ * page's Join button degrades honestly to "call/walk in to sign up" rather than
+ * erroring.
+ *
+ * On success Stripe fires `checkout.session.completed` + `customer.subscription.created`
+ * (handled by the Stripe webhook in chunk 4), which inserts/activates the
+ * memberships row. The phone is collected on the page and passed as metadata so
+ * the webhook can bind the membership to the right person.
+ */
+export async function createMembershipCheckout(params: {
+  phone: string;
+  customerEmail?: string;
+  customerName?: string;
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ url: string; sessionId: string } | { error: string }> {
+  const stripe = await getStripe();
+  if (!stripe) {
+    return { error: "Membership signup isn't online yet — call or text (216) 862-0005, or ask at the counter." };
+  }
+  const priceId = process.env.STRIPE_NONSTOP_NICK_PRICE_ID;
+  if (!priceId) {
+    // Price object not created yet — degrade honestly to the in-person path.
+    return { error: "Membership signup isn't online yet — call or text (216) 862-0005, or ask at the counter." };
+  }
+
+  // Phone is the counter's lookup key — carry it on both the session and the
+  // subscription so the chunk-4 webhook can bind the membership row to it.
+  const metadata = {
+    plan: "nonstop-nick",
+    phone: params.phone,
+    customerName: params.customerName || "",
+    source: "nickstire.org",
+  };
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      line_items: [{ price: priceId, quantity: 1 }],
+      customer_email: params.customerEmail || undefined,
+      client_reference_id: params.phone,
+      metadata,
+      subscription_data: { metadata },
+      success_url: params.successUrl,
+      cancel_url: params.cancelUrl,
+      allow_promotion_codes: true,
+    });
+
+    if (!session.url) return { error: "Membership signup failed — Stripe returned no checkout URL." };
+
+    log.info(`Nonstop Nick checkout ${session.id} created for ${params.phone}`);
+    return { url: session.url, sessionId: session.id };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    log.error("Membership checkout creation failed:", { error: msg });
+    return { error: `Membership signup failed: ${msg}` };
+  }
+}
+
+/**
  * Retrieve a Stripe Checkout Session's payment status. Used by the
  * confirm-on-return fallback (gatewayTire.confirmCheckout) so a paid
  * order is never stuck "unpaid" if the webhook is slow or misconfigured.

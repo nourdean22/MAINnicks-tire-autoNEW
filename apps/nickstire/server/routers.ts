@@ -87,6 +87,7 @@ import {
 import { voiceAgentRouter } from "./routers/voiceAgent";
 import { vapiRouter } from "./routers/vapi";
 import { closedLoopRouter } from "./routers/closedLoop";
+import { membershipsRouter } from "./routers/memberships";
 
 export const appRouter = router({
   system: systemRouter,
@@ -205,6 +206,9 @@ export const appRouter = router({
 
   // Feature Flags (admin toggle)
   featureFlags: featureFlagsRouter,
+
+  // Nonstop Nick membership — public signup + admin counter-lookup
+  memberships: membershipsRouter,
 
   // Intelligence Engines (forecast, cross-sell, lead scoring, attribution, LTV, data analyzers)
   intelligence: intelligenceRouter,

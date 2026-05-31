@@ -1335,6 +1335,74 @@ ${urls.join("\n")}
         }
       }
 
+      // ─── Nonstop Nick membership (chunk 4/5) ─────────────
+      // Subscription lifecycle → memberships.status. The subscription carries
+      // our metadata (plan:"nonstop-nick", phone) set in createMembershipCheckout,
+      // so we bind the row to the member's phone. Upsert by stripeSubscriptionId
+      // (unique) so Stripe retries are idempotent — second delivery of the same
+      // event changes the same row to the same state, no duplicate membership.
+      if (
+        event.type === "customer.subscription.created" ||
+        event.type === "customer.subscription.updated" ||
+        event.type === "customer.subscription.deleted"
+      ) {
+        const sub = event.data.object as any;
+        if (sub.metadata?.plan === "nonstop-nick") {
+          const { getDb } = await import("../db");
+          const { memberships } = await import("../../drizzle/schema");
+          const { eq } = await import("drizzle-orm");
+          const d = await getDb();
+          if (d) {
+            // Map Stripe status → our enum. "active"/"trialing" = active;
+            // "past_due"/"unpaid" = past_due (grace); "canceled" = canceled;
+            // anything else (incomplete/incomplete_expired) = incomplete.
+            const stripeStatus = String(sub.status);
+            const status: "active" | "past_due" | "canceled" | "incomplete" =
+              event.type === "customer.subscription.deleted" ? "canceled"
+              : stripeStatus === "active" || stripeStatus === "trialing" ? "active"
+              : stripeStatus === "past_due" || stripeStatus === "unpaid" ? "past_due"
+              : stripeStatus === "canceled" ? "canceled"
+              : "incomplete";
+            const periodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+            const phone = String(sub.metadata?.phone || "").replace(/\D/g, "").slice(-10);
+
+            // Upsert by the unique stripeSubscriptionId. Try update first; if no
+            // row exists yet (created event arriving before any row), insert.
+            const updated = await d.update(memberships)
+              .set({
+                status,
+                currentPeriodEnd: periodEnd,
+                canceledAt: status === "canceled" ? new Date() : null,
+                stripeCustomerId: sub.customer ? String(sub.customer) : undefined,
+                ...(phone ? { phone } : {}),
+              })
+              .where(eq(memberships.stripeSubscriptionId, String(sub.id)));
+            const affected = (updated as unknown as { affectedRows?: number; rowsAffected?: number })?.affectedRows
+              ?? (updated as unknown as { affectedRows?: number; rowsAffected?: number })?.rowsAffected ?? 0;
+
+            if (affected === 0 && phone) {
+              // No existing row — first time we've seen this subscription. Insert.
+              await d.insert(memberships).values({
+                plan: "nonstop-nick",
+                phone,
+                name: sub.metadata?.customerName || null,
+                status,
+                stripeCustomerId: sub.customer ? String(sub.customer) : null,
+                stripeSubscriptionId: String(sub.id),
+                currentPeriodEnd: periodEnd,
+              }).catch((e: unknown) => {
+                // Unique-key race (two events landed at once) → the other write
+                // won; safe to ignore. Anything else, log.
+                serverLog.warn(`[Stripe Webhook] membership insert skipped (likely race): ${e instanceof Error ? e.message : String(e)}`);
+              });
+              serverLog.info(`[Stripe Webhook] Nonstop Nick membership created for ${phone} — ${status}`);
+            } else {
+              serverLog.info(`[Stripe Webhook] Nonstop Nick membership ${sub.id} → ${status} (affected=${affected})`);
+            }
+          }
+        }
+      }
+
       res.sendStatus(200);
     } catch (err) {
       serverLog.error("[Stripe Webhook] Verification failed:", { error: err instanceof Error ? err.message : String(err) });
