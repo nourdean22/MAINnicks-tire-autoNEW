@@ -20,6 +20,7 @@
  */
 import { requireSession } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
+import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -83,7 +84,11 @@ export async function POST(req: Request) {
   }
 
   // Record as applied so `migrate deploy` never re-runs it (drift-safe).
-  await prisma
+  // If this tracking insert fails the DDL is still applied (it already ran
+  // above) but Prisma has no record of it — surface that via a logged warning
+  // + a `migrationRecorded` flag in the response rather than swallowing it,
+  // so the operator can tell an un-tracked apply from a clean one.
+  const migrationRecorded = await prisma
     .$executeRawUnsafe(
       `INSERT INTO _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
        VALUES (gen_random_uuid()::text, $1, NOW(), $2, NULL, NULL, NOW(), 1)
@@ -91,7 +96,14 @@ export async function POST(req: Request) {
       `manual-endpoint-${name}`,
       name,
     )
-    .catch(() => {});
+    .then(() => true)
+    .catch((err) => {
+      logger.warn("apply_migration_tracking_insert_failed", {
+        name,
+        error: err instanceof Error ? err.message.slice(0, 120) : String(err),
+      });
+      return false;
+    });
 
   // Verify (only meaningful for the ambition migration, harmless otherwise).
   let verify: Record<string, unknown> = {};
@@ -109,5 +121,5 @@ export async function POST(req: Request) {
     /* verify is best-effort */
   }
 
-  return Response.json({ applied: true, name, results, verify });
+  return Response.json({ applied: true, name, results, verify, migrationRecorded });
 }
