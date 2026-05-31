@@ -582,6 +582,13 @@ export async function handleRunMigrations() {
       // page covers all real-world GSC values (queries are short ·
       // pages are URLs typically <300 chars on this site).
       `ALTER TABLE search_performance ADD UNIQUE KEY IF NOT EXISTS uq_search_perf_date_query_page (date, query(255), page(500))`,
+      // 2026-05-30 · drizzle/0063_nonstop_nick_memberships.sql — Nonstop Nick
+      // $7.99/mo tire membership. status mirrors the Stripe subscription (set by
+      // the /api/webhooks/stripe subscription handler) so the counter verifies a
+      // member by phone WITHOUT a live Stripe call. Indexes: phone+status (counter
+      // lookup), unique stripeSubscriptionId (idempotent webhook upsert).
+      // Inlined here so it applies via the runMigrations admin tRPC (Chrome path).
+      `CREATE TABLE IF NOT EXISTS memberships (id INT AUTO_INCREMENT PRIMARY KEY, plan VARCHAR(64) NOT NULL DEFAULT 'nonstop-nick', phone VARCHAR(20) NOT NULL, name VARCHAR(255) NULL, email VARCHAR(320) NULL, vehiclePlate VARCHAR(16) NULL, vehicleDesc VARCHAR(255) NULL, status ENUM('active','past_due','canceled','incomplete') NOT NULL DEFAULT 'incomplete', stripeCustomerId VARCHAR(64) NULL, stripeSubscriptionId VARCHAR(64) NULL, currentPeriodEnd TIMESTAMP NULL, canceledAt TIMESTAMP NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_membership_phone (phone), INDEX idx_membership_status (status), UNIQUE KEY uq_membership_stripe_sub (stripeSubscriptionId))`,
     ];
 
     let applied = 0;
