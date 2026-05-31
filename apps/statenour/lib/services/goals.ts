@@ -3,6 +3,7 @@ import { emitGoalEventAsync } from "@/lib/brain/goal-events";
 import { emitGoalTransition } from "@/lib/db/brain-bus-emit";
 import { softDelete, activeOnly } from "@/lib/db/soft-delete";
 import { logCreate, logUpdate, stripNoise } from "@/lib/db/entity-audit";
+import { effectiveGoalStats } from "@/lib/mastery/goal-stats";
 import { z } from "zod";
 
 export const HORIZON_VALUES = ["DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "LIFE"] as const;
@@ -56,6 +57,10 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
   const goals = await prisma.lifeGoal.findMany({
     where,
     orderBy: [{ status: "asc" }, { progress: "desc" }],
+    // Ambition Engine P1 · the goal's declared stat links (if any) so
+    // each enriched row can carry its resolved mastery stats for the
+    // GoalBoard chips. Shallow select keeps the AppRouter type flat.
+    include: { statLinks: { select: { statKey: true, weight: true } } },
   });
 
   const goalIds = goals.map((g) => g.id);
@@ -141,8 +146,14 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           return ad - bd;
         })[0] ?? null;
 
+    // Ambition Engine P1 · resolve the mastery stats this goal levels
+    // (declared GoalStat rows, else domain-inferred) for the card chips.
+    // statLinks is pulled out of the spread so the raw relation doesn't
+    // ride along in the payload — only the resolved `stats` does.
+    const { statLinks, ...goalRest } = g;
+    const stats = effectiveGoalStats(statLinks ?? [], g.domain);
     return {
-      ...g,
+      ...goalRest,
       progress: computedProgress,
       linkedTaskCount: total,
       linkedDoneCount: done,
@@ -156,6 +167,7 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
           }
         : null,
       loopsThisWeek: weeklyCompletes.get(g.id) ?? 0,
+      stats,
     };
   });
 

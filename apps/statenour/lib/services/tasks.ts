@@ -14,6 +14,7 @@ import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
+import { creditGoalStatsForTask } from "@/lib/mastery/goal-stats";
 import { isProjectPlanData, type ProjectPlanData, type ProjectStep } from "@/lib/ai/project-plan";
 import { invalidate } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
@@ -772,6 +773,14 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
     select: { id: true, currentValue: true, targetValue: true, status: true, achievedAt: true },
   });
   if (!goal) return;
+
+  // Ambition Engine P1 · credit the goal's mastery stats for this rep.
+  // Idempotent (sourceKey goal-task:<taskId>:<stat>) so the double-fire
+  // path — the chat-auto-complete fallback in persist-user-turn also
+  // calls this — never double-credits; fires whether or not the goal is
+  // already achieved (the rep still exercised the stat). Never throws.
+  await creditGoalStatsForTask(taskId, goalId);
+
   // Already done? Skip the lift but still log the event so the
   // brain layer sees the linked-task activity.
   if (goal.status === "achieved") {
