@@ -20,3 +20,5 @@ export {
   journalConvergenceScan,
   journalThreadDormancy,
 } from "./journal-convergence";
+// 2026-05-31 · revived feeder (was deleted in Wave AE; starved recallIndustryIntel).
+export { industryPull } from "./industry-pull";
