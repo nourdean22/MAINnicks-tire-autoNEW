@@ -1,6 +1,83 @@
 # Reconciliation · statenour-os
 
-**Last verified:** 2026-05-30 (post the **Stats-consolidation + tech-debt** wave · /scoreboard+/goals → ONE personal `/stats` (business stripped to nickstire admin per operator) · 13 stale `/goals` links retargeted · 4 pre-existing test failures fixed (suite **2875/2875**) · tech-debt wave: Inngest double-fire guard + revived dead stale-leads alert (→ `leads_urgent`) + dead `/mastery` nav removed · 6 commits `a695c174 → 25e31b0a` on origin/main · gates green. **PRIOR:** post Wave Z · recall-freshness fix + dead-lane sweep + retro→journal · 4 commits `d535550c → b48c6e8a` · write-time `embedding_vec_1536` dual-write closes an up-to-7-day chat-recall staleness gap · prod backfill padded 1,599 rows · +5 `CONTEXT_CATEGORIES` recall lanes · `mission_retro` now a 5th `/journal` source · ADR-0023 · 6 "Sam plan" items verified already-built + `decision→goals` migration rejected · gates green. **PRIOR:** post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+**Last verified:** 2026-05-31 (post the **Bridge-contract sweep + Ambition Engine P1** wave · closed the dead-bridge-query class — `jobs_today`×2 · `pending_callbacks_count` · `customer_search` remapped to live nickstire handlers + a `nick-bridge-query-contract` CI guard so it can't recur · budget gate fail-open→fail-safe · system-prompt stale-revenue fallback via `readNickRevenue` · 6 silent-failure breadcrumbs · 5 Inngest-native crons registered · `/tasks`→`/missions` + `/mastery`→`/stats` nav migration (16 files + ⌘K + orb) · mastery **coaching lens** on the /stats side-pane · **Ambition Engine P1** schema (8 `life_goals` cols + `goal_stats` join + self-relation) + migration `0003` **applied to prod via a new guarded `/api/system/apply-pending-migration` endpoint** · 12 commits `a8100a36 → e285e9dc` on origin/main + a local post-review hardening pass · gates green (typecheck 0 · 2877 vitest · check:crons clean · prisma valid) · code-reviewer found 0 P0/P1. **PRIOR:** post the **Stats-consolidation + tech-debt** wave · /scoreboard+/goals → ONE personal `/stats` (business stripped to nickstire admin per operator) · 13 stale `/goals` links retargeted · 4 pre-existing test failures fixed (suite **2875/2875**) · tech-debt wave: Inngest double-fire guard + revived dead stale-leads alert (→ `leads_urgent`) + dead `/mastery` nav removed · 6 commits `a695c174 → 25e31b0a` on origin/main · gates green. **PRIOR:** post Wave Z · recall-freshness fix + dead-lane sweep + retro→journal · 4 commits `d535550c → b48c6e8a` · write-time `embedding_vec_1536` dual-write closes an up-to-7-day chat-recall staleness gap · prod backfill padded 1,599 rows · +5 `CONTEXT_CATEGORIES` recall lanes · `mission_retro` now a 5th `/journal` source · ADR-0023 · 6 "Sam plan" items verified already-built + `decision→goals` migration rejected · gates green. **PRIOR:** post Wave Y · Mastery Layer Stage A completion + NickSidePane v2 multi-turn surface chat · 10 commits in two sub-waves · `c3cdf504 → 47c0598c` (today's continuation: `f03ab83b → 47c0598c`) · Coach Channel grew from 5 → **9 writers** (added eval-regression P0 · correlation-alarm P1 · creation-spike-detect P1 · decision-quality-drift P0) and from 1 → **5 surface mounts** of NickSidePane (was /tasks only · now /tasks /goals /journal /brain /scoreboard — each with its own coachSurface + localStorage thread + per-page presets) · Phase 5 FULL shipped multi-turn surface chat (`/api/ai/side-pane-chat` stateless streaming · client owns thread · ephemeral Anthropic cacheControl on enriched system prompt) · `lib/ai/page-data.ts` gained 4 new surface cases so multi-turn replies on the new surfaces are grounded (was `default: return ""` blind) · reflect-categories cron registered weekly Sun 03:00 UTC · all gates green (typecheck 0 · vitest 185/2812 · turbo pre-push build passed on every push). ADR-0022 documents the Coach Channel pattern + NickSidePane v2 architecture. Tasks #74 #81 #82 closed. On top of Wave X.h · ChatComposer chrome extraction · 1 commit · `/chat` `page.tsx` 2866 → 2756 LOC (−111 net). On top of Wave X.g · bridge-page polling refactor + BridgeShell extraction · 2 commits · −98 LOC net. On top of Wave X.f · activation wave. On top of Wave X.e · −926 LOC consolidation. **Repo:** monorepo `nourdean22/MAINnicks-tire-autoNEW` · branch `main` · statenour at `apps/statenour/` · **Deploy:** Railway (`statenour-web-production`) · **Versioning:** post-`v10.0.X` — commits are `feat · statenour · …` · **Tests:** 2812 across 185 vitest files · **Prod schema:** 31 migrations applied.
+
+> ## 2026-05-31 · Bridge-contract sweep + Ambition Engine P1 · 12 commits + hardening
+>
+> A plumbing-audit sweep (5 read-only agents · "fix-safe, flag the rest")
+> closed a whole class of silent statenour↔nickstire bugs; then the stale
+> /stats goals card got a /sam-altman redesign spec'd and its P1 schema
+> shipped to prod.
+>
+> **Dead-bridge-query class — CLOSED + guarded.** The stringly-typed bridge
+> (`queryNick("name")` → nickstire `QUERY_HANDLERS`) has no compile-time
+> contract, so renamed handlers rot callers silently. Fixed: `jobs_today`
+> (×2 — operating-rhythm + business-intel) → `revenue_today` read via
+> `readNickRevenue()`; `pending_callbacks_count` → `callbacks_pending`;
+> `customer_search` triple-fix (`{name}`→`{term}` · unwrap `.customers` ·
+> `totalVisits`/`totalSpent`). `a8100a36` also killed a false weekday "🔴 ZERO
+> REVENUE" Telegram alert that fired because the dead query always returned 0.
+> NEW `tests/contracts/nick-bridge-query-contract.test.ts` scans every live
+> bridge callsite against nickstire's actual handler keys (∪ a KNOWN_PENDING
+> allowlist) so a dead query now fails CI (red-green proven).
+>
+> **Other plumbing** — budget gate `.catch(()=>true)` (fail-OPEN · uncapped
+> LLM spend) → fail-safe `return false` · system-prompt stale-shop fallback was
+> gated on a dead `todayEstimate` key → now `readNickRevenue()` · 6
+> silent-failure `.catch` breadcrumbs (`ai-cost` · `actions-brain` ·
+> `brain-domain` · `task-resurface` · `consolidate` · the budget gate).
+>
+> **Crons + nav** — `b8de05ed` registered the 5 Inngest-native functions
+> (cron-heartbeat · operator-morning-brief · goal-pruner ·
+> journal-convergence-scan · journal-thread-dormancy) in `config/crons.ts` and
+> taught `check:crons` to skip route-checks for `inngest:true` entries (43
+> entries / 28 active · clean). `2d3be254` finished the `/tasks`→`/missions` +
+> `/mastery`→`/stats` nav migration across 16 components + the ⌘K palette +
+> the orb menu (path-keys, comments, tests, sw.js intentionally left).
+>
+> **Coaching lens** — `e20bc8b6` · `/api/ai/side-pane-chat` `describeFraming()`
+> case "goals" now injects a MASTERY_COACHING_LENS (identity-mirror +
+> loss-aversion), cap-safe (local enrichedSystem, not the 60K main prompt).
+>
+> **Ambition Engine P1** — spec `docs/specs/2026-05-30-ambition-engine.md`
+> (A+B hybrid · clarity-gated · skill-enriched). Schema (`3d377b62`):
+> `LifeGoal` += 8 cols (kind · parentGoalId · conviction · ambition ·
+> lastChallengedAt · killCriteria · killBy · identityLine) + a `GoalStat` join
+> + a "GoalLadder" self-relation. Migration `0003_ambition_engine` **applied to
+> prod Neon**, schema restored + shipped in `e285e9dc`.
+>
+> **The unblock (reusable).** `3e5e4dfc` · NEW guarded
+> `POST /api/system/apply-pending-migration`: requireSession + an inlined,
+> deploy-gated `MIGRATIONS` registry (no arbitrary SQL · idempotent
+> IF-NOT-EXISTS) · records `_prisma_migrations`. This is now the canonical way
+> to apply a statenour migration with no prod creds (railway CLI unauthed · no
+> statenour Vercel project · Neon not browser-logged-in). 0003 was applied
+> through it from the authed app tab. The folder is left in
+> `prisma/migrations-pending/` on purpose — moving it could trip
+> `migrate deploy` ordering (see the header note in its `migration.sql`).
+>
+> **P0 caught + fixed mid-wave.** The first cut committed the schema fields
+> WITHOUT applying the migration (`91ed40ae`), which would crash every LifeGoal
+> CRUD with "column does not exist" (the exact `migrations-pending` incident).
+> Reverted (`e64cfcf8`), parked the SQL, built the endpoint, applied, restored.
+> **Push gotcha logged:** the dev server (`next dev`) locks `.next`; the
+> pre-push `turbo build` also targets `.next` → stop the dev server (or rely on
+> `build:check`'s `.next-prod`) before pushing.
+>
+> **Post-review hardening (local · uncommitted at time of writing → committed
+> this wave).** A `feature-dev:code-reviewer` pass over `748b091a..e285e9dc`
+> found **0 P0/P1**; 3 minor hardenings applied: `Number()` coercion on the
+> bridge `totalSpent`/`totalVisits` spend-tier (JSON may deliver them as
+> strings) · a `migrationRecorded` flag + logged warning on the endpoint's
+> `_prisma_migrations` insert (was a silent `.catch(()=>{})`) · a
+> known-limitation note on the contract scanner (literal-args-only).
+>
+> **Verify-don't-trust catches** — the audit agent missed the business-intel
+> `jobs_today` (the contract guard caught it) · the nav agent under-reported
+> (the diff showed it did more, correctly) · the contract scanner first flagged
+> comment-based false positives (fixed with comment-stripping).
+>
+> Gates: typecheck 0 · vitest 2877 · check:crons clean · prisma valid.
 
 > ## 2026-05-30 · Stats consolidation + tech-debt wave · 6 ships
 >

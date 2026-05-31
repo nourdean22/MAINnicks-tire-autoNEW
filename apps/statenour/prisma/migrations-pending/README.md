@@ -4,7 +4,17 @@ Migrations parked here are NOT in the live `prisma/migrations/`
 directory · `prisma migrate deploy` will not apply them. Move
 them back when ready.
 
-## How to apply a parked migration
+> **Preferred path — no prod creds needed (use this).** Apply via the guarded
+> endpoint `POST /api/system/apply-pending-migration { name }`. It runs an
+> idempotent (IF NOT EXISTS) copy of the migration's statements from inside the
+> deployed app — which has the prod `DATABASE_URL` — and records it in
+> `_prisma_migrations`. Steps: add the SQL to that route's `MIGRATIONS`
+> registry → deploy → from the authed app tab run
+> `fetch('/api/system/apply-pending-migration',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:'<name>'}),credentials:'include'})`.
+> The dev/agent env has NO prod creds and there is NO statenour Vercel project,
+> so the `vercel env pull` route below is usually a dead end.
+
+## How to apply a parked migration (legacy / with-creds path)
 
 1. Confirm DATABASE_URL points at production (Neon)
    ```bash
@@ -37,6 +47,17 @@ them back when ready.
 6. Commit + push the schema-restore + the migration move
 
 ## Parked migrations
+
+### `0003_ambition_engine` — ✅ APPLIED 2026-05-30 (via endpoint)
+
+Ambition Engine P1 (the `/stats` goals redesign · 8 additive `life_goals`
+columns + a `goal_stats` join table + a self-relation). Applied to production
+Neon on 2026-05-30 through the guarded endpoint described above, recorded in
+`_prisma_migrations` as `0003_ambition_engine`; the schema fields were restored
++ shipped in `e285e9dc`. Left in this folder on purpose (see the header note in
+`0003_ambition_engine/migration.sql`) — moving it into `prisma/migrations/`
+could trip migrate-deploy ordering. Drift-safe: the apply is already recorded
+and `migrate deploy` only touches the live folder.
 
 ### `20260508001336_add_updated_at_to_8_mutable_models`
 
