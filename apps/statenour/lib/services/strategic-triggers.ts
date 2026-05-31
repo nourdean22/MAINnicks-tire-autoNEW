@@ -53,7 +53,7 @@ export async function runStrategicTriggers(includeAll = false): Promise<Strategi
     decisionsThisWeek,
     unackedAlerts,
     recentCaptures,
-    dailyScoreToday,
+    reflectionLoggedToday,
   ] = await Promise.all([
     // v10.0.59 · Wave A part 2 · scores + habits via legacy-shims.
     (async () => {
@@ -74,14 +74,14 @@ export async function runStrategicTriggers(includeAll = false): Promise<Strategi
     prisma.masteryDecision.count().catch(() => 0), // decisions don't have createdAt, just count recent
     prisma.driftAlert.count({ where: { acknowledged: false } }),
     prisma.captureInboxItem.count({ where: { status: "active" } }).catch(() => 0),
-    // v10.0.59 · dailyScoreToday → today's identity_snapshot row
-    // (DailyScore retired Apr 19). Returns null if no snapshot
-    // touched today, matching the original null fallback shape.
-    (async () => {
-      const { recentScoreSnapshots } = await import("@/lib/brain/legacy-shims");
-      const all = await recentScoreSnapshots(1);
-      return all[0] ?? null;
-    })(),
+    // 2026-05-31 · score→reflection re-source. DailyScore was retired
+    // (Apr 19); "did the operator close the self-tracking loop today" is
+    // now "was a reflection logged today" (matches narrator.ts). Date
+    // format mirrors the writer (journal-reflect.ts · toDateString).
+    prisma.reflection
+      .count({ where: { date: toDateString(new Date()) } })
+      .then((c) => c > 0)
+      .catch(() => false),
   ]);
 
   const triggers: StrategicTrigger[] = [];
@@ -121,8 +121,8 @@ export async function runStrategicTriggers(includeAll = false): Promise<Strategi
   });
 
   // ── 3. NO BUSINESS ACTION TODAY ──
-  // No daily score logged and no tasks touched today — Law 29: Plan All the Way to the End
-  const noActionToday = !dailyScoreToday && tasksCompletedThisWeek === 0 && etHour >= 14;
+  // No reflection logged today + no tasks completed this week — Law 29: Plan All the Way to the End
+  const noActionToday = !reflectionLoggedToday && tasksCompletedThisWeek === 0 && etHour >= 14;
   triggers.push({
     id: "no_business_action_today",
     name: "No Business Action Today",
@@ -131,7 +131,7 @@ export async function runStrategicTriggers(includeAll = false): Promise<Strategi
     severity: noActionToday ? "warning" : "info",
     fired: noActionToday,
     detail: noActionToday
-      ? "Past 2 PM with no score or task progress. Plan your remaining hours NOW."
+      ? "Past 2 PM with no reflection or task progress. Plan your remaining hours NOW."
       : "Activity detected today.",
   });
 
