@@ -33,7 +33,6 @@ interface Inputs {
   habitsDone: number;
   habitsTotal: number;
   driftOpen: number;
-  daniaSilentDays: number;         // 0 if mentioned today
   sleepHoursAvg7d: number | null;
   hourOfDay: number;
 }
@@ -47,7 +46,7 @@ export async function computeInputs(): Promise<Inputs> {
   // filters today's rows from the synthesized habit history; habitsWeek
   // slices the last 7 days. (Daily-score inputs removed 2026-05-31 — the
   // score-derived timeline items were retired in the score→reflection pivot.)
-  const [habitsToday, habitsWeek, drift, chatMessages, sleepRows] = await Promise.all([
+  const [habitsToday, habitsWeek, drift, sleepRows] = await Promise.all([
     (async () => {
       const { recentDailyHabits } = await import("@/lib/brain/legacy-shims");
       const all = await recentDailyHabits(1);
@@ -64,16 +63,6 @@ export async function computeInputs(): Promise<Inputs> {
       console.warn("[ultron/timelines] driftAlert.count failed:", err instanceof Error ? err.message : err);
       return 0;
     }),
-    prisma.chatMessage
-      .findMany({
-        where: { role: "user", createdAt: { gte: daysAgo(14) } },
-        select: { content: true, createdAt: true },
-        take: 100,
-      })
-      .catch((err): Array<{ content: string; createdAt: Date }> => {
-        console.warn("[ultron/timelines] chatMessage.findMany failed:", err instanceof Error ? err.message : err);
-        return [];
-      }),
     // 2026-05-27 · sleep-tracking wire-up. The legacy `sleepHoursAvg7d`
     // was hardcoded null with "TODO v3 when we have sleep tracking" —
     // but BodyTracking.sleepHours has been live since Wave 63. The
@@ -108,16 +97,6 @@ export async function computeInputs(): Promise<Inputs> {
   const habitsDone = habitsToday.filter((h) => h.completed).length;
   const habitsTotal = habitsToday.length;
 
-  // Dania silence from chat messages (14d window)
-  let daniaSilentDays = 14;
-  const daniaRx = /\bdania\b|\bwife\b/i;
-  for (const m of chatMessages) {
-    if (daniaRx.test(m.content)) {
-      const days = Math.floor((Date.now() - m.createdAt.getTime()) / 86400000);
-      daniaSilentDays = Math.min(daniaSilentDays, days);
-    }
-  }
-
   // 2026-05-27 · wired-up. BodyTracking.sleepHours (Float?, one row per
   // date via @unique) feeds the avg. Returns null only when zero rows
   // have a non-null sleepHours — preserves the legacy "missing data →
@@ -139,7 +118,6 @@ export async function computeInputs(): Promise<Inputs> {
     habitsDone,
     habitsTotal,
     driftOpen: drift,
-    daniaSilentDays,
     sleepHoursAvg7d,
     hourOfDay: now.getHours(),
   };
@@ -196,17 +174,6 @@ export function generateTimelines(i: Inputs): Timeline[] {
         severity: "warn",
       });
     }
-  }
-
-  // Dania silence
-  if (i.daniaSilentDays >= 5) {
-    items.push({
-      id: "dania-silent",
-      kind: "caution",
-      text: `Dania ${i.daniaSilentDays}d silent · past pattern: rough at 7+ days`,
-      domain: "life",
-      severity: i.daniaSilentDays >= 7 ? "warn" : "info",
-    });
   }
 
   // Positive streaks worth protecting
