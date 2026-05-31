@@ -91,9 +91,17 @@ export function BottomPulseTicker() {
       aria-live="off"
       className="min-h-[32px] sm:h-5 overflow-hidden border-t border-[var(--border-default)] bg-[var(--bg-void)]/60 relative"
     >
-      <div className="ultron-bottom-ticker-track flex items-center gap-8 whitespace-nowrap py-0.5 absolute inset-0">
-        {/* Duplicate the items once inline so the scroll seam is invisible */}
-        {[...visibleItems, ...visibleItems].map((item, i) => (
+      <div
+        className={cn(
+          "flex items-center gap-8 whitespace-nowrap py-0.5 absolute inset-0",
+          // Marquee + the seam-filling duplicate only when there's MORE than
+          // one item. A lone item was rendering twice side-by-side and
+          // scrolling pointlessly (2026-05-31 polish) — with one item it sits
+          // static + readable instead.
+          visibleItems.length > 1 && "ultron-bottom-ticker-track",
+        )}
+      >
+        {(visibleItems.length > 1 ? [...visibleItems, ...visibleItems] : visibleItems).map((item, i) => (
           <PulseCell
             key={`${item.id}-${i}`}
             item={item}
