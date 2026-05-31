@@ -96,6 +96,35 @@ export const nickActionsRouter = router({
 
   socialStatus: adminProcedure.query(async () => handleSocialStatus()),
 
+  // ─── Meta token reconnect · 2026-05-31 ────────────────
+  // Mints a never-expiring Page token from a freshly-generated User
+  // token (Graph API Explorer), server-side (graph.facebook.com is
+  // blocked on the operator's machine but reachable from Railway).
+  // Caches it in-process so socialPost works immediately. `reveal`
+  // returns the token once so it can be persisted to the
+  // META_PAGE_ACCESS_TOKEN env var for cross-restart durability.
+  metaReconnect: adminProcedure
+    .input(z.object({
+      userToken: z.string().min(20).max(1000),
+      reveal: z.boolean().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const { reconnectMetaFromUserToken, getMetaSocialStatus } = await import("../services/metaSocial");
+      const r = await reconnectMetaFromUserToken(input.userToken);
+      if (!r.ok) return { ok: false as const, error: r.error };
+      const status = await getMetaSocialStatus();
+      const tok = r.pageToken || "";
+      return {
+        ok: true as const,
+        facebookReady: status.facebookReady,
+        instagramReady: status.instagramReady,
+        pageId: status.pageId,
+        igUserId: status.igUserId,
+        tokenFingerprint: tok ? `…${tok.slice(-6)} (len ${tok.length})` : null,
+        pageToken: input.reveal ? tok : undefined,
+      };
+    }),
+
   // ─── Customer Intelligence ────────────────────────────
   customerIntelligence: adminProcedure.query(async () => handleCustomerIntelligence()),
 
