@@ -973,6 +973,12 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 - [Auto repair (all services)](${b}/services): Brakes, tires, oil, diagnostics, alignment, emissions, suspension, batteries. All makes and models including European.
 - [Financing](${b}/financing): $10 down, no credit check, drive away today.
 
+## Common questions
+- Why is my car shaking or vibrating when I brake? Usually a warped brake rotor: the surface is no longer flat, so the pad grabs unevenly and you feel it in the wheel or pedal. Common on Cleveland cars from stop-and-go traffic and winter heat cycles. The fix is resurfacing or replacing the rotor, most often as a pads + rotors job. Free check at 17625 Euclid Ave, written quote before any work.
+- Is it safe to drive with grinding brakes? No. Grinding means the pads are worn out and bare metal is cutting into the rotor, so every stop does more damage and your stopping distance gets longer. Get it checked the same day. Open 7 days, walk in or call (216) 862-0005.
+- How much does a brake job cost in Cleveland? At Nick's Tire & Auto: pad replacement from $149 per axle, pads + rotors from $279 per axle, full brake job from $499 per axle. Free check and a written quote before any work, and you don't pay until you say yes.
+- Where can I get brakes done near me in Cleveland (44112)? Nick's Tire & Auto, 17625 Euclid Ave, Cleveland, OH 44112 (east side), serving Euclid, East Cleveland, Cleveland Heights, South Euclid, and Lyndhurst. First-come-first-served, walk in 7 days a week, no appointment needed.
+
 ## Guides
 - [Auto repair blog](${b}/blog): 120+ Cleveland-specific guides on brakes, tires, winter prep, repair costs, and common car problems.
 
