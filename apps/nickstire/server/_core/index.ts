@@ -1347,7 +1347,9 @@ ${urls.join("\n")}
         event.type === "customer.subscription.deleted"
       ) {
         const sub = event.data.object as any;
-        if (sub.metadata?.plan === "nonstop-nick") {
+        // Accept any Nonstop Nick tier (base $7.99 or +$9.99 with repair discount).
+        const subPlan = String(sub.metadata?.plan || "");
+        if (subPlan === "nonstop-nick" || subPlan === "nonstop-nick-plus") {
           const { getDb } = await import("../db");
           const { memberships } = await import("../../drizzle/schema");
           const { eq } = await import("drizzle-orm");
@@ -1383,7 +1385,7 @@ ${urls.join("\n")}
             if (affected === 0 && phone) {
               // No existing row — first time we've seen this subscription. Insert.
               await d.insert(memberships).values({
-                plan: "nonstop-nick",
+                plan: subPlan,
                 phone,
                 name: sub.metadata?.customerName || null,
                 status,

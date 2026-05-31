@@ -107,6 +107,15 @@ export default function MembershipsSection() {
             </span>
           </div>
 
+          {/* Repair-discount banner — the $9.99 tier's benefit. Only active members
+              get it; the counter applies the % manually on the invoice. */}
+          {m.isActive && m.repairDiscountPct > 0 && (
+            <div className="mt-3 rounded-md bg-[#FDB913]/10 border border-[#FDB913]/30 px-3 py-2 text-sm font-semibold text-[#b8860b] flex items-center gap-2">
+              <BadgeCheck className="w-4 h-4 text-[#FDB913]" />
+              {m.repairDiscountPct}% OFF this repair — apply it on the invoice (Nonstop Nick+)
+            </div>
+          )}
+
           {/* Covered vehicle */}
           <div className="mt-4 pt-4 border-t border-border/20">
             {m.vehiclePlate ? (

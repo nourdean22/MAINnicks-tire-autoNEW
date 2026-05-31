@@ -93,6 +93,10 @@ const CONFIG: ServicePageConfig = {
       a: "One registered vehicle per membership, with rims up to 19 inches. Got a second car? Just start a second membership.",
     },
     {
+      q: "What's the $9.99 plan?",
+      a: "Nonstop Nick+ is $9.99 a month: everything in the $7.99 plan — flat repairs, valve stems, rotation, rim cleans, air-ups — plus 15% off any repair, parts and labor. One brake or suspension job and it more than pays for itself. Pick it when you join, or upgrade at the counter.",
+    },
+    {
       q: "How do I sign up?",
       a: "Join online in about a minute, or just ask at the counter next time you're in — 17625 Euclid Ave, or call (216) 862-0005. You pick the vehicle the first time you use it.",
     },

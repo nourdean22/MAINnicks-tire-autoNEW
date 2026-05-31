@@ -18,6 +18,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 
 export default function NonstopNickJoin() {
   const [phone, setPhone] = useState("");
+  const [plan, setPlan] = useState<"nonstop-nick" | "nonstop-nick-plus">("nonstop-nick");
   const [msg, setMsg] = useState<string | null>(null);
 
   const start = trpc.memberships.startCheckout.useMutation({
@@ -42,8 +43,10 @@ export default function NonstopNickJoin() {
       setMsg("Please enter a valid 10-digit phone number.");
       return;
     }
-    start.mutate({ phone: digits });
+    start.mutate({ phone: digits, plan });
   };
+
+  const price = plan === "nonstop-nick-plus" ? "$9.99" : "$7.99";
 
   return (
     <section className="bg-[#FDB913]/[0.06] border-y border-[#FDB913]/20 py-10">
@@ -52,11 +55,34 @@ export default function NonstopNickJoin() {
           Join Nonstop Nick
         </p>
         <h2 className="text-2xl sm:text-3xl font-black text-foreground mb-1">
-          $7.99/month. Pull up anytime.
+          Pull up anytime. Pick your plan.
         </h2>
         <p className="text-foreground/60 text-sm mb-5">
           Drop your number and you're in — about a minute. Cancel any time you want.
         </p>
+
+        {/* Two tiers — base peace-of-mind vs the fuller plan with repair savings. */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5 text-left">
+          <button
+            type="button"
+            onClick={() => setPlan("nonstop-nick")}
+            className={`rounded-lg border p-4 transition-colors ${plan === "nonstop-nick" ? "border-[#FDB913] bg-[#FDB913]/10" : "border-border hover:border-[#FDB913]/40"}`}
+            aria-pressed={plan === "nonstop-nick"}
+          >
+            <p className="font-black text-foreground">$7.99<span className="text-foreground/50 text-sm font-normal">/mo</span></p>
+            <p className="text-[12px] text-foreground/60 mt-1">Flats, valve stems, rotation, rim cleans, air-ups — pull up anytime.</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPlan("nonstop-nick-plus")}
+            className={`rounded-lg border p-4 transition-colors relative ${plan === "nonstop-nick-plus" ? "border-[#FDB913] bg-[#FDB913]/10" : "border-border hover:border-[#FDB913]/40"}`}
+            aria-pressed={plan === "nonstop-nick-plus"}
+          >
+            <span className="absolute -top-2 right-3 text-[9px] font-bold tracking-wide bg-[#FDB913] text-black px-2 py-0.5 rounded">BEST VALUE</span>
+            <p className="font-black text-foreground">$9.99<span className="text-foreground/50 text-sm font-normal">/mo</span></p>
+            <p className="text-[12px] text-foreground/60 mt-1">Everything above <span className="text-foreground/80 font-semibold">+ 15% off any repair</span> (parts &amp; labor).</p>
+          </button>
+        </div>
 
         <form onSubmit={submit} className="flex flex-col sm:flex-row gap-3 justify-center">
           <input
@@ -76,7 +102,7 @@ export default function NonstopNickJoin() {
           >
             {start.isPending
               ? <><Loader2 className="w-4 h-4 animate-spin" /> Starting…</>
-              : <>Join — $7.99/mo <ChevronRight className="w-4 h-4" /></>}
+              : <>Join — {price}/mo <ChevronRight className="w-4 h-4" /></>}
           </button>
         </form>
 
