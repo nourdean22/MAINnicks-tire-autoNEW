@@ -81,6 +81,13 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "decision_replays_enriched_at_idx" ON "decision_replays"("enriched_at")`,
     `CREATE TABLE IF NOT EXISTS "journal_settings" ("id" TEXT NOT NULL, "baseline_xp" DOUBLE PRECISION NOT NULL DEFAULT 0.8, "baseline_enabled" BOOLEAN NOT NULL DEFAULT true, "quality_floor_chars" INTEGER NOT NULL DEFAULT 40, "grounded_xp_multiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.5, "auto_confirm_threshold" DOUBLE PRECISION NOT NULL DEFAULT 0.8, "challenge_cadence" TEXT NOT NULL DEFAULT 'daily', "creative_intensity" TEXT NOT NULL DEFAULT 'bold', "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "journal_settings_pkey" PRIMARY KEY ("id"))`,
   ],
+
+  // Task confirm-chip · 2026-06-01 · additive · zero data loss. Parks a
+  // LOW-confidence mission/goal suggestion for operator approval (mirrors
+  // PersonProfile.pending_classification). Nullable JSONB; existing rows = NULL.
+  "0006_task_pending_classification": [
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "pending_classification" JSONB`,
+  ],
 };
 
 export async function POST(req: Request) {
