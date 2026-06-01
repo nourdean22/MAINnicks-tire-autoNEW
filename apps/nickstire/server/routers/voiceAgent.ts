@@ -352,7 +352,11 @@ export const voiceAgentRouter = router({
         // which missed the real failure — F25e offline + Twilio also down ->
         // sent:false but degraded:false -> Nick promised a text that never sent.
         // Any genuine non-send now degrades so Nick reads the address aloud.
-        const degraded = !result.success;
+        // `queued` also degrades: in F25e-only/queue-when-offline mode the recap
+        // SMS is held for later delivery, so Nick reads the address ALOUD now —
+        // the text still arrives when the gateway is back, but the caller standing
+        // on Euclid Ave isn't left waiting on a text that's hours out.
+        const degraded = !result.success || result.queued === true;
         log.info("Voice agent SMS sent", {
           phone: input.phone.slice(-4),
           success: result.success,
