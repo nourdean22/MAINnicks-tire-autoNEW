@@ -1370,6 +1370,66 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-06-01 · task confirm-chip · accept the parked LOW-confidence
+   * mission/goal classification from enrichTaskLinkage: apply the proposal
+   * to the real fields, then clear it. The operator's explicit yes is the
+   * only thing that attaches a low-confidence mission (mirrors people's
+   * acceptClassification). goalId/statHints only fill if still unset.
+   */
+  acceptTaskClassification: operatorProcedure
+    .input(z.object({ taskId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const task = await prisma.task.findUnique({
+        where: { id: input.taskId },
+        select: {
+          goalId: true,
+          statHints: true,
+          pendingClassification: true,
+        },
+      });
+      if (!task) throw new Error("Task not found");
+      const pc = (task.pendingClassification ?? null) as {
+        missionId?: string | null;
+        goalId?: string | null;
+        statHints?: string[] | null;
+      } | null;
+      if (!pc) return { ok: true, noop: true };
+
+      const data: Record<string, unknown> = { pendingClassification: null };
+      if (pc.missionId) data.missionId = pc.missionId; // explicit accept
+      if (pc.goalId && !task.goalId) data.goalId = pc.goalId;
+      if (
+        Array.isArray(pc.statHints) &&
+        pc.statHints.length > 0 &&
+        task.statHints.length === 0
+      ) {
+        data.statHints = pc.statHints;
+      }
+      await prisma.task.update({ where: { id: input.taskId }, data });
+      return {
+        ok: true,
+        applied: {
+          missionId: (data.missionId as string | undefined) ?? null,
+          goalId: (data.goalId as string | undefined) ?? null,
+        },
+      };
+    }),
+
+  /**
+   * 2026-06-01 · task confirm-chip · dismiss the parked classification
+   * without applying anything (clears the suggestion only).
+   */
+  dismissTaskClassification: operatorProcedure
+    .input(z.object({ taskId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const data: Record<string, unknown> = { pendingClassification: null };
+      await prisma.task
+        .update({ where: { id: input.taskId }, data })
+        .catch(() => null);
+      return { ok: true };
+    }),
+
+  /**
    * 2026-06-01 · people-credit scoring config · the active XP weights
    * (defaults + operator overrides merged) for the settings card.
    */

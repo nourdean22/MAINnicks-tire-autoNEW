@@ -555,6 +555,30 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
         })
         .catch(() => {});
     }
+    // Suggest-then-approve · a mission match BELOW the silent-attach bar is
+    // PARKED (not silently attached, not dropped) for the operator to accept
+    // or dismiss via the /missions chip. Only while still unclassified.
+    if (
+      missionUnset &&
+      result.missionId &&
+      result.confidence >= CONFIDENCE.chipFloor &&
+      result.confidence < CONFIDENCE.silentAttach
+    ) {
+      await prisma.task
+        .updateMany({
+          where: { id: taskId, missionId: { in: [...inboxIds] } },
+          data: {
+            pendingClassification: {
+              missionId: result.missionId,
+              goalId: result.goalId ?? null,
+              statHints: result.statHints,
+              confidence: result.confidence,
+              rationale: result.rationale,
+            },
+          },
+        })
+        .catch(() => {});
+    }
   } catch (err) {
     log.warn("enrich_task_linkage_failed", {
       taskId,
