@@ -583,6 +583,16 @@ export interface SmsResult {
 
 interface SendSmsOptions {
   skipOptOutCheck?: boolean;
+  /**
+   * wave-2026-06 — the caller writes the smsMessages row itself (via
+   * logOutboundSms, with its variantKey). Skip persistOutboundShopSms so
+   * sendSms does NOT write a SECOND row. The admin SMS counts were ~2x
+   * inflated for every cron send (sendSms persisted + the cron logged).
+   * logOutboundSms stays the single writer (it carries the variantKey the
+   * cron cooldown queries filter on). Only affects the online success /
+   * timeout paths; the offline queue (queueForLater) persists separately.
+   */
+  skipPersist?: boolean;
   /** Skip timing check — used internally for delayed queue processing */
   _forceImmediate?: boolean;
   /** Transactional SMS (booking confirmations, status updates) bypass timing restrictions */
@@ -1087,8 +1097,12 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       addToThread(normalizedEarly, "outbound", body, gw.gatewayMessageId);
       // wave-181.101 (#2) — persist to durable smsMessages so the send
       // shows in /admin/sms and the delivery webhook can match it.
-      persistOutboundShopSms(normalizedEarly, body, "sent", gw.gatewayMessageId)
-        .catch(() => undefined);
+      // skipPersist: a cron caller logs its own row (logOutboundSms, with
+      // variantKey) -> don't double-write (the 2x-count fix).
+      if (!opts?.skipPersist) {
+        persistOutboundShopSms(normalizedEarly, body, "sent", gw.gatewayMessageId)
+          .catch(() => undefined);
+      }
       return { success: true, sid: gw.gatewayMessageId };
     }
     // wave-181.101 (#3) — a TIMEOUT is ambiguous: the Capevace relay may
@@ -1102,7 +1116,9 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       );
       await alertShopGatewayFallback("timeout — delivery uncertain, not retried", normalizedEarly);
       addToThread(normalizedEarly, "outbound", body);
-      persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
+      if (!opts?.skipPersist) {
+        persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
+      }
       return { success: true };
     }
     // Definitive failure (non-OK HTTP / DNS / connection error). A non-OK

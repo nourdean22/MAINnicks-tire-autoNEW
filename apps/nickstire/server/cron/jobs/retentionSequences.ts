@@ -287,7 +287,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       // is dead, Android phone is THE path). { via: "shop" } bypasses the
       // SMS_KILL_SWITCH (Twilio-only) and sends through the F25e on Verizon
       // so customers see the text from the shop's real number 216-862-0005.
-      const result = await sendSms(c.phone, messageBody, { via: "shop" });
+      const result = await sendSms(c.phone, messageBody, { via: "shop", skipPersist: true });
 
       // Log to sms_messages table regardless of success
       await logRetentionSms(c.phone, messageBody, result.sid, variantKey);

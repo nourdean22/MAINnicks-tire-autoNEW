@@ -136,7 +136,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
       const firstName = c.firstName || "there";
       const msg = template.replace("{name}", firstName);
       try {
-        const result = await sendSms(c.phone, msg, { via: "shop" });
+        const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true });
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
         await logOutboundSms(c.phone, msg, result.sid, variantKey);
