@@ -19,7 +19,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { enrichTaskLinkage } from "@/lib/services/tasks";
+import { createTaskAndEnrich } from "@/lib/services/tasks";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { goalsTools } from "@/lib/ai/tools/goals";
@@ -143,27 +143,23 @@ const tasksCoreTools = {
       goalId,
       promiseTo,
     }) => {
-      const task = await prisma.task.create({
-        data: {
-          title,
-          missionId,
-          nextPhysicalAction,
-          effort,
-          roiScore: loopKind === "PROMISE" ? 80 : 50,
-          frictionScore: 30,
-          energyRequired: "MEDIUM",
-          context,
-          finishCondition: title,
-          loopKind,
-          dueDate: dueDate ? new Date(dueDate) : null,
-          goalId: goalId ?? null,
-          promiseTo: promiseTo ?? null,
-        },
+      // classification spine · createTaskAndEnrich gap-fills mission/goal/
+      // statHints (compare-and-set won't override what the model chose).
+      const task = await createTaskAndEnrich({
+        title,
+        missionId,
+        nextPhysicalAction,
+        effort,
+        roiScore: loopKind === "PROMISE" ? 80 : 50,
+        frictionScore: 30,
+        energyRequired: "MEDIUM",
+        context,
+        finishCondition: title,
+        loopKind,
+        dueDate: dueDate ? new Date(dueDate) : null,
+        goalId: goalId ?? null,
+        promiseTo: promiseTo ?? null,
       });
-      // 2026-06-01 · classification spine · gap-fill mission/goal/statHints
-      // for AI-created tasks too (compare-and-set won't override what the
-      // model already chose). Fire-and-forget.
-      void enrichTaskLinkage(task.id);
       return {
         created: true,
         taskId: task.id,
@@ -852,22 +848,19 @@ const tasksCoreTools = {
       const due = new Date();
       due.setDate(due.getDate() + daysFromNow);
       const title = `Follow up with ${customerName}${note ? ` — ${note}` : ""}`;
-      const task = await prisma.task.create({
-        data: {
-          title,
-          missionId: inbox.id,
-          nextPhysicalAction: `Call / text ${customerName}`,
-          effort,
-          roiScore: 70,
-          frictionScore: 20,
-          energyRequired: "MEDIUM",
-          context: "PHONE",
-          finishCondition: `${customerName} responded or explicitly declined`,
-          dueDate: due,
-          waitingOn: customerName,
-        },
+      const task = await createTaskAndEnrich({
+        title,
+        missionId: inbox.id,
+        nextPhysicalAction: `Call / text ${customerName}`,
+        effort,
+        roiScore: 70,
+        frictionScore: 20,
+        energyRequired: "MEDIUM",
+        context: "PHONE",
+        finishCondition: `${customerName} responded or explicitly declined`,
+        dueDate: due,
+        waitingOn: customerName,
       });
-      void enrichTaskLinkage(task.id); // classification spine · gap-fill links
       return {
         taskId: task.id,
         title: task.title,

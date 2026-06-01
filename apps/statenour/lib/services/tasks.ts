@@ -563,6 +563,22 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
   }
 }
 
+/**
+ * 2026-06-01 · the standard low-level "create a task and classify it" seam.
+ * Behavior-identical to a raw `prisma.task.create` + `void enrichTaskLinkage`,
+ * but DRY + one obvious place — so the AI tools, nick-agent, and follow-up
+ * spawners can't create a task that silently skips classification. Does NOT
+ * run the heavier `createTask` service path (priority resync / events); it's
+ * a thin wrapper for callers that build their own task `data`.
+ */
+export async function createTaskAndEnrich(
+  data: Prisma.TaskUncheckedCreateInput,
+) {
+  const task = await prisma.task.create({ data });
+  void enrichTaskLinkage(task.id);
+  return task;
+}
+
 export async function updateTask(id: string, input: unknown) {
   const payload = taskUpdateSchema.parse(input);
 

@@ -23,7 +23,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { enrichTaskLinkage, liftGoalOnTaskComplete } from "@/lib/services/tasks";
+import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
 import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
 import { brainMemory } from "@/lib/brain/memory-manager";
@@ -88,24 +88,21 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
     switch (type) {
       case "task.create":
       case "loop.create": {
-        const task = await prisma.task.create({
-          data: {
-            title: String(params.title || "Untitled task"),
-            missionId: "m-inbox",
-            status: "INBOX",
-            nextPhysicalAction: String(params.title || "Untitled task"),
-            effort: "M15",
-            roiScore: 50,
-            frictionScore: 50,
-            energyRequired: "MEDIUM",
-            context: "ANYWHERE",
-            finishCondition: params.description ? String(params.description) : "done when complete",
-            autoPriority: priorityFor(params.priority),
-            autoPriorityExplanation: `from nick-agent (${type})${params.domain ? ` · ${params.domain}` : ""}`,
-            lastTouchedAt: new Date(),
-          },
+        const task = await createTaskAndEnrich({
+          title: String(params.title || "Untitled task"),
+          missionId: "m-inbox",
+          status: "INBOX",
+          nextPhysicalAction: String(params.title || "Untitled task"),
+          effort: "M15",
+          roiScore: 50,
+          frictionScore: 50,
+          energyRequired: "MEDIUM",
+          context: "ANYWHERE",
+          finishCondition: params.description ? String(params.description) : "done when complete",
+          autoPriority: priorityFor(params.priority),
+          autoPriorityExplanation: `from nick-agent (${type})${params.domain ? ` · ${params.domain}` : ""}`,
+          lastTouchedAt: new Date(),
         });
-        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         return { action: type, success: true, result: { id: task.id, title: task.title } };
       }
 
@@ -752,20 +749,17 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
         const createdTasks = [];
         for (let i = 0; i < tasks.length; i++) {
           const t: any = tasks[i];
-          const task = await prisma.task.create({
-            data: {
-              title: String(t.title || `Task ${i + 1}`),
-              missionId: mission.id,
-              nextPhysicalAction: String(t.nextPhysicalAction || t.title || "Define next step"),
-              effort: (t.effort || "M30") as any,
-              context: (t.context || "ANYWHERE") as any,
-              finishCondition: String(t.title || `Task ${i + 1}`),
-              roiScore: Math.max(10, 90 - i * 10),
-              frictionScore: 30,
-              energyRequired: "MEDIUM",
-            },
+          const task = await createTaskAndEnrich({
+            title: String(t.title || `Task ${i + 1}`),
+            missionId: mission.id,
+            nextPhysicalAction: String(t.nextPhysicalAction || t.title || "Define next step"),
+            effort: (t.effort || "M30") as any,
+            context: (t.context || "ANYWHERE") as any,
+            finishCondition: String(t.title || `Task ${i + 1}`),
+            roiScore: Math.max(10, 90 - i * 10),
+            frictionScore: 30,
+            energyRequired: "MEDIUM",
           });
-          void enrichTaskLinkage(task.id); // classification spine · gap-fill links
           createdTasks.push(task);
         }
         return { action: type, success: true, result: {

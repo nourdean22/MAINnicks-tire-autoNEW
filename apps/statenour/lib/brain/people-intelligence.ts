@@ -184,6 +184,10 @@ Return ONLY JSON:
 export async function getPeopleIntelligence(): Promise<string> {
   const people = await prisma.personProfile
     .findMany({
+      // Soft-deleted profiles must not leak into Nick's system prompt —
+      // otherwise he keeps referencing people the operator deleted. The
+      // scan (runPeopleIntelligence) already filters; this builder didn't.
+      where: { deletedAt: null },
       orderBy: [{ interactionCount: "desc" }, { trustScore: "desc" }],
       take: 15,
       select: {
