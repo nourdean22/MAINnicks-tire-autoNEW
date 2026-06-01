@@ -59,7 +59,7 @@ export default function ComplianceSection() {
               onClick={() => setTab(t.id)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold uppercase tracking-widest border-b-2 transition-colors ${
                 tab === t.id
-                  ? "border-[#FDB913] text-foreground"
+                  ? "border-primary text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
