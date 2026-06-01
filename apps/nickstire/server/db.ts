@@ -1246,6 +1246,24 @@ export async function smsMessageExists(twilioSid: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+/**
+ * Rank-3 dedup (wave-2026-06) — the Capevace relay is at-least-once and CAN
+ * redeliver an inbound with a NEW messageId, which smsMessageExists() (keyed on
+ * twilioSid) misses. True if an identical inbound (same conversation + body)
+ * already landed in the last 5 min. The webhook still RECORDS the message
+ * (never drops a real reply); it only skips re-firing executeAutoAction so a
+ * redelivery can't send a duplicate auto-reply or create a duplicate lead.
+ */
+export async function recentInboundExists(conversationId: number, body: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db.select({ id: smsMessages.id })
+    .from(smsMessages)
+    .where(sql`${smsMessages.conversationId} = ${conversationId} AND ${smsMessages.direction} = 'inbound' AND ${smsMessages.body} = ${body} AND ${smsMessages.createdAt} > NOW() - INTERVAL 5 MINUTE`)
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function getConversations(limit = 50): Promise<SmsConversation[]> {
   const db = await getDb();
   if (!db) return [];
