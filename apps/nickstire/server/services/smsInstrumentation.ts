@@ -251,7 +251,12 @@ export async function logOutboundSms(
       });
       return;
     }
-    const lookupPhone = normalized;
+    // wave-2026-06 — key conversations on the 10-digit form (matches
+    // getOrCreateConversation), NOT E.164. The split was: logOutboundSms +
+    // queueForLater stored "+1..." while getOrCreateConversation + the inbound
+    // webhook stored "2168620005" -> the same customer got TWO threads (the 31
+    // dup conversations + 70 "+1..." rows the data profile surfaced).
+    const lookupPhone = normalized.replace(/\D/g, "").slice(-10);
 
     let [conv] = await db
       .select({ id: smsConversations.id })
