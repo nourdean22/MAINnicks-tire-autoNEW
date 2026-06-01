@@ -440,6 +440,21 @@ export function startTieredScheduler(): void {
           return syncToStatenour();
         },
       },
+      {
+        // IG + FB autonomous poster. The pulse tier fires every 15 min;
+        // runIgAutopostCron self-gates to the 8:07 / 13:07 / 20:07 ET slot
+        // windows (off-:00) and dedupes one post per slot per day, so the
+        // 15-min cadence costs nothing outside those windows. requiresEnv
+        // skips it entirely until Meta is configured. SAFETY: posts only
+        // when IG_AUTOPOST_DRYRUN === "false"; default behavior is a
+        // Telegram preview (dryrun), never a live post.
+        name: "ig-autopost",
+        requiresEnv: "META_IG_USER_ID",
+        handler: async () => {
+          const { runIgAutopostCron } = await import("../services/igAutopost");
+          return runIgAutopostCron();
+        },
+      },
     ],
     running: false,
     lastRun: null,

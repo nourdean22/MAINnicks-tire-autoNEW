@@ -127,6 +127,39 @@ export const nickActionsRouter = router({
       };
     }),
 
+  // ─── IG/FB Autopost · Fire Now · 2026-06-01 ───────────
+  // One-off trigger for the autonomous IG+FB content brain
+  // (server/services/igAutopost.ts). Generates a source-grounded,
+  // eval-gated post and either posts it live or — by default
+  // (IG_AUTOPOST_DRYRUN !== "false") — sends a Telegram preview without
+  // posting. The button is iOS-PWA-safe (confirmDialog + toast on the
+  // client). forceArchetype lets the operator steer the content angle.
+  fireIgAutopostNow: adminProcedure
+    .input(z.object({
+      forceArchetype: z
+        .enum(["proof", "anti", "math", "seasonal", "question", "process"])
+        .optional(),
+    }))
+    .mutation(async ({ input }) => {
+      // The run is durably recorded in ig_autopost_log with source:"admin"
+      // (the canonical audit surface for posts); no separate audit-trail
+      // entry needed.
+      const { runIgAutopostOneOff } = await import("../services/igAutopost");
+      const r = await runIgAutopostOneOff(input.forceArchetype);
+      return {
+        status: r.status,
+        dryRun: r.dryRun,
+        archetype: r.archetype ?? null,
+        conceptKey: r.conceptKey ?? null,
+        overall: r.scores?.overall ?? null,
+        captionWeighted: r.scores?.captionWeighted ?? null,
+        imageEvalSkipped: r.scores?.image.skipped ?? null,
+        igPostId: r.igPostId ?? null,
+        fbPostId: r.fbPostId ?? null,
+        details: r.details,
+      };
+    }),
+
   // ─── Customer Intelligence ────────────────────────────
   customerIntelligence: adminProcedure.query(async () => handleCustomerIntelligence()),
 
