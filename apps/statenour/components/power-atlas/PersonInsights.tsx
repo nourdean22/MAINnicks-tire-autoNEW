@@ -73,11 +73,16 @@ export function PendingClassificationBanner({
       : 0;
 
   return (
-    <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] p-3">
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label="AI classification suggestion — review and accept or dismiss"
+      className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] p-3"
+    >
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
+        <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
           Nick suggests
-        </span>
+        </p>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -140,6 +145,7 @@ export function RelationshipXpChip({
     <span
       className="inline-flex items-center gap-1 rounded-full border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-0.5 text-[10px] font-mono tabular-nums text-[var(--gold)]"
       title={`${parts.join(" · ")} · across ${xp.count} reps`}
+      aria-label={`Earned ${xp.total} mastery XP from relationship work: ${parts.join(", ")}, across ${xp.count} reps`}
     >
       +{xp.total} XP
     </span>

@@ -178,7 +178,7 @@ function PersonEditDrawerBody({
         await updateMutation.mutateAsync({
           personId: personId!,
           name: trimmedName,
-          role,
+          role: role as typeof ROLES[number],
           relationship: relationship.trim(),
           leverageNotes: leverageNotes.trim() || null,
           birthday: birthday.trim() || null,
@@ -208,18 +208,20 @@ function PersonEditDrawerBody({
     onClose,
   ]);
 
+  // PWA-safe two-tap delete. window.confirm() is SILENTLY suppressed in iOS
+  // standalone PWAs (the operator's actual environment) — it returns false so
+  // the delete never fired. First tap arms (button → "tap to confirm"), second
+  // tap within 4s deletes. Soft-delete is reversible (revive via Nick), so a
+  // two-tap inline confirm is safe + avoids a broken modal-on-modal.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const handleSoftDelete = useCallback(async () => {
     if (!personId) return;
-    // Wave AC.b · operator said "no where to just delete people" · the
-    // soft-delete button WAS here all along, just labeled with the
-    // technical term. Renaming to plain "delete" + simplifying the
-    // confirm copy so the action is obvious. Behaviour unchanged · still
-    // sets deletedAt + leaves ledger intact (revivable via the same
-    // mutation with revive:true).
-    const confirmed = window.confirm(
-      `Delete ${initial?.name ?? "this person"} from your relationships?\n\nTheir dossier + ledger stay archived — you can ask Nick to revive them later.`,
-    );
-    if (!confirmed) return;
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      window.setTimeout(() => setConfirmingDelete(false), 4000);
+      return;
+    }
+    setConfirmingDelete(false);
     try {
       await softDeleteMutation.mutateAsync({ personId });
       toast.success(`Deleted ${initial?.name ?? "person"}.`);
@@ -228,10 +230,7 @@ function PersonEditDrawerBody({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed.");
     }
-    // wave-AB.b-audit · React Compiler inferred `initial` as the dep
-    // instead of the manually-listed `initial?.name` · listing the
-    // parent object directly so the compiler can preserve memoization.
-  }, [personId, initial, softDeleteMutation, onSaved, onClose]);
+  }, [personId, confirmingDelete, initial, softDeleteMutation, onSaved, onClose]);
 
   return (
     <div
@@ -263,7 +262,7 @@ function PersonEditDrawerBody({
             onClick={onClose}
             disabled={submitting}
             aria-label="close"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]/15"
           >
             <X size={14} strokeWidth={2} />
           </button>
@@ -361,17 +360,27 @@ function PersonEditDrawerBody({
               type="button"
               onClick={handleSoftDelete}
               disabled={submitting}
-              className="inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-[12px] font-mono uppercase tracking-[0.15em] text-rose-300/90 hover:text-rose-300 disabled:opacity-50"
+              aria-label={
+                confirmingDelete
+                  ? `confirm delete ${initial?.name ?? "person"}`
+                  : `delete ${initial?.name ?? "person"}`
+              }
+              className={cn(
+                "inline-flex items-center gap-1.5 min-h-[44px] px-2 -mx-2 text-[12px] font-mono uppercase tracking-[0.15em] disabled:opacity-50",
+                confirmingDelete
+                  ? "text-rose-300 font-semibold"
+                  : "text-rose-300/90 hover:text-rose-300",
+              )}
             >
               <Trash2 size={13} strokeWidth={1.75} />
-              delete
+              {confirmingDelete ? "tap to confirm" : "delete"}
             </button>
           )}
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="ml-auto text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
+            className="ml-auto inline-flex items-center min-h-[44px] px-2 text-[11px] font-mono uppercase tracking-[0.15em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] disabled:opacity-50"
           >
             cancel
           </button>
