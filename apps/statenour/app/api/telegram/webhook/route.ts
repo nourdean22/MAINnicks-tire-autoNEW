@@ -24,6 +24,7 @@ import {
   editTelegramMessage,
   sendTelegram,
 } from "@/lib/services/telegram";
+import { confirmJournalLink, type JournalSilo } from "@/lib/brain/journal-brain";
 
 /**
  * v9.1.14 · Constant-time secret compare. The previous `provided !==
@@ -172,6 +173,27 @@ async function handleCallback(callback: {
   const chatId = String(callback.message?.chat?.id ?? "");
 
   try {
+    // Journal Brain · confirm/reject a proposed goal link from the phone.
+    // callback_data: jlink:c|r:<silo>:<id>
+    if (action === "jlink") {
+      const parts = (callback.data ?? "").split(":");
+      const accept = parts[1] === "c";
+      const silo = parts[2] as JournalSilo;
+      const entryId = parts.slice(3).join(":");
+      const r = await confirmJournalLink(silo, entryId, accept);
+      await answerCallbackQuery(
+        callback.id,
+        r.ok ? (accept ? "Linked ✓" : "Dismissed") : "Entry not found",
+      );
+      if (messageId) {
+        await editTelegramMessage(
+          messageId,
+          accept ? "🔗 Goal link confirmed ✓" : "🔗 Link dismissed.",
+          chatId,
+        );
+      }
+      return;
+    }
     // Apr 17 separation pass — autopilot-morning approval flow retired
     // along with the cron that produced it. Shop-side approvals now
     // live in nickstire.org/admin.

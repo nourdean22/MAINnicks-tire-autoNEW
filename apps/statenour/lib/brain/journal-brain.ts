@@ -172,6 +172,7 @@ export async function enrichJournalEntry(
   silo: JournalSilo,
   id: string,
   text: string,
+  opts: { notifyTelegram?: boolean } = {},
 ): Promise<void> {
   try {
     const body = text.trim();
@@ -294,6 +295,22 @@ ${missionMenu}`,
     let creditedStats: { statKey: string; xp: number }[] = [];
     if (goal && status === "auto") {
       creditedStats = await creditGroundedGoalXp(id, goal, settings);
+    }
+
+    // Telegram confirm surface · for telegram-originated captures with a
+    // PROPOSED (not auto-confirmed) goal link, ping the operator to confirm
+    // from their phone. Auto-confirmed links need no action; fire-and-forget.
+    if (opts.notifyTelegram && goal && status === "proposed") {
+      const { sendTelegramWithButtons } = await import("@/lib/services/telegram");
+      await sendTelegramWithButtons(
+        `🔗 Linked your journal note to a goal:\n<b>${goal.title}</b>\n\nConfirm?`,
+        [
+          [
+            { text: "✓ Confirm", callback_data: `jlink:c:${silo}:${id}` },
+            { text: "✗ No", callback_data: `jlink:r:${silo}:${id}` },
+          ],
+        ],
+      ).catch(() => {});
     }
 
     // ─── Phase 2 · creative + challenge (the "sharp" layer) ──────────────
@@ -473,4 +490,51 @@ export async function backfillJournalBrain(
     results.push({ silo, candidates: rows.length, enriched });
   }
   return results;
+}
+
+/**
+ * Confirm or reject a proposed journal→goal link. SHARED by the tRPC
+ * confirmLink mutation (web chip) AND the Telegram callback handler so there's
+ * one source of truth. Accept → linkStatus="confirmed" + (idempotently) bank
+ * the grounded XP bonus. Reject → clear the link + linkStatus="rejected".
+ * Idempotent: creditGroundedGoalXp dedupes by sourceKey.
+ */
+export async function confirmJournalLink(
+  silo: JournalSilo,
+  id: string,
+  accept: boolean,
+): Promise<{ ok: boolean; accepted: boolean; creditedStats: { statKey: string; xp: number }[] }> {
+  const sel = { goalId: true };
+  const row =
+    silo === "brain_dump"
+      ? await prisma.brainDump.findUnique({ where: { id }, select: sel })
+      : silo === "reflection"
+        ? await prisma.reflection.findUnique({ where: { id }, select: sel })
+        : silo === "situation_log"
+          ? await prisma.situationLog.findUnique({ where: { id }, select: sel })
+          : await prisma.decisionReplay.findUnique({ where: { id }, select: sel });
+  if (!row) return { ok: false, accepted: accept, creditedStats: [] };
+
+  const data = accept
+    ? { linkStatus: "confirmed" }
+    : { linkStatus: "rejected", goalId: null, missionId: null };
+  if (silo === "brain_dump") await prisma.brainDump.update({ where: { id }, data });
+  else if (silo === "reflection") await prisma.reflection.update({ where: { id }, data });
+  else if (silo === "situation_log") await prisma.situationLog.update({ where: { id }, data });
+  else await prisma.decisionReplay.update({ where: { id }, data });
+
+  let creditedStats: { statKey: string; xp: number }[] = [];
+  if (accept && row.goalId) {
+    const goal = await prisma.lifeGoal
+      .findUnique({
+        where: { id: row.goalId },
+        select: { id: true, title: true, domain: true, statLinks: { select: { statKey: true, weight: true } } },
+      })
+      .catch(() => null);
+    if (goal) {
+      const settings = await getJournalSettings();
+      creditedStats = await creditGroundedGoalXp(id, goal, settings);
+    }
+  }
+  return { ok: true, accepted: accept, creditedStats };
 }

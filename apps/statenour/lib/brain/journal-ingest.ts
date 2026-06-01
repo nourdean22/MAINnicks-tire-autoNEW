@@ -703,7 +703,9 @@ ${rawText}`,
   // Fire-and-forget — capture returns now; enrichment runs a beat later and the
   // enrichedAt-null cron resweep retries if the process dies mid-pass. Runs for
   // EVERY brain_dump (independent of the baseline-XP creditXp guard above).
-  void enrichJournalEntry("brain_dump", brainDump.id, rawText).catch(() => {});
+  void enrichJournalEntry("brain_dump", brainDump.id, rawText, {
+    notifyTelegram: source === "telegram",
+  }).catch(() => {});
 
   return {
     brainDumpId: brainDump.id,
