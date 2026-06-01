@@ -211,6 +211,10 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
       }
       const { normalized } = recordInboundShopSms(phone, body, messageId);
       if (normalized) {
+        // Rank-3 dedup flag — set inside the try (needs the conversation id),
+        // read by the executeAutoAction IIFE below to skip a duplicate
+        // auto-reply/lead on a redelivered inbound (the row is recorded either way).
+        let compositeRedelivery = false;
         // Persist the inbound text to smsMessages so it surfaces in
         // /admin/sms and bumps the conversation unread badge.
         // recordInboundShopSms() above writes only an in-memory Map
@@ -218,7 +222,7 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // the admin SMS UI actually reads. Awaited — a failed DB write
         // returns 500 so Capevace retries instead of dropping the lead.
         try {
-          const { getOrCreateConversation, addSmsMessage, smsMessageExists } = await import("../../db");
+          const { getOrCreateConversation, addSmsMessage, smsMessageExists, recentInboundExists } = await import("../../db");
           // Dedup — the Capevace cloud relay delivers webhooks
           // at-least-once, so the same sms:received can arrive more than
           // once. If a durable row for this gateway message id already
@@ -234,6 +238,10 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
             return;
           }
           const conversation = await getOrCreateConversation(normalized);
+          // Rank-3: a prior identical inbound (<5min) means this is a redelivery
+          // (new messageId) or an impatient repeat. Checked BEFORE addSmsMessage
+          // so it sees only PRIOR rows, not the one we're about to add.
+          compositeRedelivery = await recentInboundExists(conversation.id, body);
           await addSmsMessage({
             conversationId: conversation.id,
             direction: "inbound",
@@ -272,6 +280,12 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
         // markPhoneOptedOut, so the very next send is blocked. Fire-and-
         // forget — intent handling must never block or fail the 200 ack.
         (async () => {
+          if (compositeRedelivery) {
+            log.info("Skipping auto-action — composite redelivery (prior identical inbound <5min)", {
+              phone: phone.slice(-4),
+            });
+            return;
+          }
           const { parseSmsResponse, executeAutoAction } = await import(
             "../../services/smsResponseParser"
           );
