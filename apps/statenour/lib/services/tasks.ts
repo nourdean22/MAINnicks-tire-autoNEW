@@ -494,14 +494,8 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     if (!task) return;
 
     const { resolveInboxMissionId } = await import("@/lib/services/missions");
-    const inboxId = await resolveInboxMissionId();
-    const missionUnset = !task.missionId || task.missionId === inboxId;
-    const goalUnset = !task.goalId;
-    const statsUnset = !task.statHints || task.statHints.length === 0;
-    // Already fully linked → skip the AI call (gap-fill only).
-    if (!missionUnset && !goalUnset && !statsUnset) return;
-
-    const [missions, goals] = await Promise.all([
+    const [inboxId, missions, goals] = await Promise.all([
+      resolveInboxMissionId(),
       prisma.mission.findMany({
         where: activeOnly(),
         select: { id: true, title: true, domain: true },
@@ -512,11 +506,25 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
       }),
     ]);
 
+    // 2026-06-01 · treat ALL inbox-variant missions as "unclassified", not
+    // just the canonical m-inbox. The operator runs "Inbox", "Inbox - health",
+    // "Inbox - business"… — a task in any of them should still be offered a
+    // real mission (data-profile finding).
+    const inboxIds = new Set<string>([inboxId]);
+    for (const m of missions) {
+      if (/^inbox\b/i.test(m.title ?? "")) inboxIds.add(m.id);
+    }
+    const missionUnset = !task.missionId || inboxIds.has(task.missionId);
+    const goalUnset = !task.goalId;
+    const statsUnset = !task.statHints || task.statHints.length === 0;
+    // Already fully linked → skip the AI call (gap-fill only).
+    if (!missionUnset && !goalUnset && !statsUnset) return;
+
     const result = await classifyTaskLinkage({
       taskTitle: task.title,
       nextPhysicalAction: task.nextPhysicalAction,
-      // Don't offer Inbox as a classification target — it IS "unclassified".
-      missions: missions.filter((m) => m.id !== inboxId),
+      // Don't offer any inbox variant as a target — they ARE "unclassified".
+      missions: missions.filter((m) => !inboxIds.has(m.id)),
       goals,
       stats: DOMAINS.map((d) => ({ key: d.key, label: d.label })),
     });
@@ -525,8 +533,8 @@ export async function enrichTaskLinkage(taskId: string): Promise<void> {
     if (missionUnset && result.missionId && result.confidence >= CONFIDENCE.silentAttach) {
       await prisma.task
         .updateMany({
-          // missionId is a non-nullable FK, so "unset" == pointing at Inbox.
-          where: { id: taskId, missionId: inboxId },
+          // Only reassign while the task is STILL in an inbox variant (race-safe).
+          where: { id: taskId, missionId: { in: [...inboxIds] } },
           data: { missionId: result.missionId },
         })
         .catch(() => {});
