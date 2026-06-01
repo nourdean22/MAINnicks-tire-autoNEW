@@ -129,7 +129,7 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
       // Logged unconditionally (mirrors crossSellOutreach) — a failed
       // send is recorded as failed.
       const { logOutboundSms } = await import("./smsInstrumentation");
-      await logOutboundSms(partial.phone, message, result.sid, "abandoned_form");
+      await logOutboundSms(partial.phone, message, result, "abandoned_form");
       if (result.success) {
         processed++;
         log.info("Abandoned form recovery sent", { sessionId, phone: partial.phone.slice(-4) });
