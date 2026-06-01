@@ -24,6 +24,7 @@ import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
 import { createLogger } from "../../lib/logger";
 import { recordInboundShopSms } from "../../sms";
+import { STORE_PHONE } from "@shared/const";
 
 const log = createLogger("sms-gateway-webhook");
 const router = Router();
@@ -164,6 +165,17 @@ router.post("/sms-gateway", async (req: Request, res: Response) => {
     if (eventType === "sms:received") {
       // ─── Inbound customer text → 216-862-0005 ────────
       const body = payload.message || "";
+
+      // Loop guard ("reading itself"): drop any sms:received whose sender
+      // is the shop's OWN number. The Capevace relay can echo an outbound
+      // back as inbound (or a self-test does), which would run our own text
+      // through executeAutoAction -> auto-reply -> another send -> loop.
+      // (eventBus has the same guard for the manager number.)
+      if (phone.replace(/\D/g, "").slice(-10) === STORE_PHONE.replace(/\D/g, "").slice(-10)) {
+        log.warn("Inbound shop SMS from our OWN number -- dropping (loop guard)", { phone: phone.slice(-4) });
+        res.status(200).json({ received: true, selfIgnored: true });
+        return;
+      }
 
       // Wave AZ · MMS detection · if Capevace included an attachment
       // (image), fire the photo-assess pipeline in parallel with the
