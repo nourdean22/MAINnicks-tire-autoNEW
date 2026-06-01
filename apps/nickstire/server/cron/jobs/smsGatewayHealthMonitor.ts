@@ -127,8 +127,8 @@ async function fireOfflineAlert(reason: string, dev: CapevaceDevice | null): Pro
     await sendTelegram(
       `🚨 SHOP SMS GATEWAY OFFLINE\n` +
       `${reason}\n\n` +
-      `Customer-facing SMS via 216-862-0005 will fail until restored.\n` +
-      `Sends will fall back to Twilio (if Twilio is up + kill switch off).\n\n` +
+      `Customer SMS via 216-862-0005 now QUEUES and auto-delivers when the\n` +
+      `F25e is back online — nothing is dropped (Twilio is intentionally off).\n\n` +
       `Check the F25e:\n` +
       `• Battery + plug status\n` +
       `• Wifi/LTE connection\n` +

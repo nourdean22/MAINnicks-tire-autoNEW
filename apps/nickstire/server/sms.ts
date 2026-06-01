@@ -2,8 +2,9 @@
  * SMS Integration for Nick's Tire & Auto
  *
  * Outbound SMS routes shop-first (wave-181.60): the F25e Capevace
- * gateway at 216-862-0005 is the primary sender, with Twilio kept as a
- * fallback for when the gateway is offline. Inbound replies arrive via
+ * gateway at 216-862-0005 is the primary sender. When it's offline,
+ * messages QUEUE and auto-deliver once it checks back in (operator
+ * directive 2026-06 · Twilio not set up). Inbound replies arrive via
  * the SMS Gateway webhook (routes/webhooks/sms-gateway.ts).
  *
  * Features: conversation threading, smart timing (8AM-8PM ET), opt-out
@@ -914,9 +915,10 @@ async function checkDailyLimit(phone: string): Promise<boolean> {
 //
 // This replaces the prior gateway-down behavior (claim 'sent' → send
 // fails → mark 'failed' = message LOST, never retried) with
-// hold-and-deliver. It is NOT wired into sendSms itself: transactional /
-// time-sensitive sends (booking confirmations, VAPI recaps) must still
-// attempt + Twilio-fall-back. Only the bulk drains gate on this.
+// hold-and-deliver. As of the 2026-06 operator directive (F25e-only,
+// Twilio off) sendSms ALSO gates on this: a configured-but-offline
+// gateway queues the message instead of Twilio-falling-back, so both the
+// per-message path and the bulk drains now hold-and-deliver.
 //
 // Same probe the health monitor uses (Capevace /device + F25e lastSeen
 // within 30 min). Cached 60s (both states) so back-to-back drains don't
