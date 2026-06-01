@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { NicksHomeBrief } from "@/components/home/nicks-home-brief";
 import { HomeOneTapMoves } from "@/components/home/home-one-tap-moves";
 import { HomeStatePulse } from "@/components/home/home-state-pulse";
@@ -37,14 +36,12 @@ import { HomeComposer } from "@/components/home/home-composer";
  */
 export default function HomePage() {
   return (
-    <Suspense fallback={null}>
-      <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
-        <HomeIdentityHeader />
-        <NicksHomeBrief />
-        <HomeOneTapMoves />
-        <HomeStatePulse />
-        <HomeComposer />
-      </div>
-    </Suspense>
+    <div className="space-y-4 max-w-3xl mx-auto px-3 pb-32">
+      <HomeIdentityHeader />
+      <NicksHomeBrief />
+      <HomeOneTapMoves />
+      <HomeStatePulse />
+      <HomeComposer />
+    </div>
   );
 }
