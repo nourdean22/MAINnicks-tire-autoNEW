@@ -57,6 +57,11 @@ import ReciprocityCard from "@/components/power-atlas/ReciprocityCard";
 import ToneShiftCard from "@/components/power-atlas/ToneShiftCard";
 import TopicGoalOverlapCard from "@/components/power-atlas/TopicGoalOverlapCard";
 import PowerPlaysHistory from "@/components/power-atlas/PowerPlaysHistory";
+import {
+  PendingClassificationBanner,
+  RelationshipXpChip,
+  OpenPromisesPanel,
+} from "@/components/power-atlas/PersonInsights";
 
 interface PersonRow {
   id: string;
@@ -236,7 +241,7 @@ export default function RelationshipsPage() {
     <StandardPage
       eyebrow="brain · people"
       title="people"
-      description="Power Atlas · trust scores · neglect detection · Greene laws · ledger · tap a name to open the dossier"
+      description="Your Power Atlas — tap a name to open their dossier, ledger, and open promises."
       rhythm="comfortable"
       width="2xl"
       actions={
@@ -297,6 +302,53 @@ export default function RelationshipsPage() {
         }}
       />
 
+      {/* Roll-up stats · ALWAYS VISIBLE (2026-06-01 de-bulk: lifted out of
+       *  the collapsed browse section — these at-a-glance numbers are the
+       *  most useful thing on the page, they shouldn't be buried behind a
+       *  disclosure). Each tile taps through to the browse list, pre-sorted. */}
+      {data && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat
+            label="people"
+            value={data.totals.total}
+            tint="text-[var(--text-primary)]"
+            onClick={() => {
+              setBrowseOpen(true);
+              setShowAll(true);
+            }}
+          />
+          <Stat
+            label="neglected"
+            value={data.totals.neglected}
+            tint={data.totals.neglected > 0 ? "text-amber-300" : "text-zinc-500"}
+            onClick={() => {
+              setBrowseOpen(true);
+              setSortKey("neglect");
+              setShowAll(true);
+            }}
+          />
+          <Stat
+            label="high trust"
+            value={data.totals.high_trust}
+            tint="text-emerald-300"
+            onClick={() => {
+              setBrowseOpen(true);
+              setSortKey("trust");
+              setShowAll(true);
+            }}
+          />
+          <Stat
+            label="needs info"
+            value={data.totals.sparse}
+            tint={data.totals.sparse > 5 ? "text-amber-300" : "text-zinc-500"}
+            onClick={() => {
+              setBrowseOpen(true);
+              setShowAll(true);
+            }}
+          />
+        </div>
+      )}
+
       {/* ═══ The full dossier surface · collapsed by default ═════════
        *  Operator opens this only when researching a specific person.
        *  Pre-Wave-AB this was the page · now it's secondary.
@@ -311,34 +363,6 @@ export default function RelationshipsPage() {
           ▸ browse all people {data ? `(${data.totals.total})` : ""}
         </summary>
         <div className="border-t border-[var(--border-default)]/60 p-3 space-y-3">
-
-      {/* Roll-up strip · 4 totals */}
-      {data && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat
-            label="total"
-            value={data.totals.total}
-            tint="text-[var(--text-primary)]"
-          />
-          <Stat
-            label="neglected"
-            value={data.totals.neglected}
-            tint={
-              data.totals.neglected > 0 ? "text-amber-300" : "text-zinc-500"
-            }
-          />
-          <Stat
-            label="high trust"
-            value={data.totals.high_trust}
-            tint="text-emerald-300"
-          />
-          <Stat
-            label="sparse"
-            value={data.totals.sparse}
-            tint={data.totals.sparse > 5 ? "text-amber-300" : "text-zinc-500"}
-          />
-        </div>
-      )}
 
       {/* Sort + show-all */}
       <div className="flex items-center justify-between">
@@ -376,20 +400,33 @@ export default function RelationshipsPage() {
             const tone = trustTone(p.trustScore);
             const isSelected = selectedPersonId === p.id;
             return (
-              <button
+              <div
                 key={p.id}
                 id={`person-${p.id}`}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() =>
                   setSelectedPersonId(isSelected ? null : p.id)
                 }
+                onKeyDown={(e) => {
+                  // Row is a div-as-button so the inner edit/delete buttons
+                  // aren't nested inside a <button> (invalid HTML). Keep
+                  // keyboard activation parity with the old <button>.
+                  if (
+                    (e.key === "Enter" || e.key === " ") &&
+                    e.target === e.currentTarget
+                  ) {
+                    e.preventDefault();
+                    setSelectedPersonId(isSelected ? null : p.id);
+                  }
+                }}
                 // Wave AS · 2026-05-28 · row anchor · RelationshipsWatchlist
                 // (and any external CTA) points at #person-<id> · smooth-
                 // scroll lands on the right row · scroll-mt-24 honors the
                 // sticky header. Matches MissionCard + GoalBoard pattern
                 // from Wave AR.
                 className={cn(
-                  "block w-full text-left rounded-lg border p-3 transition-all hover:scale-[1.005] active:scale-[0.99] scroll-mt-24",
+                  "block w-full text-left rounded-lg border p-3 transition-all hover:scale-[1.005] active:scale-[0.99] scroll-mt-24 cursor-pointer",
                   tone.bg,
                   isSelected && "ring-1 ring-[var(--gold)]/50",
                 )}
@@ -507,7 +544,7 @@ export default function RelationshipsPage() {
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             );
           })}
 
@@ -563,6 +600,7 @@ export default function RelationshipsPage() {
                   setLogModalOpen(true);
                 }}
                 onOpenBlowUp={() => setBlowUpOpen(true)}
+                onResolved={reload}
               />
             </DetailPanelErrorBoundary>
           )}
@@ -627,6 +665,7 @@ interface DetailPanelData {
     blownUpAt: Date | string | null;
     lastArcPlan: unknown;
     metadata: unknown;
+    pendingClassification: unknown;
   };
   ledger: Array<{
     id: string;
@@ -644,18 +683,29 @@ interface DetailPanelData {
     outcomeNote: string | null;
   }>;
   applicableLawTexts: Array<{ key: string; content: string }>;
+  openTasks: Array<{
+    id: string;
+    title: string;
+    status: string;
+    dueDate: Date | string | null;
+    loopKind: string;
+    promiseTo: string | null;
+  }>;
+  xp: { total: number; count: number; byStat: Record<string, number> };
 }
 
 function DetailPanel({
   detail,
   onOpenLog,
   onOpenBlowUp,
+  onResolved,
 }: {
   detail: DetailPanelData;
   onOpenLog: (direction: "deposit" | "withdraw") => void;
   onOpenBlowUp: () => void;
+  onResolved: () => void;
 }) {
-  const { person, ledger, plays, applicableLawTexts } = detail;
+  const { person, ledger, plays, applicableLawTexts, openTasks, xp } = detail;
   const blownUp = person.status === "blown_up";
   const utils = trpc.useUtils();
   const updatePowerBalance = trpc.task.updatePowerBalance.useMutation({
@@ -666,11 +716,22 @@ function DetailPanel({
 
   return (
     <div className="space-y-4">
-      {/* Header strip */}
+      {/* Suggest-then-approve · the AI's proposal waits here for the
+       *  operator instead of silently overwriting role/notes/trust. */}
+      <PendingClassificationBanner
+        personId={person.id}
+        pending={person.pendingClassification}
+        onResolved={onResolved}
+      />
+
+      {/* Header strip · name · earned-XP chip · status */}
       <div className="flex items-baseline justify-between flex-wrap gap-2">
-        <h2 className="font-serif text-2xl tracking-tight text-[var(--text-primary)]">
-          {person.name}
-        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="font-serif text-2xl tracking-tight text-[var(--text-primary)]">
+            {person.name}
+          </h2>
+          <RelationshipXpChip xp={xp} />
+        </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
             status
@@ -715,6 +776,7 @@ function DetailPanel({
                 : null
             }
           />
+          <OpenPromisesPanel tasks={openTasks} personName={person.name} />
           <LedgerTimeline
             personId={person.id}
             entries={ledger.map((e) => ({
@@ -725,10 +787,6 @@ function DetailPanel({
               source: e.source,
             }))}
           />
-          <TopicGoalOverlapCard metadata={person.metadata} />
-          <PowerPlaysHistory plays={plays} personId={person.id} />
-          <AlphaMoments personId={person.id} />
-          <SocialProof personId={person.id} />
         </div>
         <div className="space-y-4">
           <PowerBalanceGauge
@@ -742,21 +800,11 @@ function DetailPanel({
               });
             }}
           />
-          <ArcProjection
-            personId={person.id}
-            initialProjection={person.lastArcPlan}
-          />
-          {/* wave-AB.b · contextual Greene picks · top 3 from the Wave Z
-           *  144-entry corpus, ranked per-person + per-day, with verbatim
-           *  action strings. Mounted ABOVE the legacy static sidebar so
-           *  the operator sees the dynamic picks first. `key=person.id`
-           *  forces a remount on person switch · useState initializers
-           *  fire with fresh defaults (loading=true) so we don't need
-           *  setState calls in the effect body. */}
+          {/* Contextual Greene picks · the AI per-day ranked picks. The
+           *  legacy STATIC applicableLaws list (GreeneLawSidebar) moved to
+           *  "deeper signals" below — showing both at once was the
+           *  duplicate-Greene-block confusion the operator flagged. */}
           <ContextualGreeneSidebar key={person.id} personId={person.id} />
-          <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
-          <ReciprocityCard metadata={person.metadata} />
-          <ToneShiftCard metadata={person.metadata} />
 
           {/* Quick actions */}
           <section
@@ -797,6 +845,30 @@ function DetailPanel({
           </section>
         </div>
       </div>
+
+      {/* ─── Deeper signals · collapsed (2026-06-01 de-bulk) ───
+       *  Data-hungry / lower-frequency cards that used to form a wall of
+       *  grey empty-states on every profile. Folded behind one disclosure
+       *  so the panel above stays focused; they fill in as the brain
+       *  accumulates enough data to make them meaningful. */}
+      <details className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]">
+        <summary className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none">
+          ▸ deeper signals
+        </summary>
+        <div className="border-t border-[var(--border-default)]/60 p-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <TopicGoalOverlapCard metadata={person.metadata} />
+          <PowerPlaysHistory plays={plays} personId={person.id} />
+          <ArcProjection
+            personId={person.id}
+            initialProjection={person.lastArcPlan}
+          />
+          <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
+          <ReciprocityCard metadata={person.metadata} />
+          <ToneShiftCard metadata={person.metadata} />
+          <AlphaMoments personId={person.id} />
+          <SocialProof personId={person.id} />
+        </div>
+      </details>
     </div>
   );
 }
@@ -857,19 +929,38 @@ function Stat({
   label,
   value,
   tint,
+  onClick,
 }: {
   label: string;
   value: number;
   tint: string;
+  onClick?: () => void;
 }) {
-  return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-3 text-center">
+  const inner = (
+    <>
       <div className={cn("text-2xl font-bold font-mono tabular-nums", tint)}>
         {value}
       </div>
       <div className="text-[10px] uppercase tracking-wider text-[var(--text-tertiary)]">
         {label}
       </div>
-    </div>
+    </>
   );
+  const base =
+    "rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-3 text-center";
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          base,
+          "transition-all hover:border-[var(--gold)]/30 hover:scale-[1.01] active:scale-[0.99] cursor-pointer",
+        )}
+      >
+        {inner}
+      </button>
+    );
+  }
+  return <div className={base}>{inner}</div>;
 }
