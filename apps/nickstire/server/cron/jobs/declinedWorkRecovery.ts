@@ -435,7 +435,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           customer,
         });
         const res = await sendSms(est.customerPhone, body, { via: "shop", skipPersist: true });
-        await logOutboundSms(est.customerPhone, body, res.sid, variantKey(touch, profile));
+        await logOutboundSms(est.customerPhone, body, res, variantKey(touch, profile));
 
         if (res.success) {
           // Mark sent column (touch-specific, like the claim above)

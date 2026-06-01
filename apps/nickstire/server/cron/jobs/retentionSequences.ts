@@ -130,11 +130,11 @@ function isWithinRetentionHours(): boolean {
 async function logRetentionSms(
   phone: string,
   body: string,
-  sid?: string,
+  result: { success?: boolean; sid?: string | null; queued?: boolean } | null | undefined,
   variantKey?: string,
 ): Promise<void> {
   const { logOutboundSms } = await import("../../services/smsInstrumentation");
-  await logOutboundSms(phone, body, sid, variantKey);
+  await logOutboundSms(phone, body, result, variantKey);
 }
 
 // ─── CORE PROCESSOR ──────────────────────────────────
@@ -290,7 +290,7 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       const result = await sendSms(c.phone, messageBody, { via: "shop", skipPersist: true });
 
       // Log to sms_messages table regardless of success
-      await logRetentionSms(c.phone, messageBody, result.sid, variantKey);
+      await logRetentionSms(c.phone, messageBody, result, variantKey);
 
       if (result.success) {
         processed++;

@@ -139,7 +139,7 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
         const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true });
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
-        await logOutboundSms(c.phone, msg, result.sid, variantKey);
+        await logOutboundSms(c.phone, msg, result, variantKey);
         if (result.success) sent++;
       } catch (err) {
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });

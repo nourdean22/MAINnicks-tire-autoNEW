@@ -217,7 +217,11 @@ export function selectVariant<T>(
 export async function logOutboundSms(
   phone: string,
   body: string,
-  sid: string | null | undefined,
+  // wave-2026-06 — was just `sid`, which forced `status = sid ? sent : failed`
+  // and mislabeled every queued / no-SID send as "failed" (data profile: 84%
+  // of rows showed "failed", almost all of them mislabels). Take the full send
+  // result so the row gets an HONEST status: queued / sent / sending / failed.
+  result: { success?: boolean; sid?: string | null; queued?: boolean } | null | undefined,
   variantKey?: string,
 ): Promise<void> {
   try {
@@ -263,12 +267,18 @@ export async function logOutboundSms(
       conv = { id: inserted.id };
     }
 
+    const sid = result?.sid ?? null;
+    const status: "queued" | "sent" | "sending" | "failed" =
+      result?.queued ? "queued"
+      : (result?.success && sid) ? "sent"
+      : result?.success ? "sending" // success but no SID = ambiguous (timeout)
+      : "failed";
     await db.insert(smsMessages).values({
       conversationId: conv.id,
       direction: "outbound",
       body,
-      twilioSid: sid || null,
-      status: sid ? "sent" : "failed",
+      twilioSid: sid,
+      status,
       variantKey: variantKey ?? null,
     });
   } catch (err) {

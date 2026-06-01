@@ -262,7 +262,7 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
 
       const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true });
       const { logOutboundSms } = await import("../../services/smsInstrumentation");
-      await logOutboundSms(p.customerPhone, message, result.sid, "cross_sell");
+      await logOutboundSms(p.customerPhone, message, result, "cross_sell");
 
       if (result.success) {
         sent++;
