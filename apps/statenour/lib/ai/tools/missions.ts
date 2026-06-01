@@ -11,7 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { enrichTaskLinkage } from "@/lib/services/tasks";
+import { createTaskAndEnrich } from "@/lib/services/tasks";
 
 export const missionsTools = {
   getMissions: tool({
@@ -41,20 +41,17 @@ export const missionsTools = {
     execute: async ({ missionId, tasks }) => {
       const createdTasks = [];
       for (const t of tasks) {
-        const task = await prisma.task.create({
-          data: {
-            title: t.title,
-            missionId,
-            nextPhysicalAction: t.nextPhysicalAction,
-            effort: t.effort,
-            roiScore: 50,
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-            context: t.context,
-            finishCondition: t.title,
-          },
+        const task = await createTaskAndEnrich({
+          title: t.title,
+          missionId,
+          nextPhysicalAction: t.nextPhysicalAction,
+          effort: t.effort,
+          roiScore: 50,
+          frictionScore: 30,
+          energyRequired: "MEDIUM",
+          context: t.context,
+          finishCondition: t.title,
         });
-        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         createdTasks.push({ taskId: task.id, title: task.title });
       }
       return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
@@ -92,20 +89,17 @@ export const missionsTools = {
       const createdTasks = [];
       for (let i = 0; i < tasks.length; i++) {
         const t = tasks[i];
-        const task = await prisma.task.create({
-          data: {
-            title: t.title,
-            missionId: mission.id,
-            nextPhysicalAction: t.nextPhysicalAction,
-            effort: t.effort,
-            context: t.context,
-            finishCondition: t.title,
-            roiScore: Math.max(10, 90 - i * 10),
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-          },
+        const task = await createTaskAndEnrich({
+          title: t.title,
+          missionId: mission.id,
+          nextPhysicalAction: t.nextPhysicalAction,
+          effort: t.effort,
+          context: t.context,
+          finishCondition: t.title,
+          roiScore: Math.max(10, 90 - i * 10),
+          frictionScore: 30,
+          energyRequired: "MEDIUM",
         });
-        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         createdTasks.push(task);
       }
       return {
