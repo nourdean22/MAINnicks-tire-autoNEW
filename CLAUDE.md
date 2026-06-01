@@ -2,6 +2,13 @@
 
 Two apps share this repo: `apps/statenour` (→ Railway/bdnick.info) and `apps/nickstire` (→ nickstire.org). **Per-app detail + wave history lives in `apps/<app>/AGENTS.md` — read that first for the app you're touching.** This file is only the always-must-know cross-cutting gotchas (the ones that recur).
 
+## Context routing — load the scoped context for what you touch (don't re-read the whole repo)
+- **`apps/statenour/**`** (Railway · bdnick.info) → read `apps/statenour/AGENTS.md` first. XP/stats spine = `lib/mastery/**` · "brain" (BrainMemory/recall/people-intelligence) = `lib/brain/**` · tRPC API = `lib/trpc/routers/**` · schema+migrations = `prisma/**` → skill **statenour-migration** (hand-applied; one wrong flag silently drops pgvector). Before commit/push → skill **statenour-verify**.
+- **`apps/nickstire/**`** (Railway · nickstire.org) → read `apps/nickstire/AGENTS.md` first. SMS/VAPI = `server/**` · PWA UI = `client/**`. Before commit/push → skill **nickstire-verify**; pushing beside a sibling session → skill **nickstire-shared-main-push**.
+- **Any client/UI code (BOTH apps run as standalone iOS PWAs)** → `window.confirm/alert/prompt` are silently suppressed on the operator's phone; use an in-DOM confirm → skill **nickstire-ios-pwa-primitives** (applies to statenour too).
+- **Cross-session brain** (decisions · wave history · durable gotchas) → `~/.claude/projects/C--/memory/MEMORY.md` (index + topic files). Per-app last-session handoff → `apps/<app>/.remember/remember.md`.
+- **Pushing to shared `main`** → `bash ~/push-main.sh` (fetch→rebase→affected-build gate→push, auto-recovers from ref-lock races; never `--no-verify`/force).
+
 ## Shared `main` — concurrent sessions
 - `main` is worked by **concurrent Claude sessions** (statenour + nickstire, under `apps/*`). `git fetch origin` before every push; `git log origin/main..HEAD` to see what rides along — commits that aren't yours are expected (they committed, they ship).
 - The pre-push hook builds **both affected apps** (turbo). The other session's broken working tree can bounce your push — surface it with a self-contained prompt; **never `--no-verify`**, never force-push shared history.
