@@ -59,7 +59,7 @@ UPDATE "Task" t
   WHERE lower(t."promiseTo") = lower(p.name)
     AND t."person_id" IS NULL
     AND t."promiseTo" IS NOT NULL
-    AND p."deletedAt" IS NULL;
+    AND p.deleted_at IS NULL;
 
 -- ── Step 3 · CREATE INDEX CONCURRENTLY outside the transaction ──
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "Task_person_id_idx"
