@@ -289,6 +289,18 @@ export default function Admin() {
   const [section, setSection] = useState<AdminSection>(resolveInitialSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [drawerCustomerId, setDrawerCustomerId] = useState<number | null>(null);
+  // Admin theme -- opt-in "neutral" (Linear/Vercel calm) scoped to .admin-shell.
+  // Default "grit" = the live look; zero change until opted in. Preview from a
+  // phone via ?adminTheme=neutral (persists to localStorage); revert with =grit.
+  const [adminTheme, setAdminTheme] = useState<"grit" | "neutral">(() => {
+    if (typeof window === "undefined") return "grit";
+    const param = new URLSearchParams(window.location.search).get("adminTheme");
+    if (param === "neutral" || param === "grit") {
+      window.localStorage.setItem("nickstire.adminTheme", param);
+      return param;
+    }
+    return window.localStorage.getItem("nickstire.adminTheme") === "neutral" ? "neutral" : "grit";
+  });
 
   // Keep URL in sync with section so deep links + browser back/forward work.
   useEffect(() => {
@@ -430,7 +442,7 @@ export default function Admin() {
   return (
     <AdminSSEProvider enabled={!!user && user.role === "admin"}>
       <AdminSSEListeners />
-      <div className="admin-shell min-h-screen bg-background flex">
+      <div className="admin-shell min-h-screen bg-background flex" data-admin-theme={adminTheme}>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -545,6 +557,24 @@ export default function Admin() {
               <p className="text-[10px] text-muted-foreground/70 leading-tight mt-0.5">Administrator</p>
             </div>
           </div>
+          {/* Admin theme toggle -- preview the opt-in neutral redesign (Linear/Vercel calm) */}
+          <button
+            type="button"
+            onClick={() =>
+              setAdminTheme((t) => {
+                const next = t === "neutral" ? "grit" : "neutral";
+                if (typeof window !== "undefined") window.localStorage.setItem("nickstire.adminTheme", next);
+                return next;
+              })
+            }
+            className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md hover:bg-foreground/[0.04] border border-border/20 hover:border-border/40 transition-colors"
+            title="Toggle admin theme — preview the neutral redesign"
+          >
+            <span className="text-[11px] text-muted-foreground">Theme</span>
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-foreground/70">
+              {adminTheme === "neutral" ? "Neutral" : "Grit"}
+            </span>
+          </button>
           {/* Quick links */}
           <div className="flex items-center justify-between px-2 pt-1.5 border-t border-border/15">
             <a
