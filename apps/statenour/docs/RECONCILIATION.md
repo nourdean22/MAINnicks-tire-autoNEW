@@ -40,7 +40,7 @@
 >
 > **Flagged · NOT fixed (operator-gated / deferred):**
 > - **Backfill (~990 rows) not yet run** — heavy Ollama; `journal.backfillBrain` dryRun→drain, or the nightly resweep auto-drains brain_dumps. Operator-gated.
-> - **mission→goal stat crediting** — highest-value follow-up (1 goal vs 10 missions); `mission_id` FK already in place, just credit via `mission.lifeGoalId`.
+> - ✅ **mission→goal stat crediting — DONE this wave** — `resolveCreditGoal` routes a mission-linked entry to the mission's parent goal (`mission.lifeGoalId`) in both the live pass + confirm, so the 10 active missions earn XP, not just the 1 standalone goal (the profile's top lever, shipped same wave).
 > - Deep brain-consolidation (drift/threads INTO the pass) — YAGNI; they already work as separate /journal surfaces.
 > - Migration left in `migrations-pending/` (not promoted to migrations/ + not in `_prisma_migrations`) — the hand-applied intermediate; promote later.
 
