@@ -22,7 +22,6 @@ import { prisma } from "@/lib/prisma";
 import {
   gatherSignals,
   draftAnticipatedQuestions,
-  precomputeAnswers,
   storeAnticipated,
   todayKey,
 } from "@/lib/brain/anticipated-questions";
@@ -104,26 +103,17 @@ export const GET = cronHandler(async () => {
     };
   }
 
-  // 3. Precompute answers · in-process chat pipeline, 10s/question.
-  const tPrecomputeStart = Date.now();
-  const answers = await precomputeAnswers(questions);
-  const tPrecompute = Date.now() - tPrecomputeStart;
-
   // 4. Store · upsert into BrainMemory.
   const tStoreStart = Date.now();
-  const stored = await storeAnticipated(questions, answers, { date });
+  const stored = await storeAnticipated(questions, [], { date });
   const tStore = Date.now() - tStoreStart;
-
-  const successfulPrecomputes = answers.filter((a) => a !== null).length;
 
   log.info("anticipate_done", {
     date,
     signalCount: signals.total,
     questionCount: questions.length,
-    successfulPrecomputes,
     gatherMs: tGather,
     draftMs: tDraft,
-    precomputeMs: tPrecompute,
     storeMs: tStore,
     totalMs: Date.now() - t0,
   });
@@ -133,12 +123,10 @@ export const GET = cronHandler(async () => {
     date,
     signalCount: signals.total,
     questionCount: questions.length,
-    successfulPrecomputes,
     builtAt: stored.builtAt,
     timing: {
       gatherMs: tGather,
       draftMs: tDraft,
-      precomputeMs: tPrecompute,
       storeMs: tStore,
       totalMs: Date.now() - t0,
     },

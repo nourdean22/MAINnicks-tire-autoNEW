@@ -39,8 +39,6 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { getEmbedding } from "@/lib/ai/provider";
-import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 import { extractJsonArray } from "@/lib/ai/extract-structured";
 import { logger as rootLogger } from "@/lib/logger";
@@ -50,12 +48,6 @@ const log = rootLogger.withSurface("brain/anticipated-questions");
 const aiChat = makeTracedAiChat("anticipate-questions", "cron");
 
 // ── Tunables ─────────────────────────────────────────────────────
-
-/** Cosine similarity floor for "this is a match" at ask-time. */
-export const ANTICIPATED_MATCH_FLOOR = 0.85;
-
-/** Hard per-question precompute budget · keeps mega-evening under 60s. */
-const PRECOMPUTE_TIMEOUT_MS = 10_000;
 
 /** Default lookback window for signal gathering. */
 const DEFAULT_SIGNAL_DAYS = 7;
@@ -114,16 +106,6 @@ export interface AnticipatedSet {
   questions: AnticipatedQuestion[];
   /** Per-question precomputed answer · null when precompute failed. */
   answers: Array<string | null>;
-}
-
-export interface AnticipatedMatch {
-  question: string;
-  answer: string;
-  similarity: number;
-  /** Hours since the set was built. >24h is stale. */
-  ageHours: number;
-  /** True when builtAt is within 24h. */
-  fresh: boolean;
 }
 
 // ── 1. Signal gathering ──────────────────────────────────────────
@@ -365,91 +347,6 @@ Rules · non-negotiable:
   }
 }
 
-// ── 3. Precompute answers via in-process chat pipeline ───────────
-
-/**
- * Run each question through the chat pipeline · same in-process lift
- * as eval-regression-runner. Returns string | null per question · null
- * means precompute failed (timeout, provider outage, route error). The
- * cron stores nulls too so the operator at least sees the predicted
- * questions in the morning brief.
- *
- * 10s timeout per question · 3 × 10s = 30s worst case · fits cleanly
- * inside the 60s mega-evening child budget.
- */
-export async function precomputeAnswers(
-  questions: AnticipatedQuestion[],
-  opts: {
-    perQuestionTimeoutMs?: number;
-    /** Override the pipeline runner · test seam. */
-    runnerOverride?: (q: AnticipatedQuestion) => Promise<string>;
-  } = {},
-): Promise<Array<string | null>> {
-  const timeoutMs = opts.perQuestionTimeoutMs ?? PRECOMPUTE_TIMEOUT_MS;
-  const runner = opts.runnerOverride ?? defaultPipelineRunner;
-
-  const answers: Array<string | null> = [];
-  for (const q of questions) {
-    const answer = await Promise.race<string | null>([
-      runner(q).catch((err) => {
-        log.warn("precompute_runner_threw", { q: q.question.slice(0, 80), err: errMsg(err) });
-        return null;
-      }),
-      new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), timeoutMs),
-      ),
-    ]);
-    answers.push(answer && answer.trim().length > 0 ? answer : null);
-  }
-  return answers;
-}
-
-/**
- * In-process chat-pipeline runner · imports the chat route POST and
- * synthesizes a Request, the same pattern eval-regression-runner uses.
- * Streams are consumed via consumeUIStream which is exported from the
- * regression runner module · we lift it instead of re-implementing.
- */
-async function defaultPipelineRunner(q: AnticipatedQuestion): Promise<string> {
-  const [chatRoute, { consumeUIStream }] = await Promise.all([
-    import("@/app/api/ai/chat/route"),
-    import("@/lib/eval/regression-runner"),
-  ]);
-  const POST = chatRoute.POST as (req: Request) => Promise<Response>;
-  if (typeof POST !== "function") {
-    throw new Error("chat route POST not exported");
-  }
-
-  const body = {
-    messages: [
-      {
-        id: `anticipate-${Date.now()}`,
-        role: "user",
-        parts: [{ type: "text", text: q.question }],
-      },
-    ],
-    // Mark this turn so persistence + analytics can filter precompute traffic.
-    __anticipateRun: true,
-    __anticipateTopic: q.topic ?? null,
-  };
-
-  const req = new Request("http://localhost/api/ai/chat", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-anticipate-precompute": "1",
-    },
-    body: JSON.stringify(body),
-  });
-
-  const res = await POST(req);
-  if (!res.ok || !res.body) {
-    throw new Error(`pipeline HTTP ${res.status}`);
-  }
-  const { reply } = await consumeUIStream(res.body);
-  return reply.trim();
-}
-
 // ── 4. Storage (BrainMemory upsert · no new table) ──────────────
 
 /**
@@ -554,68 +451,6 @@ async function loadTodaysSet(): Promise<AnticipatedSet | null> {
   }
   todayCache = { date, set, at: Date.now() };
   return set;
-}
-
-/**
- * Find a precomputed answer matching the operator's current query.
- * Returns null when:
- *   · no set is stored
- *   · no question scores above the match floor (0.85)
- *   · the precompute slot is null
- *   · the set is older than 24h (freshness gate)
- *
- * Fresh-only by default · stale anticipated takes are worse than no
- * take at all because the operator's situation may have moved on. The
- * caller can pass `{ allowStale: true }` to opt in.
- */
-export async function findAnticipated(
-  userQuery: string,
-  opts: { allowStale?: boolean } = {},
-): Promise<AnticipatedMatch | null> {
-  if (!userQuery || userQuery.trim().length < 4) return null;
-
-  const set = await loadTodaysSet();
-  if (!set || set.questions.length === 0) return null;
-
-  const ageHours =
-    (Date.now() - new Date(set.builtAt).getTime()) / (60 * 60 * 1000);
-  const fresh = ageHours < 24;
-  if (!fresh && !opts.allowStale) return null;
-
-  // Embed the user query once.
-  const queryVec = await getEmbedding(userQuery.slice(0, 1500)).catch(() => []);
-  if (!Array.isArray(queryVec) || queryVec.length === 0) return null;
-
-  // Embed each anticipated question (parallel · 3 items max so cheap).
-  // We embed at match-time rather than at store-time to keep the
-  // BrainMemory row free of vector data · stays consistent with the
-  // existing vector_embeddings table pattern.
-  const questionVecs = await Promise.all(
-    set.questions.map((q) =>
-      getEmbedding(q.question).catch(() => [] as number[]),
-    ),
-  );
-
-  let best: AnticipatedMatch | null = null;
-  for (let i = 0; i < set.questions.length; i++) {
-    const vec = questionVecs[i];
-    if (!Array.isArray(vec) || vec.length !== queryVec.length) continue;
-    const sim = cosineSimilarity(queryVec, vec);
-    if (sim < ANTICIPATED_MATCH_FLOOR) continue;
-    const answer = set.answers[i];
-    if (!answer) continue; // skip slots where precompute failed
-    if (!best || sim > best.similarity) {
-      best = {
-        question: set.questions[i].question,
-        answer,
-        similarity: sim,
-        ageHours,
-        fresh,
-      };
-    }
-  }
-
-  return best;
 }
 
 /**

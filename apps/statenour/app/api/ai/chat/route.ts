@@ -1039,51 +1039,6 @@ ${finalSystemPrompt}`;
     }
   }
 
-  // v10.0.526 · Arc B · F6 · anticipated-question injection.
-  //
-  // Cron `/api/cron/anticipate` (folded into mega-evening) drafts the
-  // 3 questions the operator is most likely to ask next + precomputes
-  // answers via this same pipeline. When the operator's actual query
-  // matches one of today's anticipated questions at cosine >= 0.85,
-  // we inject the cached take as a system-prompt addendum.
-  //
-  // CRITICAL: this DOES NOT short-circuit the response. The model
-  // still generates a fresh reply tuned to the operator's exact
-  // phrasing. The cached take is context · "you anticipated this · here's
-  // your earlier take · use it but adapt." Per the spec: "DO NOT short-
-  // circuit · just inject the precompute as context."
-  //
-  // Guarded against re-entry · the precompute runner sets the
-  // x-anticipate-precompute header, which we honor here to skip the
-  // lookup. (Otherwise the precompute itself would match its own
-  // question with sim=1.0 and recurse.)
-  //
-  // Cost · 1 embed of user query + 3 question embeds + cosine math
-  // ≈ ~150ms total · runs in parallel with prefetch upstream.
-  const isAnticipatePrecompute =
-    req.headers.get("x-anticipate-precompute") === "1";
-  if (!isAnticipatePrecompute) {
-    try {
-      const { findAnticipated } = await import("@/lib/brain/anticipated-questions");
-      const match = await findAnticipated(userContent);
-      if (match) {
-        finalSystemPrompt = `# ANTICIPATED-QUESTION HIT · sim ${(match.similarity * 100).toFixed(1)}% · age ${match.ageHours.toFixed(1)}h\n\nYou predicted this morning that the operator would ask: "${match.question}". You already drafted a take below. Use it as your starting point, but adapt to the operator's EXACT phrasing of the question and any new context that's surfaced since you drafted. Don't parrot — refine. If the cached take is materially wrong given fresh signal, override it.\n\n## Cached take (drafted ${match.ageHours.toFixed(1)}h ago):\n\n${match.answer.slice(0, 3000)}\n\n## After the cached take, the operator asked:\n\n"${userContent.slice(0, 600)}"\n\n${finalSystemPrompt}`;
-        log.info("anticipated_question_injected", {
-          sim: Math.round(match.similarity * 1000) / 1000,
-          ageHours: Math.round(match.ageHours * 10) / 10,
-          fresh: match.fresh,
-          matchedQ: match.question.slice(0, 80),
-          answerChars: match.answer.length,
-        });
-      }
-    } catch (err) {
-      log.warn("anticipated_question_lookup_failed", {
-        err: err instanceof Error ? err.message.slice(0, 200) : String(err),
-      });
-      // Non-fatal · fall through to normal pipeline
-    }
-  }
-
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
 
