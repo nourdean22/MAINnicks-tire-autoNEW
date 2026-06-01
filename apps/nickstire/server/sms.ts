@@ -221,7 +221,14 @@ async function processDelayedQueue(): Promise<void> {
   const stillPending: DelayedMessage[] = [];
   const ready: DelayedMessage[] = [];
   for (const msg of delayedQueue) {
-    if (now >= msg.scheduledFor.getTime()) {
+    // dbId race guard -- a just-queued message may not have its smsMessages
+    // row id stamped back yet (queueForLater persists async). Draining
+    // before dbId lands means the post-send "sent" update is skipped, the
+    // row stays "queued", and a restart rehydrates + RE-SENDS it (a dupe).
+    // Hold it one more cycle until dbId is set.
+    if (msg.dbId == null) {
+      stillPending.push(msg);
+    } else if (now >= msg.scheduledFor.getTime()) {
       ready.push(msg);
     } else {
       stillPending.push(msg);
@@ -1098,28 +1105,20 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
       return { success: true };
     }
-    // Definitive failure (non-OK HTTP / DNS / connection error) on a
-    // CONFIGURED gateway. Operator directive (2026-06): F25e-only, no
-    // Twilio — a failed send is still "couldn't deliver", so HOLD it for
-    // redelivery (same never-drop contract as the offline pre-check above)
-    // instead of dropping to the off Twilio path. A drained send
-    // (_forceImmediate) skips the re-queue to avoid a loop and falls
-    // through (Twilio off → failure → caller surfaces it as degraded).
+    // Definitive failure (non-OK HTTP / DNS / connection error). A non-OK
+    // HTTP is AMBIGUOUS: the Capevace relay may have accepted + SENT the
+    // text before erroring on the response, exactly like a timeout. So we
+    // do NOT re-queue here -- re-queue -> drain -> DUPLICATE was the
+    // 003afc8b regression that spammed customers with repeats. Alert + fall
+    // through; Twilio is off so this returns a failure, which
+    // sendConfirmationSms surfaces as degraded -> Nick reads the address
+    // aloud. The OFFLINE pre-check above is the safe never-drop path -- it
+    // queues BEFORE attempting a send, so it can never double-send.
     if (isShopGatewayConfigured()) {
+      log.warn(`Shop gateway send failed (${gw.error}) for ${normalizedEarly.slice(-4)} -- not retried (ambiguous delivery, avoids double-send)`);
       await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
-      if (!opts?._forceImmediate) {
-        log.warn(`Shop gateway send failed (${gw.error}) — queuing for redelivery for ${normalizedEarly.slice(-4)}`);
-        queueForLater(normalizedEarly, body, opts);
-        return {
-          success: true,
-          queued: true,
-          error: "Shop gateway send failed — queued for redelivery when healthy",
-        };
-      }
-      log.warn(`Shop gateway failed (${gw.error}) on a drained send for ${normalizedEarly.slice(-4)} — leaving claimable`);
     }
-    // Drop through to Twilio below (unconfigured dev/test env, or a drained
-    // send that already failed — Twilio is off, so this returns a failure).
+    // Drop through to Twilio below (off -> returns failure -> degraded).
   }
 
   // ─── Kill switch (Twilio-only — wave-106) ────────────
