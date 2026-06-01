@@ -1602,3 +1602,54 @@ p.body-pretty {
     font-size: 16px !important;
   }
 }
+
+/* ===================================================================
+   ADMIN "neutral" theme -- opt-in (2026-06-01, admin modernization)
+   Linear/Vercel-calm monochrome-neutral, scoped to .admin-shell via the
+   data-admin-theme="neutral" attribute (set from a localStorage / URL flag
+   in Admin.tsx; default "grit" = the live look, zero change until opted in).
+   Overrides only the shadcn surface/text/border tokens the admin consumes --
+   the customer site (plain :root) keeps its sodium-vapor gold untouched.
+   Works because @theme is `inline` (utilities resolve var() at runtime).
+   Semantic signal colors (emerald/red/amber, hardcoded in components)
+   intentionally survive; they read better on calm graphite.
+   =================================================================== */
+.admin-shell[data-admin-theme="neutral"] {
+  --background: #0B0C0E;
+  --foreground: #E6E8EB;
+  --card: #15171A;
+  --card-foreground: #E6E8EB;
+  --popover: #1A1D21;
+  --popover-foreground: #E6E8EB;
+  --primary: #FAFAFA;
+  --primary-foreground: #0B0C0E;
+  --secondary: #1A1D21;
+  --secondary-foreground: #E6E8EB;
+  --muted: #1A1D21;
+  --muted-foreground: #8B9096;
+  --accent: #212429;
+  --accent-foreground: #E6E8EB;
+  --destructive: #E5484D;
+  --destructive-foreground: #FAFAFA;
+  --border: #24272C;
+  --input: #24272C;
+  --ring: #6B7280;
+  --sidebar: #0B0C0E;
+  --sidebar-foreground: #E6E8EB;
+  --sidebar-accent: #15171A;
+  --sidebar-accent-foreground: #E6E8EB;
+  --sidebar-border: #24272C;
+  --sidebar-ring: #6B7280;
+  --sidebar-primary: #FAFAFA;
+  --sidebar-primary-foreground: #0B0C0E;
+  --surface-base: #0B0C0E;
+  --surface-raised: #15171A;
+  --surface-elevated: #1A1D21;
+  --surface-overlay: #212429;
+  --bg-card-raised: #15171A;
+  --ring-neutral: rgba(255, 255, 255, 0.06);
+  --ring-neutral-strong: rgba(255, 255, 255, 0.12);
+  --ring-yellow: rgba(255, 255, 255, 0.10);
+  --ring-yellow-strong: rgba(255, 255, 255, 0.18);
+  --brand-yellow: #E6E8EB;
+}
