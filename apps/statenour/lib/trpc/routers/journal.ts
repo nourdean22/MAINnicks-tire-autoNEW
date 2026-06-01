@@ -71,7 +71,7 @@ import {
   calibrationRulingSchema,
   reflectSubmitSchema,
 } from "@/lib/validators/journal";
-import { creditGroundedGoalXp, backfillJournalBrain } from "@/lib/brain/journal-brain";
+import { confirmJournalLink, backfillJournalBrain } from "@/lib/brain/journal-brain";
 import { getJournalSettings, JOURNAL_SETTINGS_DEFAULTS } from "@/lib/journal/settings";
 
 /** The four journal silos that carry the Journal Brain grounding columns. */
@@ -645,40 +645,9 @@ export const journalRouter = router({
   confirmLink: operatorProcedure
     .input(z.object({ silo: journalSiloSchema, id: z.string().min(1).max(64), accept: z.boolean() }))
     .mutation(async ({ input }) => {
-      const { prisma } = await import("@/lib/prisma");
-      const sel = { goalId: true };
-      const row =
-        input.silo === "brain_dump"
-          ? await prisma.brainDump.findUnique({ where: { id: input.id }, select: sel })
-          : input.silo === "reflection"
-          ? await prisma.reflection.findUnique({ where: { id: input.id }, select: sel })
-          : input.silo === "situation_log"
-          ? await prisma.situationLog.findUnique({ where: { id: input.id }, select: sel })
-          : await prisma.decisionReplay.findUnique({ where: { id: input.id }, select: sel });
-      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "journal entry not found" });
-
-      const data = input.accept
-        ? { linkStatus: "confirmed" }
-        : { linkStatus: "rejected", goalId: null, missionId: null };
-      if (input.silo === "brain_dump") await prisma.brainDump.update({ where: { id: input.id }, data });
-      else if (input.silo === "reflection") await prisma.reflection.update({ where: { id: input.id }, data });
-      else if (input.silo === "situation_log") await prisma.situationLog.update({ where: { id: input.id }, data });
-      else await prisma.decisionReplay.update({ where: { id: input.id }, data });
-
-      let creditedStats: { statKey: string; xp: number }[] = [];
-      if (input.accept && row.goalId) {
-        const goal = await prisma.lifeGoal
-          .findUnique({
-            where: { id: row.goalId },
-            select: { id: true, title: true, domain: true, statLinks: { select: { statKey: true, weight: true } } },
-          })
-          .catch(() => null);
-        if (goal) {
-          const settings = await getJournalSettings();
-          creditedStats = await creditGroundedGoalXp(input.id, goal, settings);
-        }
-      }
-      return { ok: true as const, accepted: input.accept, creditedStats };
+      const r = await confirmJournalLink(input.silo, input.id, input.accept);
+      if (!r.ok) throw new TRPCError({ code: "NOT_FOUND", message: "journal entry not found" });
+      return { ok: true as const, accepted: r.accepted, creditedStats: r.creditedStats };
     }),
 
   /** Journal Brain · read the tunable settings (Phase 2 settings panel). */
