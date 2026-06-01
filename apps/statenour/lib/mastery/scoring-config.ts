@@ -17,8 +17,10 @@
 
 // ─── Classifier confidence thresholds ───────────────────────────────
 export const CONFIDENCE = {
-  /** ≥ this → silent attach; below → surface an "attach to X?" chip. */
+  /** ≥ this → silent attach; below → park for the operator's approval chip. */
   silentAttach: 0.6,
+  /** Floor to bother parking a suggestion — below this it's noise, drop it. */
+  chipFloor: 0.3,
 } as const;
 
 // ─── Adaptive multiplier factors (moved from auto-learn.ts · same values)

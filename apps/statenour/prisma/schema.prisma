@@ -361,6 +361,13 @@ model Task {
   /// task has no linked goal, so even goal-less tasks credit a real stat
   /// on completion. Empty = fall back to mission/goal-domain inference.
   statHints               String[]    @default([])
+  /// 2026-06-01 · suggest-then-approve · when `enrichTaskLinkage` finds a
+  /// LOW-confidence mission/goal match (below the silent-attach bar) it
+  /// parks the proposal here instead of dropping it. The /missions chip
+  /// shows it; the operator accepts (applies) or dismisses. Mirrors
+  /// PersonProfile.pendingClassification. Shape: { missionId?, goalId?,
+  /// statHints?, confidence, rationale, suggestedAt }.
+  pendingClassification   Json?       @map("pending_classification")
   /// 2026-05-23 · task #22 · self-FK for subtask hierarchy (1 level
   /// per ADR-0017 amended Rule 4). Nullable · top-level tasks have
   /// NULL · subtasks point at their parent. ON DELETE SET NULL so a
