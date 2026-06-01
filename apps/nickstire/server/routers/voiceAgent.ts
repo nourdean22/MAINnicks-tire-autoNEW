@@ -316,11 +316,13 @@ export const voiceAgentRouter = router({
    * the conversation flow — AI says "I'll text you the address right
    * now" and this fires.
    *
-   * GRACEFUL DEGRADATION: when SMS_KILL_SWITCH is on (Twilio outage),
-   * sendSms returns { success: false, error: "sms_disabled" }. We pass
-   * that back as `degraded: true` so the VAPI prompt can teach Nick to
-   * verbally confirm the address instead of pretending a text went out.
-   * The lead is still captured server-side either way.
+   * GRACEFUL DEGRADATION: any genuine non-send — shop gateway down AND
+   * Twilio fallback unavailable, the SMS kill switch on, or any send
+   * error — comes back from sendSms as { success: false }. We surface
+   * that as `degraded: true` (+ a verbalRecap) so the VAPI prompt teaches
+   * Nick to read the address ALOUD instead of promising a text that won't
+   * arrive. A successful Twilio fallback still counts as sent
+   * (degraded:false). The lead is captured server-side either way.
    */
   // wave-148 — side-effect mutation: fires SMS to arbitrary phone.
   sendConfirmationSms: voiceAgentInternalProcedure
@@ -346,7 +348,11 @@ export const voiceAgentRouter = router({
         // customer is left thinking the text was lost. Opt-out is NOT
         // bypassed · transactional flag only affects timing + cap.
         const result = await sendSms(input.phone, body, { via: "shop", transactional: true });
-        const degraded = !result.success && result.error === "sms_disabled";
+        // Broadened: was `&& result.error === "sms_disabled"` (kill-switch only),
+        // which missed the real failure — F25e offline + Twilio also down ->
+        // sent:false but degraded:false -> Nick promised a text that never sent.
+        // Any genuine non-send now degrades so Nick reads the address aloud.
+        const degraded = !result.success;
         log.info("Voice agent SMS sent", {
           phone: input.phone.slice(-4),
           success: result.success,
