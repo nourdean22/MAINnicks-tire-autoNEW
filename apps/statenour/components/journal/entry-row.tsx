@@ -16,7 +16,7 @@
  */
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, CheckCircle2, ChevronRight, Link2, NotebookPen, Target } from "lucide-react";
+import { AlertTriangle, Check, CheckCircle2, ChevronRight, Link2, NotebookPen, Sparkles, Target, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   SOURCE_ICON,
@@ -25,7 +25,29 @@ import {
   type TypeKey,
 } from "@/components/journal/types";
 import { trpc } from "@/lib/trpc/client";
+import { notifyDataChanged } from "@/lib/events/data-change";
 import { toast } from "sonner";
+
+// Journal Brain (2026-06-01 · Phase 1) · map the in-memory feed `source`
+// to the grounding silo the receipt/confirmLink procedures key on. `retro`
+// entries carry NO grounding columns (mission_retro BrainMemory rows) so
+// they return null — the chip + receipt self-skip for them.
+type JournalSilo = "brain_dump" | "reflection" | "situation_log" | "decision_replay";
+function sourceToSilo(source: FeedEntry["source"]): JournalSilo | null {
+  switch (source) {
+    case "dump":
+      return "brain_dump";
+    case "reflection":
+      return "reflection";
+    case "situation":
+      return "situation_log";
+    case "decision":
+      return "decision_replay";
+    case "retro":
+    default:
+      return null;
+  }
+}
 
 interface JournalEntryRowProps {
   entry: FeedEntry;
@@ -44,6 +66,9 @@ export function JournalEntryRow({
   const meta = TYPE_META[typeKey] || TYPE_META.raw;
   const TypeIcon = meta.icon;
   const SourceIcon = SOURCE_ICON[entry.source] || NotebookPen;
+
+  // Journal Brain · grounding silo (null for retro · no chip/receipt).
+  const silo = sourceToSilo(entry.source);
 
   const time = new Date(entry.createdAt).toLocaleTimeString("en-US", {
     hour: "numeric",
@@ -131,9 +156,23 @@ export function JournalEntryRow({
         />
       </button>
 
+      {/* Journal Brain · goal-link chip. Sits OUTSIDE the toggle button
+          (proposed-state confirm/dismiss are real buttons · can't nest
+          button-in-button). Self-skips for retro (no silo), unlinked
+          entries (no goalId), and rejected links. */}
+      {silo && entry.goalId && (
+        <div className="px-3 pb-2 ml-[calc(13px+12px)]">
+          <LinkChip entry={entry} silo={silo} />
+        </div>
+      )}
+
       {/* Expanded body */}
       {isExpanded && (
         <div className="px-3 pb-3 space-y-2 border-t border-zinc-800/40 pt-2 ml-[calc(13px+12px)]">
+          {/* Journal Brain · impact receipt. Lazy-fetched (enabled only when
+              expanded) so the list doesn't fire N receipt queries on load.
+              Self-skips for retro (no silo) and empty receipts. */}
+          {silo && <ImpactReceipt id={entry.id} silo={silo} enabled={isExpanded} />}
           {entry.summary && (
             <div>
               <p className="text-[9px] font-bold uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
@@ -347,6 +386,160 @@ function EntryPredictionForm({ sourceEntryId }: { sourceEntryId: string }) {
           cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Journal Brain · goal-link chip (2026-06-01 · Phase 1).
+ *
+ * Surfaces the grounding the async Journal Brain pass attached to an
+ * entry: "→ <goal>". Styled by linkStatus —
+ *   · auto / confirmed → settled emerald (matches the +N-tasks / prediction-
+ *     saved success token already used in this file)
+ *   · proposed → pending gold + inline confirm (✓) / dismiss (✗) buttons
+ *     that call confirmLink, then notify the "journal" bus so the page's
+ *     load() re-pulls the feed (the page subscribes to ["any","journal"]).
+ *   · rejected → renders nothing (caller still gates on goalId).
+ *
+ * Caller already guards `silo && entry.goalId`, so goalId is present here.
+ */
+function LinkChip({ entry, silo }: { entry: FeedEntry; silo: JournalSilo }) {
+  const utils = trpc.useUtils();
+  const mutation = trpc.journal.confirmLink.useMutation();
+  const status = entry.linkStatus ?? "auto";
+  if (status === "rejected") return null;
+
+  const label = entry.linkedGoalTitle || "linked goal";
+  const settled = status === "confirmed" || status === "auto";
+
+  async function decide(accept: boolean) {
+    try {
+      await mutation.mutateAsync({ silo, id: entry.id, accept });
+      // Refresh the inline receipt for this entry + re-pull the feed so the
+      // chip flips to its settled (or removed) state.
+      utils.journal.receipt.invalidate({ silo, id: entry.id });
+      notifyDataChanged("journal", { source: "journal-link-chip", detail: accept ? "link-confirmed" : "link-rejected", id: entry.id });
+    } catch {
+      toast.error("couldn't update link · retry?");
+    }
+  }
+
+  if (settled) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/[0.06] px-2 py-0.5 text-[10px] font-mono text-emerald-300/90 max-w-full">
+        <Target size={9} aria-hidden className="shrink-0" />
+        <span className="truncate">→ {label}</span>
+        {status === "auto" && (
+          <span className="text-[8px] uppercase tracking-wider text-emerald-400/50">auto</span>
+        )}
+      </span>
+    );
+  }
+
+  // proposed
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-md border border-[var(--gold)]/30 bg-[var(--gold)]/[0.06] px-2 py-0.5 text-[10px] font-mono text-[var(--gold)]/90 max-w-full">
+      <Target size={9} aria-hidden className="shrink-0" />
+      <span className="truncate">→ {label}?</span>
+      <button
+        type="button"
+        disabled={mutation.isPending}
+        onClick={() => decide(true)}
+        aria-label={`Confirm link to ${label}`}
+        className="shrink-0 rounded p-0.5 text-emerald-300 hover:bg-emerald-500/15 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <Check size={11} aria-hidden />
+      </button>
+      <button
+        type="button"
+        disabled={mutation.isPending}
+        onClick={() => decide(false)}
+        aria-label={`Dismiss link to ${label}`}
+        className="shrink-0 rounded p-0.5 text-zinc-400 hover:bg-zinc-700/40 hover:text-zinc-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      >
+        <XIcon size={11} aria-hidden />
+      </button>
+    </span>
+  );
+}
+
+/**
+ * Journal Brain · impact receipt (2026-06-01 · Phase 1).
+ *
+ * Shown inside the expanded body. Lazy — the query is `enabled` only when
+ * the row is expanded so the feed doesn't fire one receipt request per row
+ * on load. Renders total XP + the per-stat breakdown (grounded vs baseline
+ * visually distinct but subtle) + the linked goal/mission name. Silent when
+ * the receipt is null or carries no XP (don't show an empty receipt).
+ */
+function ImpactReceipt({ id, silo, enabled }: { id: string; silo: JournalSilo; enabled: boolean }) {
+  const { data } = trpc.journal.receipt.useQuery(
+    { silo, id },
+    { enabled, refetchOnWindowFocus: false, staleTime: 60 * 1000 },
+  );
+  // Show the receipt if there's XP OR a generated "take" (idea/challenge).
+  if (!data || (data.xp.length === 0 && !data.take)) return null;
+  return (
+    <div className="space-y-1.5 rounded-md border border-[var(--gold)]/15 bg-[var(--gold)]/[0.03] p-2">
+      {data.xp.length > 0 && (
+        <>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[var(--gold)]/70">
+              <Sparkles size={9} aria-hidden /> impact
+            </span>
+            <span className="text-[12px] font-semibold tabular-nums text-[var(--gold)]">
+              +{data.totalXp} XP
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            {data.xp.map((x, i) => (
+              <span
+                key={`${x.stat}-${i}`}
+                title={x.kind === "grounded" ? "grounded · goal-linked bonus" : "baseline"}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-mono tabular-nums border",
+                  x.kind === "grounded"
+                    ? "border-[var(--gold)]/30 bg-[var(--gold)]/[0.07] text-[var(--gold)]/90"
+                    : "border-zinc-700/50 bg-zinc-800/40 text-[var(--text-secondary)]",
+                )}
+              >
+                {x.stat}
+                <span className="opacity-70">+{x.xp}</span>
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      {(data.goal || data.mission) && (
+        <p className="flex items-center gap-1 text-[9px] font-mono text-[var(--text-tertiary)]">
+          <Target size={9} aria-hidden />
+          {data.goal && <span className="truncate">{data.goal.title}</span>}
+          {data.mission && (
+            <span className="truncate">
+              {data.goal ? "· " : ""}
+              {data.mission.title}
+            </span>
+          )}
+        </p>
+      )}
+      {/* Phase 2 · Nick's take — bold idea + sharp challenge. */}
+      {data.take && (data.take.idea || data.take.challenge) && (
+        <div className="space-y-1 border-t border-[var(--gold)]/10 pt-1.5">
+          {data.take.idea && (
+            <p className="text-[10px] leading-snug text-[var(--text-secondary)]">
+              <span className="font-mono uppercase tracking-wider text-[var(--gold)]/60">idea · </span>
+              {data.take.idea}
+            </p>
+          )}
+          {data.take.challenge && (
+            <p className="text-[10px] leading-snug text-amber-200/80">
+              <span className="font-mono uppercase tracking-wider text-amber-400/60">challenge · </span>
+              {data.take.challenge}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -50,6 +50,14 @@ export interface FeedEntry {
   acknowledged?: boolean;
   actionable?: boolean;
   confidence?: number;
+  // Journal Brain (Phase 1) · grounding columns surfaced for the inline
+  // link chip. Pre-resolved title means no per-row goal lookup. The full
+  // XP receipt is fetched on-expand via trpc.journal.receipt.
+  goalId?: string | null;
+  missionId?: string | null;
+  linkStatus?: string | null;
+  linkConfidence?: number | null;
+  linkedGoalTitle?: string | null;
 }
 
 type IconComponent = ComponentType<{ size?: number; className?: string }>;
