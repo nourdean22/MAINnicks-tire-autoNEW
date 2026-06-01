@@ -1,4 +1,4 @@
-import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, float } from "drizzle-orm/mysql-core";
+import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -2526,6 +2526,29 @@ export const appSecretKv = mysqlTable("app_secret_kv", {
   v: text("v").notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ─── Drip enrollments · promoted from inline DDL (2026-06-01) ───────────
+// Phase-1 fix: was a "ghost table" created only via raw CREATE TABLE in
+// server/services/dripProcessor.ts (ensureTable) + migration 0045 — alive in
+// prod but invisible to Drizzle (no type-safety, no drizzle-kit visibility).
+// This def restores both. Shape matches dripProcessor.ts:29 exactly.
+// enrolledAt is DATETIME DEFAULT CURRENT_TIMESTAMP enforced by the DDL — not
+// redeclared here (the processor inserts via raw SQL, never the Drizzle table).
+export const dripEnrollments = mysqlTable("drip_enrollments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  campaignId: varchar("campaignId", { length: 50 }).notNull(),
+  customerPhone: varchar("customerPhone", { length: 20 }).notNull(),
+  customerName: varchar("customerName", { length: 100 }),
+  currentStep: int("currentStep").default(0),
+  status: mysqlEnum("status", ["active", "completed", "cancelled", "converted"]).default("active"),
+  enrolledAt: datetime("enrolledAt"),
+  nextStepAt: datetime("nextStepAt"),
+  metadata: json("metadata"),
+}, (table) => [
+  index("idx_status_next").on(table.status, table.nextStepAt),
+  index("idx_phone_campaign").on(table.customerPhone, table.campaignId),
+  uniqueIndex("uq_drip_active").on(table.customerPhone, table.campaignId, table.status),
+]);
 
 // ─── DAILY EXECUTION TRACKING ───────────────────────────
 /**
