@@ -20,6 +20,8 @@
  * Caller pre-fetches both arrays; this file does no I/O.
  */
 
+import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
+
 interface PinnedMemoriesInput {
   pinnedMemories: {
     key: string;
@@ -84,7 +86,11 @@ export function renderPinnedMemories(input: PinnedMemoriesInput): string[] {
     else if (pin.source === "pin:chat") sourceWeight = 1.1;
 
     const score = labelWeight * recencyScore * reinforce * sourceWeight;
-    const body = (pin.content || "").slice(0, PIN_LIMIT);
+    // 2026-06-01 · sanitizeForPrompt (was a bare .slice) — pinned content is
+    // operator-supplied + chat-derived; without this, `\n## OVERRIDE` etc.
+    // land as structural prompt content every turn. The sanitizer exists for
+    // exactly this but was unused here. Also keeps multiline pins on one bullet.
+    const body = sanitizeForPrompt(pin.content, PIN_LIMIT);
     const label = hasLabel ? ` (${meta?.label})` : "";
     const line = `- ${body}${label}`;
     return { pin, score, line, body };
@@ -147,7 +153,7 @@ export function renderHotRules(input: TopMemoriesInput): string[] {
   );
   for (const m of selected) {
     p.push(
-      `[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${m.content.slice(0, CONTENT_LIMIT)}`
+      `[${m.category}] (${(m.confidence * 100).toFixed(0)}%) ${sanitizeForPrompt(m.content, CONTENT_LIMIT)}`
     );
   }
   p.push(``);
