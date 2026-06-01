@@ -1,4 +1,4 @@
-import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
+import { int, bigint, mysqlEnum, mysqlTable, text, timestamp, varchar, boolean, json, index, uniqueIndex, primaryKey, decimal, date, datetime, float } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -2310,7 +2310,12 @@ export const cronAlertsFired = mysqlTable("cron_alerts_fired", {
   firedAt: timestamp("fired_at").defaultNow().notNull(),
   /** Optional metadata · for debugging the alert content later */
   payload: text("payload"),
-});
+}, (table) => [
+  // Sync to prod (0044): composite PK is the INSERT-IGNORE dedup claim key;
+  // fired_at index serves the 90-day cleanup scan. (fired_for is DATE in prod.)
+  primaryKey({ columns: [table.alertKey, table.firedFor] }),
+  index("idx_cron_alerts_fired_fired_at").on(table.firedAt),
+]);
 
 /**
  * Wave metrics — wave-181.x · Tier A · Closed-loop delivery
@@ -3218,4 +3223,10 @@ export const voiceFollowups = mysqlTable("voice_followups", {
   vapiCallId: varchar("vapiCallId", { length: 64 }),
   errorMessage: varchar("errorMessage", { length: 500 }),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-});
+}, (table) => [
+  // Sync to prod (handleRunMigrations inline DDL): the UNIQUE is the
+  // at-most-once claim — one call per booking+touch, even across overlapping
+  // cron runs (a dup INSERT throws and is treated as "already done").
+  uniqueIndex("uniq_booking_touch").on(table.bookingId, table.touch),
+  index("idx_followup_created").on(table.createdAt),
+]);
