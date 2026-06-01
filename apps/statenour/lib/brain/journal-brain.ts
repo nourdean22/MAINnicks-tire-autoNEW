@@ -119,6 +119,38 @@ export async function creditGroundedGoalXp(
   return credited;
 }
 
+/** Fetch a goal (with stat links) by id, for crediting. */
+async function fetchGoalForCredit(goalId: string): Promise<ActiveGoal | null> {
+  return prisma.lifeGoal
+    .findUnique({
+      where: { id: goalId },
+      select: { id: true, title: true, domain: true, statLinks: { select: { statKey: true, weight: true } } },
+    })
+    .catch(() => null);
+}
+
+/** Resolve the goal whose stats an entry credits: the directly-linked goal, else
+ *  the linked mission's PARENT goal (`mission.lifeGoalId`). Lets mission links earn
+ *  XP too — the prod profile showed 1 active goal vs 10 active missions, so routing
+ *  mission grounding to its parent goal is the highest-leverage way to make the
+ *  grounded score actually fire. Returns null if neither resolves to a goal. */
+async function resolveCreditGoal(
+  goalId: string | null,
+  missionId: string | null,
+): Promise<ActiveGoal | null> {
+  if (goalId) {
+    const g = await fetchGoalForCredit(goalId);
+    if (g) return g;
+  }
+  if (missionId) {
+    const m = await prisma.mission
+      .findUnique({ where: { id: missionId }, select: { lifeGoalId: true } })
+      .catch(() => null);
+    if (m?.lifeGoalId) return fetchGoalForCredit(m.lifeGoalId);
+  }
+  return null;
+}
+
 /** Persist the grounding columns to the correct silo table. entry_type is a
  *  real column on brain_dumps only; the other silos keep their own type-ish
  *  columns (category/context) and just get the link + enrichedAt. */
@@ -293,8 +325,12 @@ ${missionMenu}`,
     //    baseline rewards the habit on capture; grounded rewards the substance
     //    once the goal connection is trusted).
     let creditedStats: { statKey: string; xp: number }[] = [];
-    if (goal && status === "auto") {
-      creditedStats = await creditGroundedGoalXp(id, goal, settings);
+    if (status === "auto") {
+      // Credit the directly-linked goal, OR (mission link only) the mission's
+      // parent goal — so the 10 active missions route XP to their goal, not just
+      // the 1 standalone goal (prod-profile finding).
+      const creditGoal = goal ?? (mission ? await resolveCreditGoal(null, mission.id) : null);
+      if (creditGoal) creditedStats = await creditGroundedGoalXp(id, creditGoal, settings);
     }
 
     // Telegram confirm surface · for telegram-originated captures with a
@@ -504,7 +540,7 @@ export async function confirmJournalLink(
   id: string,
   accept: boolean,
 ): Promise<{ ok: boolean; accepted: boolean; creditedStats: { statKey: string; xp: number }[] }> {
-  const sel = { goalId: true };
+  const sel = { goalId: true, missionId: true };
   const row =
     silo === "brain_dump"
       ? await prisma.brainDump.findUnique({ where: { id }, select: sel })
@@ -524,16 +560,12 @@ export async function confirmJournalLink(
   else await prisma.decisionReplay.update({ where: { id }, data });
 
   let creditedStats: { statKey: string; xp: number }[] = [];
-  if (accept && row.goalId) {
-    const goal = await prisma.lifeGoal
-      .findUnique({
-        where: { id: row.goalId },
-        select: { id: true, title: true, domain: true, statLinks: { select: { statKey: true, weight: true } } },
-      })
-      .catch(() => null);
-    if (goal) {
+  if (accept) {
+    // Direct goal link, else the linked mission's parent goal (mission→goal).
+    const creditGoal = await resolveCreditGoal(row.goalId ?? null, row.missionId ?? null);
+    if (creditGoal) {
       const settings = await getJournalSettings();
-      creditedStats = await creditGroundedGoalXp(id, goal, settings);
+      creditedStats = await creditGroundedGoalXp(id, creditGoal, settings);
     }
   }
   return { ok: true, accepted: accept, creditedStats };
