@@ -76,9 +76,7 @@ export const GET = apiHandler(
         // We surface a flag (not the full answer) so the tile can show
         // "ready" without bloating the response. The chat-injection
         // path is the read-of-record for the answer itself.
-        readiness: set
-          ? set.answers.map((a) => ({ ready: a != null, chars: a?.length ?? 0 }))
-          : [],
+        readiness: [],
       },
       yesterday,
     };
