@@ -60,29 +60,48 @@ export async function creditStatXp(ev: XpCredit): Promise<boolean> {
   return existing === null;
 }
 
-/** Lifetime XP per stat from the XP-event log (every non-task signal). */
-export async function xpEventTotals(): Promise<Map<string, number>> {
-  const rows = await prisma.brainMemory
-    .findMany({ where: { category: MASTERY_XP_CATEGORY }, select: { metadata: true } })
-    .catch((): { metadata: unknown }[] => []);
-  const totals = new Map<string, number>();
-  for (const r of rows) {
-    const m = (r.metadata ?? {}) as { stat?: string; xp?: number };
-    if (typeof m.stat === "string" && typeof m.xp === "number") {
-      totals.set(m.stat, (totals.get(m.stat) ?? 0) + m.xp);
+// 2026-06-01 · stat→XP totals. The event log can grow unbounded (every
+// completion now credits), and these run on the hot character-sheet read.
+// Sum DB-side (GROUP BY → ~33 rows) instead of streaming every row into JS.
+// `jsonb_typeof` guards mirror the JS `typeof` checks EXACTLY so the two
+// paths agree. On ANY error the SQL path returns null and we fall back to the
+// proven JS scan — a column rename or cast surprise can never break the sheet.
+
+async function sumStatXpSql(since?: Date): Promise<Map<string, number> | null> {
+  try {
+    const rows = since
+      ? await prisma.$queryRaw<{ stat: string; xp: number }[]>`
+          SELECT metadata->>'stat' AS stat, SUM((metadata->>'xp')::float8) AS xp
+          FROM brain_memories
+          WHERE category = ${MASTERY_XP_CATEGORY}
+            AND created_at >= ${since}
+            AND jsonb_typeof(metadata->'stat') = 'string'
+            AND jsonb_typeof(metadata->'xp') = 'number'
+          GROUP BY metadata->>'stat'`
+      : await prisma.$queryRaw<{ stat: string; xp: number }[]>`
+          SELECT metadata->>'stat' AS stat, SUM((metadata->>'xp')::float8) AS xp
+          FROM brain_memories
+          WHERE category = ${MASTERY_XP_CATEGORY}
+            AND jsonb_typeof(metadata->'stat') = 'string'
+            AND jsonb_typeof(metadata->'xp') = 'number'
+          GROUP BY metadata->>'stat'`;
+    const totals = new Map<string, number>();
+    for (const r of rows) {
+      if (typeof r.stat === "string") totals.set(r.stat, Number(r.xp) || 0);
     }
+    return totals;
+  } catch {
+    return null; // fall back to the JS scan
   }
-  return totals;
 }
 
-/** XP per stat from the event log, but only events CREATED since `since`.
- *  Powers the "rising this week" slope — new momentum, not lifetime total. */
-export async function xpEventTotalsSince(
-  since: Date,
-): Promise<Map<string, number>> {
+/** JS fallback — the original findMany + sum. Matches sumStatXpSql exactly. */
+async function sumStatXpJs(since?: Date): Promise<Map<string, number>> {
   const rows = await prisma.brainMemory
     .findMany({
-      where: { category: MASTERY_XP_CATEGORY, createdAt: { gte: since } },
+      where: since
+        ? { category: MASTERY_XP_CATEGORY, createdAt: { gte: since } }
+        : { category: MASTERY_XP_CATEGORY },
       select: { metadata: true },
     })
     .catch((): { metadata: unknown }[] => []);
@@ -94,4 +113,17 @@ export async function xpEventTotalsSince(
     }
   }
   return totals;
+}
+
+/** Lifetime XP per stat from the XP-event log (every non-task signal). */
+export async function xpEventTotals(): Promise<Map<string, number>> {
+  return (await sumStatXpSql()) ?? (await sumStatXpJs());
+}
+
+/** XP per stat from the event log, but only events CREATED since `since`.
+ *  Powers the "rising this week" slope — new momentum, not lifetime total. */
+export async function xpEventTotalsSince(
+  since: Date,
+): Promise<Map<string, number>> {
+  return (await sumStatXpSql(since)) ?? (await sumStatXpJs(since));
 }
