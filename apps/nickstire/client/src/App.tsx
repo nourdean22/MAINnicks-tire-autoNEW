@@ -152,7 +152,16 @@ function Router() {
   }, [location, setLocation]);
 
   return (
-    <AnimatePresence mode="wait">
+    // PSI fix (2026-05-31, trace-measured) · initial={false} suppresses the
+    // enter animation on the FIRST render only. Without it, on hydration
+    // framer applies this motion.div's initial={opacity:0,y:10} — hiding the
+    // already-painted prerendered content, then fading it back in. That threw
+    // away the prerender's LCP win: measured mobile LCP was 2707ms, 99.7% of
+    // it "render delay" (TTFB was 9ms), because Chrome recorded LCP at the
+    // post-hydration re-show, not the 9ms prerender paint. The y:10 translate
+    // was also the top forced-reflow source (793ms in vendor-react). Route
+    // TRANSITIONS still animate — initial={false} only affects first mount.
+    <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={location}
         initial={{ opacity: 0, y: 10 }}
