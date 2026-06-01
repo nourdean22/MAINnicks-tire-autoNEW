@@ -45,6 +45,14 @@ const MIGRATIONS: Record<string, string[]> = {
     `CREATE INDEX IF NOT EXISTS "goal_stats_statKey_idx" ON "goal_stats"("statKey")`,
     `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'goal_stats_goalId_fkey') THEN ALTER TABLE "goal_stats" ADD CONSTRAINT "goal_stats_goalId_fkey" FOREIGN KEY ("goalId") REFERENCES "life_goals"("id") ON DELETE CASCADE ON UPDATE CASCADE; END IF; END $$`,
   ],
+
+  // Task classification + scoring · 2026-06-01 · additive · zero data loss.
+  // statHints holds the classifier-assigned mastery stat keys a task feeds
+  // (so goal-less tasks still credit a real stat on completion). TEXT[] with
+  // an empty-array default — existing rows backfill to [] automatically.
+  "0004_task_stat_hints": [
+    `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "statHints" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
+  ],
 };
 
 export async function POST(req: Request) {
