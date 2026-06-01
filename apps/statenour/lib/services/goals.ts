@@ -153,8 +153,17 @@ export async function getGoals(options: { horizon?: string | null, domain?: stri
       0
     );
     
+    // 2026-06-01 · progress priority: task-based when the goal has tasks;
+    // else metric-based when it has a real target; else 0. The old fallback
+    // to the stored `g.progress` surfaced a stale 100% on unconfigured goals
+    // (targetValue=0, no tasks) — the divide-by-zero display artifact.
+    const hasTarget = (g.targetValue ?? 0) > 0;
     const computedProgress =
-      total > 0 ? Math.round((done / total) * 100) : g.progress;
+      total > 0
+        ? Math.round((done / total) * 100)
+        : hasTarget
+          ? Math.min(100, Math.round(((g.currentValue ?? 0) / g.targetValue) * 100))
+          : 0;
 
     const activeTasks = tasks.filter((t) =>
       ["INBOX", "READY", "DOING"].includes(t.status),
