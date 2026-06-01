@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { AiSettingsPanel } from "@/components/settings/ai-settings-panel";
+import { PeopleScoringPanel } from "@/components/settings/people-scoring-panel";
 import { CronControlPanel } from "@/components/settings/cron-control-panel";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
 import { IdentityPanel } from "@/components/settings/identity-panel";
@@ -58,6 +59,9 @@ export default function SettingsPage() {
 
       {/* AI Settings — live-mutable config + cold memory + tool blocklist */}
       <AiSettingsPanel />
+
+      {/* People scoring — operator weights for relationship XP (2026-06-01) */}
+      <PeopleScoringPanel />
 
       {/* Habits · retired v11 — MasteryHabit table was dropped Apr 19;
           habits now live as Task rows with loopKind=DAILY. The config

@@ -331,7 +331,18 @@ model Task {
   loopKind                LoopKind    @default(ONCE)
   /// For PROMISE loops: who Nour promised (name, "myself",
   /// "Dania", "customer X", etc). Null for ONCE + DAILY.
+  /// LEGACY free-text · superseded by personId below for known people
+  /// (kept for "myself"/ad-hoc names that aren't PersonProfiles).
   promiseTo               String?
+  /// 2026-06-01 · people↔tasks hard link. Structured upgrade of the
+  /// free-text promiseTo: set when a task is a promise/commitment to a
+  /// known PersonProfile, so /people can surface "open promises to X"
+  /// and credit relationship reps on completion. Nullable · ON DELETE
+  /// SET NULL (a deleted person leaves the task, just unlinked — the
+  /// same orphan-not-cascade rule as goalId/parentTaskId).
+  /// Backfilled from promiseTo name-match · migration 0005_people_overhaul.
+  personId                String?     @map("person_id")
+  person                  PersonProfile? @relation("PersonTasks", fields: [personId], references: [id], onDelete: SetNull)
   /// For DAILY loops: last time this item was checked off.
   lastCompletedAt         DateTime?
   /// For DAILY loops: consecutive days completed streak. Incremented
@@ -393,6 +404,8 @@ model Task {
   @@index([autoPriority, lastTouchedAt])
   @@index([loopKind, status])
   @@index([goalId, status])
+  // 2026-06-01 · "open promises to person X" lookup on /people detail.
+  @@index([personId])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
@@ -2098,8 +2111,16 @@ model PersonProfile {
   lastArcPlan           Json? @map("last_arc_plan")
   powerPlaysHistory     Json? @map("power_plays_history")
 
+  /// 2026-06-01 · suggest-then-approve classifier. The people-intelligence
+  /// engine writes its proposed { role, leverageNotes, trustAdjustment,
+  /// basis, suggestedAt } HERE instead of silently overwriting the real
+  /// fields. The operator accepts (applies + clears) or dismisses (clears)
+  /// from the /people detail panel. Null = no pending suggestion.
+  pendingClassification Json? @map("pending_classification")
+
   ledger RelationshipLedger[]
   plays  RelationshipPlay[]
+  tasks  Task[]               @relation("PersonTasks")
 
   @@index([role])
   @@index([trustScore])
