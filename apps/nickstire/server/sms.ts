@@ -208,6 +208,12 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
 async function processDelayedQueue(): Promise<void> {
   if (delayedQueue.length === 0) return;
   if (!isWithinSendingHours()) return;
+  // Operator directive (2026-06) — only drain when the F25e is actually
+  // back online. A drained send while offline would fail (Twilio is off)
+  // and leave the claimed row stuck in 'sending'. Hold until it returns;
+  // the queued rows persist + rehydrate, so nothing is lost. Skip the gate
+  // when the gateway isn't configured (dev/test keeps draining as before).
+  if (isShopGatewayConfigured() && !(await isShopGatewayReachable())) return;
 
   const now = Date.now();
   // Drain ready messages atomically to prevent race with concurrent queueForLater
@@ -953,6 +959,16 @@ async function probeShopGatewayReachable(): Promise<boolean> {
 }
 
 /**
+ * Gateway creds present? Distinguishes "F25e offline" from "not set up" —
+ * we only queue-when-offline if the gateway is actually the configured
+ * sender. An unconfigured (dev/test) env keeps the legacy send path so the
+ * test suite isn't forced down the new queue branch.
+ */
+function isShopGatewayConfigured(): boolean {
+  return !!process.env.SHOP_SMS_GATEWAY_USERNAME && !!process.env.SHOP_SMS_GATEWAY_PASSWORD;
+}
+
+/**
  * Is the shop SMS gateway (F25e) reachable + checked-in right now?
  * Bulk SMS drains gate on this so they hold (not lose) messages while
  * the cloud is offline. 60s-cached. See the block comment above.
@@ -1014,6 +1030,29 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       success: true,
       queued: true,
       error: "Outside sending hours (8AM-8PM ET), queued for next window",
+    };
+  }
+
+  // ─── Operator directive (2026-06) · F25e-only, queue-when-offline ───
+  // F25e is the sole sender right now (Twilio intentionally not set up).
+  // When it's offline, HOLD the message in the durable queue and deliver
+  // it when the phone checks back in — never drop, never Twilio. The drain
+  // (processDelayedQueue, gated on the same probe) sends it once the gateway
+  // returns; getNextSendWindow() yields "now" inside 8AM-8PM, so it goes out
+  // on the next 60s drain cycle after the F25e is back. _forceImmediate (the
+  // drain itself) bypasses this so it can actually attempt the send. Only
+  // fires when the gateway is configured — dev/test keeps the legacy path.
+  if (
+    opts?.via !== "twilio" &&
+    !opts?._forceImmediate &&
+    isShopGatewayConfigured() &&
+    !(await isShopGatewayReachable())
+  ) {
+    queueForLater(normalizedEarly, body, opts);
+    return {
+      success: true,
+      queued: true,
+      error: "Shop gateway offline — queued for delivery when it's back online",
     };
   }
 
