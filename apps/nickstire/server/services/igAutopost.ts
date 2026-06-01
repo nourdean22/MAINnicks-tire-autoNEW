@@ -1,0 +1,1098 @@
+/**
+ * Instagram + Facebook Autonomous Poster — Nick's Tire & Auto
+ *
+ * The Meta sibling of `gbpAutoPost.ts`. Same cron + fire-now + durable-log
+ * spine, but the hardcoded template bank is REPLACED by an LLM-generated,
+ * source-grounded content brain plus a dual eval gate.
+ *
+ * Pipeline per run (runIgAutopost):
+ *   1. SIGNAL BRIEF  — pull from the shop's OWN data (reviews, declined
+ *      work, aggregated call/SMS question-patterns, IG analytics, specials,
+ *      services, Cleveland season). Each source is resilient: an error
+ *      skips that signal, never fails the run. PRIVACY: call/SMS signals
+ *      are AGGREGATED pattern counts only — no individual name, quote, or
+ *      PII ever reaches a post.
+ *   2. GENERATE      — invokeLLM writes a hook-first caption + a pro-image
+ *      prompt + hashtags, grounded in the brief and the playbook voice,
+ *      biased toward formats that have performed. Anti-repetition: a random
+ *      dial combination + the last ~30 posts' concept-keys are fed in as a
+ *      "do NOT repeat" list.
+ *   3. IMAGE         — generatePostImage(prompt) → JPEG public URL (IG
+ *      rejects PNG; see generatePostImage). Prompt forces professional craft.
+ *   4. DUAL EVAL     — LLM-as-judge scores the caption on a weighted rubric
+ *      (viral shape · voice · price-compliance · novelty · no-fabrication);
+ *      the vision analyzer scores the image's pro-look (skipped gracefully
+ *      if REPLICATE_API_KEY is unset). Weighted score must clear 0.7 or we
+ *      regenerate (≤2×) then ABORT.
+ *   5. POST / DRYRUN — dryRun (default TRUE via IG_AUTOPOST_DRYRUN) logs +
+ *      sends a Telegram PREVIEW. Live posts to IG (JPEG) + FB and captures
+ *      ids/errors.
+ *   6. LOG           — every run lands in ig_autopost_log for the variety
+ *      guard + admin review.
+ *
+ * SAFETY: this posts to a LIVE business account. dryRun is TRUE unless
+ * IG_AUTOPOST_DRYRUN is explicitly "false". No kill-list voice words live
+ * in this file's strings or comments (the brand-voice lint scans copy).
+ */
+
+import { BUSINESS } from "@shared/business";
+import { createLogger } from "../lib/logger";
+import { db } from "../lib/db-helper";
+import { igAutopostLog, algEstimates, smsConversations, smsMessages, specials } from "../../drizzle/schema";
+import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { invokeLLM } from "../_core/llm";
+
+const log = createLogger("ig-autopost");
+
+// ─────────────────────────────────────────────────────────
+// TYPES
+// ─────────────────────────────────────────────────────────
+
+export type IgSlot = "morning" | "midday" | "evening";
+/** Content angle the LLM writes toward. Doubles as the log's archetype. */
+export type IgArchetype = "proof" | "anti" | "math" | "seasonal" | "question" | "process";
+export type IgStatus = "dryrun" | "posted" | "failed" | "aborted";
+export type IgSource = "cron" | "admin";
+
+interface SignalBrief {
+  reviews: Array<{ rating: number; text: string }>;
+  declinedPatterns: string[];
+  questionPatterns: string[];
+  igInsight: { topType: string | null; topFormatsNote: string };
+  activeSpecials: Array<{ title: string; code: string | null }>;
+  season: { label: string; note: string };
+  recentConceptKeys: string[];
+}
+
+interface GeneratedPost {
+  archetype: IgArchetype;
+  caption: string;
+  hashtags: string[];
+  imagePrompt: string;
+  conceptKey: string;
+  visualConcept: string;
+}
+
+interface CaptionEval {
+  viralShape: number;     // 0-1 — viral-content-engine 4-element shape
+  voice: number;          // 0-1 — VOICE.md 6-question grade
+  priceCompliance: number; // 0-1 — HARD gate, only advertisable prices, no repair $
+  novelty: number;        // 0-1 — distinct vs recentConceptKeys
+  noFabrication: number;  // 0-1 — no invented reviews / fake customers / fake stats
+  notes: string;
+}
+
+export interface IgEvalScores {
+  caption: CaptionEval;
+  captionWeighted: number;
+  image: { proLook: number | null; skipped: boolean; note: string };
+  overall: number;
+  passed: boolean;
+}
+
+export interface RunIgAutopostResult {
+  recordsProcessed: number;
+  details: string;
+  status: IgStatus;
+  archetype?: IgArchetype;
+  conceptKey?: string;
+  scores?: IgEvalScores;
+  igPostId?: string | null;
+  fbPostId?: string | null;
+  dryRun: boolean;
+}
+
+// ─────────────────────────────────────────────────────────
+// CONSTANTS — eval rubric weights + thresholds (single source of truth)
+// ─────────────────────────────────────────────────────────
+
+const PASS_THRESHOLD = 0.7;
+const MAX_REGEN_ATTEMPTS = 2; // generate once, then up to 2 retries = 3 LLM passes max
+const RECENT_CONCEPT_LIMIT = 30;
+const IMAGE_PRO_LOOK_MIN = 0.6; // when the image WAS scored, it must clear this
+
+// Caption rubric weights (sum to 1.0). priceCompliance + noFabrication are
+// weighted heavy because they are correctness/safety dims, not taste dims.
+const CAPTION_WEIGHTS: Record<keyof Omit<CaptionEval, "notes">, number> = {
+  viralShape: 0.25,
+  voice: 0.2,
+  priceCompliance: 0.25,
+  novelty: 0.1,
+  noFabrication: 0.2,
+};
+
+// The ONLY prices that may ever appear in an autopost. Anything else —
+// especially a repair price — is a hard compliance failure. Mirrors the
+// shop's advertisable-price policy.
+const ADVERTISABLE_PRICES = [
+  "used tires from $60 installed",
+  "oil change $50",
+  "synthetic oil change $80",
+];
+
+// Anti-repetition dials. The generator picks one of each at random so two
+// runs rarely share a creative skeleton. These are PROMPT INPUTS, not
+// output templates — the model writes original copy around them.
+const DIALS = {
+  angle: [
+    "a real customer outcome (no invented names — describe the situation, not a person)",
+    "an anti-promise: name something the shop refuses to do that other shops do",
+    "math-as-argument: a small number today vs a big number later",
+    "a Cleveland-season hook tied to what the weather does to a car",
+    "the single most-asked question this month, answered plainly",
+    "process transparency: show one step of how the work actually happens",
+  ],
+  visualConcept: [
+    "bold editorial poster — one oversized number or word, high-contrast, magazine cover energy",
+    "cinematic concept shot — dramatic single-subject lighting, shallow depth, moody garage atmosphere",
+    "clean product hero — a single part or tire on a seamless studio backdrop, crisp and minimal",
+    "stylized 3D render — a tire/brake rotor as a sculptural object, soft shadows, premium catalog look",
+  ],
+  hookStyle: [
+    "a specific surprising number in the first 5 words",
+    "a flat counterintuitive statement (not a question)",
+    "a tiny scene-set: day, weather, one concrete detail",
+    "a blunt admission a competitor would never make",
+  ],
+  clevelandHook: [
+    "road salt and what it does under the car",
+    "potholes after the thaw on a named East Side street",
+    "the first 90-degree day and what it reveals",
+    "winter mornings and cold-weather failures",
+    "an I-90 / I-271 commute detail",
+  ],
+  tone: [
+    "dry and confident, one wink of humor max",
+    "plainspoken neighbor giving real advice",
+    "deadpan, slightly absurd but genuinely useful",
+  ],
+};
+
+// ─────────────────────────────────────────────────────────
+// SLOT GATING (cron fires every ~15 min; we self-gate to a slot window)
+// ─────────────────────────────────────────────────────────
+
+const SLOT_HOURS: Record<IgSlot, number> = { morning: 8, midday: 13, evening: 20 };
+const SLOT_MINUTE = 7; // off-:00 to dodge the top-of-hour cron stampede
+const SLOT_WINDOW_MIN = 12; // fire if within ±12 min of the slot minute
+
+function etParts(now: Date): { hour: number; minute: number } {
+  const hour = parseInt(
+    now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, hour: "numeric", hour12: false }),
+    10,
+  );
+  const minute = parseInt(now.toLocaleString("en-US", { timeZone: BUSINESS.timezone, minute: "numeric" }), 10);
+  return { hour, minute };
+}
+
+/** Which slot (if any) the current ET time falls into. Null = not slot time. */
+function currentSlot(now: Date): IgSlot | null {
+  const { hour, minute } = etParts(now);
+  for (const slot of Object.keys(SLOT_HOURS) as IgSlot[]) {
+    if (hour === SLOT_HOURS[slot] && Math.abs(minute - SLOT_MINUTE) <= SLOT_WINDOW_MIN) {
+      return slot;
+    }
+  }
+  return null;
+}
+
+/** ET calendar date (YYYY-MM-DD) — used to dedupe one post per slot per day. */
+function etDateKey(now: Date): string {
+  return now.toLocaleDateString("en-CA", { timeZone: BUSINESS.timezone }); // en-CA → ISO-like
+}
+
+/**
+ * Have we already posted (or dry-ran) THIS slot today? Guards the 15-min
+ * cron cadence from double-posting inside a single slot window. Counts
+ * dryrun + posted, ignores failed/aborted so a transient failure can retry
+ * on the next tick inside the window.
+ */
+async function alreadyRanSlotToday(slot: IgSlot, now: Date): Promise<boolean> {
+  try {
+    const d = await db();
+    if (!d) return false; // DB down — fail-open so the slot can still fire once
+    const dayKey = etDateKey(now);
+    const rows = await d
+      .select({ id: igAutopostLog.id })
+      .from(igAutopostLog)
+      .where(
+        and(
+          eq(igAutopostLog.slot, slot),
+          eq(igAutopostLog.slotDate, dayKey),
+          sql`${igAutopostLog.status} IN ('dryrun','posted')`,
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  } catch (err) {
+    log.warn("alreadyRanSlotToday check failed — fail-open", { err: errMsg(err) });
+    return false;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// SIGNAL BRIEF — pull from the shop's OWN data (each source resilient)
+// ─────────────────────────────────────────────────────────
+
+async function buildSignalBrief(): Promise<SignalBrief> {
+  const [reviews, declinedPatterns, questionPatterns, igInsight, activeSpecials, recentConceptKeys] =
+    await Promise.all([
+      fetchRecentReviews(),
+      fetchDeclinedPatterns(),
+      fetchQuestionPatterns(),
+      fetchIgInsight(),
+      fetchActiveSpecials(),
+      fetchRecentConceptKeys(),
+    ]);
+  return {
+    reviews,
+    declinedPatterns,
+    questionPatterns,
+    igInsight,
+    activeSpecials,
+    season: pickSeason(),
+    recentConceptKeys,
+  };
+}
+
+/** Real, public Google reviews. Real quotes are allowed (they are public). */
+async function fetchRecentReviews(): Promise<Array<{ rating: number; text: string }>> {
+  try {
+    const { getGoogleReviews } = await import("../google-reviews");
+    const data = await getGoogleReviews();
+    if (!data?.reviews?.length) return [];
+    return data.reviews
+      .filter((r) => r.rating >= 4 && r.text && r.text.trim().length > 20)
+      .slice(0, 6)
+      .map((r) => ({ rating: r.rating, text: r.text.trim().slice(0, 280) }));
+  } catch (err) {
+    log.warn("review signal skipped", { err: errMsg(err) });
+    return [];
+  }
+}
+
+/**
+ * Declined-work / objection patterns from alg_estimates. We surface the
+ * SERVICE category language only (no customer names) so the post can speak
+ * to the objection ("dealer quoted $X for brakes") without exposing anyone.
+ */
+async function fetchDeclinedPatterns(): Promise<string[]> {
+  try {
+    const d = await db();
+    if (!d) return [];
+    const since = new Date(Date.now() - 120 * 86400000);
+    const rows = await d
+      .select({ service: algEstimates.serviceDescription, amount: algEstimates.estimatedAmount })
+      .from(algEstimates)
+      .where(and(gte(algEstimates.estimateDate, since), sql`${algEstimates.matchedInvoiceId} IS NULL`))
+      .orderBy(desc(algEstimates.estimateDate))
+      .limit(40);
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const key = normalizeServiceTopic(r.service);
+      if (!key) continue;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([topic, n]) => `${topic} (declined ${n}×)`);
+  } catch (err) {
+    log.warn("declined-pattern signal skipped", { err: errMsg(err) });
+    return [];
+  }
+}
+
+/**
+ * Aggregated top customer question-patterns from inbound SMS. PRIVACY: we
+ * NEVER read or surface an individual message body or a customer name. We
+ * bucket inbound messages into broad service topics by keyword and return
+ * COUNTS only. Call (VAPI) questions fold into the same topic buckets when
+ * present, but the same aggregate-only rule applies.
+ */
+async function fetchQuestionPatterns(): Promise<string[]> {
+  try {
+    const d = await db();
+    if (!d) return [];
+    const since = new Date(Date.now() - 60 * 86400000);
+    // Read ONLY inbound message bodies, bucket by topic, discard the text.
+    const rows = await d
+      .select({ body: smsMessages.body })
+      .from(smsMessages)
+      .innerJoin(smsConversations, eq(smsMessages.conversationId, smsConversations.id))
+      .where(and(eq(smsMessages.direction, "inbound"), gte(smsMessages.createdAt, since)))
+      .limit(500);
+    const counts = new Map<string, number>();
+    for (const r of rows) {
+      const topic = bucketQuestionTopic(r.body);
+      if (!topic) continue;
+      counts.set(topic, (counts.get(topic) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([topic, n]) => `${topic} (asked ${n}×)`);
+  } catch (err) {
+    log.warn("question-pattern signal skipped", { err: errMsg(err) });
+    return [];
+  }
+}
+
+/** IG analytics → bias toward what has performed (engagement by type + top posts). */
+async function fetchIgInsight(): Promise<{ topType: string | null; topFormatsNote: string }> {
+  try {
+    const { getEngagementByType, getTopPosts } = await import("../pipelines/instagram-data");
+    const [byType, top] = await Promise.all([getEngagementByType(), getTopPosts({ limit: 5 })]);
+    const topType = byType[0]?.type ?? null;
+    const themes = [...new Set(top.flatMap((p) => p.themes))].slice(0, 6);
+    const note = themes.length
+      ? `Top-performing format is ${topType ?? "unknown"}; recurring high-engagement themes: ${themes.join(", ")}.`
+      : `Top-performing format is ${topType ?? "unknown"} (limited history — lean on craft).`;
+    return { topType, topFormatsNote: note };
+  } catch (err) {
+    log.warn("ig-insight signal skipped", { err: errMsg(err) });
+    return { topType: null, topFormatsNote: "No IG analytics yet — lean on craft and the playbook." };
+  }
+}
+
+async function fetchActiveSpecials(): Promise<Array<{ title: string; code: string | null }>> {
+  try {
+    const d = await db();
+    if (!d) return [];
+    const rows = await d
+      .select({ title: specials.title, code: specials.couponCode })
+      .from(specials)
+      .where(
+        and(
+          eq(specials.isActive, true),
+          eq(specials.displayOnWebsite, true),
+          sql`(${specials.expiresAt} IS NULL OR ${specials.expiresAt} > NOW())`,
+        ),
+      )
+      .limit(3);
+    return rows.map((r: { title: string; code: string | null }) => ({ title: r.title, code: r.code }));
+  } catch (err) {
+    log.warn("specials signal skipped", { err: errMsg(err) });
+    return [];
+  }
+}
+
+/** Last ~30 concept-keys, so the model can be told what NOT to repeat. */
+async function fetchRecentConceptKeys(): Promise<string[]> {
+  try {
+    const d = await db();
+    if (!d) return [];
+    const rows = await d
+      .select({ key: igAutopostLog.conceptKey })
+      .from(igAutopostLog)
+      .orderBy(desc(igAutopostLog.createdAt))
+      .limit(RECENT_CONCEPT_LIMIT);
+    return rows.map((r: { key: string | null }) => r.key).filter((k: string | null): k is string => !!k);
+  } catch (err) {
+    log.warn("recent-concept signal skipped", { err: errMsg(err) });
+    return [];
+  }
+}
+
+// ─── topic bucketing (keyword → broad service topic; no PII retained) ──
+
+const TOPIC_KEYWORDS: Array<{ topic: string; rx: RegExp }> = [
+  { topic: "brakes", rx: /\bbrak|rotor|caliper|pad(s)?\b/i },
+  { topic: "tires", rx: /\btire|tyre|tread|flat|patch|rotat|alignment\b/i },
+  { topic: "oil change", rx: /\boil change|oil\b/i },
+  { topic: "engine light / diagnostics", rx: /\bcheck engine|engine light|code(s)?|diagnos|misfire|stall/i },
+  { topic: "E-Check / emissions", rx: /\be.?check|emission|smog/i },
+  { topic: "AC / heating", rx: /\b(a\/?c|air condition|heat|blower|refrigerant)\b/i },
+  { topic: "battery / starting", rx: /\bbattery|won.?t start|no start|jump|alternator/i },
+  { topic: "pricing / quote", rx: /\bhow much|price|quote|cost|estimate|\$/i },
+  { topic: "hours / walk-in", rx: /\bopen|hours|walk.?in|appointment|today|sunday/i },
+];
+
+function bucketQuestionTopic(body: string | null): string | null {
+  if (!body) return null;
+  for (const { topic, rx } of TOPIC_KEYWORDS) {
+    if (rx.test(body)) return topic;
+  }
+  return null;
+}
+
+function normalizeServiceTopic(service: string | null): string | null {
+  if (!service) return null;
+  const t = bucketQuestionTopic(service);
+  if (t) return t;
+  const trimmed = service.trim().toLowerCase();
+  return trimmed ? trimmed.slice(0, 40) : null;
+}
+
+// ─── Cleveland season (mirrors the playbook's seasonal logic) ──────
+
+function pickSeason(): { label: string; note: string } {
+  const month = new Date().getMonth(); // 0=Jan
+  if (month === 2 || month === 3)
+    return { label: "early-spring thaw", note: "Salt-truck season just ended; scarred roads, potholes, knocked-out alignment." };
+  if (month >= 5 && month <= 6)
+    return { label: "early summer", note: "First hot days expose winter-cracked AC O-rings and weak blower motors." };
+  if (month === 7 || month === 8)
+    return { label: "late summer / road-trip", note: "Long-haul drives reveal bald tires and dying batteries before a trip." };
+  if (month === 9 || month === 10)
+    return { label: "fall winter-prep", note: "First frost weeks out; battery failure rate climbs as temps drop." };
+  if (month >= 11 || month === 0 || month === 1)
+    return { label: "deep winter", note: "Road salt corrodes brake lines and accelerates frame rust right now." };
+  return { label: "mid-season", note: "Routine maintenance is cheaper than the emergency it prevents." };
+}
+
+// ─────────────────────────────────────────────────────────
+// GENERATION (LLM)
+// ─────────────────────────────────────────────────────────
+
+function pick<T>(list: T[]): T {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function archetypeFromAngle(angle: string): IgArchetype {
+  if (angle.startsWith("an anti-promise")) return "anti";
+  if (angle.startsWith("math-as-argument")) return "math";
+  if (angle.startsWith("a Cleveland-season")) return "seasonal";
+  if (angle.startsWith("the single most-asked")) return "question";
+  if (angle.startsWith("process transparency")) return "process";
+  return "proof";
+}
+
+/** Map a forced archetype back to its dial angle so the admin button can steer. */
+function angleForArchetype(a: IgArchetype): string {
+  const map: Record<IgArchetype, number> = { proof: 0, anti: 1, math: 2, seasonal: 3, question: 4, process: 5 };
+  return DIALS.angle[map[a]] ?? DIALS.angle[0];
+}
+
+function buildGenSystemPrompt(): string {
+  return [
+    "You are the social copywriter and creative director for Nick's Tire & Auto, a neighborhood auto + tire shop on Euclid Ave in Cleveland, Ohio.",
+    "You write Instagram captions that get shared because they are specific, surprising, and grounded in this shop's real world — never generic, never the kind of post any other shop could run.",
+    "",
+    "HOUSE VOICE (from the brand guide):",
+    "- Every line that lands does three things at once: surprises (phrasing you would not expect from an auto shop), specifies (a concrete point underneath), reveals (sounds like a person thinking, not a brand communicating).",
+    "- Use concrete numbers, named services, real Cleveland places, and time anchors.",
+    "- One absurd/funny line per post MAXIMUM. Delightfully odd is good; stacked jokes cancel out.",
+    "- NEVER use these words anywhere: trusted, expert/experts, quality, premium, hassle-free, state-of-the-art, family-owned, best, #1, world-class, certified technicians, top-notch, reliable. They are banned brand-voice words.",
+    "- No LLM tells: no 'let's dive in', 'here's the thing', 'in conclusion', 'feel free to', 'furthermore', 'unlock/unleash/elevate your'.",
+    "",
+    "VIRAL SHAPE (the post must have all four, in order):",
+    "1. HOOK — first sentence: a specific, concrete, surprising claim. NOT a question, NOT a teaser.",
+    "2. PROOF — the body: specific, named, sourced. Numbers, the situation, the part, the contrast.",
+    "3. TURN — one near-the-end sentence that re-contextualizes the proof (the line someone repeats at dinner).",
+    "4. TAKE-AWAY — one final line: a concrete action with friction removed (walk in, free check, you don't pay until you say yes).",
+    "",
+    "PRICE RULES (hard):",
+    `- The ONLY prices you may state are: ${ADVERTISABLE_PRICES.join("; ")}.`,
+    "- NEVER state a price for any repair (brakes, diagnostics, AC, batteries, alignment, exhaust, etc.). You may reference a vague dealer quote ('a four-figure dealer quote') but never quote OUR repair price.",
+    "",
+    "TRUTH RULES (hard):",
+    "- Do NOT invent customer names, fake quotes, or fake statistics. If you reference a customer outcome, describe the SITUATION generically (no name).",
+    "- You MAY quote a provided real Google review verbatim if one is supplied in the brief; never fabricate one.",
+    "",
+    "OUTPUT a single JSON object only.",
+  ].join("\n");
+}
+
+function buildGenUserPrompt(brief: SignalBrief, dials: {
+  angle: string; visualConcept: string; hookStyle: string; clevelandHook: string; tone: string;
+}): string {
+  const reviewLines = brief.reviews.length
+    ? brief.reviews.map((r) => `- "${r.text}" (${r.rating}star, real Google review — may be quoted verbatim)`).join("\n")
+    : "- (no fresh reviews available — do NOT invent one)";
+  const declined = brief.declinedPatterns.length ? brief.declinedPatterns.join("; ") : "(none)";
+  const questions = brief.questionPatterns.length ? brief.questionPatterns.join("; ") : "(none)";
+  const specialsLine = brief.activeSpecials.length
+    ? brief.activeSpecials.map((s) => `${s.title}${s.code ? ` [${s.code}]` : ""}`).join("; ")
+    : "(none active)";
+  const avoid = brief.recentConceptKeys.length ? brief.recentConceptKeys.join(" | ") : "(none yet)";
+
+  return [
+    "Write ONE Instagram post for Nick's Tire & Auto. Ground it in the shop's real signals below. Be original — this must not resemble any recent post.",
+    "",
+    "CREATIVE DIALS for THIS post (combine them; do not name them in the copy):",
+    `- Angle: ${dials.angle}`,
+    `- Hook style: ${dials.hookStyle}`,
+    `- Cleveland hook: ${dials.clevelandHook}`,
+    `- Tone: ${dials.tone}`,
+    `- Visual concept for the image: ${dials.visualConcept}`,
+    "",
+    "SHOP SIGNALS (real data — use what fits the angle):",
+    `- Recent real reviews:\n${reviewLines}`,
+    `- Most-declined work (objections to speak to, no names): ${declined}`,
+    `- Most-asked customer questions (aggregated topics, no names): ${questions}`,
+    `- Active specials: ${specialsLine}`,
+    `- Cleveland season: ${brief.season.label} — ${brief.season.note}`,
+    `- What performs on our IG: ${brief.igInsight.topFormatsNote}`,
+    "",
+    "DO NOT REPEAT — recent concept-keys (pick a clearly different idea):",
+    avoid,
+    "",
+    "SHOP FACTS you may use:",
+    `- Address: ${BUSINESS.address.full}. Phone: ${BUSINESS.phone.display}. Open 7 days.`,
+    `- Advertisable prices ONLY: ${ADVERTISABLE_PRICES.join("; ")}.`,
+    "",
+    "Return JSON with exactly these fields:",
+    "- caption: the full IG caption (hook → proof → turn → take-away). 60-150 words. Include the phone number and a walk-in line. No hashtags inside the caption.",
+    "- hashtags: array of 8-12 lowercase hashtags WITHOUT the # sign (mix Cleveland-local + auto-service + a couple broad). No banned words.",
+    "- imagePrompt: a vivid art-direction prompt for an image generator that realizes the visual concept above. Professional craft: cinematic or studio lighting, sharp focus, clean composition. NO text/words rendered in the image, NO photoreal human faces/hands/crowds. 1-3 sentences.",
+    "- conceptKey: a short 3-6 word kebab-case slug capturing THIS post's unique idea (for dedupe), e.g. 'salt-eats-brake-lines-winter'.",
+  ].join("\n");
+}
+
+const GEN_SCHEMA = {
+  name: "ig_post",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      caption: { type: "string" },
+      hashtags: { type: "array", items: { type: "string" } },
+      imagePrompt: { type: "string" },
+      conceptKey: { type: "string" },
+    },
+    required: ["caption", "hashtags", "imagePrompt", "conceptKey"],
+    additionalProperties: false,
+  },
+} as const;
+
+async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): Promise<GeneratedPost> {
+  const angle = forceArchetype ? angleForArchetype(forceArchetype) : pick(DIALS.angle);
+  const visualConcept = pick(DIALS.visualConcept);
+  const dials = {
+    angle,
+    visualConcept,
+    hookStyle: pick(DIALS.hookStyle),
+    clevelandHook: pick(DIALS.clevelandHook),
+    tone: pick(DIALS.tone),
+  };
+
+  const res = await invokeLLM({
+    messages: [
+      { role: "system", content: buildGenSystemPrompt() },
+      { role: "user", content: buildGenUserPrompt(brief, dials) },
+    ],
+    response_format: { type: "json_schema", json_schema: GEN_SCHEMA },
+    max_tokens: 1200,
+  });
+
+  const content = res.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    throw new Error("LLM returned no caption content");
+  }
+  const parsed = JSON.parse(content) as {
+    caption: string; hashtags: string[]; imagePrompt: string; conceptKey: string;
+  };
+
+  const hashtags = (Array.isArray(parsed.hashtags) ? parsed.hashtags : [])
+    .map((h) => h.replace(/^#/, "").trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 12);
+
+  return {
+    archetype: archetypeFromAngle(angle),
+    caption: parsed.caption.trim(),
+    hashtags,
+    imagePrompt: parsed.imagePrompt.trim(),
+    conceptKey: (parsed.conceptKey || "untitled").trim().toLowerCase().replace(/\s+/g, "-").slice(0, 64),
+    visualConcept,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// IMAGE — generatePostImage abstracts the provider; always returns JPEG
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Generate a post image and return a PUBLIC JPEG url.
+ *
+ * Provider switch via IG_AUTOPOST_IMAGE_PROVIDER (default "openai" → the
+ * OpenAI-compatible/Venice endpoint behind server/_core/imageGeneration.ts,
+ * which hosts a PNG). A "higgsfield" branch is stubbed for a later swap.
+ *
+ * IG REQUIREMENT: the Meta IG media container rejects PNG, so we always
+ * convert the generated PNG to JPEG and re-host it, then hand the JPEG url
+ * to Instagram. Facebook tolerates either; we use the same JPEG for both.
+ */
+export async function generatePostImage(prompt: string): Promise<{ url: string; format: "jpeg" }> {
+  const provider = (process.env.IG_AUTOPOST_IMAGE_PROVIDER || "openai").toLowerCase();
+
+  if (provider === "higgsfield") {
+    // Intentional hard stop until the Higgsfield server client is wired.
+    // Swapping providers is then a single env-var flip.
+    throw new Error("IG_AUTOPOST_IMAGE_PROVIDER=higgsfield: set HIGGSFIELD_API_KEY + wire server client");
+  }
+
+  const { generateImage } = await import("../_core/imageGeneration");
+  const { url: pngUrl } = await generateImage({ prompt });
+  if (!pngUrl) throw new Error("image generation returned no url");
+  const jpegUrl = await convertHostedPngToJpeg(pngUrl);
+  return { url: jpegUrl, format: "jpeg" };
+}
+
+/**
+ * Fetch a hosted PNG, transcode to JPEG with sharp, re-host via storagePut.
+ * Generic — independent of the image provider. JPEG quality 90, white
+ * background flatten (IG shows feed photos on white; transparent PNG areas
+ * would otherwise go black).
+ */
+async function convertHostedPngToJpeg(pngUrl: string): Promise<string> {
+  const resp = await fetch(pngUrl, { signal: AbortSignal.timeout(20000) });
+  if (!resp.ok) throw new Error(`failed to fetch generated image: HTTP ${resp.status}`);
+  const pngBuf = Buffer.from(await resp.arrayBuffer());
+
+  const sharp = (await import("sharp")).default;
+  const jpegBuf = await sharp(pngBuf)
+    .flatten({ background: { r: 255, g: 255, b: 255 } })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  const { storagePut } = await import("../storage");
+  const { url } = await storagePut(`generated/${Date.now()}.jpg`, jpegBuf, "image/jpeg");
+  if (!url) throw new Error("storagePut returned no url for JPEG");
+  return url;
+}
+
+// ─────────────────────────────────────────────────────────
+// DUAL EVAL GATE
+// ─────────────────────────────────────────────────────────
+
+function buildEvalSystemPrompt(): string {
+  return [
+    "You are a strict social-content judge for Nick's Tire & Auto. Score an Instagram caption on five dimensions, each 0.0 to 1.0. Be harsh — most drafts should not score above 0.8 unless they are genuinely strong.",
+    "",
+    "DIMENSIONS:",
+    "1. viralShape — does it have, in order: a concrete surprising HOOK (not a question), specific PROOF with numbers/specifics, a TURN that re-contextualizes, and a friction-removed TAKE-AWAY? Missing one element caps this at 0.5.",
+    "2. voice — does it surprise + specify + reveal a human voice? Concrete numbers, named services, real places? Score 0.0 if it contains ANY banned word (trusted, expert, quality, premium, hassle-free, best, #1, certified technicians, reliable, top-notch) or an LLM tell.",
+    "3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: used tires from $60 installed; oil change $50; synthetic oil change $80. No price stated at all = 1.0.",
+    "4. novelty — is the core idea clearly distinct from the supplied recent concept-keys? Near-duplicate of a recent idea = below 0.4.",
+    "5. noFabrication — 1.0 if no invented customer names, fake quotes, or fake statistics. A quote that matches a supplied real review is fine. Any invented name/quote/stat = 0.0.",
+    "",
+    "Return JSON only.",
+  ].join("\n");
+}
+
+const EVAL_SCHEMA = {
+  name: "caption_eval",
+  strict: true,
+  schema: {
+    type: "object",
+    properties: {
+      viralShape: { type: "number" },
+      voice: { type: "number" },
+      priceCompliance: { type: "number" },
+      novelty: { type: "number" },
+      noFabrication: { type: "number" },
+      notes: { type: "string" },
+    },
+    required: ["viralShape", "voice", "priceCompliance", "novelty", "noFabrication", "notes"],
+    additionalProperties: false,
+  },
+} as const;
+
+function clamp01(n: unknown): number {
+  const x = typeof n === "number" && Number.isFinite(n) ? n : 0;
+  return Math.max(0, Math.min(1, x));
+}
+
+async function evalCaption(post: GeneratedPost, brief: SignalBrief): Promise<CaptionEval> {
+  const reviewList = brief.reviews.length
+    ? brief.reviews.map((r) => `"${r.text}"`).join(" | ")
+    : "(none supplied)";
+  const res = await invokeLLM({
+    messages: [
+      { role: "system", content: buildEvalSystemPrompt() },
+      {
+        role: "user",
+        content: [
+          `CAPTION:\n${post.caption}`,
+          `\nHASHTAGS: ${post.hashtags.join(", ")}`,
+          `\nSUPPLIED REAL REVIEWS (the only quotes that are NOT fabrication): ${reviewList}`,
+          `\nRECENT CONCEPT-KEYS to be distinct from: ${brief.recentConceptKeys.join(" | ") || "(none)"}`,
+          `\nALLOWED PRICES: ${ADVERTISABLE_PRICES.join("; ")}`,
+        ].join("\n"),
+      },
+    ],
+    response_format: { type: "json_schema", json_schema: EVAL_SCHEMA },
+    max_tokens: 600,
+  });
+  const content = res.choices?.[0]?.message?.content;
+  if (!content || typeof content !== "string") {
+    throw new Error("eval LLM returned no content");
+  }
+  const p = JSON.parse(content) as Record<string, unknown>;
+  return {
+    viralShape: clamp01(p.viralShape),
+    voice: clamp01(p.voice),
+    priceCompliance: clamp01(p.priceCompliance),
+    novelty: clamp01(p.novelty),
+    noFabrication: clamp01(p.noFabrication),
+    notes: typeof p.notes === "string" ? p.notes.slice(0, 500) : "",
+  };
+}
+
+function weightCaption(c: CaptionEval): number {
+  return (
+    c.viralShape * CAPTION_WEIGHTS.viralShape +
+    c.voice * CAPTION_WEIGHTS.voice +
+    c.priceCompliance * CAPTION_WEIGHTS.priceCompliance +
+    c.novelty * CAPTION_WEIGHTS.novelty +
+    c.noFabrication * CAPTION_WEIGHTS.noFabrication
+  );
+}
+
+/**
+ * Score the generated image's professional look with the vision analyzer
+ * (qwen2-vl). If REPLICATE_API_KEY is unset, skip gracefully — the dryrun
+ * Telegram review is the gate in that case. Never fails the run.
+ */
+async function evalImage(imageUrl: string): Promise<{ proLook: number | null; skipped: boolean; note: string }> {
+  if (!process.env.REPLICATE_API_KEY) {
+    log.info("image-eval skipped (no REPLICATE_API_KEY) — dryrun review is the gate");
+    return { proLook: null, skipped: true, note: "image-eval skipped (no REPLICATE_API_KEY) — dryrun review is the gate" };
+  }
+  try {
+    const { analyzePhoto } = await import("./vision-analyzer");
+    const prompt =
+      "Rate this image as a professional Instagram post graphic for an auto shop. " +
+      "Consider: lighting, sharpness, composition, and whether it looks studio/cinematic-grade vs amateur or AI-glitchy. " +
+      "Penalize garbled text, distorted hands/faces, or muddy composition. " +
+      "End with exactly one line: SCORE: <0-100>.";
+    // analyzePhoto is feature-flagged for the SMS damage-assess use case;
+    // call its Replicate backend directly so this works regardless of that flag.
+    const r = await analyzePhoto({ photoUrl: imageUrl, prompt, provider: "replicate" });
+    if (!r.ok) {
+      log.warn("image-eval call failed — treating as skip", { reason: r.reason, error: r.error });
+      return { proLook: null, skipped: true, note: `image-eval unavailable (${r.reason}) — dryrun review is the gate` };
+    }
+    const m = r.description.match(/SCORE:\s*(\d{1,3})/i);
+    const raw = m ? Math.min(100, Math.max(0, parseInt(m[1], 10))) : 65;
+    return { proLook: raw / 100, skipped: false, note: r.description.slice(0, 300) };
+  } catch (err) {
+    log.warn("image-eval threw — treating as skip", { err: errMsg(err) });
+    return { proLook: null, skipped: true, note: "image-eval error — dryrun review is the gate" };
+  }
+}
+
+function combineScores(caption: CaptionEval, image: { proLook: number | null; skipped: boolean; note: string }): IgEvalScores {
+  const captionWeighted = weightCaption(caption);
+  // Caption must clear the bar AND any non-hard dim that is a true gate.
+  // priceCompliance + noFabrication are HARD: if either is < 1.0 the post fails
+  // outright regardless of the weighted average (safety over taste).
+  const hardOk = caption.priceCompliance >= 1 && caption.noFabrication >= 1;
+  const captionPass = hardOk && captionWeighted >= PASS_THRESHOLD;
+  // When the image was scored, require it to clear IMAGE_PRO_LOOK_MIN; when
+  // skipped, the image dim does not block (dryrun review covers it).
+  const imagePass = image.skipped || image.proLook === null ? true : image.proLook >= IMAGE_PRO_LOOK_MIN;
+  // Overall = caption weighted, nudged down if the (scored) image is weak.
+  const overall = image.proLook === null ? captionWeighted : captionWeighted * 0.8 + image.proLook * 0.2;
+  return {
+    caption,
+    captionWeighted: round2(captionWeighted),
+    image,
+    overall: round2(overall),
+    passed: captionPass && imagePass,
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// LOG
+// ─────────────────────────────────────────────────────────
+
+async function logRun(row: {
+  archetype: IgArchetype;
+  conceptKey: string;
+  slot: IgSlot | null;
+  slotDate: string;
+  scores: IgEvalScores | null;
+  status: IgStatus;
+  caption: string;
+  hashtags: string[];
+  imagePrompt: string;
+  imageUrl: string | null;
+  igPostId: string | null;
+  fbPostId: string | null;
+  error: string | null;
+  source: IgSource;
+}): Promise<void> {
+  try {
+    const d = await db();
+    if (!d) return;
+    await d.insert(igAutopostLog).values({
+      archetype: row.archetype,
+      conceptKey: row.conceptKey.slice(0, 64),
+      slot: row.slot ?? "manual",
+      slotDate: row.slotDate,
+      evalScoresJson: row.scores ? JSON.stringify(row.scores) : null,
+      captionWeighted: row.scores ? Math.round(row.scores.captionWeighted * 100) : null,
+      overallScore: row.scores ? Math.round(row.scores.overall * 100) : null,
+      status: row.status,
+      caption: row.caption.slice(0, 2200),
+      hashtags: row.hashtags.join(" "),
+      imagePrompt: row.imagePrompt.slice(0, 1000),
+      imageUrl: row.imageUrl ? row.imageUrl.slice(0, 1000) : null,
+      igPostId: row.igPostId,
+      fbPostId: row.fbPostId,
+      error: row.error ? row.error.slice(0, 500) : null,
+      source: row.source,
+    });
+  } catch (err) {
+    log.warn("igAutopostLog insert failed (non-critical)", { err: errMsg(err) });
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// PUBLIC ENTRYPOINTS
+// ─────────────────────────────────────────────────────────
+
+export interface RunIgAutopostOpts {
+  /** Override the dryrun default. When omitted, IG_AUTOPOST_DRYRUN !== "false" (i.e. dryrun unless explicitly disabled). */
+  dryRun?: boolean;
+  /** Slot label (for cron + logging). Omit for one-off admin runs. */
+  slot?: IgSlot;
+  /** Force a content angle/archetype (admin "Fire Now" can steer). */
+  forceArchetype?: IgArchetype;
+  source?: IgSource;
+}
+
+/**
+ * The core run. Builds the brief, generates + evals (regenerating up to
+ * MAX_REGEN_ATTEMPTS), then posts or dry-runs. Always returns a result and
+ * always logs. Throwing is avoided — failures are captured as status:"failed".
+ */
+export async function runIgAutopost(opts: RunIgAutopostOpts = {}): Promise<RunIgAutopostResult> {
+  const now = new Date();
+  const dryRun = opts.dryRun ?? (process.env.IG_AUTOPOST_DRYRUN !== "false");
+  const source: IgSource = opts.source ?? (opts.slot ? "cron" : "admin");
+  const slot = opts.slot ?? null;
+  const slotDate = etDateKey(now);
+
+  try {
+    const brief = await buildSignalBrief();
+
+    // Generate → eval, regenerating until pass or attempts exhausted.
+    let best: { post: GeneratedPost; image: { url: string; format: "jpeg" }; scores: IgEvalScores } | null = null;
+    let lastScores: IgEvalScores | null = null;
+    let lastPost: GeneratedPost | null = null;
+
+    for (let attempt = 0; attempt <= MAX_REGEN_ATTEMPTS; attempt++) {
+      const post = await generatePost(brief, opts.forceArchetype);
+      lastPost = post;
+      const image = await generatePostImage(post.imagePrompt);
+      const [captionEval, imageEval] = await Promise.all([
+        evalCaption(post, brief),
+        evalImage(image.url),
+      ]);
+      const scores = combineScores(captionEval, imageEval);
+      lastScores = scores;
+      log.info("ig-autopost eval", {
+        attempt,
+        archetype: post.archetype,
+        conceptKey: post.conceptKey,
+        captionWeighted: scores.captionWeighted,
+        overall: scores.overall,
+        passed: scores.passed,
+        imageSkipped: scores.image.skipped,
+      });
+      if (scores.passed) {
+        best = { post, image, scores };
+        break;
+      }
+    }
+
+    // No draft cleared the gate → ABORT (never post a sub-threshold draft).
+    if (!best) {
+      const reason = lastScores?.caption.notes || "eval below threshold";
+      await logRun({
+        archetype: lastPost?.archetype ?? (opts.forceArchetype ?? "proof"),
+        conceptKey: lastPost?.conceptKey ?? "aborted",
+        slot, slotDate, scores: lastScores, status: "aborted",
+        caption: lastPost?.caption ?? "", hashtags: lastPost?.hashtags ?? [],
+        imagePrompt: lastPost?.imagePrompt ?? "", imageUrl: null,
+        igPostId: null, fbPostId: null,
+        error: `aborted after ${MAX_REGEN_ATTEMPTS + 1} attempts: ${reason}`,
+        source,
+      });
+      await notifyAbort(lastScores, reason);
+      return {
+        recordsProcessed: 0,
+        details: `Aborted — no draft cleared ${PASS_THRESHOLD} after ${MAX_REGEN_ATTEMPTS + 1} attempts`,
+        status: "aborted",
+        scores: lastScores ?? undefined,
+        dryRun,
+      };
+    }
+
+    const { post, image, scores } = best;
+    const caption = composeCaption(post);
+
+    // ── DRYRUN ── log + Telegram preview, never touch Meta.
+    if (dryRun) {
+      await logRun({
+        archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+        scores, status: "dryrun", caption, hashtags: post.hashtags,
+        imagePrompt: post.imagePrompt, imageUrl: image.url,
+        igPostId: null, fbPostId: null, error: null, source,
+      });
+      await notifyPreview(post, image.url, scores, slot);
+      return {
+        recordsProcessed: 1,
+        details: `DRYRUN (${post.archetype}) — preview to Telegram, not posted`,
+        status: "dryrun",
+        archetype: post.archetype, conceptKey: post.conceptKey, scores,
+        igPostId: null, fbPostId: null, dryRun: true,
+      };
+    }
+
+    // ── LIVE ── post to IG (JPEG url) + FB, capture ids/errors.
+    const { postToInstagram, postToFacebook } = await import("./metaSocial");
+    const ig = await postToInstagram({ imageUrl: image.url, caption });
+    const fb = await postToFacebook({ message: caption, imageUrl: image.url });
+    const igPostId = ig.success ? ig.postId ?? null : null;
+    const fbPostId = fb.success ? fb.postId ?? null : null;
+    const anyOk = ig.success || fb.success;
+    const errParts = [ig.success ? null : `IG: ${ig.error}`, fb.success ? null : `FB: ${fb.error}`].filter(Boolean);
+
+    await logRun({
+      archetype: post.archetype, conceptKey: post.conceptKey, slot, slotDate,
+      scores, status: anyOk ? "posted" : "failed",
+      caption, hashtags: post.hashtags, imagePrompt: post.imagePrompt, imageUrl: image.url,
+      igPostId, fbPostId, error: errParts.length ? errParts.join(" · ") : null, source,
+    });
+    await notifyPosted(post, image.url, scores, { ig, fb });
+
+    return {
+      recordsProcessed: anyOk ? 1 : 0,
+      details: anyOk
+        ? `Posted (${post.archetype}) — IG:${ig.success ? "ok" : "fail"} FB:${fb.success ? "ok" : "fail"}`
+        : `Post failed — ${errParts.join(" · ")}`,
+      status: anyOk ? "posted" : "failed",
+      archetype: post.archetype, conceptKey: post.conceptKey, scores,
+      igPostId, fbPostId, dryRun: false,
+    };
+  } catch (err) {
+    const message = errMsg(err);
+    log.error("ig-autopost run failed", { error: message });
+    await logRun({
+      archetype: opts.forceArchetype ?? "proof", conceptKey: "run-error",
+      slot, slotDate, scores: null, status: "failed",
+      caption: "", hashtags: [], imagePrompt: "", imageUrl: null,
+      igPostId: null, fbPostId: null, error: message, source,
+    });
+    return { recordsProcessed: 0, details: `Failed: ${message}`, status: "failed", dryRun };
+  }
+}
+
+/**
+ * Cron entrypoint. Self-gates to a slot window (the cron tier fires every
+ * ~15 min; we only act inside an 8:07 / 13:07 / 20:07 ET window) and dedupes
+ * one post per slot per day. Returns the standard cron result shape.
+ */
+export async function runIgAutopostCron(): Promise<{ recordsProcessed: number; details: string }> {
+  const now = new Date();
+  const slot = currentSlot(now);
+  if (!slot) {
+    return { recordsProcessed: 0, details: "Skip — not within a posting-slot window" };
+  }
+  if (await alreadyRanSlotToday(slot, now)) {
+    return { recordsProcessed: 0, details: `Skip — ${slot} slot already ran today` };
+  }
+  const res = await runIgAutopost({ slot, source: "cron" });
+  return { recordsProcessed: res.recordsProcessed, details: `[${slot}] ${res.details}` };
+}
+
+/** Admin "Fire Now" entrypoint. One-off, optionally steered to an archetype. */
+export async function runIgAutopostOneOff(forceArchetype?: IgArchetype): Promise<RunIgAutopostResult> {
+  return runIgAutopost({ forceArchetype, source: "admin" });
+}
+
+// ─────────────────────────────────────────────────────────
+// COMPOSE + NOTIFY
+// ─────────────────────────────────────────────────────────
+
+/** Final caption = LLM caption + a blank line + hashtags (IG convention). */
+function composeCaption(post: GeneratedPost): string {
+  const tags = post.hashtags.map((h) => `#${h}`).join(" ");
+  const body = post.caption.trim();
+  const full = tags ? `${body}\n\n${tags}` : body;
+  return full.slice(0, 2200); // IG caption hard limit
+}
+
+function scoreLines(s: IgEvalScores): string {
+  const c = s.caption;
+  return [
+    `viral ${pct(c.viralShape)} · voice ${pct(c.voice)} · price ${pct(c.priceCompliance)} · novelty ${pct(c.novelty)} · no-fab ${pct(c.noFabrication)}`,
+    `caption ${pct(s.captionWeighted)} · image ${s.image.skipped ? "skipped" : pct(s.image.proLook ?? 0)} · overall ${pct(s.overall)}`,
+  ].join("\n");
+}
+
+async function notifyPreview(post: GeneratedPost, imageUrl: string, scores: IgEvalScores, slot: IgSlot | null): Promise<void> {
+  try {
+    const { sendTelegram } = await import("./telegram");
+    const caption = composeCaption(post);
+    await sendTelegram(
+      `IG AUTOPOST PREVIEW${slot ? ` (${slot})` : ""} — DRYRUN, not posted\n` +
+      `Angle: ${post.archetype} · concept: ${post.conceptKey}\n` +
+      `Visual: ${post.visualConcept}\n` +
+      `─────────────────\n` +
+      `${caption}\n` +
+      `─────────────────\n` +
+      `Image: ${imageUrl}\n` +
+      `Image prompt: ${post.imagePrompt}\n` +
+      `─────────────────\n` +
+      `${scoreLines(scores)}`,
+    );
+  } catch (err) {
+    log.warn("preview telegram failed", { err: errMsg(err) });
+  }
+}
+
+async function notifyPosted(
+  post: GeneratedPost,
+  imageUrl: string,
+  scores: IgEvalScores,
+  meta: { ig: { success: boolean; postId?: string; error?: string }; fb: { success: boolean; postId?: string; error?: string } },
+): Promise<void> {
+  try {
+    const { sendTelegram } = await import("./telegram");
+    await sendTelegram(
+      `IG AUTOPOST — LIVE\n` +
+      `Angle: ${post.archetype} · concept: ${post.conceptKey}\n` +
+      `IG: ${meta.ig.success ? `posted ${meta.ig.postId ?? ""}` : `FAILED ${meta.ig.error ?? ""}`}\n` +
+      `FB: ${meta.fb.success ? `posted ${meta.fb.postId ?? ""}` : `FAILED ${meta.fb.error ?? ""}`}\n` +
+      `Image: ${imageUrl}\n` +
+      `${scoreLines(scores)}`,
+    );
+  } catch (err) {
+    log.warn("posted telegram failed", { err: errMsg(err) });
+  }
+}
+
+async function notifyAbort(scores: IgEvalScores | null, reason: string): Promise<void> {
+  try {
+    const { sendTelegram } = await import("./telegram");
+    await sendTelegram(
+      `IG AUTOPOST — ABORTED (no draft cleared the eval gate)\n` +
+      `Reason: ${reason}\n` +
+      (scores ? scoreLines(scores) : "no scores"),
+    );
+  } catch (err) {
+    log.warn("abort telegram failed", { err: errMsg(err) });
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────
+
+function errMsg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+function pct(n: number): string {
+  return `${Math.round(n * 100)}%`;
+}
+
+log.info("IG autopost loaded");

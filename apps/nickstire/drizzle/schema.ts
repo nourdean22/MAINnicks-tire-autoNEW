@@ -2882,6 +2882,60 @@ export const gbpPostLog = mysqlTable("gbp_post_log", {
 export type GbpPostLogRow = typeof gbpPostLog.$inferSelect;
 export type InsertGbpPostLog = typeof gbpPostLog.$inferInsert;
 
+// ─── IG / FB AUTOPOST LOG ───────────────────────────────
+/**
+ * Durable log for the autonomous Instagram + Facebook poster
+ * (server/services/igAutopost.ts). One row per run (dryrun, posted, failed,
+ * or aborted). Backs three things: the anti-repetition guard (recent
+ * conceptKeys fed to the generator), the once-per-slot-per-day dedupe, and
+ * admin review of what the brain produced.
+ *
+ * Migration: drizzle/0065_ig_autopost_log.sql (hand-applied — no auto-migrate).
+ */
+export const igAutopostLog = mysqlTable("ig_autopost_log", {
+  id: int("id").autoincrement().primaryKey(),
+  /** Content angle: proof | anti | math | seasonal | question | process */
+  archetype: varchar("archetype", { length: 20 }).notNull(),
+  /** Short kebab-case slug of the post's unique idea (anti-repetition guard) */
+  conceptKey: varchar("conceptKey", { length: 64 }).notNull(),
+  /** Slot label: morning | midday | evening | manual */
+  slot: varchar("slot", { length: 16 }).default("manual").notNull(),
+  /** ET calendar date (YYYY-MM-DD) the run fired — dedupes one post per slot/day */
+  slotDate: varchar("slotDate", { length: 10 }).notNull(),
+  /** Full eval payload (caption dims + image dim + overall) as JSON */
+  evalScoresJson: text("evalScoresJson"),
+  /** Weighted caption score *100 (e.g. 0.82 -> 82) for quick sorting */
+  captionWeighted: int("captionWeighted"),
+  /** Overall score *100 */
+  overallScore: int("overallScore"),
+  /** Outcome: dryrun | posted | failed | aborted */
+  status: varchar("status", { length: 16 }).notNull(),
+  /** Final composed caption (with hashtags) — IG limit is 2200 chars */
+  caption: text("caption").notNull(),
+  /** Space-joined hashtags (without # ) */
+  hashtags: text("hashtags"),
+  /** The art-direction prompt sent to the image generator */
+  imagePrompt: text("imagePrompt"),
+  /** Public JPEG url used for the post (null on abort/early-fail) */
+  imageUrl: varchar("imageUrl", { length: 1000 }),
+  /** Instagram media id when posted live */
+  igPostId: varchar("igPostId", { length: 64 }),
+  /** Facebook post id when posted live */
+  fbPostId: varchar("fbPostId", { length: 64 }),
+  /** Failure / abort reason */
+  error: varchar("error", { length: 500 }),
+  /** Trigger source: cron (scheduled) or admin (Fire Now button) */
+  source: varchar("source", { length: 16 }).default("cron").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, (table) => [
+  index("idx_ig_autopost_created").on(table.createdAt),
+  index("idx_ig_autopost_slot_day").on(table.slot, table.slotDate),
+  index("idx_ig_autopost_status").on(table.status),
+]);
+
+export type IgAutopostLogRow = typeof igAutopostLog.$inferSelect;
+export type InsertIgAutopostLog = typeof igAutopostLog.$inferInsert;
+
 // ─── ALG PROBE LOG ──────────────────────────────────────
 /**
  * Demand-driven ALG probe scheduler.
