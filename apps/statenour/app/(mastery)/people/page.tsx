@@ -219,12 +219,23 @@ export default function RelationshipsPage() {
   // (deletedAt set · ledger preserved · revivable). Reload triggers an
   // immediate /api/people refetch which now correctly filters deleted.
   const softDeleteFromRow = trpc.task.softDeletePerson.useMutation();
-  const handleRowDelete = (personId: string, name: string) => {
+  // PWA-safe delete confirm. window.confirm() is SILENTLY suppressed in iOS
+  // standalone PWAs (the operator's actual environment — manifest display:
+  // standalone) — it returns false and the delete never fires. Two-tap inline
+  // confirm instead: first tap arms (button → "sure?"), second tap within 4s
+  // deletes; auto-disarms so a stray arm doesn't linger.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const handleRowDelete = (personId: string) => {
     if (softDeleteFromRow.isPending) return;
-    const confirmed = window.confirm(
-      `Delete ${name}?\n\nDossier + ledger stay archived — ask Nick to revive later.`,
-    );
-    if (!confirmed) return;
+    if (confirmDeleteId !== personId) {
+      setConfirmDeleteId(personId);
+      window.setTimeout(
+        () => setConfirmDeleteId((cur) => (cur === personId ? null : cur)),
+        4000,
+      );
+      return;
+    }
+    setConfirmDeleteId(null);
     softDeleteFromRow.mutate(
       { personId },
       {
@@ -359,8 +370,11 @@ export default function RelationshipsPage() {
         onToggle={(e) => setBrowseOpen(e.currentTarget.open)}
         className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]"
       >
-        <summary className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none">
-          ▸ browse all people {data ? `(${data.totals.total})` : ""}
+        <summary
+          aria-label={`Browse all people${data ? `, ${data.totals.total} total` : ""}`}
+          className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none"
+        >
+          <span aria-hidden="true">▸ </span>browse all people {data ? `(${data.totals.total})` : ""}
         </summary>
         <div className="border-t border-[var(--border-default)]/60 p-3 space-y-3">
 
@@ -456,6 +470,7 @@ export default function RelationshipsPage() {
                       <span
                         role="button"
                         tabIndex={0}
+                        aria-label={`edit ${p.name}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           setEditPersonId(p.id);
@@ -503,18 +518,27 @@ export default function RelationshipsPage() {
                         tabIndex={0}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleRowDelete(p.id, p.name);
+                          handleRowDelete(p.id);
                         }}
                         onKeyDown={(e) => {
                           if (e.key === "Enter" || e.key === " ") {
                             e.stopPropagation();
-                            handleRowDelete(p.id, p.name);
+                            handleRowDelete(p.id);
                           }
                         }}
-                        aria-label={`delete ${p.name}`}
-                        className="inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider text-rose-300/70 hover:text-rose-300 active:scale-95 transition-transform cursor-pointer disabled:opacity-50"
+                        aria-label={
+                          confirmDeleteId === p.id
+                            ? `confirm delete ${p.name}`
+                            : `delete ${p.name}`
+                        }
+                        className={cn(
+                          "inline-flex min-h-[44px] items-center px-3 -my-1 text-[11px] uppercase tracking-wider active:scale-95 transition-transform cursor-pointer disabled:opacity-50",
+                          confirmDeleteId === p.id
+                            ? "text-rose-300 font-semibold"
+                            : "text-rose-300/70 hover:text-rose-300",
+                        )}
                       >
-                        delete
+                        {confirmDeleteId === p.id ? "sure?" : "delete"}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-[var(--text-secondary)] line-clamp-2">
@@ -537,6 +561,15 @@ export default function RelationshipsPage() {
                       )}
                     >
                       {Math.round(p.trustScore * 100)}
+                    </div>
+                    {/* Tier in text, not color alone (WCAG 1.4.1) — also a
+                        faster at-a-glance read for the operator. */}
+                    <div className="text-[9px] uppercase tracking-wider text-[var(--text-tertiary)]">
+                      {p.trustScore >= 0.7
+                        ? "high"
+                        : p.trustScore >= 0.4
+                          ? "mid"
+                          : "low"}
                     </div>
                     <div className="text-[10px] text-[var(--text-tertiary)] tabular-nums">
                       {relativeTime(p.daysSinceInteraction)} ·{" "}
@@ -852,8 +885,11 @@ function DetailPanel({
        *  so the panel above stays focused; they fill in as the brain
        *  accumulates enough data to make them meaningful. */}
       <details className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)]">
-        <summary className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none">
-          ▸ deeper signals
+        <summary
+          aria-label="Deeper signals"
+          className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none"
+        >
+          <span aria-hidden="true">▸ </span>deeper signals
         </summary>
         <div className="border-t border-[var(--border-default)]/60 p-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
           <TopicGoalOverlapCard metadata={person.metadata} />
