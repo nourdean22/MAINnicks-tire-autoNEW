@@ -26,7 +26,9 @@ export async function scrapeCompetitors(
   if (!API_KEY) throw new Error("GOOGLE_PLACES_API_KEY required for competitor scraping");
 
   const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=${radiusMeters}&type=car_repair&key=${API_KEY}`;
-  const res = await fetch(url);
+  // 2026-06-01 · 10s timeout so a hung Places API call can't stall the
+  // whole cron slot (matches the pattern in lib/integrations/google-reviews.ts).
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   const data = await res.json();
 
   const competitors: CompetitorData[] = (data.results || [])
@@ -47,7 +49,7 @@ export async function getCompetitorDetails(placeId: string): Promise<CompetitorD
   if (!API_KEY) throw new Error("GOOGLE_PLACES_API_KEY required");
 
   const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,formatted_phone_number,website,rating,user_ratings_total,reviews&key=${API_KEY}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   const { result } = await res.json();
 
   return {
