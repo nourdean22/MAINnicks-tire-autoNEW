@@ -101,8 +101,11 @@ describe("Feature Flag Integration", () => {
   });
 
   it("flag REST API endpoints exist", async () => {
+    // 2026-06 · index.ts god-file split — the /api/admin/* handlers were
+    // extracted verbatim to routes/adminRoutes.ts (still mounted via
+    // registerAdminRoutes(app) in index.ts). Assert against the new home.
     const content = await import("fs").then(fs =>
-      fs.readFileSync("server/_core/index.ts", "utf8")
+      fs.readFileSync("server/routes/adminRoutes.ts", "utf8")
     );
     expect(content).toContain("/api/admin/flags");
     expect(content).toContain("/api/admin/flags/toggle");
