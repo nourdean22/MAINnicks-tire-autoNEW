@@ -186,11 +186,15 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
       const { eq } = await import("drizzle-orm");
       const db = await getDb();
       if (!db) return;
-      // Find or create conversation for this phone
+      // Find or create conversation for this phone. Key on the 10-digit form
+      // (matches getOrCreateConversation + logOutboundSms) so the durable-queue
+      // path can't create a "+1..." duplicate of an existing 10-digit thread
+      // (the conversation-split bug fixed 2026-06).
+      const convPhone = to.replace(/\D/g, "").slice(-10);
       let [conv] = await db.select({ id: smsConversations.id })
-        .from(smsConversations).where(eq(smsConversations.phone, to)).limit(1);
+        .from(smsConversations).where(eq(smsConversations.phone, convPhone)).limit(1);
       if (!conv) {
-        const [inserted] = await db.insert(smsConversations).values({ phone: to }).$returningId();
+        const [inserted] = await db.insert(smsConversations).values({ phone: convPhone }).$returningId();
         conv = { id: inserted.id };
       }
       const [row] = await db.insert(smsMessages).values({
