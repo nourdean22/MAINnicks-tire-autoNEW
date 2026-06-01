@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/components/actions/shared";
+import { TaskPendingClassificationChip } from "@/components/missions/task-pending-classification-chip";
 
 export interface MissionTaskRowProps {
   task: Task;
@@ -324,6 +325,18 @@ export function MissionTaskRow({
             {task.effort && <span>{task.effort}</span>}
             {dueHint && <span>{dueHint}</span>}
           </div>
+        )}
+        {/* Suggest-then-approve · a parked LOW-confidence mission match waits
+         *  here for the operator to attach or dismiss (set by enrichTaskLinkage). */}
+        {(task as unknown as { pendingClassification?: unknown })
+          .pendingClassification != null && (
+          <TaskPendingClassificationChip
+            taskId={task.id}
+            pending={
+              (task as unknown as { pendingClassification?: unknown })
+                .pendingClassification
+            }
+          />
         )}
       </div>
 
