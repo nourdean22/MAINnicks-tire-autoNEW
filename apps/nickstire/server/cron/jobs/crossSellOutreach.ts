@@ -260,7 +260,7 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       const serviceLabel = SERVICE_LABELS[p.predictedService] || p.predictedService;
       const message = `Hey ${firstName} — based on your last check-up, you're due for ${serviceLabel}. Free check, you don't pay until you say yes. Drop it off anytime. Reply STOP to opt out.`;
 
-      const result = await sendSms(p.customerPhone, message, { via: "shop" });
+      const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true });
       const { logOutboundSms } = await import("../../services/smsInstrumentation");
       await logOutboundSms(p.customerPhone, message, result.sid, "cross_sell");
 

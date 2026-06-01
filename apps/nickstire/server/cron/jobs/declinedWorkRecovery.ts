@@ -434,7 +434,7 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           serviceDescription: est.serviceDescription,
           customer,
         });
-        const res = await sendSms(est.customerPhone, body, { via: "shop" });
+        const res = await sendSms(est.customerPhone, body, { via: "shop", skipPersist: true });
         await logOutboundSms(est.customerPhone, body, res.sid, variantKey(touch, profile));
 
         if (res.success) {
