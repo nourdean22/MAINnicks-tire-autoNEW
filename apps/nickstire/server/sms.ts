@@ -1098,16 +1098,28 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
       persistOutboundShopSms(normalizedEarly, body, "sending").catch(() => undefined);
       return { success: true };
     }
-    // Fallback path — shop gateway unreachable or unconfigured. Only
-    // alert on REAL failures (configured gateway returned non-OK),
-    // not on the "credentials not configured" path which fires
-    // constantly in test/dev environments.
-    const configured = !!process.env.SHOP_SMS_GATEWAY_USERNAME && !!process.env.SHOP_SMS_GATEWAY_PASSWORD;
-    if (configured) {
-      log.warn(`Shop gateway failed (${gw.error}) — falling back to Twilio for ${normalizedEarly.slice(-4)}`);
+    // Definitive failure (non-OK HTTP / DNS / connection error) on a
+    // CONFIGURED gateway. Operator directive (2026-06): F25e-only, no
+    // Twilio — a failed send is still "couldn't deliver", so HOLD it for
+    // redelivery (same never-drop contract as the offline pre-check above)
+    // instead of dropping to the off Twilio path. A drained send
+    // (_forceImmediate) skips the re-queue to avoid a loop and falls
+    // through (Twilio off → failure → caller surfaces it as degraded).
+    if (isShopGatewayConfigured()) {
       await alertShopGatewayFallback(gw.error || "unknown", normalizedEarly);
+      if (!opts?._forceImmediate) {
+        log.warn(`Shop gateway send failed (${gw.error}) — queuing for redelivery for ${normalizedEarly.slice(-4)}`);
+        queueForLater(normalizedEarly, body, opts);
+        return {
+          success: true,
+          queued: true,
+          error: "Shop gateway send failed — queued for redelivery when healthy",
+        };
+      }
+      log.warn(`Shop gateway failed (${gw.error}) on a drained send for ${normalizedEarly.slice(-4)} — leaving claimable`);
     }
-    // Drop through to normal Twilio flow below
+    // Drop through to Twilio below (unconfigured dev/test env, or a drained
+    // send that already failed — Twilio is off, so this returns a failure).
   }
 
   // ─── Kill switch (Twilio-only — wave-106) ────────────
