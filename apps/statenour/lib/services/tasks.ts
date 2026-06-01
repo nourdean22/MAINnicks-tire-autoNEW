@@ -14,7 +14,13 @@ import { emitTaskEventAsync } from "@/lib/brain/task-events";
 import { emitTaskCompleted } from "@/lib/db/brain-bus-emit";
 import { runAutoLearn, type AutoLearnReport } from "@/lib/services/auto-learn";
 import { emitGoalEventAsync } from "@/lib/brain/goal-events";
-import { creditGoalStatsForTask } from "@/lib/mastery/goal-stats";
+import { creditTaskStats } from "@/lib/mastery/goal-stats";
+import { DOMAINS } from "@/lib/mastery/config";
+import { CONFIDENCE } from "@/lib/mastery/scoring-config";
+import { classifyTaskLinkage } from "@/lib/ai/classify-task-linkage";
+// resolveInboxMissionId is dynamic-imported inside enrichTaskLinkage to
+// avoid a static tasks↔missions import cycle (missions imports
+// syncTaskPriorities from here).
 import { isProjectPlanData, type ProjectPlanData, type ProjectStep } from "@/lib/ai/project-plan";
 import { invalidate } from "@/lib/utils/cache";
 import { logger as rootLogger } from "@/lib/logger";
@@ -452,7 +458,101 @@ export async function createTask(input: unknown, tx?: Prisma.TransactionClient) 
   // v9.1.23 · cache invalidation — dashboard_brief etc.
   invalidateMutationCaches();
 
+  // 2026-06-01 · classification spine · fire-and-forget enrichment AFTER the
+  // task exists (snappy create, no AI on the write path). Fills mission/goal/
+  // statHints when they're unset — so EVERY creation path (this service, the
+  // AI tool, follow-ups, auto-spawn) lands a task that correlates to a
+  // mission + goal + stats, not a generic Inbox orphan.
+  void enrichTaskLinkage(result.task.id);
+
   return result.vm;
+}
+
+/**
+ * Gap-fill a task's mission/goal/stat linkage via the AI classifier, then
+ * compare-and-set only the fields still unset. Idempotent + race-safe:
+ *   · skips the AI call entirely when already fully linked (review #1);
+ *   · each write is a conditional `updateMany` that only touches a row whose
+ *     field is STILL unset, so it never clobbers a deliberate choice or a
+ *     user edit made in the create→enrich window.
+ * Fire-and-forget — never throws.
+ */
+export async function enrichTaskLinkage(taskId: string): Promise<void> {
+  if (isDemoMode) return; // demo has no classifier
+  try {
+    const task = await prisma.task.findUnique({
+      where: { id: taskId },
+      select: {
+        id: true,
+        title: true,
+        nextPhysicalAction: true,
+        missionId: true,
+        goalId: true,
+        statHints: true,
+      },
+    });
+    if (!task) return;
+
+    const { resolveInboxMissionId } = await import("@/lib/services/missions");
+    const inboxId = await resolveInboxMissionId();
+    const missionUnset = !task.missionId || task.missionId === inboxId;
+    const goalUnset = !task.goalId;
+    const statsUnset = !task.statHints || task.statHints.length === 0;
+    // Already fully linked → skip the AI call (gap-fill only).
+    if (!missionUnset && !goalUnset && !statsUnset) return;
+
+    const [missions, goals] = await Promise.all([
+      prisma.mission.findMany({
+        where: activeOnly(),
+        select: { id: true, title: true, domain: true },
+      }),
+      prisma.lifeGoal.findMany({
+        where: { status: "active", deletedAt: null },
+        select: { id: true, title: true, domain: true },
+      }),
+    ]);
+
+    const result = await classifyTaskLinkage({
+      taskTitle: task.title,
+      nextPhysicalAction: task.nextPhysicalAction,
+      // Don't offer Inbox as a classification target — it IS "unclassified".
+      missions: missions.filter((m) => m.id !== inboxId),
+      goals,
+      stats: DOMAINS.map((d) => ({ key: d.key, label: d.label })),
+    });
+
+    // Compare-and-set, one conditional write per field the classifier filled.
+    if (missionUnset && result.missionId && result.confidence >= CONFIDENCE.silentAttach) {
+      await prisma.task
+        .updateMany({
+          // missionId is a non-nullable FK, so "unset" == pointing at Inbox.
+          where: { id: taskId, missionId: inboxId },
+          data: { missionId: result.missionId },
+        })
+        .catch(() => {});
+    }
+    if (goalUnset && result.goalId) {
+      await prisma.task
+        .updateMany({
+          where: { id: taskId, goalId: null },
+          data: { goalId: result.goalId },
+        })
+        .catch(() => {});
+    }
+    if (statsUnset && result.statHints.length > 0) {
+      await prisma.task
+        .updateMany({
+          where: { id: taskId, statHints: { isEmpty: true } },
+          data: { statHints: result.statHints },
+        })
+        .catch(() => {});
+    }
+  } catch (err) {
+    log.warn("enrich_task_linkage_failed", {
+      taskId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
 export async function updateTask(id: string, input: unknown) {
@@ -590,6 +690,16 @@ export async function updateTask(id: string, input: unknown) {
       // override via payload in a future iteration; this default
       // is what makes "0/50000 social_media_interactions" actually
       // tick up as Nour finishes related tasks.
+      // 2026-06-01 · credit character-sheet stat XP for EVERY completion
+      // (goal-tagged → goal stats · else statHints · else domain inference),
+      // scaled by effort/ROI. This is the path that actually moves /stats.
+      void creditTaskStats(result.task.id).catch((err) =>
+        log.warn("task_stat_credit_failed", {
+          taskId: result.task.id,
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      );
+      // currentValue lift stays goal-only (stat crediting handled above).
       if (existing.goalId) {
         void liftGoalOnTaskComplete(existing.goalId, result.task.id).catch(
           (err) =>
@@ -774,12 +884,11 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
   });
   if (!goal) return;
 
-  // Ambition Engine P1 · credit the goal's mastery stats for this rep.
-  // Idempotent (sourceKey goal-task:<taskId>:<stat>) so the double-fire
-  // path — the chat-auto-complete fallback in persist-user-turn also
-  // calls this — never double-credits; fires whether or not the goal is
-  // already achieved (the rep still exercised the stat). Never throws.
-  await creditGoalStatsForTask(taskId, goalId);
+  // 2026-06-01 · stat crediting is now centralized in `creditTaskStats`
+  // (called from every completion path: updateTask, checkTask ONCE/PROMISE,
+  // checkTask DAILY, and the persist-user-turn fallback). This function is
+  // currentValue-only now, so a goal-tagged task credits its stats exactly
+  // once regardless of which completion path fired. Never throws.
 
   // Already done? Skip the lift but still log the event so the
   // brain layer sees the linked-task activity.
@@ -793,6 +902,27 @@ export async function liftGoalOnTaskComplete(goalId: string, taskId: string): Pr
     return;
   }
   const delta = 1;
+  // 2026-06-01 · idempotency guard. liftGoal is now called from BOTH
+  // checkTask (the /check route) and updateTask (the PATCH path); a task
+  // re-completed across paths (or a double check-off) would otherwise
+  // increment currentValue twice. Claim a one-time marker via the
+  // BrainMemory (category,key) unique constraint — create THROWS on a
+  // duplicate, so exactly one completion ever lifts this (goal,task).
+  // (Stat XP is already idempotent via creditTaskStats' sourceKey.)
+  const liftMarked = await prisma.brainMemory
+    .create({
+      data: {
+        category: "goal_lift",
+        key: `goal-lift:${goalId}:${taskId}`,
+        content: taskId.slice(0, 80),
+        source: "goal-lift",
+        createdBy: "system",
+      },
+    })
+    .then(() => true)
+    .catch(() => false);
+  if (!liftMarked) return; // a prior completion already lifted this task
+
   // Atomic increment — the prior read-then-write (currentValue =
   // goal.currentValue + delta) lost updates when two linked tasks
   // completed concurrently. `{ increment }` is atomic at the DB;
@@ -941,7 +1071,9 @@ async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promis
       data: { planData: updatedPlan as unknown as object },
     });
   });
-  // Post-commit: emit events.
+  // Post-commit: emit events + gap-fill linkage (classification spine ·
+  // spawned tasks inherit the parent mission but no goal/stats — enrich
+  // fills goalId/statHints; compare-and-set leaves the inherited mission).
   for (const evt of taskEventsToEmit) {
     emitTaskEventAsync({
       taskId: evt.taskId,
@@ -954,6 +1086,7 @@ async function maybeSpawnNextPhase(missionId: string, phaseName: string): Promis
         triggeredBy: "previous-phase-complete",
       },
     });
+    void enrichTaskLinkage(evt.taskId);
   }
   log.info("phase_progression", {
     missionId,

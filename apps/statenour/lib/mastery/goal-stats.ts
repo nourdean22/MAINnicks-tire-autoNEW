@@ -25,6 +25,7 @@ import { prisma } from "@/lib/prisma";
 import { creditStatXp } from "./credit";
 import { SIGNAL_XP } from "./leveling";
 import { DOMAINS } from "./config";
+import { taskStatMultiplier, MIN_TASK_STAT_XP } from "./scoring-config";
 
 export interface ResolvedGoalStat {
   statKey: string;
@@ -85,13 +86,23 @@ export function effectiveGoalStats(
 }
 
 /**
- * XP one goal-tagged task rep credits to a stat of the given weight.
- * Base is SIGNAL_XP.task (a completed task) scaled by the stat's weight
- * (the goal's 0..1 effort share), rounded to one decimal. Clamped ≥ 0.
+ * XP one task rep credits to a stat of the given weight, scaled by the
+ * adaptive `multiplier` (effort × ROI × goal × streak, default 1 = the
+ * prior flat behavior). Base is SIGNAL_XP.task, rounded to one decimal,
+ * clamped ≥ 0. A non-positive weight earns 0 (no wrong credit).
  */
-export function goalStatXp(weight: number): number {
-  const xp = SIGNAL_XP.task * (weight > 0 ? weight : 0);
+export function goalStatXp(weight: number, multiplier = 1): number {
+  if (weight <= 0) return 0;
+  const m = multiplier > 0 ? multiplier : 1;
+  const xp = SIGNAL_XP.task * weight * m;
   return Math.max(0, Math.round(xp * 10) / 10);
+}
+
+/** Validate raw stat-hint keys against the real stat catalog (weight 1). */
+export function statHintsToResolved(hints: string[] | null | undefined): ResolvedGoalStat[] {
+  return (hints ?? [])
+    .filter((k) => VALID_STATS.has(k))
+    .map((statKey) => ({ statKey, weight: 1 }));
 }
 
 /** Stable idempotency key for one (task, stat) goal credit. */
@@ -129,42 +140,118 @@ export function goalsByStat(
 }
 
 /**
- * Credit XP to a goal's stats for a completed task tagged with it. Reads
- * the goal's declared GoalStat rows (falling back to domain inference),
- * then writes one idempotent xpEvent per stat. Returns the count of NEW
- * credits (a backfill/double-fire returns 0). Fire-and-forget safe:
- * never throws.
+ * Credit character-sheet stat XP for a completed task — the UNIFIED path
+ * (2026-06-01). This is what makes a completed task actually move the
+ * /stats levels (the `mastery_xp_event` log keyed by stat, which
+ * `computeCharacterSheet` reads; NOT auto-learn's domain-bucket score).
+ *
+ * Stat resolution priority (review #1 — "even goal-less tasks feed a stat"):
+ *   1. the linked goal's declared/inferred stats (when task.goalId set)
+ *   2. the task's classifier `statHints`
+ *   3. inference from the mission (or goal) domain string
+ *
+ * XP per stat is SCALED by the adaptive multiplier (effort × ROI × goal ×
+ * streak — review #2: stat XP scales; goal `currentValue` stays flat).
+ *
+ * Idempotency / no double-count:
+ *   · goal-resolved stats keep the historical `goal-task:<id>:<stat>` key.
+ *   · statHints/domain-resolved stats use a fresh `task-stat:<id>:<stat>` key.
+ *   · DAILY completions append `:<yyyy-mm-dd>` so each day credits once.
+ * Returns the count of NEW credits. Fire-and-forget safe: never throws.
  */
-export async function creditGoalStatsForTask(
+export async function creditTaskStats(
   taskId: string,
-  goalId: string,
+  opts: { perDay?: boolean; dayKey?: string } = {},
 ): Promise<number> {
-  if (!taskId || !goalId) return 0;
-  const goal = await prisma.lifeGoal
+  if (!taskId) return 0;
+  const task = await prisma.task
     .findUnique({
-      where: { id: goalId },
+      where: { id: taskId },
       select: {
-        domain: true,
-        title: true,
-        statLinks: { select: { statKey: true, weight: true } },
+        goalId: true,
+        statHints: true,
+        effort: true,
+        roiScore: true,
+        streakCount: true,
+        loopKind: true,
+        mission: { select: { domain: true } },
+        goal: {
+          select: {
+            domain: true,
+            title: true,
+            statLinks: { select: { statKey: true, weight: true } },
+          },
+        },
       },
     })
     .catch(() => null);
-  if (!goal) return 0;
+  if (!task) return 0;
 
-  const stats = effectiveGoalStats(goal.statLinks ?? [], goal.domain);
+  // Resolve stats by priority, and remember which keying scheme + evidence.
+  let stats: ResolvedGoalStat[];
+  let goalKeyed = false;
+  let evidence: string;
+  if (task.goalId) {
+    // A goal-linked task ALWAYS uses the goal-task: key namespace, even if the
+    // goal relation didn't resolve (rare — FK is onDelete:SetNull so it
+    // normally can't), so the same (task,stat) can never be credited under
+    // both key schemes and double-count.
+    if (task.goal) {
+      stats = effectiveGoalStats(task.goal.statLinks ?? [], task.goal.domain);
+      evidence = `goal rep · ${task.goal.title ?? ""}`.trim();
+    } else {
+      stats = inferGoalStats((task.mission?.domain || "").toLowerCase());
+      evidence = "goal-linked rep";
+    }
+    goalKeyed = true;
+  } else {
+    const hinted = statHintsToResolved(task.statHints);
+    if (hinted.length > 0) {
+      stats = hinted;
+      evidence = "task → stat hint";
+    } else {
+      const domain = (task.mission?.domain || task.goal?.domain || "").toLowerCase();
+      stats = inferGoalStats(domain);
+      evidence = domain ? `task · ${domain}` : "task";
+    }
+  }
+  if (stats.length === 0) return 0;
+
+  const multiplier = taskStatMultiplier({
+    roiScore: task.roiScore,
+    effort: task.effort,
+    streakCount: task.streakCount,
+    loopKind: task.loopKind,
+    hasGoalId: !!task.goalId,
+  });
+  const daySuffix = opts.perDay ? `:${opts.dayKey ?? new Date().toISOString().slice(0, 10)}` : "";
+
   let credited = 0;
   for (const s of stats) {
-    const xp = goalStatXp(s.weight);
+    const xp = Math.max(MIN_TASK_STAT_XP, goalStatXp(s.weight, multiplier));
     if (xp <= 0) continue;
+    const base = goalKeyed
+      ? goalTaskSourceKey(taskId, s.statKey)
+      : `task-stat:${taskId}:${s.statKey}`;
     const isNew = await creditStatXp({
       stat: s.statKey,
       xp,
       signal: "task",
-      evidence: `goal rep · ${goal.title}`.slice(0, 120),
-      sourceKey: goalTaskSourceKey(taskId, s.statKey),
+      evidence: evidence.slice(0, 120),
+      sourceKey: `${base}${daySuffix}`,
     });
     if (isNew) credited++;
   }
   return credited;
+}
+
+/**
+ * @deprecated back-compat shim — prefer `creditTaskStats`. Kept so any
+ * lingering caller (or a future re-add) still credits the goal path.
+ */
+export async function creditGoalStatsForTask(
+  taskId: string,
+  _goalId: string,
+): Promise<number> {
+  return creditTaskStats(taskId);
 }

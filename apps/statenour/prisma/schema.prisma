@@ -339,6 +339,11 @@ model Task {
   /// goal fetches + cascading nulls on goal deletion.
   goalId                  String?
   goal                    LifeGoal?   @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  /// 2026-06-01 · classifier-assigned mastery stat keys this task feeds
+  /// (the 33 character-sheet stats). Set by `enrichTaskLinkage` when the
+  /// task has no linked goal, so even goal-less tasks credit a real stat
+  /// on completion. Empty = fall back to mission/goal-domain inference.
+  statHints               String[]    @default([])
   /// 2026-05-23 · task #22 · self-FK for subtask hierarchy (1 level
   /// per ADR-0017 amended Rule 4). Nullable · top-level tasks have
   /// NULL · subtasks point at their parent. ON DELETE SET NULL so a

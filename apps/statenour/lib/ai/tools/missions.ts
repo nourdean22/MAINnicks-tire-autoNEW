@@ -11,6 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { enrichTaskLinkage } from "@/lib/services/tasks";
 
 export const missionsTools = {
   getMissions: tool({
@@ -53,6 +54,7 @@ export const missionsTools = {
             finishCondition: t.title,
           },
         });
+        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         createdTasks.push({ taskId: task.id, title: task.title });
       }
       return { created: true, count: createdTasks.length, missionId, tasks: createdTasks };
@@ -103,6 +105,7 @@ export const missionsTools = {
             energyRequired: "MEDIUM",
           },
         });
+        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         createdTasks.push(task);
       }
       return {

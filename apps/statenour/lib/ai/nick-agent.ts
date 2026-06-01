@@ -23,6 +23,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { enrichTaskLinkage, liftGoalOnTaskComplete } from "@/lib/services/tasks";
+import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
 import { brainMemory } from "@/lib/brain/memory-manager";
 import { runSimulation } from "@/lib/brain/thinking-engine";
@@ -103,6 +105,7 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
             lastTouchedAt: new Date(),
           },
         });
+        void enrichTaskLinkage(task.id); // classification spine · gap-fill links
         return { action: type, success: true, result: { id: task.id, title: task.title } };
       }
 
@@ -121,6 +124,10 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
                 : "completed via nick agent",
           },
         });
+        // 2026-06-01 · credit character-sheet stat XP + lift the linked goal
+        // (this action path bypasses checkTask/updateTask). Idempotent.
+        void creditTaskStats(id);
+        if (task.goalId) void liftGoalOnTaskComplete(task.goalId, id);
         return { action: type, success: true, result: { id: task.id, title: task.title } };
       }
 
@@ -758,6 +765,7 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
               energyRequired: "MEDIUM",
             },
           });
+          void enrichTaskLinkage(task.id); // classification spine · gap-fill links
           createdTasks.push(task);
         }
         return { action: type, success: true, result: {

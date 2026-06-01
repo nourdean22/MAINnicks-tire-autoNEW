@@ -296,15 +296,18 @@ export async function persistUserTurn(input: PersistUserTurnInput): Promise<stri
                   },
                 );
               }
-              // The raw update above bypasses updateTask, so its
-              // liftGoalOnTaskComplete fanout never fired — a chat-auto-
-              // completed task with a linked goal left the goal's
-              // progress untouched. Fire the lift directly, only on a
-              // real (non-DONE → DONE) transition. It is fire-and-forget
-              // and never throws.
-              if (beforeTask && beforeTask.status !== "DONE" && beforeTask.goalId) {
-                const { liftGoalOnTaskComplete } = await import("@/lib/services/tasks");
-                await liftGoalOnTaskComplete(beforeTask.goalId, match.taskId);
+              // The raw update above bypasses updateTask, so its completion
+              // fanout never fired — a chat-auto-completed task left both its
+              // character-sheet stat XP and (if linked) its goal progress
+              // untouched. Fire both directly, only on a real (non-DONE →
+              // DONE) transition. Fire-and-forget; never throw.
+              if (beforeTask && beforeTask.status !== "DONE") {
+                const { creditTaskStats } = await import("@/lib/mastery/goal-stats");
+                await creditTaskStats(match.taskId).catch(() => {});
+                if (beforeTask.goalId) {
+                  const { liftGoalOnTaskComplete } = await import("@/lib/services/tasks");
+                  await liftGoalOnTaskComplete(beforeTask.goalId, match.taskId);
+                }
               }
               await prisma.auditEvent.create({
                 data: {
