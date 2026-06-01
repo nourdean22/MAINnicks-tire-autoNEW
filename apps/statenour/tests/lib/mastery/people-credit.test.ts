@@ -15,14 +15,24 @@ vi.mock("@/lib/mastery/credit", () => ({
 vi.mock("@/lib/services/settings", () => ({
   getSetting: vi.fn(async (_key: string, dflt: unknown) => dflt),
 }));
+// Prisma mock for the backfill reads (no real DB in unit tests).
+vi.mock("@/lib/prisma", () => ({
+  prisma: {
+    relationshipLedger: { findMany: vi.fn(async () => []) },
+    relationshipPlay: { findMany: vi.fn(async () => []) },
+    brainMemory: { findMany: vi.fn(async () => []) },
+  },
+}));
 
 import {
   creditLedgerDeposit,
   creditPowerPlay,
+  backfillPeopleXp,
   statForRole,
   PEOPLE_XP_DEFAULTS,
 } from "@/lib/mastery/people-credit";
 import { creditStatXp } from "@/lib/mastery/credit";
+import { prisma } from "@/lib/prisma";
 
 const mockCredit = vi.mocked(creditStatXp);
 
@@ -102,5 +112,33 @@ describe("creditPowerPlay · deliberate influence reps", () => {
   it("unknown kind falls back to strategy", async () => {
     await creditPowerPlay({ playId: "pl2", personId: "p3", kind: "mystery" });
     expect(mockCredit).toHaveBeenCalledWith(expect.objectContaining({ stat: "strategy" }));
+  });
+});
+
+describe("backfillPeopleXp · idempotent retro-credit", () => {
+  it("credits every positive deposit + every play, by role/kind", async () => {
+    vi.mocked(prisma.relationshipLedger.findMany).mockResolvedValueOnce([
+      { id: "l1", personId: "p1", amount: 5, note: "helped move", person: { role: "friend" } },
+      { id: "l2", personId: "p2", amount: 3, note: "intro", person: { role: "vendor" } },
+    ] as never);
+    vi.mocked(prisma.relationshipPlay.findMany).mockResolvedValueOnce([
+      { id: "pl1", personId: "p1", kind: "message_draft" },
+    ] as never);
+
+    const res = await backfillPeopleXp();
+    expect(res).toEqual({ deposits: 2, plays: 1 });
+    expect(mockCredit).toHaveBeenCalledWith(
+      expect.objectContaining({ stat: "relationships", sourceKey: "person:p1:ledger:l1" }),
+    );
+    expect(mockCredit).toHaveBeenCalledWith(
+      expect.objectContaining({ stat: "networking", sourceKey: "person:p2:ledger:l2" }),
+    );
+    expect(mockCredit).toHaveBeenCalledWith(
+      expect.objectContaining({ stat: "persuasion", sourceKey: "person:p1:play:pl1" }),
+    );
+    // backfill must NOT credit a reconnect bonus (no historical prior timestamp)
+    expect(
+      mockCredit.mock.calls.some((c) => c[0].sourceKey.includes(":reconnect:")),
+    ).toBe(false);
   });
 });

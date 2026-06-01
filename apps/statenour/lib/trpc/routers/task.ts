@@ -1397,6 +1397,17 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-06-01 · one-time idempotent backfill — credit XP for existing
+   * relationship reps (positive ledger deposits + executed power-plays)
+   * so the feature isn't empty at launch. Safe to re-run (sourceKeys
+   * dedup). Operator-triggered.
+   */
+  backfillPeopleXp: operatorProcedure.mutation(async () => {
+    const { backfillPeopleXp } = await import("@/lib/mastery/people-credit");
+    return backfillPeopleXp();
+  }),
+
+  /**
    * 2026-05-28 · Wave AB.b · operator-grade CREATE PersonProfile.
    *
    * The people-intelligence engine auto-creates profiles from chat
