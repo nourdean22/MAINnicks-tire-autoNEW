@@ -258,6 +258,12 @@ model Mission {
   createdAt          DateTime           @default(now())
   updatedAt          DateTime           @updatedAt
 
+  /// Journal Brain (2026-06-01) — entries grounded/linked to this mission.
+  journalDumps       BrainDump[]
+  journalReflections Reflection[]
+  journalSituations  SituationLog[]
+  journalDecisions   DecisionReplay[]
+
   @@index([status, priority, deadline])
   @@index([deletedAt])
   @@index([createdAt])
@@ -1220,10 +1226,23 @@ model BrainDump {
   deletedAt      DateTime? @map("deleted_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
+  // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
+  entryType      String?   @map("entry_type")
+  goalId         String?   @map("goal_id")
+  missionId      String?   @map("mission_id")
+  linkConfidence Float?    @map("link_confidence")
+  linkStatus     String?   @map("link_status")
+  enrichedAt     DateTime? @map("enriched_at")
+  goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
   @@index([date])
   @@index([date, actionsTaken])
   @@index([deletedAt])
   @@index([createdAt])
+  @@index([entryType])
+  @@index([goalId])
+  @@index([enrichedAt])
   @@map("brain_dumps")
 }
 
@@ -1858,12 +1877,23 @@ model Reflection {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
+  // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
+  goalId         String?   @map("goal_id")
+  missionId      String?   @map("mission_id")
+  linkConfidence Float?    @map("link_confidence")
+  linkStatus     String?   @map("link_status")
+  enrichedAt     DateTime? @map("enriched_at")
+  goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
   @@index([date, scope])
   @@index([category, confidence])
   @@index([actionable, acknowledged])
   @@index([deletedAt])
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([goalId])
+  @@index([enrichedAt])
   @@map("reflections")
 }
 
@@ -2264,6 +2294,11 @@ model LifeGoal {
   missions Mission[]
   /// Ambition Engine · goal↔mastery-stat spine + the ladder self-relation.
   statLinks GoalStat[]
+  /// Journal Brain (2026-06-01) — entries grounded/linked to this goal.
+  journalDumps       BrainDump[]
+  journalReflections Reflection[]
+  journalSituations  SituationLog[]
+  journalDecisions   DecisionReplay[]
   parent    LifeGoal?  @relation("GoalLadder", fields: [parentGoalId], references: [id], onDelete: SetNull)
   children  LifeGoal[] @relation("GoalLadder")
 
@@ -2424,8 +2459,19 @@ model DecisionReplay {
   idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
   createdAt      DateTime  @default(now())
 
+  // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
+  goalId         String?   @map("goal_id")
+  missionId      String?   @map("mission_id")
+  linkConfidence Float?    @map("link_confidence")
+  linkStatus     String?   @map("link_status")
+  enrichedAt     DateTime? @map("enriched_at")
+  goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
   @@index([reviewAt, reviewed])
   @@index([createdAt])
+  @@index([goalId])
+  @@index([enrichedAt])
   @@map("decision_replays")
 }
 
@@ -2436,6 +2482,23 @@ model DecisionReplay {
 // Polymorphic membership via (entrySource, entryId) is intentional —
 // the 4 sources are bounded and the existing /api/journal feed already
 // does the same polymorphic merge. YAGNI on 4 separate join tables.
+
+model JournalSettings {
+  /// Single-row config (id = "singleton"). Tunable knobs for the Journal Brain.
+  /// Edited by the Phase 2 settings panel; read via getJournalSettings() with
+  /// safe fallback to these defaults when the row is absent.
+  id                   String   @id @default("singleton")
+  baselineXp           Float    @default(0.8) @map("baseline_xp")
+  baselineEnabled      Boolean  @default(true) @map("baseline_enabled")
+  qualityFloorChars    Int      @default(40) @map("quality_floor_chars")
+  groundedXpMultiplier Float    @default(1.5) @map("grounded_xp_multiplier")
+  autoConfirmThreshold Float    @default(0.8) @map("auto_confirm_threshold")
+  challengeCadence     String   @default("daily") @map("challenge_cadence")
+  creativeIntensity    String   @default("bold") @map("creative_intensity")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("journal_settings")
+}
 
 model JournalThread {
   id          String               @id @default(cuid())
@@ -2597,10 +2660,21 @@ model SituationLog {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  // Journal Brain (2026-06-01) — grounding/scoring spine · docs/journal-brain-redesign.md
+  goalId         String?   @map("goal_id")
+  missionId      String?   @map("mission_id")
+  linkConfidence Float?    @map("link_confidence")
+  linkStatus     String?   @map("link_status")
+  enrichedAt     DateTime? @map("enriched_at")
+  goal           LifeGoal? @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  mission        Mission?  @relation(fields: [missionId], references: [id], onDelete: SetNull)
+
   @@index([context, createdAt])
   @@index([lawId])
   @@index([createdAt])
   @@index([updatedAt])
+  @@index([goalId])
+  @@index([enrichedAt])
   @@map("situation_logs")
 }
 

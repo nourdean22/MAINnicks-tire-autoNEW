@@ -26,6 +26,8 @@ import { brainMemory } from "@/lib/brain/memory-manager";
 import { today } from "@/lib/utils/datetime";
 import { sendTelegram } from "@/lib/services/telegram";
 import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
+import { creditFromSignal } from "@/lib/mastery/credit-signal";
+import { getJournalSettings } from "@/lib/journal/settings";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/journal-ingest");
@@ -134,7 +136,8 @@ export function simpleHash(s: string): string {
  */
 export async function ingestJournal(
   rawText: string,
-  source: "telegram" | "chat" | "manual" = "telegram"
+  source: "telegram" | "chat" | "manual" = "telegram",
+  opts: { creditXp?: boolean } = {},
 ): Promise<JournalResult> {
   const dateStr = today();
   let tasksCreated = 0;
@@ -664,6 +667,36 @@ ${rawText}`,
     );
     await tryJoinActiveThreads("brain_dump", brainDump.id, rawText);
   })();
+
+  // Journal Brain (2026-06-01) · baseline mastery XP for the capture path.
+  // Pre-fix only structured Reflections fed XP (journal-reflect.ts) — the
+  // dominant capture path (Telegram/chat/modal -> here) earned NOTHING, so
+  // ~90% of journaling by volume was unscored. Credits via the same idempotent
+  // door reflections use (the AI attributor picks the stat · returns null on
+  // the noise floor). Gated by the JournalSettings quality floor (anti-gaming)
+  // + the creditXp flag — createReflection passes false because it already
+  // credited the same text under journal:<reflectionId>, so re-crediting here
+  // would double-count. Distinct sourceKey journal-base:<id> stays collision-
+  // free with the reflection + backfill keys. Fire-and-forget · never blocks.
+  if (opts.creditXp !== false) {
+    void (async () => {
+      const settings = await getJournalSettings();
+      if (
+        settings.baselineEnabled &&
+        rawText.trim().length >= settings.qualityFloorChars
+      ) {
+        await creditFromSignal("journal", {
+          text: rawText,
+          sourceKey: `journal-base:${brainDump.id}`,
+        });
+      }
+    })().catch((err) =>
+      log.warn("journal_baseline_xp_failed", {
+        brainDumpId: brainDump.id,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
 
   return {
     brainDumpId: brainDump.id,
