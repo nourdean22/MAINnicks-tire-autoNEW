@@ -36,7 +36,8 @@ import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { auditUpdate } from "@/lib/db/actor";
 import { logUpdate, stripNoise } from "@/lib/db/entity-audit";
 import { emitTaskEventAsync } from "@/lib/brain/task-events";
-import { createTask as createTaskService } from "@/lib/services/tasks";
+import { createTask as createTaskService, liftGoalOnTaskComplete } from "@/lib/services/tasks";
+import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { resolveInboxMissionId } from "@/lib/services/missions";
 import { sanitizeError } from "@/lib/utils/sanitize-error";
 
@@ -173,6 +174,12 @@ export async function checkTask(args: {
       completedAt: now.toISOString(),
     });
 
+    // 2026-06-01 · DAILY now credits character-sheet stat XP (review #3:
+    // a daily habit tied to a fitness goal used to credit NOTHING). Per-day
+    // keyed so each day's check-off credits once. Goal `currentValue` is NOT
+    // incremented for DAILY (a daily habit would inflate concrete progress).
+    void creditTaskStats(id, { perDay: true }).catch(() => {});
+
     let dailyAutoLearn: AutoLearnReport | null = null;
     try {
       dailyAutoLearn = await runAutoLearn({
@@ -260,6 +267,13 @@ export async function checkTask(args: {
   let childrenCascaded = 0;
   if (cascadeChildren) {
     try {
+      // Capture the child ids BEFORE the bulk update so each cascaded
+      // completion can credit stats + lift its goal (2026-06-01 — the bulk
+      // updateMany otherwise bypasses every completion hook).
+      const cascadedChildren = await prisma.task.findMany({
+        where: { parentTaskId: id, status: { notIn: ["DONE", "ARCHIVED"] }, deletedAt: null },
+        select: { id: true, goalId: true },
+      });
       const cascadeResult = await prisma.task.updateMany({
         where: {
           parentTaskId: id,
@@ -273,6 +287,10 @@ export async function checkTask(args: {
         },
       });
       childrenCascaded = cascadeResult.count;
+      for (const child of cascadedChildren) {
+        void creditTaskStats(child.id).catch(() => {});
+        if (child.goalId) void liftGoalOnTaskComplete(child.goalId, child.id).catch(() => {});
+      }
     } catch (e) {
       // Cascade failure shouldn't fail the parent completion · the
       // operator clicked "complete parent" first, "cascade subtasks"
@@ -293,6 +311,18 @@ export async function checkTask(args: {
     loopKind: task.loopKind,
     completedAt: now.toISOString(),
   });
+
+  // 2026-06-01 · credit character-sheet stat XP for every ONCE/PROMISE
+  // completion via /check (goal → goal stats · else statHints · else domain).
+  void creditTaskStats(id).catch(() => {});
+  // CRITICAL pre-existing gap fixed: the /check route (the UI checkbox, the
+  // dominant completion path) never lifted the linked goal's currentValue —
+  // only the updateTask PATCH path did. So a goal-tagged task completed by
+  // checkbox left its goal frozen. Now it lifts here too. Idempotent on the
+  // goal side; stat XP already credited above (liftGoal is currentValue-only).
+  if (task.goalId) {
+    void liftGoalOnTaskComplete(task.goalId, id).catch(() => {});
+  }
 
   let autoLearnReport: AutoLearnReport | null = null;
   try {

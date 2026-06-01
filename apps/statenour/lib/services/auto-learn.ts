@@ -43,40 +43,19 @@ import { enrichInsightAsync } from "@/lib/services/auto-learn-llm";
 import { recordGhostOutcome } from "@/lib/brain/ghost-nick";
 import { semanticSearch, storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+// 2026-06-01 · adaptive-bump constants centralized in scoring-config so the
+// 0-100 domain bump (here) and the character-sheet stat XP (creditTaskStats)
+// share one tunable source. Values are identical to the prior local copies.
+import {
+  BASE_BUMP,
+  MIN_BUMP,
+  MAX_BUMP,
+  EFFORT_MULTIPLIER,
+  GOAL_LINKED_MULTIPLIER,
+  streakMultiplier,
+} from "@/lib/mastery/scoring-config";
 
 const log = logger.withSurface("auto-learn");
-
-// ─── ADAPTIVE SCORING CONSTANTS ───────────────────────────────────
-
-/** Base score before multipliers · v21 used flat 0.5 · kept as the
- *  starting point so existing data is comparable. */
-const BASE_BUMP = 0.5;
-
-/** Floor for the final bump (so trivial tasks still register as growth). */
-const MIN_BUMP = 0.1;
-
-/** Ceiling for the final bump (so no single task can dominate a day). */
-const MAX_BUMP = 3.0;
-
-/** Effort-band multipliers · longer focused work earns more mastery. */
-const EFFORT_MULTIPLIER: Record<string, number> = {
-  M5: 0.6,
-  M15: 0.8,
-  M30: 1.0,
-  H1: 1.3,
-  H2PLUS: 1.6,
-};
-
-/** Goal-linkage bonus · intentional work (tied to a goal) earns 1.5×. */
-const GOAL_LINKED_MULTIPLIER = 1.5;
-
-/** Streak bonus · 7-day+ DAILY streak earns 2×, 3-day earns 1.3×. */
-function streakMultiplier(streakCount: number, loopKind: string): number {
-  if (loopKind !== "DAILY") return 1.0;
-  if (streakCount >= 7) return 2.0;
-  if (streakCount >= 3) return 1.3;
-  return 1.0;
-}
 
 // ─── KNOWLEDGE / LEARN PATTERNS (unchanged from v21) ──────────────
 

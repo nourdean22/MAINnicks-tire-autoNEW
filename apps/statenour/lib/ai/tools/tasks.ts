@@ -19,6 +19,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { enrichTaskLinkage } from "@/lib/services/tasks";
 import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { goalsTools } from "@/lib/ai/tools/goals";
@@ -159,6 +160,10 @@ const tasksCoreTools = {
           promiseTo: promiseTo ?? null,
         },
       });
+      // 2026-06-01 · classification spine · gap-fill mission/goal/statHints
+      // for AI-created tasks too (compare-and-set won't override what the
+      // model already chose). Fire-and-forget.
+      void enrichTaskLinkage(task.id);
       return {
         created: true,
         taskId: task.id,
@@ -862,6 +867,7 @@ const tasksCoreTools = {
           waitingOn: customerName,
         },
       });
+      void enrichTaskLinkage(task.id); // classification spine · gap-fill links
       return {
         taskId: task.id,
         title: task.title,

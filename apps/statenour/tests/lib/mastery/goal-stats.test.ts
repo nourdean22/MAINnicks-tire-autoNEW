@@ -14,6 +14,7 @@ import {
   goalStatXp,
   goalTaskSourceKey,
   goalsByStat,
+  statHintsToResolved,
 } from "@/lib/mastery/goal-stats";
 
 describe("inferGoalStats · goal.domain → stat", () => {
@@ -71,6 +72,26 @@ describe("goalStatXp · weight → XP (task signal base)", () => {
   it("clamps a non-positive weight to 0 XP", () => {
     expect(goalStatXp(0)).toBe(0);
     expect(goalStatXp(-3)).toBe(0);
+  });
+  it("scales by the adaptive multiplier (2026-06-01)", () => {
+    expect(goalStatXp(1, 0.5)).toBe(0.5);
+    expect(goalStatXp(0.7, 2)).toBe(1.4);
+    expect(goalStatXp(1, 4.8)).toBe(4.8);
+    expect(goalStatXp(0, 5)).toBe(0); // zero weight still earns nothing
+    expect(goalStatXp(1, 0)).toBe(1); // non-positive multiplier normalizes to 1
+  });
+});
+
+describe("statHintsToResolved · classifier hints → resolved stats", () => {
+  it("keeps valid stat keys (weight 1) and drops unknowns", () => {
+    expect(statHintsToResolved(["physical", "not_a_stat", "sales"])).toEqual([
+      { statKey: "physical", weight: 1 },
+      { statKey: "sales", weight: 1 },
+    ]);
+  });
+  it("returns [] for null/empty", () => {
+    expect(statHintsToResolved(null)).toEqual([]);
+    expect(statHintsToResolved([])).toEqual([]);
   });
 });
 
