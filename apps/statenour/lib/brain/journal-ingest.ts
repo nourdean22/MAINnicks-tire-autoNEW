@@ -28,6 +28,7 @@ import { sendTelegram } from "@/lib/services/telegram";
 import { storeGenericEmbedding } from "@/lib/brain/embedding-utils";
 import { creditFromSignal } from "@/lib/mastery/credit-signal";
 import { getJournalSettings } from "@/lib/journal/settings";
+import { enrichJournalEntry } from "@/lib/brain/journal-brain";
 import { logger as rootLogger } from "@/lib/logger";
 
 const log = rootLogger.withSurface("brain/journal-ingest");
@@ -697,6 +698,12 @@ ${rawText}`,
       }),
     );
   }
+
+  // Journal Brain (2026-06-01 · Phase 1) · async grounding/classify/link/score.
+  // Fire-and-forget — capture returns now; enrichment runs a beat later and the
+  // enrichedAt-null cron resweep retries if the process dies mid-pass. Runs for
+  // EVERY brain_dump (independent of the baseline-XP creditXp guard above).
+  void enrichJournalEntry("brain_dump", brainDump.id, rawText).catch(() => {});
 
   return {
     brainDumpId: brainDump.id,

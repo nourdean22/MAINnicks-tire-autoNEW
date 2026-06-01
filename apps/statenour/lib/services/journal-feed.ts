@@ -37,6 +37,13 @@ export interface FeedEntry {
   acknowledged?: boolean;
   actionable?: boolean;
   confidence?: number;
+  // Journal Brain (Phase 1) · grounding columns surfaced for the inline link
+  // chip. The full XP receipt is fetched on-expand via trpc.journal.receipt.
+  goalId?: string | null;
+  missionId?: string | null;
+  linkStatus?: string | null;
+  linkConfidence?: number | null;
+  linkedGoalTitle?: string | null;
   raw: Record<string, unknown>;
 }
 
@@ -72,7 +79,15 @@ export async function buildJournalFeed(args: {
     sourceFilter === "all" || sourceFilter === "dump"
       ? prisma.brainDump
           .findMany({
-            where: { date: { gte: cutoffStr } },
+            where: {
+              date: { gte: cutoffStr },
+              // Journal Brain · push the type filter to SQL on the real
+              // entry_type column. Keep null-column rows (not-yet-enriched /
+              // legacy) so the in-memory JSON fallback still classifies them.
+              ...(typeFilter && typeFilter !== "all"
+                ? { OR: [{ entryType: typeFilter }, { entryType: null }] }
+                : {}),
+            },
             orderBy: { createdAt: "desc" },
             take: limit * 2,
           })
@@ -142,7 +157,9 @@ export async function buildJournalFeed(args: {
     try {
       if (d.extractedItems) extracted = JSON.parse(d.extractedItems);
     } catch {}
-    const entryType = extracted.entryType || "raw";
+    // Journal Brain · the real entry_type column (grounded reclassification)
+    // wins over the legacy JSON-blob entryType; fall back for unenriched rows.
+    const entryType = d.entryType || extracted.entryType || "raw";
     if (typeFilter && typeFilter !== "all" && typeFilter !== entryType) continue;
     feed.push({
       id: d.id,
@@ -159,6 +176,10 @@ export async function buildJournalFeed(args: {
         ? extracted.linkedTopics
         : [],
       tasksCreated: d.actionsTaken,
+      goalId: d.goalId,
+      missionId: d.missionId,
+      linkStatus: d.linkStatus,
+      linkConfidence: d.linkConfidence,
       raw: d as unknown as Record<string, unknown>,
     });
   }
@@ -181,6 +202,10 @@ export async function buildJournalFeed(args: {
       acknowledged: r.acknowledged,
       actionable: r.actionable,
       confidence: r.confidence,
+      goalId: r.goalId,
+      missionId: r.missionId,
+      linkStatus: r.linkStatus,
+      linkConfidence: r.linkConfidence,
       raw: r as unknown as Record<string, unknown>,
     });
   }
@@ -202,6 +227,10 @@ export async function buildJournalFeed(args: {
         ? [`${s.law.book}#${s.law.number}: ${s.law.shortTitle}`]
         : [],
       tasksCreated: 0,
+      goalId: s.goalId,
+      missionId: s.missionId,
+      linkStatus: s.linkStatus,
+      linkConfidence: s.linkConfidence,
       raw: s as unknown as Record<string, unknown>,
     });
   }
@@ -222,6 +251,10 @@ export async function buildJournalFeed(args: {
       linkedTopics: [],
       tasksCreated: 0,
       acknowledged: d.reviewed,
+      goalId: d.goalId,
+      missionId: d.missionId,
+      linkStatus: d.linkStatus,
+      linkConfidence: d.linkConfidence,
       raw: d as unknown as Record<string, unknown>,
     });
   }
@@ -252,6 +285,17 @@ export async function buildJournalFeed(args: {
       confidence: m.confidence,
       raw: m as unknown as Record<string, unknown>,
     });
+  }
+
+  // Journal Brain · batch-resolve linked goal titles in ONE query (no N+1) so
+  // each entry's chip can show "→ <goal>" without a per-row lookup.
+  const goalIds = [...new Set(feed.map((e) => e.goalId).filter((x): x is string => !!x))];
+  if (goalIds.length) {
+    const goals = await prisma.lifeGoal
+      .findMany({ where: { id: { in: goalIds } }, select: { id: true, title: true } })
+      .catch((): { id: string; title: string }[] => []);
+    const titleById = new Map(goals.map((g) => [g.id, g.title]));
+    for (const e of feed) if (e.goalId) e.linkedGoalTitle = titleById.get(e.goalId) ?? null;
   }
 
   feed.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());

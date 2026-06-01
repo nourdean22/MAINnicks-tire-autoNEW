@@ -71,6 +71,16 @@ import {
   calibrationRulingSchema,
   reflectSubmitSchema,
 } from "@/lib/validators/journal";
+import { creditGroundedGoalXp, backfillJournalBrain } from "@/lib/brain/journal-brain";
+import { getJournalSettings, JOURNAL_SETTINGS_DEFAULTS } from "@/lib/journal/settings";
+
+/** The four journal silos that carry the Journal Brain grounding columns. */
+const journalSiloSchema = z.enum([
+  "brain_dump",
+  "reflection",
+  "situation_log",
+  "decision_replay",
+]);
 
 export const journalRouter = router({
   /**
@@ -548,5 +558,171 @@ export const journalRouter = router({
         });
         return { ok: false as const, error: "save_prediction_failed" };
       }
+    }),
+
+  // ──────────────── Journal Brain · link confirm + impact receipt ────────────────
+
+  /**
+   * Journal Brain (2026-06-01 · Phase 1) · derived "impact receipt" for one
+   * entry. NOT stored — computed from the grounding columns + the mastery_xp
+   * ledger rows keyed to this entry (baseline `journal-base:<id>` + grounded
+   * `goal-journal:<id>:*`). Powers the inline receipt under each feed entry.
+   */
+  receipt: operatorProcedure
+    .input(z.object({ silo: journalSiloSchema, id: z.string().min(1).max(64) }))
+    .query(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const sel = { goalId: true, missionId: true, linkConfidence: true, linkStatus: true, enrichedAt: true };
+      const row =
+        input.silo === "brain_dump"
+          ? await prisma.brainDump.findUnique({ where: { id: input.id }, select: { ...sel, entryType: true } })
+          : input.silo === "reflection"
+          ? await prisma.reflection.findUnique({ where: { id: input.id }, select: sel })
+          : input.silo === "situation_log"
+          ? await prisma.situationLog.findUnique({ where: { id: input.id }, select: sel })
+          : await prisma.decisionReplay.findUnique({ where: { id: input.id }, select: sel });
+      if (!row) return null;
+      const goal = row.goalId
+        ? await prisma.lifeGoal.findUnique({ where: { id: row.goalId }, select: { id: true, title: true } }).catch(() => null)
+        : null;
+      const mission = row.missionId
+        ? await prisma.mission.findUnique({ where: { id: row.missionId }, select: { id: true, title: true } }).catch(() => null)
+        : null;
+      const events = await prisma.brainMemory
+        .findMany({
+          where: {
+            category: "mastery_xp_event",
+            OR: [{ key: `journal-base:${input.id}` }, { key: { startsWith: `goal-journal:${input.id}:` } }],
+          },
+          select: { key: true, metadata: true },
+        })
+        .catch(() => [] as { key: string; metadata: unknown }[]);
+      const xp = events
+        .map((e) => {
+          const m = (e.metadata ?? {}) as Record<string, unknown>;
+          return {
+            stat: typeof m.stat === "string" ? m.stat : "?",
+            xp: typeof m.xp === "number" ? m.xp : 0,
+            kind: e.key.startsWith("journal-base:") ? ("baseline" as const) : ("grounded" as const),
+          };
+        })
+        .filter((x) => x.xp > 0);
+      // Phase 2 · the journal "take" (bold idea + sharp challenge), if generated.
+      const takeRow = await prisma.brainMemory
+        .findUnique({
+          where: { category_key: { category: "journal_brain_take", key: `journal-take:${input.id}` } },
+          select: { content: true },
+        })
+        .catch(() => null);
+      let take: { idea: string | null; challenge: string | null } | null = null;
+      if (takeRow?.content) {
+        try {
+          const p = JSON.parse(takeRow.content) as { idea?: string | null; challenge?: string | null };
+          if (p.idea || p.challenge) take = { idea: p.idea ?? null, challenge: p.challenge ?? null };
+        } catch {
+          /* malformed take · ignore */
+        }
+      }
+      return {
+        entryType: input.silo === "brain_dump" ? (row as { entryType?: string | null }).entryType ?? null : null,
+        linkStatus: row.linkStatus,
+        linkConfidence: row.linkConfidence,
+        enrichedAt: row.enrichedAt,
+        goal: goal ? { id: goal.id, title: goal.title } : null,
+        mission: mission ? { id: mission.id, title: mission.title } : null,
+        xp,
+        totalXp: Math.round(xp.reduce((s, x) => s + x.xp, 0) * 10) / 10,
+        take,
+      };
+    }),
+
+  /**
+   * Journal Brain · confirm or reject a PROPOSED goal/mission link. Accept →
+   * linkStatus="confirmed" + (idempotently) bank the grounded XP bonus. Reject
+   * → clear the link + linkStatus="rejected". The grounded credit is idempotent
+   * by sourceKey, so confirming an already-auto-credited entry is a no-op.
+   */
+  confirmLink: operatorProcedure
+    .input(z.object({ silo: journalSiloSchema, id: z.string().min(1).max(64), accept: z.boolean() }))
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      const sel = { goalId: true };
+      const row =
+        input.silo === "brain_dump"
+          ? await prisma.brainDump.findUnique({ where: { id: input.id }, select: sel })
+          : input.silo === "reflection"
+          ? await prisma.reflection.findUnique({ where: { id: input.id }, select: sel })
+          : input.silo === "situation_log"
+          ? await prisma.situationLog.findUnique({ where: { id: input.id }, select: sel })
+          : await prisma.decisionReplay.findUnique({ where: { id: input.id }, select: sel });
+      if (!row) throw new TRPCError({ code: "NOT_FOUND", message: "journal entry not found" });
+
+      const data = input.accept
+        ? { linkStatus: "confirmed" }
+        : { linkStatus: "rejected", goalId: null, missionId: null };
+      if (input.silo === "brain_dump") await prisma.brainDump.update({ where: { id: input.id }, data });
+      else if (input.silo === "reflection") await prisma.reflection.update({ where: { id: input.id }, data });
+      else if (input.silo === "situation_log") await prisma.situationLog.update({ where: { id: input.id }, data });
+      else await prisma.decisionReplay.update({ where: { id: input.id }, data });
+
+      let creditedStats: { statKey: string; xp: number }[] = [];
+      if (input.accept && row.goalId) {
+        const goal = await prisma.lifeGoal
+          .findUnique({
+            where: { id: row.goalId },
+            select: { id: true, title: true, domain: true, statLinks: { select: { statKey: true, weight: true } } },
+          })
+          .catch(() => null);
+        if (goal) {
+          const settings = await getJournalSettings();
+          creditedStats = await creditGroundedGoalXp(input.id, goal, settings);
+        }
+      }
+      return { ok: true as const, accepted: input.accept, creditedStats };
+    }),
+
+  /** Journal Brain · read the tunable settings (Phase 2 settings panel). */
+  getSettings: operatorProcedure.query(async () => getJournalSettings()),
+
+  /** Journal Brain · update the singleton settings (Phase 2 settings panel). */
+  updateSettings: operatorProcedure
+    .input(
+      z.object({
+        baselineXp: z.number().min(0).max(5).optional(),
+        baselineEnabled: z.boolean().optional(),
+        qualityFloorChars: z.number().int().min(0).max(2000).optional(),
+        groundedXpMultiplier: z.number().min(0).max(5).optional(),
+        autoConfirmThreshold: z.number().min(0).max(1).optional(),
+        challengeCadence: z.enum(["every", "daily", "off"]).optional(),
+        creativeIntensity: z.enum(["bold", "balanced", "off"]).optional(),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { prisma } = await import("@/lib/prisma");
+      return prisma.journalSettings.upsert({
+        where: { id: "singleton" },
+        create: { id: "singleton", ...JOURNAL_SETTINGS_DEFAULTS, ...input },
+        update: input,
+      });
+    }),
+
+  /**
+   * Journal Brain (Phase 3) · backfill — re-run the enrichment pass over
+   * historical entries (enrichedAt = null) across all 4 silos, bounded per
+   * silo, with an opt dryRun that only COUNTS candidates. Idempotent (grounded
+   * credit dedupes by sourceKey). Operator runs dryRun first to size, then
+   * drains in batches.
+   */
+  backfillBrain: operatorProcedure
+    .input(
+      z.object({
+        silo: journalSiloSchema.optional(),
+        limit: z.number().int().min(1).max(200).default(25),
+        dryRun: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const results = await backfillJournalBrain(input);
+      return { ok: true as const, dryRun: input.dryRun, results };
     }),
 });

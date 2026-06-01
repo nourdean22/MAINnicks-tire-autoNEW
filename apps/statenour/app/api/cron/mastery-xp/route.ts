@@ -22,10 +22,15 @@
  */
 import { cronHandler } from "@/lib/utils/http";
 import { backfillStatXp } from "@/lib/mastery/backfill";
+import { resweepUnenriched } from "@/lib/brain/journal-brain";
 
 export const maxDuration = 120;
 
 export const GET = cronHandler(async () => {
   const res = await backfillStatXp(25);
-  return { status: "ok", ...res };
+  // Journal Brain durability net · re-enrich any brain_dump the live void-pass
+  // missed (process death / AI hiccup / pre-Phase-1 rows). Idempotent per
+  // sourceKey, so re-running never double-credits.
+  const journalEnriched = await resweepUnenriched(25).catch(() => 0);
+  return { status: "ok", ...res, journalEnriched };
 });
