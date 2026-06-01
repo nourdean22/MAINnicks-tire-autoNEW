@@ -203,3 +203,60 @@ export async function peopleXpForPerson(personId: string): Promise<PersonXpSumma
   }
   return { total: Math.round(total * 10) / 10, count: rows.length, byStat };
 }
+
+/**
+ * One-time (idempotent) backfill: credit XP for relationship reps that
+ * already happened before this engine existed — every positive ledger
+ * deposit and every executed power-play. Idempotent via the same
+ * sourceKeys (`person:<id>:ledger|play:<eventId>`), so a re-run never
+ * double-counts. Skips the neglect-repair bonus (no reliable historical
+ * prior-interaction timestamp). Returns how many of each it processed.
+ */
+export async function backfillPeopleXp(): Promise<{
+  deposits: number;
+  plays: number;
+}> {
+  const deposits = await prisma.relationshipLedger
+    .findMany({
+      where: { amount: { gt: 0 } },
+      select: {
+        id: true,
+        personId: true,
+        amount: true,
+        note: true,
+        person: { select: { role: true } },
+      },
+    })
+    .catch(
+      (): {
+        id: string;
+        personId: string;
+        amount: number;
+        note: string;
+        person: { role: string } | null;
+      }[] => [],
+    );
+  for (const dep of deposits) {
+    await creditLedgerDeposit({
+      ledgerId: dep.id,
+      personId: dep.personId,
+      amount: dep.amount,
+      note: dep.note,
+      role: dep.person?.role ?? null,
+      // no priorLastInteraction → no reconnect bonus on a historical backfill
+    });
+  }
+
+  const plays = await prisma.relationshipPlay
+    .findMany({ select: { id: true, personId: true, kind: true } })
+    .catch((): { id: string; personId: string; kind: string }[] => []);
+  for (const play of plays) {
+    await creditPowerPlay({
+      playId: play.id,
+      personId: play.personId,
+      kind: play.kind,
+    });
+  }
+
+  return { deposits: deposits.length, plays: plays.length };
+}
