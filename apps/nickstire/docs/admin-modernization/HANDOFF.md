@@ -1,36 +1,37 @@
 # Admin Modernization — Continuation Handoff
 
-> Branch `nickstire/admin-modernize` · worktree `C:\Users\nourd\NOURCITY\.worktrees\admin-modernize`. **7 commits, NOT pushed/deployed.** All code-only (no migration). Rebased onto `origin/main` (2026-06-01). Operator chose **"keep building, deploy once"** — batch then one Railway deploy.
+> Branch `nickstire/admin-modernize` · worktree `C:\Users\nourd\NOURCITY\.worktrees\admin-modernize`. **11 commits, NOT pushed/deployed.** All code-only (no migration). Rebased onto `origin/main` (2026-06-01). Operator chose **"keep building, deploy once"** → batch then one Railway deploy.
 
-## Commits (all gates green: typecheck + brand-voice + source-lint + hooks + routes)
-1. `9e1009be` — P1.1 · promote ghost `drip_enrollments` into Drizzle (prod already had it; no migration).
-2. `6ef3d273` — docs · exploration profile + plan + deconfliction.
-3. `e68f8480` — **P2 · prune 44 of 52 dead intelligence tRPC procs** (418→162 ln). 8 LIVE kept, services untouched, tsc=0.
-4. `c2f6c098` — **P3 · opt-in neutral theme** — scoped `.admin-shell[data-admin-theme="neutral"]` token override + sidebar toggle.
-5. `6466f50f` — docs · handoff.
-6. `e260d685` — P3 · theme honesty — tokenized 2 hardcoded-gold chrome leaks (Compliance tab + Memberships badge → `primary`).
-7. `71e9557f` — **P1 · declare existing prod constraints in Drizzle** (cron_alerts_fired composite PK + voice_followups `uniq_booking_touch`). Def-sync, no migration.
+## Commits (every one gate-green: typecheck + brand-voice + source-lint + hooks + routes)
+- `9e1009be` P1.1 · promote ghost `drip_enrollments` into Drizzle (no migration; prod had it).
+- `6ef3d273` docs · exploration + plan + deconfliction.
+- `e68f8480` **P2 · prune 44 of 52 dead intelligence procs** (418→162).
+- `c2f6c098` **P3 · opt-in neutral theme** (`.admin-shell[data-admin-theme="neutral"]` token override + sidebar toggle).
+- `6466f50f` / `7c671846` docs · handoff.
+- `e260d685` P3 · theme honesty (tokenized 2 gold leaks).
+- `71e9557f` **P1 · declare prod constraints in Drizzle** (cron_alerts_fired PK + voice_followups unique). Def-sync, no migration.
+- `d0df7cb1` **god-file · VoiceReceptionistSection 1678→410** (voice/ — format + 6 components).
+- `958cdd74` **god-file · CustomersSection 1495→855** (customers/ — format + 4 components).
+- `a59f4da8` **god-file · RevenueSection 1593→177** (money/ — revenueFormat + 7 components/views).
 
-## Status by phase
-- **Phase 1 (data):** DONE for my lane. drip promoted; cron+voice constraints declared. SMS slice = sibling-owned (shipped). **Canonical customer identity (INT/VARCHAR(36)/BIGINT) = DEFERRED** behind sibling's `0064` phone-normalize migration (build the canonical key on their 10-digit keys once landed).
-- **Phase 2 (API):** DONE. 44 dead procs pruned. ("Bundle Today's queries" = cut, it's a refetch-cadence trap. Stream emitters already exist.)
-- **Phase 3 (UI):** theme done + honest. **REMAINING (need direction):** god-file consolidation, entity-page growth.
+## Status — Phases 1, 2, 3-core all DONE
+- **P1 (data):** done for my lane (drip + cron/voice def-sync). SMS slice = sibling (shipped). Canonical identity now UNBLOCKED (sibling applied `0064` — `87464cc3`) but likely sibling-owned; not started here.
+- **P2 (API):** done (44 dead procs pruned).
+- **P3 (UI):** neutral theme done + honest; **all 3 named god-files split** (Voice/Revenue/Customers) via verbatim extraction (move, zero logic change — verified by +N-imports-only diff signature + tsc=0 + lint:hooks=0 each).
 
-## Biggest findings (don't re-derive)
-- **Stream (`OverviewSection`) + Command (`CommandSearch`, wired Admin.tsx:18/586) ALREADY BUILT** (May rebuild) → restyle, not rebuild.
-- **SMS data layer = sibling-owned** (`30759483`/`26341543`/`dd65a4a0`) → dropped my Phase-1 SMS items (verified via `git log HEAD..origin/main`).
-- **`/admin/content` is NOT a duplicate route** — single registration → real `AdminContent` page. Exploration's "duplicate" was imprecise. Don't delete.
-- **"Missing unique indexes" was stale** — the constraints exist in prod; only the Drizzle def was missing them (def-sync, not migration).
-- Theme works via Tailwind v4 `@theme inline` (utilities resolve `var()` at runtime).
+## How the god-file splits stay safe (the method, for the next one)
+Verbatim extraction: move self-contained top-level components + pure helpers/types into a co-located `<topic>/` subdir, import back. NO logic/JSX/className/hook-order change — only add `export` + adjust import paths. Verify: `git diff <file> | grep -cE '^\+[^+]'` should equal the import count (pure relocation), tsc=0, lint:hooks=0. Brand-voice lint scans moved COMMENTS — reword flagged words to a technical synonym (never `--no-verify`).
 
-## Next (operator to steer — these are the real forks)
-- **God-file consolidation** (Voice 1678 / Revenue 1593 / Customers 1495 / shared 1265): biggest "cleaned up" item BUT low operator-felt-value + HIGH-risk churn (only safety net is tsc, which misses behavioral regressions). **Recommend: explicit go-ahead + a careful, behavior-verified, one-file-at-a-time approach (or a flag-gated parallel), not a rushed batch.**
-- **Entity-page growth** (`CustomerDrawer` → full Customer page): higher felt-value, the "Entities" half of the IA. Feature build.
-- **Deploy** (gated): push 7 commits to main → Railway. Run full `pnpm build` + `nickstire-shared-main-push` protocol (fetch→rebase→explicit-path→pre-push turbo build; never `--no-verify`/force).
+## Next (operator to steer)
+- **DEPLOY** (gated, their OK needed): push 11 commits → main → Railway. Pre-push runs full turbo build (I pre-verified `pnpm build` locally). Use `nickstire-shared-main-push`: fetch→rebase→explicit-path→pre-push build; never `--no-verify`/force.
+- **shared.tsx (1265)** = the 4th god-file BUT highest blast radius (every section imports it). Deliberately untouched — needs explicit go-ahead + extra care.
+- **Entity-page growth** (`CustomerDrawer`/`Customer360Panel` → full Customer page) — feature build, the "Entities" half of the IA. (Offered; operator picked god-files instead.)
+- **Canonical customer identity** — now unblocked by sibling's `0064`; coordinate (likely their lane).
 
-## Preview the neutral theme (after deploy): `/admin?adminTheme=neutral` or the sidebar **Theme** toggle. Default = grit (live look).
+## Preview neutral theme (after deploy): `/admin?adminTheme=neutral` or sidebar **Theme** toggle. Default = grit (live look, zero change until opted in).
 
 ## Gotchas
-- `pnpm install` in worktree exits 1 on statenour postinstall (Windows) — BENIGN; node_modules populated, check/hooks work.
+- Bash cwd PERSISTS between calls here (CLAUDE.md "resets to C:\" is stale) — but watch for doubled relative paths after a `cd` into apps/nickstire.
 - No backticks in `git commit -m "..."` (bash command-substitutes them).
-- Bash cwd PERSISTS between calls in this harness (the CLAUDE.md "resets to C:\" note is stale here) — but absolute paths are still safest.
+- `pnpm install` in worktree exits 1 on statenour postinstall (Windows) — BENIGN.
+- Brand-voice kill-list lint scans source incl. comments — moved comments can trip it (reworded "unmatched"→"unlinked" in Customer360Panel).
