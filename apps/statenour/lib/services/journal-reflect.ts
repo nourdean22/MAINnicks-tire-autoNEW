@@ -147,7 +147,9 @@ export async function createReflection(
   let extractionFired = false;
   if (input.extractIntelligence) {
     extractionFired = true;
-    void ingestJournal(insight, "manual").catch((err) => {
+    // creditXp:false — the reflection already credited this text above under
+    // journal:<reflectionId>; ingestJournal must NOT re-credit it (would double).
+    void ingestJournal(insight, "manual", { creditXp: false }).catch((err) => {
       log.warn("reflect_ingest_failed", {
         reflectionId: reflection.id,
         error: sanitizeError(err),

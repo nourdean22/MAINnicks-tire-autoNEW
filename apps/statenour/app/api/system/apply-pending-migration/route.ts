@@ -53,6 +53,34 @@ const MIGRATIONS: Record<string, string[]> = {
   "0004_task_stat_hints": [
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "statHints" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]`,
   ],
+
+  // Journal Brain · Phase 0 · 2026-06-01 · additive · zero data loss.
+  // Grounding/scoring columns on the 4 journal silos + single-row
+  // JournalSettings. Matches prisma/migrations-pending/20260601_journal_brain_foundation.
+  "20260601_journal_brain_foundation": [
+    `ALTER TABLE "brain_dumps" ADD COLUMN IF NOT EXISTS "entry_type" TEXT, ADD COLUMN IF NOT EXISTS "goal_id" TEXT, ADD COLUMN IF NOT EXISTS "mission_id" TEXT, ADD COLUMN IF NOT EXISTS "link_confidence" DOUBLE PRECISION, ADD COLUMN IF NOT EXISTS "link_status" TEXT, ADD COLUMN IF NOT EXISTS "enriched_at" TIMESTAMP(3)`,
+    `ALTER TABLE "reflections" ADD COLUMN IF NOT EXISTS "goal_id" TEXT, ADD COLUMN IF NOT EXISTS "mission_id" TEXT, ADD COLUMN IF NOT EXISTS "link_confidence" DOUBLE PRECISION, ADD COLUMN IF NOT EXISTS "link_status" TEXT, ADD COLUMN IF NOT EXISTS "enriched_at" TIMESTAMP(3)`,
+    `ALTER TABLE "situation_logs" ADD COLUMN IF NOT EXISTS "goal_id" TEXT, ADD COLUMN IF NOT EXISTS "mission_id" TEXT, ADD COLUMN IF NOT EXISTS "link_confidence" DOUBLE PRECISION, ADD COLUMN IF NOT EXISTS "link_status" TEXT, ADD COLUMN IF NOT EXISTS "enriched_at" TIMESTAMP(3)`,
+    `ALTER TABLE "decision_replays" ADD COLUMN IF NOT EXISTS "goal_id" TEXT, ADD COLUMN IF NOT EXISTS "mission_id" TEXT, ADD COLUMN IF NOT EXISTS "link_confidence" DOUBLE PRECISION, ADD COLUMN IF NOT EXISTS "link_status" TEXT, ADD COLUMN IF NOT EXISTS "enriched_at" TIMESTAMP(3)`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'brain_dumps_goal_id_fkey') THEN ALTER TABLE "brain_dumps" ADD CONSTRAINT "brain_dumps_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "life_goals"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'brain_dumps_mission_id_fkey') THEN ALTER TABLE "brain_dumps" ADD CONSTRAINT "brain_dumps_mission_id_fkey" FOREIGN KEY ("mission_id") REFERENCES "Mission"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reflections_goal_id_fkey') THEN ALTER TABLE "reflections" ADD CONSTRAINT "reflections_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "life_goals"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'reflections_mission_id_fkey') THEN ALTER TABLE "reflections" ADD CONSTRAINT "reflections_mission_id_fkey" FOREIGN KEY ("mission_id") REFERENCES "Mission"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'situation_logs_goal_id_fkey') THEN ALTER TABLE "situation_logs" ADD CONSTRAINT "situation_logs_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "life_goals"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'situation_logs_mission_id_fkey') THEN ALTER TABLE "situation_logs" ADD CONSTRAINT "situation_logs_mission_id_fkey" FOREIGN KEY ("mission_id") REFERENCES "Mission"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_replays_goal_id_fkey') THEN ALTER TABLE "decision_replays" ADD CONSTRAINT "decision_replays_goal_id_fkey" FOREIGN KEY ("goal_id") REFERENCES "life_goals"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'decision_replays_mission_id_fkey') THEN ALTER TABLE "decision_replays" ADD CONSTRAINT "decision_replays_mission_id_fkey" FOREIGN KEY ("mission_id") REFERENCES "Mission"("id") ON DELETE SET NULL ON UPDATE CASCADE; END IF; END $$`,
+    `CREATE INDEX IF NOT EXISTS "brain_dumps_entry_type_idx" ON "brain_dumps"("entry_type")`,
+    `CREATE INDEX IF NOT EXISTS "brain_dumps_goal_id_idx" ON "brain_dumps"("goal_id")`,
+    `CREATE INDEX IF NOT EXISTS "brain_dumps_enriched_at_idx" ON "brain_dumps"("enriched_at")`,
+    `CREATE INDEX IF NOT EXISTS "reflections_goal_id_idx" ON "reflections"("goal_id")`,
+    `CREATE INDEX IF NOT EXISTS "reflections_enriched_at_idx" ON "reflections"("enriched_at")`,
+    `CREATE INDEX IF NOT EXISTS "situation_logs_goal_id_idx" ON "situation_logs"("goal_id")`,
+    `CREATE INDEX IF NOT EXISTS "situation_logs_enriched_at_idx" ON "situation_logs"("enriched_at")`,
+    `CREATE INDEX IF NOT EXISTS "decision_replays_goal_id_idx" ON "decision_replays"("goal_id")`,
+    `CREATE INDEX IF NOT EXISTS "decision_replays_enriched_at_idx" ON "decision_replays"("enriched_at")`,
+    `CREATE TABLE IF NOT EXISTS "journal_settings" ("id" TEXT NOT NULL, "baseline_xp" DOUBLE PRECISION NOT NULL DEFAULT 0.8, "baseline_enabled" BOOLEAN NOT NULL DEFAULT true, "quality_floor_chars" INTEGER NOT NULL DEFAULT 40, "grounded_xp_multiplier" DOUBLE PRECISION NOT NULL DEFAULT 1.5, "auto_confirm_threshold" DOUBLE PRECISION NOT NULL DEFAULT 0.8, "challenge_cadence" TEXT NOT NULL DEFAULT 'daily', "creative_intensity" TEXT NOT NULL DEFAULT 'bold', "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "journal_settings_pkey" PRIMARY KEY ("id"))`,
+  ],
 };
 
 export async function POST(req: Request) {
