@@ -21,7 +21,7 @@
  *   reply lookback     = 7 days   (attribute inbound to most recent outbound)
  *   conversion lookback = 14 days (attribute booking/lead to most recent outbound)
  */
-import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
 
 const log = createLogger("sms-instrumentation");
@@ -62,13 +62,18 @@ export async function recordSmsReply(phone: string, body: string): Promise<void>
     const db = await getDb();
     if (!db) return;
 
-    // Find conversation by normalized phone. smsConversations.phone is
-    // already stored normalized by logRetentionSms() — but match
-    // defensively using LIKE on last-10 in case any legacy rows differ.
+    // Find conversation by phone. BUG FIX (2026-06): the old
+    // RIGHT(REPLACE(phone),10) compared a 10-digit result to the E.164
+    // `normalized` ("+1…") and so NEVER matched — reply/conversion
+    // attribution was silently dead. Match the INDEXED phone column
+    // directly against both stored forms (10-digit OR E.164): exact,
+    // index-hit, no full scan, and covers the mixed data until 0064
+    // normalizes it (after which the E.164 branch simply matches nothing).
+    const phone10 = normalized.replace(/\D/g, "").slice(-10);
     const [conv] = await db
       .select({ id: smsConversations.id })
       .from(smsConversations)
-      .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${smsConversations.phone}, '-', ''), ' ', ''), '(', ''), ')', ''), 10) = ${normalized}`)
+      .where(inArray(smsConversations.phone, [phone10, normalized]))
       .limit(1);
     if (!conv) return;
 
@@ -128,10 +133,13 @@ export async function recordSmsConversion(
     const db = await getDb();
     if (!db) return;
 
+    // Same BUG FIX as recordSmsReply: indexed match on both stored forms
+    // (the old RIGHT(REPLACE(phone),10) = E.164 `normalized` never matched).
+    const phone10 = normalized.replace(/\D/g, "").slice(-10);
     const [conv] = await db
       .select({ id: smsConversations.id })
       .from(smsConversations)
-      .where(sql`RIGHT(REPLACE(REPLACE(REPLACE(REPLACE(${smsConversations.phone}, '-', ''), ' ', ''), '(', ''), ')', ''), 10) = ${normalized}`)
+      .where(inArray(smsConversations.phone, [phone10, normalized]))
       .limit(1);
     if (!conv) return;
 
