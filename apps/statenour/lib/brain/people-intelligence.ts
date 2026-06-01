@@ -18,6 +18,7 @@ import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 const aiChat = makeTracedAiChat("people-intelligence");
 import { extractJsonObject } from "@/lib/ai/extract-structured";
 import { daysAgo, today } from "@/lib/utils/datetime";
+import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 
 /**
  * Run a people intelligence scan — analyzes recent interactions,
@@ -46,6 +47,7 @@ export async function runPeopleIntelligence(): Promise<{
       interactionCount: true,
       leverageNotes: true,
       metadata: true,
+      pendingClassification: true,
     },
   });
 
@@ -70,9 +72,11 @@ export async function runPeopleIntelligence(): Promise<{
     );
   }
 
-  // Enrich profiles that are too sparse
+  // Propose enrichment for profiles that are too sparse — but skip any
+  // that ALREADY have a suggestion waiting for the operator (don't burn
+  // AI calls re-proposing the same thing, and don't clobber a pending one).
   const sparse = people.filter(
-    (p) => p.role === "unknown" || !p.leverageNotes
+    (p) => (p.role === "unknown" || !p.leverageNotes) && !p.pendingClassification
   );
 
   let updated = 0;
@@ -107,9 +111,12 @@ export async function runPeopleIntelligence(): Promise<{
             role: "system",
             content: `Based on these conversation mentions, determine this person's role and strategic relevance to Nour (CEO of an auto repair shop).
 
+Pick the role from EXACTLY this list (use the closest fit; do not invent one):
+${PERSON_ROLE_PROMPT_LIST}
+
 Return ONLY JSON:
 {
-  "role": "employee|customer|vendor|family|advisor|competitor|partner|friend",
+  "role": "<one value from the list above>",
   "leverageNotes": "How this person can help Nour or how Nour should manage this relationship",
   "trustAdjustment": 0 (no change) or -0.1 to +0.1
 }`,
@@ -127,24 +134,42 @@ Return ONLY JSON:
       if (enrichExtracted.ok) {
         try {
           const enriched = enrichExtracted.value;
-          await prisma.personProfile.update({
-            where: { id: person.id },
-            data: {
-              role:
-                enriched.role && enriched.role !== "unknown"
-                  ? enriched.role
-                  : person.role,
-              leverageNotes: enriched.leverageNotes || person.leverageNotes,
-              trustScore: Math.max(
-                0,
-                Math.min(
-                  1,
-                  person.trustScore + (enriched.trustAdjustment || 0)
-                )
-              ),
-            },
-          });
-          updated++;
+          // SUGGEST, don't clobber. Validate the role against the canonical
+          // list; only propose a role change if it's valid AND differs from
+          // what's there. Write the whole proposal to pendingClassification
+          // for the operator to accept/dismiss on /people — role,
+          // leverageNotes, and trustScore are NEVER silently overwritten.
+          const suggestedRole =
+            isPersonRole(enriched.role) && enriched.role !== person.role
+              ? enriched.role
+              : null;
+          const suggestedNotes =
+            typeof enriched.leverageNotes === "string" &&
+            enriched.leverageNotes.trim() &&
+            enriched.leverageNotes.trim() !== (person.leverageNotes ?? "").trim()
+              ? enriched.leverageNotes.trim().slice(0, 2000)
+              : null;
+          const rawAdj = Number(enriched.trustAdjustment);
+          const trustAdjustment = Number.isFinite(rawAdj)
+            ? Math.max(-0.1, Math.min(0.1, rawAdj))
+            : 0;
+
+          // Nothing worth surfacing? Skip — don't park an empty suggestion.
+          if (suggestedRole || suggestedNotes || trustAdjustment !== 0) {
+            await prisma.personProfile.update({
+              where: { id: person.id },
+              data: {
+                pendingClassification: {
+                  role: suggestedRole,
+                  leverageNotes: suggestedNotes,
+                  trustAdjustment,
+                  basis: contexts.slice(0, 3).join("; ").slice(0, 400) || "no recent mentions",
+                  suggestedAt: today(),
+                } as object,
+              },
+            });
+            updated++;
+          }
         } catch {}
       }
     }
