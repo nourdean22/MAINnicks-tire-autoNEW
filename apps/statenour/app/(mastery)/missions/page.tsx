@@ -319,9 +319,8 @@ function MissionsPageInner() {
           return;
         }
 
-        // ── PHASE 1 · CREATE OPTIMISTICALLY (unattached) ──
-        // We need the created task's id to attach it after classify ·
-        // createTaskFromAPI returns the view model with `id`.
+        // Create the task; the server classifies it (mission + goal + stats)
+        // via enrichTaskLinkage right after the write.
         telemetry.event("addTask", {
           source: "quickAdd",
           missionId: null,
@@ -331,7 +330,7 @@ function MissionsPageInner() {
           title: text,
           missionId: null,
           status: "READY",
-          originSource: "missions-page:quickAdd-pre-classify",
+          originSource: "missions-page:quickAdd",
         })) as { id: string } | null;
         await refetchAll();
 
@@ -341,89 +340,20 @@ function MissionsPageInner() {
           return;
         }
 
-        // ── PHASE 2 · BACKGROUND CLASSIFY + ATTACH ──
-        // The void async block intentionally escapes the handler's
-        // try/finally · the operator's submitting state cleared above.
-        const newTaskId = created.id;
-        const missionsSnapshot = missions
-          .filter((m) => m.status === "ACTIVE")
-          .map((m) => ({
-            id: m.id,
-            title: m.title,
-            domain: m.domain ?? null,
-          }));
-        void (async () => {
-          if (missionsSnapshot.length === 0) return;
-          let attachMissionId: string | null = null;
-          let attachConfidence = 0;
-          try {
-            const res = await fetch("/api/ai/classify-task-mission", {
-              method: "POST",
-              credentials: "include",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                taskTitle: text,
-                missions: missionsSnapshot,
-              }),
-            });
-            if (!res.ok) return;
-            const data = (await res.json()) as {
-              missionId: string | null;
-              confidence: number;
-              rationale?: string;
-            };
-            if (!data.missionId) return;
-            attachMissionId = data.missionId;
-            attachConfidence = data.confidence ?? 0;
-          } catch (classifyErr) {
-            log.warn("background_classify_failed", {
-              taskId: newTaskId,
-              err:
-                classifyErr instanceof Error
-                  ? classifyErr.message
-                  : String(classifyErr),
-            });
-            return;
-          }
-
-          try {
-            await updateTask.mutateAsync({
-              id: newTaskId,
-              fields: { missionId: attachMissionId },
-            });
-            await refetchAll();
-
-            telemetry.event("classifierAttach", {
-              taskId: newTaskId,
-              missionId: attachMissionId,
-              classifierConfidence: attachConfidence,
-            });
-
-            if (attachConfidence < 0.6) {
-              const mission = missionsSnapshot.find(
-                (m) => m.id === attachMissionId,
-              );
-              toast.message(
-                `Attached to “${mission?.title ?? "mission"}” · ${Math.round(
-                  attachConfidence * 100,
-                )}% confident · tap to change`,
-              );
-            }
-          } catch (updateErr) {
-            log.warn("background_attach_update_failed", {
-              taskId: newTaskId,
-              err:
-                updateErr instanceof Error
-                  ? updateErr.message
-                  : String(updateErr),
-            });
-          }
-        })();
+        // 2026-06-01 · server-side enrichTaskLinkage (fire-and-forget on
+        // create) now classifies the task to mission + goal + statHints —
+        // strictly more than the old client-side mission-only classify, and
+        // it runs on every creation path. We just refetch shortly so the
+        // attached mission surfaces in the list. (Removed the redundant
+        // client classify + its /api/ai/classify-task-mission route.)
+        setTimeout(() => {
+          void refetchAll();
+        }, 2500);
       } finally {
         setSubmitting(false);
       }
     },
-    [createTask, createMission, missions, refetchAll, telemetry, updateTask],
+    [createTask, createMission, refetchAll, telemetry],
   );
 
   // ── Loading ──
