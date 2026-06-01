@@ -1894,8 +1894,9 @@ export async function updateAssistant(assistantId: string, serverUrl?: string): 
  * keep VAPI · don't add AgentPhone or Twilio as a second voice vendor).
  *
  * Uses the wave-181.50 FOLLOW-UP assistant (`pickFollowUpAssistantId`)
- * which is already wired with the brand-voice prompt + transferCall +
- * 3 tools (scheduleDropoff · lookupCustomer · submitCallback). For
+ * which is wired with the brand-voice prompt + escalate +
+ * sendConfirmationSms (wave-140 dropped the stray transferCall — an
+ * outbound call we placed never forwards). For
  * confirmation + voice-recovery use cases we override the systemPrompt
  * + firstMessage at call-time so the same assistant handles both
  * outbound contexts without needing 2 separate VAPI agents.
