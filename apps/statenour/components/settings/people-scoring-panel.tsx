@@ -71,11 +71,15 @@ export function PeopleScoringPanel() {
             people scoring
           </span>
         </div>
-        {savedAt && !dirty && (
-          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-300">
-            saved
-          </span>
-        )}
+        {/* Always in the DOM so the live region announces the transition to
+            "saved" (a conditionally-mounted region never fires for AT). */}
+        <span
+          role="status"
+          aria-live="polite"
+          className="text-[10px] font-mono uppercase tracking-wider text-emerald-300"
+        >
+          {savedAt && !dirty ? "saved" : ""}
+        </span>
       </div>
       <p className="text-[11px] text-[var(--text-tertiary)] mb-4">
         How much mastery XP relationship work earns. Deposits credit{" "}
@@ -124,7 +128,7 @@ export function PeopleScoringPanel() {
 
             <div className="flex items-center justify-between pt-1">
               {save.error ? (
-                <span className="text-[10px] text-rose-300">
+                <span role="alert" className="text-[10px] text-rose-300">
                   {save.error.message}
                 </span>
               ) : (
@@ -134,6 +138,7 @@ export function PeopleScoringPanel() {
               )}
               <button
                 type="button"
+                aria-label="save people scoring weights"
                 disabled={!dirty || save.isPending}
                 onClick={() => draft && save.mutate(draft)}
                 className={cn(

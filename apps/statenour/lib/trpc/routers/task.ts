@@ -1329,7 +1329,7 @@ export const taskRouter = router({
       const data: Record<string, unknown> = { pendingClassification: null };
       if (pc.role && isPersonRole(pc.role)) data.role = pc.role;
       if (pc.leverageNotes && pc.leverageNotes.trim())
-        data.leverageNotes = pc.leverageNotes.trim();
+        data.leverageNotes = pc.leverageNotes.trim().slice(0, 2000);
       if (Number.isFinite(pc.trustAdjustment) && pc.trustAdjustment !== 0) {
         data.trustScore = Math.max(
           0,
@@ -1358,9 +1358,14 @@ export const taskRouter = router({
       // Prisma accept the JSON-column null clear (raw `null` is rejected
       // by the strict NullableJsonNullValueInput literal type).
       const data: Record<string, unknown> = { pendingClassification: null };
-      await prisma.personProfile
+      // Surface a real failure instead of a false { ok: true } — a swallowed
+      // error would leave pendingClassification set, and the engine skips any
+      // profile that already has a suggestion, so a stale one would persist
+      // forever (never re-classified, never clearable).
+      const updated = await prisma.personProfile
         .update({ where: { id: input.personId }, data })
         .catch(() => null);
+      if (!updated) throw new Error("Person not found");
       return { ok: true };
     }),
 
@@ -1482,7 +1487,7 @@ export const taskRouter = router({
       z.object({
         personId: z.string().min(1).max(64),
         name: z.string().min(2).max(120).optional(),
-        role: z.string().min(2).max(40).optional(),
+        role: z.enum(PERSON_ROLES).optional(),
         relationship: z.string().max(2000).optional(),
         leverageNotes: z.string().max(2000).nullable().optional(),
         birthday: z.string().nullable().optional(),
