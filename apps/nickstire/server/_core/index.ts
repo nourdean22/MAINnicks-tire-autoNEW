@@ -41,7 +41,6 @@ import net from "net";
 import path from "path";
 import fs from "fs";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
-import rateLimit from "express-rate-limit";
 import { registerOAuthRoutes } from "./oauth";
 import { registerBridgeRoutes } from "./bridge-routes";
 import { registerStatenourBridgeRoutes } from "./statenour-bridge-routes";
@@ -51,12 +50,16 @@ import { registerBurnoutRadarRoute } from "../routes/burnout-radar";
 import { registerSimulatorRoute } from "../routes/simulator";
 import { registerNourChiefStrategistRoute } from "../routes/nour-chief-strategist";
 import { registerNourOsQueryRoute } from "../routes/nour-os-query";
+import { registerAnalyticsRoutes } from "../routes/analyticsRoutes";
+import { requireAdminApiKey, registerAdminRoutes } from "../routes/adminRoutes";
+import { registerPushRoutes } from "../routes/pushRoutes";
+import { runServerMigrations } from "../services/migrations";
+import { apiLimiter, formLimiter, aiLimiter, uploadLimiter } from "../middleware/rateLimiters";
 import { healthHandler, pingHandler, readyHandler, recoverHandler } from "../lib/health";
 import { startSelfHealing, recordRequest } from "../lib/self-healing";
 import { createLogger } from "../lib/logger";
 import { errorTelemetry } from "../lib/error-telemetry";
 import { initSentry, flushSentry } from "../lib/sentry";
-import { getAllBreakerHealth, resetAllBreakers } from "../lib/circuit-breaker";
 import { AppError, isAppError, errorToHttpResponse } from "../lib/errors";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -152,42 +155,11 @@ async function startServer() {
   app.use((_req, _res, next) => { recordRequest(); next(); });
 
   // Rate limiting for public API endpoints to prevent spam/abuse
-  const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // limit each IP to 100 requests per windowMs
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many requests. Please try again later or call us at (216) 862-0005." },
-  });
-
-  // Stricter rate limit for form submissions (booking, lead, callback)
-  const formLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 10, // 10 form submissions per hour per IP
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many submissions. Please call us directly at (216) 862-0005." },
-  });
+  // (apiLimiter, formLimiter, aiLimiter, uploadLimiter definitions moved
+  // to ../middleware/rateLimiters — the app.use(...) wiring stays here.)
 
   app.use("/api/trpc", apiLimiter);
   // Apply stricter limits to mutation-heavy endpoints
-  // Stricter rate limit for AI/chat endpoints (expensive operations)
-  const aiLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 30, // 30 AI requests per hour per IP
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many AI requests. Please try again later or call us at (216) 862-0005." },
-  });
-
-  // Upload limiter — tighter than forms: 15 uploads/hour/IP (each is a ~7MB base64 payload)
-  const uploadLimiter = rateLimit({
-    windowMs: 60 * 60 * 1000,
-    max: 15,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Too many file uploads. Please try again later." },
-  });
 
   app.use("/api/trpc/booking.uploadPhoto", uploadLimiter);
   app.use("/api/trpc/booking.create", formLimiter);
@@ -265,125 +237,12 @@ async function startServer() {
   // reference is safe (same pattern as the SSE registration at L487).
   app.post("/api/health/recover", requireAdminApiKey, recoverHandler);
 
-  // ─── Abandoned Form Tracking ──────────────────────────
-  // Receives navigator.sendBeacon from BookingWizard on page unload
-  // ─── Conversion-event sink ─────────────────────────────
-  // The `useConversionTracking` hook on the client fans every CTA / form
-  // / capture event here. We log to the standard logger (so logs/grep
-  // can audit) AND push into an in-memory ring buffer (`conversionEvents`)
-  // so the admin Conversion Preview tab can show a live feed without a
-  // DB migration.
-  //
-  // Batch 9 of the conversion overhaul will move this to a dedicated
-  // table for proper funnel analytics. For now, ring buffer + logger is
-  // enough to validate the wiring end-to-end.
-  app.post("/api/analytics/conversion", express.json({ limit: "8kb" }), async (req, res) => {
-    try {
-      const body = req.body as Record<string, unknown> | null;
-      if (!body || typeof body !== "object" || typeof body.type !== "string") {
-        return res.sendStatus(204);
-      }
-      const { recordConversionEvent } = await import("../services/conversionEvents");
-      recordConversionEvent({
-        type: String(body.type).slice(0, 80),
-        page: typeof body.page === "string" ? body.page.slice(0, 200) : undefined,
-        element: typeof body.element === "string" ? body.element.slice(0, 200) : undefined,
-        value: typeof body.value === "number" ? body.value : undefined,
-        props: typeof body.props === "object" && body.props !== null ? body.props as Record<string, unknown> : undefined,
-        ip: req.ip,
-        ua: req.get("user-agent")?.slice(0, 300),
-      });
-      res.sendStatus(204);
-    } catch (e) {
-      // Conversion analytics never blocks UX — swallow errors.
-      console.warn("[server:conversionEvent] failed:", e);
-      res.sendStatus(204);
-    }
-  });
-
-  app.post("/api/track-abandoned", express.json(), async (req, res) => {
-    try {
-      const { name, phone, service, vehicle, step: formStep } = req.body || {};
-      // wave-147 — was `if (!name && !phone) return sendStatus(204)`,
-      // which silently dropped the majority of step-1 abandonment events
-      // (users who picked a service + bounced before touching name/phone).
-      // Now: keep at least one of {name, phone, service} as the signal of
-      // real engagement; only reject totally-empty beacons.
-      if (!name && !phone && !service) return res.sendStatus(204);
-      const { savePartialForm } = await import("../services/abandonedForms");
-      const sessionId = `beacon-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      savePartialForm({
-        sessionId,
-        formType: "booking",
-        name: typeof name === "string" ? name.slice(0, 200) : undefined,
-        phone: typeof phone === "string" ? phone.slice(0, 20) : undefined,
-        service: typeof service === "string" ? service.slice(0, 200) : undefined,
-        pageUrl: `/book (step ${formStep || "?"})`,
-      });
-      res.sendStatus(204);
-    } catch (e) {
-      console.warn("[server:abandonedForm] tracking failed:", e);
-      res.sendStatus(204);
-    }
-  });
-
-  // ─── Uber drop-off code tracking ────────────────────
-  // Hits from UberDropoffWidget — records to audit_log so drop-off-ratio
-  // bridge endpoint can count Uber-out events.
-  app.post("/api/uber-code", express.json({ limit: "2kb" }), async (req, res) => {
-    try {
-      const body = req.body as { code?: string };
-      if (!body?.code) return res.sendStatus(204);
-      const { db } = await import("../lib/db-helper");
-      const { auditLog } = await import("../../drizzle/schema");
-      const { randomUUID } = await import("crypto");
-      const d = await db();
-      if (!d) return res.sendStatus(204);
-      await d.insert(auditLog).values({
-        id: randomUUID(),
-        actor: "public",
-        action: "customer.uber_requested",
-        entityType: "uber_code",
-        entityId: body.code.slice(0, 32),
-        changes: { code: body.code, userAgent: req.headers["user-agent"]?.toString().slice(0, 200) ?? null },
-        ipAddress: (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip || null,
-      });
-      res.sendStatus(204);
-    } catch {
-      res.sendStatus(204);
-    }
-  });
-
-  // ─── Core Web Vitals telemetry ──────────────────────
-  // Receives navigator.sendBeacon from client/src/lib/cwv.ts
-  // No auth — it's anonymous metric data. Batched samples per request.
-  app.post("/api/cwv", express.json({ limit: "32kb" }), async (req, res) => {
-    try {
-      const { recordCwvSample } = await import("../lib/cwv-telemetry");
-      const body = req.body as { samples?: unknown };
-      if (!Array.isArray(body?.samples)) return res.sendStatus(204);
-      // Cap per-request to prevent abuse
-      for (const s of (body.samples as unknown[]).slice(0, 25)) {
-        if (typeof s !== "object" || !s) continue;
-        const sample = s as {
-          metric?: string; value?: number; route?: string;
-          navType?: string; sessionId?: string; timestamp?: number;
-        };
-        if (!sample.metric || typeof sample.value !== "number") continue;
-        recordCwvSample({
-          metric: sample.metric as "LCP" | "CLS" | "INP" | "FCP" | "TTFB",
-          value: sample.value,
-          route: (sample.route || "/").slice(0, 200),
-          navType: (sample.navType || "navigate").slice(0, 40),
-          sessionId: (sample.sessionId || "anon").slice(0, 80),
-          timestamp: sample.timestamp,
-        });
-      }
-      res.sendStatus(204);
-    } catch {
-      res.sendStatus(204);
-    }
-  });
+  // ─── Public analytics + telemetry sinks ────────────────
+  // POST /api/analytics/conversion, /api/track-abandoned, /api/uber-code,
+  // /api/cwv — moved verbatim to ../routes/analyticsRoutes (each keeps
+  // its own per-route express.json({ limit }) body parser). Registered
+  // here, in the same position the handlers occupied (before tRPC).
+  registerAnalyticsRoutes(app);
 
   // ─── Self-Healing Monitor ─────────────────────────────
   startSelfHealing();
@@ -398,56 +257,9 @@ async function startServer() {
   }).catch(err => console.error("[EventBus] Failed to init:", err));
 
   // ─── Schema Migrations (idempotent ALTER TABLE) ────────
-  import("../db").then(async ({ getDb }) => {
-    const db = await getDb();
-    if (!db) return;
-    const { sql } = await import("drizzle-orm");
-    const alters = [
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS totalSpent int NOT NULL DEFAULT 0 AFTER totalVisits`,
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS firstVisitDate timestamp NULL AFTER lastVisitDate`,
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleYear varchar(10) NULL AFTER balanceDue`,
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleMake varchar(50) NULL AFTER vehicleYear`,
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS vehicleModel varchar(50) NULL AFTER vehicleMake`,
-      // Migration 0024: Retention SMS tracking
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS lastRetentionTier int DEFAULT NULL`,
-      `ALTER TABLE customers ADD COLUMN IF NOT EXISTS lastRetentionDate timestamp DEFAULT NULL`,
-      // Migration 0025: Booking confirmation tracking
-      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmedAt timestamp NULL`,
-      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationMethod varchar(20) NULL`,
-      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS confirmationSentAt timestamp NULL`,
-      // Revenue pipeline: quote $ tracking + money aging on leads
-      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS estimatedValueCents int DEFAULT NULL`,
-      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS lastFollowUpAt timestamp DEFAULT NULL`,
-      // Google Ads offline conversion tracking (gclid)
-      `ALTER TABLE bookings ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
-      `ALTER TABLE leads ADD COLUMN IF NOT EXISTS gclid varchar(255) DEFAULT NULL`,
-      // PWA push subscriptions table
-      `CREATE TABLE IF NOT EXISTS push_subscriptions (
-        id varchar(36) NOT NULL PRIMARY KEY,
-        customer_id varchar(36) DEFAULT NULL,
-        endpoint text NOT NULL,
-        p256dh varchar(255) NOT NULL,
-        auth_key varchar(255) NOT NULL,
-        is_admin tinyint(1) NOT NULL DEFAULT 0,
-        created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_push_customer (customer_id),
-        INDEX idx_push_admin (is_admin)
-      )`,
-      // ═══ CRITICAL: invoices.workOrderId — linking invoices to work orders ═══
-      // Root cause of: admin $0 revenue, nickActions.shopPulse failure,
-      // invoices.intelligence failure, customer-intelligence failure, statenourSync failure.
-      // Drizzle schema had this column but actual TiDB table never got it.
-      `ALTER TABLE invoices ADD COLUMN IF NOT EXISTS workOrderId int NULL AFTER bookingId`,
-      // ═══ review_pipeline schema drift (admin review queue) ═══
-      `ALTER TABLE review_pipeline ADD COLUMN IF NOT EXISTS reviewed int NOT NULL DEFAULT 0`,
-      `ALTER TABLE review_pipeline ADD COLUMN IF NOT EXISTS responseSent int NOT NULL DEFAULT 0`,
-    ];
-    let applied = 0;
-    for (const stmt of alters) {
-      try { await db.execute(sql.raw(stmt)); applied++; } catch (e) { console.warn("[server:migration] schema ALTER failed:", stmt.slice(0, 60), e); }
-    }
-    if (applied > 0) serverLog.info(`Schema migrations: ${applied} column checks passed`);
-  }).catch(e => console.warn("[server:migration] schema migration runner failed:", e));
+  // Moved verbatim to ../services/migrations. Fire-and-forget — bare
+  // call (NOT awaited) so it never blocks boot, exactly as before.
+  runServerMigrations();
 
   // ─── Feature Flag Seeding (idempotent) ─────────────────
   import("../services/featureFlags").then(({ seedFlags }) => {
@@ -489,338 +301,20 @@ async function startServer() {
     serverLog.info("[prerender-mode] Skipping cron scheduler, SMS queue, Telegram batch, NOUR OS bridge");
   }
 
-  // ─── Real-time SSE for admin dashboards ─────────────────
-  // v1.7 audit fix · pre-fix this SSE stream of admin activity was
-  // publicly readable. Every other /api/admin/* route in this file
-  // applies requireAdminApiKey; the SSE registration was the lone
-  // exception. requireAdminApiKey is a hoisted function declaration
-  // (defined ~30 lines below), so the forward reference is safe.
-  import("../services/realtimePush").then(({ sseHandler }) => {
-    app.get("/api/admin/events", requireAdminApiKey, sseHandler);
-    serverLog.info("SSE endpoint registered: /api/admin/events (auth-gated)");
-  }).catch(e => console.warn("[server:init] SSE endpoint registration failed:", e));
-
-  // ─── Admin API Key middleware (shared by all admin REST endpoints) ───
-  function requireAdminApiKey(req: any, res: any, next: any) {
-    const auth = req.headers.authorization;
-    const expected = process.env.ADMIN_API_KEY;
-    if (!expected || typeof auth !== "string") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    const expectedFull = `Bearer ${expected}`;
-    if (auth.length !== expectedFull.length || !timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-    next();
-  }
-
-  // ─── Cron Status (admin) ──────────────────────────────
-  app.get("/api/admin/cron-status", requireAdminApiKey, (req, res) => {
-    import("../cron/index").then(({ getJobStatuses }) => {
-      res.json({ jobs: getJobStatuses(), timestamp: new Date().toISOString() });
-    }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
-  });
-
-  // ─── Photo Assess (admin manual trigger · Wave AZ) ──
-  // POST /api/admin/photo-assess  · body: { phone, photoUrl, skipSmsSend? }
-  // Manual fire-button for testing the photo-damage MMS pipeline OR
-  // for operator-driven response to a photo received outside the
-  // normal MMS path (e.g. customer Facebook-DM'd a photo). The
-  // pipeline runs vision analysis → optionally drafts SMS via NickGPT
-  // → sends reply via shop gateway with { via: "shop" }. Returns the
-  // structured assessment + send status.
-  app.post("/api/admin/photo-assess", requireAdminApiKey, express.json({ limit: "8kb" }), async (req, res) => {
-    const { phone, photoUrl, skipSmsSend } = (req.body || {}) as {
-      phone?: string;
-      photoUrl?: string;
-      skipSmsSend?: boolean;
-    };
-    if (!phone || !photoUrl) {
-      res.status(400).json({ error: "phone and photoUrl required" });
-      return;
-    }
-    try {
-      const { runPhotoAssess } = await import("../services/photo-assess-pipeline");
-      const outcome = await runPhotoAssess({
-        phone,
-        photoUrl,
-        source: "manual_admin",
-        skipSmsSend: Boolean(skipSmsSend),
-      });
-      res.json(outcome);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  // ─── Feature Flag REST API (admin key auth) ────────
-  app.get("/api/admin/flags", requireAdminApiKey, async (_req, res) => {
-    const { getAllFlags } = await import("../services/featureFlags");
-    res.json(await getAllFlags());
-  });
-  app.post("/api/admin/flags/toggle", requireAdminApiKey, express.json(), async (req, res) => {
-    const { key, value } = req.body;
-    if (!key || typeof value !== "boolean") { res.status(400).json({ error: "key and value required" }); return; }
-    const { setFlag } = await import("../services/featureFlags");
-    await setFlag(key, value);
-    res.json({ key, value, toggled: true });
-  });
-
-  // ─── Error Telemetry Report (admin) ────────────────
-  app.get("/api/admin/error-report", requireAdminApiKey, (_req, res) => {
-    res.json({ ...errorTelemetry.getReport(), timestamp: new Date().toISOString() });
-  });
-
-  // ─── Circuit Breaker Health (admin) ───────────────
-  app.get("/api/admin/circuit-breakers", requireAdminApiKey, (_req, res) => {
-    res.json({ breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
-  });
-
-  // ─── Circuit Breaker Reset (admin) ────────────────
-  app.post("/api/admin/circuit-breakers/reset", requireAdminApiKey, (_req, res) => {
-    resetAllBreakers();
-    res.json({ success: true, breakers: getAllBreakerHealth(), timestamp: new Date().toISOString() });
-  });
-
-  // ─── VAPI Voice Latency Observability (admin) ────
-  // wave-181.4 · migrated from statenour-os v10.0.527 Arc A F4 per the
-  // business-separation directive. Surfaces P50/P95 per stage + breach
-  // streak + recommended-delta from the voice_latency_events table.
-  app.get("/api/admin/voice-latency", requireAdminApiKey, async (req, res) => {
-    try {
-      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
-      const { getVoiceLatencyState } = await import("../services/voice-latency");
-      const state = await getVoiceLatencyState(days);
-      res.json(state);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  // ─── VAPI Call State (admin · Phase 4 · wave-181.63) ────────
-  // Real-time view of in-flight VAPI calls + their current state in
-  // the 4-state agent flow (greeted → intent_captured → tool_called →
-  // confirmed). Backed by voice_latency_events with `state_<name>`
-  // stage namespacing · zero migration cost. Drill in to a single
-  // call's full state trail via ?callId=<vapi-uuid>.
-  app.get("/api/admin/voice-call-states", requireAdminApiKey, async (req, res) => {
-    try {
-      const callId = typeof req.query.callId === "string" ? req.query.callId : null;
-      const maxAgeMinutes = Math.max(
-        1,
-        Math.min(120, parseInt(String(req.query.maxAgeMin || "10"), 10) || 10),
-      );
-      const { getActiveCallStates, getCallStateHistory } = await import(
-        "../services/voice-call-state"
-      );
-      if (callId) {
-        // Single-call drill-in · full state trail oldest → newest.
-        const history = await getCallStateHistory(callId);
-        res.json({ callId, history });
-        return;
-      }
-      // Roster view · all in-flight calls within the lookback window.
-      const active = await getActiveCallStates({ maxAgeMinutes });
-      res.json({
-        windowMinutes: maxAgeMinutes,
-        count: active.length,
-        states: active,
-        byState: active.reduce<Record<string, number>>((acc, s) => {
-          acc[s.latestState] = (acc[s.latestState] ?? 0) + 1;
-          return acc;
-        }, {}),
-      });
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
-
-  // ─── VAPI Call Analytics (admin) ─────────────────
-  // wave-181.4 · proxies VAPI's /call list endpoint with aggregations.
-  // Migrated from statenour-os v10.0.269 (/api/system/vapi-calls).
-  app.get("/api/admin/vapi-calls", requireAdminApiKey, async (req, res) => {
-    const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
-    const since = new Date(Date.now() - days * 86_400_000);
-    const apiKey = (process.env.VAPI_API_KEY || "").trim();
-    if (!apiKey) {
-      res.json({
-        windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
-        byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
-        mostRecent: null, totalCostUsd: 0, error: "VAPI_API_KEY not set",
-      });
-      return;
-    }
-    interface VapiCall {
-      id: string;
-      status?: string;
-      endedReason?: string | null;
-      createdAt?: string;
-      startedAt?: string | null;
-      endedAt?: string | null;
-      cost?: number;
-      costBreakdown?: { total?: number };
-    }
-    try {
-      const r = await fetch(`https://api.vapi.ai/call?limit=100&createdAtGt=${encodeURIComponent(since.toISOString())}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-        // wave-181.16 code-review F2 · was unbounded fetch. The cron
-        // version uses AbortSignal.timeout(30_000). Admin tile UX wants
-        // a faster fail, so 15s here so a slow VAPI doesn't starve the
-        // Express request pool.
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!r.ok) {
-        res.json({
-          windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
-          byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
-          mostRecent: null, totalCostUsd: 0, error: `VAPI returned ${r.status}`,
-        });
-        return;
-      }
-      // wave-181.16 code-review F5 · was assuming VAPI's default sort.
-      // Explicit DESC sort so calls[0] is guaranteed-most-recent
-      // regardless of upstream behavior changes.
-      const calls = ((await r.json()) as VapiCall[])
-        .filter((c) => c.createdAt)
-        .sort((a, b) => new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime());
-      const byStatus: Record<string, number> = {};
-      const byEndedReason: Record<string, number> = {};
-      let durationSum = 0;
-      let durationCount = 0;
-      let costSum = 0;
-      for (const c of calls) {
-        byStatus[c.status ?? "(unknown)"] = (byStatus[c.status ?? "(unknown)"] ?? 0) + 1;
-        byEndedReason[c.endedReason ?? "(none)"] = (byEndedReason[c.endedReason ?? "(none)"] ?? 0) + 1;
-        if (c.startedAt && c.endedAt) {
-          const durMs = new Date(c.endedAt).getTime() - new Date(c.startedAt).getTime();
-          if (durMs > 0) {
-            durationSum += durMs;
-            durationCount += 1;
-          }
-        }
-        const cost = c.costBreakdown?.total ?? c.cost ?? 0;
-        if (typeof cost === "number") costSum += cost;
-      }
-      const mostRecent = calls[0]
-        ? {
-            id: calls[0].id,
-            createdAt: calls[0].createdAt,
-            status: calls[0].status,
-            endedReason: calls[0].endedReason,
-            durationSec: calls[0].startedAt && calls[0].endedAt
-              ? Math.round((new Date(calls[0].endedAt).getTime() - new Date(calls[0].startedAt).getTime()) / 1000)
-              : null,
-          }
-        : null;
-      res.json({
-        windowDays: days, sinceIso: since.toISOString(), totalCalls: calls.length,
-        byStatus, byEndedReason,
-        avgDurationSec: durationCount > 0 ? Math.round(durationSum / durationCount / 1000) : 0,
-        mostRecent, totalCostUsd: Number(costSum.toFixed(2)),
-      });
-    } catch (err) {
-      // wave-181.16 code-review F4 · was returning bare { error } with 500,
-      // diverging from the other two failure paths which return full shape
-      // with 200. Statenour Ultron tile crashes if shape diverges. Now
-      // uniformly returns the full shape with the error annotation.
-      res.json({
-        windowDays: days, sinceIso: since.toISOString(), totalCalls: 0,
-        byStatus: {}, byEndedReason: {}, avgDurationSec: 0,
-        mostRecent: null, totalCostUsd: 0,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  });
-
-  // ─── Bridge endpoint for statenour Ultron tile (read-only) ───
-  // wave-181.4 · the statenour Ultron voice-latency-tile reads from
-  // this endpoint after the VAPI migration. Auth via STATENOUR_SYNC_KEY
-  // bearer matching the existing bridge pattern.
-  app.get("/api/bridge/voice-latency", async (req, res) => {
-    // wave-181.15 · silent-failure audit Finding #1 (CRITICAL security):
-    // was using plain === for secret compare. Even though network noise
-    // makes the timing-attack slow, every other bridge endpoint in this
-    // repo (statenour-bridge-routes.ts, bridge-routes.ts, vapi.ts) uses
-    // timingSafeEqual with length guard — this one regressed. Aligned
-    // with the project pattern.
-    const expected = (process.env.STATENOUR_SYNC_KEY || "").trim();
-    const got = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "").trim();
-    if (
-      !expected ||
-      !got ||
-      expected.length !== got.length ||
-      !timingSafeEqual(Buffer.from(expected), Buffer.from(got))
-    ) {
-      res.status(401).json({ error: "unauthorized" });
-      return;
-    }
-    try {
-      const days = Math.max(1, Math.min(90, parseInt(String(req.query.days || "7"), 10) || 7));
-      const { getVoiceLatencyState } = await import("../services/voice-latency");
-      const state = await getVoiceLatencyState(days);
-      res.json(state);
-    } catch (err) {
-      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
+  // ─── Admin REST endpoints + statenour Ultron bridge ─────
+  // SSE /api/admin/events (auth-gated, async-registered), requireAdminApiKey
+  // middleware, all /api/admin/* handlers, and GET /api/bridge/voice-latency
+  // (STATENOUR_SYNC_KEY bearer) moved verbatim to ../routes/adminRoutes.
+  // requireAdminApiKey is also imported module-top so /api/health/recover
+  // above still resolves it. Registered here, in the same position the SSE
+  // block occupied (before tRPC).
+  registerAdminRoutes(app);
 
   // ─── PWA Push Notification Subscription ──────────────────
-  app.post("/api/push/subscribe", express.json(), async (req, res) => {
-    try {
-      const { endpoint, keys, isAdmin, customerId } = req.body;
-      if (!endpoint || !keys?.p256dh || !keys?.auth) {
-        res.status(400).json({ error: "Missing subscription data" });
-        return;
-      }
-
-      // v1.7 audit fix · pre-fix any anonymous caller could POST
-      // { isAdmin: true, ... } and create an admin-flagged push
-      // subscription, then receive admin push notifications. Now
-      // isAdmin=true requires an admin API key on the request.
-      let isAdminVerified = false;
-      if (isAdmin) {
-        const auth = req.headers.authorization;
-        const expected = process.env.ADMIN_API_KEY;
-        if (expected && typeof auth === "string") {
-          const expectedFull = `Bearer ${expected}`;
-          if (auth.length === expectedFull.length &&
-              timingSafeEqual(Buffer.from(auth), Buffer.from(expectedFull))) {
-            isAdminVerified = true;
-          }
-        }
-        if (!isAdminVerified) {
-          res.status(401).json({ error: "isAdmin requires admin API key" });
-          return;
-        }
-      }
-
-      const { getDb } = await import("../db");
-      const { pushSubscriptions } = await import("../../drizzle/schema");
-      const { eq } = await import("drizzle-orm");
-      const { nanoid } = await import("nanoid");
-      const db = await getDb();
-      if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
-
-      // Upsert — don't duplicate endpoints
-      const existing = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
-      if (existing.length > 0) {
-        await db.update(pushSubscriptions).set({ p256dh: keys.p256dh, auth: keys.auth }).where(eq(pushSubscriptions.id, existing[0].id));
-        res.json({ success: true, action: "updated" });
-      } else {
-        await db.insert(pushSubscriptions).values({ id: nanoid(), endpoint, p256dh: keys.p256dh, auth: keys.auth, isAdmin: isAdminVerified, customerId: customerId || null });
-        res.json({ success: true, action: "created" });
-      }
-    } catch (err) {
-      console.warn("[push:subscribe] failed:", err);
-      res.status(500).json({ error: "Subscription failed" });
-    }
-  });
-
-  app.get("/api/push/vapid-key", (_req, res) => {
-    const key = process.env.VAPID_PUBLIC_KEY;
-    if (!key) { res.status(503).json({ error: "Push not configured" }); return; }
-    res.json({ publicKey: key });
-  });
+  // POST /api/push/subscribe (semi-public; inline admin-key check sets the
+  // isAdmin flag) + GET /api/push/vapid-key moved verbatim to
+  // ../routes/pushRoutes. Registered in the same position they occupied.
+  registerPushRoutes(app);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
