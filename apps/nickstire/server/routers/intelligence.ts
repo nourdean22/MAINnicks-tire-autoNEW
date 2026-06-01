@@ -1,193 +1,30 @@
 /**
- * Intelligence Router — exposes all 5 engines + 6 data analyzers to admin dashboard
+ * Intelligence Router — live admin-dashboard analytics surface.
+ *
+ * Trimmed to the procedures with real client consumers. The engine/analyzer
+ * service functions themselves remain in server/services/** (the cron
+ * autopilot calls them directly) — only the unused tRPC wrappers were removed.
  */
-import { z } from "zod";
 import { adminProcedure, router } from "../_core/trpc";
-import {
-  forecastRevenue,
-  generateCrossSellRecommendations,
-  scoreLeads,
-  trackCampaignAttribution,
-  predictCustomerLTV,
-  analyzeChatDemand,
-  analyzeCallAttribution,
-  analyzeFleet,
-  analyzeGeography,
-  analyzeBottlenecks,
-  analyzeDeclinedWork,
-  analyzeUnmatchedAlgEstimates,
-  generateFullIntelligenceReport,
-  forecastSeasonalDemand,
-  analyzeGeographicRevenue,
-  analyzeServiceBundles,
-  predictChurn,
-} from "../services/intelligenceEngines";
+import { forecastSeasonalDemand } from "../services/intelligenceEngines";
 import { generateMasterIntelligenceReport } from "../services/masterIntelligence";
 import {
-  predictRepeatVisits,
-  analyzeCustomerValueTrend,
   buildServiceAffinityMap,
-  analyzeFirstVisitConversion,
-  computeCustomerRiskScores,
-  analyzeTechEfficiency,
-  analyzeBayUtilization,
-  analyzeTurnaroundTime,
-  analyzePartsCostRatio,
-  forecastCapacity,
-  analyzeChannelROI,
-  analyzeReviewVelocity,
-  analyzeSmsEngagement,
-  analyzeLeadResponseTime,
   analyzeContentPerformance,
   analyzeCompetitorGap,
-  detectRevenueAnomalies,
-  predictNoShows,
-  analyzePeakDemandWindows,
-  forecastCashFlow,
-  estimateMarketShare,
-  analyzeProfitMargins,
-  analyzePaymentTrends,
-  analyzeTicketTrend,
-  analyzeRevenueConcentration,
   analyzeChatFunnel,
-  analyzeReviewSentiment,
-  analyzeWebsiteJourneys,
-  analyzeCallPatterns,
-  analyzeNewCustomerVelocity,
-  analyzeReferralNetwork,
-  forecastPortfolioLTV,
 } from "../services/advancedEngines";
 
-import { createLogger } from "../lib/logger";
 import { safeCount, safeRowQuery } from "../lib/sql-safe";
 
-const log = createLogger("routers:intelligence");
 export const intelligenceRouter = router({
-  // ── Core Engines ──
-
-  /** #1 Revenue Forecasting — today/week/month projections vs $20K target */
-  forecast: adminProcedure.query(async () => {
-    return forecastRevenue();
-  }),
-
-  /** #2 Service Cross-Sell — "customers who got X also needed Y" */
-  crossSell: adminProcedure.query(async () => {
-    return generateCrossSellRecommendations();
-  }),
-
-  /** #3 Dynamic Lead Scoring — re-score all open leads */
-  scoreLeads: adminProcedure.mutation(async () => {
-    const scored = await scoreLeads();
-    return { count: scored.length, topLeads: scored.slice(0, 10) };
-  }),
-
-  /** #4 Campaign Attribution — SMS/review → booking tracking */
-  attribution: adminProcedure.query(async () => {
-    return trackCampaignAttribution();
-  }),
-
-  /** #5 Customer LTV Prediction */
-  ltv: adminProcedure.query(async () => {
-    return predictCustomerLTV();
-  }),
-
-  // ── Data Analyzers ──
-
-  chatDemand: adminProcedure.query(async () => analyzeChatDemand()),
-  callAttribution: adminProcedure.query(async () => analyzeCallAttribution()),
-  fleet: adminProcedure.query(async () => analyzeFleet()),
-  geography: adminProcedure.query(async () => analyzeGeography()),
-  bottlenecks: adminProcedure.query(async () => analyzeBottlenecks()),
-  declinedWork: adminProcedure.query(async () => analyzeDeclinedWork()),
-  /**
-   * Walk-away ALG estimates — whole quotes that never converted to invoice.
-   * Different signal than declinedWork (which is per-line items inside an
-   * accepted invoice). This surfaces customers who walked away entirely.
-   * Returns 0s gracefully when alg_estimates is empty.
-   */
-  walkAwayEstimates: adminProcedure.query(async () => analyzeUnmatchedAlgEstimates()),
-
-  // ── New Intelligence Engines ──
-
   /** #6 Seasonal Demand Forecasting — which services peak this month */
   seasonalDemand: adminProcedure.query(async () => {
     return forecastSeasonalDemand();
   }),
 
-  /** #7 Geographic Revenue Intelligence — revenue by zip code */
-  geoRevenue: adminProcedure.query(async () => {
-    return analyzeGeographicRevenue();
-  }),
-
-  /** #8 Service Bundling Intelligence — frequently paired services */
-  serviceBundles: adminProcedure.query(async () => {
-    return analyzeServiceBundles();
-  }),
-
-  /** #9 Churn Prediction — identify at-risk customers before they leave */
-  churnPrediction: adminProcedure.query(async () => {
-    return predictChurn();
-  }),
-
-  // ── Full Report ──
-  fullReport: adminProcedure.query(async () => {
-    return generateFullIntelligenceReport();
-  }),
-
-  // ── Busy Hours Heat Map (own data, not Google) ──
-  busyHours: adminProcedure.query(async () => {
-    const { analyzeCustomers } = await import("../services/customerIntelligence");
-    const data = await analyzeCustomers();
-    return {
-      peakHours: data.peakHours,
-      dayOfWeekPattern: data.dayOfWeekPattern,
-      bestDropOffTimes: ["8:00 AM - 10:00 AM (best for same-day)", "Early afternoon (ready by next morning)"],
-    };
-  }),
-
-  // ── Advanced Intelligence Engines (19-34) ──
-
-  /** #19 Repeat Visit Predictor */
-  repeatVisit: adminProcedure.query(async () => predictRepeatVisits()),
-
-  /** #20 Customer Value Trend */
-  valueTrend: adminProcedure.query(async () => analyzeCustomerValueTrend()),
-
   /** #21 Service Affinity Map */
   serviceAffinity: adminProcedure.query(async () => buildServiceAffinityMap()),
-
-  /** #22 First Visit Conversion */
-  firstVisitConversion: adminProcedure.query(async () => analyzeFirstVisitConversion()),
-
-  /** #23 Customer Risk Score */
-  riskScores: adminProcedure.query(async () => computeCustomerRiskScores()),
-
-  /** #24 Tech Efficiency */
-  techEfficiency: adminProcedure.query(async () => analyzeTechEfficiency()),
-
-  /** #25 Bay Utilization */
-  bayUtilization: adminProcedure.query(async () => analyzeBayUtilization()),
-
-  /** #26 Turnaround Time */
-  turnaroundTime: adminProcedure.query(async () => analyzeTurnaroundTime()),
-
-  /** #27 Parts Cost Optimizer */
-  partsCost: adminProcedure.query(async () => analyzePartsCostRatio()),
-
-  /** #28 Capacity Forecaster */
-  capacityForecast: adminProcedure.query(async () => forecastCapacity()),
-
-  /** #29 Channel ROI */
-  channelROI: adminProcedure.query(async () => analyzeChannelROI()),
-
-  /** #30 Review Velocity */
-  reviewVelocity: adminProcedure.query(async () => analyzeReviewVelocity()),
-
-  /** #31 SMS Engagement */
-  smsEngagement: adminProcedure.query(async () => analyzeSmsEngagement()),
-
-  /** #32 Lead Response Time */
-  leadResponseTime: adminProcedure.query(async () => analyzeLeadResponseTime()),
 
   /** #33 Content Performance */
   contentPerformance: adminProcedure.query(async () => analyzeContentPerformance()),
@@ -195,66 +32,12 @@ export const intelligenceRouter = router({
   /** #34 Competitor Gap Analysis */
   competitorGap: adminProcedure.query(async () => analyzeCompetitorGap()),
 
-  // ── Advanced Intelligence Engines (35-50) ──
-
-  /** #35 Revenue Anomaly Detector */
-  revenueAnomaly: adminProcedure.query(async () => detectRevenueAnomalies()),
-
-  /** #36 No-Show Predictor */
-  noShowPredictor: adminProcedure.query(async () => predictNoShows()),
-
-  /** #37 Peak Demand Windows */
-  peakDemand: adminProcedure.query(async () => analyzePeakDemandWindows()),
-
-  /** #38 Cash Flow Forecast */
-  cashFlow: adminProcedure.query(async () => forecastCashFlow()),
-
-  /** #39 Market Share Estimator */
-  marketShare: adminProcedure.query(async () => estimateMarketShare()),
-
-  /** #40 Profit Margin Analysis */
-  profitMargins: adminProcedure.query(async () => analyzeProfitMargins()),
-
-  /** #41 Payment Method Trends */
-  paymentTrends: adminProcedure.query(async () => analyzePaymentTrends()),
-
-  /** #42 Average Ticket Trend */
-  ticketTrend: adminProcedure.query(async () => analyzeTicketTrend()),
-
-  /** #43 Revenue Concentration */
-  revenueConcentration: adminProcedure.query(async () => analyzeRevenueConcentration()),
-
   /** #44 Chat Conversion Funnel */
   chatFunnel: adminProcedure.query(async () => analyzeChatFunnel()),
-
-  /** #45 Review Sentiment Breakdown */
-  reviewSentiment: adminProcedure.query(async () => analyzeReviewSentiment()),
-
-  /** #46 Website Journey Analysis */
-  websiteJourneys: adminProcedure.query(async () => analyzeWebsiteJourneys()),
-
-  /** #47 Call Pattern Analysis */
-  callPatterns: adminProcedure.query(async () => analyzeCallPatterns()),
-
-  /** #48 New Customer Velocity */
-  customerVelocity: adminProcedure.query(async () => analyzeNewCustomerVelocity()),
-
-  /** #49 Referral Network Map */
-  referralNetwork: adminProcedure.query(async () => analyzeReferralNetwork()),
-
-  /** #50 Lifetime Value Forecast */
-  portfolioLTV: adminProcedure.query(async () => forecastPortfolioLTV()),
 
   /** Master Intelligence Report — unified digest across all 50 engines */
   masterReport: adminProcedure.query(async () => {
     return generateMasterIntelligenceReport();
-  }),
-
-  // ── Safety & Risk Monitor ──
-  /** Full safety check — financial, reputation, operational, data, compliance */
-  safetyCheck: adminProcedure.query(async () => {
-    const { runFullSafetyCheck } = await import("../services/safetyMonitor");
-    return runFullSafetyCheck();
   }),
 
   // ── Next Best Actions — prioritized operator queue ──
@@ -282,7 +65,7 @@ export const intelligenceRouter = router({
     for (const l of hotLeads) {
       actions.push({
         type: "hot_lead",
-        message: `Call ${l.name || "Unknown"} \u2014 hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
+        message: `Call ${l.name || "Unknown"} — hot lead (${l.urgencyScore}/5 urgency, ${l.source || "direct"})`,
         urgency: Math.min(5, l.urgencyScore + 1),
         actionUrl: "/admin?tab=leads",
         phone: l.phone || null,
@@ -319,7 +102,7 @@ export const intelligenceRouter = router({
       const hoursAgo = Math.round((Date.now() - new Date(cb.createdAt).getTime()) / 3600000);
       actions.push({
         type: "callback",
-        message: `Call back ${cb.name || "Unknown"} \u2014 waiting ${hoursAgo}h`,
+        message: `Call back ${cb.name || "Unknown"} — waiting ${hoursAgo}h`,
         urgency: hoursAgo > 8 ? 5 : hoursAgo > 4 ? 4 : 3,
         actionUrl: "/admin?tab=callbacks",
         phone: cb.phone || null,
@@ -335,7 +118,7 @@ export const intelligenceRouter = router({
       const name = [c.firstName, c.lastName].filter(Boolean).join(" ") || "Unknown";
       actions.push({
         type: "vip_winback",
-        message: `Re-engage ${name} \u2014 VIP (${c.totalVisits} visits), ${c.daysSince}d since last visit`,
+        message: `Re-engage ${name} — VIP (${c.totalVisits} visits), ${c.daysSince}d since last visit`,
         urgency: c.daysSince > 180 ? 4 : 3,
         actionUrl: "/admin?tab=customers",
         phone: c.phone || null,
@@ -375,44 +158,5 @@ export const intelligenceRouter = router({
       rawSql`SELECT COUNT(*) as cnt FROM bookings WHERE createdAt >= CURDATE() AND status IN ('new', 'confirmed')`
     );
     return { activeWOs, todayBookings, estimatedWait: activeWOs === 0 ? 0 : Math.min(180, activeWOs * 45) };
-  }),
-
-  // ── Statenour brain proxy ──
-  // Closes admin audit §10. The intelligence tabs (NourOsBrainCard,
-  // WeatherImpactCard) used to do raw cross-origin fetch() to
-  // statenour-os.vercel.app from the browser. Three problems:
-  //   1. CORS surface — admin browser talks directly to autonicks
-  //   2. No retries, no timeout, no observability when it fails
-  //   3. Bypasses the standard tRPC error envelope used everywhere else
-  //
-  // These two procedures proxy the same data through the nickstire
-  // backend. The browser only ever talks to its own origin.
-  autonicksBrainStatus: adminProcedure.query(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 5000);
-      const r = await fetch("https://bdnick.info/api/brain/status", { signal: ctrl.signal });
-      clearTimeout(timeoutId);
-      if (!r.ok) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- statenour brain endpoint returns dynamic JSON; consumers in OverviewTab destructure varied keys (memories / automationRules / etc)
-      const data: any = await r.json();
-      return data?.data ?? data;
-    } catch (err) {
-      log.warn(`autonicksBrainStatus failed: ${err instanceof Error ? err.message : err}`);
-      return null;
-    }
-  }),
-  autonicksWeather: adminProcedure.query(async () => {
-    try {
-      const ctrl = new AbortController();
-      const timeoutId = setTimeout(() => ctrl.abort(), 5000);
-      const r = await fetch("https://bdnick.info/api/weather", { signal: ctrl.signal });
-      clearTimeout(timeoutId);
-      if (!r.ok) return null;
-      return await r.json();
-    } catch (err) {
-      log.warn(`autonicksWeather failed: ${err instanceof Error ? err.message : err}`);
-      return null;
-    }
   }),
 });
