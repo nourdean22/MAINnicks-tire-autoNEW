@@ -26,26 +26,14 @@ import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import {
+  PERSON_ROLES,
+  PERSON_ROLE_OPTIONS,
+} from "@/lib/brain/person-roles";
 
-const ROLES = [
-  "acquaintance",
-  "friend",
-  "close_friend",
-  "family",
-  "romantic",
-  "ex_romantic",
-  "mentor",
-  "mentee",
-  "advisor",
-  "customer",
-  "vendor",
-  "employee",
-  "competitor",
-  "rival",
-  "enemy",
-  "ex_friend",
-  "network_only",
-] as const;
+// Single source of truth (shared with createPerson tRPC enum + the AI
+// classifier prompt). Was a local copy that had drifted out of sync.
+const ROLES = PERSON_ROLES;
 
 interface PersonEditDrawerProps {
   open: boolean;
@@ -300,9 +288,9 @@ function PersonEditDrawerBody({
               disabled={submitting}
               className={inputCls}
             >
-              {ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r.replace("_", " ")}
+              {PERSON_ROLE_OPTIONS.map((r) => (
+                <option key={r.value} value={r.value}>
+                  {r.label}
                 </option>
               ))}
             </select>

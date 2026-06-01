@@ -97,7 +97,7 @@ Operator's goal: ${operatorGoal ?? "(not specified)"}`;
     const parsed = JSON.parse(raw);
 
     // Persist as RelationshipPlay for the operator's review history
-    await prisma.relationshipPlay.create({
+    const play = await prisma.relationshipPlay.create({
       data: {
         personId,
         kind,
@@ -111,6 +111,12 @@ Operator's goal: ${operatorGoal ?? "(not specified)"}`;
         output: parsed as never,
       },
     });
+
+    // 2026-06-01 · credit a deliberate influence rep (idempotent per
+    // play row · fire-and-forget). arc_plan→strategy · message_draft→
+    // persuasion · scarcity_play→seduction · reciprocity_assess→networking.
+    const { creditPowerPlay } = await import("@/lib/mastery/people-credit");
+    void creditPowerPlay({ playId: play.id, personId, kind });
 
     return parsed;
   } catch {

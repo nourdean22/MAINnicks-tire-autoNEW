@@ -25,6 +25,8 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { router, operatorProcedure } from "../trpc";
+import { TaskStatus } from "@prisma/client";
+import { PERSON_ROLES } from "@/lib/brain/person-roles";
 import { listTasks, deleteTask, updateTask } from "@/lib/services/tasks";
 import {
   listMissions,
@@ -1108,7 +1110,46 @@ export const taskRouter = router({
             select: { key: true, content: true },
           })
         : [];
-      return { person, ledger, plays, applicableLawTexts };
+      // 2026-06-01 · people↔tasks correlation. Open promises/commitments
+      // to this person — linked via the personId FK OR (transitional) a
+      // free-text promiseTo that matches the name but predates the link.
+      // This is what makes /people actually READ the task list.
+      const openTasks = await prisma.task.findMany({
+        where: {
+          deletedAt: null,
+          status: { notIn: [TaskStatus.DONE, TaskStatus.ARCHIVED] },
+          OR: [
+            { personId: input.personId },
+            // Transitional name-match for tasks created before the FK link.
+            // Guarded against a blank/too-short profile name so it can't
+            // vacuum up unrelated promiseTo="" rows across all people.
+            ...(person.name.trim().length >= 2
+              ? [
+                  {
+                    promiseTo: {
+                      equals: person.name,
+                      mode: "insensitive" as const,
+                    },
+                  },
+                ]
+              : []),
+          ],
+        },
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        take: 25,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          dueDate: true,
+          loopKind: true,
+          promiseTo: true,
+        },
+      });
+      // 2026-06-01 · what this relationship has earned (deposits + plays).
+      const { peopleXpForPerson } = await import("@/lib/mastery/people-credit");
+      const xp = await peopleXpForPerson(input.personId);
+      return { person, ledger, plays, applicableLawTexts, openTasks, xp };
     }),
 
   logLedger: operatorProcedure
@@ -1133,6 +1174,15 @@ export const taskRouter = router({
     )
     .mutation(async ({ input }) => {
       const { enqueueLedgerEmbed } = await import("@/lib/brain/people-embed-hook");
+      // Capture role + PRIOR lastInteraction before the update bumps it —
+      // people-credit needs the role for stat selection and the prior
+      // timestamp to detect a neglect-repair deposit.
+      const prior = await prisma.personProfile
+        .findUnique({
+          where: { id: input.personId },
+          select: { role: true, lastInteraction: true },
+        })
+        .catch(() => null);
       const ledger = await prisma.relationshipLedger.create({
         data: {
           personId: input.personId,
@@ -1152,6 +1202,18 @@ export const taskRouter = router({
         })
         .catch(() => null);
       void enqueueLedgerEmbed(ledger.id, input.note);
+      // 2026-06-01 · credit relationship XP for real reps. Positive
+      // deposits only (creditLedgerDeposit no-ops on <= 0), idempotent
+      // per ledger row, fire-and-forget — never blocks the mutation.
+      const { creditLedgerDeposit } = await import("@/lib/mastery/people-credit");
+      void creditLedgerDeposit({
+        ledgerId: ledger.id,
+        personId: input.personId,
+        amount: input.amount,
+        note: input.note,
+        role: prior?.role,
+        priorLastInteraction: prior?.lastInteraction ?? null,
+      });
       return { ok: true, ledger };
     }),
 
@@ -1237,6 +1299,104 @@ export const taskRouter = router({
     }),
 
   /**
+   * 2026-06-01 · suggest-then-approve · accept the people-intelligence
+   * engine's pending classification: apply the proposed role /
+   * leverageNotes / trust adjustment to the REAL fields, then clear the
+   * suggestion. The operator's explicit yes is the only thing that ever
+   * writes these fields from the AI — no more silent overwrite.
+   */
+  acceptClassification: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      const person = await prisma.personProfile.findUnique({
+        where: { id: input.personId },
+        select: {
+          trustScore: true,
+          role: true,
+          leverageNotes: true,
+          pendingClassification: true,
+        },
+      });
+      if (!person) throw new Error("Person not found");
+      const pc = (person.pendingClassification ?? null) as {
+        role?: string | null;
+        leverageNotes?: string | null;
+        trustAdjustment?: number;
+      } | null;
+      if (!pc) return { ok: true, noop: true };
+
+      const { isPersonRole } = await import("@/lib/brain/person-roles");
+      const data: Record<string, unknown> = { pendingClassification: null };
+      if (pc.role && isPersonRole(pc.role)) data.role = pc.role;
+      if (pc.leverageNotes && pc.leverageNotes.trim())
+        data.leverageNotes = pc.leverageNotes.trim();
+      if (Number.isFinite(pc.trustAdjustment) && pc.trustAdjustment !== 0) {
+        data.trustScore = Math.max(
+          0,
+          Math.min(1, person.trustScore + (pc.trustAdjustment as number)),
+        );
+      }
+      await prisma.personProfile.update({ where: { id: input.personId }, data });
+      return {
+        ok: true,
+        applied: {
+          role: (data.role as string | undefined) ?? null,
+          leverageNotes: (data.leverageNotes as string | undefined) ?? null,
+          trustScore: (data.trustScore as number | undefined) ?? null,
+        },
+      };
+    }),
+
+  /**
+   * 2026-06-01 · suggest-then-approve · dismiss the pending classification
+   * without applying anything (clears the suggestion only).
+   */
+  dismissClassification: operatorProcedure
+    .input(z.object({ personId: z.string().min(1).max(64) }))
+    .mutation(async ({ input }) => {
+      // Record<string,unknown> matches the file's update idiom and lets
+      // Prisma accept the JSON-column null clear (raw `null` is rejected
+      // by the strict NullableJsonNullValueInput literal type).
+      const data: Record<string, unknown> = { pendingClassification: null };
+      await prisma.personProfile
+        .update({ where: { id: input.personId }, data })
+        .catch(() => null);
+      return { ok: true };
+    }),
+
+  /**
+   * 2026-06-01 · people-credit scoring config · the active XP weights
+   * (defaults + operator overrides merged) for the settings card.
+   */
+  getPeopleXpConfig: operatorProcedure.query(async () => {
+    const { resolvePeopleXp } = await import("@/lib/mastery/people-credit");
+    return resolvePeopleXp();
+  }),
+
+  /**
+   * 2026-06-01 · persist operator overrides for the people-credit XP
+   * weights. Self-contained — does NOT touch the task-side scoring config.
+   */
+  setPeopleXpConfig: operatorProcedure
+    .input(
+      z.object({
+        depositBase: z.number().min(0).max(5),
+        depositPerAmount: z.number().min(0).max(1),
+        depositMax: z.number().min(0).max(10),
+        reconnectBonus: z.number().min(0).max(5),
+        play: z.number().min(0).max(10),
+      }),
+    )
+    .mutation(async ({ input }) => {
+      const { setSetting } = await import("@/lib/services/settings");
+      const { PEOPLE_XP_SETTING_KEY } = await import(
+        "@/lib/mastery/people-credit"
+      );
+      await setSetting(PEOPLE_XP_SETTING_KEY, input, "mastery");
+      return { ok: true };
+    }),
+
+  /**
    * 2026-05-28 · Wave AB.b · operator-grade CREATE PersonProfile.
    *
    * The people-intelligence engine auto-creates profiles from chat
@@ -1248,27 +1408,7 @@ export const taskRouter = router({
     .input(
       z.object({
         name: z.string().min(2).max(120),
-        role: z
-          .enum([
-            "employee",
-            "customer",
-            "vendor",
-            "family",
-            "competitor",
-            "advisor",
-            "friend",
-            "close_friend",
-            "mentor",
-            "mentee",
-            "ex_friend",
-            "acquaintance",
-            "network_only",
-            "romantic",
-            "ex_romantic",
-            "enemy",
-            "rival",
-          ])
-          .default("acquaintance"),
+        role: z.enum(PERSON_ROLES).default("acquaintance"),
         relationship: z.string().max(2000).default(""),
         leverageNotes: z.string().max(2000).optional(),
         birthday: z.string().optional(),
