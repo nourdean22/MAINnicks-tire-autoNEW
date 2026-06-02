@@ -112,10 +112,12 @@ Both batches verified (tsc 0 · vitest 664 passed · vite build green) and PUSHE
 - `b0afef15` batch 2 (operator-approved behavior fixes)
 Rebased onto sibling's statenour commits (nickstire-only, no conflicts). Railway redeploying nickstire.
 
-### ⚠ ONE MANUAL STEP REMAINING (operator)
-Apply `drizzle/0066_drop_engine_flags.sql` to prod DB (hand-applied — no auto-migrate):
-`DELETE FROM feature_flags WHERE key LIKE 'engine_%';`
-Until applied, the inert engine_* rows persist in DB but are HIDDEN by the UI prefix-guard (zero user impact). The code no longer seeds them.
+### Migration 0066 — APPLIED to prod ✅ (2026-06-02)
+`drizzle/0066_drop_engine_flags.sql` applied via
+`railway run --service MAINnicks-tire-auto pnpm exec tsx scripts/apply-0066-drop-engine-flags.ts`
+→ BEFORE 19 engine_* rows · affectedRows=19 · AFTER 0 · hash recorded. The inert
+engine_* flags are gone from the live DB; code no longer seeds them; UI prefix-guard
+retained as defense-in-depth.
 
 ### Deferred follow-ups (next session)
 - **Y1** gbpContentGenerator fabricated testimonials/prices → Google (FTC risk) — deeper look (rewrite to real reviews+pricing OR gate to verified-data-only).
