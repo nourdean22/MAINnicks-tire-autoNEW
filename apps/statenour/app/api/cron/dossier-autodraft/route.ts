@@ -19,6 +19,13 @@ import { draftDossierFor } from "@/lib/brain/dossier-autodrafter";
 export const maxDuration = 300;
 
 export const GET = cronHandler(async () => {
+  // Monday-only self-gate · 2026-06-02 · wired into the daily MORNING_JOBS
+  // fan-out (no day-of-week gate), so skip every day but Monday (UTC) to
+  // preserve the weekly cadence without running the AI drafting 7x/week.
+  // Non-Monday runs short-circuit here before any DB/AI work.
+  if (new Date().getUTCDay() !== 1) {
+    return { skipped: true, reason: "weekly cron · not Monday (UTC)" };
+  }
   const profiles = await prisma.personProfile.findMany({
     where: {
       status: { not: "blown_up" },
