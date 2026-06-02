@@ -605,6 +605,16 @@ export async function getContextualMemories(
     }
   }
 
+  // Graph-aware expansion — traverse MemoryEdge from the top recalled hits.
+  // Anchors = the 2 highest-scoring included memories; capped + best-effort.
+  const anchorMemoryIds = scored
+    .filter((m) => addedIds.has(m.id))
+    .slice(0, 2)
+    .map((m) => m.id);
+  await timed("graph", () =>
+    appendGraphContext(lines, anchorMemoryIds, new Set(relevant.map((r) => r.content))),
+  );
+
   // ── Cross-source semantic pull ──
   // Until the Apr-17 expansion, semantic recall was blind to brain
   // dumps, reflections, Greene laws, and past chat replies — 100% of
@@ -826,6 +836,66 @@ async function getSemanticScores(
   }
 
   return scores;
+}
+
+// ---------------------------------------------------------------------------
+// Graph-aware expansion (1-hop MemoryEdge traversal)
+// ---------------------------------------------------------------------------
+
+// R1 audit (2026-06): MemoryEdge connections are WRITTEN by the brain cycle
+// (connect() + cross-pollinate) but were never TRAVERSED during recall. This
+// surfaces the strongest links off the top recalled memories so the model
+// sees causal chains ("X caused Y"), not just similar rows. Best-effort +
+// capped (<=2 anchors, <=3 links, 150 chars each); any failure is swallowed
+// so recall never breaks or stalls on a graph miss. Interface unchanged: it
+// only appends to the existing `lines` array.
+async function appendGraphContext(
+  lines: string[],
+  anchorMemoryIds: string[],
+  alreadyIncluded: Set<string>,
+): Promise<void> {
+  if (anchorMemoryIds.length === 0) return;
+  try {
+    const { getConnections } = await import("./relational-graph");
+    const connLists = await Promise.all(
+      anchorMemoryIds.map((id) =>
+        getConnections("memory", id, { minStrength: 0.5 }),
+      ),
+    );
+    const anchorSet = new Set(anchorMemoryIds);
+    const strongestById = new Map<string, { relationship: string; strength: number }>();
+    for (const c of connLists.flat()) {
+      if (c.type !== "memory" || anchorSet.has(c.id)) continue;
+      const prev = strongestById.get(c.id);
+      if (!prev || c.strength > prev.strength) {
+        strongestById.set(c.id, { relationship: c.relationship, strength: c.strength });
+      }
+    }
+    if (strongestById.size === 0) return;
+    const top = [...strongestById.entries()]
+      .sort((a, b) => b[1].strength - a[1].strength)
+      .slice(0, 3);
+    const rows = await prisma.brainMemory.findMany({
+      where: { id: { in: top.map(([id]) => id) }, deletedAt: null },
+      select: { id: true, category: true, content: true },
+    });
+    const rowById = new Map<string, { id: string; category: string; content: string }>();
+    for (const r of rows) rowById.set(r.id, r);
+    const out: string[] = [];
+    for (const [id, link] of top) {
+      const row = rowById.get(id);
+      if (!row || alreadyIncluded.has(row.content)) continue;
+      out.push(
+        `[${row.category}] (${link.relationship.replace(/_/g, " ")}) ${row.content.slice(0, 150)}`,
+      );
+    }
+    if (out.length > 0) {
+      lines.push(`### Connected (linked in your brain graph)`);
+      lines.push(...out);
+    }
+  } catch {
+    // best-effort — never break recall on a graph miss
+  }
 }
 
 // ---------------------------------------------------------------------------
