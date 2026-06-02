@@ -22,6 +22,7 @@
 import { prisma } from "@/lib/prisma";
 import { recordError } from "@/lib/errors/record-error";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { aiChat } from "@/lib/ai/provider";
 
 // Compression kicks in past this many messages.
 // Apr 19 · Threshold raised 12 → 20 so the compression AI call
@@ -75,22 +76,7 @@ function extractText(msg: Record<string, unknown>): string {
   return "";
 }
 
-/**
- * Call Venice directly to summarize a chunk of messages. Uses the
- * same direct-fetch workaround as knowledge-sync.ts because the AI
- * SDK's streamText is overkill for a simple summary call.
- */
-async function summarizeViaVenice(messages: CompactMessage[]): Promise<string | null> {
-  const apiKey = (process.env.VENICE_API_KEY || "").trim();
-  if (!apiKey) return null;
-  const model =
-    (process.env.VENICE_MODEL || "").trim() || "olafangensan-glm-4.7-flash-heretic";
-
-  const transcript = messages
-    .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 800)}`)
-    .join("\n\n");
-
-  const systemPrompt = `You are a conversation summarizer for Nick's Chief of Staff AI. Compress the following chat transcript into a dense context block that preserves:
+const SUMMARIZER_SYSTEM = `You are a conversation summarizer for Nick's Chief of Staff AI. Compress the following chat transcript into a dense context block that preserves:
 - Every decision made
 - Every task or commitment discussed
 - Every topic/person/project referenced (with specific names)
@@ -99,71 +85,43 @@ async function summarizeViaVenice(messages: CompactMessage[]): Promise<string | 
 
 Format: bulleted notes under headers. Max 400 words. Skip filler. Keep specific numbers, dates, names. If something was unresolved, mark it [UNRESOLVED].`;
 
-  // Apr 19 · Timeout dropped from 30s → 5s. The old 30s cap meant a
-  // single slow Venice call could block the chat stream from opening,
-  // tripping the browser/edge timeout and showing "Nick is stuck".
-  // Returning null → the caller falls through to uncompressed
-  // messages, which the model can still handle within its context.
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), 5_000);
+/**
+ * Summarize a chunk of messages into a dense context block.
+ *
+ * Wave 59 · routed through aiChat() (taskType "summary") instead of a
+ * raw Venice fetch. aiChat handles provider selection + fallback chain
+ * + circuit breaker + budget cap — the old raw fetch hardcoded the
+ * Venice model behind a VENICE_API_KEY guard and bypassed all of that
+ * (returned null with no fallback when the key was unset or Venice was
+ * down). Returns null on empty/failed output so the caller falls
+ * through to uncompressed messages.
+ */
+async function summarizeMessages(messages: CompactMessage[]): Promise<string | null> {
+  const transcript = messages
+    .map((m) => `${m.role.toUpperCase()}: ${m.content.slice(0, 800)}`)
+    .join("\n\n");
+
   try {
-    const res = await fetch("https://api.venice.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: transcript },
-        ],
-        temperature: 0.2,
-        // v10.0.179 · same root cause as the suggestions fix in
-        // v10.0.178. Without disable_thinking the heretic model
-        // burns tokens reasoning before producing the summary.
-        // Combined with the 5s timeout, the call frequently
-        // returned empty content → null → uncompressed messages
-        // sent to the model anyway. Setting disable_thinking
-        // makes the summary path actually summarize.
-        venice_parameters: {
-          include_venice_system_prompt: false,
-          strip_thinking_response: true,
-          disable_thinking: true,
-          enable_web_search: "off",
-        },
-      }),
-      signal: ctrl.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) {
-      console.warn(
-        `[conversation-compress] venice non-2xx · status=${res.status}`,
-      );
-      return null;
-    }
-    const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
-    };
-    const choice = data?.choices?.[0];
-    const text = choice?.message?.content?.trim() || null;
+    const reply = await aiChat(
+      [
+        { role: "system", content: SUMMARIZER_SYSTEM },
+        { role: "user", content: transcript },
+      ],
+      "summary",
+    );
+    const text =
+      (reply?.content ?? "")
+        .replace(/<think>[\s\S]*?<\/think>/gi, "")
+        .replace(/<\/?think>/gi, "")
+        .trim() || null;
     if (!text) {
-      console.warn(
-        `[conversation-compress] venice empty content · finish_reason=${choice?.finish_reason ?? "unknown"}`,
-      );
+      console.warn("[conversation-compress] summarizer returned empty content");
       return null;
     }
-    return text
-      .replace(/<think>[\s\S]*?<\/think>/gi, "")
-      .replace(/<\/?think>/gi, "")
-      .trim() || null;
+    return text;
   } catch (err) {
-    clearTimeout(t);
     const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes("aborted")) {
-      console.warn(`[conversation-compress] venice fetch error · ${msg}`);
-    }
+    console.warn(`[conversation-compress] summarizer error · ${msg}`);
     return null;
   }
 }
@@ -290,7 +248,7 @@ export async function compressConversation(
           role: m.role as string,
           content: extractText(m),
         }));
-        summary = await summarizeViaVenice(flat);
+        summary = await summarizeMessages(flat);
         if (summary) {
           storeSummary(conversationId, summary, rawMessages.length).catch((err) =>
             recordError("ai:compression", err, { conversationId, op: "storeSummary-async" }),
@@ -307,7 +265,7 @@ export async function compressConversation(
       role: m.role as string,
       content: extractText(m),
     }));
-    summary = await summarizeViaVenice(flat);
+    summary = await summarizeMessages(flat);
   }
 
   if (!summary) {

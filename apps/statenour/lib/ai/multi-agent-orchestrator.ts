@@ -158,13 +158,16 @@ const guardedSubAgent = withGuardian("multi-agent-sub", callSubAgent, {
   maxRetries: 1,
 });
 
+// v10.0.529.106 · Wave 59 · routes through aiChat() provider chain
+// instead of raw fetch to OpenAI — same fix as callSubAgent above and
+// across pretask-fanout.ts / deep-research.ts. The old raw fetch
+// hardcoded gpt-4o-mini behind a `process.env.OPENAI_API_KEY` guard
+// that returned "" when the key was unset, producing blank synthesis
+// and bypassing the provider fallback chain, budget cap, and tracing.
 async function callSynthesizer(args: {
   goal: string;
   results: SubAgentResult[];
 }): Promise<string> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return "";
-
   const dossier = args.results
     .map((r) => {
       if (r.failed) return `# ${r.name} (FAILED): ${r.error ?? "unknown error"}`;
@@ -174,39 +177,16 @@ async function callSynthesizer(args: {
 
   const userPrompt = `OPERATOR GOAL: ${args.goal}\n\nSUB-AGENT OUTPUTS (${args.results.length} agents):\n\n${dossier}\n\nSynthesize into ONE coherent answer.`;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: SYNTHESIZER_SYSTEM },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 1500,
-    }),
-    // wave-181.90 follow-up · 30s cap on multi-agent fanout synthesizer.
-    // Runs at the END of a fanout chain so a stall here blocks the entire
-    // composed turn (sub-agents already finished waiting). Catch below
-    // wraps the throw in a structured error.
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    const err: Error & { status?: number } = new Error(
-      `synthesizer ${res.status}: ${body.slice(0, 200)}`,
-    );
-    err.status = res.status;
-    throw err;
-  }
-
-  const data = await res.json();
-  return (data.choices?.[0]?.message?.content ?? "").trim();
+  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
+  const aiChat = makeTracedAiChat("multi-agent-orchestrator", "brain");
+  const reply = await aiChat(
+    [
+      { role: "system", content: SYNTHESIZER_SYSTEM },
+      { role: "user", content: userPrompt },
+    ],
+    "reason",
+  );
+  return (reply?.content ?? "").trim();
 }
 
 const guardedSynthesizer = withGuardian("multi-agent-synth", callSynthesizer, {
