@@ -19,13 +19,14 @@
  */
 
 import { Brain } from "lucide-react";
+import { today } from "@/lib/utils/datetime";
 
 export function HomeIdentityHeader() {
   // Client-render the date string in a stable timezone-aware fashion.
   // We don't import the day-of-week label here — too local + would
   // need an i18n decision. The ISO date alone is the operator-grade
   // marker (matches the rest of the OS).
-  const today = new Date().toISOString().slice(0, 10);
+  const todayStr = today();
   return (
     <section
       aria-label="home identity"
@@ -41,7 +42,7 @@ export function HomeIdentityHeader() {
       </span>
       <span className="text-[var(--text-tertiary)]/40">·</span>
       <span className="text-[10px] font-mono tabular-nums text-[var(--text-tertiary)]">
-        {today}
+        {todayStr}
       </span>
       <span className="ml-auto inline-flex items-center gap-1 text-[10px] font-mono text-[var(--text-tertiary)]">
         <span

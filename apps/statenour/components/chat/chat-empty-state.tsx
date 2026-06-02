@@ -18,6 +18,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { hourET } from "@/lib/utils/datetime";
 
 export function ChatEmptyState({ onPick: _onPick }: { onPick: (ask: string) => void }) {
   // `greeting` stays null until client mount (avoids hydration mismatch
@@ -25,7 +26,7 @@ export function ChatEmptyState({ onPick: _onPick }: { onPick: (ask: string) => v
   const [greeting, setGreeting] = useState<string | null>(null);
 
   useEffect(() => {
-    const h = new Date().getHours();
+    const h = hourET();
     setGreeting(h < 12 ? "morning" : h < 17 ? "afternoon" : h < 22 ? "evening" : "late");
   }, []);
 
