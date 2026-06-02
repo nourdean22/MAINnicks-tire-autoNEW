@@ -39,7 +39,7 @@ interface CustomersBriefProps {
   onLapsedAction: () => void;
 }
 
-function formatDollars(cents: number): string {
+function formatCents(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
@@ -105,8 +105,8 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
           <div className="flex items-center gap-2.5">
             <DollarSign className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="text-[12.5px] text-foreground/85 leading-tight">
-              LTV · {formatDollars(totalRevenueCents)} across the database
-              {avgTicketCents > 0 ? ` · ${formatDollars(avgTicketCents)} avg lifetime per customer` : ""}
+              LTV · {formatCents(totalRevenueCents)} across the database
+              {avgTicketCents > 0 ? ` · ${formatCents(avgTicketCents)} avg lifetime per customer` : ""}
               {emailCoverage > 0 ? ` · ${emailCoverage}% have email` : ""}
             </span>
           </div>
