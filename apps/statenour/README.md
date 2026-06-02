@@ -171,15 +171,13 @@ is "everything degrades gracefully · operator pastes credentials to
 activate each substrate". Status surfaces on `/api/health`:
 
 ```bash
-curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust, agentV2}'
+curl https://bdnick.info/api/health | jq '.data | {inngest, braintrust}'
 ```
 
 Operator action items per substrate · each is a 5-minute paste:
 
 | Substrate | Flip mechanism | Runbook |
 |---|---|---|
-| Mastra agent (AGENT_V2) | `pnpm smoke:agent-v2` → `AGENT_V2=true` | `docs/WAVE-200-PLAN.md` Phase 1 |
-| Mastra memory persistence | `MASTRA_MEMORY_BACKEND=pg` | `docs/adr/0009-mastra-memory.md` |
 | Braintrust tracing | paste `BRAINTRUST_API_KEY` | `docs/adr/0002-braintrust-observability.md` |
 | Inngest workflows | paste `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY` + connect URL | `docs/operator/inngest-setup.md` |
 | LiveKit voice | new Railway service `statenour-voice` + paste 7 env vars | `apps/voice/README.md` |
@@ -187,9 +185,6 @@ Operator action items per substrate · each is a 5-minute paste:
 Local dev for each substrate:
 
 ```bash
-# Agent · smoke the Mastra path in-process (2 turns · memory check)
-pnpm smoke:agent-v2
-
 # Inngest · local dev runner (no cloud account needed)
 pnpm inngest:dev                 # opens http://localhost:8288
 # In another terminal: pnpm dev (so the serve endpoint exists)
@@ -202,7 +197,7 @@ python agent.py dev
 ```
 
 Health snapshot (after deploys):
-- `/api/health` · top-level state + `{inngest, braintrust, agentV2}` block
+- `/api/health` · top-level state + `{inngest, braintrust}` block
 - `/api/inngest` · 503+hint if not configured, friendly JSON otherwise
 - `/api/morning-brief/today.mp3` · audio for today (404 with hint if
   cron hasn't run yet · 200 + audio/mpeg otherwise)
@@ -241,7 +236,6 @@ pnpm prompt:size-check           # system prompt token budget
 pnpm calibrate:dry               # dry-run auto-calibrate cron
 
 # WAVE-200
-pnpm smoke:agent-v2              # 2-turn in-process probe of Mastra path
 pnpm inngest:dev                 # Inngest local dev runner (port 8288)
 ```
 

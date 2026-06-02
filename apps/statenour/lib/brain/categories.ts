@@ -448,7 +448,7 @@ export const BRAIN_CATEGORIES = {
    *  surfaces in the existing /system/logs unified tail. */
   DEPENDENCY_CVE: "dependency_cve",
 
-  // ── Phase V · AGENT_V1 → AGENT_V2 judge-eval (2026-05-18 PM) ──
+  // ── Phase V · judge-eval (2026-05-18 PM) ──
   /** Phase V · prompt-comparison run record · stores prompt + V1 reply
    *  + V2 reply + LLM-judge verdict · the /system/judge-eval dashboard
    *  aggregates over these rows to compute win-rate trends per intent

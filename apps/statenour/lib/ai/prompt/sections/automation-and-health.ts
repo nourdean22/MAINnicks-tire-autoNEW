@@ -96,6 +96,10 @@ export function renderRecentBrainDumps(input: {
     date: string;
     summary: string | null;
     patterns: unknown;
+    entryType: string | null;
+    linkStatus: string | null;
+    goal: { title: string } | null;
+    mission: { title: string } | null;
   }[];
 }): string[] {
   const { recentBrainDumps } = input;
@@ -107,8 +111,18 @@ export function renderRecentBrainDumps(input: {
   const p: string[] = [];
   p.push(`# RECENT BRAIN DUMPS`);
   for (const dump of recentBrainDumps) {
-    if (dump.summary) p.push(`${dump.date}: ${dump.summary.slice(0, 200)}`);
-    if (dump.patterns) p.push(`Patterns: ${String(dump.patterns).slice(0, 120)}`);
+    const type = dump.entryType ?? "raw";
+    // Surface the goal/mission link only when auto-detected or
+    // operator-confirmed; never proposed/rejected (anti-fabrication:
+    // an unconfirmed link is not yet trusted as fact).
+    const link =
+      dump.linkStatus === "auto" || dump.linkStatus === "confirmed"
+        ? (dump.goal?.title ?? dump.mission?.title ?? null)
+        : null;
+    const linkNote = link ? ` -> ${link}` : "";
+    if (dump.summary)
+      p.push(`${dump.date} [${type}]${linkNote}: ${dump.summary.slice(0, 180)}`);
+    if (dump.patterns) p.push(`Patterns: ${String(dump.patterns).slice(0, 100)}`);
   }
   p.push(``);
   return p;

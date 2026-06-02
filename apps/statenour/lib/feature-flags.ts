@@ -52,17 +52,6 @@ export interface FeatureFlag {
 }
 
 export const FLAG_REGISTRY: FeatureFlag[] = [
-  // ── AGENT V2 (Mastra) cutover ──────────────────────────────────
-  {
-    key: "AGENT_V2",
-    description: "Routes /api/ai/chat through the Mastra agent (Phase 1.5 of Wave-200). When OFF, the legacy direct-provider chat path handles all turns.",
-    status: "canary",
-    onValue: "true",
-    defaultBehavior: "Legacy direct-provider chat path.",
-    relatedMigration: "agent-v1-to-v2",
-    ownerDoc: "docs/WAVE-200-PLAN.md",
-  },
-
   // ── Auth bypasses ──────────────────────────────────────────────
   {
     key: "AUTH_ALLOW_MOCK_IN_PROD",
@@ -79,16 +68,6 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     onValue: "1",
     defaultBehavior: "Auth enforced in dev too · use Google OAuth.",
     ownerDoc: "lib/auth-guard.ts",
-  },
-
-  // ── Database / persistence ─────────────────────────────────────
-  {
-    key: "MASTRA_MEMORY_BACKEND",
-    description: "Activates @mastra/pg persistent memory in the existing Neon DB (mastra schema auto-created). Phase 1.3 of Wave-200.",
-    status: "experimental",
-    onValue: "pg",
-    defaultBehavior: "In-memory volatile Mastra memory · resets on cold start.",
-    ownerDoc: "src/mastra/memory.ts",
   },
 
   // ── AI provider pinning ────────────────────────────────────────

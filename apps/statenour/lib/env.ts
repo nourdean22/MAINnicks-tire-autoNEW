@@ -77,8 +77,6 @@ export const ENV_SPEC: Spec[] = [
   // ── WAVE-200 substrate (2026-05-17) ────────────────────────────────
   // All runtime · substrate degrades gracefully when missing. See
   // docs/WAVE-200-PLAN.md + per-substrate ADRs for activation.
-  { key: "AGENT_V2",                tier: "runtime", description: "Wave-200 Phase 1.5 · 'true' routes /api/ai/chat through Mastra agent (run `pnpm smoke:agent-v2` first)" },
-  { key: "MASTRA_MEMORY_BACKEND",   tier: "runtime", description: "Wave-200 Phase 1.3 · 'pg' activates @mastra/pg persistent memory in the existing Neon DB (mastra schema auto-created)" },
   { key: "BRAINTRUST_API_KEY",      tier: "runtime", description: "Wave-200 Phase 0 · enables Mastra agent traces in Braintrust dashboard" },
   { key: "BRAINTRUST_PROJECT_NAME", tier: "runtime", description: "Wave-200 Phase 0 · Braintrust project name (default: statenour-nick)" },
   { key: "INNGEST_EVENT_KEY",       tier: "runtime", description: "Wave-200 Phase 3 · Inngest event-send key (paste from app.inngest.com → app → keys)" },
