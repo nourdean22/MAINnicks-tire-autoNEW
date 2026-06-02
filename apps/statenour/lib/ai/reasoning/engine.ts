@@ -689,6 +689,21 @@ async function runReasoningEngine(
   // Step 3 · context gather (fanout · multi-agent · deep-research · mega)
   let context = "";
 
+  // H.8 · helper to ingest a sub-pipeline result into the accumulator.
+  // Hoisted above the smart/mega/sequential blocks so all three share
+  // the one definition (the acc-update logic was previously copy-pasted
+  // inline in smart + mega). Closes over the mutable `callCount` + `acc`.
+  const ingestSubPipeline = (res: SubPipelineResult) => {
+    callCount += res.callCount;
+    if (res.usd > 0) {
+      acc.usd += res.usd;
+      acc.calls += res.callCount;
+    } else {
+      acc.calls += res.callCount;
+      acc.callsWithoutCost += res.callCount;
+    }
+  };
+
   // M.1 · smart tier · CrewAI-inspired hierarchical router
   // A cheap router LLM (~$0.001) looks at the question + plan and
   // picks 1-3 of the 5 mega-tier sources to invoke. Saves ~85% of
@@ -762,16 +777,10 @@ async function runReasoningEngine(
       return promise;
     });
     const results = await Promise.all(pickedPromises);
-    callCount += results.reduce((s, r) => s + r.callCount, 0);
-    for (const r of results) {
-      if (r.usd > 0) {
-        acc.usd += r.usd;
-        acc.calls += r.callCount;
-      } else {
-        acc.calls += r.callCount;
-        acc.callsWithoutCost += r.callCount;
-      }
-    }
+    // H.8 · ingestSubPipeline does `callCount += r.callCount` per result,
+    // summing to the same total the prior `results.reduce(... callCount)`
+    // produced · plus the identical acc.usd/calls/callsWithoutCost update.
+    for (const r of results) ingestSubPipeline(r);
     const parts: string[] = [];
     const labels: Record<SmartSource, string> = {
       research: "# DEEP RESEARCH",
@@ -921,30 +930,14 @@ async function runReasoningEngine(
         emptyPipe,
       ),
     ]);
-    // H.8 · real callCount from sub-pipelines, replacing magic constants
-    callCount += research.callCount + multi.callCount + fan.callCount;
-    // H.8 · push real usd into the accumulator (multi-agent reports it)
-    if (research.usd > 0) {
-      acc.usd += research.usd;
-      acc.calls += research.callCount;
-    } else {
-      acc.calls += research.callCount;
-      acc.callsWithoutCost += research.callCount;
-    }
-    if (multi.usd > 0) {
-      acc.usd += multi.usd;
-      acc.calls += multi.callCount;
-    } else {
-      acc.calls += multi.callCount;
-      acc.callsWithoutCost += multi.callCount;
-    }
-    if (fan.usd > 0) {
-      acc.usd += fan.usd;
-      acc.calls += fan.callCount;
-    } else {
-      acc.calls += fan.callCount;
-      acc.callsWithoutCost += fan.callCount;
-    }
+    // H.8 · real callCount + cost from sub-pipelines, replacing magic
+    // constants. ingestSubPipeline does the identical `callCount +=` plus
+    // acc.usd/calls/callsWithoutCost update the three inline blocks did;
+    // ghost + wisdom report callCount:0 so they're intentionally skipped
+    // (the prior code only ingested research/multi/fan — preserved).
+    ingestSubPipeline(research);
+    ingestSubPipeline(multi);
+    ingestSubPipeline(fan);
     const parts: string[] = [];
     if (research.content) parts.push(`# DEEP RESEARCH\n${research.content}`);
     if (multi.content) parts.push(`# MULTI-AGENT SYNTHESIS\n${multi.content}`);
@@ -973,18 +966,6 @@ async function runReasoningEngine(
       Date.now() - t,
     );
   }
-
-  // H.8 · helper to ingest a sub-pipeline result into the accumulator
-  const ingestSubPipeline = (res: SubPipelineResult) => {
-    callCount += res.callCount;
-    if (res.usd > 0) {
-      acc.usd += res.usd;
-      acc.calls += res.callCount;
-    } else {
-      acc.calls += res.callCount;
-      acc.callsWithoutCost += res.callCount;
-    }
-  };
 
   if (!context && tier === "thorough") {
     try {
