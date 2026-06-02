@@ -940,12 +940,12 @@ ${finalSystemPrompt}`;
   // Quick mode → zero tools. Standard → ~15-30 relevant. Deep → all 159.
   // Cuts Venice first-token latency from 10-30s → 2-5s for conversational
   // messages without removing any capability from data-heavy queries.
-  let prunedTools = pruneTools(
+  let prunedTools = (await pruneTools(
     mode,
     nourTools as unknown as Record<string, unknown>,
     userContent,
     userEmbedding
-  ) as typeof nourTools;
+  )) as typeof nourTools;
 
   // Apply the AI config's tool blocklist (#13). Tools in
   // ai_config.disabledTools are NEVER loaded regardless of mode —

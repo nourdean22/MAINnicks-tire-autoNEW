@@ -219,12 +219,18 @@ export async function pruneNoise(): Promise<{ pruned: number }> {
     where: { expiresAt: { lt: new Date() } },
   });
 
-  // Delete very low confidence memories (below 0.1) that haven't been seen in 14+ days
-  const stale = await prisma.brainMemory.deleteMany({
+  // Soft-delete very low confidence memories (below 0.1) that haven't
+  // been seen in 14+ days. Was a hard deleteMany; the rest of this file
+  // (mergeMemories) soft-deletes to preserve source evidence + keep rows
+  // recoverable/auditable. Recall already filters deletedAt:null, so what
+  // gets recalled is UNCHANGED — but the rows aren't destroyed nightly.
+  const stale = await prisma.brainMemory.updateMany({
     where: {
       confidence: { lt: 0.1 },
       lastSeen: { lt: daysAgo(14) },
+      deletedAt: null,
     },
+    data: { deletedAt: new Date() },
   });
 
   // Delete duplicate action_frequency entries (keep the latest)

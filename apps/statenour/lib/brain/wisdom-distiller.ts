@@ -369,6 +369,17 @@ If the evidence is too thin or generic for principle-shaped output, return an EM
   }
 
   // Store new wisdom (skip duplicates via Jaccard similarity).
+  // Stable key from a content hash of the principle (mirrors the
+  // wisdom_from_<id> intent in memory-consolidation's promoteToWisdom).
+  // The prior `wisdom_distilled_${Date.now()}_...` minted a fresh key
+  // every run, so re-distilling the same principle wrote a brand-new
+  // row — dedup leaned entirely on Jaccard. A deterministic key makes
+  // the upsert idempotent (same principle → same row).
+  const wisdomHash = (s: string): string => {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    return Math.abs(h).toString(36).slice(0, 8);
+  };
   const stored: string[] = [];
   for (const principle of principles.slice(0, 3)) {
     // v9.1.25 · skip if ANY existing wisdom (including newly stored
@@ -381,7 +392,7 @@ If the evidence is too thin or generic for principle-shaped output, return an EM
 
     await brainMemory.remember(
       "wisdom",
-      `wisdom_distilled_${Date.now()}_${stored.length}`,
+      `wisdom_${wisdomHash(principle.slice(0, 120))}`,
       principle,
       "wisdom-distiller",
       { distilledFrom: evidence.length, distilledAt: today() }

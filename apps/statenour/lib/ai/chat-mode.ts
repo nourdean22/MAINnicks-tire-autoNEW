@@ -55,19 +55,21 @@ export type { ChatMode };
  * hitting Venice. This prune still runs so that when we route to a
  * tool-capable provider or model, we pass the right slice.
  */
-export function pruneTools(
+export async function pruneTools(
   mode: ChatMode,
   allTools: Record<string, unknown>,
   userContent: string,
   userEmbedding?: number[]
-): Record<string, unknown> {
+): Promise<Record<string, unknown>> {
   const isDeep = mode === "deep";
 
   // Filter out circuit-breaker-blocked tools BEFORE pruning. A tool
   // that's misbehaving shouldn't waste context budget showing up in
   // the toolset every turn during cooldown.
-  // Imported lazily to keep this module's import graph small.
-  const { isToolBlocked } = require("@/lib/ai/tool-telemetry") as typeof import("@/lib/ai/tool-telemetry");
+  // Dynamic import (not CommonJS require) keeps this module's import
+  // graph small AND stays ESM/Edge-safe — a bare require() throws in
+  // those runtimes.
+  const { isToolBlocked } = await import("@/lib/ai/tool-telemetry");
   const allowedTools: Record<string, unknown> = {};
   for (const [name, tool] of Object.entries(allTools)) {
     if (!isToolBlocked(name)) allowedTools[name] = tool;
@@ -110,8 +112,9 @@ export function pruneTools(
   // standard mode keeps the tight top-15.
   if (userEmbedding && userEmbedding.length > 0) {
     try {
-      // Lazy import to avoid module cycles
-      const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = require("./tool-embeddings") as typeof import("./tool-embeddings");
+      // Dynamic import (ESM/Edge-safe) — avoids module cycles + the
+      // bare-require() throw in non-CommonJS runtimes.
+      const { rankToolsBySimilarity, isToolEmbeddingCacheWarm } = await import("./tool-embeddings");
       if (isToolEmbeddingCacheWarm()) {
         const topN = isDeep ? 40 : 15;
         const ranked = rankToolsBySimilarity(userEmbedding, topN, 0.25);
