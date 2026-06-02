@@ -33,6 +33,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { today, toDateString } from "@/lib/utils/datetime";
 
 export type AxisDirection = "rising" | "falling" | "stable";
 
@@ -432,7 +433,9 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
   };
 
   const payload = JSON.stringify(snapshot);
-  const todayKey = now.toISOString().slice(0, 10);
+  // ET day-key (Cleveland). UTC slice rolled to the next calendar day
+  // after 8pm ET → two history rows for one ET day. today() is ET-correct.
+  const todayKey = today();
   await Promise.all([
     prisma.brainMemory.upsert({
       where: { category_key: { category: BRAIN_CATEGORIES.IDENTITY_SNAPSHOT, key: "current" } },
@@ -494,7 +497,7 @@ export async function computeIdentitySnapshot(): Promise<IdentitySnapshot> {
 async function seedSyntheticHistory(current: IdentitySnapshot, now: Date): Promise<void> {
   for (let daysBack = 6; daysBack >= 1; daysBack--) {
     const date = new Date(now.getTime() - daysBack * 86400_000);
-    const dateKey = date.toISOString().slice(0, 10);
+    const dateKey = toDateString(date); // ET day-key, matches todayKey above
     const synthetic: IdentitySnapshot = {
       ...current,
       computed_at: date.toISOString(),
