@@ -229,7 +229,7 @@ export function MessageEditControls({
       <button
         type="button"
         onClick={onStartEdit}
-        className="inline-flex items-center justify-center w-5 h-5 rounded-md border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/40 transition-colors"
+        className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md border border-[var(--border-default)] text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/40 transition-colors"
         title="Edit message"
         aria-label="Edit"
       >

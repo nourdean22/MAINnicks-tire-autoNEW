@@ -181,7 +181,7 @@ export function MessageInfoCard({ data, className }: { data: MessageInfoCardData
         type="button"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex items-center justify-center w-5 h-5 rounded-full border text-[10px]",
+          "inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border text-[10px]",
           "border-[var(--border-default)] bg-[var(--bg-raised)]/40",
           "text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:border-[var(--gold)]/40",
           "transition-colors",
