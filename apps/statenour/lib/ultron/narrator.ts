@@ -22,6 +22,10 @@
 import { prisma } from "@/lib/prisma";
 import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
 import { findLawsForPatterns, pickApplication, type LawRef } from "./adviser";
+import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
+
+// Opt-in LLM synthesis (NARRATOR_LLM_SYNTHESIS=1). See synthesizeNarration.
+const aiChatSynth = makeTracedAiChat("narrator-synthesis");
 
 // ── Public types ──────────────────────────────────────────
 export type NarratorVoice = "watcher" | "coach" | "analyst" | "adviser";
@@ -71,6 +75,65 @@ interface EngineInputs {
  * pattern keys. Keep patterns human-readable and stable — Adviser's
  * triggerPatterns match against these exact strings.
  */
+// Opt-in LLM synthesis. The rule-based voices below each map a SINGLE
+// signal to a template; they can't observe how signals COMBINE. When >=2
+// patterns fire, this asks the model for ONE compound observation across
+// them. Gated behind NARRATOR_LLM_SYNTHESIS=1 (off by default so it can
+// never regress the ticker until reviewed), cached per hour+signal to
+// avoid per-load LLM cost, best-effort (any failure or a "NONE" reply
+// yields no synthesis narration). Additive only - never replaces a voice.
+const synthCache = new Map<string, string>();
+
+async function synthesizeNarration(
+  inputs: EngineInputs,
+  patterns: string[],
+  now: string,
+): Promise<Narration | null> {
+  if (process.env.NARRATOR_LLM_SYNTHESIS !== "1") return null;
+  if (patterns.length < 2) return null;
+  const cacheKey = `${inputs.todayStr}-${inputs.hour}-${[...patterns].sort().join(",")}`;
+  let text = synthCache.get(cacheKey);
+  if (text === undefined) {
+    try {
+      const signal = {
+        patterns,
+        workoutSkippedStreakDays: inputs.workoutSkippedStreakDays,
+        habits: `${inputs.habitsDone}/${inputs.habitsTotal}`,
+        tasksDone: inputs.doneTasksToday,
+        tasksSkipped: inputs.skippedTasksToday,
+        driftOpen: inputs.driftOpen,
+        skipReasons: inputs.recentSkipReasons.slice(0, 3),
+        captures: inputs.recentCaptureSamples.slice(0, 2),
+      };
+      const res = await aiChatSynth(
+        [
+          {
+            role: "system",
+            content:
+              "You are Nick's back-stage observer. Given today's signals about Nour, surface ONE sharp compound observation that connects MULTIPLE signals into a pattern he can't see from any single metric. One sentence, concrete, no praise, no hedging, no restating a lone number. If nothing genuinely connects, reply with exactly: NONE",
+          },
+          { role: "user", content: JSON.stringify(signal) },
+        ],
+        "fast",
+      );
+      const out = (res.content ?? "").trim();
+      text = !out || out.toUpperCase() === "NONE" || out.length > 220 ? "" : out;
+    } catch {
+      text = "";
+    }
+    synthCache.set(cacheKey, text);
+  }
+  if (!text) return null;
+  return {
+    id: `synth-${inputs.todayStr}-${inputs.hour}`,
+    voice: "analyst",
+    severity: "info",
+    title: text,
+    triggers: [...patterns, "llm_synthesis"],
+    createdAt: now,
+  };
+}
+
 function extractTriggerPatterns(i: EngineInputs): string[] {
   const out: string[] = [];
 
@@ -443,6 +506,14 @@ export async function generateNarrations(): Promise<Narration[]> {
     }
   } catch {
     // swallow — narrator continues with whatever it has
+  }
+
+  // LLM synthesis - one compound observation across signals (opt-in).
+  try {
+    const synth = await synthesizeNarration(inputs, patterns, now);
+    if (synth) narrations.push(synth);
+  } catch {
+    // best-effort - synthesis is a bonus narration, never block others
   }
 
   // XP drift - surface the single most-significant mastery-cadence shift
