@@ -9,8 +9,9 @@ import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 export const maxDuration = 60;
 
-function getResend() {
-  return new Resend(process.env.RESEND_API_KEY);
+function getResend(): Resend | null {
+  const key = process.env.RESEND_API_KEY?.trim();
+  return key ? new Resend(key) : null;
 }
 
 function getWeekStart(): string {
@@ -329,7 +330,24 @@ export const GET = cronHandler(async () => {
   // Sunday 02:00 cron returned 500 → Vercel cron-failure email.
   // Source of recurring "deployment failed" emails Nour was getting
   // (despite the build itself being fine).
-  const emailRes = await getResend().emails.send({
+  // Guard: if RESEND_API_KEY is unset, the digest still assembled above — just
+  // skip the email send gracefully instead of letting `new Resend(undefined)`
+  // throw "Missing API key" (the recurring error on /system/logs). Mirrors the
+  // ternary guard in lib/services/email.ts + this route's own non-throwing intent.
+  const resend = getResend();
+  if (!resend) {
+    log.warn("resend_unconfigured", {
+      reason: "RESEND_API_KEY not set; digest assembled but not emailed",
+    });
+    return {
+      emailSent: false,
+      emailError: "RESEND_API_KEY not set",
+      weekStart,
+      avgScore,
+      driftAlerts: activeDriftCount,
+    };
+  }
+  const emailRes = await resend.emails.send({
     from: "NOUR OS <noreply@bdnick.info>",
     to: "nourdean22@gmail.com",
     subject: emailSubject,
