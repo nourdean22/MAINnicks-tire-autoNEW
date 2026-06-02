@@ -17,26 +17,6 @@ type FlagCategory = {
 
 const FLAG_CATEGORIES: FlagCategory[] = [
   {
-    label: "Customer Intelligence",
-    keys: ["engine_churn_prediction", "engine_repeat_visit_predictor", "engine_customer_risk_scores", "engine_value_trend", "engine_service_affinity"],
-    matchFn: (k) => ["engine_churn_prediction", "engine_repeat_visit_predictor", "engine_customer_risk_scores", "engine_value_trend", "engine_service_affinity"].includes(k),
-  },
-  {
-    label: "Revenue Intelligence",
-    keys: ["engine_revenue_anomaly", "engine_cash_flow_forecast", "engine_profit_margins", "engine_pricing_intelligence", "engine_seasonal_demand"],
-    matchFn: (k) => ["engine_revenue_anomaly", "engine_cash_flow_forecast", "engine_profit_margins", "engine_pricing_intelligence", "engine_seasonal_demand"].includes(k),
-  },
-  {
-    label: "Operations Intelligence",
-    keys: ["engine_tech_efficiency", "engine_capacity_forecast", "engine_turnaround_time", "engine_no_show_predictor"],
-    matchFn: (k) => ["engine_tech_efficiency", "engine_capacity_forecast", "engine_turnaround_time", "engine_no_show_predictor"].includes(k),
-  },
-  {
-    label: "Marketing Intelligence",
-    keys: ["engine_channel_roi", "engine_review_velocity", "engine_lead_response_time", "engine_content_performance", "engine_competitor_monitor"],
-    matchFn: (k) => ["engine_channel_roi", "engine_review_velocity", "engine_lead_response_time", "engine_content_performance", "engine_competitor_monitor"].includes(k),
-  },
-  {
     label: "SMS / Outreach",
     keys: ["sms_appointment_reminders", "sms_review_requests", "sms_retention_sequences", "sms_blast_enabled", "smart_sms_auto_reply", "sms_cross_sell_outreach", "sms_auto_quote"],
     matchFn: (k) => k.startsWith("sms_") || k === "smart_sms_auto_reply",
@@ -142,11 +122,12 @@ export default function FeatureFlagsPanel() {
     if (filter === "risky" && !isCustomerFacingFlag(f.key)) return false;
     return true;
   });
-  // wave-150 · hide the 19 engine_* toggles. They were DECORATIVE — nothing
-  // calls isEnabled() for them; the intelligence engines run unconditionally —
-  // so the toggles gave a false impression of control. Wiring them would be
-  // WORSE (flags default off → would DISABLE every engine on deploy). Stripping
-  // the fake toggles is the honest, zero-risk fix; the engines keep running.
+  // The 19 engine_* flags were DECORATIVE — nothing ever called isEnabled()
+  // for them; the intelligence engines run unconditionally, so the toggles
+  // implied control that didn't exist. They've been removed from
+  // FLAG_DEFINITIONS (no longer seeded) and a migration drops the existing
+  // DB rows (drizzle/0066_drop_engine_flags.sql). This prefix guard stays so
+  // any not-yet-migrated environment still hides the orphaned rows.
   const grouped = categorizeFlags(filtered.filter((f) => !f.key.startsWith("engine_")));
 
   return (

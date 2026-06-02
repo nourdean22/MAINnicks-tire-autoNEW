@@ -987,7 +987,7 @@ async function probeShopGatewayReachable(): Promise<boolean> {
  * sender. An unconfigured (dev/test) env keeps the legacy send path so the
  * test suite isn't forced down the new queue branch.
  */
-function isShopGatewayConfigured(): boolean {
+export function isShopGatewayConfigured(): boolean {
   return !!process.env.SHOP_SMS_GATEWAY_USERNAME && !!process.env.SHOP_SMS_GATEWAY_PASSWORD;
 }
 

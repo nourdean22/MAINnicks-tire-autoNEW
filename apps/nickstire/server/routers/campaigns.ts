@@ -12,7 +12,7 @@ import { z } from "zod";
 import { router, adminProcedure } from "../_core/trpc";
 import { eq, sql, desc, and, isNull } from "drizzle-orm";
 import { customers, smsCampaigns, smsCampaignSends } from "../../drizzle/schema";
-import { sendSms } from "../sms";
+import { sendSms, isShopGatewayReachable, isShopGatewayConfigured } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
@@ -35,6 +35,16 @@ const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) 
   winback: (firstName: string) =>
     `We miss you at Nick's Tire! Come back for 10% off your next visit. (216) 862-0005`,
 };
+
+/**
+ * TCPA/CTIA: bulk promotional SMS must carry opt-out instructions. Append a
+ * STOP footer unless the body already contains one (custom messages may).
+ * Applied to BOTH template and custom-message paths at the build site so the
+ * stored send body, the operator preview, and the actual send all match.
+ */
+function withOptOut(body: string): string {
+  return /\breply stop\b/i.test(body) ? body : `${body}\n\nReply STOP to opt out.`;
+}
 
 // ─── GET CUSTOMERS BY SEGMENT ──────────────────────────
 
@@ -149,9 +159,10 @@ export const campaignsRouter = router({
       return sampleCustomers.map(c => ({
         customer: c.firstName,
         phone: c.phone,
-        message:
+        message: withOptOut(
           input.customMessage ||
-          CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage),
+          CAMPAIGN_TEMPLATES[input.template](c.firstName, input.customMessage)
+        ),
       }));
     }),
 
@@ -221,7 +232,7 @@ export const campaignsRouter = router({
         campaignId: input.campaignId,
         customerId: customer.id,
         phone: customer.phone,
-        messageBody: messageBody.replace(/{firstName}/g, customer.firstName),
+        messageBody: withOptOut(messageBody.replace(/{firstName}/g, customer.firstName)),
         status: "pending" as const,
       }));
 
@@ -357,6 +368,17 @@ export const campaignsRouter = router({
 async function processCampaignSends(campaignId: number, batchSize: number = 50): Promise<void> {
   const d = await db();
   if (!d) return;
+
+  // Don't blast while the F25e gateway is offline. Sends would be deferred by
+  // sendSms (queued, not delivered) yet the rows are claimed "sent" first —
+  // reporting thousands of phantom "sent" on an offline night. Hold instead:
+  // leave rows 'pending' and let resumeStuckCampaigns (5-min cron) pick the
+  // campaign back up once the gateway returns. Mirrors the bulk-drain gate in
+  // sms.ts; skipped when the gateway isn't configured (dev/test send as before).
+  if (isShopGatewayConfigured() && !(await isShopGatewayReachable())) {
+    log.warn(`[Campaigns] F25e gateway offline — holding campaign ${campaignId}; rows stay pending for resume.`);
+    return;
+  }
 
   let totalSent = 0;
   let totalFailed = 0;
