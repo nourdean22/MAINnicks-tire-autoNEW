@@ -109,22 +109,86 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
       case "task.complete":
       case "loop.close": {
         const id = String(params.id);
-        const task = await prisma.task.update({
+        // 2026-06-02 · C7 fix · DAILY tasks must NOT be hard-set to DONE —
+        // that destroys the streak. Mirror completeTask's DAILY branch
+        // (lib/ai/tools/tasks.ts): bump streak via gap-check + stay READY.
+        const existing = await prisma.task.findUnique({
           where: { id },
-          data: {
-            status: "DONE",
-            lastCompletedAt: new Date(),
-            lastTouchedAt: new Date(),
-            autoPriorityExplanation:
-              type === "loop.close" && params.reason
-                ? `closed: ${String(params.reason)}`
-                : "completed via nick agent",
-          },
+          select: { loopKind: true, streakCount: true, lastCompletedAt: true, goalId: true, title: true },
         });
+        if (!existing) {
+          return { action: type, success: false, error: "task not found" };
+        }
+        const now = new Date();
+        const explanation =
+          type === "loop.close" && params.reason
+            ? `closed: ${String(params.reason)}`
+            : "completed via nick agent";
+
+        let task: { id: string; title: string; goalId: string | null };
+        if (existing.loopKind === "DAILY") {
+          // Same streak logic as completeTask / the /check route: local-day
+          // gap — 0 = already done today (idempotent), 1 = increment, else reset.
+          let nextStreak = 1;
+          if (existing.lastCompletedAt) {
+            const last = new Date(existing.lastCompletedAt);
+            const lastStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
+            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const gap = Math.round((todayStart.getTime() - lastStart.getTime()) / 86_400_000);
+            if (gap === 0) {
+              return {
+                action: type,
+                success: true,
+                result: {
+                  id,
+                  title: existing.title,
+                  loopKind: "DAILY",
+                  idempotent: true,
+                  streakCount: existing.streakCount,
+                  note: "already checked off today · streak preserved",
+                },
+              };
+            }
+            nextStreak = gap === 1 ? existing.streakCount + 1 : 1;
+          }
+          task = await prisma.task.update({
+            where: { id },
+            data: {
+              lastCompletedAt: now,
+              lastTouchedAt: now,
+              streakCount: nextStreak,
+              status: "READY", // DAILY stays in the loop
+              snoozedUntil: null,
+              autoPriorityExplanation: explanation,
+            },
+            select: { id: true, title: true, goalId: true },
+          });
+        } else {
+          task = await prisma.task.update({
+            where: { id },
+            data: {
+              status: "DONE",
+              lastCompletedAt: now,
+              lastTouchedAt: now,
+              autoPriorityExplanation: explanation,
+            },
+            select: { id: true, title: true, goalId: true },
+          });
+        }
         // 2026-06-01 · credit character-sheet stat XP + lift the linked goal
         // (this action path bypasses checkTask/updateTask). Idempotent.
-        void creditTaskStats(id);
-        if (task.goalId) void liftGoalOnTaskComplete(task.goalId, id);
+        // 2026-06-02 · was fire-and-forget `void` — a throw silently lost
+        // XP/goal-lift. Now awaited via allSettled; rejections are logged,
+        // but a failure here never blocks the user-facing action result.
+        const settled = await Promise.allSettled([
+          creditTaskStats(id),
+          ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, id)] : []),
+        ]);
+        for (const r of settled) {
+          if (r.status === "rejected") {
+            recordError("ai:tool-exec", r.reason, { taskId: id, actionType: type, op: "task.complete-sideeffect" });
+          }
+        }
         return { action: type, success: true, result: { id: task.id, title: task.title } };
       }
 
@@ -279,17 +343,78 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
         });
         // Apply any explicit field updates from the tool call · matched or created.
         if (resolution.matched) {
+          // 2026-06-02 · C1 fix · honor the suggest-then-approve gate.
+          // relationship / leverageNotes / interaction are low-risk →
+          // write immediately. But role + trustScore reclassify a person
+          // the operator may have curated → route them into
+          // pendingClassification (same shape as people-intelligence.ts
+          // writes + task.acceptClassification reads) so Nick can NEVER
+          // silently overwrite a role/trust; the operator approves on /people.
+          const current = await prisma.personProfile.findUnique({
+            where: { id: resolution.person.id },
+            select: { role: true, trustScore: true },
+          });
+          const { isPersonRole } = await import("@/lib/brain/person-roles");
+
+          // Immediate (low-risk) writes.
           await prisma.personProfile.update({
             where: { id: resolution.person.id },
             data: {
-              ...(params.role ? { role: String(params.role) } : {}),
               ...(params.relationship ? { relationship: String(params.relationship) } : {}),
-              ...(params.trustScore != null ? { trustScore: Number(params.trustScore) } : {}),
               ...(params.leverageNotes ? { leverageNotes: String(params.leverageNotes) } : {}),
               interactionCount: { increment: 1 },
               lastInteraction: new Date(),
             },
           });
+
+          // Build a role/trust PROPOSAL (never a live write).
+          const requestedRole = params.role ? String(params.role) : null;
+          const suggestedRole =
+            requestedRole && isPersonRole(requestedRole) && requestedRole !== current?.role
+              ? requestedRole
+              : null;
+          let trustAdjustment = 0;
+          if (params.trustScore != null && current) {
+            const rawAdj = Number(params.trustScore) - current.trustScore;
+            trustAdjustment = Number.isFinite(rawAdj)
+              ? Math.max(-0.1, Math.min(0.1, rawAdj))
+              : 0;
+          }
+
+          let pendingProposed = false;
+          if (suggestedRole || trustAdjustment !== 0) {
+            await prisma.personProfile.update({
+              where: { id: resolution.person.id },
+              data: {
+                pendingClassification: {
+                  role: suggestedRole,
+                  leverageNotes: null, // handled live above · not re-proposed
+                  trustAdjustment,
+                  basis: "nick_agent person.update",
+                  suggestedAt: today(),
+                } as object,
+              },
+            });
+            pendingProposed = true;
+          }
+          return {
+            action: type,
+            success: true,
+            result: {
+              id: resolution.person.id,
+              name: resolution.person.name,
+              matched: resolution.matched,
+              matchTier: resolution.matchTier,
+              // Report what actually happened so Nick narrates honestly.
+              applied: {
+                relationship: params.relationship ? String(params.relationship) : null,
+                leverageNotes: params.leverageNotes ? String(params.leverageNotes) : null,
+              },
+              pendingProposal: pendingProposed
+                ? { role: suggestedRole, trustAdjustment, awaitingApprovalOn: "/people" }
+                : null,
+            },
+          };
         } else if (params.leverageNotes) {
           // Created path · resolvePersonByName doesn't accept leverageNotes · set if provided.
           await prisma.personProfile.update({
@@ -928,7 +1053,7 @@ Available actions:
 | mission.plan | title, domain, priority?, successMetric?, tasks[{title, nextPhysicalAction, effort?, context?}] | Create a mission with multiple linked tasks |
 | habit.toggle | habitKey (wake/exercise/business/order/shutdown) | Toggle today's habit |
 | simulation.run | scenario | Run a what-if simulation |
-| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update person profile |
+| person.update | name, role?, relationship?, trustScore?, leverageNotes? | Update a person. relationship/leverageNotes/interaction apply immediately; role + trustScore become a PENDING proposal the operator approves on /people (never a silent reclassify). |
 
 ### Shop Actions (cross-system — talks to nickstire.org)
 | Action | Params | What It Does |
