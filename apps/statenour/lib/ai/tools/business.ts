@@ -247,12 +247,16 @@ export const businessTools = {
       period2To: z.string().describe("Second period end YYYY-MM-DD"),
     }),
     execute: async ({ period1From, period1To, period2From, period2To }) => {
-      const { queryNickBatch } = await import("@/lib/nickstire/query");
-      const results = await queryNickBatch([
-        { query: "revenue_range", filters: { from: period1From, to: period1To } },
-        { query: "revenue_range", filters: { from: period2From, to: period2To } },
+      const { queryNick } = await import("@/lib/nickstire/query");
+      // Two paired single queries — NOT queryNickBatch. The batch result is
+      // keyed by query NAME, so two "revenue_range" entries collapsed into
+      // one key and BOTH periods returned the same value (Nick always said
+      // the two periods were identical). v-fix 2026-06-02.
+      const [period1, period2] = await Promise.all([
+        queryNick("revenue_range", { from: period1From, to: period1To }),
+        queryNick("revenue_range", { from: period2From, to: period2To }),
       ]);
-      return { period1: results["revenue_range"], period2: results["revenue_range"], note: "Compare totalDollars and invoiceCount between periods" };
+      return { period1, period2, note: "Compare totalDollars and invoiceCount between periods" };
     },
   }),
 
