@@ -189,9 +189,13 @@ export const TOOL_CATALOG: ToolMeta[] = [
   { name: "writeCreative",                category: "ai_analysis",    cost: "medium" },
 
   // ── brain ────────────────────────────────────────────────────────
+  { name: "analyzeFitness",               category: "brain",          cost: "free" },
   { name: "analyzeGoals",                 category: "brain",          cost: "free" },
   { name: "analyzeMentalHealth",          category: "brain",          cost: "free" },
+  { name: "analyzeSleep",                 category: "brain",          cost: "free" },
   { name: "analyzeTrends",                category: "brain",          cost: "free" },
+  { name: "analyzeWeightTrend",           category: "brain",          cost: "free" },
+  { name: "analyzeWorkHealth",            category: "brain",          cost: "free" },
   { name: "classifyThought",              category: "brain",          cost: "cheap" },
   { name: "getBlindSpots",                category: "brain",          battle: true, cost: "free" },
   { name: "getBrainHealth",               category: "brain",          battle: true, cost: "free" },
