@@ -15,7 +15,7 @@
  *
  * No visual or behavior change · this is a pure relocation. The hub
  * still:
- *   · groups every /system/* surface into 7 named categories
+ *   · groups the live /system/* surfaces into 4 named categories
  *   · pulls live counts from useSystemPulse (errors24h · cronFails24h
  *     · actionsPending · etc) and renders them as colored badges
  *   · auto-tints counts (rose for failing · amber for warn · emerald
@@ -31,15 +31,8 @@ import {
   Brain,
   Clock,
   Database,
-  Eye,
   FileText,
   Gauge,
-  Ghost,
-  MonitorSmartphone,
-  Shield,
-  Sparkles,
-  TrendingDown,
-  TrendingUp,
   Zap,
 } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -80,12 +73,6 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           count: pulse?.errors24h ?? 0,
           countTint: (pulse?.errors24h ?? 0) > 0 ? "text-rose-300 bg-rose-500/15" : "text-zinc-500 bg-zinc-800",
         },
-        {
-          href: "/system/features",
-          icon: Activity,
-          label: "Feature status",
-          subtitle: "honest registry · live · partial · dormant + activation triggers",
-        },
       ],
     },
     {
@@ -123,67 +110,16 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           countTint: "text-sky-300 bg-sky-500/10",
         },
         {
-          href: "/system/quality",
-          icon: Sparkles,
-          label: "Nick quality",
-          subtitle: "critic 4-axis score · 14-day trend · regen rate",
-          count: pulse?.nickQualityAvg7d ?? undefined,
-          countTint:
-            pulse?.nickQualityAvg7d != null && pulse.nickQualityAvg7d >= 80 ? "text-emerald-300 bg-emerald-500/10" :
-            pulse?.nickQualityAvg7d != null && pulse.nickQualityAvg7d >= 65 ? "text-amber-300 bg-amber-500/10" :
-            pulse?.nickQualityAvg7d != null ? "text-rose-300 bg-rose-500/10" : "text-zinc-500 bg-zinc-800",
+          // Wave AD · /system/{quality,decision-drift,ghost-nour,
+          // anti-patterns,gaps} all deleted → redirect to /system/
+          // calibration (next.config.ts). One honest link to the
+          // surviving surface instead of five 404-bound nav rows.
+          href: "/system/calibration",
+          icon: Gauge,
+          label: "Calibration",
+          subtitle: "eval scores · decision grades · operator-state lens",
         },
         { href: "/chat", icon: Brain, label: "Nick chat", subtitle: "talk to Nick · tool calls · citations" },
-      ],
-    },
-    {
-      heading: "Decisions + learning",
-      tint: "text-fuchsia-300",
-      items: [
-        {
-          // v10.0.529.103 · Wave 47 · /system/decision-drift route was
-          // merged into /system/quality (decisions tab) but this nav
-          // link was never updated · pointed at 404. Fixed.
-          href: "/system/quality?view=decisions",
-          icon: TrendingDown,
-          label: "Decision drift",
-          subtitle: "grade trend · review rate · overdue queue · misses",
-        },
-        {
-          href: "/system/ghost-nour",
-          icon: Ghost,
-          label: "Ghost Nour",
-          subtitle: "what past-Nour would choose · similarity search",
-        },
-        {
-          // v10.0.529.103 · Wave 47 · /system/anti-patterns was merged
-          // into /system/quality (lessons tab) · nav was 404. Fixed.
-          href: "/system/quality?view=lessons",
-          icon: TrendingUp,
-          label: "Anti-patterns",
-          subtitle: "tried X, failed reason Y · Nick consults pre-action",
-        },
-      ],
-    },
-    {
-      heading: "Devices + integrations",
-      tint: "text-cyan-300",
-      items: [
-        {
-          href: "/system/devices",
-          icon: MonitorSmartphone,
-          label: "Devices",
-          subtitle: "fleet · agent liveness · command queue",
-          count: pulse?.devicesOffline ?? 0,
-          countTint: (pulse?.devicesOffline ?? 0) > 0 ? "text-amber-300 bg-amber-500/15" : "text-zinc-500 bg-zinc-800",
-        },
-        // v10.0.529.49 · /integrations route deleted (orphan · zero
-        // inbound links · functionality lives on /system page already).
-        // Row removed from settings hub. Integration status visible
-        // via the /system page tiles + the agent-traces drill-down.
-        // v10.0.529.103 · Wave 47 · /system/gaps was merged into /system/
-        // coverage (gaps tab) · nav was 404. Fixed.
-        { href: "/system/coverage?view=gaps", icon: Eye, label: "Gaps scan", subtitle: "coded-but-not-surfaced · unscheduled crons · missing env" },
       ],
     },
     {
@@ -207,18 +143,6 @@ export function SystemOpsHub({ pulse }: { pulse: SystemPulseShape }) {
           icon: FileText,
           label: "Journal",
           subtitle: "raw thoughts · brain dumps · reflections · daily logs",
-        },
-      ],
-    },
-    {
-      heading: "Power + control",
-      tint: "text-rose-300",
-      items: [
-        {
-          href: "/system/power",
-          icon: Shield,
-          label: "Power panel",
-          subtitle: "provider pin · cost cap · strict mode · pause ALL crons · quiet mode",
         },
       ],
     },

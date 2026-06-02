@@ -11,11 +11,11 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { operatorProcedure } from "../../trpc";
+import { CRONS } from "@/config/crons";
 import {
   triggerCronByName,
   triggerCronByPath,
   setCronEnabled as setCronEnabledService,
-  listScheduledCrons,
   listCronControls,
   getCronStats,
 } from "@/lib/services/cron-control";
@@ -26,24 +26,6 @@ import {
   buildCronCommandDeck,
 } from "@/lib/services/system-pages";
 import { runManifestCron } from "@/lib/services/cron-control";
-const MEGA_FANOUT = [
-  "device-sync",
-  "learn",
-  "stale-tasks",
-  "device-health",
-  "brain-cycle",
-  "notification-sender",
-  "journal-checkin",
-  "embed-backfill",
-  "reflect",
-  "predict",
-  "think",
-  "consolidate",
-  "drift-check",
-  "daily-report",
-  "data-cleanup",
-  "intelligence",
-];
 
 export const cronProcedures = {
   /**
@@ -94,43 +76,41 @@ export const cronProcedures = {
 
   /**
    * Phase UU.2 · owner-only · the CronControlPanel catalog. Replaces
-   * GET /api/settings/crons · scheduled crons (from vercel.json) PLUS
-   * the mega-fanout virtual crons, each joined to its kill-switch
-   * control state + 14-day success/fail stats.
+   * GET /api/settings/crons · every actively-scheduled cron joined to
+   * its kill-switch control state + 14-day success/fail stats.
    *
-   * Assembles from the SAME three `cron-control` service functions the
-   * REST route calls (`listScheduledCrons` · `listCronControls` ·
-   * `getCronStats`) · the mega-fanout merge logic mirrors the route
-   * verbatim · drift impossible. Returns the row array directly (the
-   * panel reads `raw.data` off the legacy envelope · the tRPC query
-   * gives it the array unwrapped).
+   * Wave AD fix (2026-06-02): rows now come from the `config/crons.ts`
+   * manifest (the live source of truth that `cronDeck` / `/system/crons`
+   * use), NOT the deleted `vercel.json`. The prior path read
+   * `listScheduledCrons()` (which `fs.readFileSync`'d a non-existent
+   * vercel.json → `[]`) plus a stale hardcoded MEGA_FANOUT name list
+   * whose names didn't match the manifest → `getCronStats()` matched no
+   * rows → every cron showed "never". Joining on the manifest's real
+   * `name` restores accurate last-fired times. Returns the row array
+   * directly (the panel reads it unwrapped). Row shape is unchanged so
+   * CronControlPanel needs no edit.
    */
   cronCatalog: operatorProcedure.query(async () => {
-    const [scheduled, controls, stats] = await Promise.all([
-      listScheduledCrons(),
+    const [controls, stats] = await Promise.all([
       listCronControls(),
       getCronStats(),
     ]);
     const controlsMap = new Map(controls.map((c) => [c.jobName, c]));
-    const scheduledNames = new Set(scheduled.map((c) => c.jobName));
-    const virtualCrons = MEGA_FANOUT.filter(
-      (name) => !scheduledNames.has(name),
-    ).map((name) => ({
-      jobName: name,
-      path: `/api/cron/${name}`,
-      schedule: "(mega fanout)",
-    }));
-    const all = [...scheduled, ...virtualCrons];
-    return all.map((c) => {
-      const control = controlsMap.get(c.jobName);
-      const stat = stats[c.jobName] ?? {
+    // Active crons only — folded/retired/dormant don't fire on their own
+    // schedule, so a kill-switch + manual-trigger panel shouldn't list
+    // them (mirrors the scheduled-only intent of the old catalog).
+    return CRONS.filter((c) => c.mode === "active").map((c) => {
+      const control = controlsMap.get(c.name);
+      const stat = stats[c.name] ?? {
         lastSuccessAt: null,
         lastFailAt: null,
         success14d: 0,
         fail14d: 0,
       };
       return {
-        ...c,
+        jobName: c.name,
+        path: c.path ?? `/api/cron/${c.name}`,
+        schedule: c.schedule ?? "(mega fanout)",
         enabled: control?.enabled ?? true,
         note: control?.note ?? null,
         controlUpdatedAt: control?.updatedAt ?? null,

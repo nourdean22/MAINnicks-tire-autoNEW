@@ -45,7 +45,7 @@ import { Stethoscope } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 
 type CronMode = "active" | "folded" | "retired" | "dormant";
-type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert";
+type Category = "ingest" | "brain" | "hygiene" | "signals" | "review" | "compose" | "device" | "alert" | "action";
 
 interface CronRow {
   name: string;
@@ -96,7 +96,13 @@ const CATEGORY_META: Record<Category, { label: string; tint: string; glow: strin
   review:  { label: "review",    tint: "text-yellow-200",  glow: "shadow-[0_0_12px_rgba(250,204,21,0.25)]" },
   device:  { label: "device",    tint: "text-cyan-300",    glow: "shadow-[0_0_12px_rgba(103,232,249,0.3)]" },
   alert:   { label: "alert",     tint: "text-rose-300",    glow: "shadow-[0_0_12px_rgba(251,113,133,0.3)]" },
+  action:  { label: "action",    tint: "text-lime-300",    glow: "shadow-[0_0_12px_rgba(163,230,53,0.3)]" },
 };
+
+// Crash-proof fallback for any category value the manifest grows that
+// isn't yet mapped above — keeps the page rendering instead of throwing
+// "Cannot read properties of undefined (reading 'tint')".
+const FALLBACK_META = { label: "other", tint: "text-zinc-300", glow: "" };
 
 function timeAgo(iso: string | null): string {
   if (!iso) return "never";
@@ -443,10 +449,12 @@ export default function CronsPage() {
 
       {/* Rows grouped by category */}
       <div className="space-y-5">
-        {[...grouped.entries()].map(([category, list]) => (
+        {[...grouped.entries()].map(([category, list]) => {
+          const groupMeta = CATEGORY_META[category] ?? FALLBACK_META;
+          return (
           <section key={category} className="space-y-2">
-            <h2 className={cn("text-xs font-semibold uppercase tracking-wider", CATEGORY_META[category].tint)}>
-              {CATEGORY_META[category].label} · <span className="text-zinc-500 font-normal normal-case">{list.length}</span>
+            <h2 className={cn("text-xs font-semibold uppercase tracking-wider", groupMeta.tint)}>
+              {groupMeta.label} · <span className="text-zinc-500 font-normal normal-case">{list.length}</span>
             </h2>
             <div className="space-y-1.5">
               {list.map((row) => (
@@ -461,7 +469,8 @@ export default function CronsPage() {
               ))}
             </div>
           </section>
-        ))}
+          );
+        })}
       </div>
 
       {feed && (
@@ -499,7 +508,7 @@ function CronRowView({
   isRunning: boolean;
   isToggling: boolean;
 }) {
-  const meta = CATEGORY_META[row.category];
+  const meta = CATEGORY_META[row.category] ?? FALLBACK_META;
   const canTrigger = row.mode === "active";
   const durationStr = row.lastRunMs != null ? `${row.lastRunMs}ms` : "—";
 
