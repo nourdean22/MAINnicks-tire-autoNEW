@@ -105,3 +105,21 @@ TrafficFunnel, VoiceReceptionist, WalkInCalculator, WebVitals, WinBack, WorkOrde
 - **Y5 ALG probe → ADD confirm-warning gate** (keep raw probe, warn it kicks the counter).
 - **Y2 STOP footer · Y3 gateway-gate/queued · Y7 winback $ thresholds (VIP>$2000/fleet>$5000) · Y10 wasPaid · Y11 stale $35 → APPLY.**
 - **Y8 / Y9 / Y12 / Y13 → DEFERRED** (not greenlit — no behavior change this pass).
+
+## SHIPPED (2026-06-02)
+Both batches verified (tsc 0 · vitest 664 passed · vite build green) and PUSHED to `main`:
+- `fc659d65` batch 1 (safe: bug fixes + dedup + SettingsSection 1235->415 decomposition + WebVitalsPanel delete)
+- `b0afef15` batch 2 (operator-approved behavior fixes)
+Rebased onto sibling's statenour commits (nickstire-only, no conflicts). Railway redeploying nickstire.
+
+### ⚠ ONE MANUAL STEP REMAINING (operator)
+Apply `drizzle/0066_drop_engine_flags.sql` to prod DB (hand-applied — no auto-migrate):
+`DELETE FROM feature_flags WHERE key LIKE 'engine_%';`
+Until applied, the inert engine_* rows persist in DB but are HIDDEN by the UI prefix-guard (zero user impact). The code no longer seeds them.
+
+### Deferred follow-ups (next session)
+- **Y1** gbpContentGenerator fabricated testimonials/prices → Google (FTC risk) — deeper look (rewrite to real reviews+pricing OR gate to verified-data-only).
+- **Y8** winback `tire_customer` segment has no tire signal.
+- **Y9** WalkIn oil presets quote ~$82 vs advertised $49.
+- **Y12** CommandCenterSection (439 lines) nav-dead zombie — delete or restore.
+- **Y13** coupon `maxRedemptions` cap never enforced.
