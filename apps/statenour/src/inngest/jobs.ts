@@ -57,6 +57,20 @@ export const MORNING_JOBS: readonly string[] = [
   // not required. This closes the ingest-gmail-cadence flag.
   "/api/cron/ingest-calendar",
   "/api/cron/ingest-gmail",
+  // 2026-06-02 · operator-authorized activation of two parked daily
+  // relationship/brain crons that had impls + route.ts but were never
+  // wired to any trigger (manifest mode:"dormant"). Both are daily by
+  // intent and idempotent-per-day, so the daily MORNING slot matches
+  // their cadence exactly:
+  //   · relationship-birthday (intended 0 12 * * *) — dedups per
+  //     personId+ISO-date+kind via BrainMemory, so firing in the 9:00
+  //     UTC morning slot instead of noon UTC changes nothing but the
+  //     push hour (still same-day).
+  //   · kept-word-scan (intended 0 2 * * *) — scans the last 24h chat
+  //     and upserts per (personId, chatMessageId); a daily run is the
+  //     correct cadence regardless of which daily slot it lands in.
+  "/api/cron/relationship-birthday",
+  "/api/cron/kept-word-scan",
 ];
 
 /**
@@ -93,6 +107,15 @@ export const WEEKLY_JOBS: readonly string[] = [
   "/api/cron/weekly-digest",
   "/api/cron/weekly-review",
   "/api/cron/inbox-janitor",
+  // 2026-06-02 · operator-authorized activation of a parked Sunday-night
+  // relationship synthesis cron (impl + route.ts existed, but it was
+  // never wired → manifest mode:"dormant"). Its intended schedule is
+  // 0 23 * * 0 (Sunday) — which maps EXACTLY to this WEEKLY_JOBS append,
+  // since the evening fan-out appends WEEKLY_JOBS only on Sunday-ET. It
+  // is idempotent per ISO week (already-written week skips silently), so
+  // the slot shift (Sunday 23:00 UTC → Sunday-ET evening fan-out at
+  // 03:00 UTC) is harmless — still the same ISO week.
+  "/api/cron/relationship-weekly-synthesis",
 ];
 
 /**

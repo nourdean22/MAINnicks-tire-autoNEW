@@ -375,10 +375,11 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-birthday",
     schedule: "0 12 * * *",
-    // 2026-06-02 audit: impl exists but UNWIRED (absent from src/inngest/jobs.ts
-    // mega fan-out AND from Inngest functions) -> it never fires -> perma-"silent".
-    // Honest state = dormant. To activate: add to jobs.ts (mega fan-out) so it runs.
-    mode: "dormant",
+    // 2026-06-02 · operator-authorized · wired into MORNING_JOBS (mega
+    // fan-out, 9:00 UTC daily). Daily cadence + idempotent per
+    // personId+date+kind, so the slot shift from noon UTC to 9:00 UTC is
+    // harmless (same-day push).
+    mode: "active",
     category: "review",
     description: "Daily 12pm UTC · birthday + anniversary push · idempotent per personId+date.",
     memory: 256,
@@ -388,9 +389,12 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-weekly-synthesis",
     schedule: "0 23 * * 0",
-    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
-    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
-    mode: "dormant",
+    // 2026-06-02 · operator-authorized · wired into WEEKLY_JOBS, which the
+    // evening fan-out appends only on Sunday-ET — an EXACT match for this
+    // cron's intended Sunday (0 23 * * 0) cadence. Idempotent per ISO
+    // week, so the Sunday-23:00-UTC → Sunday-ET-evening-fan-out slot shift
+    // is harmless (same ISO week).
+    mode: "active",
     category: "review",
     description: "Wave AB · Sunday 11pm UTC · 3-paragraph synthesis of week's relationship movement · idempotent per ISO week.",
     memory: 512,
@@ -400,9 +404,11 @@ export const CRONS: CronDef[] = [
   {
     name: "kept-word-scan",
     schedule: "0 2 * * *",
-    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
-    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
-    mode: "dormant",
+    // 2026-06-02 · operator-authorized · wired into MORNING_JOBS (mega
+    // fan-out, 9:00 UTC daily). Daily cadence + per-(personId,
+    // chatMessageId) upsert over the last 24h of chat, so firing in the
+    // morning slot instead of 2:00 UTC is the correct daily cadence.
+    mode: "active",
     category: "brain",
     description: "Daily 2am UTC · scans last 24h chat for promises · upserts KEPT_WORD rows · drives ledger trust score.",
     memory: 512,
@@ -412,8 +418,16 @@ export const CRONS: CronDef[] = [
   {
     name: "dossier-autodraft",
     schedule: "0 4 * * 1",
-    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
-    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    // 2026-06-02 · operator authorized activation, but DELIBERATELY left
+    // dormant: the mega fan-out can only express two cadences (daily, or
+    // Sunday-ET via WEEKLY_JOBS) — it has NO Monday day-gate. This cron is
+    // Monday-only AND not idempotent-per-period (every run drafts up to 5
+    // dossiers via AI + 5 embedding refreshes with no per-week guard), so
+    // forcing it into the daily fan-out would run ~7× the intended AI
+    // spend and re-draft the same top-5 profiles every day. Wiring it
+    // needs either an Inngest-native function with its own `0 4 * * 1`
+    // trigger (inngest: true, like the INNGEST-NATIVE block above) or a
+    // Monday self-gate added inside the route. Flagged for the operator.
     mode: "dormant",
     category: "brain",
     description: "Monday 4am UTC · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
@@ -424,8 +438,15 @@ export const CRONS: CronDef[] = [
   {
     name: "greene-law-tag-refresh",
     schedule: "0 5 * * 1",
-    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
-    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    // 2026-06-02 · operator authorized activation, but DELIBERATELY left
+    // dormant (same blocker as dossier-autodraft above): Monday-only, and
+    // the mega fan-out has no Monday day-gate (only daily + Sunday-ET).
+    // It is also not idempotent-per-period — each run AI-tags up to 8
+    // profiles via tagApplicableLaws with no per-week guard — so daily
+    // firing would run ~7× the intended AI spend. Wiring it needs an
+    // Inngest-native function with its own `0 5 * * 1` trigger
+    // (inngest: true) or a Monday self-gate in the route. Flagged for
+    // the operator.
     mode: "dormant",
     category: "brain",
     description: "Wave Z · Monday 5am UTC · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
