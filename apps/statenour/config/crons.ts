@@ -375,7 +375,10 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-birthday",
     schedule: "0 12 * * *",
-    mode: "active",
+    // 2026-06-02 audit: impl exists but UNWIRED (absent from src/inngest/jobs.ts
+    // mega fan-out AND from Inngest functions) -> it never fires -> perma-"silent".
+    // Honest state = dormant. To activate: add to jobs.ts (mega fan-out) so it runs.
+    mode: "dormant",
     category: "review",
     description: "Daily 12pm UTC · birthday + anniversary push · idempotent per personId+date.",
     memory: 256,
@@ -385,7 +388,9 @@ export const CRONS: CronDef[] = [
   {
     name: "relationship-weekly-synthesis",
     schedule: "0 23 * * 0",
-    mode: "active",
+    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
+    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    mode: "dormant",
     category: "review",
     description: "Wave AB · Sunday 11pm UTC · 3-paragraph synthesis of week's relationship movement · idempotent per ISO week.",
     memory: 512,
@@ -395,7 +400,9 @@ export const CRONS: CronDef[] = [
   {
     name: "kept-word-scan",
     schedule: "0 2 * * *",
-    mode: "active",
+    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
+    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    mode: "dormant",
     category: "brain",
     description: "Daily 2am UTC · scans last 24h chat for promises · upserts KEPT_WORD rows · drives ledger trust score.",
     memory: 512,
@@ -405,7 +412,9 @@ export const CRONS: CronDef[] = [
   {
     name: "dossier-autodraft",
     schedule: "0 4 * * 1",
-    mode: "active",
+    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
+    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    mode: "dormant",
     category: "brain",
     description: "Monday 4am UTC · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
     memory: 1024,
@@ -415,7 +424,9 @@ export const CRONS: CronDef[] = [
   {
     name: "greene-law-tag-refresh",
     schedule: "0 5 * * 1",
-    mode: "active",
+    // 2026-06-02 audit: impl exists but UNWIRED (not in jobs.ts/Inngest) -> never
+    // fires -> perma-"silent". Honest state = dormant. Activate via jobs.ts.
+    mode: "dormant",
     category: "brain",
     description: "Wave Z · Monday 5am UTC · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
     memory: 512,
