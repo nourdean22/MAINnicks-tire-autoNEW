@@ -1132,20 +1132,20 @@ function buildAssistantConfig(serverUrl?: string): VapiAssistantConfig {
     // matters more than millisecond response.
     //
     // Tuning knobs (11Labs-specific):
-    //   stability 0.50    — slightly less than default (0.5) so Brian
-    //                       gets natural variation rather than monotone
+    //   stability 0.40    — below the 0.5 default so Brian gets natural
+    //                       emotional variation rather than monotone (more human)
     //   similarityBoost 0.80 — stick close to Brian's reference timbre
-    //   style 0.30        — bumped from previous 0.20 (Adam) to add
-    //                       more natural emotion/style on long sentences
+    //   style 0.40        — more expressive warmth/emphasis (was 0.30; the
+    //                       outbound follow-up assistant runs 0.45 for ref)
     //   useSpeakerBoost true — louder + cleaner on phone audio
     //   optimizeStreamingLatency 3 — 0-4; 3 is the sweet spot for phone
     voice: {
       provider: "11labs",
       voiceId: "nPczCjzI2devNBz1zQrb", // Brian — mature gravelly US male
       model: "eleven_turbo_v2_5",
-      stability: 0.50,
+      stability: 0.40, // was 0.50 - lower adds natural emotional variation (more human, less monotone)
       similarityBoost: 0.80,
-      style: 0.30,
+      style: 0.40, // was 0.30 - higher adds expressive warmth
       useSpeakerBoost: true,
       optimizeStreamingLatency: 3,
       enableSsmlParsing: true,
