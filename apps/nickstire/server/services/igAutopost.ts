@@ -490,7 +490,7 @@ function buildGenSystemPrompt(): string {
     "- Do NOT invent customer names, fake quotes, or fake statistics. If you reference a customer outcome, describe the SITUATION generically (no name).",
     "- You MAY quote a provided real Google review verbatim if one is supplied in the brief; never fabricate one.",
     "",
-    "OUTPUT a single JSON object only.",
+    "OUTPUT a single raw JSON object only — no markdown code fences, nothing before or after the JSON.",
   ].join("\n");
 }
 
@@ -556,6 +556,23 @@ const GEN_SCHEMA = {
   },
 } as const;
 
+/**
+ * Parse a JSON object out of an LLM text response. Venice's llama-3.3-70b
+ * rejects response_format (json_object AND json_schema both 400 "not supported
+ * by this model"), so we instruct JSON in the prompt and parse defensively
+ * here: strip an optional markdown code fence, then isolate the outermost
+ * {...} before JSON.parse so leading/trailing prose can't break it.
+ */
+function parseJsonObject<T>(raw: string): T {
+  let s = raw.trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fence) s = fence[1].trim();
+  const first = s.indexOf("{");
+  const last = s.lastIndexOf("}");
+  if (first >= 0 && last > first) s = s.slice(first, last + 1);
+  return JSON.parse(s) as T;
+}
+
 async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): Promise<GeneratedPost> {
   const angle = forceArchetype ? angleForArchetype(forceArchetype) : pick(DIALS.angle);
   const visualConcept = pick(DIALS.visualConcept);
@@ -572,7 +589,6 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): P
       { role: "system", content: buildGenSystemPrompt() },
       { role: "user", content: buildGenUserPrompt(brief, dials) },
     ],
-    response_format: { type: "json_schema", json_schema: GEN_SCHEMA },
     max_tokens: 1200,
   });
 
@@ -580,9 +596,9 @@ async function generatePost(brief: SignalBrief, forceArchetype?: IgArchetype): P
   if (!content || typeof content !== "string") {
     throw new Error("LLM returned no caption content");
   }
-  const parsed = JSON.parse(content) as {
+  const parsed = parseJsonObject<{
     caption: string; hashtags: string[]; imagePrompt: string; conceptKey: string;
-  };
+  }>(content);
 
   const hashtags = (Array.isArray(parsed.hashtags) ? parsed.hashtags : [])
     .map((h) => h.replace(/^#/, "").trim().toLowerCase())
@@ -668,7 +684,7 @@ function buildEvalSystemPrompt(): string {
     "4. novelty — is the core idea clearly distinct from the supplied recent concept-keys? Near-duplicate of a recent idea = below 0.4.",
     "5. noFabrication — 1.0 if no invented customer names, fake quotes, or fake statistics. A quote that matches a supplied real review is fine. Any invented name/quote/stat = 0.0.",
     "",
-    "Return JSON only.",
+    "Return a single raw JSON object only — keys: viralShape, voice, priceCompliance, novelty, noFabrication (each a number 0.0-1.0) and notes (string). No markdown fences, no prose before or after.",
   ].join("\n");
 }
 
@@ -713,14 +729,13 @@ async function evalCaption(post: GeneratedPost, brief: SignalBrief): Promise<Cap
         ].join("\n"),
       },
     ],
-    response_format: { type: "json_schema", json_schema: EVAL_SCHEMA },
     max_tokens: 600,
   });
   const content = res.choices?.[0]?.message?.content;
   if (!content || typeof content !== "string") {
     throw new Error("eval LLM returned no content");
   }
-  const p = JSON.parse(content) as Record<string, unknown>;
+  const p = parseJsonObject<Record<string, unknown>>(content);
   return {
     viralShape: clamp01(p.viralShape),
     voice: clamp01(p.voice),
