@@ -134,7 +134,9 @@ export function renderLifeOps(input: LifeOpsInput): string[] {
     p.push(`🔴 ${overdueCommitments} OVERDUE commitments. Broken promises erode self-trust. Close or renegotiate TODAY.`);
   }
   p.push(`Active tasks: ${loopCount} | Active commitments: ${commitmentCount} | Active missions: ${missionCount}`);
-  p.push(`Customer base: ${customerCount} in DB`);
+  // customerCount is bridge-sourced + currently hardcoded 0 by the caller,
+  // so this asserted "Customer base: 0 in DB". Only show when real. v-fix 2026-06-02.
+  if (customerCount > 0) p.push(`Customer base: ${customerCount} in DB`);
   p.push(``);
 
   return p;
