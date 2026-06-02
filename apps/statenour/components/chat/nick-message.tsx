@@ -24,7 +24,6 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import { Streamdown, type Components as StreamdownComponents } from "streamdown";
 import remarkGfm from "remark-gfm";
-import { Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { alreadyHasGeneratedImage, looksLikeMarketingContent } from "@/lib/chat/marketing-detection";
 
@@ -89,16 +88,6 @@ interface NickMessageProps {
   showTiming?: boolean;
   /** Fork button (#4) — provided by the chat page. */
   onFork?: () => void;
-  /** Copy message text to clipboard */
-  onCopy?: (text: string) => void;
-  /** Create a task from this response */
-  onCreateTask?: (text: string) => void;
-  /** Save key insight to brain memory */
-  onSaveToBrain?: (text: string) => void;
-  /** Pin as permanent context — always-loaded "pinned_user" slot */
-  onPinToMemory?: (text: string) => void;
-  /** Feedback — thumbs up/down */
-  onFeedback?: (positive: boolean) => void;
   /** Message ID for feedback tracking */
   messageId?: string;
   /**
@@ -122,11 +111,6 @@ export function NickMessage({
   timing,
   showTiming = false,
   onFork,
-  onCopy,
-  onCreateTask,
-  onSaveToBrain,
-  onPinToMemory,
-  onFeedback,
   messageId,
   conversationId,
   model,
@@ -362,69 +346,6 @@ export function NickMessage({
             >
               ⑂ Fork
             </button>
-          )}
-        </div>
-      )}
-      {/* ── Message action bar — copy, task, brain, feedback ──
-          Touch targets: Apple HIG says 44pt minimum. We use 32px
-          (h-8 w-8) as a practical minimum for emoji buttons — enough
-          for thumbs without making the bar too heavy visually. */}
-      {!streaming && clean.length > 10 && (
-        <div className="flex items-center gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {onCopy && (
-            <button
-              onClick={() => onCopy(clean)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
-              title="Copy"
-            >
-              📋
-            </button>
-          )}
-          {onCreateTask && (
-            <button
-              onClick={() => onCreateTask(clean)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[12px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-all"
-              title="Create task"
-            >
-              ✅
-            </button>
-          )}
-          {onSaveToBrain && (
-            <button
-              onClick={() => onSaveToBrain(clean)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[12px] text-[var(--text-tertiary)] hover:text-violet-400 hover:bg-violet-500/10 transition-all"
-              title="Save to brain"
-            >
-              🧠
-            </button>
-          )}
-          {onPinToMemory && (
-            <button
-              onClick={() => onPinToMemory(clean)}
-              className="h-8 w-8 flex items-center justify-center rounded-lg text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--gold)]/10 transition-all"
-              title="Pin as permanent context — always loaded in Nick's prompt"
-            >
-              <Pin size={12} />
-            </button>
-          )}
-          {onFeedback && (
-            <>
-              <span className="w-px h-4 bg-[var(--border-default)] mx-0.5" />
-              <button
-                onClick={() => onFeedback(true)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-[12px] text-[var(--text-tertiary)] hover:text-emerald-400 hover:bg-emerald-500/10 transition-all"
-                title="Good response"
-              >
-                👍
-              </button>
-              <button
-                onClick={() => onFeedback(false)}
-                className="h-8 w-8 flex items-center justify-center rounded-lg text-[12px] text-[var(--text-tertiary)] hover:text-red-400 hover:bg-red-500/10 transition-all"
-                title="Bad response"
-              >
-                👎
-              </button>
-            </>
           )}
         </div>
       )}

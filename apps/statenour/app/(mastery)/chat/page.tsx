@@ -2146,18 +2146,6 @@ function Chat() {
                             messageId={msg.id}
                             conversationId={activeId ?? undefined}
                             onFork={msg.id && activeId ? () => handleFork(msg.id!) : undefined}
-                            onCopy={nickMessageActions.onCopy}
-                            onCreateTask={nickMessageActions.onCreateTask}
-                            onSaveToBrain={nickMessageActions.onSaveToBrain}
-                            onPinToMemory={nickMessageActions.onPinToMemory}
-                            onFeedback={(positive) =>
-                              postFeedback({
-                                messageId: msg.id,
-                                positive,
-                                snippet: part.text,
-                                conversationId: activeId,
-                              })
-                            }
                           />
                           </AssistantMessageShell>
                         ) : editingMsgId === msg.id ? (
@@ -2674,6 +2662,10 @@ function Chat() {
         onSaveAsBelief={messageActions.onSaveAsBelief}
         onSaveAsDecision={messageActions.onSaveAsDecision}
         onShowReasoning={messageActions.onShowReasoning}
+        onCreateTask={() => { if (actionSheetMsg) nickMessageActions.onCreateTask(actionSheetMsg.text); }}
+        onSaveToBrain={() => { if (actionSheetMsg) nickMessageActions.onSaveToBrain(actionSheetMsg.text); }}
+        onPinToPrompt={() => { if (actionSheetMsg) nickMessageActions.onPinToMemory(actionSheetMsg.text); }}
+        onFeedback={(positive) => { if (actionSheetMsg) postFeedback({ messageId: actionSheetMsg.id, positive, snippet: actionSheetMsg.text, conversationId: activeId }); }}
       />
 
       {/* v10.0.360 · BDI reasoning trace modal · "show reasoning"
