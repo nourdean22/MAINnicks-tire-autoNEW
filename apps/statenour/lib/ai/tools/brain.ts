@@ -633,6 +633,19 @@ export const brainTools = {
     },
   }),
 
+  // 2026-06-02 · goal-analyzer skill ported -> SMART scoring (5 dims ->
+  // S/A/B/C grade) grounded in real LifeGoal rows; surfaces unmeasurable
+  // (targetValue=0) + not-time-bound goals. Engine: lib/brain/analyzers/goal.ts.
+  analyzeGoals: tool({
+    description:
+      "Analyze Nour's active LifeGoals with the SMART framework (Specific/Measurable/Achievable/Relevant/Time-bound, each 1-5 -> S/A/B/C grade) plus progress and pace. Names each goal's weaknesses (e.g. targetValue=0 -> not measurable; no deadline -> not time-bound) with a concrete fix, and flags weak/unmeasurable goals across the portfolio. Use when Nour asks about his goals, whether they're well-formed/SMART, goal progress or quality, or 'are my goals any good / what's wrong with my goals'.",
+    inputSchema: z.object({}),
+    execute: async () => {
+      const { analyzeGoals } = await import("@/lib/brain/analyzers/goal");
+      return analyzeGoals();
+    },
+  }),
+
   getEmotionalState: tool({
     description: "Get Nour's current emotional arc — stress trajectory, dominant state, triggers, decision risk. Shows how emotions are affecting performance.",
     inputSchema: z.object({}),
