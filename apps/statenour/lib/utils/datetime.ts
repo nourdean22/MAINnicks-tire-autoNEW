@@ -15,6 +15,14 @@ export function hourET(at: Date = new Date()): number {
   return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(at)) % 24;
 }
 
+/** Day of week (0=Sun .. 6=Sat) in Eastern Time. The server runs UTC
+ *  (Railway), so `new Date().getDay()` returns the UTC weekday — use this
+ *  for ET day-gates (e.g. "only on Friday", "skip weekends") so they fire
+ *  on the right ET calendar day. */
+export function weekdayET(at: Date = new Date()): number {
+  return etCalendarParts(at).weekday;
+}
+
 /** Returns a Date object n days ago */
 export function daysAgo(n: number): Date {
   const d = new Date();

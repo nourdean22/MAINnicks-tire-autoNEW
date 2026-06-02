@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { sendTelegram } from "@/lib/services/telegram";
 import { sendEmail } from "@/lib/services/email";
 import { brainMemory } from "@/lib/brain/memory-manager";
-import { today, daysAgo, toDateString } from "@/lib/utils/datetime";
+import { today, daysAgo, toDateString, hourET, weekdayET } from "@/lib/utils/datetime";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
@@ -225,7 +225,7 @@ const RULES: ActionRule[] = [
   {
     name: "daily_score_reminder",
     trigger: async () => {
-      const hour = new Date().getHours();
+      const hour = hourET();
       if (hour < 19 || hour > 22) return []; // Only fire 7-10pm
       const todayStartET = new Date(
         new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
@@ -300,8 +300,8 @@ const RULES: ActionRule[] = [
   {
     name: "workout_reminder",
     trigger: async () => {
-      const hour = new Date().getHours();
-      const dayOfWeek = new Date().getDay();
+      const hour = hourET();
+      const dayOfWeek = weekdayET();
       if (hour < 15 || hour > 17 || dayOfWeek === 0 || dayOfWeek === 6) return [];
       const todayStartET = new Date(
         new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
@@ -342,8 +342,8 @@ const RULES: ActionRule[] = [
   {
     name: "midweek_target_check",
     trigger: async () => {
-      const dayOfWeek = new Date().getDay();
-      const hour = new Date().getHours();
+      const dayOfWeek = weekdayET();
+      const hour = hourET();
       if (dayOfWeek !== 3 || hour !== 12) return []; // Wednesday noon only
       const weekStart = new Date();
       weekStart.setDate(weekStart.getDate() - weekStart.getDay() + 1);
@@ -374,7 +374,7 @@ const RULES: ActionRule[] = [
   {
     name: "stale_leads_alert",
     trigger: async () => {
-      const hour = new Date().getHours();
+      const hour = hourET();
       if (hour < 9 || hour > 16) return [];
       // 2026-05-30 · was queryNick("stale_leads_count") — a DEAD bridge query
       // (HTTP 400 "Unknown query") that left `stale` always 0, so this alert
@@ -440,8 +440,8 @@ const RULES: ActionRule[] = [
   {
     name: "friday_revenue_check",
     trigger: async () => {
-      const day = new Date().getDay();
-      const hour = new Date().getHours();
+      const day = weekdayET();
+      const hour = hourET();
       if (day !== 5 || hour !== 14) return []; // Friday 2pm
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
       const data = await fetchBridge<{ totalDollars?: number }>("revenue_range", {
@@ -511,8 +511,8 @@ const RULES: ActionRule[] = [
   {
     name: "morning_brief_push",
     trigger: async () => {
-      const hour = new Date().getHours();
-      const day = new Date().getDay();
+      const hour = hourET();
+      const day = weekdayET();
       if (hour !== 7 || day === 0 || day === 6) return [];
       return [{ time: "7am" }];
     },
@@ -780,7 +780,7 @@ const RULES: ActionRule[] = [
   {
     name: "revenue_overconfidence_gate",
     trigger: async () => {
-      const hour = new Date().getHours();
+      const hour = hourET();
       if (hour < 8 || hour > 10) return []; // Morning after a big day
       const yesterdayET = toDateString(daysAgo(1));
       const todayET = toDateString(daysAgo(0));
@@ -838,7 +838,7 @@ const RULES: ActionRule[] = [
   {
     name: "quote_conversion_insight",
     trigger: async () => {
-      const day = new Date().getDay();
+      const day = weekdayET();
       if (day !== 0) return []; // Sunday only
       const data = await fetchBridge<{
         count?: number;
