@@ -152,12 +152,12 @@ export default function LocalBusinessSchema({
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Conventional", description: "With filter, 20-point check, and tire pressure check." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "45", description: "Conventional oil change from $45" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "49", description: "Conventional oil change from $49" },
         },
         {
           "@type": "Offer",
           itemOffered: { "@type": "Service", name: "Oil Change — Full Synthetic", description: "Mobil 1, Pennzoil Platinum, or equivalent." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "75", description: "Full synthetic oil change from $75" },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "80", description: "Full synthetic oil change from $80" },
         },
         {
           "@type": "Offer",
