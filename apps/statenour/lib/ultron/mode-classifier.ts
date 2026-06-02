@@ -11,6 +11,8 @@
  * v1 rules are deterministic. v2 may layer learned thresholds per-user.
  */
 
+import { hourET } from "@/lib/utils/datetime";
+
 export type UltronMode = "BATTLE" | "SURGICAL" | "RECOVERY" | "SHUTDOWN" | "NORMAL";
 
 export interface ClassifierInputs {
@@ -106,7 +108,7 @@ export function classifyMode(inputs: ClassifierInputs): ClassifierResult {
   } = inputs;
 
   const now = new Date();
-  const hourOfDay = now.getHours();
+  const hourOfDay = hourET(now);
 
   // v10.0.529.106 · Wave 63 · BODY-SIGNAL RECOVERY (top of precedence).
   // Sleep < 6h forces RECOVERY · this is the highest-confidence body

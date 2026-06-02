@@ -17,7 +17,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
 
 export interface Timeline {
   id: string;
@@ -119,7 +119,7 @@ export async function computeInputs(): Promise<Inputs> {
     habitsTotal,
     driftOpen: drift,
     sleepHoursAvg7d,
-    hourOfDay: now.getHours(),
+    hourOfDay: hourET(now),
   };
 }
 
@@ -144,7 +144,7 @@ export function generateTimelines(i: Inputs): Timeline[] {
       items.push({
         id: "skip-workout",
         kind: "if_skip",
-        text: `skip workout → -$185 wk rev avg, -2 discipline`,
+        text: `skip workout → -2 discipline · breaks momentum`,
         domain: "body",
         severity: "warn",
       });

@@ -20,7 +20,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { daysAgo, toDateString } from "@/lib/utils/datetime";
+import { daysAgo, hourET, toDateString } from "@/lib/utils/datetime";
 import { findLawsForPatterns, pickApplication, type LawRef } from "./adviser";
 
 // ── Public types ──────────────────────────────────────────
@@ -455,7 +455,7 @@ export async function generateNarrations(): Promise<Narration[]> {
  */
 async function computeEngineInputs(): Promise<EngineInputs> {
   const now = new Date();
-  const hour = now.getHours();
+  const hour = hourET(now);
   const todayStr = toDateString(now);
   const weekAgo = daysAgo(7);
   const twoDaysAgo = daysAgo(2);
