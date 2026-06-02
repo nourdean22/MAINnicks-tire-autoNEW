@@ -819,17 +819,6 @@ export function getModel(
 }
 
 /**
- * Smart model selection based on task complexity.
- * TaskType maps to Venice reasoning_effort + temperature automatically.
- */
-export function getModelForTask(
-  taskType: TaskType,
-  opts: GetModelOptions = {},
-): LanguageModel {
-  return getModel(taskType, opts);
-}
-
-/**
  * Whether the active provider supports tool calling.
  *
  * wave-fix-2026-05-25 · audit · was hardcoded `return true` claiming
@@ -848,20 +837,6 @@ export function getModelForTask(
 export function activeProviderSupportsTools(): boolean {
   const info = getActiveProviderInfo();
   return info.provider === "venice" || info.provider === "openai" || info.provider === "anthropic";
-}
-
-/**
- * Returns a model that supports tool calling.
- */
-export function getToolModel(taskType: TaskType = "reason"): LanguageModel {
-  return getModel(taskType);
-}
-
-/**
- * Returns provider info for the tool-capable model.
- */
-export function getToolProviderInfo(): { provider: ProviderName; modelId: string } {
-  return getActiveProviderInfo();
 }
 
 /**

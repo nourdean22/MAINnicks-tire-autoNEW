@@ -126,3 +126,19 @@ export function getOperatorPolicyLines(): readonly string[] {
 export function getOperatorPolicyBlock(): string {
   return getOperatorPolicyLines().join("\n");
 }
+
+/**
+ * Emoji label for each drift/brain alert ruleName, rendered in the
+ * live-state block of the system prompt. Shared so v1
+ * (sections/live-state.ts) and v2 (v2/renderer.ts) render identical
+ * alert lines · one definition · no drift.
+ */
+export const ALERT_LABEL: Record<string, string> = {
+  correlation_alert: "🔗 correlation",
+  decision_quality_drift: "📉 decision drift",
+  schema_drift_alert: "⚠️ schema drift",
+  storage_quota_alert: "💾 storage",
+  creation_spike_alert: "🌊 create spike",
+  update_spike_alert: "🔁 update spike",
+  brain_bus_alert: "🛰️ brain-bus",
+};

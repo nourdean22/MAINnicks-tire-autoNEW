@@ -36,13 +36,17 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { activeOnly } from "@/lib/db/soft-delete";
 import { today } from "@/lib/utils/datetime";
 import { logger } from "@/lib/logger";
 import { enrichInsightAsync } from "@/lib/services/auto-learn-llm";
 import { recordGhostOutcome } from "@/lib/brain/ghost-nick";
 import { semanticSearch, storeMemoryEmbedding } from "@/lib/brain/embedding-utils";
-import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  matchWisdom,
+  extractKeywords,
+  isPreferredPersonaKey,
+  personaFromKey,
+} from "@/lib/brain/wisdom-match";
 // 2026-06-01 · adaptive-bump constants centralized in scoring-config so the
 // 0-100 domain bump (here) and the character-sheet stat XP (creditTaskStats)
 // share one tunable source. Values are identical to the prior local copies.
@@ -64,19 +68,16 @@ const LEARNING_VERB_PATTERN =
 
 const TUTORIAL_PREFIX_PATTERN = /^(tutorial|lesson|learn|study|course)\s*[:\-—]\s*/i;
 
-// ─── WISDOM-MATCH (mirrors decision-replay-coach.ts pattern) ──────
+// ─── WISDOM-MATCH ─────────────────────────────────────────────────
+// Jaccard matching loop + helpers (extractKeywords/isPreferredPersonaKey/
+// personaFromKey) now live in lib/brain/wisdom-match.ts, shared with
+// decision-replay-coach.ts. These constants are auto-learn's OWN tuned
+// values, passed into the shared matchWisdom(). STOPWORDS = the shared
+// DEFAULT_WISDOM_STOPWORDS (identical set), so it's omitted here.
 
 const WISDOM_SCAN_LIMIT = 1500;
 const WISDOM_SIM_FLOOR = 0.25;
 const PREFERRED_PERSONAS = ["munger", "naval", "buffett", "greene", "jobs", "satori"];
-const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "if", "then", "for", "of",
-  "to", "in", "on", "at", "by", "with", "from", "is", "was", "are",
-  "were", "be", "been", "being", "have", "has", "had", "do", "does",
-  "did", "will", "would", "could", "should", "may", "might", "i",
-  "you", "we", "they", "it", "this", "that", "these", "those", "so",
-  "as", "than", "too", "very", "more", "less", "my", "your", "our",
-]);
 
 // ─── TYPES ──────────────────────────────────────────────────────
 
@@ -422,7 +423,7 @@ async function tryWisdomCitation({ task }: AutoLearnArgs): Promise<WisdomCitatio
       let best: WisdomCitation | null = null;
       let bestScore = 0;
       for (const h of wisdomHits) {
-        const personaBoost = isPreferredPersonaKey(h.sourceId) ? 1.25 : 1.0;
+        const personaBoost = isPreferredPersonaKey(h.sourceId, PREFERRED_PERSONAS) ? 1.25 : 1.0;
         const score = h.hybridScore * personaBoost;
         if (score > bestScore && h.similarity >= WISDOM_SIM_FLOOR) {
           bestScore = score;
@@ -453,51 +454,23 @@ async function tryWisdomCitation({ task }: AutoLearnArgs): Promise<WisdomCitatio
   }
 
   // Fallback · keyword-Jaccard · kept so the citation surface stays
-  // alive when pgvector / embedding provider is unavailable.
-  const queryTokens = new Set(extractKeywords(queryText));
-  if (queryTokens.size === 0) return null;
+  // alive when pgvector / embedding provider is unavailable. Shared
+  // matcher (lib/brain/wisdom-match.ts) · auto-learn's own tuned floor
+  // / scan-limit / personas passed in · behavior identical to the prior
+  // inline loop.
+  const match = await matchWisdom(queryText, {
+    scanLimit: WISDOM_SCAN_LIMIT,
+    preferredPersonas: PREFERRED_PERSONAS,
+  });
+  // Floor on the raw score (as the prior in-loop guard did), then round.
+  if (!match || match.score < WISDOM_SIM_FLOOR) return null;
 
-  const wisdoms = await prisma.brainMemory
-    .findMany({
-      // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
-      where: activeOnly({
-        category: BRAIN_CATEGORIES.WISDOM,
-        confidence: { gte: 0.5 },
-      }),
-      orderBy: { confidence: "desc" },
-      take: WISDOM_SCAN_LIMIT,
-      select: { key: true, content: true, confidence: true },
-    })
-    .catch((): never[] => []);
-
-  if (wisdoms.length === 0) return null;
-
-  let best: WisdomCitation | null = null;
-  let bestScore = 0;
-
-  for (const w of wisdoms) {
-    const wTokens = new Set(extractKeywords(w.content));
-    if (wTokens.size === 0) continue;
-    let shared = 0;
-    for (const t of queryTokens) {
-      if (wTokens.has(t)) shared++;
-    }
-    if (shared === 0) continue;
-    const baseSim = shared / queryTokens.size;
-    const personaBoost = isPreferredPersonaKey(w.key) ? 1.25 : 1.0;
-    const score = baseSim * personaBoost * Math.max(0.5, w.confidence);
-    if (score > bestScore && score >= WISDOM_SIM_FLOOR) {
-      bestScore = score;
-      best = {
-        persona: personaFromKey(w.key),
-        key: w.key,
-        content: w.content,
-        score: Math.round(score * 100) / 100,
-      };
-    }
-  }
-
-  return best;
+  return {
+    persona: match.persona,
+    key: match.key,
+    content: match.content,
+    score: Math.round(match.score * 100) / 100,
+  };
 }
 
 // ─── INTERNAL HELPERS ─────────────────────────────────────────
@@ -511,35 +484,6 @@ function slugify(s: string): string {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .slice(0, 80);
-}
-
-function extractKeywords(text: string): string[] {
-  if (!text) return [];
-  const tokens = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t.length >= 4 && !STOPWORDS.has(t));
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const t of tokens) {
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= 16) break;
-  }
-  return out;
-}
-
-function isPreferredPersonaKey(key: string): boolean {
-  return PREFERRED_PERSONAS.some((p) => key.startsWith(`wisdom_${p}`));
-}
-
-function personaFromKey(key: string): string | null {
-  const m = key.match(/^wisdom_([a-z]+)/i);
-  if (!m?.[1]) return null;
-  const name = m[1]!;
-  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 export { EMPTY };
