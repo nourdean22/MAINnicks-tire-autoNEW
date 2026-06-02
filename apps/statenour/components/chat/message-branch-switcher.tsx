@@ -77,7 +77,7 @@ export function MessageBranchSwitcher({
         onClick={() => prev && onSelect(prev.id)}
         disabled={!prev}
         className={cn(
-          "inline-flex items-center justify-center w-5 h-5 rounded-md border",
+          "inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md border",
           "border-[var(--border-default)] text-[var(--text-tertiary)]",
           "hover:text-[var(--gold)] hover:border-[var(--gold)]/40 transition-colors",
           "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[var(--text-tertiary)] disabled:hover:border-[var(--border-default)]",
@@ -125,7 +125,7 @@ export function MessageBranchSwitcher({
         onClick={() => next && onSelect(next.id)}
         disabled={!next}
         className={cn(
-          "inline-flex items-center justify-center w-5 h-5 rounded-md border",
+          "inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md border",
           "border-[var(--border-default)] text-[var(--text-tertiary)]",
           "hover:text-[var(--gold)] hover:border-[var(--gold)]/40 transition-colors",
           "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-[var(--text-tertiary)] disabled:hover:border-[var(--border-default)]",
