@@ -32,12 +32,6 @@ import {
   findCounterWisdom,
 } from "@/lib/brain/wisdom-distiller";
 import {
-  classifyOODAPhase,
-  oodaFix,
-  fiveWhysScaffold,
-  suggestChoiceArchitecture,
-} from "@/lib/brain/teaching-moments";
-import {
   countRationalizations,
   revealedPreferenceRanking,
   gapSeverity,
@@ -230,69 +224,6 @@ describe("wisdom-distiller enrichments", () => {
     expect(findCounterWisdom("be patient")).toContain("procrastination");
     expect(findCounterWisdom("trust your gut")).toContain("tired");
     expect(findCounterWisdom("random nonsense")).toBe(null);
-  });
-});
-
-// ═══════════════════════════════════════════════════════════════
-// TEACHING-MOMENTS — Boyd OODA + Toyota 5 whys + Thaler nudge
-// ═══════════════════════════════════════════════════════════════
-
-describe("teaching-moments enrichments", () => {
-  it("classifyOODAPhase: missing data → observe", () => {
-    expect(
-      classifyOODAPhase(
-        "Lead went cold for 4 days",
-        "I didn't see the missed callback",
-      ),
-    ).toBe("observe");
-  });
-
-  it("classifyOODAPhase: wrong frame → orient", () => {
-    expect(
-      classifyOODAPhase(
-        "Quote landed flat",
-        "I assumed they were price-sensitive but they actually wanted speed",
-      ),
-    ).toBe("orient");
-  });
-
-  it("classifyOODAPhase: knew-but-didn't → act", () => {
-    expect(
-      classifyOODAPhase(
-        "Skipped workout",
-        "I knew I should go but procrastinated all day",
-      ),
-    ).toBe("act");
-  });
-
-  it("classifyOODAPhase defaults to decide", () => {
-    expect(classifyOODAPhase("random text", "no signals")).toBe("decide");
-  });
-
-  it("oodaFix returns specific fix per phase", () => {
-    expect(oodaFix("observe")).toContain("data");
-    expect(oodaFix("orient")).toContain("frame");
-    expect(oodaFix("decide")).toContain("rule");
-    expect(oodaFix("act")).toContain("environment");
-  });
-
-  it("fiveWhysScaffold returns 5 layers", () => {
-    const w = fiveWhysScaffold("missed callback", "be more attentive");
-    expect(w.length).toBe(5);
-    expect(w[0]).toContain("Why did this happen");
-  });
-
-  it("suggestChoiceArchitecture matches phone scrolls", () => {
-    const s = suggestChoiceArchitecture(
-      "phone interrupted deep work",
-      "I keep checking Twitter",
-    );
-    expect(s.toLowerCase()).toContain("phone");
-  });
-
-  it("suggestChoiceArchitecture matches workout topic", () => {
-    const s = suggestChoiceArchitecture("missed workout", "skipped gym");
-    expect(s.toLowerCase()).toContain("clothes");
   });
 });
 

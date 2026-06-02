@@ -27,7 +27,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { matchSkillsForTask } from "./skill-extractor";
+import { loadActiveSkills } from "./skill-extractor";
 
 export interface GhostPrediction {
   task_id: string | null;
@@ -190,6 +190,16 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
     };
   }
 
+  // E6 perf · hoist the active-skill fetch ONCE outside the candidate
+  // loop. matchSkillsForTask() internally calls loadActiveSkills() on
+  // every invocation, so the old per-candidate call meant up to 40
+  // sequential DB reads of the same skill set. Load once, match in
+  // memory below (replicating matchSkillsForTask's ≥3-of-4 signal
+  // overlap exactly so the result is unchanged).
+  const activeSkills = await loadActiveSkills().catch(
+    (): Awaited<ReturnType<typeof loadActiveSkills>> => [],
+  );
+
   const scored: Array<GhostPrediction & { raw: number }> = [];
   for (const c of candidates as Array<typeof candidates[number] & { mission?: { domain: string } | null }>) {
     const p = c.autoPriority ?? 50;
@@ -206,13 +216,24 @@ export async function computeGhostPredictions(): Promise<GhostPredictionBundle |
     if (c.status === "READY") { score += 1.5; signals.push("queued READY"); }
     score += Math.max(0, (100 - p) / 25); // hotter priority = higher
 
-    // Skill match = extra signal
-    const matched = await matchSkillsForTask({
-      context: c.effort ? context : "DESK",
-      effort: c.effort,
-      autoPriority: c.autoPriority,
-      missionDomain: cDom,
-    }).catch((): string[] => []);
+    // Skill match = extra signal. In-memory match against the hoisted
+    // active-skill list (was a per-candidate matchSkillsForTask DB call).
+    // Mirrors matchSkillsForTask exactly: same 4 task signals, ≥3 overlap.
+    const matchContext = (c.effort ? context : "DESK").toLowerCase();
+    const taskSignals = new Set([
+      `context:${matchContext}`,
+      `effort:${c.effort}`,
+      `priority:${cBand}`,
+      `domain:${cDom.toLowerCase()}`,
+    ]);
+    const matched: string[] = [];
+    for (const skill of activeSkills) {
+      let overlap = 0;
+      for (const s of skill.trigger_signals) {
+        if (taskSignals.has(s.toLowerCase())) overlap++;
+      }
+      if (overlap >= 3) matched.push(skill.key);
+    }
     if (matched.length > 0) {
       score += 1.5;
       signals.push(`matches ${matched.length} skill${matched.length > 1 ? "s" : ""}`);
