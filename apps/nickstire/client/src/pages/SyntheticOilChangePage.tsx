@@ -61,7 +61,7 @@ function Hero() {
         </FadeIn>
         <FadeIn delay={0.2}>
           <p className="mt-5 text-lg text-foreground/80 max-w-2xl font-light leading-relaxed">
-            Full synthetic oil change from <span className="font-semibold text-foreground">$69</span>. Better engine protection, longer intervals (7,500–10,000 mi), cleaner burn. Same-day at Nick&apos;s Tire &amp; Auto in Euclid — walk-ins welcome 7 days a week.
+            Full synthetic oil change from <span className="font-semibold text-foreground">$80</span>. Better engine protection, longer intervals (7,500–10,000 mi), cleaner burn. Same-day at Nick&apos;s Tire &amp; Auto in Euclid — walk-ins welcome 7 days a week.
           </p>
         </FadeIn>
         <FadeIn delay={0.3}>
@@ -86,7 +86,7 @@ function Hero() {
             {[
               { icon: <Clock className="w-4 h-4" />, text: "30-minute service" },
               { icon: <ShieldCheck className="w-4 h-4" />, text: "Top-tier oil brands" },
-              { icon: <DollarSign className="w-4 h-4" />, text: "From $69 full synthetic" },
+              { icon: <DollarSign className="w-4 h-4" />, text: "From $80 full synthetic" },
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-2 bg-nick-blue/10 border border-nick-blue/20 rounded-md px-3 py-1.5">
                 <span className="text-nick-blue-light">{item.icon}</span>
@@ -103,9 +103,9 @@ function Hero() {
 // ─── PRICING ANCHOR ────────────────────────────────────
 function PricingSection() {
   const tiers = [
-    { name: "Conventional", price: "$39", miles: "3,000–5,000 mi", use: "Older vehicles, low-mileage drivers", tint: "text-foreground/70" },
-    { name: "Synthetic Blend", price: "$55", miles: "5,000–7,500 mi", use: "Most modern cars, daily commuting", tint: "text-primary" },
-    { name: "Full Synthetic", price: "$69", miles: "7,500–10,000 mi", use: "Turbocharged, high-performance, cold-weather driving", tint: "text-emerald-400", featured: true },
+    { name: "Conventional", price: "$49", miles: "3,000–5,000 mi", use: "Older vehicles, low-mileage drivers", tint: "text-foreground/70" },
+    { name: "Synthetic Blend", price: "$49", miles: "5,000–7,500 mi", use: "Most modern cars, daily commuting", tint: "text-primary" },
+    { name: "Full Synthetic", price: "$80", miles: "7,500–10,000 mi", use: "Turbocharged, high-performance, cold-weather driving", tint: "text-emerald-400", featured: true },
   ];
   return (
     <section className="py-16 bg-background">
