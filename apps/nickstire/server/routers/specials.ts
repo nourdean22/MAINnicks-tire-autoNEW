@@ -22,7 +22,7 @@ export const specialsRouter = router({
         const results = await db.select().from(specials)
           .where(eq(specials.isActive, true))
           .limit(20);
-        return results.filter((s: any) => !s.expiresAt || new Date(s.expiresAt) > now);
+        return results.filter((s: typeof specials.$inferSelect) => !s.expiresAt || new Date(s.expiresAt) > now);
       });
     } catch (err) {
       log.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);

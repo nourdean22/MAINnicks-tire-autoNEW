@@ -353,7 +353,7 @@ export const shopdriverRouter = router({
         next30dSends: rows.filter((r: { followUp30dSent: number }) => r.followUp30dSent === 0).length,
         message: featureEnabled
           ? "Live: 7-day + 30-day SMS follow-ups firing daily during business hours."
-          : "DRY RUN: Set FEATURE_DECLINED_RECOVERY=1 in Vercel env to enable SMS sends.",
+          : "DRY RUN: Set FEATURE_DECLINED_RECOVERY=1 in Railway env to enable SMS sends.",
       };
     } catch (err) {
       log.warn("[shopdriver] declinedRecoveryStatus failed:", err instanceof Error ? err.message : err);

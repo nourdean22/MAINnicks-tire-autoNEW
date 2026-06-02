@@ -98,7 +98,6 @@ export default function VoiceReceptionistSection() {
 
   const rawCalls = calls ?? [];
   const m = metrics ?? null;
-  const assistantId = vapiStatus?.assistants?.[0]?.id ?? null;
 
   // Wave-89 — apply filters + sort to derive the rendered list
   const callsList = (() => {

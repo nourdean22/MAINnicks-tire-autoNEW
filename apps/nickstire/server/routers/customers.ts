@@ -497,7 +497,7 @@ export const customersRouter = router({
   /** Export customers as CSV data */
   exportCsv: adminProcedure
     .input(z.object({
-      segment: z.enum(["all", "recent", "lapsed", "unknown"]).default("all"),
+      segment: z.enum(["all", "recent", "lapsed", "new", "unknown"]).default("all"),
     }).optional())
     .query(async ({ input }) => {
       const d = await db();
@@ -734,10 +734,7 @@ export const customersRouter = router({
           amount: inv.totalAmount, // cents
         }));
 
-        // Work orders — match by customer ID (from customer record)
-        // Look up by customerId string match since WOs use string IDs
-        const custIdStr = String(input.phone ? "" : "");
-        // Actually match work orders by customer phone (denormalized) or customer ID
+        // Work orders — match by customer phone (denormalized) or customer ID.
         const woResults = await d.select().from(workOrders)
           .where(sql`${workOrders.customerId} IN (
             SELECT CAST(id AS CHAR) FROM customers WHERE phone = ${phone}

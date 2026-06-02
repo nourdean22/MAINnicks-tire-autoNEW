@@ -47,7 +47,10 @@ export const TIME_LABELS: Record<string, string> = {
 // CHART_THEME.primary were #F5A623 (slightly orange) — 2% off the
 // canonical brand yellow #FDB913 used on CTAs. Realigned so Recharts
 // series visually match the rest of the UI.
-export const CHART_COLORS = ["#FDB913", "#3B82F6", "#10B981", "#EF4444", "#8B5CF6", "#EC4899", "#F97316", "#06B6D4"];
+// Slots 0-3 = canonical signal palette (gold/blue/green/red). Slots 4-7
+// repeat the same four hues as lighter tints so Recharts series with >4
+// categories stay on-palette instead of reaching for purple/pink/orange/cyan.
+export const CHART_COLORS = ["#FDB913", "#3B82F6", "#10B981", "#EF4444", "#FFD54F", "#93C5FD", "#6EE7B7", "#FCA5A5"];
 
 /** Shared chart styling — single source of truth for all Recharts components */
 export const CHART_THEME = {

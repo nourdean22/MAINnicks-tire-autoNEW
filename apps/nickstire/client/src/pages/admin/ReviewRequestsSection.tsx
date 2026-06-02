@@ -204,7 +204,9 @@ export default function ReviewRequestsSection() {
               onClick={async () => {
                 // wave-181.x Outreach Phase 1 · safety gate · was firing
                 // a real outbound SMS run with no confirmation.
-                const due = requests?.filter((r: ReviewRequest) => r.status === "scheduled" && new Date(r.scheduledFor) <= new Date()).length ?? 0;
+                // review_requests.status enum = pending/sent/clicked/failed/skipped (no "scheduled");
+                // the due column is scheduledAt. Mirror server-side getPendingReviewRequests().
+                const due = requests?.filter((r: ReviewRequest) => r.status === "pending" && new Date(r.scheduledAt) <= new Date()).length ?? 0;
                 const ok = await confirmDialog({
                   title: `Process the review-request queue?`,
                   message: `This runs ALL scheduled review requests that are due (currently ~${due} due now). Each fires a real outbound SMS via F25e. Sends respect quiet-hours + opt-out + daily rate limit.`,
