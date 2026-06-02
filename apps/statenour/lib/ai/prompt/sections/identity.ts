@@ -30,6 +30,7 @@ import {
   TIME_OF_DAY_VOICE,
   MODE_PERSONAS,
   TRUTH_RULE_NEVER_FABRICATE,
+  BROADEN_AND_SUGGEST,
 } from "@/lib/ai/prompt/policy/operator-rules";
 import { today } from "@/lib/utils/datetime";
 
@@ -180,6 +181,10 @@ export function renderToolsCatalog(): string[] {
   p.push(CONFIDENCE_CUES);
   p.push(TIME_OF_DAY_VOICE);
   p.push(MODE_PERSONAS);
+  // v-fix 2026-06-02: BROADEN_AND_SUGGEST shipped in operator-rules + v2's
+  // getOperatorPolicyLines, but the v1 path never pushed it — Nick never
+  // received the broaden+suggest instruction. Push it for v1/v2 parity.
+  p.push(BROADEN_AND_SUGGEST);
 
   p.push(`NL shortcuts (server-intercepted — don't respond to these): image generation ("draw X"), decision logging ("log this decision: X"), memory capture ("remember that X"), brain dumps ("journal: X").`);
   // Apr 28 v6 · COLD-MEMORY BIAS hard rule.
