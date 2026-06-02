@@ -150,6 +150,333 @@ export function looksLikeBrainDump(text: string): boolean {
 }
 
 /**
+ * Explicit, frozen-state snapshot handed to {@link runDeferredBackgroundWork}.
+ *
+ * Every field is READ-ONLY by the time the deferred block runs: the core
+ * persist path (text salvage → sanitize → image-ghost strip → critic →
+ * persist ChatMessage → conversation bump → judge/adversarial dispatch →
+ * envelope build → fabrication-rewrite + row-patch → recordTrace) has
+ * already completed, and `cleanedText`/`text` will not be reassigned again.
+ *
+ * The helper must NOT reach back into the onFinish closure — it receives
+ * everything it needs here. `isLightweight`/`isHeavy` are passed (not
+ * recomputed) so the moved body stays byte-identical to the original.
+ */
+interface DeferredBackgroundCtx {
+  log: ChatLogger;
+  convId: string | undefined;
+  provider: ProviderName;
+  modelId: string;
+  mode: string;
+  personality: string;
+  topicTier: string;
+  startedAt: number;
+  userContent: string;
+  /** Sanitized + (possibly) fabrication-rewritten assistant text — frozen. */
+  cleanedText: string;
+  /** Raw stripped model text (pre-sanitize) — used for action parsing + cache warm. */
+  text: string;
+  messages: ReadonlyArray<unknown>;
+  isLightweight: boolean;
+  isHeavy: boolean;
+}
+
+/**
+ * Fire-and-forget background analysis that runs AFTER the assistant
+ * ChatMessage is persisted and does NOT feed back into the response or
+ * the persisted row. Lifted VERBATIM from the tail of the onFinish
+ * callback (the post-recordTrace block) — same phases, same order, same
+ * error handling. Reads only the frozen `ctx` snapshot.
+ *
+ * Phases (in order): memory recordInteraction · content-feedback capture ·
+ * hallucination guard · friction tracker · outcome-prediction · flow
+ * processing · conversation-pattern learning · journal ingest ·
+ * conversation-memory summary · auto-rename · people-intelligence scan ·
+ * agent-action execution · suggestion-cache warm.
+ */
+async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
+  const {
+    log,
+    convId,
+    provider,
+    modelId,
+    mode,
+    personality,
+    topicTier,
+    startedAt,
+    userContent,
+    cleanedText,
+    text,
+    messages,
+    isLightweight,
+    isHeavy,
+  } = ctx;
+
+      // Record to memory system — skip on quick.
+      if (!isLightweight) {
+        withErrorCapture(
+          "chat:post-process",
+          () =>
+            recordInteraction({
+              feature: "chat",
+              prompt: userContent,
+              response: cleanedText,
+              provider,
+              model: modelId,
+              durationMs: Date.now() - startedAt,
+              taskType: "reason",
+            }),
+          { timeoutMs: 5_000, silentTimeout: true }
+        );
+      }
+
+      // v6 · Apr 28 · #6 — CONTENT FEEDBACK CAPTURE.
+      withErrorCapture(
+        "chat:post-process",
+        async () => {
+          const { detectContentFeedback, persistContentFeedback } = await import("@/lib/ai/content-feedback");
+          const feedback = detectContentFeedback(userContent);
+          if (!feedback) return;
+          const priorAssistant = [...messages]
+            .reverse()
+            .find((m) => (m as { role?: string }).role === "assistant" && (m as { id?: unknown }).id !== undefined) as { content?: unknown } | undefined;
+          const priorText = priorAssistant
+            ? (Array.isArray(priorAssistant.content)
+                ? priorAssistant.content.map((c: { type?: string; text?: string }) => c.text ?? "").join("\n")
+                : (priorAssistant.content as unknown as string))
+            : "";
+          const priorHasHashtags = (priorText.match(/#\w+/g) || []).length >= 2;
+          const priorHasMarker = /\b(caption|reel|carousel|headline|tagline)\b/i.test(priorText);
+          if (!priorHasHashtags && !priorHasMarker) return;
+          await persistContentFeedback({
+            feedback,
+            previousAssistantText: priorText,
+            conversationId: convId,
+          });
+        },
+        { timeoutMs: 3_000, silentTimeout: true }
+      );
+
+      // ═══ DEFERRED POST-PROCESSING — each task is timeout-bounded ═══
+      // v7 · BATCH 1C — Hallucination guard.
+      if (cleanedText && cleanedText.length > 50) {
+        withErrorCapture(
+          "chat:post-process",
+          async () => {
+            const { checkClaims } = await import("@/lib/ai/hallucination-guard");
+            const flagged = await checkClaims(cleanedText);
+            const offCount = flagged.filter((f) => f.verdict === "off" || f.verdict === "way_off").length;
+            if (offCount > 0) {
+              log.info("hallucination_guard_flagged", { offCount, total: flagged.length });
+              await prisma.brainMemory.create({
+                data: {
+                  category: "hallucination_flag",
+                  key: `halluc:${convId}-${Date.now()}`,
+                  source: "post_stream",
+                  content: `${offCount} factual claims off — ${flagged.map((f) => f.claim.label).join(", ")}`,
+                  confidence: 0.9,
+                  metadata: { conversationId: convId, flagged: flagged as unknown as Record<string, unknown>[] } as unknown as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
+                },
+              }).catch(() => {});
+            }
+          },
+          { timeoutMs: 5_000, silentTimeout: true }
+        );
+      }
+
+      // v7 · BATCH 5 · Apr 28 — Friction tracker.
+      withErrorCapture(
+        "chat:post-process",
+        async () => {
+          const { detectFriction, persistFriction } = await import("@/lib/personal/friction-tracker");
+          const f = detectFriction(userContent);
+          if (f) {
+            await persistFriction({ entry: f, conversationId: convId, pagePath: "/chat" });
+          }
+        },
+        { timeoutMs: 2_000, silentTimeout: true }
+      );
+
+      // v7 · BATCH 1B — Outcome-prediction capture.
+      if (cleanedText && cleanedText.length > 100) {
+        withErrorCapture(
+          "chat:post-process",
+          async () => {
+            const { extractPredictions, persistPrediction } = await import("@/lib/ai/outcome-calibration");
+            const predictions = extractPredictions(cleanedText);
+            if (predictions.length > 0) {
+              log.info("outcome_calibration_captured", { predictionCount: predictions.length });
+              await persistPrediction({
+                predictions,
+                captionText: cleanedText,
+                conversationId: convId,
+              });
+            }
+          },
+          { timeoutMs: 3_000, silentTimeout: true }
+        );
+      }
+
+      // Flow Processing — skip on quick.
+      if (!isLightweight) {
+        withErrorCapture(
+          "chat:post-process",
+          () => processConversation(userContent, cleanedText),
+          { timeoutMs: 15_000, silentTimeout: true, context: { userContentLength: userContent.length } }
+        );
+      }
+
+      // ── Conversation personality learning ──
+      const msgCount = messages.length;
+      if (!isLightweight && msgCount > 0 && msgCount % 10 === 0) {
+        withErrorCapture(
+          "chat:post-process",
+          async () => {
+            type UserMsgShape = { role?: unknown; content?: unknown };
+            const userMsgs = (messages as UserMsgShape[]).filter(
+              (m) => (m as { role?: string }).role === "user",
+            ) as Array<{ content?: string }>;
+            const avgLen = userMsgs.length > 0
+              ? Math.round(userMsgs.reduce((s: number, m) => s + (m.content?.length || 0), 0) / userMsgs.length)
+              : 0;
+            const shortMsgs = userMsgs.filter((m) => (m.content?.length || 0) < 30).length;
+            const longMsgs = userMsgs.filter((m) => (m.content?.length || 0) > 200).length;
+            const content = `[Chat Pattern ${new Date().toISOString().slice(0, 10)}] Avg msg: ${avgLen} chars. ${shortMsgs}/${userMsgs.length} short (<30ch), ${longMsgs}/${userMsgs.length} long (>200ch). Topic tier: ${topicTier}. Personality: ${personality}. Mode: ${mode}.`;
+            await prisma.brainMemory.upsert({
+              where: { category_key: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session" } },
+              update: { content, confidence: 0.7, updatedAt: new Date() },
+              create: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session", content, confidence: 0.7, source: "chat" },
+            });
+          },
+          { timeoutMs: 5_000, silentTimeout: true }
+        );
+      }
+
+      // v10.0.231 · Deep flow processing — only when substantive AND
+      // the message looks like a brain dump, NOT a question.
+      //
+      // Pre-fix · the gate was just `isHeavy && length > 200`. Any
+      // heavy chat message (mode==deep OR length>120) over 200 chars
+      // got fed through the full journal-ingest pipeline · which
+      // extracted "action items" via AI and created INBOX tasks.
+      // Result: every long question Nour asked Nick ended up as
+      // 3-5 phantom tasks on the todo list.
+      //
+      // Post-fix · skip ingest when:
+      //   1. The message is a question (starts with interrogative
+      //      word OR ends with `?` after stripping the last 30 chars
+      //      to ignore trailing emoji/url)
+      //   2. The message starts with "can / could / would / how do
+      //      / how to / what / who / when / where / why" — these are
+      //      asks, not brain dumps
+      //   3. The message is a command to Nick ("show me X", "find Y",
+      //      "list Z", "look up", "check") — these are tool requests
+      //
+      // The journal-ingest pipeline ALSO has a defense-in-depth check
+      // (v10.0.231 · only creates tasks when entryType is decision /
+      // planning / commitment) so even if the gate misses, no phantom
+      // tasks get written.
+      if (isHeavy && userContent.length > 200 && looksLikeBrainDump(userContent)) {
+        withErrorCapture(
+          "chat:journal-ingest",
+          async () => {
+            const { ingestJournal } = await import("@/lib/brain/journal-ingest");
+            return ingestJournal(userContent);
+          },
+          { timeoutMs: 20_000, silentTimeout: true }
+        );
+      }
+
+      // Conversation memory — AI-digest after 4+ messages.
+      if (!isLightweight && convId && convId !== "temp") {
+        withErrorCapture(
+          "chat:conversation-memory",
+          () => summarizeAndStoreConversation(convId!),
+          { timeoutMs: 30_000, silentTimeout: true, context: { conversationId: convId } }
+        );
+
+        // Auto-rename — fire once the convo has 4+ messages.
+        withErrorCapture(
+          "chat:post-process",
+          () => maybeAutoRename(convId!),
+          { timeoutMs: 15_000, silentTimeout: true, context: { conversationId: convId } }
+        );
+      }
+
+      // People extraction — skip entirely on quick mode.
+      if (!isLightweight) withErrorCapture(
+        "chat:people-intel",
+        async () => {
+          const { runPeopleIntelligence } = await import("@/lib/brain/people-intelligence");
+          const lastRun = await prisma.auditEvent.findFirst({
+            where: {
+              eventType: "people_intelligence_run",
+              createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
+            },
+          });
+          if (lastRun) return null;
+          const result = await runPeopleIntelligence();
+          if (result) {
+            await prisma.auditEvent
+              .create({
+                data: {
+                  actor: "people_intelligence",
+                  eventType: "people_intelligence_run",
+                  detail: `Updated ${result.profilesUpdated} profiles, ${result.alerts.length} alerts`,
+                },
+              })
+              .catch(() => {});
+          }
+          return result;
+        },
+        { timeoutMs: 20_000, silentTimeout: true }
+      );
+
+      // Agent Layer — parse and execute any actions Nick embedded.
+      const actions = parseActions(text);
+      if (actions.length > 0) {
+        withErrorCapture(
+          "chat:actions",
+          async () => {
+            const results = await executeActions(actions);
+            log.info("nick_agent_executed", {
+              count: results.length,
+              outcomes: results.map((r) => ({ action: r.action, ok: r.success, err: r.error })),
+            });
+            await prisma.auditEvent
+              .create({
+                data: {
+                  actor: "nick_agent",
+                  eventType: "agent_actions_executed",
+                  detail: `${results.filter((r) => r.success).length}/${results.length} actions succeeded`,
+                  payload: {
+                    actions: JSON.parse(JSON.stringify(results)),
+                    conversationId: convId,
+                    messageLength: text.length,
+                  },
+                },
+              })
+              .catch(() => {});
+            return results;
+          },
+          { timeoutMs: 15_000 }
+        );
+      }
+
+      // ── Smart reply suggestion cache warming ──
+      try {
+        if (text && text.length >= 40) {
+          const { warmSuggestionCache, heuristicSuggestions } = await import(
+            "@/lib/ai/suggestion-cache"
+          );
+          warmSuggestionCache(userContent, text, heuristicSuggestions(text));
+        }
+      } catch {
+        // cache warm is best-effort
+      }
+}
+
+/**
  * Returns the streamText `onFinish` callback. Body is the literal
  * post-stream block lifted from the route — no behavior changes.
  */
@@ -1195,267 +1522,28 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         );
       }
 
-      // Record to memory system — skip on quick.
-      if (!isLightweight) {
-        withErrorCapture(
-          "chat:post-process",
-          () =>
-            recordInteraction({
-              feature: "chat",
-              prompt: userContent,
-              response: cleanedText,
-              provider,
-              model: modelId,
-              durationMs: Date.now() - startedAt,
-              taskType: "reason",
-            }),
-          { timeoutMs: 5_000, silentTimeout: true }
-        );
-      }
-
-      // v6 · Apr 28 · #6 — CONTENT FEEDBACK CAPTURE.
-      withErrorCapture(
-        "chat:post-process",
-        async () => {
-          const { detectContentFeedback, persistContentFeedback } = await import("@/lib/ai/content-feedback");
-          const feedback = detectContentFeedback(userContent);
-          if (!feedback) return;
-          const priorAssistant = [...messages]
-            .reverse()
-            .find((m) => (m as { role?: string }).role === "assistant" && (m as { id?: unknown }).id !== undefined) as { content?: unknown } | undefined;
-          const priorText = priorAssistant
-            ? (Array.isArray(priorAssistant.content)
-                ? priorAssistant.content.map((c: { type?: string; text?: string }) => c.text ?? "").join("\n")
-                : (priorAssistant.content as unknown as string))
-            : "";
-          const priorHasHashtags = (priorText.match(/#\w+/g) || []).length >= 2;
-          const priorHasMarker = /\b(caption|reel|carousel|headline|tagline)\b/i.test(priorText);
-          if (!priorHasHashtags && !priorHasMarker) return;
-          await persistContentFeedback({
-            feedback,
-            previousAssistantText: priorText,
-            conversationId: convId,
-          });
-        },
-        { timeoutMs: 3_000, silentTimeout: true }
-      );
-
-      // ═══ DEFERRED POST-PROCESSING — each task is timeout-bounded ═══
-      // v7 · BATCH 1C — Hallucination guard.
-      if (cleanedText && cleanedText.length > 50) {
-        withErrorCapture(
-          "chat:post-process",
-          async () => {
-            const { checkClaims } = await import("@/lib/ai/hallucination-guard");
-            const flagged = await checkClaims(cleanedText);
-            const offCount = flagged.filter((f) => f.verdict === "off" || f.verdict === "way_off").length;
-            if (offCount > 0) {
-              log.info("hallucination_guard_flagged", { offCount, total: flagged.length });
-              await prisma.brainMemory.create({
-                data: {
-                  category: "hallucination_flag",
-                  key: `halluc:${convId}-${Date.now()}`,
-                  source: "post_stream",
-                  content: `${offCount} factual claims off — ${flagged.map((f) => f.claim.label).join(", ")}`,
-                  confidence: 0.9,
-                  metadata: { conversationId: convId, flagged: flagged as unknown as Record<string, unknown>[] } as unknown as Parameters<typeof prisma.brainMemory.create>[0]["data"]["metadata"],
-                },
-              }).catch(() => {});
-            }
-          },
-          { timeoutMs: 5_000, silentTimeout: true }
-        );
-      }
-
-      // v7 · BATCH 5 · Apr 28 — Friction tracker.
-      withErrorCapture(
-        "chat:post-process",
-        async () => {
-          const { detectFriction, persistFriction } = await import("@/lib/personal/friction-tracker");
-          const f = detectFriction(userContent);
-          if (f) {
-            await persistFriction({ entry: f, conversationId: convId, pagePath: "/chat" });
-          }
-        },
-        { timeoutMs: 2_000, silentTimeout: true }
-      );
-
-      // v7 · BATCH 1B — Outcome-prediction capture.
-      if (cleanedText && cleanedText.length > 100) {
-        withErrorCapture(
-          "chat:post-process",
-          async () => {
-            const { extractPredictions, persistPrediction } = await import("@/lib/ai/outcome-calibration");
-            const predictions = extractPredictions(cleanedText);
-            if (predictions.length > 0) {
-              log.info("outcome_calibration_captured", { predictionCount: predictions.length });
-              await persistPrediction({
-                predictions,
-                captionText: cleanedText,
-                conversationId: convId,
-              });
-            }
-          },
-          { timeoutMs: 3_000, silentTimeout: true }
-        );
-      }
-
-      // Flow Processing — skip on quick.
-      if (!isLightweight) {
-        withErrorCapture(
-          "chat:post-process",
-          () => processConversation(userContent, cleanedText),
-          { timeoutMs: 15_000, silentTimeout: true, context: { userContentLength: userContent.length } }
-        );
-      }
-
-      // ── Conversation personality learning ──
-      const msgCount = messages.length;
-      if (!isLightweight && msgCount > 0 && msgCount % 10 === 0) {
-        withErrorCapture(
-          "chat:post-process",
-          async () => {
-            type UserMsgShape = { role?: unknown; content?: unknown };
-            const userMsgs = (messages as UserMsgShape[]).filter(
-              (m) => (m as { role?: string }).role === "user",
-            ) as Array<{ content?: string }>;
-            const avgLen = userMsgs.length > 0
-              ? Math.round(userMsgs.reduce((s: number, m) => s + (m.content?.length || 0), 0) / userMsgs.length)
-              : 0;
-            const shortMsgs = userMsgs.filter((m) => (m.content?.length || 0) < 30).length;
-            const longMsgs = userMsgs.filter((m) => (m.content?.length || 0) > 200).length;
-            const content = `[Chat Pattern ${new Date().toISOString().slice(0, 10)}] Avg msg: ${avgLen} chars. ${shortMsgs}/${userMsgs.length} short (<30ch), ${longMsgs}/${userMsgs.length} long (>200ch). Topic tier: ${topicTier}. Personality: ${personality}. Mode: ${mode}.`;
-            await prisma.brainMemory.upsert({
-              where: { category_key: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session" } },
-              update: { content, confidence: 0.7, updatedAt: new Date() },
-              create: { category: BRAIN_CATEGORIES.CHAT_PATTERN, key: "latest_session", content, confidence: 0.7, source: "chat" },
-            });
-          },
-          { timeoutMs: 5_000, silentTimeout: true }
-        );
-      }
-
-      // v10.0.231 · Deep flow processing — only when substantive AND
-      // the message looks like a brain dump, NOT a question.
-      //
-      // Pre-fix · the gate was just `isHeavy && length > 200`. Any
-      // heavy chat message (mode==deep OR length>120) over 200 chars
-      // got fed through the full journal-ingest pipeline · which
-      // extracted "action items" via AI and created INBOX tasks.
-      // Result: every long question Nour asked Nick ended up as
-      // 3-5 phantom tasks on the todo list.
-      //
-      // Post-fix · skip ingest when:
-      //   1. The message is a question (starts with interrogative
-      //      word OR ends with `?` after stripping the last 30 chars
-      //      to ignore trailing emoji/url)
-      //   2. The message starts with "can / could / would / how do
-      //      / how to / what / who / when / where / why" — these are
-      //      asks, not brain dumps
-      //   3. The message is a command to Nick ("show me X", "find Y",
-      //      "list Z", "look up", "check") — these are tool requests
-      //
-      // The journal-ingest pipeline ALSO has a defense-in-depth check
-      // (v10.0.231 · only creates tasks when entryType is decision /
-      // planning / commitment) so even if the gate misses, no phantom
-      // tasks get written.
-      if (isHeavy && userContent.length > 200 && looksLikeBrainDump(userContent)) {
-        withErrorCapture(
-          "chat:journal-ingest",
-          async () => {
-            const { ingestJournal } = await import("@/lib/brain/journal-ingest");
-            return ingestJournal(userContent);
-          },
-          { timeoutMs: 20_000, silentTimeout: true }
-        );
-      }
-
-      // Conversation memory — AI-digest after 4+ messages.
-      if (!isLightweight && convId && convId !== "temp") {
-        withErrorCapture(
-          "chat:conversation-memory",
-          () => summarizeAndStoreConversation(convId!),
-          { timeoutMs: 30_000, silentTimeout: true, context: { conversationId: convId } }
-        );
-
-        // Auto-rename — fire once the convo has 4+ messages.
-        withErrorCapture(
-          "chat:post-process",
-          () => maybeAutoRename(convId!),
-          { timeoutMs: 15_000, silentTimeout: true, context: { conversationId: convId } }
-        );
-      }
-
-      // People extraction — skip entirely on quick mode.
-      if (!isLightweight) withErrorCapture(
-        "chat:people-intel",
-        async () => {
-          const { runPeopleIntelligence } = await import("@/lib/brain/people-intelligence");
-          const lastRun = await prisma.auditEvent.findFirst({
-            where: {
-              eventType: "people_intelligence_run",
-              createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
-            },
-          });
-          if (lastRun) return null;
-          const result = await runPeopleIntelligence();
-          if (result) {
-            await prisma.auditEvent
-              .create({
-                data: {
-                  actor: "people_intelligence",
-                  eventType: "people_intelligence_run",
-                  detail: `Updated ${result.profilesUpdated} profiles, ${result.alerts.length} alerts`,
-                },
-              })
-              .catch(() => {});
-          }
-          return result;
-        },
-        { timeoutMs: 20_000, silentTimeout: true }
-      );
-
-      // Agent Layer — parse and execute any actions Nick embedded.
-      const actions = parseActions(text);
-      if (actions.length > 0) {
-        withErrorCapture(
-          "chat:actions",
-          async () => {
-            const results = await executeActions(actions);
-            log.info("nick_agent_executed", {
-              count: results.length,
-              outcomes: results.map((r) => ({ action: r.action, ok: r.success, err: r.error })),
-            });
-            await prisma.auditEvent
-              .create({
-                data: {
-                  actor: "nick_agent",
-                  eventType: "agent_actions_executed",
-                  detail: `${results.filter((r) => r.success).length}/${results.length} actions succeeded`,
-                  payload: {
-                    actions: JSON.parse(JSON.stringify(results)),
-                    conversationId: convId,
-                    messageLength: text.length,
-                  },
-                },
-              })
-              .catch(() => {});
-            return results;
-          },
-          { timeoutMs: 15_000 }
-        );
-      }
-
-      // ── Smart reply suggestion cache warming ──
-      try {
-        if (text && text.length >= 40) {
-          const { warmSuggestionCache, heuristicSuggestions } = await import(
-            "@/lib/ai/suggestion-cache"
-          );
-          warmSuggestionCache(userContent, text, heuristicSuggestions(text));
-        }
-      } catch {
-        // cache warm is best-effort
-      }
+      // ═══ DEFERRED BACKGROUND WORK ═══
+      // Fire-and-forget analysis that runs AFTER the assistant ChatMessage
+      // is persisted and does NOT feed back into the response or the row.
+      // Extracted VERBATIM into runDeferredBackgroundWork — same phases,
+      // same order, same error handling. Invoked at the SAME point. All
+      // inputs are the frozen post-rewrite state (cleanedText/text are no
+      // longer reassigned past this line).
+      await runDeferredBackgroundWork({
+        log,
+        convId,
+        provider,
+        modelId,
+        mode,
+        personality,
+        topicTier,
+        startedAt,
+        userContent,
+        cleanedText,
+        text,
+        messages,
+        isLightweight,
+        isHeavy,
+      });
     };
 }
