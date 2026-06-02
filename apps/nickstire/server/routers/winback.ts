@@ -174,13 +174,17 @@ function buildSegmentFilter(segment: string) {
         eq(customers.smsOptOut, 0)
       )!;
     case "vip":
+      // totalSpent is stored in CENTS. VIP = lifetime spend > $2,000 (200000c).
+      // (Was `> 500` = >$5, which matched nearly the entire paying base.)
       return and(
-        sql`${customers.totalSpent} > 500`,
+        sql`${customers.totalSpent} > 200000`,
         eq(customers.smsOptOut, 0)
       )!;
     case "fleet":
+      // CENTS. Fleet = lifetime spend > $5,000 (500000c).
+      // (Was `> 1000` = >$10.)
       return and(
-        sql`${customers.totalSpent} > 1000`,
+        sql`${customers.totalSpent} > 500000`,
         eq(customers.smsOptOut, 0)
       )!;
     case "recent":

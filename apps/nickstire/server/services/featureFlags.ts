@@ -42,32 +42,10 @@ export const FLAG_DEFINITIONS = [
   { key: "pricing_intelligence_alerts", description: "Telegram alerts for raise/lower pricing" },
   { key: "safety_monitor_enabled", description: "Telegram alerts for non-critical safety monitor warnings" },
 
-  // ─── ENGINE CONTROL: CUSTOMER INTELLIGENCE ────────
-  { key: "engine_churn_prediction", description: "Churn prediction engine (5-factor model)" },
-  { key: "engine_repeat_visit_predictor", description: "Predict when customers are due back" },
-  { key: "engine_customer_risk_scores", description: "Unified 0-100 customer risk scoring" },
-  { key: "engine_value_trend", description: "Track customer ticket size trends" },
-  { key: "engine_service_affinity", description: "Per-customer service preference mapping" },
-
-  // ─── ENGINE CONTROL: REVENUE INTELLIGENCE ─────────
-  { key: "engine_revenue_anomaly", description: "Detect unusual revenue spikes or dips" },
-  { key: "engine_cash_flow_forecast", description: "7/30-day cash flow projections" },
-  { key: "engine_profit_margins", description: "Gross margin analysis per service" },
-  { key: "engine_pricing_intelligence", description: "Approval rate monitoring + raise/lower alerts" },
-  { key: "engine_seasonal_demand", description: "Seasonal service demand forecasting" },
-
-  // ─── ENGINE CONTROL: OPERATIONS INTELLIGENCE ──────
-  { key: "engine_tech_efficiency", description: "Technician performance scoring" },
-  { key: "engine_capacity_forecast", description: "Tomorrow/next week shop load prediction" },
-  { key: "engine_turnaround_time", description: "Service completion time tracking" },
-  { key: "engine_no_show_predictor", description: "Booking no-show risk scoring" },
-
-  // ─── ENGINE CONTROL: MARKETING INTELLIGENCE ───────
-  { key: "engine_channel_roi", description: "Lead source ROI analysis" },
-  { key: "engine_review_velocity", description: "Review growth rate tracking" },
-  { key: "engine_lead_response_time", description: "Speed-to-lead monitoring" },
-  { key: "engine_content_performance", description: "Page-to-lead conversion tracking" },
-  { key: "engine_competitor_monitor", description: "Competitor rating/review tracking" },
+  // NOTE: the 19 engine_* "control" flags were removed (admin-excellence wave).
+  // They were DECORATIVE — no code ever called isEnabled() for them; the
+  // intelligence engines run unconditionally. Existing DB rows are dropped by
+  // drizzle/0066_drop_engine_flags.sql (hand-applied).
 
   // ─── EXPERIENCE FLAGS ─────────────────────────────
   { key: "fomo_ticker_enabled", description: "Live activity ticker on public site (X just booked...)" },

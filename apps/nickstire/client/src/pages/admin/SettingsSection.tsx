@@ -25,6 +25,7 @@ import {
 // Import History panel.
 import { PageHeader, SectionInsightStrip, TabBar, Panel, StatCard } from "./shared";
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
+import { confirmDialog } from "@/components/admin/ConfirmDialog";
 // wave-181.x decomposition · the 5 inlined sibling panels + the cron
 // catalog were extracted into ./settings/* (pure verbatim move). This
 // file is now a lean tab host.
@@ -148,6 +149,19 @@ export default function SettingsSection() {
   };
 
   const handleProbe = async () => {
+    // A direct ALG probe authenticates against ALG and can briefly kick the
+    // shop counter out of ShopDriver — the whole probe-budget system exists to
+    // prevent exactly that. Gate behind an explicit (iOS-PWA-safe) confirm so
+    // it can't be tapped reflexively mid-shift. For routine refreshes use the
+    // budget-gated "Refresh from ALG" panel below.
+    const ok = await confirmDialog({
+      title: "Probe ALG endpoints directly?",
+      message: "This logs in to ALG directly and can briefly log the shop counter out of ShopDriver. Only run it to diagnose a sync problem — for routine data, use the budget-gated Refresh from ALG panel instead.",
+      confirmLabel: "Probe anyway",
+      cancelLabel: "Cancel",
+      tone: "danger",
+    });
+    if (!ok) return;
     // wave-181.x · result lands in server log + toast (via tRPC error handler)
     // The in-page Probe Results panel was deleted in Phase 1.
     // wave-181.x bug-fix · was async/await with no try/catch · auth

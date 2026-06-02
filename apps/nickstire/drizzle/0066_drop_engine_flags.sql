@@ -1,0 +1,11 @@
+-- 0066_drop_engine_flags.sql
+-- admin-excellence wave: remove the 19 decorative engine_* feature flags.
+--
+-- These flags were seeded into feature_flags but NO code ever called
+-- isEnabled() for them — the intelligence engines run unconditionally, so the
+-- toggles implied control that never existed (operator-confirmed: delete).
+-- They have been removed from FLAG_DEFINITIONS (no longer re-seeded). This
+-- migration drops the existing rows. Hand-applied (no auto-migrate).
+--
+-- Safe: feature_flags rows are independent config; no FK references the key.
+DELETE FROM feature_flags WHERE `key` LIKE 'engine\_%';

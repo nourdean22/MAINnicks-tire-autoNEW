@@ -87,17 +87,18 @@ describe("Gateway Health", () => {
 });
 
 describe("Feature Flag Integration", () => {
-  it("at least 50 flags defined in featureFlags service", async () => {
+  it("at least 30 flags defined in featureFlags service", async () => {
     // wave-181.60 — switched from `.toBe(50)` to `>=` so adding new
     // feature flags doesn't break the suite. The test exists to catch
     // accidental DELETIONS (someone removes the registry), not to
-    // freeze the count. wave-181.47 added retention D7/D14 flags (52),
-    // future waves will add more.
+    // freeze the count. admin-excellence wave removed the 19 decorative
+    // engine_* flags (58 -> 39 defs), so the floor is 30 — still catches a
+    // mass-deletion of the registry without freezing the count.
     const content = await import("fs").then(fs =>
       fs.readFileSync("server/services/featureFlags.ts", "utf8")
     );
     const keyCount = (content.match(/key: "/g) || []).length;
-    expect(keyCount).toBeGreaterThanOrEqual(50);
+    expect(keyCount).toBeGreaterThanOrEqual(30);
   });
 
   it("flag REST API endpoints exist", async () => {

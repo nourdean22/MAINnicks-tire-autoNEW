@@ -98,3 +98,10 @@ TrafficFunnel, VoiceReceptionist, WalkInCalculator, WebVitals, WinBack, WorkOrde
 | Y11 | vapi.ts:168 | stale "$35" oil in receptionist kill-list example (prompt text) | P3 cleanup |
 | Y12 | CommandCenterSection.tsx | 439-line nav-dead zombie — delete or restore? | P2 decision |
 | Y13 | coupons | `maxRedemptions` cap never enforced — wire or remove | P3 |
+
+### Batch 2 — operator decisions (2026-06-02)
+- **Y1 GBP fakes → DEFERRED** (deeper look later — do NOT modify gbpContentGenerator this pass).
+- **Y4 WAIT toggle + Y6 19 engine_* flags → DELETE BOTH** (after confirming no readers).
+- **Y5 ALG probe → ADD confirm-warning gate** (keep raw probe, warn it kicks the counter).
+- **Y2 STOP footer · Y3 gateway-gate/queued · Y7 winback $ thresholds (VIP>$2000/fleet>$5000) · Y10 wasPaid · Y11 stale $35 → APPLY.**
+- **Y8 / Y9 / Y12 / Y13 → DEFERRED** (not greenlit — no behavior change this pass).

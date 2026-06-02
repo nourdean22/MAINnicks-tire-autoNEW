@@ -174,13 +174,17 @@ export const invoicesRouter = router({
       );
       if (Object.keys(cleanUpdates).length === 0) return { success: true };
 
-      // Check current status BEFORE update to detect actual transition to "paid"
-      let wasPaid = true;
+      // Check current status BEFORE update to detect an actual transition to
+      // "paid". Default wasPaid=false so a transient read failure errs toward
+      // FIRING invoice_paid — a missed real payment (no Telegram/NOUR OS
+      // notification, no downstream learning) is worse than a rare duplicate
+      // on an already-paid invoice.
+      let wasPaid = false;
       if (input.paymentStatus === "paid") {
         try {
           const [current] = await d.select({ ps: invoices.paymentStatus }).from(invoices).where(eq(invoices.id, id)).limit(1);
           wasPaid = current?.ps === "paid";
-        } catch (e) { log.warn("[advanced:invoice] payment status check failed:", e); }
+        } catch (e) { log.warn("[advanced:invoice] payment status check failed; firing invoice_paid to be safe:", e); }
       }
 
       await d.update(invoices).set(cleanUpdates).where(eq(invoices.id, id));
