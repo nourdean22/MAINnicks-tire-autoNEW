@@ -67,7 +67,16 @@ export function renderLiveState(input: LiveStateInput): string[] {
   // Live domain snapshot — compact, data-only.
   // v11.1 · body/mood/score-gap rows retired alongside DailyScore.
   p.push(`## Live domain snapshot`);
-  p.push(`- Business: $${(MONTHLY_REVENUE_TARGET / 1000).toFixed(0)}K/mo target · ${openLeadCount} leads · ${activeJobCount} jobs today`);
+  // Leads/jobs are nickstire-bridge data the hot prompt does NOT query
+  // (latency), so they were hardcoded 0 by the caller — this line asserted
+  // "0 leads · 0 jobs today" every turn. Only render when actually populated;
+  // Nick pulls live numbers via the dailyPulse / queryNickstire tools. v-fix 2026-06-02.
+  p.push(
+    `- Business: $${(MONTHLY_REVENUE_TARGET / 1000).toFixed(0)}K/mo target` +
+      (openLeadCount > 0 || activeJobCount > 0
+        ? ` · ${openLeadCount} leads · ${activeJobCount} jobs today`
+        : ``),
+  );
   p.push(`- Tasks: ${loopCount} active${loopCount > 8 ? " — overloaded, triage before starting new" : ""}`);
   p.push(`- Commitments: ${commitmentCount} active${overdueCommitments > 0 ? ` · ${overdueCommitments} overdue` : ""}`);
   p.push(``);
