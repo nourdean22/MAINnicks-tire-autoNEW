@@ -305,7 +305,7 @@ function ReadyQueue() {
 }
 
 function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay[] }) {
-  const { data: recs, isLoading } = trpc.dispatch.recommend.useQuery({ workOrderId });
+  const { data: recs, isLoading, isError } = trpc.dispatch.recommend.useQuery({ workOrderId });
   const freeBays = bays.filter(b => !b.occupied);
   const [selectedTech, setSelectedTech] = useState<number | null>(null);
   const [selectedBay, setSelectedBay] = useState<number | null>(null);
@@ -335,6 +335,10 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay
         <div className="text-xs text-muted-foreground mb-2">Recommended Techs</div>
         {isLoading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
+        ) : isError ? (
+          <span className="text-xs text-red-400">Couldn't score techs — pick a bay manually.</span>
+        ) : (recs || []).length === 0 ? (
+          <span className="text-xs text-muted-foreground">No tech recommendations — pick a bay manually.</span>
         ) : (
           <div className="space-y-1">
             {(recs || []).map((rec: DispatchRecommendation) => (

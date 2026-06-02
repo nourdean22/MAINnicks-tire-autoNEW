@@ -366,5 +366,3 @@ export default function SiteHealthSection() {
   );
 }
 
-// ─── COUPONS MANAGEMENT ────────────────────────────────
-

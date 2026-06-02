@@ -3,9 +3,12 @@
  * Columns grouped by lifecycle phase, cards show priority/timer/blocker/tech.
  */
 import { useState, useMemo } from "react";
-import { trpc } from "@/lib/trpc";
+import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { BUSINESS } from "@shared/business";
 import { PageHeader, ErrorState } from "./shared";
+import type { ShopFloorData } from "./today/types";
+
+type AdminDashboardStats = RouterOutputs["adminDashboard"]["stats"];
 import DegradedDataBanner from "@/components/admin/DegradedDataBanner";
 import { SkeletonTable, SkeletonPanel } from "@/components/admin/AdminSkeletons";
 import {
@@ -732,9 +735,8 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
 }
 
 // ─── Shop Pulse Mood Indicator ────────────────────────────
-function ShopPulseMood() {
-  const { data: stats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
-  const shopFloor = (stats as typeof stats & { shopFloor?: { revenueToday: number; invoicesToday: number } })?.shopFloor;
+function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
+  const shopFloor = (stats as (AdminDashboardStats & { shopFloor?: ShopFloorData }) | undefined)?.shopFloor;
 
   if (!shopFloor) return null;
 
@@ -829,10 +831,11 @@ export default function WorkOrdersSection() {
     includeTerminal: showTerminal,
     limit: 200,
   }, { refetchInterval: 15000 });
-  // wave-181.16 · dashboard stats query for the DegradedDataBanner.
-  // Same data ShopPulseMood already fetches above (line 724), but
-  // the WorkOrders main component needs its own copy to surface the
-  // _degraded marker if the stats pipeline throws.
+  // wave-181.16 · single dashboard stats query, lifted to the section
+  // root. Feeds both the DegradedDataBanner (_degraded marker if the
+  // stats pipeline throws) and ShopPulseMood (shopFloor revenue/jobs).
+  // React-Query dedupes, so this was always one fetch — now it's also
+  // one hook instead of two.
   const { data: dashboardStats } = trpc.adminDashboard.stats.useQuery(undefined, { refetchInterval: 30000 });
   const utils = trpc.useUtils();
 
@@ -925,7 +928,7 @@ export default function WorkOrdersSection() {
       </div>
 
       {/* Shop Pulse Mood */}
-      <ShopPulseMood />
+      <ShopPulseMood stats={dashboardStats} />
 
       {/* Stats bar */}
       <StatsBar />

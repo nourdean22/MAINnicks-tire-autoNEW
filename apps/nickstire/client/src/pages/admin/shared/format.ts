@@ -45,3 +45,17 @@ export function formatRelativeDate(d: Date | string | number | null | undefined)
   if (days < 30) return `${Math.floor(days / 7)}w ago`;
   return formatDate(date); // older — show absolute
 }
+
+/**
+ * Compact "time since" for live/streaming admin panels (audit log, snap feed).
+ * Output: "5s ago" / "12m ago" / "3h ago" / "4d ago". Prefer formatRelativeDate
+ * for human calendar phrasing ("today" / "yesterday" / "May 9").
+ */
+export function timeAgoShort(d: Date | string | number): string {
+  const date = new Date(d);
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+}

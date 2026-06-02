@@ -149,6 +149,8 @@ export default function CampaignsSection() {
           setPreview([]);
           await refetchCampaigns();
           setView("list");
+        } else {
+          toast.error(sendResult.error ?? "Send failed");
         }
       }
     } catch (e) {

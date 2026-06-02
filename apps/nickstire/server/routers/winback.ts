@@ -190,7 +190,7 @@ function buildSegmentFilter(segment: string) {
         eq(customers.smsOptOut, 0)
       )!;
     default:
-      return and(eq(customers.segment, segment as any), eq(customers.smsOptOut, 0))!;
+      return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), eq(customers.smsOptOut, 0))!;
   }
 }
 

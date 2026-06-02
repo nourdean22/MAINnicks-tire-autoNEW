@@ -2,14 +2,9 @@
 // Operator wants escape hatches into the VAPI dashboard for things
 // the admin doesn't expose (advanced assistant tuning, phone-number
 // config, account billing, etc.). All open in a new tab.
-export const VAPI_DASHBOARD_BASE = "https://dashboard.vapi.ai";
+const VAPI_DASHBOARD_BASE = "https://dashboard.vapi.ai";
 export const VAPI_LINKS = {
-  callLogs: `${VAPI_DASHBOARD_BASE}/calls`,
-  phoneNumbers: `${VAPI_DASHBOARD_BASE}/phone-numbers`,
-  assistants: `${VAPI_DASHBOARD_BASE}/assistants`,
   callDetail: (callId: string) => `${VAPI_DASHBOARD_BASE}/calls/${callId}`,
-  assistantDetail: (assistantId: string) =>
-    `${VAPI_DASHBOARD_BASE}/assistants/${assistantId}`,
 };
 
 // ─── Sort / filter types (wave-89) ──────────────────────────

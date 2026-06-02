@@ -10,6 +10,7 @@ import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { PageHeader, LoadingState, ErrorState } from "./shared";
+import { timeAgoShort as timeAgo } from "./shared/format";
 // wave-181.x Money Phase 1 · H1 fix · confirmDialog gate on Snap
 // submission. Real $-affecting external API call (triggers Snap
 // credit pull · shop is charged per app · cannot be undone).
@@ -29,15 +30,6 @@ const STATUS_CONFIG: Record<string, { color: string; bgColor: string; icon: Reac
 
 function statusCfg(status: string) {
   return STATUS_CONFIG[status] ?? STATUS_CONFIG.pending;
-}
-
-function timeAgo(d: Date | string): string {
-  const date = new Date(d);
-  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (sec < 60) return `${sec}s ago`;
-  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
-  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
-  return `${Math.floor(sec / 86400)}d ago`;
 }
 
 export default function SnapDashboardSection() {

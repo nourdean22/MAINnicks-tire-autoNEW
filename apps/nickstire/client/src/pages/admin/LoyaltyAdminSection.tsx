@@ -20,7 +20,6 @@ interface RewardItem {
   title: string;
   description?: string;
   pointsCost: number;
-  discountValue?: number;
   rewardValue?: number;
   isActive: number;
 }
@@ -73,7 +72,7 @@ export default function LoyaltyAdminSection() {
     const totalRewards = all.length;
     const activeRewards = all.filter((r: RewardItem) => r.isActive !== 0).length;
     const totalPointsValue = all.reduce((sum: number, r: RewardItem) => sum + (r.pointsCost || 0), 0);
-    const totalDiscountValue = all.reduce((sum: number, r: RewardItem) => sum + (r.discountValue || r.rewardValue || 0), 0);
+    const totalDiscountValue = all.reduce((sum: number, r: RewardItem) => sum + (r.rewardValue || 0), 0);
     // "Most Popular" = lowest cost reward (most accessible)
     const cheapest = all.length > 0
       ? [...all].sort((a: RewardItem, b: RewardItem) => (a.pointsCost || 0) - (b.pointsCost || 0))[0]
@@ -108,7 +107,7 @@ export default function LoyaltyAdminSection() {
                 <div className="text-sm font-bold text-foreground">
                   {(rewardStats.cheapest as RewardItem).title}
                   <span className="text-foreground/40 font-normal ml-2">
-                    {(rewardStats.cheapest as RewardItem).pointsCost} pts &middot; ${(rewardStats.cheapest as RewardItem).discountValue || (rewardStats.cheapest as RewardItem).rewardValue} off
+                    {(rewardStats.cheapest as RewardItem).pointsCost} pts &middot; ${(rewardStats.cheapest as RewardItem).rewardValue} off
                   </span>
                 </div>
               </div>
@@ -198,7 +197,7 @@ export default function LoyaltyAdminSection() {
                     {/* wave-143 — was $r.discountValue which doesn't exist in
                         schema (form submits rewardValue, DB stores rewardValue).
                         Rendered "$undefined off". */}
-                    <p className="text-[12px] text-foreground/40">${r.rewardValue ?? r.discountValue ?? 0} off</p>
+                    <p className="text-[12px] text-foreground/40">${r.rewardValue ?? 0} off</p>
                   </div>
                   <button
                     type="button"
