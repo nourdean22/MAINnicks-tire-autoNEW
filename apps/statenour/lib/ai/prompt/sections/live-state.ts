@@ -13,16 +13,7 @@
 
 import { today } from "@/lib/utils/datetime";
 import { MONTHLY_REVENUE_TARGET } from "@/lib/config/business";
-
-const ALERT_LABEL: Record<string, string> = {
-  correlation_alert: "🔗 correlation",
-  decision_quality_drift: "📉 decision drift",
-  schema_drift_alert: "⚠️ schema drift",
-  storage_quota_alert: "💾 storage",
-  creation_spike_alert: "🌊 create spike",
-  update_spike_alert: "🔁 update spike",
-  brain_bus_alert: "🛰️ brain-bus",
-};
+import { ALERT_LABEL } from "@/lib/ai/prompt/policy/operator-rules";
 
 interface LiveStateInput {
   loopCount: number;

@@ -49,6 +49,11 @@ import { prisma } from "@/lib/prisma";
 import { activeOnly } from "@/lib/db/soft-delete";
 import { logger as rootLogger } from "@/lib/logger";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import {
+  matchWisdom as matchWisdomShared,
+  extractKeywords,
+  personaFromKey,
+} from "@/lib/brain/wisdom-match";
 
 const log = rootLogger.withSurface("services/decision-replay-coach");
 
@@ -64,17 +69,13 @@ const WISDOM_SCAN_LIMIT = 1500;
 /** Similarity floor below which we drop the wisdom citation entirely. */
 const WISDOM_SIM_FLOOR = 0.3;
 
-/** Stopwords removed before keyword scoring · noise. */
-const STOPWORDS = new Set([
-  "the", "a", "an", "and", "or", "but", "if", "then", "for", "of",
-  "to", "in", "on", "at", "by", "with", "from", "is", "was", "are",
-  "were", "be", "been", "being", "have", "has", "had", "do", "does",
-  "did", "will", "would", "could", "should", "may", "might", "i",
-  "you", "we", "they", "it", "this", "that", "these", "those", "so",
-  "as", "than", "too", "very", "more", "less", "my", "your", "our",
-]);
-
-/** Wisdom prefixes that get a citation boost (operator's preferred lenses). */
+/**
+ * Wisdom prefixes that get a citation boost (operator's preferred lenses).
+ * Passed into the shared matcher (lib/brain/wisdom-match.ts). The Jaccard
+ * loop + helpers (extractKeywords/personaFromKey/isPreferredPersonaKey)
+ * live there now, shared with auto-learn.ts. Stopwords = the shared
+ * DEFAULT_WISDOM_STOPWORDS (identical set), so no local copy is needed.
+ */
 const PREFERRED_PERSONAS = ["munger", "naval", "buffett", "greene"] as const;
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -382,62 +383,25 @@ export async function matchWisdom(
   ]
     .filter((s): s is string => !!s)
     .join(" ");
-  const queryTokens = new Set(extractKeywords(queryText));
-  if (queryTokens.size === 0) return null;
+  // Shared Jaccard matcher (lib/brain/wisdom-match.ts) · this file's
+  // own scan-limit + preferred personas passed in. The matcher returns
+  // the top raw-scored match; we map it to MatchedWisdom and apply OUR
+  // floor on the 3-decimal-rounded similarity (as the prior inline loop
+  // did) so behavior is byte-identical.
+  const match = await matchWisdomShared(queryText, {
+    scanLimit: WISDOM_SCAN_LIMIT,
+    preferredPersonas: PREFERRED_PERSONAS,
+  });
+  if (!match) return null;
 
-  const wisdoms = await prisma.brainMemory
-    .findMany({
-      // v10.0.529.106 wave-77 · migrated to activeOnly() helper.
-      where: activeOnly({
-        category: BRAIN_CATEGORIES.WISDOM,
-        confidence: { gte: 0.5 },
-      }),
-      orderBy: { confidence: "desc" },
-      take: WISDOM_SCAN_LIMIT,
-      select: {
-        id: true,
-        key: true,
-        content: true,
-        confidence: true,
-      },
-    })
-    .catch((): never[] => []);
+  const best: MatchedWisdom = {
+    id: match.id,
+    key: match.key,
+    excerpt: match.content.slice(0, 160),
+    similarity: Number(match.score.toFixed(3)),
+  };
 
-  if (wisdoms.length === 0) return null;
-
-  let best: MatchedWisdom | null = null;
-  let bestScore = 0;
-
-  for (const w of wisdoms as Array<{
-    id: string;
-    key: string;
-    content: string;
-    confidence: number;
-  }>) {
-    const wTokens = new Set(extractKeywords(w.content));
-    if (wTokens.size === 0) continue;
-    // Jaccard-style: shared tokens / query token count.
-    let shared = 0;
-    for (const t of queryTokens) {
-      if (wTokens.has(t)) shared++;
-    }
-    if (shared === 0) continue;
-    const baseSim = shared / queryTokens.size;
-    const personaBoost = isPreferredPersonaKey(w.key) ? 1.25 : 1.0;
-    const score = baseSim * personaBoost * Math.max(0.5, w.confidence);
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = {
-        id: w.id,
-        key: w.key,
-        excerpt: w.content.slice(0, 160),
-        similarity: Number(score.toFixed(3)),
-      };
-    }
-  }
-
-  if (!best || best.similarity < WISDOM_SIM_FLOOR) return null;
+  if (best.similarity < WISDOM_SIM_FLOOR) return null;
   return best;
 }
 
@@ -634,36 +598,9 @@ export async function markReplayed(input: MarkReplayedInput): Promise<{
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
-
-function extractKeywords(text: string): string[] {
-  if (!text) return [];
-  const tokens = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t.length >= 4 && !STOPWORDS.has(t));
-  // Dedupe while preserving order · first-seen wins.
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const t of tokens) {
-    if (seen.has(t)) continue;
-    seen.add(t);
-    out.push(t);
-    if (out.length >= 16) break;
-  }
-  return out;
-}
-
-function isPreferredPersonaKey(key: string): boolean {
-  return PREFERRED_PERSONAS.some((p) => key.startsWith(`wisdom_${p}`));
-}
-
-function personaFromKey(key: string): string | null {
-  const m = key.match(/^wisdom_([a-z]+)/i);
-  if (!m?.[1]) return null;
-  const name = m[1]!;
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
+// extractKeywords / isPreferredPersonaKey / personaFromKey now live in
+// lib/brain/wisdom-match.ts (shared with auto-learn.ts). extractKeywords +
+// personaFromKey are imported above.
 
 function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

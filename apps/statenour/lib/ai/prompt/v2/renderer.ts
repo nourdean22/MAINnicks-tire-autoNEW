@@ -22,20 +22,11 @@
 
 import type { NickPrimeContext } from "@/lib/ai/context/nick-prime-context";
 import { sanitizeForPrompt } from "@/lib/ai/prompt/sanitize";
+import { ALERT_LABEL } from "@/lib/ai/prompt/policy/operator-rules";
 
 /** Shorter alias used per-leaf — every operator-supplied string runs
  *  through this before concatenation. v9.1.13 prompt-injection guard. */
 const safe = sanitizeForPrompt;
-
-const ALERT_LABEL: Record<string, string> = {
-  correlation_alert: "🔗 correlation",
-  decision_quality_drift: "📉 decision drift",
-  schema_drift_alert: "⚠️ schema drift",
-  storage_quota_alert: "💾 storage",
-  creation_spike_alert: "🌊 create spike",
-  update_spike_alert: "🔁 update spike",
-  brain_bus_alert: "🛰️ brain-bus",
-};
 
 export interface PromptV2Sections {
   /** v9.1.8 · Pinned context + top brain rules (sits near top of prompt). */
