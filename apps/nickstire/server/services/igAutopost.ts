@@ -126,7 +126,7 @@ const CAPTION_WEIGHTS: Record<keyof Omit<CaptionEval, "notes">, number> = {
 // shop's advertisable-price policy.
 const ADVERTISABLE_PRICES = [
   "used tires from $60 installed",
-  "oil change $50",
+  "oil change $49",
   "synthetic oil change $80",
 ];
 
@@ -680,7 +680,7 @@ function buildEvalSystemPrompt(): string {
     "DIMENSIONS:",
     "1. viralShape — does it have, in order: a concrete surprising HOOK (not a question), specific PROOF with numbers/specifics, a TURN that re-contextualizes, and a friction-removed TAKE-AWAY? Missing one element caps this at 0.5.",
     "2. voice — does it surprise + specify + reveal a human voice? Concrete numbers, named services, real places? Score 0.0 if it contains ANY banned word (trusted, expert, quality, premium, hassle-free, best, #1, certified technicians, reliable, top-notch) or an LLM tell.",
-    "3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: used tires from $60 installed; oil change $50; synthetic oil change $80. No price stated at all = 1.0.",
+    "3. priceCompliance — 1.0 ONLY if every price stated is one of the allowed prices and NO repair price is quoted. If it quotes a price for brakes/diagnostics/AC/battery/alignment/exhaust or any non-allowed price, score 0.0. Allowed prices: used tires from $60 installed; oil change $49; synthetic oil change $80. No price stated at all = 1.0.",
     "4. novelty — is the core idea clearly distinct from the supplied recent concept-keys? Near-duplicate of a recent idea = below 0.4.",
     "5. noFabrication — 1.0 if no invented customer names, fake quotes, or fake statistics. A quote that matches a supplied real review is fine. Any invented name/quote/stat = 0.0.",
     "",
