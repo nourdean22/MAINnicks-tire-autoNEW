@@ -593,6 +593,14 @@ export async function handleRunMigrations() {
       // lookup), unique stripeSubscriptionId (idempotent webhook upsert).
       // Inlined here so it applies via the runMigrations admin tRPC (Chrome path).
       `CREATE TABLE IF NOT EXISTS memberships (id INT AUTO_INCREMENT PRIMARY KEY, plan VARCHAR(64) NOT NULL DEFAULT 'nonstop-nick', phone VARCHAR(20) NOT NULL, name VARCHAR(255) NULL, email VARCHAR(320) NULL, vehiclePlate VARCHAR(16) NULL, vehicleDesc VARCHAR(255) NULL, status ENUM('active','past_due','canceled','incomplete') NOT NULL DEFAULT 'incomplete', stripeCustomerId VARCHAR(64) NULL, stripeSubscriptionId VARCHAR(64) NULL, currentPeriodEnd TIMESTAMP NULL, canceledAt TIMESTAMP NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, INDEX idx_membership_phone (phone), INDEX idx_membership_status (status), UNIQUE KEY uq_membership_stripe_sub (stripeSubscriptionId))`,
+      // 2026-06-01 · drizzle/0065_ig_autopost_log.sql — autonomous IG+FB autoposter log.
+      // One row per run (dryrun|posted|failed|aborted). Indexes serve: anti-repetition
+      // (recent conceptKeys), once-per-slot-per-day dedupe (guards the 15-min cron from
+      // double-posting inside one slot window), and admin review-by-status. Bare
+      // identifiers — none are reserved words, so no backtick-escaping needed. The cron's
+      // slot-dedupe fail-OPENS when this table is missing, so it MUST exist in prod
+      // before IG_AUTOPOST_DRYRUN=false, or each slot double-posts.
+      `CREATE TABLE IF NOT EXISTS ig_autopost_log (id INT AUTO_INCREMENT PRIMARY KEY, archetype VARCHAR(20) NOT NULL, conceptKey VARCHAR(64) NOT NULL, slot VARCHAR(16) NOT NULL DEFAULT 'manual', slotDate VARCHAR(10) NOT NULL, evalScoresJson TEXT NULL, captionWeighted INT NULL, overallScore INT NULL, status VARCHAR(16) NOT NULL, caption TEXT NOT NULL, hashtags TEXT NULL, imagePrompt TEXT NULL, imageUrl VARCHAR(1000) NULL, igPostId VARCHAR(64) NULL, fbPostId VARCHAR(64) NULL, error VARCHAR(500) NULL, source VARCHAR(16) NOT NULL DEFAULT 'cron', createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX idx_ig_autopost_created (createdAt), INDEX idx_ig_autopost_slot_day (slot, slotDate), INDEX idx_ig_autopost_status (status))`,
     ];
 
     let applied = 0;
