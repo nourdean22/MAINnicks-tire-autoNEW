@@ -122,6 +122,7 @@ import { NickMessage } from "@/components/chat/nick-message";
 // needed below for BuilderSandbox + BrowserSandbox.
 import dynamic from "next/dynamic";
 import { ChatHistorySearch } from "@/components/chat/chat-history-search";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ConnectionStatus } from "@/components/chat/connection-status";
 import { KeyboardCheatSheet } from "@/components/chat/keyboard-cheat-sheet";
 import { SlashCommandDropdown } from "@/components/chat/slash-command-dropdown";
@@ -1550,12 +1551,19 @@ function Chat() {
   // confirm; only the header's "Delete conversation" had the guard.
   // Now both flows share one confirm-protected path. e.preventDefault
   // / stopPropagation still happen via deleteConvoBase.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const deleteConvo = useCallback(async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!window.confirm("Delete this conversation? This cannot be undone.")) return;
+    const ok = await confirm({
+      title: "Delete conversation?",
+      body: "This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     await deleteConvoBase(id, e);
     toast.success("Conversation deleted");
-  }, [deleteConvoBase]);
+  }, [deleteConvoBase, confirm]);
 
   async function send() {
     const raw = input.trim();
@@ -2720,6 +2728,7 @@ function Chat() {
           button to trigger it. */}
 
       {/* ─── Chat history search (Cmd+F) ─── */}
+      {confirmDialog}
       <ChatHistorySearch
         open={showHistorySearch}
         onClose={() => setShowHistorySearch(false)}

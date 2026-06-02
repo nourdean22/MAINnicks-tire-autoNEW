@@ -108,7 +108,6 @@
     "apps/statenour/components/chat/use-prompt-suggestions.ts": 2,
     "apps/statenour/components/chat/use-silent-retry.ts": 1,
     "apps/statenour/components/command-palette.tsx": 3,
-    "apps/statenour/components/home/home-narrator.tsx": 1,
     "apps/statenour/components/home/home-strip.tsx": 1,
     "apps/statenour/components/hud/pwa-install-prompt.tsx": 1,
     "apps/statenour/components/hud/session-expiry-banner.tsx": 3,

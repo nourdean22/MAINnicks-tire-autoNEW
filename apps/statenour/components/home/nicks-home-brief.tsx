@@ -62,7 +62,7 @@ export function NicksHomeBrief() {
           <p className="text-[9px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]/80">
             nick · today
           </p>
-          <p className="mt-1 text-[13px] text-[var(--text-primary)] leading-snug whitespace-pre-line">
+          <p className="mt-1 text-[13px] text-[var(--text-primary)] leading-relaxed max-w-[60ch] whitespace-pre-line">
             {brief}
           </p>
         </div>

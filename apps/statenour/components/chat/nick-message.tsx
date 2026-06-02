@@ -49,6 +49,7 @@ function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps) {
   const [varying, setVarying] = useState(false);
   const [variants, setVariants] = useState<Array<{ imageUrl: string; imageId: string }>>([]);
   const [error, setError] = useState<string | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
 
   // Phase II · 2 mutation procedures replace the legacy authedFetch
   // POSTs · same useMutation().mutateAsync() pattern HH established.
@@ -69,6 +70,7 @@ function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps) {
         enhance: true,
       });
       setCurrentSrc(result.imageUrl);
+      setImgFailed(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -113,23 +115,22 @@ function ImageWithUpscale({ srcStr, alt, imageId }: ImageWithUpscaleProps) {
   // also became <span> for the same reason.
   return (
     <span className="relative group inline-block">
-      <a href={currentSrc} target="_blank" rel="noopener noreferrer">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={currentSrc}
-          alt={alt}
-          loading="lazy"
-          className="rounded-lg max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
-          onError={(e) => {
-            const img = e.currentTarget;
-            const wrap = document.createElement("span");
-            wrap.className =
-              "inline-block rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono";
-            wrap.textContent = `image didn't generate · ${currentSrc.slice(-12)} 404`;
-            img.replaceWith(wrap);
-          }}
-        />
-      </a>
+      {imgFailed ? (
+        <span className="inline-block rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2.5 mt-2 mb-1 text-[11px] text-rose-300 font-mono">
+          image failed to load ({currentSrc.slice(-12)})
+        </span>
+      ) : (
+        <a href={currentSrc} target="_blank" rel="noopener noreferrer">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={currentSrc}
+            alt={alt}
+            loading="lazy"
+            className="rounded-lg max-w-full max-h-[400px] border border-[var(--border)] mt-2 mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+            onError={() => setImgFailed(true)}
+          />
+        </a>
+      )}
       {imageId && (
         <span className="absolute top-3 right-1 inline-flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button

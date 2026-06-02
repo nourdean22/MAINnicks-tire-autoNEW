@@ -25,6 +25,7 @@ import { X, Search, MessageSquare, User, Bot, Loader2, Download, Star, Archive, 
 import { toast } from "sonner";
 
 import { trpc } from "@/lib/trpc/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 // Phase Z (2026-05-18 PM) · Snippet + SearchResultGroup types now flow
 // from the chat.search procedure's return shape · the manual mirrors
@@ -46,6 +47,7 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   // Phase Z · React Query handles search. Manual debounce stays as a
   // 250ms gate that controls when the debouncedQuery key changes ·
@@ -122,7 +124,13 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
 
   const deleteConvo = useCallback(
     async (conversationId: string, title: string) => {
-      if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return;
+      const ok = await confirm({
+        title: "Delete conversation?",
+        body: `Delete "${title}"? This cannot be undone.`,
+        confirmLabel: "Delete",
+        tone: "danger",
+      });
+      if (!ok) return;
       try {
         await deleteConvoMut.mutateAsync({ id: conversationId });
         toast.success("deleted");
@@ -143,7 +151,7 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
         toast.error("Delete failed");
       }
     },
-    [deleteConvoMut, utils, trimmedDebounced],
+    [deleteConvoMut, utils, trimmedDebounced, confirm],
   );
 
   const handleJump = useCallback(
@@ -157,7 +165,9 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
   if (!open) return null;
 
   return (
-    <div
+    <>
+      {confirmDialog}
+      <div
       className="fixed inset-0 z-[9600] flex items-start justify-center pt-[8vh] px-4 bg-[var(--bg-void)]/85 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
@@ -308,6 +318,7 @@ export function ChatHistorySearch({ open, onClose, onJumpTo }: ChatHistorySearch
         </div>
       </div>
     </div>
+    </>
   );
 }
 
