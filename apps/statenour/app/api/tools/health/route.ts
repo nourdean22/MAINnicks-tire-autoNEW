@@ -27,7 +27,11 @@ export async function GET() {
 
   // ── ENV VARS — categorized ──
   const envChecks: Record<string, string[]> = {
-    ai: ["VENICE_API_KEY", "ANTHROPIC_API_KEY"],
+    // ai: VENICE_API_KEY only — Venice is the PRIMARY provider and the
+    // Ollama/OpenAI/Anthropic fallbacks back it. Requiring the unset
+    // last-resort ANTHROPIC_API_KEY here falsely degraded the arsenal.
+    // Mirrors lib/services/tools-health.ts. (2026-06-02 audit.)
+    ai: ["VENICE_API_KEY"],
     voice: ["HUGGINGFACE_API_KEY"],
     files: ["GITHUB_TOKEN", "GOOGLE_SERVICE_ACCOUNT_KEY"],
     communication: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"],
