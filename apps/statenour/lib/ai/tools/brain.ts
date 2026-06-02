@@ -609,6 +609,30 @@ export const brainTools = {
     },
   }),
 
+  // 2026-06-02 · ported from the `mental-health-analyzer` skill, GROUNDED in
+  // statenour's own logs (no clinical questionnaire assumed, nothing
+  // fabricated, gaps reported honestly). Engine: lib/brain/analyzers/
+  // mental-health.ts. Explicitly NON-clinical — never diagnoses or predicts
+  // self-harm; surfaces crisis resources (988) instead.
+  analyzeMentalHealth: tool({
+    description:
+      "Analyze Nour's mental/emotional wellbeing from his OWN logged data (mood, energy, sleep, stress, workouts, journal patterns) over a window. Returns a grounded mood trend, volatility, sleep/workout correlations, a NON-clinical 'concern level' with factors, and safe guidance. Use when Nour asks how he's doing emotionally, about mood/stress/burnout patterns, or 'am I okay'. NOT a diagnosis — it surfaces crisis resources and never predicts self-harm.",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeMentalHealth } = await import(
+        "@/lib/brain/analyzers/mental-health"
+      );
+      return analyzeMentalHealth({ days });
+    },
+  }),
+
   getEmotionalState: tool({
     description: "Get Nour's current emotional arc — stress trajectory, dominant state, triggers, decision risk. Shows how emotions are affecting performance.",
     inputSchema: z.object({}),
