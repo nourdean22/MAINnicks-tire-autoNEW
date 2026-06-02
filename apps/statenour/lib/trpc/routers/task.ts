@@ -721,8 +721,13 @@ export const taskRouter = router({
         DOMAIN_MAP[input.domain.trim().toLowerCase()] ?? "PERSONAL";
       const inboxTitle = `Inbox - ${targetDomain.toLowerCase()}`;
 
+      // Reuse the OLDEST matching inbox if more than one exists. There is no
+      // @@unique on Mission(title, domain) yet (adding it is a gated prod
+      // migration — needs a dedup-first pass), so this keeps domainSwap routing
+      // to a single mission instead of scattering tasks across accidental dupes.
       let inbox = await prisma.mission.findFirst({
         where: { title: inboxTitle, status: "ACTIVE", deletedAt: null },
+        orderBy: { createdAt: "asc" },
         select: { id: true, title: true, domain: true },
       });
       if (!inbox) {

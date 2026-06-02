@@ -34,6 +34,13 @@ export interface XpCredit {
 export async function creditStatXp(ev: XpCredit): Promise<boolean> {
   if (ev.xp <= 0 || !ev.stat) return false;
   const key = ev.sourceKey;
+  // `existing` powers the was-new return (below) — a BEST-EFFORT flag for a
+  // backfill's "added N" count. The upsert is idempotent on (category,key) so
+  // stored XP can NEVER double-count; under rare concurrent credits of the
+  // SAME sourceKey the flag can over-report (both see existing===null), but the
+  // XP stays correct. Left as findUnique+upsert deliberately: this contract is
+  // pinned by credit-task-stats.test, and a create+catch-P2002 rewrite buys
+  // only an exact concurrent count — negligible for a single-user app.
   const existing = await prisma.brainMemory
     .findUnique({
       where: { category_key: { category: MASTERY_XP_CATEGORY, key } },
