@@ -14,7 +14,7 @@ export const SEED_QA: GBPQAEntry[] = [
   { question: "Do you do alignments?", answer: "Yes! We offer full 4-wheel precision alignment starting at $79. Call (216) 862-0005 or schedule a drop-off at nickstire.org.", category: "services" },
   { question: "Do you sell tires?", answer: "Yes — new and used tires. We carry all major brands and can match or beat any price. Visit nickstire.org/tires or call (216) 862-0005.", category: "services" },
   { question: "Do you offer financing?", answer: "Yes — payment programs are available through Acima, Snap Finance, Koalafi, and American First Finance. $10 down, no credit check. Bad credit or no credit, we can help. Apply in store or online.", category: "financing" },
-  { question: "How much is an oil change?", answer: "Conventional oil changes start at $39.99, full synthetic from $69.99. Includes filter, fluid top-off, and multi-point inspection.", category: "pricing" },
+  { question: "How much is an oil change?", answer: "Conventional oil changes start at $49, full synthetic from $80. Includes filter, fluid top-off, and multi-point inspection.", category: "pricing" }, // keep in sync with OIL_PRICE
   { question: "Do you do inspections / E-Check?", answer: "Yes, we're a certified Ohio E-Check emissions testing station. Walk-ins welcome, usually done in 30 minutes or less.", category: "services" },
   { question: "Do you work on trucks / SUVs?", answer: "Absolutely. We service all makes and models — cars, trucks, SUVs, and vans. Foreign and domestic.", category: "services" },
   { question: "Do you offer free estimates?", answer: "Yes, we provide free estimates on all services. No pressure, no obligation. Call (216) 862-0005 or stop by.", category: "pricing" },

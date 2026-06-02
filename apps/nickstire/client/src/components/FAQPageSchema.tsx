@@ -129,7 +129,8 @@ export const TIRE_REPAIR_FAQ: FAQItem[] = [
 export const OIL_CHANGE_FAQ: FAQItem[] = [
   {
     q: "How much is an oil change in Cleveland?",
-    a: "Conventional oil change starts at $39 · synthetic oil change starts at $69. Includes new filter, top-off of all fluids, and a free 21-point inspection.",
+    // keep in sync with OIL_PRICE
+    a: "Conventional oil change starts at $49 · synthetic oil change starts at $80. Includes new filter, top-off of all fluids, and a free 21-point inspection.",
   },
   {
     q: "Do you offer synthetic oil changes?",

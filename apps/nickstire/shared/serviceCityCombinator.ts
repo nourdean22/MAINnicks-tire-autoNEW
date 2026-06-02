@@ -4,6 +4,8 @@
  * Example: /oil-change-euclid-oh, /brakes-parma-oh, /tires-lakewood-oh
  */
 
+import { OIL_PRICE } from "./pricing";
+
 export interface ServiceCityPage {
   slug: string;
   serviceSlug: string;
@@ -19,7 +21,7 @@ export interface ServiceCityPage {
 const SERVICES = [
   { slug: "tires", name: "Tires", price: "from $40" },
   { slug: "brakes", name: "Brake Repair", price: "from $89" },
-  { slug: "oil-change", name: "Oil Change", price: "from $39" },
+  { slug: "oil-change", name: "Oil Change", price: `from $${OIL_PRICE.conventional}` },
   { slug: "diagnostics", name: "Engine Diagnostics", price: "from $49" },
   { slug: "emissions", name: "E-Check & Emissions", price: "from $29" },
   { slug: "alignment", name: "Wheel Alignment", price: "from $79" },
