@@ -153,6 +153,27 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
     (c) => c.status === "down",
   ).length;
 
+  // Optional integrations (graceful-degrade) must NOT mark the whole
+  // arsenal "degraded" when their keys are absent. "Files (Drive +
+  // GitHub)" tools throw-and-fall-back (GITHUB_TOKEN is critical:false;
+  // Drive tools return "not configured") -- a missing optional key is
+  // "not set up", not "broken". Same false-alarm class as the old
+  // integration-quotas panel (which probed integrations statenour does
+  // not use). overallStatus is therefore computed from REQUIRED
+  // categories only; database / env_business (STATENOUR_SYNC_KEY) /
+  // env_ai / env_communication stay honest and still drive "degraded"
+  // when genuinely down. (2026-06-02 audit.)
+  const OPTIONAL_CATEGORIES = new Set(["Files (Drive + GitHub)"]);
+  const requiredCats = Object.entries(categories).filter(
+    ([name]) => !OPTIONAL_CATEGORIES.has(name),
+  );
+  const downRequired = requiredCats.filter(
+    ([, c]) => c.status === "down",
+  ).length;
+  const notOkRequired = requiredCats.filter(
+    ([, c]) => c.status !== "ok",
+  ).length;
+
   return {
     timestamp: now,
     summary: {
@@ -162,11 +183,11 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
       degraded: degradedCategories,
       down: downCategories,
       overallStatus:
-        downCategories > 0
+        downRequired > 0
           ? "degraded"
-          : okCategories === Object.keys(categories).length
-            ? "operational"
-            : "partial",
+          : notOkRequired > 0
+            ? "partial"
+            : "operational",
     },
     dependencies: checks,
     categories,
