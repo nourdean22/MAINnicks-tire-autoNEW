@@ -124,18 +124,6 @@ interface ResolveArgs {
 
 export async function resolvePrediction(args: ResolveArgs): Promise<{ resolved: boolean; predictionId?: string }> {
   const captionHash = fnv1a(args.captionText.slice(0, 500));
-  const pred = await prisma.brainMemory
-    .findFirst({
-      where: {
-        category: "prediction",
-        // Match by caption hash in metadata
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50, // latest 50 — find by hash
-    })
-    .catch(() => null);
-
-  if (!pred) return { resolved: false };
 
   // Find by hash
   const candidates = await prisma.brainMemory
@@ -248,34 +236,20 @@ export async function getCalibrationStats(daysBack = 30): Promise<CalibrationSta
 /**
  * Format calibration stats as a system-prompt block. Injected into
  * content-mode prompt so Nick knows his own track record.
+ *
+ * Wave 59 · NO-OP until the resolve loop is wired. `resolvePrediction`
+ * — the step that marks predictions resolved + writes back the actual
+ * score — has zero call sites, so `resolvedCount` is permanently 0.
+ * That meant this function only ever emitted the "insufficient data"
+ * hedge, injecting pure prompt noise into every content-mode system
+ * prompt. Returning "" makes it a no-op so it stops polluting prompts;
+ * the call site (`lib/ai/system-prompt.ts`) already guards `if
+ * (calibBlock)` so an empty string is skipped cleanly. The `stats`
+ * param + return type are preserved so callers are untouched. Restore
+ * the real block (git history) once resolvePrediction is invoked from
+ * the BATCH-5 content_performance scoring path.
  */
 export function buildCalibrationPromptBlock(stats: CalibrationStats): string {
-  if (stats.resolvedCount < 5) {
-    return `
-═══ PREDICTION CALIBRATION (insufficient data — fewer than 5 resolved predictions) ═══
-You don't have enough shipped + scored predictions to calibrate confidence yet.
-Make predictions when generating ("I think this hits 200+ engagement") so the loop can train. Until 30+ are resolved, hedge: say "early signal" instead of "high confidence."
-`.trim();
-  }
-  const within20 = (stats.within20PctRate * 100).toFixed(0);
-  const within40 = (stats.within40PctRate * 100).toFixed(0);
-  const bias = stats.meanBiasPct;
-  const biasNote = bias > 0.1
-    ? `You tend to UNDER-PROMISE by ${(bias * 100).toFixed(0)}% — be bolder.`
-    : bias < -0.1
-      ? `You tend to OVER-PROMISE by ${Math.abs(bias * 100).toFixed(0)}% — temper your claims.`
-      : "Your predictions are well-calibrated (no consistent bias).";
-  return `
-═══ PREDICTION CALIBRATION (last 30 days, ${stats.resolvedCount} resolved) ═══
-Your accuracy track record:
-  · ${within20}% of predictions within ±20% of actual
-  · ${within40}% within ±40%
-  · Mean error: ${(stats.meanErrorPct * 100).toFixed(0)}%
-  · ${biasNote}
-
-Calibration rules:
-  · Make predictions ONLY when you have base-rate evidence (similar past posts).
-  · State confidence as a percentage that matches your accuracy class — if ${within20}% of your predictions hit ±20%, don't claim "95% confident" lightly.
-  · If you don't have base-rate evidence, say "early signal" or "no read yet" instead of inventing a number.
-`.trim();
+  void stats;
+  return "";
 }

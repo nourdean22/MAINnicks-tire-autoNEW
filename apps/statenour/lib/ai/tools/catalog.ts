@@ -37,7 +37,6 @@ export type ToolCategory =
   | "business_read"      // shop + customer + revenue
   | "business_write"     // quote, SMS, follow-up, payment
   | "live_shop"          // nickstire-bridge live queries
-  | "revenue"            // revenue tracking (mostly superseded by live_shop)
   | "content"            // image/post/campaign generation
   | "comms"              // SMS + Telegram
   | "ai_analysis"        // SQL, code, summarize, sentiment, math
