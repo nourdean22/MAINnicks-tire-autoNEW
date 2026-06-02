@@ -47,10 +47,11 @@ export const PINNED_MODELS = {
   openai: "gpt-4o-mini",
 
   /**
-   * Ollama Cloud Pro local · large-context backup when Venice 32k
-   * isn't enough. Free per-token, monthly cap.
+   * Ollama Cloud Pro · large-context backup when Venice 32k isn't
+   * enough. Flat monthly fee, no per-token billing. 1M-token context.
+   * Mirrors the live default in lib/ai/provider.ts (OLLAMA_MODEL).
    */
-  ollama: "qwen3-32b",
+  ollama: "qwen3-vl:235b-instruct",
 
   // ── Image generation ──────────────────────────────────────────────
   /**
@@ -72,15 +73,19 @@ export const PINNED_MODELS = {
   // ── Vision input ──────────────────────────────────────────────────
   /**
    * Used for receipt OCR, photo analysis, vision-tool replies. qwen3-vl
-   * is the cheap option · gpt-4-vision is the accurate option. We use
-   * the cheap one and fall back when confidence < threshold.
+   * is the cheap option · the OpenAI tier is the accurate fallback. We
+   * use the cheap one and fall back when confidence < threshold.
+   * Live vision routes through the lib/ai/provider.ts chain (Venice /
+   * Ollama qwen3-vl → OpenAI); these pins document the intent.
    */
   visionPrimary: "qwen3-vl-7b",
 
   /**
-   * Vision fallback · accurate but expensive.
+   * Vision fallback · accurate but expensive. Mirrors the OpenAI tier
+   * default in lib/ai/provider.ts (OPENAI_MODEL · vision-capable).
+   * Was "gpt-4-vision-preview" · that model is retired by OpenAI.
    */
-  visionFallback: "gpt-4-vision-preview",
+  visionFallback: "gpt-4o-mini",
 
   // ── Embeddings ────────────────────────────────────────────────────
   /**
@@ -109,6 +114,22 @@ export const MODEL_CHANGELOG: Array<{
   reason: string;
   benchmarkDelta?: string; // e.g. "73 → 82 (+9pts)"
 }> = [
+  {
+    date: "2026-06-02",
+    model: "ollama",
+    from: "qwen3-32b",
+    to: "qwen3-vl:235b-instruct",
+    reason:
+      "Doc-honesty fix · the pin was stale. lib/ai/provider.ts (the live source of truth · reads process.env.OLLAMA_MODEL directly) defaults to qwen3-vl:235b-instruct. PINNED_MODELS has no runtime consumer; aligning the reference to the real default.",
+  },
+  {
+    date: "2026-06-02",
+    model: "visionFallback",
+    from: "gpt-4-vision-preview",
+    to: "gpt-4o-mini",
+    reason:
+      "Doc-honesty fix · gpt-4-vision-preview is retired by OpenAI. Live vision falls back through the provider chain's OpenAI tier (OPENAI_MODEL, vision-capable). Aligning the reference; no runtime consumer reads this pin.",
+  },
   {
     date: "2026-05-06",
     model: "imageGen",
