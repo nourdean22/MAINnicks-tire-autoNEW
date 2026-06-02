@@ -646,6 +646,27 @@ export const brainTools = {
     },
   }),
 
+  // 2026-06-02 · generalizes the `health-trend-analyzer` skill (multi-dimension
+  // trend + change-point detection + correlation) from health-only to ALL of
+  // the operator's tracked daily metrics. Grounded in real logs, honest about
+  // gaps, no model call. Engine: lib/brain/analyzers/trends.ts.
+  analyzeTrends: tool({
+    description:
+      "Detect what's changing across ALL of Nour's tracked daily metrics (mood, energy, sleep, dailyScore, deep-work, drift, workouts + body: weight, body-fat, waist, stress) over a window. Returns per-metric direction (rising/flat/falling) + per-30-day change + a recent-vs-prior change-point, the TOP MOVERS (biggest normalized change), and notable pairwise correlations (|r|>=0.5, e.g. sleep<->mood). Honest about thin data (per-metric insufficient flag when <5 points). Use when Nour asks 'what's changing / trending / what's off lately / what moves together' across his metrics. Reports direction without moralizing (e.g. weight is context-dependent).",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeTrends } = await import("@/lib/brain/analyzers/trends");
+      return analyzeTrends({ days });
+    },
+  }),
+
   getEmotionalState: tool({
     description: "Get Nour's current emotional arc — stress trajectory, dominant state, triggers, decision risk. Shows how emotions are affecting performance.",
     inputSchema: z.object({}),
