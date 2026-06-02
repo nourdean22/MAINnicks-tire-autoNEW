@@ -88,6 +88,18 @@ const MIGRATIONS: Record<string, string[]> = {
   "0006_task_pending_classification": [
     `ALTER TABLE "Task" ADD COLUMN IF NOT EXISTS "pending_classification" JSONB`,
   ],
+
+  // Brain hybrid-retrieval FTS lane · 2026-06-02 · additive · zero data loss.
+  // Expression GIN index for full-text search on brain_memories.content,
+  // powering the real lexical lane in lib/brain/contextual-recall.ts (it
+  // replaces the naive substring keywordScore lane). On a SEPARATE table from
+  // vector_embeddings, so pgvector is untouched. ~7K rows -> sub-second build.
+  // No new column -> no Prisma drift. The recall query degrades to a seq-scan
+  // pre-apply (still correct, just slower), so the code is safe to deploy
+  // ahead of applying this.
+  "0007_brain_fts": [
+    `CREATE INDEX IF NOT EXISTS "brain_memories_content_fts_idx" ON "brain_memories" USING GIN (to_tsvector('english', "content"))`,
+  ],
 };
 
 export async function POST(req: Request) {

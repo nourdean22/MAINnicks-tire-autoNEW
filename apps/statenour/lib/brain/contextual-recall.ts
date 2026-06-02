@@ -182,6 +182,86 @@ function keywordScore(
 }
 
 // ---------------------------------------------------------------------------
+// Lexical lane — real Postgres full-text search (Wave B · 2026-06-02)
+// ---------------------------------------------------------------------------
+//
+// The keywordScore lane above is naive JS substring matching, AND it only
+// ever sees the top-300-by-confidence rows loaded in getContextualMemories.
+// A perfect lexical hit (a person's name, an error code like "F25e", a SKU)
+// on a mid-confidence memory was never loaded, so it could not surface. This
+// runs a true Postgres FTS (ts_rank + websearch_to_tsquery, OR semantics
+// across topics) over ALL non-deleted, confidence>=0.3 memories, backed by
+// the GIN expression index `brain_memories_content_fts_idx` (migration
+// 0007_brain_fts). Results (a) replace the keyword lane with a real ts_rank
+// signal and (b) are UNIONed into the candidate pool so lexical-strong but
+// low-confidence memories can win. Best-effort: any failure (pre-migration,
+// empty tsquery) returns [] and the caller falls back to keywordScore. It is
+// independent of pgvector (vector_embeddings is a separate table) — purely
+// additive to the existing semantic lane.
+
+interface LexicalRow {
+  id: string;
+  content: string;
+  category: string;
+  key: string;
+  confidence: number;
+  created_at: Date;
+  source: string | null;
+  seen_count: number | null;
+  updated_at: Date;
+  rank: number;
+}
+
+/**
+ * Build the websearch tsquery text from extracted topics. Topics are joined
+ * with " or " so a memory matching ANY topic ranks (websearch_to_tsquery
+ * treats the bare word "or" as the OR operator; a multi-word topic like
+ * "tire inventory" stays ANDed within itself). Exported for unit tests.
+ */
+export function buildLexicalTsQuery(topics: string[]): string {
+  return topics
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0)
+    .join(" or ");
+}
+
+async function getLexicalMatches(topics: string[], limit = 50): Promise<LexicalRow[]> {
+  const tsQueryText = buildLexicalTsQuery(topics);
+  if (!tsQueryText) return [];
+  try {
+    // $1 = tsQueryText (parameterized — no injection). `limit` is an internal
+    // numeric constant interpolated as a literal, mirroring memory-recall.ts.
+    return await prisma.$queryRawUnsafe<LexicalRow[]>(
+      `SELECT bm.id::text          AS id,
+              bm.content           AS content,
+              bm.category::text    AS category,
+              bm.key::text         AS key,
+              bm.confidence::float AS confidence,
+              bm.created_at        AS created_at,
+              bm.source            AS source,
+              bm.seen_count        AS seen_count,
+              bm.updated_at        AS updated_at,
+              ts_rank(to_tsvector('english', bm.content),
+                      websearch_to_tsquery('english', $1)) AS rank
+       FROM brain_memories bm
+       WHERE bm.deleted_at IS NULL
+         AND bm.confidence >= 0.3
+         AND to_tsvector('english', bm.content)
+             @@ websearch_to_tsquery('english', $1)
+       ORDER BY rank DESC
+       LIMIT ${limit}`,
+      tsQueryText,
+    );
+  } catch (err) {
+    console.warn(
+      "[brain-recall] lexical FTS query failed (pre-migration?) — falling back:",
+      err instanceof Error ? err.message.slice(0, 120) : String(err),
+    );
+    return [];
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main: semantic + hybrid recall
 // ---------------------------------------------------------------------------
 
@@ -304,11 +384,42 @@ export async function getContextualMemories(
     return "";
   }
 
+  // Wave B · lexical lane + candidate-pool union. Run a real Postgres FTS
+  // (getLexicalMatches) across ALL memories, not just the top-300-by-
+  // confidence pool above, so a strong lexical match on a low-confidence
+  // memory can still surface. Filter excluded categories in JS (cheap on
+  // <=50 rows), build the per-id rank map for the lane, and UNION any FTS hit
+  // not already in allMemories into the candidate pool. Best-effort: on any
+  // failure lexicalRows is [] and the keyword lane falls back to keywordScore.
+  const excludeSet = new Set<string>(RECALL_EXCLUDE_CATEGORIES);
+  const lexicalRows = (await timed("lexical", () => getLexicalMatches(topics)))
+    .filter((r) => !excludeSet.has(r.category));
+  const useLexical = lexicalRows.length > 0;
+  const lexicalRankById = new Map<string, number>();
+  for (const r of lexicalRows) lexicalRankById.set(r.id, r.rank);
+  const existingIds = new Set(allMemories.map((m) => m.id));
+  const candidatePool = [
+    ...allMemories,
+    ...lexicalRows
+      .filter((r) => !existingIds.has(r.id))
+      .map((r) => ({
+        id: r.id,
+        category: r.category,
+        key: r.key,
+        content: r.content,
+        confidence: r.confidence,
+        createdAt: r.created_at,
+        source: r.source ?? "system",
+        seenCount: r.seen_count ?? 1,
+        updatedAt: r.updated_at,
+      })),
+  ];
+
   // Try semantic scoring first · Wave 81 · pre-computed embedding
   // skips the getEmbedding round-trip when caller already has one
   // (chat route's predictive-prefetch pre-warmed userEmbedding).
   const semanticScores = await timed("semantic", () =>
-    getSemanticScores(queryText, allMemories, opts.queryEmbedding),
+    getSemanticScores(queryText, candidatePool, opts.queryEmbedding),
   );
   const useEmbeddings = semanticScores !== null;
 
@@ -336,7 +447,7 @@ export async function getContextualMemories(
   // bypass decay entirely (timeless principles).
   const TRUSTED_SOURCES_NO_DECAY = new Set(["skill_ingestion", "manual", "user"]);
   const now = Date.now();
-  const memScores = allMemories.map((m) => {
+  const memScores = candidatePool.map((m) => {
     let freshness = 1.0;
     if (m.category === "wisdom" && !TRUSTED_SOURCES_NO_DECAY.has(m.source)) {
       const ageDays = Math.max(0, (now - new Date(m.createdAt).getTime()) / 86_400_000);
@@ -353,6 +464,7 @@ export async function getContextualMemories(
         ? (semanticScores.get(m.id) ?? 0)
         : keywordScore(m, topics),
       sKeyword: keywordScore(m, topics),
+      sLexical: lexicalRankById.get(m.id) ?? 0,
       sCategory: categoryScore(m.category),
       sRecency: recencyScore(m.createdAt),
       sFreshness: freshness,
@@ -364,7 +476,7 @@ export async function getContextualMemories(
     memScores,
     [
       (m) => m.sSemantic,
-      (m) => m.sKeyword,
+      (m) => (useLexical ? m.sLexical : m.sKeyword),
       (m) => m.sCategory,
     ],
     {
