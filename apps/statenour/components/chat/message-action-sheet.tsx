@@ -29,7 +29,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain } from "lucide-react";
+import { Copy, Pin, PinOff, Pencil, Trash2, BookOpen, ClipboardCheck, X, Brain, ListChecks, ThumbsUp, ThumbsDown } from "lucide-react";
 
 export interface MessageActionSheetProps {
   open: boolean;
@@ -44,6 +44,11 @@ export interface MessageActionSheetProps {
   onSaveAsDecision?: () => void;
   /** v10.0.360 · "Show reasoning" · opens the BDI provenance trace. */
   onShowReasoning?: () => void;
+  /** Relocated from the deleted message hover-bar - now touch-reachable. */
+  onCreateTask?: () => void;
+  onSaveToBrain?: () => void;
+  onPinToPrompt?: () => void;
+  onFeedback?: (positive: boolean) => void;
   /** Apr 27 — caller passes whether this message is currently pinned
    *  so the sheet can show Pin / Unpin instead of always Pin. */
   isPinned?: boolean;
@@ -106,6 +111,10 @@ export function MessageActionSheet({
   onSaveAsBelief,
   onSaveAsDecision,
   onShowReasoning,
+  onCreateTask,
+  onSaveToBrain,
+  onPinToPrompt,
+  onFeedback,
   isPinned = false,
 }: MessageActionSheetProps) {
   // Drag-to-dismiss state. Tracks vertical translation while the user
@@ -273,6 +282,51 @@ export function MessageActionSheet({
               /api/ai/chat/edit/[id]) cascades — removing an assistant
               row drops it + every subsequent message in the convo,
               same as the user-row case. */}
+          {role === "assistant" && onCreateTask && (
+            <ActionRow
+              onClick={fireAndClose(onCreateTask)}
+              icon={<ListChecks size={16} />}
+              label="Create task"
+              tone="neutral"
+              delay={next()}
+            />
+          )}
+          {role === "assistant" && onSaveToBrain && (
+            <ActionRow
+              onClick={fireAndClose(onSaveToBrain)}
+              icon={<Brain size={16} />}
+              label="Save to brain"
+              tone="gold"
+              delay={next()}
+            />
+          )}
+          {role === "assistant" && onPinToPrompt && (
+            <ActionRow
+              onClick={fireAndClose(onPinToPrompt)}
+              icon={<Pin size={16} />}
+              label="Pin to Nick's prompt"
+              tone="gold"
+              delay={next()}
+            />
+          )}
+          {role === "assistant" && onFeedback && (
+            <>
+              <ActionRow
+                onClick={fireAndClose(() => onFeedback(true))}
+                icon={<ThumbsUp size={16} />}
+                label="Good response"
+                tone="emerald"
+                delay={next()}
+              />
+              <ActionRow
+                onClick={fireAndClose(() => onFeedback(false))}
+                icon={<ThumbsDown size={16} />}
+                label="Bad response"
+                tone="rose"
+                delay={next()}
+              />
+            </>
+          )}
           {onDelete && (
             <ActionRow
               onClick={fireAndClose(onDelete)}
