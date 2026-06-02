@@ -1148,10 +1148,12 @@ model ChatMessage {
   parts Json?
 
   // ── Streaming lifecycle ──
-  /// "complete" | "partial" | "errored" | "aborted"
+  /// "complete" | "partial" | "errored" | "aborted" | "truncated" | "unknown"
   /// partial = client closed the tab mid-stream OR network dropped.
   /// errored = stream finished with an error frame.
   /// aborted = user explicitly stopped via Stop button.
+  /// truncated = model hit the length cap (finishReason="length") — cut off.
+  /// unknown = finishReason was none of the known values.
   /// Allows resumption + accurate UI badging (no more "stuck spinner").
   streamingState String @default("complete") @map("streaming_state") @db.VarChar(16)
 

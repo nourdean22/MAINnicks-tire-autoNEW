@@ -471,20 +471,12 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       const unverifiedCount = countUnverified(factClaims);
 
       // v9.1.13 · Heavier hallucination guard — env-gated.
-      if (process.env.NICK_HALLUCINATION_GUARD === "1" && hasContent) {
-        try {
-          const { checkClaims, formatClaimWarnings } = await import(
-            "@/lib/ai/hallucination-guard"
-          );
-          const guardClaims = await checkClaims(cleanedText);
-          if (guardClaims.length > 0) {
-            const warnings = formatClaimWarnings(guardClaims);
-            if (warnings) log.info("hallucination_warnings", { warnings });
-          }
-        } catch (err) {
-          log.warn("hallucination_guard_failed", { err: err instanceof Error ? err.message : String(err) });
-        }
-      }
+      // NOTE: checkClaims() runs once, in the DEFERRED post-processing
+      // block further below (search "BATCH 1C — Hallucination guard"),
+      // which both logs the off/way_off count AND persists a
+      // hallucination_flag BrainMemory. A second inline call here only
+      // duplicated the (expensive) LLM check to log a warning it then
+      // discarded — removed to avoid double-invoking checkClaims per turn.
 
       // Apr 19 · Tool telemetry. Walk steps → toolResults.
       // v10.0.156 · also collect into capturedToolCalls so the
@@ -700,8 +692,8 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
                     : finishReason === "error"
                       ? "errored"
                       : finishReason === "length"
-                        ? "complete"
-                        : "complete",
+                        ? "truncated"
+                        : "unknown",
                 parts: partsArray
                   ? (partsArray as unknown as Parameters<typeof prisma.chatMessage.create>[0]["data"]["parts"])
                   : undefined,
