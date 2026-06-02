@@ -23,6 +23,7 @@ import { Brain } from "lucide-react";
 
 export function NicksHomeBrief() {
   const [brief, setBrief] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,12 +39,33 @@ export function NicksHomeBrief() {
         if (!cancelled) setBrief(data.brief?.trim() || null);
       } catch {
         // Silent · home page renders without it.
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  if (loading) {
+    return (
+      <section
+        aria-label="nick's home brief"
+        aria-busy="true"
+        className="rounded-lg border border-[var(--gold)]/20 bg-[var(--gold)]/[0.03] px-4 py-3"
+      >
+        <div className="flex items-start gap-2">
+          <div className="mt-0.5 h-3 w-3 shrink-0 animate-pulse rounded bg-[var(--bg-elevated)]" />
+          <div className="flex-1 space-y-2">
+            <div className="h-2 w-20 animate-pulse rounded bg-[var(--bg-elevated)]" />
+            <div className="h-3 w-full animate-pulse rounded bg-[var(--bg-elevated)]" />
+            <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--bg-elevated)]" />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   if (!brief) return null;
 
