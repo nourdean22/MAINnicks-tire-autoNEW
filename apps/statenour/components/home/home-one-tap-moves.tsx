@@ -131,7 +131,7 @@ export function HomeOneTapMoves() {
                 telemetry.event("oneTapMoveTapped", { kind: move.kind })
               }
               className={cn(
-                "block rounded-lg border bg-[var(--bg-base)] p-3 transition-colors hover:bg-[var(--bg-raised)]/[0.05] active:scale-[0.99]",
+                "block rounded-lg border bg-[var(--bg-base)] p-3 transition-colors hover:bg-[var(--bg-raised)] hover:border-[var(--gold)]/40 active:scale-[0.99]",
                 "border-[var(--border-default)]",
               )}
             >
