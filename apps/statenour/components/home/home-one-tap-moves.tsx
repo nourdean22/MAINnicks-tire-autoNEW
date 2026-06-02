@@ -83,7 +83,33 @@ export function HomeOneTapMoves() {
     };
   }, []);
 
-  if (!moves || moves.length === 0) return null;
+  if (moves === null) {
+    return (
+      <section aria-label="one-tap moves" aria-busy="true" className="space-y-2">
+        <div className="flex items-center gap-2 px-1 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
+          <span>one-tap moves</span>
+        </div>
+        <div className="space-y-2">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] p-3"
+            >
+              <div className="flex items-start gap-3">
+                <div className="h-7 w-16 shrink-0 animate-pulse rounded-md bg-[var(--bg-elevated)]" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-[var(--bg-elevated)]" />
+                  <div className="h-2 w-1/2 animate-pulse rounded bg-[var(--bg-elevated)]" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (moves.length === 0) return null;
 
   return (
     <section aria-label="one-tap moves" className="space-y-2">
