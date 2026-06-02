@@ -445,6 +445,39 @@ export async function generateNarrations(): Promise<Narration[]> {
     // swallow — narrator continues with whatever it has
   }
 
+  // XP drift - surface the single most-significant mastery-cadence shift
+  // (recent 7d vs trailing 28d per stat). Math finds it; this narrates it.
+  // Self-contained + best-effort: a bonus narration that never blocks others.
+  try {
+    const { detectXpDrift } = await import("@/lib/mastery/xp-drift");
+    const topDrift = (await detectXpDrift())[0];
+    if (topDrift) {
+      const statLabel = topDrift.stat.replace(/_/g, " ");
+      const pct = Math.round(topDrift.ratio * 100);
+      narrations.push(
+        topDrift.direction === "decay"
+          ? {
+              id: `xpdrift-${inputs.todayStr}-${topDrift.stat}`,
+              voice: "coach",
+              severity: "warn",
+              title: `${statLabel} cadence is down to ${pct}% of your usual - it's slipping this week`,
+              triggers: [...patterns, "xp_drift_decay"],
+              createdAt: now,
+            }
+          : {
+              id: `xpdrift-${inputs.todayStr}-${topDrift.stat}`,
+              voice: "analyst",
+              severity: "win",
+              title: `${statLabel} is surging - ${pct}% of your usual pace this week`,
+              triggers: [...patterns, "xp_drift_surge"],
+              createdAt: now,
+            },
+      );
+    }
+  } catch {
+    // best-effort - drift is a bonus narration, never block the others
+  }
+
   return narrations.slice(0, 3);
 }
 
