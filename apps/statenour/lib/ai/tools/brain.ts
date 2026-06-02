@@ -186,12 +186,39 @@ export const brainTools = {
       limit: z.number().min(1).max(50).default(10),
     }),
     execute: async ({ query, category, minConfidence, limit }) => {
+      // Lexical pre-match via Postgres FTS (stemmed + multi-word) on content,
+      // reusing the brain_memories_content_fts_idx GIN index. The prior matcher
+      // was `content ILIKE '%query%'` only -- brittle: it missed plurals and
+      // multi-word queries ("tire advice" matched 1 row vs 62 via FTS). FTS hits
+      // are UNIONed into the OR below (purely additive: the ILIKE + key matches
+      // still apply), degrading to the old behavior when the tsquery is empty/
+      // unparseable or the index is absent.
+      const _ftsQuery = (query ?? "").trim();
+      let ftsIds: string[] = [];
+      if (_ftsQuery) {
+        try {
+          const rows = await prisma.$queryRawUnsafe<{ id: string }[]>(
+            `SELECT id::text AS id FROM brain_memories
+             WHERE deleted_at IS NULL AND confidence >= $1
+               AND to_tsvector('english', content) @@ websearch_to_tsquery('english', $2)
+             ORDER BY ts_rank(to_tsvector('english', content), websearch_to_tsquery('english', $2)) DESC
+             LIMIT $3`,
+            minConfidence,
+            _ftsQuery,
+            limit * 2,
+          );
+          ftsIds = rows.map((r) => r.id);
+        } catch {
+          // FTS unavailable / empty tsquery -- fall back to the ILIKE match below.
+        }
+      }
       const where: any = {
         // v7.9 — searchMemories never returns soft-deleted rows
         deletedAt: null,
         AND: [
           { confidence: { gte: minConfidence } },
           { OR: [
+            ...(ftsIds.length ? [{ id: { in: ftsIds } }] : []),
             { content: { contains: query, mode: "insensitive" } },
             { key: { contains: query, mode: "insensitive" } },
           ]},
