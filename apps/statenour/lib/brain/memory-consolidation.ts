@@ -104,8 +104,17 @@ Rules:
               seenCount: toMerge.reduce((s, m) => s + m.seenCount, 0),
             },
           }),
+          // SOFT-delete merged sources instead of hard-delete. 2026
+          // research (LLM consolidation that destroys source evidence
+          // degrades recall quality) argues for preserving originals.
+          // Recall already filters `deletedAt: null`, so what gets
+          // recalled is UNCHANGED — but merged-away rows stay
+          // recoverable/auditable instead of being destroyed nightly.
           ...others.map((other) =>
-            prisma.brainMemory.delete({ where: { id: other.id } }),
+            prisma.brainMemory.update({
+              where: { id: other.id },
+              data: { deletedAt: new Date() },
+            }),
           ),
         ]).catch((err) => {
           // Atomic failure → no partial merge. Log + skip group;
