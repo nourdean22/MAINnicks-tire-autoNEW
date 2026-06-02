@@ -61,13 +61,6 @@ const DOMAIN_TOKENS: Array<{ domain: string; tokens: RegExp }> = [
   { domain: "mind", tokens: /\b(reflect|drift|journal|commitment|pattern|habit|discipline)\b/i },
 ];
 
-function hashKey(a: string, b: string): string {
-  const raw = `${a.slice(-200)}||${b.slice(-300)}`;
-  let h = 0;
-  for (let i = 0; i < raw.length; i++) h = (h * 31 + raw.charCodeAt(i)) | 0;
-  return String(h);
-}
-
 function inferDomain(text: string): string | null {
   for (const { domain, tokens } of DOMAIN_TOKENS) {
     if (tokens.test(text)) return domain;
@@ -105,8 +98,12 @@ export async function checkLane(args: LaneCheckArgs): Promise<LaneCheckResult> {
   // Pull blind spots + a lightweight "domain last touched" signal.
   // Both go through the shared 2-min cache so the lane-check
   // endpoint doesn't hammer the detector.
+  // detectBlindSpots() is a global signal — it takes NO args. Keying
+  // the cache on (userMsg, assistantMsg) gave every turn a unique key,
+  // so the 120s cache never deduped and the detector ran on every turn.
+  // A fixed key lets consecutive turns share the cached result.
   const blindSpots = await cached(
-    hashKey(userMsg, assistantMsg),
+    "lane_check_blind_spots",
     120,
     async () => detectBlindSpots().catch((): BlindSpot[] => []),
   );
