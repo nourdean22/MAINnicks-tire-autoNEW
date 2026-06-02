@@ -699,13 +699,20 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
         _count: { _all: true },
       })
       .catch(() => [] as Array<{ status: string; _count: { _all: number } }>),
-    prisma.aiGeneration
-      .findMany({
-        where: { createdAt: { gte: oneDayAgo } },
-        select: { status: true },
-        take: 500,
-      })
-      .catch(() => [] as Array<{ status: string }>),
+    // v-fix 2026-06-02: was findMany(take:500, select status) + JS tally —
+    // loaded up to 500 rows to produce two numbers. Now two count() queries
+    // (one Promise.all slot → [total, errors] tuple). Error set mirrors the
+    // prior JS predicate exactly (status truthy AND not completed/success →
+    // notIn completed/success/"").
+    Promise.all([
+      prisma.aiGeneration.count({ where: { createdAt: { gte: oneDayAgo } } }),
+      prisma.aiGeneration.count({
+        where: {
+          createdAt: { gte: oneDayAgo },
+          status: { notIn: ["completed", "success", ""] },
+        },
+      }),
+    ]).catch(() => [0, 0] as [number, number]),
     prisma.cronJobLog
       .findFirst({
         where: { jobName: { contains: "brain-cycle" }, status: "success" },
@@ -764,10 +771,7 @@ export async function buildCommandCenterState(): Promise<CommandCenterState> {
   const cronOk24h = pickStatusCount(cronStats, "success");
   const cronFail24h = pickStatusCount(cronStats, "failed");
   const cronTotal24h = cronOk24h + cronFail24h;
-  const aiTotal = aiRecentStats.length;
-  const aiErrors = aiRecentStats.filter(
-    (g) => g.status && g.status !== "completed" && g.status !== "success",
-  ).length;
+  const [aiTotal, aiErrors] = aiRecentStats;
   const embedRow = embeddingCounts[0];
   const embedTotal = embedRow ? Number(embedRow.total) : 0;
   const embedWithVec = embedRow ? Number(embedRow.withVec) : 0;
