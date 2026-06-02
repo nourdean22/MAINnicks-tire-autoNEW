@@ -36,7 +36,8 @@ import { getRecentReflections } from "@/lib/brain/reflection-engine";
 import { getActivePredictions } from "@/lib/brain/predictive-engine";
 import { getGraphSummary } from "@/lib/brain/relational-graph";
 import { getThinkingLayersContext } from "@/lib/brain/thinking-engine";
-import { getRegistryStats, getActiveTools, getPendingTools } from "@/lib/integrations/registry";
+import { getRegistryStats, getPendingTools } from "@/lib/integrations/registry";
+import { computeIsoWeekKey } from "@/lib/ai/context/command-center-state";
 import { getRecentConversationContext } from "@/lib/brain/conversation-memory";
 import { getPageVisitIntelligence } from "@/lib/brain/page-intelligence";
 import { getBrainContinuitySummary } from "@/lib/brain/cloud-memory";
@@ -734,7 +735,6 @@ export async function buildSystemPromptUncached(
   // ═══════════════════════════════════════════════════════════════
   // v9.1.13 · use the shared UTC-stable computeIsoWeekKey instead of
   // the local-time getDay() + getDate() that mixed time contexts.
-  const { computeIsoWeekKey } = await import("@/lib/ai/context/command-center-state");
   const weekKey = computeIsoWeekKey(new Date());
   const weeklyTarget = await prisma.brainMemory.findUnique({
     where: { category_key: { category: BRAIN_CATEGORIES.WEEKLY_TARGET, key: `week_${weekKey}` } },
@@ -859,9 +859,9 @@ export async function buildSystemPromptUncached(
   // + feedback so the model has REAL CURRENT material to riff on
   // instead of generic templates. ~3-5kc additional payload; skipped
   // when content mode isn't on.
-  const { detectContentIntent: detectContentIntentInner } = await import("./business-knowledge");
-  const contentModeForRecall = detectContentIntentInner(userMessage);
-  if (contentModeForRecall && userMessage) {
+  const { detectContentIntent } = await import("./business-knowledge");
+  const contentMode = detectContentIntent(userMessage);
+  if (contentMode && userMessage) {
     try {
       const [industry, recentFeedback] = await Promise.all([
         (await import("@/lib/automotive/industry-monitor")).recallIndustryIntel({ limit: 5, daysBack: 14 }),
@@ -1272,9 +1272,6 @@ export async function buildSystemPromptUncached(
 
   // ── AI Tools health (counts only; full list comes via tool schema) ──
   const arsenalStats = getRegistryStats();
-  // Reference getActiveTools so future imports stay stable; current
-  // formatter uses counts only.
-  void getActiveTools;
   p.push(...renderAiToolsHealth({
     arsenalStats,
     pendingCount: getPendingTools().length,
