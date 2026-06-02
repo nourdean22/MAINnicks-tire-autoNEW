@@ -8,6 +8,7 @@
  * auto-learn bump (+ later slices that feed journal/chat/email).
  */
 import { prisma } from "@/lib/prisma";
+import { toDateString } from "@/lib/utils/datetime";
 import { DOMAINS } from "./config";
 import { levelProgress, tierForLevel, xpForLevel } from "./leveling";
 import { xpEventTotals, xpEventTotalsSince } from "./credit";
@@ -51,7 +52,7 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
   // the lifetime level). MasteryScore.date keys are "YYYY-MM-DD" — lexical
   // >= works for the window.
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const sinceKey = since.toISOString().slice(0, 10);
+  const sinceKey = toDateString(since);
   type DomainSum = { domain: string; _sum: { delta: number | null } };
   const [sums, eventTotals, weekSums, weekEvents, activeGoals] = await Promise.all([
     prisma.masteryScore

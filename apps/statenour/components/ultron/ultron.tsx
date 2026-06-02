@@ -41,6 +41,7 @@ import { TodayPulseStrip } from "@/components/ultron/today-pulse-strip";
 import { ResumeLastWork } from "@/components/ultron/resume-last-work";
 import { MITSlot } from "@/components/ultron/mit-slot";
 import { useNourState } from "@/lib/state/nour-state";
+import { today } from "@/lib/utils/datetime";
 import { useIdleWarmup } from "@/hooks/use-idle-warmup";
 import { classifyMode, type UltronMode, type ClassifierResult } from "@/lib/ultron/mode-classifier";
 import { useUltronFetch } from "@/lib/ultron/client-cache";
@@ -116,7 +117,7 @@ export function Ultron() {
     pollMs: 15 * 60_000,
   });
   const latestBody = bodyData?.entries?.[bodyData.entries.length - 1] ?? null;
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = today();
   // Only feed sleep+energy into the classifier if the entry is from today.
   // Stale data is worse than no data · pretending we have signal when we
   // don't would force RECOVERY mode for days after a single bad sleep night.

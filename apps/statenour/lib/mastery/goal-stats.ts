@@ -20,6 +20,7 @@
  * crediting path AND the UI stat chips, so server + client never drift.
  */
 import "server-only";
+import { today } from "@/lib/utils/datetime";
 
 import { prisma } from "@/lib/prisma";
 import { creditStatXp } from "./credit";
@@ -224,7 +225,7 @@ export async function creditTaskStats(
     loopKind: task.loopKind,
     hasGoalId: !!task.goalId,
   });
-  const daySuffix = opts.perDay ? `:${opts.dayKey ?? new Date().toISOString().slice(0, 10)}` : "";
+  const daySuffix = opts.perDay ? `:${opts.dayKey ?? today()}` : "";
 
   let credited = 0;
   for (const s of stats) {

@@ -8,6 +8,13 @@ export function today(): string {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
 }
 
+/** Current hour (0-23) in Eastern Time. The server runs UTC (Railway), so
+ *  `new Date().getHours()` returns the UTC hour — use this for ET time-gates
+ *  (e.g. "before 9pm ET" nudges) so they fire at the right wall-clock. */
+export function hourET(at: Date = new Date()): number {
+  return Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(at)) % 24;
+}
+
 /** Returns a Date object n days ago */
 export function daysAgo(n: number): Date {
   const d = new Date();
