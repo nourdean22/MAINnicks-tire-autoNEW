@@ -76,7 +76,8 @@ export function generateStaticContent(request: ContentRequest): ContentOutput | 
   if (request.type === "sms-blast") {
     const topic = request.topic.toLowerCase();
     if (topic.includes("oil change")) {
-      return { content: `Oil change special at Nick's! Conventional $39, synthetic $69. Walk-ins welcome. (216) 862-0005. Reply STOP to opt out` };
+      // keep in sync with OIL_PRICE
+      return { content: `Oil change special at Nick's! Conventional $49, synthetic $80. Walk-ins welcome. (216) 862-0005. Reply STOP to opt out` };
     }
     if (topic.includes("brake")) {
       return { content: `Brakes squealing? Free inspection at Nick's Tire & Auto. Pads from $89. (216) 862-0005. Reply STOP to opt out` };

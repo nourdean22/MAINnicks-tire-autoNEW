@@ -248,8 +248,8 @@ export default function SyntheticOilChangePage() {
   return (
     <PageLayout showChat={true}>
       <SEOHead
-        title="Synthetic Oil Change Cleveland · From $69 · Walk-In 7 Days | Nick's"
-        description="Full synthetic oil change in Cleveland/Euclid from $69. Mobil 1, Pennzoil, Valvoline. Walk-ins 7 days. 10,000-mile intervals. (216) 862-0005"
+        title="Synthetic Oil Change Cleveland · From $80 · Walk-In 7 Days | Nick's"
+        description="Full synthetic oil change in Cleveland/Euclid from $80. Mobil 1, Pennzoil, Valvoline. Walk-ins 7 days. 10,000-mile intervals. (216) 862-0005"
         canonicalPath="/synthetic-oil-change"
       />
       {/* v1.7 SEO · BreadcrumbList */}
@@ -260,9 +260,9 @@ export default function SyntheticOilChangePage() {
             "@type": "OfferCatalog",
             "name": "Synthetic Oil Change",
             "itemListElement": [
-              { "@type": "Offer", "price": "69", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Full Synthetic Oil Change", "serviceType": "Oil Change" } },
-              { "@type": "Offer", "price": "55", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Synthetic Blend Oil Change", "serviceType": "Oil Change" } },
-              { "@type": "Offer", "price": "39", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Conventional Oil Change", "serviceType": "Oil Change" } },
+              { "@type": "Offer", "price": "80", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Full Synthetic Oil Change", "serviceType": "Oil Change" } },
+              { "@type": "Offer", "price": "49", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Synthetic Blend Oil Change", "serviceType": "Oil Change" } },
+              { "@type": "Offer", "price": "49", "priceCurrency": "USD", "itemOffered": { "@type": "Service", "name": "Conventional Oil Change", "serviceType": "Oil Change" } },
             ],
           },
         }}
@@ -294,7 +294,7 @@ export default function SyntheticOilChangePage() {
             "@context": "https://schema.org",
             "@type": "Service",
             name: "Synthetic Oil Change",
-            description: "Full synthetic oil change in Cleveland from $69. Mobil 1, Pennzoil Platinum, Valvoline. 30-minute service, walk-ins 7 days. 10,000-mile intervals.",
+            description: "Full synthetic oil change in Cleveland from $80. Mobil 1, Pennzoil Platinum, Valvoline. 30-minute service, walk-ins 7 days. 10,000-mile intervals.",
             serviceType: "Oil Change",
             image: "https://nickstire.org/photos/interior-service-bay-car-lift.webp",
             provider: {

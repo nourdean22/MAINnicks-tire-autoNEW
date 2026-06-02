@@ -35,13 +35,13 @@ interface BlogSummary { slug: string; title: string; category?: string | null; }
 
 const FEATURED_SERVICES: LinkItem[] = [
   { label: "Brake Repair", href: "/brakes", note: "From $149 per axle" },
-  { label: "Synthetic Oil Change", href: "/synthetic-oil-change", note: "From $69" },
+  { label: "Synthetic Oil Change", href: "/synthetic-oil-change", note: "From $80" }, // keep in sync with OIL_PRICE
   { label: "Wheel Alignment", href: "/alignment" },
   { label: "Check Engine Light", href: "/diagnostics", note: "Free code scan" },
   { label: "Tires (New & Used)", href: "/tires", note: "From $60" },
   { label: "Auto Repair (All Makes)", href: "/auto-repair-near-me" },
   { label: "Tire Shop Near Me", href: "/tire-shop-near-me" },
-  { label: "Oil Change", href: "/oil-change", note: "From $39" },
+  { label: "Oil Change", href: "/oil-change", note: "From $49" }, // keep in sync with OIL_PRICE
   { label: "Emissions / E-Check", href: "/emissions" },
   { label: "AC Repair", href: "/ac-repair" },
   { label: "Transmission", href: "/transmission" },

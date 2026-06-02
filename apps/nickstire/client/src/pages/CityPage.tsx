@@ -149,7 +149,7 @@ function CitySchema({ city }: { city: CityData }) {
       // Use BUSINESS constants instead of hardcoded values so JSON-LD stays in
       // sync with the businessSchema's aggregateRating. Hardcoding was creating
       // a discrepancy Google could detect and use to suppress the rich result.
-      a: `Tires (new and used from $40), brake repair (from $149/axle), oil changes (from $39), wheel alignment, check-engine light, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
+      a: `Tires (new and used from $40), brake repair (from $149/axle), oil changes (from $49), wheel alignment, check-engine light, Ohio E-Check repair, AC repair, batteries, exhaust, transmission, and full general repair. ★${BUSINESS.reviews.rating} from ${BUSINESS.reviews.countDisplay} reviews.`,
     },
     {
       q: `Is Nick's Tire & Auto reliable for ${city.name} drivers?`,

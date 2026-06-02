@@ -366,7 +366,7 @@ const SERVICE_PAGES: RouteEntry[] = [
     // ranking pos 1.0 with 114 impr/mo but 0% CTR — title didn't match
     // the literal search phrase. Rewrite includes "service station"
     // since that's how the high-volume query frames the intent.
-    title: "Oil Change Service Station Cleveland · $39 · Walk-In Today | Nick's",
+    title: "Oil Change Service Station Cleveland · $49 · Walk-In Today | Nick's", // keep in sync with OIL_PRICE
     description: "Cleveland oil change from $49 (full synthetic from $80) — new filter + free multi-point check, in and out before your coffee's cold. Walk-ins 7 days. (216) 862-0005",
     group: "service",
     sitemap: true,
@@ -403,8 +403,8 @@ const SERVICE_PAGES: RouteEntry[] = [
     // wave-181.8 · audit found this page ranks pos 65 for "synthetic
     // oil change" at 179 impr/mo (page 7). Title was verbose (62 chars)
     // and didn't lead with the literal query phrase + "near me" intent.
-    title: "Synthetic Oil Change Near Me · Cleveland · $69 Same-Day | Nick's",
-    description: "Full synthetic oil change in Cleveland · $69 walk-in same-day, 30 min. Mobil 1, Pennzoil, Valvoline. 10K-mile intervals. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    title: "Synthetic Oil Change Near Me · Cleveland · $80 Same-Day | Nick's", // keep in sync with OIL_PRICE
+    description: "Full synthetic oil change in Cleveland · $80 walk-in same-day, 30 min. Mobil 1, Pennzoil, Valvoline. 10K-mile intervals. ★4.9 · 1,700+ reviews. (216) 862-0005",
     group: "service",
     sitemap: true,
     prerender: true,
@@ -938,8 +938,8 @@ const UTILITY_PAGES: RouteEntry[] = [
     // Page-1 ranking, zero CTR — title was over 60ch (truncating in
     // SERP) AND description didn't lead with the specific dollar hooks
     // people clicking "Cleveland auto specials" actually want.
-    title: "Cleveland Auto Specials · $25 Tire Plug · $39 Oil | Nick's",
-    description: "Cleveland auto deals at Nick's on Euclid Ave — $25 tire plug, $39 synthetic oil change, brake & alignment specials. Walk-in 7 days. Updated weekly. (216) 862-0005",
+    title: "Cleveland Auto Specials · $25 Tire Plug · $49 Oil | Nick's", // keep in sync with OIL_PRICE
+    description: "Cleveland auto deals at Nick's on Euclid Ave — $25 tire plug, $49 oil change, brake & alignment specials. Walk-in 7 days. Updated weekly. (216) 862-0005",
     group: "utility",
     sitemap: true,
     prerender: true,
