@@ -45,6 +45,39 @@ export function registerAdminRoutes(app: Express): void {
     }).catch(() => res.json({ jobs: [], error: "Failed to load cron status" }));
   });
 
+  // ─── Run pending migrations (admin · idempotent) ──────
+  // POST /api/admin/run-migrations — applies the hand-written DDL array in
+  // handleRunMigrations (all CREATE TABLE IF NOT EXISTS / INSERT IGNORE /
+  // catch-Duplicate, safe to re-run). Curl-able with ADMIN_API_KEY so
+  // migrations apply headlessly without TiDB creds OR an authed browser
+  // session — the old "authed admin-tab Chrome fetch" path broke under the
+  // browser MCP's injected-authenticated-mutation guard. Returns the same
+  // { success, applied, skipped, total, errors? } the tRPC runMigrations does.
+  app.post("/api/admin/run-migrations", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { handleRunMigrations } = await import("../routers/nick/intelligence");
+      res.json(await handleRunMigrations());
+    } catch (e) {
+      res.status(500).json({ success: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  // ─── Fire IG autopost once (admin · respects IG_AUTOPOST_DRYRUN) ──
+  // POST /api/admin/ig-autopost-fire — headless trigger for the autonomous
+  // IG+FB poster. In dryrun mode (the default until IG_AUTOPOST_DRYRUN=false)
+  // it generates + dual-evals + sends a Telegram PREVIEW without posting, and
+  // returns the run summary (status/scores). The full caption + image land in
+  // Telegram (notifyPreview) and ig_autopost_log. Mirrors the tRPC
+  // fireIgAutopostNow so the dryrun can be reviewed without a browser session.
+  app.post("/api/admin/ig-autopost-fire", requireAdminApiKey, async (_req, res) => {
+    try {
+      const { runIgAutopostOneOff } = await import("../services/igAutopost");
+      res.json(await runIgAutopostOneOff());
+    } catch (e) {
+      res.status(500).json({ status: "failed", error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   // ─── Photo Assess (admin manual trigger · Wave AZ) ──
   // POST /api/admin/photo-assess  · body: { phone, photoUrl, skipSmsSend? }
   // Manual fire-button for testing the photo-damage MMS pipeline OR
