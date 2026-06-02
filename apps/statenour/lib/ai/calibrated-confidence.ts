@@ -96,6 +96,21 @@ export async function calibrateAdvice(
     };
   }
   const padded = padToTargetDim(emb);
+  // A degenerate embedding (NaN / ±Infinity) string-interpolates into an
+  // invalid pgvector literal and throws a SQL syntax error. NaN is a valid
+  // JS number so the zero-padding above doesn't catch it — guard here and
+  // return the neutral cold-start shape instead of blowing up the query.
+  if (padded.some((n) => !Number.isFinite(n))) {
+    return {
+      accuracy: 0,
+      sampleSize: 0,
+      positiveCount: 0,
+      negativeCount: 0,
+      confidence: 0,
+      wilsonLower: 0,
+      notes: "degenerate embedding",
+    };
+  }
   const vecLit = `[${padded.join(",")}]`;
 
   // 2. Find similar past assistant messages with feedbackScore set.

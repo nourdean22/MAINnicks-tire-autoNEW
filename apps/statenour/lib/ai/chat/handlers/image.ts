@@ -214,6 +214,12 @@ export async function handleImage(
   const enc = (event: Record<string, unknown>) =>
     encoder.encode(`data: ${JSON.stringify(event)}\n\n`);
 
+  // Lifted to the constructor scope so both start() and cancel() can
+  // reach it — cancel() fires when the client disconnects before the
+  // generation resolves, and must clear the heartbeat or the interval
+  // leaks for the process lifetime.
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
   const stream = new ReadableStream({
     async start(controller) {
       // Immediate placeholder — keeps client's stall clock at 0s.
@@ -235,7 +241,7 @@ export async function handleImage(
 
       // Heartbeat every 3s — empty zero-width-space delta. Resets
       // the client's no-token timer so silent-retry never fires.
-      const heartbeat = setInterval(() => {
+      heartbeat = setInterval(() => {
         try {
           controller.enqueue(
             enc({ type: "text-delta", id: "t1", delta: "​" }),
@@ -256,7 +262,6 @@ export async function handleImage(
         const imgResult = await generateOpenAiImage(brandedPrompt, {
           autoAspect: true,
         });
-        clearInterval(heartbeat);
         console.log(
           `[ai/chat] Image generated via fast path: ${imgResult.imageId}`,
         );
@@ -317,7 +322,6 @@ export async function handleImage(
             .catch(() => null);
         }
       } catch (imgErr) {
-        clearInterval(heartbeat);
         recordError("chat:image-gen", imgErr, {
           prompt: userContent.slice(0, 200),
         });
@@ -420,12 +424,22 @@ export async function handleImage(
             })
             .catch(() => null);
         }
+      } finally {
+        // Always stop the heartbeat — on success, on error, and on any
+        // unexpected throw — so the interval never outlives the request.
+        clearInterval(heartbeat);
       }
 
       controller.enqueue(enc({ type: "finish-step" }));
       controller.enqueue(enc({ type: "finish" }));
       controller.enqueue(encoder.encode(`data: [DONE]\n\n`));
       controller.close();
+    },
+    // Fires if the client disconnects before the generation resolves.
+    // Without this the heartbeat keeps ticking (and enqueuing onto a
+    // closed controller) for the process lifetime.
+    cancel() {
+      clearInterval(heartbeat);
     },
   });
 

@@ -18,9 +18,11 @@
  *   2. Doesn't include a URL pattern the model can copy
  *   3. Keeps the surrounding text (caption, hashtags, sign-off) intact
  *
- * Mutates message parts in place to avoid extra allocations across the
- * potentially-large message list. The original `text` field is replaced
- * with the sanitized version.
+ * PURE — returns new message/part objects only where the `text` field
+ * changes; unchanged messages + parts pass through by reference to
+ * avoid extra allocations across the potentially-large message list.
+ * The input array and its objects are never mutated (callers pass
+ * AI-SDK UIMessage objects the SDK assumes stay intact).
  *
  * No-op for: user messages, non-text parts, messages with no image
  * markdown, the most recent user/assistant turn (we only touch HISTORY).
@@ -91,25 +93,35 @@ function neutralizeFabricatedHistory(text: string): string {
  *
  * v10.0.163 · also neutralizes fabricated turns (verifier-banner
  * marker) so they can't compound across turns.
+ *
+ * PURE: never mutates the input. Returns new message/part objects only
+ * where a change is needed; unchanged messages + parts pass through by
+ * reference (these are AI-SDK UIMessage objects the SDK assumes stay
+ * intact, so we must not write back into the caller's array).
  */
 export function sanitizeMessageHistory<
   T extends { role?: string; parts?: Array<{ type?: string; text?: string }> },
 >(messages: T[]): T[] {
   if (!messages || messages.length < 2) return messages;
-  // Walk all but the last (which is the user's current turn)
-  for (let i = 0; i < messages.length - 1; i++) {
-    const m = messages[i];
-    if (!m || m.role !== "assistant" || !Array.isArray(m.parts)) continue;
-    for (const part of m.parts) {
+  const lastIndex = messages.length - 1;
+  return messages.map((m, i) => {
+    // The last message is the user's current turn — leave it untouched.
+    if (i === lastIndex) return m;
+    if (!m || m.role !== "assistant" || !Array.isArray(m.parts)) return m;
+    const parts = m.parts;
+    const newParts = parts.map((part) => {
       if (part?.type === "text" && typeof part.text === "string") {
         // v10.0.163 · L3 fabrication neutralization runs FIRST so the
         // image-stripper and other passes operate on the post-
         // neutralized text (cheaper + simpler).
         const neutralized = neutralizeFabricatedHistory(part.text);
         const cleaned = stripImageMarkdownFromText(neutralized);
-        if (cleaned !== part.text) part.text = cleaned;
+        if (cleaned !== part.text) return { ...part, text: cleaned };
       }
-    }
-  }
-  return messages;
+      return part;
+    });
+    // Only allocate a new message when a part actually changed.
+    const changed = newParts.some((p, idx) => p !== parts[idx]);
+    return changed ? { ...m, parts: newParts } : m;
+  });
 }
