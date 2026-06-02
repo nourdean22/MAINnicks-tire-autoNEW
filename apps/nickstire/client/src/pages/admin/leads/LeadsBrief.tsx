@@ -50,7 +50,7 @@ interface LeadsBriefProps {
   onSlaAction: () => void;
 }
 
-function formatDollars(cents: number): string {
+function formatCents(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
@@ -150,8 +150,8 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
           <div className="flex items-center gap-2.5">
             <DollarSign className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span className="text-[12.5px] text-foreground/85 leading-tight">
-              Pipeline · {formatDollars(pipelineCents)} in active leads
-              {atRiskCents > 0 ? ` · ${formatDollars(atRiskCents)} at-risk uncontacted >4h` : ""}
+              Pipeline · {formatCents(pipelineCents)} in active leads
+              {atRiskCents > 0 ? ` · ${formatCents(atRiskCents)} at-risk uncontacted >4h` : ""}
             </span>
           </div>
         )}
