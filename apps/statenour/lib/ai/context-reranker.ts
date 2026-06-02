@@ -28,6 +28,53 @@
 import { cosineSimilarity } from "@/lib/brain/embedding-utils";
 import { getEmbedding } from "./provider";
 
+/**
+ * Block-embedding cache. The 7 brain blocks (recall, skills, identity,
+ * etc.) are largely stable across consecutive turns, yet rerankContextBlocks
+ * re-embedded every block on every turn (~7 live embedding calls/turn).
+ * Cache the per-block embedding keyed by a hash of the embedded window so
+ * the same content hits cache instead of re-calling the embedder. Short
+ * TTL keeps it fresh as blocks evolve; module-level so it survives within
+ * a warm lambda and resets on cold start (same lifecycle as other in-mem
+ * caches here).
+ */
+const EMBED_CACHE = new Map<string, { vec: number[]; expiresAt: number }>();
+const EMBED_CACHE_TTL_MS = 2 * 60_000; // 2 min
+
+// djb2 — tiny, fast, no deps. Only used as a cache key over the embed
+// window, so collision risk is negligible and never affects correctness
+// (a collision would at worst reuse a stale embedding for ~2 min).
+function hashContent(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0;
+  return String(h >>> 0);
+}
+
+/**
+ * getEmbedding wrapped with the block cache. Preserves the same
+ * fail-soft contract: any embedder error resolves to [] (callers treat
+ * an empty vec as "couldn't score"). Failures are NOT cached so a
+ * transient hiccup retries next turn.
+ */
+async function getBlockEmbeddingCached(text: string): Promise<number[]> {
+  const now = Date.now();
+  const key = hashContent(text);
+  const hit = EMBED_CACHE.get(key);
+  if (hit && hit.expiresAt > now) return hit.vec;
+
+  const vec = await getEmbedding(text).catch((): number[] => []);
+  if (vec.length > 0) {
+    EMBED_CACHE.set(key, { vec, expiresAt: now + EMBED_CACHE_TTL_MS });
+    // Lazy GC of expired entries when the map grows.
+    if (EMBED_CACHE.size > 100) {
+      for (const [k, v] of EMBED_CACHE) {
+        if (v.expiresAt <= now) EMBED_CACHE.delete(k);
+      }
+    }
+  }
+  return vec;
+}
+
 export interface RerankedBlock {
   name: string;           // "recall" | "skills" | "identity" | etc
   content: string;
@@ -69,12 +116,13 @@ export async function rerankContextBlocks(
     }));
   }
 
-  // Embed each block's leading window in parallel.
+  // Embed each block's leading window in parallel. Stable blocks across
+  // consecutive turns hit the 2-min EMBED_CACHE instead of re-embedding.
   const embeddings = await Promise.all(
     blocks.map((b) =>
       b.content.trim().length === 0
         ? Promise.resolve<number[]>([])
-        : getEmbedding(b.content.slice(0, embedWindow)).catch((): number[] => []),
+        : getBlockEmbeddingCached(b.content.slice(0, embedWindow)),
     ),
   );
 

@@ -19,10 +19,6 @@ import { prisma } from "@/lib/prisma";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 import { logger } from "@/lib/logger";
 
-function todayStr() {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-}
-
 export interface StreakSnapshot {
   current: number;
   best: number;
@@ -53,19 +49,12 @@ export interface ActionsBrainView {
 }
 
 export async function buildActionsBrain(): Promise<ActionsBrainView> {
-  // The today/weekAgo derivations are kept for downstream extensions
-  // (none currently consume them · keeping them here means future
-  // callers don't have to compute them again).
-  void todayStr();
-
   const [
     dailyTasks,
     identitySnap,
-    _loops,
     commitments,
     tasks,
     memories,
-    _recentDecisions,
     dueReplays,
   ] = await Promise.all([
     prisma.task.findMany({
@@ -84,12 +73,6 @@ export async function buildActionsBrain(): Promise<ActionsBrainView> {
       })
       .then((r) => (r && r.deletedAt ? null : r))
       .catch(() => null),
-    prisma.task.findMany({
-      where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
-      orderBy: [{ autoPriority: "asc" }, { createdAt: "desc" }],
-      take: 30,
-      select: { id: true, title: true, autoPriority: true, status: true },
-    }),
     prisma.commitment.findMany({ where: { status: { in: ["active", "in_progress"] }, deletedAt: null } }),
     prisma.task.findMany({
       where: { status: { in: ["INBOX", "READY", "DOING"] }, deletedAt: null },
@@ -100,12 +83,6 @@ export async function buildActionsBrain(): Promise<ActionsBrainView> {
       where: { category: { in: ["lesson", "pattern", "insight"] }, deletedAt: null },
       orderBy: { confidence: "desc" },
       take: 10,
-    }),
-    prisma.masteryDecision.findMany({
-      where: { deletedAt: null },
-      orderBy: { date: "desc" },
-      take: 5,
-      select: { title: true, chosen: true, date: true },
     }),
     prisma.decisionReplay.findMany({
       where: { reviewed: false, reviewAt: { lte: new Date() } },

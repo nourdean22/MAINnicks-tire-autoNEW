@@ -144,12 +144,15 @@ export async function buildTruthGroundingBlock(
 
   if (allEntities.length === 0) return "";
 
-  const facts: GroundFact[] = [];
-  for (const entity of allEntities) {
-    const f = await groundMissionByName(entity);
-    if (f) facts.push(f);
-    if (facts.length >= 3) break;
-  }
+  // Run the (up to 5) entity lookups in parallel — each does ~3
+  // prisma.task.count queries, so serially this was up to 15 sequential
+  // round-trips on the hot chat path. Settle all, then apply the
+  // same cap (3) AFTER, preserving the prior `facts` shape + ordering.
+  const facts: GroundFact[] = (
+    await Promise.all(allEntities.map(groundMissionByName))
+  )
+    .filter((f): f is GroundFact => f !== null)
+    .slice(0, 3);
   if (facts.length === 0) return "";
 
   return [
