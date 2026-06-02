@@ -21,6 +21,20 @@ import { daysAgo, today } from "@/lib/utils/datetime";
 import { PERSON_ROLE_PROMPT_LIST, isPersonRole } from "./person-roles";
 
 /**
+ * Operator opened/edited the dossier within `days` — a "reviewed" signal
+ * distinct from real CONTACT (lastInteraction, bumped only by chat
+ * mention / logged outreach / ledger). A dossier edit deliberately does
+ * NOT bump lastInteraction, so we use this to avoid crying "neglected"
+ * right after the operator engaged with someone's record.
+ */
+function reviewedWithin(
+  dossierUpdatedAt: Date | null | undefined,
+  days = 14,
+): boolean {
+  return !!dossierUpdatedAt && new Date(dossierUpdatedAt) > daysAgo(days);
+}
+
+/**
  * Run a people intelligence scan — analyzes recent interactions,
  * finds neglected relationships, and surfaces people relevant to goals.
  */
@@ -44,6 +58,7 @@ export async function runPeopleIntelligence(): Promise<{
       relationship: true,
       trustScore: true,
       lastInteraction: true,
+      dossierUpdatedAt: true,
       interactionCount: true,
       leverageNotes: true,
       metadata: true,
@@ -53,13 +68,15 @@ export async function runPeopleIntelligence(): Promise<{
 
   if (people.length === 0) return { profilesUpdated: 0, alerts: [] };
 
-  // Detect neglected relationships
+  // Detect neglected relationships — no real CONTACT in 14d. Someone whose
+  // dossier the operator just reviewed is still tracked, not neglected.
   const twoWeeksAgo = daysAgo(14);
   const neglected = people.filter(
     (p) =>
       p.interactionCount >= 3 && // Only alert for people we interact with regularly
       p.lastInteraction &&
-      new Date(p.lastInteraction) < twoWeeksAgo
+      new Date(p.lastInteraction) < twoWeeksAgo &&
+      !reviewedWithin(p.dossierUpdatedAt)
   );
 
   for (const n of neglected) {
@@ -196,6 +213,7 @@ export async function getPeopleIntelligence(): Promise<string> {
         relationship: true,
         trustScore: true,
         lastInteraction: true,
+        dossierUpdatedAt: true,
         interactionCount: true,
         leverageNotes: true,
       },
@@ -226,23 +244,40 @@ export async function getPeopleIntelligence(): Promise<string> {
                 (24 * 60 * 60 * 1000)
             )
           : null;
-        const stale = daysSince && daysSince > 14 ? " ⚠️STALE" : "";
-        return `${p.name} (trust: ${(p.trustScore * 100).toFixed(0)}%, ${p.interactionCount} interactions${stale})`;
+        const marker =
+          daysSince && daysSince > 14
+            ? reviewedWithin(p.dossierUpdatedAt)
+              ? " 📝reviewed"
+              : " ⚠️STALE"
+            : "";
+        return `${p.name} (trust: ${(p.trustScore * 100).toFixed(0)}%, ${p.interactionCount} interactions${marker})`;
       }).join(", ")}`
     );
   }
 
-  // Surface neglected relationships
-  const neglected = people.filter(
+  // Surface neglected relationships — no real CONTACT in 14+ days. Someone
+  // whose dossier the operator just reviewed is NOT neglected (clearly
+  // still tracked) — split those into a truthful "reach out" nudge instead
+  // of crying neglect right after they engaged with the record.
+  const staleContact = people.filter(
     (p) =>
       p.interactionCount >= 3 &&
       p.lastInteraction &&
       new Date(p.lastInteraction) < daysAgo(14)
   );
+  const neglected = staleContact.filter((p) => !reviewedWithin(p.dossierUpdatedAt));
+  const reviewedNotContacted = staleContact.filter((p) =>
+    reviewedWithin(p.dossierUpdatedAt)
+  );
 
   if (neglected.length > 0) {
     lines.push(
-      `**NEGLECTED**: ${neglected.map((n) => n.name).join(", ")} — haven't interacted in 14+ days`
+      `**NEGLECTED**: ${neglected.map((n) => n.name).join(", ")} — no contact in 14+ days`
+    );
+  }
+  if (reviewedNotContacted.length > 0) {
+    lines.push(
+      `**REACH OUT**: ${reviewedNotContacted.map((n) => n.name).join(", ")} — notes fresh, no actual contact yet`
     );
   }
 

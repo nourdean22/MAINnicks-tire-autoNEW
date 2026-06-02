@@ -130,6 +130,19 @@ export async function scanKeptWords(): Promise<{
             }),
             confidence: 0.85,
             source: "cron:kept-word-scan",
+            // Power Atlas fix 2026-06-02: every reader (contextual-greene-laws,
+            // /relationships watchlist, morning-brief) filters on
+            // metadata.personId / metadata.status — but the create block never
+            // wrote metadata, so `openPromises` was permanently 0. personId is
+            // already encoded in the key; mirror it + status into metadata so
+            // all metadata-readers resolve. (No resolver wave yet → status is
+            // always "open" here; the resolver will update it when it lands.)
+            metadata: {
+              personId: matchedPerson.id,
+              promise: promise.promise,
+              dueHint: promise.dueHint,
+              status: "open",
+            },
           },
           update: {},
         });
