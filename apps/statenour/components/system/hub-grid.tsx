@@ -264,7 +264,7 @@ const CARDS: HubCard[] = [
   },
   {
     // Phase Q.3 · 2026-05-18 PM · live tracker for in-flight
-    // migrations (tRPC, AGENT_V2, persona-wiring) + feature flags
+    // migrations (tRPC, persona-wiring) + feature flags
     // board. Replaces "trust commit messages + MEMORY notes".
     href: "/system/migrations",
     title: "Migrations",
@@ -365,15 +365,15 @@ const CARDS: HubCard[] = [
     chip: () => ({ label: "v9.1", severity: "info" }),
   },
   {
-    // Phase V · 2026-05-18 PM · AGENT_V1 → AGENT_V2 judge-eval
-    // dashboard · LLM-as-judge comparator · per-intent breakdown ·
-    // Phase 1 canary verdict (safe / watch / regressing).
+    // Phase V · 2026-05-18 PM · judge-eval dashboard · LLM-as-judge
+    // comparator · per-intent breakdown · prompt A/B regression
+    // verdict (safe / watch / regressing).
     href: "/system/judge-eval",
     title: "Judge-eval V1↔V2",
     icon: Beaker,
     group: "quality",
     description:
-      "LLM-as-judge comparator · win rate per intent · canary verdict · Phase V unblocks AGENT_V2 cutover",
+      "LLM-as-judge comparator · win rate per intent · prompt A/B regression guard",
     chip: () => ({ label: "verdict", severity: "info" }),
   },
   {

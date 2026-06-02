@@ -560,9 +560,25 @@ export async function buildSystemPromptUncached(
         prisma.brainDump.findMany({
           where: { deletedAt: null },
           orderBy: { createdAt: "desc" }, take: 5,
-          select: { date: true, rawThoughts: true, summary: true, patterns: true },
+          select: {
+            date: true,
+            summary: true,
+            patterns: true,
+            entryType: true,
+            linkStatus: true,
+            goal: { select: { title: true } },
+            mission: { select: { title: true } },
+          },
         }),
-      [] as { date: string; rawThoughts: string; summary: string | null; patterns: unknown }[],
+      [] as {
+        date: string;
+        summary: string | null;
+        patterns: unknown;
+        entryType: string | null;
+        linkStatus: string | null;
+        goal: { title: string } | null;
+        mission: { title: string } | null;
+      }[],
     ),
     gated(
       tier,

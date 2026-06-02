@@ -208,7 +208,6 @@ export interface SystemHealthView {
     megaJobs: typeof MEGA_JOB_COUNTS;
   };
   braintrust: { status: ReturnType<typeof braintrustWrapStatus> };
-  agentV2: { enabled: boolean };
 }
 
 /** Composite health probe · 30s-cached. Lifted verbatim from
@@ -322,9 +321,6 @@ export async function buildSystemHealth(): Promise<SystemHealthView> {
         megaJobs: MEGA_JOB_COUNTS,
       },
       braintrust: { status: braintrustWrapStatus() },
-      agentV2: {
-        enabled: (process.env.AGENT_V2 ?? "").trim().toLowerCase() === "true",
-      },
     };
   });
 }

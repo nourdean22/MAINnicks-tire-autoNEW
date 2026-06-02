@@ -34,7 +34,7 @@ const log = rootLogger.withSurface("api/ai/chat");
 export const maxDuration = 120; // Pro plan: up to 300s
 
 export async function POST(req: Request) {
-  const user = await requireSession(req);
+  await requireSession(req);
   // v9.1.19 · AI rate-limit gate. The chat route is session-gated so
   // only Nour can hit it, but a runaway client (e.g. a polling loop
   // gone wild, or auto-fire chains) could still bomb the AI provider
@@ -44,112 +44,6 @@ export async function POST(req: Request) {
   const limited = checkAiRateLimit(req);
   if (limited) return limited;
 
-  // ── WAVE-200 Phase 1.5 · AGENT_V2 cutover gate ──────────────────
-  // When the operator flips AGENT_V2=true in Railway env, this
-  // route delegates to the Mastra `nick` agent via handleChatStream
-  // instead of running the 1800-LOC legacy pipeline below.
-  //
-  // Cutover semantics:
-  //   · OFF (default) · legacy streamText pipeline · unchanged
-  //   · ON · Mastra agent + nourTools + auto-injected skill recall
-  //     (Phase 2 verified · already inherited by the Mastra agent)
-  //
-  // Rollback · flip the env back to false · zero code change · the
-  // legacy pipeline stays warm.
-  //
-  // Why early-exit instead of branching mid-pipeline · the legacy
-  // pipeline does its own prompt assembly + memory recall + tool
-  // dispatch · Mastra does ALL of that internally. Branching mid-way
-  // would duplicate state with no benefit. Early-exit means "this
-  // request runs on Mastra · everything that follows is the legacy
-  // path".
-  //
-  // See: docs/adr/0001-mastra-adoption.md · WAVE-200-PLAN Phase 1.5
-  const { AGENT_V2_ENABLED } = await import("@/src/mastra/agents/nick");
-
-  // ── Phase W (2026-05-18 PM) · X-Force-Agent header override ──────
-  // Owner-only per-request override of the AGENT_V2 env gate. Enables
-  // the judge-eval corpus-building workflow · the operator (or a
-  // future shadow-execute cron) can POST `x-force-agent: v1` to fire
-  // the same prompt through the legacy pipeline AND `x-force-agent:
-  // v2` to fire through Mastra, regardless of the deploy-wide flag.
-  //
-  // Safe because:
-  //   · requireSession() already ran above · only the operator can
-  //     set this header
-  //   · It doesn't bypass auth, rate-limit, or budget gates · those
-  //     all run later in the legacy branch and apply to V1 too
-  //   · Default behavior (no header) is unchanged · env flag wins
-  //
-  // See: docs/migrations/agent-v1-to-v2.md · Phase 0 corpus-building
-  const forceAgent = (req.headers.get("x-force-agent") ?? "").trim().toLowerCase();
-  const useV2 =
-    forceAgent === "v1" ? false : forceAgent === "v2" ? true : AGENT_V2_ENABLED;
-
-  if (useV2) {
-    // 2026-05-17 follow-up · code-reviewer + silent-failure-hunter both
-    // flagged the original V2 branch as missing the error scaffolding
-    // the legacy path has. Wrapping with try/catch + recordError +
-    // sanitizeError so a Mastra construction failure (provider chain
-    // exhausted · Braintrust wrap throw · missing env) lands the same
-    // shape of error the client useChat() hook expects, and shows up
-    // in /system/errors instead of vanishing as an unhandled crash.
-    try {
-      const { handleChatStream } = await import("@mastra/ai-sdk");
-      const { createUIMessageStreamResponse } = await import("ai");
-      const { getMastra } = await import("@/src/mastra");
-      const params = await req.json();
-      // 2026-05-17 follow-up · Phase 1.2 memory wiring fix · without
-      // explicit thread + resource IDs, Mastra creates a new memory
-      // context per request and the Phase 1.2 working-memory + last-N
-      // message window silently no-op. Per AgentMemoryOption shape:
-      //   thread → conversationId · resource → operator user.id
-      // The legacy pipeline reads body.conversationId · we mirror
-      // that lookup so legacy → V2 cutover preserves conversation
-      // continuity for the operator.
-      const conversationId =
-        typeof params?.conversationId === "string" && params.conversationId.length > 0
-          ? params.conversationId
-          : typeof params?.id === "string" && params.id.length > 0
-            ? params.id
-            : typeof params?.chatId === "string" && params.chatId.length > 0
-              ? params.chatId
-              : `default-${user.id}`;
-      const paramsWithMemory = {
-        ...params,
-        memory: {
-          thread: conversationId,
-          resource: user.id,
-        },
-      };
-      // getMastra() returns a promise (race-safe singleton · 2026-05-17 follow-up)
-      const mastra = await getMastra();
-      const stream = await handleChatStream({
-        mastra: mastra as never,
-        agentId: "nick",
-        params: paramsWithMemory,
-        version: "v6",
-      });
-      return createUIMessageStreamResponse({ stream: stream as never });
-    } catch (err) {
-      const message = sanitizeError(err);
-      log.error("agent_v2_failed", {
-        message,
-        stack: err instanceof Error ? err.stack?.slice(0, 500) : undefined,
-      });
-      recordError("chat:stream", err, { surface: "agent_v2", agentV2: true });
-      // Return JSON 500 with a structured shape · the AI SDK v6 client
-      // surfaces this via the onError callback rather than hanging
-      // forever waiting for a stream that never arrives.
-      return new Response(
-        JSON.stringify({ error: "agent_v2_failed", message }),
-        {
-          status: 500,
-          headers: { "content-type": "application/json" },
-        },
-      );
-    }
-  }
   // v7.8 · Apr 29 · Universal audit. Anything written from this
   // route — AutonomousAction triggers, BrainMemory persists from
   // importance-scorer, Mission/Task creates from chat tool calls —
