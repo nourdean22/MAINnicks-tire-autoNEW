@@ -100,56 +100,42 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   const priorSince = new Date(Date.now() - 2 * ms);
   const priorEnd = since;
 
+  // ── Parallelized probes (v10.x perf · 2026-06-02) ──
+  // Every section below reads a DISJOINT set of rows and none consumes
+  // another's result — so they're independent. Previously they ran as a
+  // long SERIAL `await` chain (cron → prior-cron → errors → backlog →
+  // freshness → law → vectors → lens → VAPI → eval), making total
+  // latency the SUM of every round-trip PLUS the ~4s VAPI HTTP probe
+  // sitting inline (the /system/health first-paint froze ~30s+). Hoisting
+  // each fetch into a promise and awaiting them in ONE Promise.all makes
+  // latency the MAX of the slowest single probe instead of the sum.
+  // Behavior is identical: same queries, same inputs, same per-section
+  // try/catch fallbacks, same output shape — only the scheduling changes.
+
   // ── Cron health ──
-  const cronLogs = await prisma.cronJobLog.findMany({
+  const cronLogsP = prisma.cronJobLog.findMany({
     where: { createdAt: { gte: since } },
     select: { jobName: true, status: true, duration: true, createdAt: true },
   });
-  const priorCronLogs = await prisma.cronJobLog.findMany({
+  const priorCronLogsP = prisma.cronJobLog.findMany({
     where: { createdAt: { gte: priorSince, lt: priorEnd } },
     select: { status: true },
   });
-  const priorCronFailureCount = priorCronLogs.filter((l) => l.status !== "success").length;
-
-  const cronByJob = new Map<string, { success: number; failed: number; totalMs: number }>();
-  for (const l of cronLogs) {
-    const e = cronByJob.get(l.jobName) ?? { success: 0, failed: 0, totalMs: 0 };
-    if (l.status === "success") e.success++;
-    else e.failed++;
-    e.totalMs += l.duration ?? 0;
-    cronByJob.set(l.jobName, e);
-  }
-  const cronSummary = [...cronByJob.entries()].map(([jobName, s]) => ({
-    jobName,
-    success: s.success,
-    failed: s.failed,
-    avgMs: Math.round(s.totalMs / Math.max(s.success + s.failed, 1)),
-    healthy: s.failed === 0,
-  }));
 
   // ── Error patterns ──
-  const errCount = await prisma.errorLog.count({ where: { createdAt: { gte: since } } });
-  const priorErrCount = await prisma.errorLog.count({
+  const errCountP = prisma.errorLog.count({ where: { createdAt: { gte: since } } });
+  const priorErrCountP = prisma.errorLog.count({
     where: { createdAt: { gte: priorSince, lt: priorEnd } },
   });
-  const topErrors = await prisma.errorLog.findMany({
+  const topErrorsP = prisma.errorLog.findMany({
     where: { createdAt: { gte: since } },
     orderBy: { createdAt: "desc" },
     take: 50,
     select: { message: true },
   });
-  const errByMsg = new Map<string, number>();
-  for (const e of topErrors) {
-    const key = e.message.slice(0, 80);
-    errByMsg.set(key, (errByMsg.get(key) ?? 0) + 1);
-  }
-  const topErrorPatterns = [...errByMsg.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([msg, count]) => ({ msg, count }));
 
   // ── Backlog pressure ──
-  const [activeCap, pendingCommit, inboxTasks, unackDrift] = await Promise.all([
+  const backlogP = Promise.all([
     prisma.captureInboxItem.count({ where: { status: "active" } }),
     prisma.commitment.count({ where: { status: { in: ["active", "in_progress"] } } }),
     prisma.task.count({ where: { status: "INBOX" } }),
@@ -157,7 +143,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   ]);
 
   // ── Brain signal freshness ──
-  const [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh, lastSkillExtract] = await Promise.all([
+  const freshnessP = Promise.all([
     prisma.brainDump.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.reflection.findFirst({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.captureInboxItem.findFirst({ orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
@@ -173,7 +159,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   ]);
 
   // ── Law feedback loop ──
-  const [lawLogs, triggerLogs] = await Promise.all([
+  const lawFeedbackP = Promise.all([
     prisma.situationLog.count({ where: { lawId: { not: null }, createdAt: { gte: since } } }),
     prisma.situationLog.count({
       where: { context: { startsWith: "trigger:" }, createdAt: { gte: since } },
@@ -181,17 +167,13 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   ]);
 
   // ── Vector coverage ──
-  const vectorCoverage = await prisma.vectorEmbedding.groupBy({
+  const vectorCoverageP = prisma.vectorEmbedding.groupBy({
     by: ["sourceType"],
     _count: { _all: true },
   });
 
-  const now = Date.now();
-  const agoH = (d: Date | null | undefined) =>
-    d ? Math.round((now - d.getTime()) / (60 * 60 * 1000)) : null;
-
   // ── Lens summary ──
-  const lens = await (async () => {
+  const lensP = (async () => {
     try {
       const rows = await prisma.systemMetric.findMany({
         where: { metric: "ai.lens_fired", createdAt: { gte: since } },
@@ -222,7 +204,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   })();
 
   // ── VAPI voice summary (optional · null if VAPI_API_KEY unset) ──
-  const voice = await (async () => {
+  const voiceP = (async () => {
     try {
       const apiKey = process.env.VAPI_API_KEY?.trim();
       if (!apiKey) return null;
@@ -272,7 +254,7 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
   //    here: AI eval quality + nickstire bridge / data-source probes.
   //    Reads existing stores (eval_result + data_source_probe BrainMemory) ·
   //    no new cron. ──
-  const [latestEval, probeRows] = await Promise.all([
+  const evalAndProbesP = Promise.all([
     prisma.brainMemory
       .findFirst({
         where: { category: "eval_result", deletedAt: null },
@@ -289,6 +271,73 @@ export async function buildHealthReport(args: { range: HealthRange }): Promise<H
       })
       .catch((): { key: string; content: string }[] => []),
   ]);
+
+  // ── Single concurrency join · every probe above runs in parallel ──
+  // Total latency is now the MAX of the slowest probe, not the sum. The
+  // post-processing below is pure CPU (map/reduce/JSON.parse) — it was
+  // already interleaved with the awaits before; now it runs once after
+  // the join, producing the exact same values.
+  const [
+    cronLogs,
+    priorCronLogs,
+    errCount,
+    priorErrCount,
+    topErrors,
+    [activeCap, pendingCommit, inboxTasks, unackDrift],
+    [lastBrainDump, lastReflection, lastCapture, lastIdentityRefresh, lastSkillExtract],
+    [lawLogs, triggerLogs],
+    vectorCoverage,
+    lens,
+    voice,
+    [latestEval, probeRows],
+  ] = await Promise.all([
+    cronLogsP,
+    priorCronLogsP,
+    errCountP,
+    priorErrCountP,
+    topErrorsP,
+    backlogP,
+    freshnessP,
+    lawFeedbackP,
+    vectorCoverageP,
+    lensP,
+    voiceP,
+    evalAndProbesP,
+  ]);
+
+  // ── Cron health · post-processing ──
+  const priorCronFailureCount = priorCronLogs.filter((l) => l.status !== "success").length;
+  const cronByJob = new Map<string, { success: number; failed: number; totalMs: number }>();
+  for (const l of cronLogs) {
+    const e = cronByJob.get(l.jobName) ?? { success: 0, failed: 0, totalMs: 0 };
+    if (l.status === "success") e.success++;
+    else e.failed++;
+    e.totalMs += l.duration ?? 0;
+    cronByJob.set(l.jobName, e);
+  }
+  const cronSummary = [...cronByJob.entries()].map(([jobName, s]) => ({
+    jobName,
+    success: s.success,
+    failed: s.failed,
+    avgMs: Math.round(s.totalMs / Math.max(s.success + s.failed, 1)),
+    healthy: s.failed === 0,
+  }));
+
+  // ── Error patterns · post-processing ──
+  const errByMsg = new Map<string, number>();
+  for (const e of topErrors) {
+    const key = e.message.slice(0, 80);
+    errByMsg.set(key, (errByMsg.get(key) ?? 0) + 1);
+  }
+  const topErrorPatterns = [...errByMsg.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([msg, count]) => ({ msg, count }));
+
+  // ── Freshness "hours ago" helper ──
+  const now = Date.now();
+  const agoH = (d: Date | null | undefined) =>
+    d ? Math.round((now - d.getTime()) / (60 * 60 * 1000)) : null;
 
   const evalMeta = (latestEval?.metadata ?? {}) as Record<string, unknown>;
   const evalHealth = latestEval
