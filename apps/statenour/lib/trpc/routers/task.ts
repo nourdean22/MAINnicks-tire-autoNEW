@@ -1574,6 +1574,11 @@ export const taskRouter = router({
         where: { id: input.personId },
         data,
       });
+      // Power Atlas 2026-06-02: this path skipped the embed hook, so edits
+      // to name/role/relationship/leverageNotes were invisible to chat
+      // recall + the /people search bar. Refresh both (mirrors updateDossier).
+      const { enqueuePersonEmbed } = await import("@/lib/brain/people-embed-hook");
+      void enqueuePersonEmbed(input.personId);
       return { ok: true };
     }),
 
