@@ -418,17 +418,13 @@ export const CRONS: CronDef[] = [
   {
     name: "dossier-autodraft",
     schedule: "0 4 * * 1",
-    // 2026-06-02 · operator authorized activation, but DELIBERATELY left
-    // dormant: the mega fan-out can only express two cadences (daily, or
-    // Sunday-ET via WEEKLY_JOBS) — it has NO Monday day-gate. This cron is
-    // Monday-only AND not idempotent-per-period (every run drafts up to 5
-    // dossiers via AI + 5 embedding refreshes with no per-week guard), so
-    // forcing it into the daily fan-out would run ~7× the intended AI
-    // spend and re-draft the same top-5 profiles every day. Wiring it
-    // needs either an Inngest-native function with its own `0 4 * * 1`
-    // trigger (inngest: true, like the INNGEST-NATIVE block above) or a
-    // Monday self-gate added inside the route. Flagged for the operator.
-    mode: "dormant",
+    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). The mega fan-out
+    // has no Monday day-gate, so the ROUTE self-gates on getUTCDay()===1
+    // (Monday UTC) and no-ops the other 6 days -- weekly-Monday cadence
+    // through the daily MORNING_JOBS fan-out without the 7x AI spend that
+    // blind daily firing would cause. (Alt was an Inngest-native 0 4 * * 1
+    // trigger; the route-local self-gate is the simpler, lower-risk fix.)
+    mode: "active",
     category: "brain",
     description: "Monday 4am UTC · drafts dossier MD updates for PersonProfile rows with stale dossiers · operator confirms via action queue.",
     memory: 1024,
@@ -438,16 +434,11 @@ export const CRONS: CronDef[] = [
   {
     name: "greene-law-tag-refresh",
     schedule: "0 5 * * 1",
-    // 2026-06-02 · operator authorized activation, but DELIBERATELY left
-    // dormant (same blocker as dossier-autodraft above): Monday-only, and
-    // the mega fan-out has no Monday day-gate (only daily + Sunday-ET).
-    // It is also not idempotent-per-period — each run AI-tags up to 8
-    // profiles via tagApplicableLaws with no per-week guard — so daily
-    // firing would run ~7× the intended AI spend. Wiring it needs an
-    // Inngest-native function with its own `0 5 * * 1` trigger
-    // (inngest: true) or a Monday self-gate in the route. Flagged for
-    // the operator.
-    mode: "dormant",
+    // 2026-06-02 · WIRED + ACTIVE (operator-authorized). Same self-gate
+    // pattern as dossier-autodraft: the route checks getUTCDay()===1
+    // (Monday UTC) and no-ops the other 6 days, so it gets its weekly
+    // cadence through the daily MORNING_JOBS fan-out without 7x AI spend.
+    mode: "active",
     category: "brain",
     description: "Wave Z · Monday 5am UTC · refreshes per-person applicableLaws array from corpus · feeds /relationships GreeneLawSidebar.",
     memory: 512,

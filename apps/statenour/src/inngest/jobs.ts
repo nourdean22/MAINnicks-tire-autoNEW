@@ -71,6 +71,14 @@ export const MORNING_JOBS: readonly string[] = [
   //     correct cadence regardless of which daily slot it lands in.
   "/api/cron/relationship-birthday",
   "/api/cron/kept-word-scan",
+  // 2026-06-02 · operator-authorized · the 2 Monday-only brain crons.
+  // The fan-out has no native Monday gate, so each route SELF-GATES on
+  // `getUTCDay() === 1` and no-ops the other 6 days (short-circuits
+  // before any DB/AI). Net: their intended weekly-Monday cadence, via
+  // the daily fan-out, WITHOUT the 7x AI spend that blind daily firing
+  // would cause. Idempotency + per-week guards live in each route.
+  "/api/cron/dossier-autodraft",
+  "/api/cron/greene-law-tag-refresh",
 ];
 
 /**
