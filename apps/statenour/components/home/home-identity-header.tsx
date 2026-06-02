@@ -49,7 +49,7 @@ export function HomeIdentityHeader() {
           aria-hidden
           className="h-1.5 w-1.5 rounded-full bg-emerald-400/80 animate-pulse"
         />
-        listening
+        ready
       </span>
     </section>
   );
