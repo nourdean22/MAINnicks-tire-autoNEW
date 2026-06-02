@@ -22,14 +22,68 @@
  * - habit.toggle
  */
 
-import { prisma } from "@/lib/prisma";
-import { createTaskAndEnrich, liftGoalOnTaskComplete } from "@/lib/services/tasks";
-import { creditTaskStats } from "@/lib/mastery/goal-stats";
 import { recordError } from "@/lib/errors/record-error";
-import { brainMemory } from "@/lib/brain/memory-manager";
-import { runSimulation } from "@/lib/brain/thinking-engine";
 import { feedbackLoop } from "@/lib/brain/pipeline-controller";
-import { today } from "@/lib/utils/datetime";
+import {
+  handleTaskCreate,
+  handleTaskComplete,
+  handleHabitToggle,
+  handleMissionPlan,
+} from "@/lib/ai/agent-actions/task-actions";
+import {
+  handleCommitmentCreate,
+  handleCommitmentUpdate,
+  handleDecisionLog,
+  handleAlertResolve,
+} from "@/lib/ai/agent-actions/commitment-decision-actions";
+import {
+  handleMemoryRemember,
+  handleMemoryForget,
+  handleSimulationRun,
+  handleMemorySearch,
+} from "@/lib/ai/agent-actions/memory-actions";
+import { handlePersonUpdate } from "@/lib/ai/agent-actions/person-actions";
+import {
+  handleShopGetLabor,
+  handleShopGetLeads,
+  handleShopUpdateLead,
+  handleShopGetEstimates,
+  handleShopGetCustomers,
+  handleShopSendSms,
+  handleShopGetBookings,
+  handleShopShopStatus,
+  handleShopGetRevenue,
+} from "@/lib/ai/agent-actions/shop-actions";
+import {
+  handleSystemHealth,
+  handleSystemBrainStats,
+  handleSystemSyncNow,
+  handleSystemDeepScan,
+  handleSystemClearAlerts,
+  handleSystemPagePatterns,
+} from "@/lib/ai/agent-actions/system-actions";
+import {
+  handleArsenalResearch,
+  handleArsenalGmailInbox,
+  handleArsenalGmailReadThread,
+  handleArsenalMultiAgent,
+  handleArsenalDeepResearch,
+  handleArsenalPreTaskFanout,
+  handleArsenalWebSearch,
+  handleArsenalFindLeads,
+  handleArsenalNewLeadChain,
+  handleArsenalReviewResponse,
+  handleArsenalCompetitorInsight,
+  handleArsenalDailyBrief,
+  handleArsenalGetMeetings,
+} from "@/lib/ai/agent-actions/arsenal-actions";
+import {
+  handleTelegramSend,
+  handleCameraGetIntelligence,
+  handleCameraResolveAlert,
+  handleCameraGetAlerts,
+  handleCameraGetPlates,
+} from "@/lib/ai/agent-actions/camera-actions";
 
 export interface AgentAction {
   type: string;
@@ -80,878 +134,175 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
   const { type, params } = action;
 
   try {
-    // Apr 18: OpenLoop retired → task + loop cases all write Task
-    // INBOX rows against the m-inbox mission.
-    const priorityFor = (p: unknown): number =>
-      p === "critical" ? 5 : p === "high" ? 15 : p === "low" ? 60 : 30;
-
+    // 2026-06-02 · Structural split · the giant case-body switch was
+    // decomposed into per-domain handler modules under
+    // lib/ai/agent-actions/. This dispatcher delegates VERBATIM —
+    // same action-type strings, same default/unknown handling, same
+    // try/catch error wrapping. Each handler receives (params, type)
+    // and returns the identical ActionResult the inline case produced.
     switch (type) {
       case "task.create":
-      case "loop.create": {
-        const task = await createTaskAndEnrich({
-          title: String(params.title || "Untitled task"),
-          missionId: "m-inbox",
-          status: "INBOX",
-          nextPhysicalAction: String(params.title || "Untitled task"),
-          effort: "M15",
-          roiScore: 50,
-          frictionScore: 50,
-          energyRequired: "MEDIUM",
-          context: "ANYWHERE",
-          finishCondition: params.description ? String(params.description) : "done when complete",
-          autoPriority: priorityFor(params.priority),
-          autoPriorityExplanation: `from nick-agent (${type})${params.domain ? ` · ${params.domain}` : ""}`,
-          lastTouchedAt: new Date(),
-        });
-        return { action: type, success: true, result: { id: task.id, title: task.title } };
-      }
+      case "loop.create":
+        return await handleTaskCreate(params, type);
 
       case "task.complete":
-      case "loop.close": {
-        const id = String(params.id);
-        // 2026-06-02 · C7 fix · DAILY tasks must NOT be hard-set to DONE —
-        // that destroys the streak. Mirror completeTask's DAILY branch
-        // (lib/ai/tools/tasks.ts): bump streak via gap-check + stay READY.
-        const existing = await prisma.task.findUnique({
-          where: { id },
-          select: { loopKind: true, streakCount: true, lastCompletedAt: true, goalId: true, title: true },
-        });
-        if (!existing) {
-          return { action: type, success: false, error: "task not found" };
-        }
-        const now = new Date();
-        const explanation =
-          type === "loop.close" && params.reason
-            ? `closed: ${String(params.reason)}`
-            : "completed via nick agent";
-
-        let task: { id: string; title: string; goalId: string | null };
-        if (existing.loopKind === "DAILY") {
-          // Same streak logic as completeTask / the /check route: local-day
-          // gap — 0 = already done today (idempotent), 1 = increment, else reset.
-          let nextStreak = 1;
-          if (existing.lastCompletedAt) {
-            const last = new Date(existing.lastCompletedAt);
-            const lastStart = new Date(last.getFullYear(), last.getMonth(), last.getDate());
-            const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            const gap = Math.round((todayStart.getTime() - lastStart.getTime()) / 86_400_000);
-            if (gap === 0) {
-              return {
-                action: type,
-                success: true,
-                result: {
-                  id,
-                  title: existing.title,
-                  loopKind: "DAILY",
-                  idempotent: true,
-                  streakCount: existing.streakCount,
-                  note: "already checked off today · streak preserved",
-                },
-              };
-            }
-            nextStreak = gap === 1 ? existing.streakCount + 1 : 1;
-          }
-          task = await prisma.task.update({
-            where: { id },
-            data: {
-              lastCompletedAt: now,
-              lastTouchedAt: now,
-              streakCount: nextStreak,
-              status: "READY", // DAILY stays in the loop
-              snoozedUntil: null,
-              autoPriorityExplanation: explanation,
-            },
-            select: { id: true, title: true, goalId: true },
-          });
-        } else {
-          task = await prisma.task.update({
-            where: { id },
-            data: {
-              status: "DONE",
-              lastCompletedAt: now,
-              lastTouchedAt: now,
-              autoPriorityExplanation: explanation,
-            },
-            select: { id: true, title: true, goalId: true },
-          });
-        }
-        // 2026-06-01 · credit character-sheet stat XP + lift the linked goal
-        // (this action path bypasses checkTask/updateTask). Idempotent.
-        // 2026-06-02 · was fire-and-forget `void` — a throw silently lost
-        // XP/goal-lift. Now awaited via allSettled; rejections are logged,
-        // but a failure here never blocks the user-facing action result.
-        const settled = await Promise.allSettled([
-          creditTaskStats(id),
-          ...(task.goalId ? [liftGoalOnTaskComplete(task.goalId, id)] : []),
-        ]);
-        for (const r of settled) {
-          if (r.status === "rejected") {
-            recordError("ai:tool-exec", r.reason, { taskId: id, actionType: type, op: "task.complete-sideeffect" });
-          }
-        }
-        return { action: type, success: true, result: { id: task.id, title: task.title } };
-      }
+      case "loop.close":
+        return await handleTaskComplete(params, type);
 
       // ── Commitments ────────────────────────────
-      case "commitment.create": {
-        const commitment = await prisma.commitment.create({
-          data: {
-            dateMade: today(),
-            description: String(params.description || "New commitment"),
-            toWhom: params.toWhom ? String(params.toWhom) : "self",
-            domain: params.domain ? String(params.domain) : null,
-            deadline: params.deadline ? String(params.deadline) : null,
-          },
-        });
-        return { action: type, success: true, result: { id: commitment.id } };
-      }
+      case "commitment.create":
+        return await handleCommitmentCreate(params, type);
 
-      case "commitment.update": {
-        const commitment = await prisma.commitment.update({
-          where: { id: Number(params.id) },
-          data: {
-            ...(params.status ? { status: String(params.status) } : {}),
-            ...(params.notes ? { notes: String(params.notes) } : {}),
-          },
-        });
-        return { action: type, success: true, result: { id: commitment.id } };
-      }
+      case "commitment.update":
+        return await handleCommitmentUpdate(params, type);
 
       // ── Decisions ──────────────────────────────
-      case "decision.log": {
-        const decision = await prisma.masteryDecision.create({
-          data: {
-            date: today(),
-            title: String(params.title || "Decision"),
-            context: params.context ? String(params.context) : null,
-            optionsConsidered: params.options ? String(params.options) : null,
-            chosen: params.chosen ? String(params.chosen) : null,
-            reasoning: params.reasoning ? String(params.reasoning) : null,
-            stakes: params.stakes ? String(params.stakes) : "medium",
-          },
-        });
-        return { action: type, success: true, result: { id: decision.id } };
-      }
+      case "decision.log":
+        return await handleDecisionLog(params, type);
 
       // ── Alerts ─────────────────────────────────
-      case "alert.resolve": {
-        const alert = await prisma.driftAlert.update({
-          where: { id: Number(params.id) },
-          data: { resolved: true },
-        });
-        return { action: type, success: true, result: { id: alert.id } };
-      }
+      case "alert.resolve":
+        return await handleAlertResolve(params, type);
 
       // ── Memory ─────────────────────────────────
-      case "memory.remember": {
-        const mem = await brainMemory.remember(
-          String(params.category || "insight"),
-          String(params.key || `nick_${Date.now()}`),
-          String(params.content || ""),
-          "nick_agent",
-        );
-        return { action: type, success: true, result: { id: mem.id } };
-      }
+      case "memory.remember":
+        return await handleMemoryRemember(params, type);
 
-      case "memory.forget": {
-        await brainMemory.forget(String(params.id));
-        return { action: type, success: true, result: { deleted: true } };
-      }
+      case "memory.forget":
+        return await handleMemoryForget(params, type);
 
       // ── Habits ─────────────────────────────────
-      case "habit.toggle": {
-        // v10.0.59 · Wave A part 2 · Pre-fix dead Promise.resolve
-        // placeholders for the retired HabitLog table. Habits now
-        // live as DAILY-loop Tasks; toggling a habit means flipping
-        // the matching task's lastCompletedAt + bumping streakCount.
-        const habitKey = String(params.habitKey || "").trim();
-        if (!habitKey) {
-          return { action: type, success: false, error: "habitKey required" };
-        }
-        const task = await prisma.task.findFirst({
-          where: {
-            loopKind: "DAILY",
-            deletedAt: null,
-            title: { equals: habitKey, mode: "insensitive" },
-          },
-          select: { id: true, streakCount: true, lastCompletedAt: true },
-        });
-        if (!task) {
-          // Task model has many required fields (missionId,
-          // nextPhysicalAction, effort, roiScore, frictionScore,
-          // energyRequired, context, finishCondition) which can't
-          // be inferred from a habit toggle. Surface a clear error
-          // rather than silently dropping or pretending success.
-          // Operator creates DAILY tasks via /tasks UI which has
-          // the proper form.
-          return {
-            action: type,
-            success: false,
-            error: `No DAILY task with title "${habitKey}". Create it on /tasks first; the toggle will work after.`,
-          };
-        }
-        // Toggle: if completed today, un-complete; otherwise complete.
-        const todayStartET = new Date(
-          new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" }) +
-            "T00:00:00",
-        );
-        const completedToday =
-          task.lastCompletedAt && task.lastCompletedAt >= todayStartET;
-        await prisma.task.update({
-          where: { id: task.id },
-          data: completedToday
-            ? {
-                streakCount: { decrement: 1 },
-                lastCompletedAt: null,
-                lastTouchedAt: new Date(),
-              }
-            : {
-                streakCount: { increment: 1 },
-                lastCompletedAt: new Date(),
-                lastTouchedAt: new Date(),
-              },
-        });
-        return {
-          action: type,
-          success: true,
-          result: {
-            habitKey,
-            taskId: task.id,
-            action: completedToday ? "uncompleted" : "completed",
-            streakDelta: completedToday ? -1 : 1,
-          },
-        };
-      }
+      case "habit.toggle":
+        return await handleHabitToggle(params, type);
 
       // ── Simulation ─────────────────────────────
-      case "simulation.run": {
-        const sim = await runSimulation(String(params.scenario || ""));
-        return { action: type, success: !!sim, result: sim };
-      }
+      case "simulation.run":
+        return await handleSimulationRun(params, type);
 
       // ── People ─────────────────────────────────
-      case "person.update": {
-        // 2026-05-27 · routed through fuzzy resolver (lib/brain/person-profile-fuzzy)
-        // to prevent typo dupes. If the AI types "Danai" but operator already
-        // has "Dania", the resolver finds the existing row via Levenshtein
-        // ≤1 instead of creating a ghost.
-        const { resolvePersonByName } = await import("@/lib/brain/person-profile-fuzzy");
-        const resolution = await resolvePersonByName(String(params.name), {
-          role: String(params.role || "unknown"),
-          relationship: String(params.relationship || ""),
-          trustScore: Number(params.trustScore ?? 0.5),
-        });
-        // Apply any explicit field updates from the tool call · matched or created.
-        if (resolution.matched) {
-          // 2026-06-02 · C1 fix · honor the suggest-then-approve gate.
-          // relationship / leverageNotes / interaction are low-risk →
-          // write immediately. But role + trustScore reclassify a person
-          // the operator may have curated → route them into
-          // pendingClassification (same shape as people-intelligence.ts
-          // writes + task.acceptClassification reads) so Nick can NEVER
-          // silently overwrite a role/trust; the operator approves on /people.
-          const current = await prisma.personProfile.findUnique({
-            where: { id: resolution.person.id },
-            select: { role: true, trustScore: true },
-          });
-          const { isPersonRole } = await import("@/lib/brain/person-roles");
-
-          // Immediate (low-risk) writes.
-          await prisma.personProfile.update({
-            where: { id: resolution.person.id },
-            data: {
-              ...(params.relationship ? { relationship: String(params.relationship) } : {}),
-              ...(params.leverageNotes ? { leverageNotes: String(params.leverageNotes) } : {}),
-              interactionCount: { increment: 1 },
-              lastInteraction: new Date(),
-            },
-          });
-
-          // Build a role/trust PROPOSAL (never a live write).
-          const requestedRole = params.role ? String(params.role) : null;
-          const suggestedRole =
-            requestedRole && isPersonRole(requestedRole) && requestedRole !== current?.role
-              ? requestedRole
-              : null;
-          let trustAdjustment = 0;
-          if (params.trustScore != null && current) {
-            const rawAdj = Number(params.trustScore) - current.trustScore;
-            trustAdjustment = Number.isFinite(rawAdj)
-              ? Math.max(-0.1, Math.min(0.1, rawAdj))
-              : 0;
-          }
-
-          let pendingProposed = false;
-          if (suggestedRole || trustAdjustment !== 0) {
-            await prisma.personProfile.update({
-              where: { id: resolution.person.id },
-              data: {
-                pendingClassification: {
-                  role: suggestedRole,
-                  leverageNotes: null, // handled live above · not re-proposed
-                  trustAdjustment,
-                  basis: "nick_agent person.update",
-                  suggestedAt: today(),
-                } as object,
-              },
-            });
-            pendingProposed = true;
-          }
-          return {
-            action: type,
-            success: true,
-            result: {
-              id: resolution.person.id,
-              name: resolution.person.name,
-              matched: resolution.matched,
-              matchTier: resolution.matchTier,
-              // Report what actually happened so Nick narrates honestly.
-              applied: {
-                relationship: params.relationship ? String(params.relationship) : null,
-                leverageNotes: params.leverageNotes ? String(params.leverageNotes) : null,
-              },
-              pendingProposal: pendingProposed
-                ? { role: suggestedRole, trustAdjustment, awaitingApprovalOn: "/people" }
-                : null,
-            },
-          };
-        } else if (params.leverageNotes) {
-          // Created path · resolvePersonByName doesn't accept leverageNotes · set if provided.
-          await prisma.personProfile.update({
-            where: { id: resolution.person.id },
-            data: { leverageNotes: String(params.leverageNotes) },
-          });
-        }
-        return { action: type, success: true, result: { id: resolution.person.id, name: resolution.person.name, matched: resolution.matched, matchTier: resolution.matchTier } };
-      }
+      case "person.update":
+        return await handlePersonUpdate(params, type);
 
       // ═══════════════════════════════════════════
       // CROSS-SYSTEM: nickstire.org actions via tRPC
       // ═══════════════════════════════════════════
 
-      case "shop.getLabor": {
-        const res = await callNickstire("autoLabor.estimate", { service: String(params.service || ""), vehicleYear: params.year ? Number(params.year) : undefined, vehicleMake: params.make ? String(params.make) : undefined, vehicleModel: params.model ? String(params.model) : undefined });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getLabor":
+        return await handleShopGetLabor(params, type);
 
-      case "shop.getLeads": {
-        const res = await callNickstire("lead.list", { limit: Number(params.limit ?? 10) });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getLeads":
+        return await handleShopGetLeads(params, type);
 
-      case "shop.updateLead": {
-        const res = await callNickstire("lead.update", { id: Number(params.id), status: params.status ? String(params.status) : undefined, notes: params.notes ? String(params.notes) : undefined });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.updateLead":
+        return await handleShopUpdateLead(params, type);
 
-      case "shop.getEstimates": {
-        const res = await callNickstire("estimates.list", { limit: Number(params.limit ?? 10) });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getEstimates":
+        return await handleShopGetEstimates(params, type);
 
-      case "shop.getCustomers": {
-        const res = await callNickstire("customers.list", { limit: Number(params.limit ?? 10), search: params.search ? String(params.search) : undefined });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getCustomers":
+        return await handleShopGetCustomers(params, type);
 
-      case "shop.sendSms": {
-        const res = await callNickstire("smsBot.send", { phone: String(params.phone || ""), message: String(params.message || "") });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.sendSms":
+        return await handleShopSendSms(params, type);
 
-      case "shop.getBookings": {
-        const res = await callNickstire("booking.list", { limit: Number(params.limit ?? 10) });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getBookings":
+        return await handleShopGetBookings(params, type);
 
-      case "shop.shopStatus": {
-        const res = await callNickstire("shopStatus.current", {});
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.shopStatus":
+        return await handleShopShopStatus(params, type);
 
-      case "shop.getRevenue": {
-        const res = await callNickstire("controlCenter.revenue", { period: String(params.period || "today") });
-        return { action: type, success: !!res, result: res };
-      }
+      case "shop.getRevenue":
+        return await handleShopGetRevenue(params, type);
 
       // ── System Operator Commands (God-Mode) ──────
-      case "system.health": {
-        const [dbOk, memCount, alertCount, syncAge] = await Promise.all([
-          prisma.$queryRaw`SELECT 1`.then(() => true).catch(() => false),
-          prisma.brainMemory.count(),
-          prisma.driftAlert.count({ where: { acknowledged: false } }),
-          prisma.auditEvent.findFirst({ where: { eventType: "business_metrics_sync" }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
-        ]);
-        const syncMinutes = syncAge?.createdAt ? Math.floor((Date.now() - syncAge.createdAt.getTime()) / 60000) : -1;
-        return { action: type, success: true, result: {
-          database: dbOk ? "UP" : "DOWN",
-          brainMemories: memCount,
-          unackedAlerts: alertCount,
-          lastSyncMinutesAgo: syncMinutes,
-          nodeVersion: process.version,
-          uptime: Math.floor(process.uptime()),
-        }};
-      }
+      case "system.health":
+        return await handleSystemHealth(params, type);
 
-      case "system.brainStats": {
-        const [total, byCategory, avgConf, recentInsights] = await Promise.all([
-          prisma.brainMemory.count(),
-          prisma.brainMemory.groupBy({ by: ["category"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 10 }),
-          prisma.brainMemory.aggregate({ _avg: { confidence: true } }),
-          prisma.auditEvent.findMany({ where: { eventType: "brain_insight" }, orderBy: { createdAt: "desc" }, take: 5, select: { detail: true, createdAt: true } }),
-        ]);
-        return { action: type, success: true, result: {
-          totalMemories: total,
-          avgConfidence: (avgConf._avg.confidence ?? 0).toFixed(2),
-          byCategory: byCategory.map(c => ({ category: c.category, count: c._count.id })),
-          recentInsights: recentInsights.map(i => ({ insight: i.detail, when: i.createdAt })),
-        }};
-      }
+      case "system.brainStats":
+        return await handleSystemBrainStats(params, type);
 
-      case "system.syncNow": {
-        // Trigger immediate cross-site sync
-        const { runBrainCycle } = await import("@/lib/brain/pipeline-controller");
-        const result = await runBrainCycle();
-        return { action: type, success: result.synced, result: {
-          alerts: result.alerts.length,
-          patterns: result.patterns.length,
-          message: `Brain cycle complete: ${result.alerts.length} alerts, ${result.patterns.length} patterns detected`,
-        }};
-      }
+      case "system.syncNow":
+        return await handleSystemSyncNow(params, type);
 
-      case "system.deepScan": {
-        // Run the full deep scan pipeline — comprehensive analysis
-        const { runDeepScan } = await import("@/lib/brain/deep-scan");
-        const scanResult = await runDeepScan();
-        return { action: type, success: true, result: {
-          duration: `${scanResult.duration}ms`,
-          dataPointsAnalyzed: scanResult.metrics.dataPointsAnalyzed,
-          findings: scanResult.findings.length,
-          patternsFound: scanResult.metrics.patternsFound,
-          anomaliesDetected: scanResult.metrics.anomaliesDetected,
-          recommendations: scanResult.metrics.recommendationsGenerated,
-          details: scanResult.findings.map(f => `[${f.severity.toUpperCase()}] ${f.title}: ${f.detail}${f.recommendation ? ` → ${f.recommendation}` : ""}`),
-        }};
-      }
+      case "system.deepScan":
+        return await handleSystemDeepScan(params, type);
 
-      case "system.clearAlerts": {
-        const updated = await prisma.driftAlert.updateMany({
-          where: { acknowledged: false },
-          data: { acknowledged: true },
-        });
-        return { action: type, success: true, result: { cleared: updated.count } };
-      }
+      case "system.clearAlerts":
+        return await handleSystemClearAlerts(params, type);
 
-      case "system.pagePatterns": {
-        const visits = await prisma.auditEvent.findMany({
-          where: { eventType: "page_visit", createdAt: { gte: new Date(Date.now() - 7 * 86400000) } },
-          select: { detail: true },
-          take: 500,
-        });
-        const counts: Record<string, number> = {};
-        for (const v of visits) { counts[v.detail || "?"] = (counts[v.detail || "?"] || 0) + 1; }
-        const sorted = Object.entries(counts).sort(([,a],[,b]) => b - a).slice(0, 10);
-        return { action: type, success: true, result: {
-          totalVisits: visits.length,
-          topPages: sorted.map(([page, count]) => ({ page, count })),
-        }};
-      }
+      case "system.pagePatterns":
+        return await handleSystemPagePatterns(params, type);
 
       // ═══════════════════════════════════════════
       // ARSENAL: Integration chains + tools
       // ═══════════════════════════════════════════
 
-      case "arsenal.research": {
-        // AI-powered research using Grok (xAI) real-time analysis
-        const { analyzeRealTime } = await import("@/lib/integrations/grok");
-        const result = await analyzeRealTime(String(params.query || ""));
-        return { action: type, success: !!result, result: { content: result?.content?.slice(0, 2000) } };
-      }
+      case "arsenal.research":
+        return await handleArsenalResearch(params, type);
 
-      case "arsenal.gmailInbox": {
-        // v10.0.379 · Gmail inbox triage · per /gmail-automation skill.
-        // Returns recent threads with subject/from/snippet so Nick can
-        // surface what needs attention. Configured via GMAIL_REFRESH_TOKEN
-        // env (one-time OAuth · see docs/gmail-setup.md).
-        const { listInbox, isGmailConfigured } = await import("@/lib/integrations/gmail");
-        if (!isGmailConfigured()) {
-          return {
-            action: type,
-            success: false,
-            result: { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" },
-          };
-        }
-        const threads = await listInbox({
-          maxResults: typeof params.maxResults === "number" ? params.maxResults : 20,
-          query: typeof params.query === "string" ? params.query : undefined,
-        });
-        return {
-          action: type,
-          success: true,
-          result: {
-            threadCount: threads.length,
-            threads: threads.slice(0, 30).map((t) => ({
-              id: t.id,
-              subject: t.subject.slice(0, 200),
-              from: t.from.slice(0, 200),
-              snippet: t.snippet.slice(0, 300),
-              messageCount: t.messageCount,
-              unread: t.unread,
-              date: new Date(t.internalDate).toISOString(),
-            })),
-          },
-        };
-      }
+      case "arsenal.gmailInbox":
+        return await handleArsenalGmailInbox(params, type);
 
-      case "arsenal.gmailReadThread": {
-        const { getThread, isGmailConfigured } = await import("@/lib/integrations/gmail");
-        if (!isGmailConfigured()) {
-          return {
-            action: type,
-            success: false,
-            result: { error: "GMAIL_REFRESH_TOKEN not set · see docs/gmail-setup.md" },
-          };
-        }
-        const thread = await getThread(String(params.threadId || ""));
-        return {
-          action: type,
-          success: !!thread.id,
-          result: {
-            id: thread.id,
-            subject: thread.subject.slice(0, 200),
-            messageCount: thread.messages.length,
-            messages: thread.messages.map((m) => ({
-              id: m.id,
-              from: m.from.slice(0, 200),
-              to: m.to.slice(0, 200),
-              date: m.date,
-              body: m.body.slice(0, 4000),
-              snippet: m.snippet.slice(0, 300),
-            })),
-          },
-        };
-      }
+      case "arsenal.gmailReadThread":
+        return await handleArsenalGmailReadThread(params, type);
 
-      case "arsenal.multiAgent": {
-        // v10.0.374 · spawn N sub-agents in parallel · synthesize
-        // Use for tasks that decompose naturally: 'compare 3 competitors',
-        // 'audit voice across {posts, emails, scripts}', 'draft 3 angles'
-        const { runMultiAgent } = await import("@/lib/ai/multi-agent-orchestrator");
-        const goal = String(params.goal || "");
-        const subAgents = Array.isArray(params.subAgents)
-          ? (params.subAgents as Array<{ name?: string; task?: string; outputHint?: string }>)
-              .map((s, i) => ({
-                name: typeof s?.name === "string" ? s.name : `agent_${i + 1}`,
-                task: typeof s?.task === "string" ? s.task : "",
-                outputHint: typeof s?.outputHint === "string" ? s.outputHint : undefined,
-              }))
-              .filter((s) => s.task.length > 0)
-          : [];
-        const report = await runMultiAgent({ goal, subAgents });
-        return {
-          action: type,
-          success: !!report.synthesis,
-          result: {
-            goal: report.goal,
-            agentCount: report.results.length,
-            synthesis: report.synthesis.slice(0, 4000),
-            results: report.results.map((r) => ({
-              name: r.name,
-              output: r.output.slice(0, 800),
-              failed: r.failed ?? false,
-              durationMs: r.durationMs,
-            })),
-            costEstimateUsd: report.costEstimateUsd,
-            totalDurationMs: report.totalDurationMs,
-          },
-        };
-      }
+      case "arsenal.multiAgent":
+        return await handleArsenalMultiAgent(params, type);
 
-      case "arsenal.deepResearch": {
-        // v10.0.373 · multi-round autonomous research · per /deep-research
-        // skill. Plan → Search × N → Synthesize. Use for due diligence,
-        // competitive analysis, lit review. ~3-5 Perplexity searches +
-        // 2 gpt-4o-mini calls + ~10-15s · NOT cheap, use sparingly.
-        const { runDeepResearch } = await import("@/lib/ai/deep-research");
-        const report = await runDeepResearch({
-          question: String(params.question || ""),
-        });
-        return {
-          action: type,
-          success: !!report.synthesis,
-          result: {
-            plan: report.plan,
-            roundCount: report.rounds.length,
-            synthesis: report.synthesis.slice(0, 4000),
-            citations: report.allCitations.slice(0, 20),
-            durationMs: report.durationMs,
-          },
-        };
-      }
+      case "arsenal.deepResearch":
+        return await handleArsenalDeepResearch(params, type);
 
-      case "arsenal.preTaskFanout": {
-        // v10.0.372 · pre-task multi-lens fan-out · per /task-intelligence.
-        // Use for HARD QUESTIONS · decisions, strategy, trade-offs.
-        // Runs 3 parallel lenses (research / risk / plan) and returns
-        // a composite block to ground Nick's eventual reply.
-        // Cost: ~3x gpt-4o-mini calls, ~2s parallel · expensive · don't
-        // use on simple lookups.
-        const { runFanout } = await import("@/lib/ai/pretask-fanout");
-        const fanout = await runFanout({
-          question: String(params.question || ""),
-          brainContext: typeof params.brainContext === "string"
-            ? params.brainContext
-            : undefined,
-        });
-        return {
-          action: type,
-          success: !!fanout.composite,
-          result: {
-            research: fanout.research.slice(0, 1000),
-            risk: fanout.risk.slice(0, 1000),
-            plan: fanout.plan.slice(0, 1000),
-            composite: fanout.composite.slice(0, 3000),
-            durationMs: fanout.durationMs,
-          },
-        };
-      }
+      case "arsenal.preTaskFanout":
+        return await handleArsenalPreTaskFanout(params, type);
 
-      case "arsenal.webSearch": {
-        // v10.0.358 · web search via Perplexity with structured options
-        // and citations · per /search-specialist principles. Guardian-
-        // wrapped at the perplexity helper level for auto-retry.
-        const { smartWebSearch } = await import("@/lib/integrations/perplexity");
-        const result = await smartWebSearch({
-          query: String(params.query || ""),
-          recency: (params.recency as "day" | "week" | "month" | "year" | undefined) ?? undefined,
-          allowedDomains: Array.isArray(params.allowedDomains) ? (params.allowedDomains as string[]) : undefined,
-          blockedDomains: Array.isArray(params.blockedDomains) ? (params.blockedDomains as string[]) : undefined,
-          tier: (params.tier as "sonar" | "sonar-pro" | "sonar-reasoning" | undefined) ?? undefined,
-        });
-        return {
-          action: type,
-          success: !!result,
-          result: {
-            content: result?.content?.slice(0, 2000) ?? "",
-            citations: (result?.citations ?? []).slice(0, 8).map((c) => c.url),
-            model: result?.model,
-          },
-        };
-      }
+      case "arsenal.webSearch":
+        return await handleArsenalWebSearch(params, type);
 
-      case "arsenal.findLeads": {
-        // Apollo.io fleet contact search
-        const { searchFleetContacts } = await import("@/lib/integrations/apollo");
-        const result = await searchFleetContacts({
-          titles: params.titles ? (params.titles as string[]) : undefined,
-          locations: params.locations ? (params.locations as string[]) : ["Cleveland", "Ohio"],
-          industries: params.industries ? (params.industries as string[]) : undefined,
-          limit: params.limit ? Number(params.limit) : 10,
-        });
-        return { action: type, success: !!result, result: {
-          count: result?.contacts?.length ?? 0,
-          contacts: result?.contacts?.slice(0, 5).map((c: any) => `${c.firstName} ${c.lastName} — ${c.title} at ${c.company}`),
-        }};
-      }
+      case "arsenal.findLeads":
+        return await handleArsenalFindLeads(params, type);
 
-      case "arsenal.newLeadChain": {
-        // Full chain: Apollo → Grok → ClickUp
-        const { newLeadChain } = await import("@/lib/integrations/chain");
-        const result = await newLeadChain({
-          titles: params.titles ? (params.titles as string[]) : ["Fleet Manager", "Operations Manager"],
-          locations: params.locations ? (params.locations as string[]) : ["Cleveland", "Ohio"],
-          industries: params.industries ? (params.industries as string[]) : undefined,
-          limit: params.limit ? Number(params.limit) : 10,
-          clickupListId: String(params.clickupListId || process.env.CLICKUP_DEFAULT_LIST_ID || ""),
-        });
-        return { action: type, success: result.status !== "failed", result: {
-          status: result.status,
-          steps: result.steps.map(s => `${s.step}: ${s.status}`),
-        }};
-      }
+      case "arsenal.newLeadChain":
+        return await handleArsenalNewLeadChain(params, type);
 
-      case "arsenal.reviewResponse": {
-        // Chain: Grok drafts review response → ClickUp approval task
-        const { reviewResponseChain } = await import("@/lib/integrations/chain");
-        const result = await reviewResponseChain({
-          reviewerName: String(params.reviewerName || "Customer"),
-          rating: Number(params.rating ?? 5),
-          reviewText: String(params.reviewText || ""),
-          platform: String(params.platform || "Google"),
-          clickupListId: String(params.clickupListId || process.env.CLICKUP_DEFAULT_LIST_ID || ""),
-        });
-        return { action: type, success: result.status !== "failed", result: {
-          status: result.status,
-          steps: result.steps.map(s => `${s.step}: ${s.status}`),
-          draftResponse: result.steps.find(s => s.step === "grok_draft_response")?.data,
-        }};
-      }
+      case "arsenal.reviewResponse":
+        return await handleArsenalReviewResponse(params, type);
 
-      case "arsenal.competitorInsight": {
-        // Chain: Grok analyzes competitor → ClickUp action items
-        const { competitorInsightChain } = await import("@/lib/integrations/chain");
-        const result = await competitorInsightChain({
-          competitorName: String(params.competitorName || ""),
-          competitorDetails: params.details ? String(params.details) : undefined,
-          clickupListId: String(params.clickupListId || process.env.CLICKUP_DEFAULT_LIST_ID || ""),
-        });
-        return { action: type, success: result.status !== "failed", result: {
-          status: result.status,
-          steps: result.steps.map(s => `${s.step}: ${s.status}`),
-        }};
-      }
+      case "arsenal.competitorInsight":
+        return await handleArsenalCompetitorInsight(params, type);
 
-      case "arsenal.dailyBrief": {
-        // Chain: Grok generates brief + priorities → ClickUp tomorrow's tasks
-        const { dailyBriefChain } = await import("@/lib/integrations/chain");
-        const result = await dailyBriefChain({
-          todaySummary: String(params.summary || "End of day brief requested."),
-          clickupListId: String(params.clickupListId || process.env.CLICKUP_DEFAULT_LIST_ID || ""),
-        });
-        return { action: type, success: result.status !== "failed", result: {
-          status: result.status,
-          steps: result.steps.map(s => `${s.step}: ${s.status}`),
-        }};
-      }
+      case "arsenal.dailyBrief":
+        return await handleArsenalDailyBrief(params, type);
 
-      case "arsenal.getMeetings": {
-        // Fireflies — fetch recent meeting transcripts
-        const { getRecentTranscripts } = await import("@/lib/integrations/fireflies");
-        const result = await getRecentTranscripts(Number(params.limit ?? 5));
-        return { action: type, success: !!result, result };
-      }
+      case "arsenal.getMeetings":
+        return await handleArsenalGetMeetings(params, type);
 
       // ═══════════════════════════════════════════
       // CAMERA: Direct camera system actions
       // ═══════════════════════════════════════════
 
       // ═══ MEMORY SEARCH (text-parsing fallback for Venice/Ollama) ═══
-      case "memory.search": {
-        const where: any = {
-          confidence: { gte: Number(params.minConfidence ?? 0.3) },
-          OR: [
-            { content: { contains: String(params.query || ""), mode: "insensitive" } },
-            { key: { contains: String(params.query || ""), mode: "insensitive" } },
-          ],
-        };
-        if (params.category) where.category = String(params.category);
-        const memories = await prisma.brainMemory.findMany({
-          where, orderBy: { confidence: "desc" }, take: Number(params.limit ?? 10),
-          select: { id: true, category: true, key: true, content: true, confidence: true, source: true },
-        });
-        return { action: type, success: true, result: { count: memories.length, memories } };
-      }
+      case "memory.search":
+        return await handleMemorySearch(params, type);
 
       // ═══ TELEGRAM PUSH ═══
-      case "telegram.send": {
-        const { sendTelegram, formatTelegramNotification } = await import("@/lib/services/telegram");
-        const urgency = String(params.urgency || "medium");
-        const prefix = urgency === "high" ? "🚨" : urgency === "medium" ? "📌" : "💬";
-        const msg = params.title
-          ? formatTelegramNotification(String(params.title), `${prefix} ${String(params.message || "")}`)
-          : `${prefix} ${String(params.message || "")}`;
-        const sent = await sendTelegram(msg);
-        return { action: type, success: sent, result: { sent, urgency } };
-      }
+      case "telegram.send":
+        return await handleTelegramSend(params, type);
 
       // ═══ MISSION PLANNING ═══
-      case "mission.plan": {
-        const tasks = Array.isArray(params.tasks) ? params.tasks : [];
-        const domainMap: Record<string, string> = { business: "BUSINESS", personal: "PERSONAL", health: "HEALTH", content: "CONTENT", finance: "FINANCE" };
-        const domain = domainMap[String(params.domain || "business").toLowerCase()] || "BUSINESS";
-        const prio = Number(params.priority ?? 50);
-        const mission = await prisma.mission.create({
-          data: {
-            title: String(params.title || "New Mission"),
-            domain: domain as any,
-            priority: prio,
-            roiScore: prio,
-            neglectCost: Math.round(prio * 0.7),
-            successMetric: params.successMetric ? String(params.successMetric) : null,
-            status: "ACTIVE",
-          },
-        });
-        const createdTasks = [];
-        for (let i = 0; i < tasks.length; i++) {
-          const t: any = tasks[i];
-          const task = await createTaskAndEnrich({
-            title: String(t.title || `Task ${i + 1}`),
-            missionId: mission.id,
-            nextPhysicalAction: String(t.nextPhysicalAction || t.title || "Define next step"),
-            effort: (t.effort || "M30") as any,
-            context: (t.context || "ANYWHERE") as any,
-            finishCondition: String(t.title || `Task ${i + 1}`),
-            roiScore: Math.max(10, 90 - i * 10),
-            frictionScore: 30,
-            energyRequired: "MEDIUM",
-          });
-          createdTasks.push(task);
-        }
-        return { action: type, success: true, result: {
-          missionId: mission.id, title: mission.title, taskCount: createdTasks.length,
-          tasks: createdTasks.map(t => ({ id: t.id, title: t.title })),
-        }};
-      }
+      case "mission.plan":
+        return await handleMissionPlan(params, type);
 
-      case "camera.getIntelligence": {
-        const { getCameraIntelligence } = await import("@/lib/brain/camera-intelligence");
-        const intel = await getCameraIntelligence();
-        return { action: type, success: true, result: intel };
-      }
+      case "camera.getIntelligence":
+        return await handleCameraGetIntelligence(params, type);
 
-      case "camera.resolveAlert": {
-        // v10.0.59 · Wave A part 2 · Camera alerts now persisted as
-        // BrainMemory category="camera_alert" by v10.0.55 camera-
-        // intelligence rewrite. Resolve = soft-delete the row.
-        const alertKey = String(params.alertKey || "").trim();
-        if (!alertKey) {
-          return { action: type, success: false, error: "alertKey required" };
-        }
-        await prisma.brainMemory
-          .updateMany({
-            where: {
-              category: "camera_alert",
-              key: alertKey,
-              deletedAt: null,
-            },
-            data: { deletedAt: new Date() },
-          })
-          .catch(() => undefined);
-        return { action: type, success: true, result: { resolved: true, alertKey } };
-      }
+      case "camera.resolveAlert":
+        return await handleCameraResolveAlert(params, type);
 
-      case "camera.getAlerts": {
-        // v10.0.59 · sourced from BrainMemory category="camera_alert".
-        const alertRows = await prisma.brainMemory
-          .findMany({
-            where: { category: "camera_alert", deletedAt: null },
-            orderBy: { createdAt: "desc" },
-            take: 20,
-            select: { key: true, content: true, createdAt: true },
-          })
-          .catch((): Array<{ key: string; content: string; createdAt: Date }> => []);
-        return {
-          action: type,
-          success: true,
-          result: { count: alertRows.length, alerts: alertRows },
-        };
-      }
+      case "camera.getAlerts":
+        return await handleCameraGetAlerts(params, type);
 
-      case "camera.getPlates": {
-        // v10.0.59 · ALPR (license-plate recognition) not yet wired
-        // into the deviceEvent pipeline. Returns empty + redirect
-        // message; future v11+ work will add a `vehicle_detected`
-        // event subtype with a `plate` field in the payload.
-        return {
-          action: type,
-          success: true,
-          result: {
-            count: 0,
-            plates: [],
-            note: "ALPR pipeline not yet wired — vehicle_detected events lack plate metadata.",
-          },
-        };
-      }
+      case "camera.getPlates":
+        return await handleCameraGetPlates(params, type);
 
       default:
         return { action: type, success: false, error: `Unknown action type: ${type}` };
@@ -962,47 +313,9 @@ async function executeAction(action: AgentAction): Promise<ActionResult> {
 }
 
 // ─── Cross-System HTTP Client ────────────────────────────
-
-const NICKSTIRE_API = process.env.NICKS_ADMIN_URL || "https://nickstire.org";
-// v9.1.14 · type as `string | undefined` instead of `?? ""`. The
-// previous `|| ""` pattern was caught by the env-secret bypass gate.
-// Outbound calls now no-op cleanly if neither key is configured —
-// safer than sending a Bearer "" header that nickstire rejects with
-// a generic 401.
-const BRIDGE_KEY = process.env.BRIDGE_API_KEY ?? process.env.STATENOUR_SYNC_KEY;
-
-async function callNickstire(procedure: string, input: Record<string, unknown>): Promise<unknown> {
-  if (!BRIDGE_KEY) {
-    return {
-      error: "BRIDGE_API_KEY (or STATENOUR_SYNC_KEY) not configured — outbound nickstire call skipped",
-    };
-  }
-  try {
-    const url = `${NICKSTIRE_API}/trpc/${procedure}`;
-    const isQuery = !procedure.includes("send") && !procedure.includes("update") && !procedure.includes("create");
-
-    if (isQuery) {
-      const queryInput = encodeURIComponent(JSON.stringify({ json: input }));
-      const res = await fetch(`${url}?input=${queryInput}`, {
-        headers: { Authorization: `Bearer ${BRIDGE_KEY}` },
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) return { error: `${res.status} ${res.statusText}` };
-      return await res.json();
-    } else {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${BRIDGE_KEY}` },
-        body: JSON.stringify({ json: input }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!res.ok) return { error: `${res.status} ${res.statusText}` };
-      return await res.json();
-    }
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : "nickstire API call failed" };
-  }
-}
+// 2026-06-02 · callNickstire (+ NICKSTIRE_API / BRIDGE_KEY) moved
+// VERBATIM to lib/ai/agent-actions/shop-actions.ts — the shop.*
+// handlers were its only callers. No behavior change.
 
 /**
  * Execute all parsed actions from Nick AI response.
