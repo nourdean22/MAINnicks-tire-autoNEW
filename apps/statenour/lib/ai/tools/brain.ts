@@ -667,6 +667,96 @@ export const brainTools = {
     },
   }),
 
+  // 2026-06-02 · sleep-analyzer skill ported -> avg + consistency (SD) +
+  // short-night load + sleep-debt vs a 7.5h target + trend, grounded in
+  // PersonalDailyLog.sleepHours (body sleepHours as fallback). Engine:
+  // lib/brain/analyzers/sleep.ts.
+  analyzeSleep: tool({
+    description:
+      "Analyze Nour's sleep from his OWN logged nightly hours (daily check-in, with /body tracking as fallback) over a window. Returns average, consistency (SD), short-night count + %, accumulated sleep-debt vs a 7.5h target, the trend/direction, and best/worst night. Use when Nour asks how his sleep is, whether he's sleep-deprived, about his sleep trend or sleep debt. Honest about thin data (<5 nights).",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeSleep } = await import("@/lib/brain/analyzers/sleep");
+      return analyzeSleep({ days });
+    },
+  }),
+
+  // 2026-06-02 · weightloss-analyzer skill ported (TREND only) -> weight
+  // trend + per-WEEK rate + body-fat + waist + net change + distance to an
+  // active weight LifeGoal. DIRECTION-NEUTRAL (never labels good/bad) and NO
+  // BMR/TDEE (no height/age -> would be fabricated). Engine:
+  // lib/brain/analyzers/weight.ts.
+  analyzeWeightTrend: tool({
+    description:
+      "Analyze Nour's weight + body-composition TREND from his OWN BodyTracking logs over a window. Returns weight trend + per-week rate, body-fat trend, waist trend, net change, and — if he has an active weight LifeGoal — the distance from his latest weight to the target. Reports direction WITHOUT judging it good/bad/healthy (whether up or down is 'progress' depends on his goal, not a moral prior). No BMR/TDEE/calorie math (statenour stores no height/age). Use when Nour asks about his weight, body-composition trend, or whether he's making progress on weight. Honest about thin data.",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeWeightTrend } = await import("@/lib/brain/analyzers/weight");
+      return analyzeWeightTrend({ days });
+    },
+  }),
+
+  // 2026-06-02 · fitness-analyzer skill ported (CONSISTENCY only) ->
+  // active-day count + rate + current/longest streak + avg workouts/week +
+  // recent-vs-prior trend, merging PersonalDailyLog.workoutCompleted with
+  // BodyTracking.workoutDone (active if either). EXPLICITLY frequency-only
+  // (statenour logs a boolean, not type/intensity/duration). Engine:
+  // lib/brain/analyzers/fitness.ts.
+  analyzeFitness: tool({
+    description:
+      "Analyze Nour's workout CONSISTENCY from his OWN logged daily workout flags (daily check-in + /body, merged) over a window. Returns active-day count + rate (% of logged days), current streak, longest streak, average workouts/week, and a recent-vs-prior trend. This is workout-FREQUENCY ONLY — statenour logs a daily yes/no, NOT type, intensity, duration, or load — so it reads consistency, not training quality. Use when Nour asks about his workout consistency, whether he's training enough, or his streak. Honest about thin data.",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeFitness } = await import("@/lib/brain/analyzers/fitness");
+      return analyzeFitness({ days });
+    },
+  }),
+
+  // 2026-06-02 · work-pattern health -> deepWork avg+trend, drift load+trend,
+  // stress avg+trend, energy avg+trend + a NON-clinical "strain signal"
+  // (low/elevated/high) that rises when high stress + high drift + low energy
+  // co-occur. Explicitly a heuristic, NOT a diagnosis (ships a disclaimer).
+  // Engine: lib/brain/analyzers/work-health.ts.
+  analyzeWorkHealth: tool({
+    description:
+      "Analyze Nour's work-pattern health from his OWN logs (deep-work blocks + drift incidents from the daily check-in; stress + energy from /body) over a window. Returns each metric's average + trend plus a NON-clinical 'strain signal' (low/elevated/high) that rises when high stress, high drift, and low energy co-occur. The strain signal is an explicit heuristic, NOT a burnout diagnosis or clinical assessment (it ships a disclaimer). Use when Nour asks about his work-pattern health, burnout risk, or whether he's overworking. Honest about thin data.",
+    inputSchema: z.object({
+      days: z
+        .number()
+        .min(7)
+        .max(180)
+        .default(30)
+        .describe("Lookback window in days"),
+    }),
+    execute: async ({ days }) => {
+      const { analyzeWorkHealth } = await import(
+        "@/lib/brain/analyzers/work-health"
+      );
+      return analyzeWorkHealth({ days });
+    },
+  }),
+
   getEmotionalState: tool({
     description: "Get Nour's current emotional arc — stress trajectory, dominant state, triggers, decision risk. Shows how emotions are affecting performance.",
     inputSchema: z.object({}),
