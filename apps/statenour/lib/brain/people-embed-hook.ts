@@ -24,6 +24,7 @@ import "server-only";
 import { prisma } from "@/lib/prisma";
 import { logger as rootLogger } from "@/lib/logger";
 import { getEmbedding } from "@/lib/ai/provider";
+import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
 
 const log = rootLogger.withSurface("brain/people-embed-hook");
 
@@ -63,6 +64,38 @@ export async function enqueuePersonEmbed(personId: string): Promise<void> {
       .slice(0, 8000);
 
     if (content.length < 10) return;
+
+    // Power Atlas fix 2026-06-02: mirror the dossier into brain_memories so
+    // Nick's CHAT recall (searchMemories FTS + getContextualMemories) can
+    // surface what the operator wrote on /people. Previously the dossier
+    // only reached vector_embeddings (the /people search bar) — invisible
+    // to chat, so editing a dossier didn't make it recallable. Stable key
+    // → exactly one row per person, refreshed on every dossier save. The
+    // brain-memory embed-backfill cron then gives it a semantic vector too.
+    await prisma.brainMemory
+      .upsert({
+        where: {
+          category_key: {
+            category: BRAIN_CATEGORIES.RELATIONSHIPS,
+            key: `person_dossier:${personId}`,
+          },
+        },
+        create: {
+          category: BRAIN_CATEGORIES.RELATIONSHIPS,
+          key: `person_dossier:${personId}`,
+          content,
+          confidence: 0.9,
+          source: "people:dossier",
+          metadata: { personId, kind: "dossier" },
+        },
+        update: { content, lastSeen: new Date() },
+      })
+      .catch((e) =>
+        log.warn("person_dossier_memory_failed", {
+          personId,
+          err: e instanceof Error ? e.message : String(e),
+        }),
+      );
 
     const existing = await prisma.vectorEmbedding.findFirst({
       where: { sourceType: "person_profile", sourceId: personId },
