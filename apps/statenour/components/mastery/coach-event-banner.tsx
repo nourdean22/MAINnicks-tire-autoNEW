@@ -30,7 +30,7 @@
 import Link from "next/link";
 import { useState, useCallback } from "react";
 import { Sparkles, AlertTriangle, ChevronRight, X } from "lucide-react";
-import { usePollingFetch } from "@/hooks/use-polling-fetch";
+import { useCoachEvents } from "@/lib/hooks/use-coach-events";
 // Wave-AO follow-up · import from the client-safe types module · the
 // heavy ./coach-events module imports prisma and would break the
 // client build if pulled in transitively (same v10.0.209 constraint
@@ -50,15 +50,10 @@ interface CoachEventBannerProps {
   limit?: number;
 }
 
-interface CoachEventsResponse {
-  events: CoachEvent[];
-}
-
 export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) {
-  const { data, error, reload } = usePollingFetch<CoachEventsResponse>(
-    `/api/coach/events?surface=${encodeURIComponent(surface)}&limit=${limit}`,
-    { intervalMs: 90_000 },
-  );
+  // Shared, surface-keyed poller (de-duped with NickSidePane — they used to
+  // each run a separate usePollingFetch against the same endpoint).
+  const { events, reload } = useCoachEvents(surface, { limit });
 
   // Optimistic-dismissed event keys · hides them locally before the
   // poll refreshes. Server-side ack is fire-and-forget · failure
@@ -91,9 +86,9 @@ export function CoachEventBanner({ surface, limit = 3 }: CoachEventBannerProps) 
   // Errors fail silent too · the channel is advisory · not surfacing
   // it shouldn't break the page (the original alert mechanisms still
   // run during the migration window).
-  if (error || !data?.events?.length) return null;
+  if (!events.length) return null;
 
-  const visibleEvents = data.events.filter(
+  const visibleEvents = events.filter(
     (e) => !dismissedKeys.has(buildCoachEventKey(e.kind, e.subjectId)),
   );
   if (visibleEvents.length === 0) return null;
