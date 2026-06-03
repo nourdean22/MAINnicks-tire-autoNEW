@@ -33,6 +33,10 @@ export const customersRouter = router({
         minVisits: z.number().optional(),
         /** Filter customers with vehicles */
         hasVehicle: z.boolean().optional(),
+        /** Filter to only customers with a non-empty email on file */
+        hasEmail: z.boolean().optional(),
+        /** Filter by customer type (e.g. "commercial" for fleet/business accounts) */
+        customerType: z.enum(["individual", "commercial"]).optional(),
         /** Filter to only customers with unmatched ALG estimates (declined work) */
         hasDeclined: z.boolean().optional(),
         /** Filter to only customers with active (non-completed) work orders */
@@ -70,6 +74,13 @@ export const customersRouter = router({
       }
       if (input?.hasVehicle) {
         conditions.push(sql`${customers.vehicleMake} IS NOT NULL AND ${customers.vehicleMake} != ''`);
+      }
+      if (input?.hasEmail) {
+        // Mirrors the `withEmail` stat (non-empty email on file)
+        conditions.push(sql`${customers.email} IS NOT NULL AND ${customers.email} != ''`);
+      }
+      if (input?.customerType) {
+        conditions.push(eq(customers.customerType, input.customerType));
       }
       if (input?.hasDeclined) {
         // Wave-100: was EXISTS subquery, now reads materialized column

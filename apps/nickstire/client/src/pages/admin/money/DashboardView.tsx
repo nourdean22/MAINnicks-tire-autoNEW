@@ -33,8 +33,15 @@ import {
 export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, period, setPeriod, intel, intelPeriod, setIntelPeriod, custIntel }: DashboardViewProps) {
   const revenueChange = stats?.periodComparison?.change ?? 0;
 
-  // Monthly pace computation
-  const monthRevenue = intel?.projections?.monthlyAvg ?? stats?.totalRevenue ?? 0;
+  // Monthly pace computation · R10 fix · was `intel.projections.monthlyAvg`
+  // (the trailing 3-MONTH monthly AVERAGE) rendered as if it were month-to-
+  // date — so "$42,563 / $100,000 · 43%" overstated where THIS month actually
+  // stands. Now reads the server's TRUE month-to-date (paid invoices since the
+  // 1st, period-independent). Falls back to the 3-mo avg only if the field is
+  // absent (older deploy / intel still loading) so the bar never blanks.
+  const mtdRevenue = intel?.overview?.monthToDateRevenue;
+  const hasMtd = typeof mtdRevenue === "number";
+  const monthRevenue = hasMtd ? mtdRevenue : (intel?.projections?.monthlyAvg ?? stats?.totalRevenue ?? 0);
   const monthTarget = MONTHLY_TARGET;
   const pacePercent = monthTarget > 0 ? Math.round((monthRevenue / monthTarget) * 100) : 0;
 
@@ -51,7 +58,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
       {/* ═══ MONTHLY PACE ═══ */}
       <div className="bg-card border border-border/30 p-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[11px] font-bold text-foreground/50 tracking-wider">MONTHLY PACE</span>
+          <span className="text-[11px] font-bold text-foreground/50 tracking-wider">{hasMtd ? "MONTH-TO-DATE PACE" : "MONTHLY RUN-RATE vs TARGET"}</span>
           <span className="font-mono text-xs text-foreground/40">{formatDollars(monthRevenue)} / {formatDollars(monthTarget)}</span>
         </div>
         <div className="h-3 bg-foreground/5 rounded-full overflow-hidden">
@@ -63,7 +70,9 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
         <p className="text-[10px] text-foreground/40 mt-1">
           {pacePercent >= 100
             ? "Target hit — keep pushing"
-            : `${pacePercent}% of monthly target — ${formatDollars(monthTarget - monthRevenue)} to go`}
+            : hasMtd
+              ? `${pacePercent}% of monthly target — ${formatDollars(monthTarget - monthRevenue)} to go this month`
+              : `Trailing 3-mo avg at ${pacePercent}% of the ${formatDollars(monthTarget)} run-rate target`}
         </p>
       </div>
 
@@ -402,70 +411,124 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
             <KPICard label="Active Days" value={intel.overview.activeDays ?? 0} icon={<Calendar className="w-5 h-5" />} color="text-purple-400" />
           </div>
 
-          {/* Labor vs Parts Split */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-            <div className="bg-card border border-border/30 p-5">
-              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">LABOR vs PARTS SPLIT</h3>
-              <div className="flex items-center gap-4 mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] text-foreground/60">Labor</span>
-                    <span className="font-bold text-sm text-blue-400">{formatDollars(intel.laborVsParts.laborTotal)} ({intel.laborVsParts.laborPct}%)</span>
-                  </div>
-                  <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
-                    <div className="h-full bg-blue-500/40 rounded-sm" style={{ width: `${intel.laborVsParts.laborPct}%` }} />
-                  </div>
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[11px] text-foreground/60">Parts</span>
-                    <span className="font-bold text-sm text-emerald-400">{formatDollars(intel.laborVsParts.partsTotal)} ({intel.laborVsParts.partsPct}%)</span>
-                  </div>
-                  <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
-                    <div className="h-full bg-emerald-500/40 rounded-sm" style={{ width: `${intel.laborVsParts.partsPct}%` }} />
-                  </div>
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="p-2 rounded border border-border/20">
-                  <p className="text-lg font-bold text-blue-400">{intel.laborVsParts.laborOnlyJobs}</p>
-                  <p className="text-[9px] text-foreground/40">Labor Only</p>
-                </div>
-                <div className="p-2 rounded border border-border/20">
-                  <p className="text-lg font-bold text-emerald-400">{intel.laborVsParts.partsOnlyJobs}</p>
-                  <p className="text-[9px] text-foreground/40">Parts Only</p>
-                </div>
-                <div className="p-2 rounded border border-border/20">
-                  <p className="text-lg font-bold text-primary">{intel.laborVsParts.bothJobs}</p>
-                  <p className="text-[9px] text-foreground/40">Both</p>
-                </div>
-              </div>
-            </div>
+          {/* R3 fix · ALG-imported invoices carry rolled-up totals (laborCost
+           * + partsCost ~ 0, serviceDescription generic), so the line-item
+           * panels rendered misleading "$81 (0%) / $384 (1%)" and a single
+           * "Other" service row. clarity-gate: when the captured split is a
+           * tiny fraction of revenue (< 5%), the data is rolled up — HIDE the
+           * split panel and show an honest note instead of fake percentages.
+           * Same for the service breakdown when it collapses to only "Other".
+           * Guards computed from data already in scope. */}
+          {(() => {
+            const lvp = intel.laborVsParts;
+            const capturedSplit = (lvp.laborTotal ?? 0) + (lvp.partsTotal ?? 0);
+            const totalRev = intel.overview.totalRevenue ?? 0;
+            const splitIsRolledUp = totalRev > 0 && capturedSplit < totalRev * 0.05;
+            const svc = intel.serviceBreakdown as ServiceItem[];
+            const serviceIsUseless = svc.length > 0 && svc.every((s) => s.category === "Other");
+            const bothHidden = splitIsRolledUp && (serviceIsUseless || svc.length === 0);
 
-            {/* Service Category Breakdown */}
-            <div className="bg-card border border-border/30 p-5">
-              <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">SERVICE BREAKDOWN</h3>
-              <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                {intel.serviceBreakdown.map((s: ServiceItem, i: number) => {
-                  // wave-181.x Money Phase 1 · M2 fix · `||` would mask
-                  // legitimate $0-revenue top entry. Use `??` for the
-                  // undefined-guard (sorted desc · so [0] is max or 0).
-                  const maxRev = intel.serviceBreakdown[0]?.revenue ?? 0;
-                  const safeMaxRev = maxRev > 0 ? maxRev : 1;
-                  return (
-                    <div key={s.category} className="flex items-center gap-3">
-                      <span className="text-[10px] text-foreground/60 w-24 truncate">{s.category}</span>
-                      <div className="flex-1 h-5 bg-foreground/5 rounded-sm overflow-hidden relative">
-                        <div className="h-full rounded-sm" style={{ width: `${(s.revenue / safeMaxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.4 }} />
-                        <span className="absolute right-2 top-0.5 text-[10px] font-bold text-foreground/80">{formatDollars(s.revenue)}</span>
-                      </div>
-                      <span className="text-[10px] text-foreground/40 w-12 text-right">{s.count} jobs</span>
+            return (
+              <>
+                {bothHidden && (
+                  <div className="bg-card border border-border/30 p-4 flex items-start gap-3">
+                    <BarChart3 className="w-5 h-5 text-foreground/30 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground/70">Line-item split unavailable</p>
+                      <p className="text-[11px] text-foreground/40 mt-0.5">ALG imports carry rolled-up invoice totals — per-line labor, parts, and service category aren't captured, so the split and category breakdown can't be shown for this period.</p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+                  </div>
+                )}
+
+                {!bothHidden && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    {/* Labor vs Parts Split — hidden when rolled-up */}
+                    {!splitIsRolledUp ? (
+                      <div className="bg-card border border-border/30 p-5">
+                        <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">LABOR vs PARTS SPLIT</h3>
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-foreground/60">Labor</span>
+                              <span className="font-bold text-sm text-blue-400">{formatDollars(lvp.laborTotal)} ({lvp.laborPct}%)</span>
+                            </div>
+                            <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
+                              <div className="h-full bg-blue-500/40 rounded-sm" style={{ width: `${lvp.laborPct}%` }} />
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[11px] text-foreground/60">Parts</span>
+                              <span className="font-bold text-sm text-emerald-400">{formatDollars(lvp.partsTotal)} ({lvp.partsPct}%)</span>
+                            </div>
+                            <div className="h-3 bg-foreground/5 rounded-sm overflow-hidden">
+                              <div className="h-full bg-emerald-500/40 rounded-sm" style={{ width: `${lvp.partsPct}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 rounded border border-border/20">
+                            <p className="text-lg font-bold text-blue-400">{lvp.laborOnlyJobs}</p>
+                            <p className="text-[9px] text-foreground/40">Labor Only</p>
+                          </div>
+                          <div className="p-2 rounded border border-border/20">
+                            <p className="text-lg font-bold text-emerald-400">{lvp.partsOnlyJobs}</p>
+                            <p className="text-[9px] text-foreground/40">Parts Only</p>
+                          </div>
+                          <div className="p-2 rounded border border-border/20">
+                            <p className="text-lg font-bold text-primary">{lvp.bothJobs}</p>
+                            <p className="text-[9px] text-foreground/40">Both</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-card border border-border/30 p-5 flex items-start gap-3">
+                        <BarChart3 className="w-5 h-5 text-foreground/30 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-foreground/70">Labor vs parts unavailable</p>
+                          <p className="text-[11px] text-foreground/40 mt-0.5">ALG imports carry rolled-up totals — per-line labor/parts isn't captured for this period.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Service Category Breakdown — hidden when only "Other" */}
+                    {!serviceIsUseless && svc.length > 0 ? (
+                      <div className="bg-card border border-border/30 p-5">
+                        <h3 className="font-bold text-sm text-foreground tracking-[-0.01em] mb-4">SERVICE BREAKDOWN</h3>
+                        <div className="space-y-2 max-h-[280px] overflow-y-auto">
+                          {svc.map((s: ServiceItem, i: number) => {
+                            // wave-181.x Money Phase 1 · M2 fix · `||` would mask
+                            // legitimate $0-revenue top entry. Use `??` for the
+                            // undefined-guard (sorted desc · so [0] is max or 0).
+                            const maxRev = svc[0]?.revenue ?? 0;
+                            const safeMaxRev = maxRev > 0 ? maxRev : 1;
+                            return (
+                              <div key={s.category} className="flex items-center gap-3">
+                                <span className="text-[10px] text-foreground/60 w-24 truncate">{s.category}</span>
+                                <div className="flex-1 h-5 bg-foreground/5 rounded-sm overflow-hidden relative">
+                                  <div className="h-full rounded-sm" style={{ width: `${(s.revenue / safeMaxRev) * 100}%`, backgroundColor: CHART_COLORS[i % CHART_COLORS.length], opacity: 0.4 }} />
+                                  <span className="absolute right-2 top-0.5 text-[10px] font-bold text-foreground/80">{formatDollars(s.revenue)}</span>
+                                </div>
+                                <span className="text-[10px] text-foreground/40 w-12 text-right">{s.count} jobs</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-card border border-border/30 p-5 flex items-start gap-3">
+                        <BarChart3 className="w-5 h-5 text-foreground/30 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-foreground/70">Service breakdown unavailable</p>
+                          <p className="text-[11px] text-foreground/40 mt-0.5">ALG imports don't carry per-line service categories — everything rolls up as one line, so a category split can't be shown.</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {/* Monthly Trend with Labor/Parts Stack */}
           {intel.monthlyTrend.length > 1 && (

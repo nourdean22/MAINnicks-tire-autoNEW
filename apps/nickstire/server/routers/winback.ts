@@ -17,7 +17,9 @@ import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
 
-// ─── WIN-BACK MESSAGE TEMPLATES (8 segments, 22 total messages) ─────────────────────────
+// ─── WIN-BACK MESSAGE TEMPLATES ─────────────────────────
+// Selectable segments: lapsed, dormant, lost, vip, fleet, recent.
+// (declined + tire_customer are RETIRED — see the notes below / in buildSegmentFilter.)
 // Each segment targets a different customer profile with personalized messaging.
 // Templates use {firstName}, {lastService}, {vehicleInfo} for personalization.
 const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; template: string }[]> = {
@@ -85,17 +87,10 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
     },
   ],
 
-  // ── TIRE CUSTOMERS (bought tires, due for rotation/replacement) — 2-step ──
-  tire_customer: [
-    {
-      step: 1, delayDays: 0,
-      template: `Hi {firstName}, ${STORE_NAME} here. You got tires from us — they're due for a rotation to extend their life and keep you safe. Quick in-and-out, no appointment. ${STORE_PHONE}`,
-    },
-    {
-      step: 2, delayDays: 14,
-      template: `{firstName}, uneven tire wear cuts tire life in half. A rotation takes 20 minutes and saves you money long-term. Drop by anytime — ${STORE_NAME}, 17625 Euclid Ave. ${STORE_PHONE}`,
-    },
-  ],
+  // ── TIRE CUSTOMERS — RETIRED. The segment had no tire signal (filter was
+  //    just lastVisitDate < 90d), so "you got tires from us" went to people
+  //    who never bought tires. Removed from the targetSegment enum +
+  //    buildSegmentFilter; the template is gone so it can't be revived by name.
 
   // ── VIP / HIGH-VALUE — 2-step, exclusive tone ──
   vip: [
@@ -168,11 +163,12 @@ function buildSegmentFilter(segment: string) {
     // cron (50/day · FEATURE_DECLINED_RECOVERY), which now owns that pool.
     // Removed from the targetSegment enum; any legacy "declined" campaign
     // falls to the default below → segment='declined' matches ~0 rows (safe).
-    case "tire_customer":
-      return and(
-        sql`${customers.lastVisitDate} < ${d90}`,
-        eq(customers.smsOptOut, 0)
-      )!;
+    // "tire_customer" winback segment RETIRED for the same reason class.
+    // It had ZERO tire signal — the filter was just lastVisitDate < 90d, so
+    // it texted "you got tires from us" to anyone who'd visited recently
+    // (most of whom never bought tires) — a false claim. Removed from the
+    // targetSegment enum; any legacy "tire_customer" campaign falls to the
+    // default below → segment='tire_customer' matches ~0 rows (safe).
     case "vip":
       // totalSpent is stored in CENTS. VIP = lifetime spend > $2,000 (200000c).
       // (Was `> 500` = >$5, which matched nearly the entire paying base.)
@@ -259,7 +255,7 @@ export const winbackRouter = router({
   create: adminProcedure
     .input(z.object({
       name: z.string().min(1).max(255),
-      targetSegment: z.enum(["lapsed", "dormant", "lost", "tire_customer", "vip", "fleet", "recent"]),
+      targetSegment: z.enum(["lapsed", "dormant", "lost", "vip", "fleet", "recent"]),
       customMessages: z.array(z.object({
         step: z.number(),
         delayDays: z.number(),

@@ -423,7 +423,7 @@ export const invoicesRouter = router({
       const days = periodMap[input?.period ?? "30d"];
 
       // All queries in parallel for speed
-      const [overviewRows, laborPartsRows, monthlyRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows] = await Promise.all([
+      const [overviewRows, laborPartsRows, monthlyRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows, mtdRows] = await Promise.all([
         // 1. Overview stats
         // wave-181.x Money · R2 fix · `stats` (the source of the top KPI)
         // sums only paymentStatus='paid' invoices, but this overview summed
@@ -527,6 +527,17 @@ export const invoicesRouter = router({
           GROUP BY DATE(invoiceDate)
           ORDER BY day
         `),
+        // 10. TRUE month-to-date revenue — paid invoices since the 1st of the
+        // current month. Independent of the `period` selector so the MONTHLY
+        // PACE bar reflects THIS month's realized revenue (not the trailing
+        // 3-month average that `projections.monthlyAvg` carries). paid-only to
+        // match the headline KPI (honest realized revenue).
+        d.execute(rawSql`
+          SELECT COALESCE(SUM(totalAmount),0) as rev
+          FROM invoices
+          WHERE paymentStatus = 'paid'
+            AND invoiceDate >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        `),
       ]);
 
       type RawRow = Record<string, unknown>;
@@ -539,6 +550,7 @@ export const invoicesRouter = router({
       const byDayOfWeek = ((hourRows as RawResult)?.[0] || []) as RawRow[];
       const weekly = (((weeklyRows as RawResult)?.[0] || []) as RawRow[]).reverse();
       const dailyVelocity = ((velocityRows as RawResult)?.[0] || []) as RawRow[];
+      const mtd = ((mtdRows as RawResult)?.[0]?.[0] || {}) as RawRow;
 
       // Projections
       const recentMonths = monthly.slice(-3);
@@ -557,6 +569,9 @@ export const invoicesRouter = router({
           uniqueCustomers: Number(overview.uniqueCustomers || 0),
           activeDays: Number(overview.activeDays || 0),
           avgDailyRevenue: Number(overview.activeDays) > 0 ? Math.round(Number(overview.rev || 0) / Number(overview.activeDays) / 100) : 0,
+          // TRUE month-to-date (paid, since the 1st) — period-independent so
+          // the MONTHLY PACE bar shows this month's progress, not the 3-mo avg.
+          monthToDateRevenue: Math.round(Number(mtd.rev || 0) / 100),
         },
         laborVsParts: {
           laborTotal: Math.round(Number(lp.totalLabor || 0) / 100),
