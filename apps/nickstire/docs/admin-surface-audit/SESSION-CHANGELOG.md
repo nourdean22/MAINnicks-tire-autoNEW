@@ -47,6 +47,11 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3
 ## ⚙️ Infra
 - Fixed the recurring `statenour-live-sync` cron **404** — repointed a stale env URL on Railway (`STATENOUR_SYNC_URL`).
 
+## 📞 VAPI phone receptionist — slimmed down + deployed live (`0c4fa0fe`)
+- **Tightened the receptionist's brain front-to-back** — the AI's instructions went from ~40,000 to ~17,300 characters (**56% leaner**) with **no change to what it does**. It had bloated over time with old audit notes, repeated rules, and long example scripts; all of that is gone, every actual behavior stays (tire-first, the 3 real prices only, the free-check/written-quote pitch, transfer-on-first-ask, the tow play, after-hours handling, etc.).
+- **Deployed live to the phone line** — pushed to the VAPI assistant; your forward/transfer number was preserved, all 10 tools intact, same Brian voice + greeting. The leaner prompt is answering calls now.
+- **Quick check when you can:** dial the shop and try a used-tire question, a "how much for brakes?" (should give the free-check close, *no* price), and a "let me talk to a person" (should transfer after taking your number). One-line revert if anything's off. Full before/after behavior map: `vapi-receptionist-simplification.md`.
+
 ## 🟡 Still open
 - **GBP content generator** fabricates names/prices to Google — **held** pending your go (say "unhold GBP").
 - **Optional polish:** a couple of VAPI voicemail micro-tweaks (recovery voicemail could add the "we honor the quote" line; confirmation voicemail the address) — deploy-gated (needs a VAPI re-push to take effect). Plus a dead always-zero `customerMetrics.totalRevenue` read by the VIP lookup (cosmetic — the live VIP signal already uses `customers.totalSpent`).
