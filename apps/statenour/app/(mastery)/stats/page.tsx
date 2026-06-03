@@ -3,32 +3,39 @@
 /**
  * /stats · 2026-05-30 · the operator's personal stat board.
  *
- * Consolidates the retired /scoreboard + /goals into ONE personal surface:
+ * Consolidates the retired /scoreboard + /goals + (Wave 2) /body +
+ * /life + the /learn active-loop into ONE personal "me" surface:
  *   ① WHO YOU ARE        · the 33-stat mastery character sheet (leveling)
  *   ② WHERE YOU'RE GOING  · the interactive GoalBoard
+ *   ③ BODY                · weight chart + daily health log (was /body)
+ *   ④ LEARNING            · the active AI learning loop (KommandoLearn,
+ *                           was the bottom of /learn)
+ *
+ * Wave 2 surface consolidation (2026-06-03): /body folded in as a section,
+ * /life DELETED (it was a pure 5-link hub), and the /learn active-learning
+ * LOOP moved here. The Build-Your-Own-X tutorial CATALOG stays at /learn
+ * (force-static dev reference library — operator call). Redirects:
+ * /body → /stats#body · /life → /stats.
  *
  * Per operator (2026-05-30): "business shit belongs on nicks tire admin."
- * Every shop/business element that used to live on /scoreboard — Nick's
- * revenue brief, shop-health KPIs, the anchors/anomalies grid, pricing
- * advisory, compound/track deep-dive, the business meta-scoreboard query
- * itself — was REMOVED from here. That intelligence lives at
- * nickstire.org/admin (the Admin nav entry). This page is about Nour, not
- * the shop: who he is and what he's climbing toward.
+ * Shop/revenue intelligence lives at nickstire.org/admin — this page is
+ * about Nour: who he is, what he's climbing toward, his body, his learning.
  *
- * /scoreboard + /goals now 308-redirect to /stats.
+ * /scoreboard + /goals + /body + /life now 30x-redirect here.
  *
- * No top-level query, skeleton, or snapshot: every child self-fetches and
- * self-hides on its own loading/error, so the page stays light.
+ * Body + Learning are lazy-mounted (next/dynamic · ssr:false) so their
+ * recharts weight chart + learning-engine JS stay below the fold and don't
+ * tax first paint. Every other child self-fetches + self-hides on its own
+ * loading/error, so the page stays light.
  *
  * Suspense boundary: <MissionBreadcrumb> reads useMissionMode() →
  * useSearchParams(), which Next bails to client-side render at prerender
- * time unless wrapped. v1 had a loading-skeleton gate that incidentally
- * deferred it; the personal-only strip renders eagerly, so the boundary is
- * now explicit (NickSidePane gets its own so any search-param child there
- * is covered too).
+ * time unless wrapped. NickSidePane gets its own so any search-param child
+ * there is covered too.
  */
 
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { StandardPage } from "@/components/layout/standard-page";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 // 2026-05-30 · the mastery leveling engine's face · every stat as an RPG
@@ -41,6 +48,30 @@ import { GoalBoard } from "@/components/goals/goal-board";
 import { CoachEventBanner } from "@/components/mastery/coach-event-banner";
 import { MissionBreadcrumb } from "@/components/mastery/mission-breadcrumb";
 import { NickSidePane } from "@/components/mastery/nick-side-pane";
+
+/** Below-the-fold section shimmer · holds layout while the lazy chunk loads. */
+function SectionFallback() {
+  return (
+    <div className="space-y-3" aria-hidden>
+      <div className="h-24 rounded-lg border border-white/10 bg-white/[0.02] animate-pulse" />
+      <div className="h-40 rounded-lg border border-white/[0.07] bg-white/[0.02] animate-pulse" />
+    </div>
+  );
+}
+
+// Wave 2 · /body weight/health tracker, rehomed as a lazy section.
+const BodySection = dynamic(
+  () => import("@/components/stats/body-section").then((m) => m.BodySection),
+  { ssr: false, loading: () => <SectionFallback /> },
+);
+
+// Wave 2 · the active AI learning loop (teach/research · spaced-repetition ·
+// decision-linked prompts), rehomed from the bottom of /learn. The static
+// Build-Your-Own-X catalog stays at /learn.
+const LearningLoop = dynamic(
+  () => import("@/components/actions/mode-learn").then((m) => m.KommandoLearn),
+  { ssr: false, loading: () => <SectionFallback /> },
+);
 
 /** Light shimmer matching the character-sheet hero + stat-grid shape, so the
  *  static prerender shell holds the layout until the client subtree hydrates. */
@@ -81,6 +112,20 @@ export default function StatsPage() {
           <section className="mt-8 space-y-3">
             <MasterySectionLabel label="Goals · what you're climbing toward" />
             <GoalBoard />
+          </section>
+
+          {/* ③ BODY · weight + daily health log (was /body) · lazy-mounted ·
+           *  id="body" so /body → /stats#body lands here. */}
+          <section id="body" className="mt-8 space-y-3 scroll-mt-24">
+            <MasterySectionLabel label="Body · health = performance" />
+            <BodySection />
+          </section>
+
+          {/* ④ LEARNING · the active AI learning loop (was the bottom of
+           *  /learn) · lazy-mounted · id="learning" anchor. */}
+          <section id="learning" className="mt-8 space-y-3 scroll-mt-24">
+            <MasterySectionLabel label="Learning · the active loop" />
+            <LearningLoop />
           </section>
         </Suspense>
       </StandardPage>

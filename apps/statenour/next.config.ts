@@ -239,6 +239,13 @@ const nextConfig: NextConfig = {
     { source: "/brain/board", destination: "/brain?tab=board", permanent: false },
     { source: "/brain/wisdom", destination: "/brain?tab=wisdom", permanent: false },
     { source: "/reason", destination: "/brain?tab=reason", permanent: false },
+
+    // Wave 2 surface merge · 2026-06-03 · /stats absorbs /body (weight +
+    // health log) as a section + the /learn active-learning LOOP. /life
+    // (a pure 5-link hub) DELETED. /learn KEEPS its Build-Your-Own-X
+    // catalog (force-static dev reference) → NOT redirected.
+    { source: "/body", destination: "/stats#body", permanent: false },
+    { source: "/life", destination: "/stats", permanent: false },
   ],
 };
 

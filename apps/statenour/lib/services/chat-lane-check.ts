@@ -69,7 +69,7 @@ function inferDomain(text: string): string | null {
 }
 
 const HREF_BY_DOMAIN: Record<string, string> = {
-  body: "/body",
+  body: "/stats#body",
   money: "/business?tab=money",
   lead: "/missions",
   inventory: "/inventory",

@@ -60,7 +60,7 @@ interface LifeSurface {
 // Total height went from ~170px → ~32px.
 const LIFE: LifeSurface[] = [
   { href: "/stats",     label: "growth",    icon: Target },
-  { href: "/body",      label: "body",      icon: Activity },
+  { href: "/stats#body", label: "body",      icon: Activity },
   { href: "/business?tab=money", label: "money",     icon: DollarSign },
   { href: "/knowledge", label: "knowledge", icon: Library },
   { href: "/learn",     label: "learn",     icon: BookOpen },

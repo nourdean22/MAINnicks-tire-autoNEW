@@ -852,7 +852,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling latest body metrics…",
     icon: Scale,
     color: "emerald",
-    link: { href: "/body", label: "Body" },
+    link: { href: "/stats#body", label: "Body" },
     subtitle: (out) => {
       const o = out as { weight?: number; bodyFat?: number; entries?: unknown[]; count?: number } | null;
       if (!o) return null;

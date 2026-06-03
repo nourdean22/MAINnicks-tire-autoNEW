@@ -1,10 +1,24 @@
 "use client";
 
+/**
+ * BodySection · the Body section of the merged /stats surface (Wave 2).
+ *
+ * Moved verbatim from the former app/(mastery)/body/page.tsx — the only
+ * changes are: the outer <StandardPage> wrapper became a fragment (the
+ * page-level chrome now lives on /stats), and the former StandardPage
+ * `description` + `actions` (the progress lbs/target readout + FreshnessChip)
+ * moved into an inline header row at the top. Mounted lazily (next/dynamic,
+ * ssr:false) from /stats so its recharts weight chart + 90d fetch stay
+ * below the fold and don't tax first paint. The 60s poll, partial-upsert
+ * quick-entry (weight/bf/waist/sleep/workout/energy/notes), progress
+ * summary, chart, and recent-entries table are unchanged.
+ */
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { logger as rootLogger } from "@/lib/logger";
 
-// v10.0.31 — structured logger for body-page errors.
-const log = rootLogger.withSurface("body/page");
+// v10.0.31 — structured logger for body-section errors.
+const log = rootLogger.withSurface("body/section");
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
@@ -26,7 +40,6 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
-import { StandardPage } from "@/components/layout/standard-page";
 
 // Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
 // (timeline read + check-in mutation) on the operator router.
@@ -47,7 +60,7 @@ interface Progress {
   projected_date: string;
 }
 
-export default function BodyPage() {
+export function BodySection() {
   const [entries, setEntries] = useState<BodyEntry[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [loading, setLoading] = useState(true);
@@ -187,13 +200,14 @@ export default function BodyPage() {
   }
 
   return (
-    <StandardPage
-      eyebrow="Mastery"
-      title="Body"
-      description="Body = business performance. When workouts stop, revenue follows within 5 days."
-      actions={
-        progress && (
-          <div className="text-right flex flex-col items-end gap-1">
+    <div className="flex flex-col gap-6">
+      {/* Former StandardPage description + actions, relocated inline. */}
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm text-[var(--text-secondary)]" style={{ maxWidth: "60ch" }}>
+          Body = business performance. When workouts stop, revenue follows within 5 days.
+        </p>
+        {progress && (
+          <div className="text-right flex flex-col items-end gap-1 shrink-0">
             <span className="font-mono text-2xl font-bold text-[var(--text-primary)]">
               <AnimatedCounter value={progress.current} decimals={1} locale={false} />
             </span>
@@ -208,10 +222,9 @@ export default function BodyPage() {
               onReload={load}
             />
           </div>
-        )
-      }
-    >
-      <div className="flex flex-col gap-6">
+        )}
+      </div>
+
       <PageNick page="body" />
 
       {/* Progress Summary */}
@@ -470,7 +483,6 @@ export default function BodyPage() {
           </p>
         </div>
       )}
-      </div>
-    </StandardPage>
+    </div>
   );
 }

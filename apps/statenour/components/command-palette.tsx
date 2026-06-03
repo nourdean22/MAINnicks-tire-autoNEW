@@ -263,7 +263,7 @@ export function CommandPalette() {
       { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
 
       // ═══ PAGES — remaining live surfaces ═══
-      { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/body"), keywords: ["weight", "workout", "boxing"] },
+      { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/stats#body"), keywords: ["weight", "workout", "boxing", "body"] },
       { id: "nav-knowledge", label: "Knowledge Base", group: "Pages", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/knowledge") },
       { id: "nav-integrations", label: "Integrations", group: "Pages", icon: <Layers3Icon className="size-4" />, action: () => navigate("/settings") },
       { id: "nav-devices", label: "Devices", group: "Pages", icon: <MonitorIcon className="size-4" />, action: () => navigate("/system"), keywords: ["ring", "eufy", "camera"] },

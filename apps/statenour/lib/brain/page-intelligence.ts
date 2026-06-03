@@ -23,7 +23,6 @@ const IMPORTANT_PAGES = [
   { path: "/missions", label: "Missions", critical: true },
   { path: "/stats", label: "Stats", critical: false },
   { path: "/business", label: "Business", critical: false },
-  { path: "/body", label: "Body", critical: false },
   { path: "/chat", label: "Nick AI", critical: false },
   { path: "/strategy", label: "Strategy", critical: false },
 ];
@@ -99,11 +98,11 @@ async function analyzePagePatterns(): Promise<PagePattern> {
     insights.push("Nour checks Command but never opens Tasks — he's monitoring but not executing.");
   }
 
-  const driftVisits = pageCounts["/drift"] || 0;
-  const bodyVisits = pageCounts["/body"] || 0;
-  if (driftVisits === 0 && bodyVisits === 0) {
-    insights.push("Nour is avoiding both Drift and Body pages — potential avoidance of accountability signals.");
-  }
+  // Wave 2 (2026-06-03) · the old "/drift + /body avoidance" insight was
+  // dropped here: both are now redirected routes (/drift retired; /body
+  // folded into /stats#body), so pageCounts for them are permanently 0 and
+  // the heuristic would fire false every run. Body is a /stats section now,
+  // so "avoiding body" can no longer be inferred from page-visit counts.
 
   const chatVisits = pageCounts["/chat"] || 0;
   if (chatVisits > 20) {
