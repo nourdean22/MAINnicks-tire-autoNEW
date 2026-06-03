@@ -158,26 +158,36 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
   const [wo] = await db.select().from(workOrders).where(eq(workOrders.orderNumber, orderNumber));
   if (!wo) return null;
 
-  // Verify phone matches customer
+  // Verify the requester's phone matches this work order — FAIL CLOSED.
+  // SECURITY (code-underneath audit): walk-in / AI-chat WOs store a NON-numeric
+  // `customer_id` (a phone string or the "WALK-IN" sentinel). The old check ran
+  // ONLY inside `if (!isNaN(custId))`, so a non-numeric id skipped verification
+  // entirely and returned the status/vehicle/service list to anyone with the
+  // (low-entropy) order number — an IDOR / PII leak. Now every path must yield a
+  // phone match or we return null.
+  const normalize = (p: string) => (p || "").replace(/\D/g, "").slice(-10);
+  const provided = normalize(phone);
+  if (provided.length < 10) return null; // no usable phone supplied -> deny
+  let verified = false;
   try {
     const custId = parseInt(wo.customerId, 10);
     if (!isNaN(custId)) {
       const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
-      if (!cust) return null;
-      // Normalize phone comparison (last 10 digits)
-      const normalize = (p: string) => p.replace(/\D/g, "").slice(-10);
-      if (normalize(cust.phone) !== normalize(phone)) return null;
+      if (cust && normalize(cust.phone) === provided) verified = true;
+    } else if (normalize(wo.customerId) === provided) {
+      // walk-in / AI-chat WO: customer_id holds the customer's phone string.
+      verified = true;
     }
   } catch (err) {
-    // wave-116 — was silent `catch (_) { return null }`. A transient DB
-    // error here looked identical to "phone doesn't match" and silently
-    // suppressed the customer's pickup-ready SMS with no signal.
+    // wave-116 — was a silent `catch (_) { return null }`. A transient DB error
+    // looked identical to "phone doesn't match" and suppressed the pickup SMS.
     log.warn("Phone-to-customer verification failed", {
       workOrderId: wo.id,
       error: err instanceof Error ? err.message : String(err),
     });
     return null;
   }
+  if (!verified) return null; // FAIL CLOSED — never leak without a phone match
 
   // Get line items (approved only, no costs)
   const items = await db.select({
