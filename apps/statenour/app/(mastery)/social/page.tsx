@@ -240,7 +240,7 @@ function SocialPageInner() {
 
   return (
     <StandardPage
-      eyebrow="NOUR OS · Social"
+      eyebrow="Social"
       title="Publish & Schedule"
       description="Direct IG/FB publish + Buffer scheduling. Every action is explicit."
       width="lg"
@@ -261,11 +261,11 @@ function SocialPageInner() {
           </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta IG</div>
-            <div className="mt-1 font-mono text-zinc-400">env-gated</div>
+            <div className="mt-1 font-mono text-zinc-400">requires Meta env + image</div>
           </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.02] p-2 text-xs">
             <div className="text-[10px] uppercase tracking-wider text-zinc-500">Meta FB</div>
-            <div className="mt-1 font-mono text-zinc-400">env-gated</div>
+            <div className="mt-1 font-mono text-zinc-400">requires Meta env + image</div>
           </div>
         </div>
       </Panel>

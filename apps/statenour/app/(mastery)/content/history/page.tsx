@@ -182,7 +182,7 @@ export default function ContentHistoryPage() {
       title="content history"
       description={
         data
-          ? `${data.count} scored replies · last ${days}d · avg ${data.stats.avgOverall}/100`
+          ? `${data.count} scored replies · last ${days}d`
           : "loading…"
       }
       width="3xl"

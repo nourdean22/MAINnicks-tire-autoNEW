@@ -37,7 +37,6 @@ import { GhostNickStrip } from "@/components/ultron/ghost-nick/ghost-nick-strip"
 // they live with the other brain panels here. /ultron stays focused
 // on today's anchor + work surface.
 import { DecisionReplayCard } from "@/components/ultron/decision-replay-card";
-import { ContradictionsCard } from "@/components/ultron/contradictions-card";
 import { PreferencesCard } from "@/components/ultron/preferences-card";
 import { PersonaDriftCard } from "@/components/ultron/persona-drift-card";
 import { NudgePanel } from "@/components/brain/nudge-panel";
@@ -194,9 +193,8 @@ function BrainPageInner() {
               reuse paid-for helpers · zero new schema. */}
           <LearningVelocityScoreboard />
           <IdentityDeltaLine />
-          <ContradictionResolutionPanel focusKey={focusContradictionKey} />
           <div id="contradictions" className="scroll-mt-24">
-            <ContradictionsCard />
+            <ContradictionResolutionPanel focusKey={focusContradictionKey} />
           </div>
           <DecisionReplayCard />
           <div id="preferences" className="scroll-mt-24">

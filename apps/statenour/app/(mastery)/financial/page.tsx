@@ -186,13 +186,7 @@ export default function FinancialPage() {
       rhythm="loose"
       description={
         monthTotal > 0 ? (
-          <>
-            ${Math.round(monthTotal).toLocaleString()} this month ·{" "}
-            <span className={pctToTarget >= 80 ? "text-green-400" : pctToTarget >= 50 ? "text-amber-400" : "text-red-400"}>
-              {pctToTarget.toFixed(0)}% to target
-            </span>
-            {" · "}${paceNeeded > 0 ? `need $${paceNeeded}/day` : "on pace"}
-          </>
+          `$${Math.round(monthTotal).toLocaleString()} this month`
         ) : revenueQuery.isLoading ? (
           "Loading revenue data..."
         ) : revenueQuery.isError ? (
@@ -317,11 +311,6 @@ export default function FinancialPage() {
         </div>
       </Card>
 
-      {/* v10.0.529.55 · Shop Revenue stub cut · 28 LOC placeholder
-          flagged HIGH by audit Wave 9 · was a permanent stub linking
-          to nickstire admin · zero data load · removed cleanly. The
-          ShopRevenue function definition below is also unused now. */}
-
       {/* 2026-05-24 · Wave X.f activation · monthly second-location
           ranking from the `monthly-location-rank` cron. Pre-fix the
           cron ran 1st of month, the API was live, but no operator
@@ -388,13 +377,3 @@ export default function FinancialPage() {
     </StandardPage>
   );
 }
-
-// Apr 17 separation pass — shop revenue lives in nickstire.org/admin.
-// This card stays as a placeholder so the financial page layout doesn't
-// jump. When a nickstire-oversight API gets wired, reconnect here.
-// v10.0.31 — was a stub component holding `useState<any>({_stub: true})`
-// that always rendered the same link. The state was never set, the
-// `return null` branch was unreachable. Replaced with a plain
-// component that just renders the placeholder.
-// v10.0.529.55 · ShopRevenue component deleted · was a placeholder
-// stub linking to nickstire admin · no mount remains.

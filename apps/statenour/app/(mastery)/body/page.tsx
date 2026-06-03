@@ -47,10 +47,6 @@ interface Progress {
   projected_date: string;
 }
 
-function Skeleton({ className }: { className?: string }) {
-  return <ShimmerSkeleton className={className} />;
-}
-
 export default function BodyPage() {
   const [entries, setEntries] = useState<BodyEntry[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -180,12 +176,12 @@ export default function BodyPage() {
     return (
       <div className="flex flex-col gap-6 py-6">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-24" />
-          <Skeleton className="h-10 w-32" />
+          <ShimmerSkeleton className="h-8 w-24" />
+          <ShimmerSkeleton className="h-10 w-32" />
         </div>
-        <Skeleton className="h-[250px] w-full" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-48 w-full" />
+        <ShimmerSkeleton className="h-[250px] w-full" />
+        <ShimmerSkeleton className="h-32 w-full" />
+        <ShimmerSkeleton className="h-48 w-full" />
       </div>
     );
   }
@@ -202,8 +198,9 @@ export default function BodyPage() {
               <AnimatedCounter value={progress.current} decimals={1} locale={false} />
             </span>
             <p className="text-[10px] text-[var(--text-tertiary)]">
-              lbs · target 186
-              {progress.current > 186 && ` · ${Math.round(progress.current - 186)} to go`}
+              lbs · target {progress.target}
+              {progress.current > progress.target &&
+                ` · ${Math.round(progress.current - progress.target)} to go`}
             </p>
             <FreshnessChip
               lastFetchedAt={fetchedAt}

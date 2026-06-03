@@ -63,8 +63,8 @@ export function TodaysPrompt() {
     // Also try to scroll the composer into view (it lives below the
     // prompt) · scrollIntoView on the named target is a graceful fall-
     // back when the event listener isn't wired (matches the
-    // ReflectComposer's `id="ultron-reflect-composer"`).
-    const el = document.getElementById("ultron-reflect-composer");
+    // ReflectComposer's `id="journal-reflect-composer"`).
+    const el = document.getElementById("journal-reflect-composer");
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 

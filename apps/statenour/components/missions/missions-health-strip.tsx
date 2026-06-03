@@ -52,10 +52,10 @@ function classifyPace(
   m: Project,
   open: Task[],
   doing: Task[],
+  total: number,
 ): Pace {
   if (open.length === 0) {
-    // All tasks done · either complete or empty mission.
-    const total = tasksLength(m, doing);
+    // No open tasks · "done" if the mission had any tasks at all, else idle.
     return total > 0 ? "done" : "idle";
   }
   if (doing.length > 0) return "in_flight";
@@ -66,10 +66,6 @@ function classifyPace(
     if (days <= 3 && open.length > 1) return "behind";
   }
   return "healthy";
-}
-
-function tasksLength(_m: Project, doing: Task[]): number {
-  return doing.length;
 }
 
 const PACE_STYLE: Record<
@@ -125,7 +121,7 @@ export function MissionsHealthStrip({
         return {
           id: m.id,
           title: m.title,
-          pace: classifyPace(m, open, doing),
+          pace: classifyPace(m, open, doing, taskRows.length),
           openTasks: open.length,
           doingTasks: doing.length,
           daysToDeadline: days,

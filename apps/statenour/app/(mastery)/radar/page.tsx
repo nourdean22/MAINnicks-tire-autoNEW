@@ -226,7 +226,7 @@ export default function RadarPage() {
         )}
 
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
-          via nickstire bridge · v11.5+ master_report · refreshes every 5 min
+          via nickstire bridge · master_report · refreshes every 5 min
         </p>
     </StandardPage>
   );

@@ -45,7 +45,6 @@ import { useMissionSurfaceTelemetry } from "@/lib/telemetry/mission-surface";
 
 import DossierEditor from "@/components/power-atlas/DossierEditor";
 import LedgerTimeline from "@/components/power-atlas/LedgerTimeline";
-import GreeneLawSidebar from "@/components/power-atlas/GreeneLawSidebar";
 import PowerBalanceGauge from "@/components/power-atlas/PowerBalanceGauge";
 import BlowUpModal from "@/components/power-atlas/BlowUpModal";
 import LogLedgerModal from "@/components/power-atlas/LogLedgerModal";
@@ -375,7 +374,7 @@ export default function RelationshipsPage() {
           aria-label={`Browse all people${data ? `, ${data.totals.total} total` : ""}`}
           className="px-3 py-2.5 cursor-pointer text-[11px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] list-none"
         >
-          <span aria-hidden="true">▸ </span>browse all people {data ? `(${data.totals.total})` : ""}
+          <span aria-hidden="true">▸ </span>browse all people
         </summary>
         <div className="border-t border-[var(--border-default)]/60 p-3 space-y-3">
 
@@ -737,7 +736,7 @@ function DetailPanel({
   onOpenBlowUp: () => void;
   onResolved: () => void;
 }) {
-  const { person, ledger, plays, applicableLawTexts, openTasks, xp } = detail;
+  const { person, ledger, plays, openTasks, xp } = detail;
   const blownUp = person.status === "blown_up";
   const utils = trpc.useUtils();
   const updatePowerBalance = trpc.task.updatePowerBalance.useMutation({
@@ -833,9 +832,8 @@ function DetailPanel({
             }}
           />
           {/* Contextual Greene picks · the AI per-day ranked picks. The
-           *  legacy STATIC applicableLaws list (GreeneLawSidebar) moved to
-           *  "deeper signals" below — showing both at once was the
-           *  duplicate-Greene-block confusion the operator flagged. */}
+           *  legacy STATIC applicableLaws list (GreeneLawSidebar) was
+           *  removed — it duplicated this panel's Greene block. */}
           <ContextualGreeneSidebar key={person.id} personId={person.id} />
 
           {/* Quick actions */}
@@ -897,7 +895,6 @@ function DetailPanel({
             personId={person.id}
             initialProjection={person.lastArcPlan}
           />
-          <GreeneLawSidebar applicableLawTexts={applicableLawTexts} />
           <ReciprocityCard metadata={person.metadata} />
           <ToneShiftCard metadata={person.metadata} />
           <AlphaMoments personId={person.id} />
