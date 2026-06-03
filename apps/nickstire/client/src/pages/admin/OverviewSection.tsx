@@ -475,7 +475,11 @@ export default function OverviewSection() {
         id: "alg-offline",
         severity: "crit",
         message: "ALG (Auto Labor Guide) integration offline. Revenue + invoice numbers are stale.",
-        href: "/admin?tab=settings&settingsTab=integrations",
+        // wave-187 — ALG connection + sync/probe controls live on ShopDriver HQ,
+        // not Integrations (which is just the tire/labor calculator). Match the
+        // ALG status pill below (settingsTab=shopdriver) so "Fix" lands operator
+        // on the actual reconnect controls.
+        href: "/admin?tab=settings&settingsTab=shopdriver",
         ctaLabel: "Fix",
         dismissable: false,
       });

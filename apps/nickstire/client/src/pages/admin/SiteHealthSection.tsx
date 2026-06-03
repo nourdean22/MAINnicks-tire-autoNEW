@@ -198,13 +198,17 @@ export default function SiteHealthSection() {
             INDEX COVERAGE
           </h3>
           <div className="space-y-4">
+            {/* wave-187 — server returns 0 to mean "unknown · GSC not wired"
+                (admin-stats.ts:getSiteHealth). `?? "—"` does NOT catch 0, so a
+                fully-indexed 207-page site rendered a confident "0 Indexed" =
+                reads as deindexed. Treat 0/falsy as unknown → show "—". */}
             <div className="grid grid-cols-2 gap-3">
               <div className="p-4 border border-emerald-500/30 bg-emerald-500/5 text-center">
-                <p className="font-bold text-3xl text-emerald-400">{health.indexedPages ?? "—"}</p>
+                <p className="font-bold text-3xl text-emerald-400">{health.indexedPages || "—"}</p>
                 <p className="text-[11px] text-foreground/50 mt-1">Indexed</p>
               </div>
               <div className="p-4 border border-amber-500/30 bg-amber-500/5 text-center">
-                <p className="font-bold text-3xl text-amber-400">{health.notIndexedPages ?? "—"}</p>
+                <p className="font-bold text-3xl text-amber-400">{health.notIndexedPages || "—"}</p>
                 <p className="text-[11px] text-foreground/50 mt-1">Not Indexed</p>
               </div>
             </div>
@@ -212,11 +216,11 @@ export default function SiteHealthSection() {
               <p className="text-[11px] text-foreground/40 tracking-wide">NOT INDEXED REASONS</p>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
                 <span className="text-[12px] text-foreground/60">Crawled — currently not indexed</span>
-                <span className="text-[13px] font-semibold text-amber-400">{health.crawledNotIndexed ?? "—"}</span>
+                <span className="text-[13px] font-semibold text-amber-400">{health.crawledNotIndexed || "—"}</span>
               </div>
               <div className="flex items-center justify-between p-2.5 border border-border/20">
                 <span className="text-[12px] text-foreground/60">Discovered — currently not indexed</span>
-                <span className="text-[13px] font-semibold text-amber-400">{health.discoveredNotIndexed ?? "—"}</span>
+                <span className="text-[13px] font-semibold text-amber-400">{health.discoveredNotIndexed || "—"}</span>
               </div>
             </div>
             <div className="flex items-center justify-between p-2.5 border border-border/20">
@@ -336,21 +340,27 @@ export default function SiteHealthSection() {
           <Gauge className="w-4 h-4 text-primary" />
           INTEGRATIONS
         </h3>
+        {/* wave-187 — Instagram Feed + AI Content Gen previously hardcoded
+            status:true → always green "Connected" with NO probe (false
+            telemetry). They have no live health check, so mark them
+            `unprobed` and render a neutral "Not verified" state instead of
+            implying a confirmed connection. Sheets/Reviews keep their real
+            boolean status. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
             { name: "Google Sheets CRM", status: health.sheetsConfigured, icon: <FileSpreadsheet className="w-5 h-5" />, link: health.sheetsUrl },
             { name: "Google Reviews", status: !!reviews, icon: <Star className="w-5 h-5" />, link: "https://business.google.com/" },
-            { name: "Instagram Feed", status: true, icon: <Eye className="w-5 h-5" />, link: "https://instagram.com/nicks_tire_euclid" },
-            { name: "AI Content Gen", status: true, icon: <Sparkles className="w-5 h-5" />, link: undefined },
-          ].map(integration => (
+            { name: "Instagram Feed", status: false, unprobed: true, icon: <Eye className="w-5 h-5" />, link: "https://instagram.com/nicks_tire_euclid" },
+            { name: "AI Content Gen", status: false, unprobed: true, icon: <Sparkles className="w-5 h-5" />, link: undefined },
+          ].map((integration) => (
             <div key={integration.name} className="flex items-center gap-3 p-4 border border-border/20">
-              <div className={`${integration.status ? "text-emerald-400" : "text-red-400"}`}>
+              <div className={`${integration.unprobed ? "text-foreground/40" : integration.status ? "text-emerald-400" : "text-red-400"}`}>
                 {integration.icon}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-[13px] text-foreground truncate">{integration.name}</p>
-                <p className={`text-[12px] ${integration.status ? "text-emerald-400" : "text-red-400"}`}>
-                  {integration.status ? "Connected" : "Not configured"}
+                <p className={`text-[12px] ${integration.unprobed ? "text-foreground/40" : integration.status ? "text-emerald-400" : "text-red-400"}`}>
+                  {integration.unprobed ? "Not verified" : integration.status ? "Connected" : "Not configured"}
                 </p>
               </div>
               {integration.link && (

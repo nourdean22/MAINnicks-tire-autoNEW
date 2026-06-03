@@ -104,6 +104,10 @@ function KanbanLeadCard({ lead, onUpdate }: {
   const [showMenu, setShowMenu] = useState(false);
   const currentStatusIdx = KANBAN_COLUMNS.findIndex(c => c.status === lead.status);
   const availableTransitions = KANBAN_COLUMNS.filter((_, i) => i !== currentStatusIdx);
+  // wave-187 — clamp display to 1-5. Legacy leads stored out-of-range
+  // urgencyScores (e.g. 36, 27) that rendered as "36/5" in this Kanban badge.
+  // Display-only; stored data untouched. Mirrors shared/cards.tsx UrgencyBadge.
+  const urgency = Math.min(5, Math.max(1, lead.urgencyScore ?? 3));
 
   return (
     <div className="bg-background border border-border/50 p-3 text-[12px] hover:border-primary/50 transition-colors">
@@ -112,13 +116,13 @@ function KanbanLeadCard({ lead, onUpdate }: {
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-bold text-foreground">{lead.name}</h4>
           <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold tracking-wider ${
-            (lead.urgencyScore ?? 0) >= 4
+            urgency >= 4
               ? "bg-red-500/20 text-red-400"
-              : (lead.urgencyScore ?? 0) >= 3
+              : urgency >= 3
               ? "bg-amber-500/20 text-amber-400"
               : "bg-foreground/10 text-foreground/50"
           }`}>
-            {lead.urgencyScore ?? 3}/5
+            {urgency}/5
           </span>
         </div>
 

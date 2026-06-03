@@ -36,12 +36,12 @@ export default function LoyaltyAdminSection() {
   const [points, setPoints] = useState("");
   const [desc, setDesc] = useState("");
 
-  const awardPoints = trpc.loyalty.awardPoints.useMutation({
-    onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
-    onError: (err: { message: string }) => toast.error(err.message),
-  });
-  // wave-143 — replaces the client-side `customers.list.fetch() + JS phone match`
-  // pattern, which silently missed any customer past page 1 of the paginated list.
+  // wave-143 — `awardPointsByPhone` replaces the client-side
+  // `customers.list.fetch() + JS phone match` pattern, which silently missed any
+  // customer past page 1 of the paginated list.
+  // wave-187 — removed the unused `awardPoints` (by-userId) binding; the button
+  // only ever called `awardPointsByPhone`. The router proc is left intact in case
+  // of other callers.
   const awardPointsByPhone = trpc.loyalty.awardPointsByPhone.useMutation({
     onSuccess: () => { setPhone(""); setPoints(""); setDesc(""); toast.success("Points awarded"); },
     onError: (err: { message: string }) => toast.error(err.message),
