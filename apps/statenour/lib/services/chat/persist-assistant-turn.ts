@@ -56,6 +56,8 @@ import type { TraceStartInput, TraceFinishInput } from "@/lib/ai/agent-trace";
 import type { TurnSignal } from "@/lib/ai/turn-intelligence";
 import type { ContextBlocksFired } from "./brain-context";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { looksLikeBrainDump } from "@/lib/ai/chat/brain-dump-detector";
+import type { MessagePart } from "@/lib/ai/chat/message-fields";
 
 interface ChatLogger {
   info(event: string, ctx?: Record<string, unknown>): void;
@@ -105,48 +107,34 @@ export interface BuildOnFinishInput {
 }
 
 /**
- * v10.0.231 · True if `text` reads like a brain dump (declarative
- * thought / observation / decision / plan) rather than a question
- * or command directed at Nick. Used to gate journal-ingest so chat
- * questions don't get parsed into phantom INBOX tasks.
+ * Build the `parts` tree + flattened `searchableContent` for a persisted
+ * assistant ChatMessage. Shared by the initial persist (text part guarded
+ * on non-empty) and the fabrication-rewrite patch (text part always
+ * present, since the rewrite banner makes it non-empty). The optional
+ * `reasoningText` adds a `reasoning` part only when it has non-whitespace
+ * content — identical to both original call sites.
  *
- * Pure heuristic · zero AI cost · runs every chat turn so it has to
- * be fast. Bias is "skip when uncertain" — false negatives just mean
- * a real brain dump doesn't extract; false positives mean phantom
- * tasks (which is the bug we're fixing).
- *
- * Looks like a question/command (SKIP ingest):
- *   · ends in `?`
- *   · starts with what / who / when / where / why / how / which
- *   · starts with can / could / would / will / should / does / do
- *   · starts with is / are / was / were / am
- *   · starts with show / find / list / look up / check / search /
- *     give / tell / explain / write / draft / generate / create /
- *     fetch / pull / get / make
+ * `alwaysIncludeText` flips the only behavioral difference between the two
+ * sites: the initial persist pushed the text part only when cleanedText
+ * was non-empty; the rewrite patch pushed it unconditionally. Default is
+ * the guarded (initial-persist) behavior.
  */
-export function looksLikeBrainDump(text: string): boolean {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return false;
-  // Question by punctuation · scan only the last ~30 chars to avoid
-  // a `?` deep in a paragraph counting as the question marker.
-  const tail = trimmed.slice(-30);
-  if (tail.includes("?")) return false;
-  // Question/command by leading word · case-insensitive
-  const leadWord = trimmed.toLowerCase().match(/^([a-z']+)/)?.[1] ?? "";
-  const QUESTIONS = new Set([
-    "what", "whats", "what's", "who", "whos", "who's",
-    "when", "where", "why", "how", "which",
-    "can", "could", "would", "will", "should",
-    "do", "does", "did", "is", "are", "was", "were", "am",
-  ]);
-  const COMMANDS = new Set([
-    "show", "find", "list", "look", "check", "search",
-    "give", "tell", "explain", "write", "draft", "generate",
-    "create", "fetch", "pull", "get", "make", "run", "open",
-    "search", "summarize", "translate", "describe",
-  ]);
-  if (QUESTIONS.has(leadWord) || COMMANDS.has(leadWord)) return false;
-  return true;
+async function buildMessageParts(
+  cleanedText: string,
+  reasoningText?: string,
+  alwaysIncludeText = false,
+): Promise<{ partsArray: MessagePart[] | null; searchableContent: string | null }> {
+  const { extractParts, buildSearchableContent } = await import("@/lib/ai/chat/message-fields");
+  const assistantParts: Array<Record<string, unknown>> = [];
+  if (alwaysIncludeText || (cleanedText && cleanedText.length > 0)) {
+    assistantParts.push({ type: "text", text: cleanedText });
+  }
+  if (reasoningText && reasoningText.trim().length > 0) {
+    assistantParts.push({ type: "reasoning", text: reasoningText });
+  }
+  const partsArray = extractParts(assistantParts, cleanedText);
+  const searchableContent = buildSearchableContent(partsArray, cleanedText);
+  return { partsArray, searchableContent };
 }
 
 /**
@@ -159,8 +147,9 @@ export function looksLikeBrainDump(text: string): boolean {
  * already completed, and `cleanedText`/`text` will not be reassigned again.
  *
  * The helper must NOT reach back into the onFinish closure — it receives
- * everything it needs here. `isLightweight`/`isHeavy` are passed (not
- * recomputed) so the moved body stays byte-identical to the original.
+ * everything it needs here. `isLightweight`/`isHeavy` are derived inside
+ * the helper from `userContent`/`mode` (same threshold expressions as the
+ * original call site), so they don't need to be threaded through the ctx.
  */
 interface DeferredBackgroundCtx {
   log: ChatLogger;
@@ -177,8 +166,6 @@ interface DeferredBackgroundCtx {
   /** Raw stripped model text (pre-sanitize) — used for action parsing + cache warm. */
   text: string;
   messages: ReadonlyArray<unknown>;
-  isLightweight: boolean;
-  isHeavy: boolean;
 }
 
 /**
@@ -208,9 +195,12 @@ async function runDeferredBackgroundWork(ctx: DeferredBackgroundCtx) {
     cleanedText,
     text,
     messages,
-    isLightweight,
-    isHeavy,
   } = ctx;
+
+  // Substance gates — derived here (was passed via ctx). Same threshold
+  // expressions as the original onFinish call site.
+  const isLightweight = userContent.length < 40;
+  const isHeavy = mode === "deep" || userContent.length > 120;
 
       // Record to memory system — skip on quick.
       if (!isLightweight) {
@@ -1022,16 +1012,10 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           }
         }
 
-        const { extractParts, buildSearchableContent } = await import("@/lib/ai/chat/message-fields");
-        const assistantParts: Array<Record<string, unknown>> = [];
-        if (cleanedText && cleanedText.length > 0) {
-          assistantParts.push({ type: "text", text: cleanedText });
-        }
-        if (reasoningText && reasoningText.trim().length > 0) {
-          assistantParts.push({ type: "reasoning", text: reasoningText });
-        }
-        const partsArray = extractParts(assistantParts, cleanedText);
-        const searchableContent = buildSearchableContent(partsArray, cleanedText);
+        const { partsArray, searchableContent } = await buildMessageParts(
+          cleanedText,
+          reasoningText,
+        );
 
         const createdAssistant = await withErrorCapture(
           "chat:db-write",
@@ -1210,10 +1194,6 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
 
       // Nothing downstream should run when the response was empty.
       if (!hasContent) return;
-
-      // ═══ POST-PROCESSING SCOPED BY MESSAGE SUBSTANCE ═══
-      const isLightweight = userContent.length < 40;
-      const isHeavy = mode === "deep" || userContent.length > 120;
 
       // Track generation stats — 5s cap. Always runs.
       // v10.0.529.106 · Wave 59 · pass conversationId so cost-slo
@@ -1427,20 +1407,8 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
           // patch leaves the in-memory cascade intact, never tanks onFinish.
           if (createdAssistantId) {
             const msgId = createdAssistantId;
-            const { extractParts, buildSearchableContent } = await import(
-              "@/lib/ai/chat/message-fields"
-            );
-            const rewrittenParts: Array<Record<string, unknown>> = [
-              { type: "text", text: cleanedText },
-            ];
-            if (reasoningText && reasoningText.trim().length > 0) {
-              rewrittenParts.push({ type: "reasoning", text: reasoningText });
-            }
-            const patchedParts = extractParts(rewrittenParts, cleanedText);
-            const patchedSearchable = buildSearchableContent(
-              patchedParts,
-              cleanedText,
-            );
+            const { partsArray: patchedParts, searchableContent: patchedSearchable } =
+              await buildMessageParts(cleanedText, reasoningText, true);
             await prisma.chatMessage
               .update({
                 where: { id: msgId },
@@ -1577,8 +1545,6 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
         cleanedText,
         text,
         messages,
-        isLightweight,
-        isHeavy,
       });
     };
 }
