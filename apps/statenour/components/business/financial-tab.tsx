@@ -1,20 +1,30 @@
 "use client";
 
+/**
+ * FinancialTab · the Money section of the merged /business surface (Wave 2).
+ *
+ * Moved verbatim from the former app/(mastery)/financial/page.tsx — the only
+ * change is the outer <StandardPage> wrapper became a fragment (page-level
+ * chrome now lives on /business), and the former StandardPage `description`
+ * subtitle ($X this month) + `actions` (the ON PACE/BEHIND/CRITICAL label
+ * and FreshnessChip) moved into an inline header row at the top of the
+ * fragment so nothing is lost. All data hooks, the editable target +
+ * localStorage, the forecast chart, location ranking, and the personal-
+ * finance grid are unchanged.
+ */
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { logger as rootLogger } from "@/lib/logger";
 
 // v10.0.31 — structured logger for financial-page errors.
 const flog = rootLogger.withSurface("financial/page");
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
-import { ProgressRing } from "@/components/ui/progress-ring";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Pencil, Check, X } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
 import { LocationRankingCard } from "@/components/financial/location-ranking-card";
-import { StandardPage } from "@/components/layout/standard-page";
 // misc-pages slice (2026-05-22) · the two polled reads moved off
 // authedFetch onto trpc.operator.financialSnapshot +
 // operator.revenueStats · React Query's refetchInterval replaces the
@@ -65,7 +75,7 @@ const TOOLTIP_STYLE = {
   fontSize: 12,
 };
 
-export default function FinancialPage() {
+export function FinancialTab() {
   const [monthlyTarget, setMonthlyTarget] = useState(DEFAULT_TARGET);
   const [editingTarget, setEditingTarget] = useState(false);
   const [targetInput, setTargetInput] = useState("");
@@ -180,23 +190,21 @@ export default function FinancialPage() {
   }
 
   return (
-    <StandardPage
-      eyebrow="Mastery"
-      title="Money"
-      rhythm="loose"
-      description={
-        monthTotal > 0 ? (
-          `$${Math.round(monthTotal).toLocaleString()} this month`
-        ) : revenueQuery.isLoading ? (
-          "Loading revenue data..."
-        ) : revenueQuery.isError ? (
-          "Revenue feed unavailable — shop bridge not responding"
-        ) : (
-          "$0 this month so far — check the shop bridge if unexpected"
-        )
-      }
-      actions={
-        <div className="text-right flex flex-col items-end gap-1">
+    <>
+      {/* Inline header row · former StandardPage description + actions.
+          Subtitle ($X this month) on the left · ON PACE/BEHIND/CRITICAL
+          status + FreshnessChip on the right. */}
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <p className="text-sm text-[var(--text-secondary)]">
+          {monthTotal > 0
+            ? `$${Math.round(monthTotal).toLocaleString()} this month`
+            : revenueQuery.isLoading
+            ? "Loading revenue data..."
+            : revenueQuery.isError
+            ? "Revenue feed unavailable — shop bridge not responding"
+            : "$0 this month so far — check the shop bridge if unexpected"}
+        </p>
+        <div className="text-right flex flex-col items-end gap-1 shrink-0">
           <span className={`text-sm font-[var(--font-display)] font-bold ${pctToTarget >= 80 ? "neon-green" : pctToTarget >= 50 ? "text-[var(--gold)]" : "neon-red"}`}>
             {pctToTarget >= 80 ? "ON PACE" : pctToTarget >= 50 ? "BEHIND" : "CRITICAL"}
           </span>
@@ -206,8 +214,8 @@ export default function FinancialPage() {
             onReload={reloadAll}
           />
         </div>
-      }
-    >
+      </div>
+
       <PageNick page="financial" />
 
       {/* ═══ REVENUE FORECAST CHART ═══ */}
@@ -374,6 +382,6 @@ export default function FinancialPage() {
       ) : (
         <p className="text-sm text-[var(--text-tertiary)]">No personal finance data recorded yet.</p>
       )}
-    </StandardPage>
+    </>
   );
 }

@@ -870,7 +870,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling latest financial snapshot…",
     icon: DollarSign,
     color: "emerald",
-    link: { href: "/financial", label: "Financial" },
+    link: { href: "/business?tab=money", label: "Financial" },
     subtitle: (out) => {
       const o = out as { netWorth?: number; cashOnHand?: number; runwayMonths?: number } | null;
       if (!o) return null;
@@ -887,7 +887,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Calculating financial projections…",
     icon: TrendingUp,
     color: "blue",
-    link: { href: "/financial", label: "Financial" },
+    link: { href: "/business?tab=money", label: "Financial" },
     subtitle: (out) => {
       const o = out as { horizon?: string; projected?: number; months?: number } | null;
       if (!o) return null;
@@ -903,7 +903,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Pulling live revenue vs target…",
     icon: BarChart3,
     color: "gold",
-    link: { href: "/financial", label: "Financial" },
+    link: { href: "/business?tab=money", label: "Financial" },
     subtitle: (out) => {
       const o = out as { mtd?: number; target?: number; pct?: number } | null;
       if (!o) return null;
@@ -918,7 +918,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Resolving channel attribution…",
     icon: TrendingUp,
     color: "purple",
-    link: { href: "/financial", label: "Financial" },
+    link: { href: "/business?tab=money", label: "Financial" },
     subtitle: (out) => {
       const o = out as { topChannel?: string; topChannelPct?: number } | null;
       if (!o) return null;

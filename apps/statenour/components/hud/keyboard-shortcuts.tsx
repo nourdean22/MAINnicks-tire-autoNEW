@@ -39,7 +39,7 @@ const GO_ROUTES: Record<string, string> = {
   b: "/brain",
   k: "/knowledge",
   m: "/stats",
-  f: "/financial",
+  f: "/business?tab=money",
   y: "/body",                   // y = bodY (b is brain)
   s: "/system",
   // system ops deck (v11.0)

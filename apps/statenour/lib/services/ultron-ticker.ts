@@ -298,7 +298,7 @@ async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
             deltaPct: null,
             severity: netDelta > 0 ? "win" : "warn",
             domain: "money",
-            href: "/financial",
+            href: "/business?tab=money",
           });
         }
       }
