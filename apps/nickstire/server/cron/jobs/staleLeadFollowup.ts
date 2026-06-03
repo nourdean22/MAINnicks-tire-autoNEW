@@ -23,16 +23,23 @@ export async function processStaleLeadFollowUp(): Promise<{ recordsProcessed: nu
     const db = await getDb();
     if (!db) return { recordsProcessed: 0 };
 
-    // Find leads created 2-6 hours ago that are still 'new' (no contact attempt)
+    // Find uncontacted ('new') leads in the speed-to-lead window.
+    // Lower bound 2h: don't spam a brand-new lead (give the human a chance
+    // to reply first). Upper bound 24h (was 6h): a lead created overnight is
+    // already >6h old by the 08:00 ET run and used to fall out of the window
+    // forever — never contacted. 24h spans the longest off-hours gap
+    // (~18:00 close -> 08:00 open) so the FIRST business-hours run still
+    // catches it, while excluding day-old abandoned leads. The at-most-once
+    // 'new' -> 'contacted' claim below means widening this can't double-text.
     const now = new Date();
     const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-    const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const staleLeads = await db.select().from(leads)
       .where(
         and(
           eq(leads.status, "new"),
-          gte(leads.createdAt, sixHoursAgo),
+          gte(leads.createdAt, twentyFourHoursAgo),
           lte(leads.createdAt, twoHoursAgo),
         )
       )

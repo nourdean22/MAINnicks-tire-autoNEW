@@ -369,42 +369,49 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
   `);
 
   // 1. Update totalSpent (cents) from paid invoices matched by phone (last 10 digits)
+  //    Phone match strips non-digits first (REGEXP_REPLACE) so E.164/punctuated
+  //    invoice phones ("+1 (216) 555-1234") slice the same last-10 as the
+  //    canonical customers.phone — identical to customerMetricsRefresh.ts.
   await step("spent", sql`
     UPDATE customers c
     INNER JOIN (
       SELECT customerPhone, SUM(totalAmount) as total
       FROM invoices
-      WHERE paymentStatus = 'paid' AND customerPhone IS NOT NULL AND LENGTH(customerPhone) >= 10
+      WHERE paymentStatus = 'paid' AND customerPhone IS NOT NULL
+        AND CHAR_LENGTH(REGEXP_REPLACE(customerPhone, '[^0-9]', '')) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
+    ) i ON RIGHT(REGEXP_REPLACE(c.phone, '[^0-9]', ''), 10) = RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)
     SET c.totalSpent = i.total
-    WHERE c.totalSpent != i.total AND LENGTH(c.phone) >= 10
+    WHERE c.totalSpent != i.total AND CHAR_LENGTH(REGEXP_REPLACE(c.phone, '[^0-9]', '')) >= 10
   `);
 
-  // 2. Update totalVisits from invoice count matched by phone
+  // 2. Update totalVisits from invoice count matched by phone (digit-stripped — see step 1)
   await step("visits", sql`
     UPDATE customers c
     INNER JOIN (
       SELECT customerPhone, COUNT(*) as visits
       FROM invoices
-      WHERE customerPhone IS NOT NULL AND LENGTH(customerPhone) >= 10
+      WHERE customerPhone IS NOT NULL
+        AND CHAR_LENGTH(REGEXP_REPLACE(customerPhone, '[^0-9]', '')) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
+    ) i ON RIGHT(REGEXP_REPLACE(c.phone, '[^0-9]', ''), 10) = RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)
     SET c.totalVisits = i.visits
-    WHERE c.totalVisits != i.visits AND LENGTH(c.phone) >= 10
+    WHERE c.totalVisits != i.visits AND CHAR_LENGTH(REGEXP_REPLACE(c.phone, '[^0-9]', '')) >= 10
   `);
 
-  // 3. Update firstVisitDate from earliest invoice
+  // 3. Update firstVisitDate from earliest invoice (digit-stripped — see step 1)
   await step("first", sql`
     UPDATE customers c
     INNER JOIN (
       SELECT customerPhone, MIN(invoiceDate) as earliest
       FROM invoices
-      WHERE customerPhone IS NOT NULL AND invoiceDate IS NOT NULL AND LENGTH(customerPhone) >= 10
+      WHERE customerPhone IS NOT NULL AND invoiceDate IS NOT NULL
+        AND CHAR_LENGTH(REGEXP_REPLACE(customerPhone, '[^0-9]', '')) >= 10
       GROUP BY customerPhone
-    ) i ON RIGHT(c.phone, 10) = RIGHT(i.customerPhone, 10)
+    ) i ON RIGHT(REGEXP_REPLACE(c.phone, '[^0-9]', ''), 10) = RIGHT(REGEXP_REPLACE(i.customerPhone, '[^0-9]', ''), 10)
     SET c.firstVisitDate = i.earliest
-    WHERE (c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest) AND LENGTH(c.phone) >= 10
+    WHERE (c.firstVisitDate IS NULL OR c.firstVisitDate > i.earliest)
+      AND CHAR_LENGTH(REGEXP_REPLACE(c.phone, '[^0-9]', '')) >= 10
   `);
 
   // 0. One-time cleanup: strip trailing quotes from imported customer names
@@ -472,6 +479,22 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
         WHEN totalVisits <= 1 AND lastVisitDate IS NULL THEN 'new'
         ELSE 'unknown'
       END
+  `);
+
+  // 8. Reset retention funnel for customers who came back.
+  //    retentionSequences.ts only ADVANCES lastRetentionTier (45→90→180→365)
+  //    and never clears it, so once a customer hits D365 the eligibility
+  //    predicate (lastRetentionTier < tier.days) permanently excludes them
+  //    from EVERY tier — even after they return years later. When the latest
+  //    visit is newer than the last retention SMS, the prior cycle is over:
+  //    clear the marker so the next lifecycle re-enters the funnel at D45.
+  await step("retentionReset", sql`
+    UPDATE customers
+    SET lastRetentionTier = NULL, lastRetentionDate = NULL
+    WHERE lastRetentionTier IS NOT NULL
+      AND lastVisitDate IS NOT NULL
+      AND lastRetentionDate IS NOT NULL
+      AND lastVisitDate > lastRetentionDate
   `);
 
   const total = Object.values(counts).reduce((a, b) => a + b, 0);

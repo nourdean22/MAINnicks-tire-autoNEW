@@ -272,16 +272,34 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     const d = await getDb();
     if (!d) return { recordsProcessed: 0, details: "No DB" };
 
-    // Auto-advance completed WOs older than 24h to invoiced
-    // (Invoices table has no workOrderId — can't join directly.
-    //  Instead, auto-advance WOs that have been in 'completed' for >24h,
-    //  since completed means the work is done and should be invoiced.)
+    // Auto-advance completed WOs older than 24h to invoiced — but ONLY when
+    // the WO carries a real billing signal on its own row.
+    //
+    // We canNOT verify an invoice exists by joining: the `invoices` table's
+    // `workOrderId` is an int (drizzle/schema.ts:1199) while `work_orders.id`
+    // is a varchar(36) UUID (schema.ts:1905) — the types can't match — and the
+    // invoice write path never populates it anyway (invoices.create takes no
+    // workOrderId; most invoices arrive from ALG and never reference an
+    // internal WO — see invoiceReconciliation.ts:150-156). So there is no
+    // reliable WO<->invoice link to gate on.
+    //
+    // Conservative interim (kaizen): instead of advancing on elapsed-time
+    // ALONE — which let never-billed WOs march completed -> invoiced ->
+    // (wo-auto-close) closed with ZERO billing recorded — require an on-row
+    // billing signal: a non-zero `total` OR a `paymentStatus` past 'unpaid'.
+    // WOs with no billing signal stay in 'completed' for human review rather
+    // than being silently "invoiced". (work_orders.total / .paymentStatus =
+    // schema.ts:1943-1945.)
+    const BILLED_PREDICATE = sql`
+      status = 'completed'
+        AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        AND (CAST(total AS DECIMAL(10,2)) > 0 OR payment_status <> 'unpaid')
+    `;
 
     // First, get the IDs of WOs about to be advanced (for audit trail)
     const [toAdvance] = await d.execute(sql`
       SELECT id FROM work_orders
-      WHERE status = 'completed'
-        AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      WHERE ${BILLED_PREDICATE}
     `);
     const woIds = (toAdvance as RawRow[]).map((r) => r.id);
 
@@ -290,8 +308,7 @@ export async function autoAdvanceWorkOrders(): Promise<{ recordsProcessed: numbe
     const [rows] = await d.execute(sql`
       UPDATE work_orders
       SET status = 'invoiced', updated_at = NOW()
-      WHERE status = 'completed'
-        AND updated_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      WHERE ${BILLED_PREDICATE}
     `);
 
     const resultHeader = rows as RawRow;

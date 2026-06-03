@@ -157,9 +157,14 @@ export const customersRouter = router({
           smsOptOut: customers.smsOptOut,
           createdAt: customers.createdAt,
           updatedAt: customers.updatedAt,
-          // Metrics fields
-          totalRevenue: customerMetrics.totalRevenue,
-          avgSpendPerVisit: customerMetrics.avgSpendPerVisit,
+          // Metrics fields.
+          // NOTE: totalRevenue + avgSpendPerVisit dropped here — both are
+          // seeded 0 on INSERT and never written by any refresher, so they
+          // were shipped to the UI as a constant 0 (false data). No client
+          // reads them off a list row (verified). daysSinceLastVisit is also
+          // never written, but the customer card + Customer360 panel still
+          // reference c.daysSinceLastVisit with a `?? lastVisitDate` fallback,
+          // so it stays until those readers are removed.
           daysSinceLastVisit: customerMetrics.daysSinceLastVisit,
           churnRisk: customerMetrics.churnRisk,
           isVip: customerMetrics.isVip,
