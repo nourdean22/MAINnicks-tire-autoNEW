@@ -82,6 +82,12 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
   return cached<PulsePayload>("ultron_personal_pulse_v3", 90, async () => {
     const now = Date.now();
     const todayStr = todayDateString();
+    // v-truth · floor for surfacing overdue commitments — anything overdue
+    // by more than ~90 days is abandoned-in-practice and shouldn't nag in
+    // the ticker (e.g. the 809-day "text Dania" promise).
+    const overdueFloorStr = new Date(Date.now() - 90 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
     const tomorrowStr = tomorrowDateString();
     const threeHoursAgo = new Date(now - 3 * 3600_000);
     const items: PulseItem[] = [];
@@ -127,7 +133,7 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
         select: { content: true, category: true, createdAt: true },
       }),
       prisma.commitment.findMany({
-        where: { status: "active", deadline: { lt: todayStr }, deletedAt: null },
+        where: { status: "active", deadline: { lt: todayStr, gte: overdueFloorStr }, deletedAt: null },
         orderBy: { deadline: "asc" },
         take: 3,
         select: { id: true, description: true, deadline: true, toWhom: true },
@@ -450,7 +456,11 @@ export async function buildPersonalPulse(): Promise<PulsePayload> {
             kind: "mind",
             glyph: "◆",
             label: "MIND",
-            text: `brain maturity ${avg}/100${shifting ? ` · ${shifting.direction === "rising" ? "↑" : "↓"}` : ""}`,
+            // v-truth · this is the identity-AXES average, NOT the canonical
+            // 8-component brain-maturity rollup (brain-domain.buildBrainMaturity).
+            // Relabel so it stops impersonating the /brain maturity score
+            // (they diverge → looked like a fake number).
+            text: `self-model ${avg}/100${shifting ? ` · ${shifting.direction === "rising" ? "↑" : "↓"}` : ""}`,
             tone,
             href: "/brain",
           });

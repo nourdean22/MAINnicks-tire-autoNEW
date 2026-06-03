@@ -50,8 +50,16 @@ export interface NextMove {
 export async function buildNextMove(): Promise<NextMove> {
   // 1 · Find the weakest domain · sort mastery scores ascending,
   //     pick the latest row per domain.
+  // v-truth · 14-day floor. masteryScore rows are only written when a task in
+  // that domain is completed, so a domain that last scored weeks ago (e.g.
+  // "financial 2/100") would surface that FOSSIL value stamped "biggest
+  // leverage today". Only consider recently-moved domains so "today" is honest.
+  const masteryFloorStr = new Date(Date.now() - 14 * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
   const latestScores = await prisma.masteryScore
     .findMany({
+      where: { date: { gte: masteryFloorStr } },
       orderBy: { date: "desc" },
       take: 100,
       select: { domain: true, score: true, delta: true, date: true },

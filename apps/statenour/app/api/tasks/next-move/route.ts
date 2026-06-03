@@ -52,8 +52,14 @@ export const GET = apiHandler(
   async () => {
     // 1 · Find the weakest domain · sort mastery scores ascending,
     //     pick the latest row per domain.
+    // v-truth · 14-day floor (mirror of lib/services/next-move.ts) — don't
+    // surface a fossil mastery score ("financial 2/100") stamped "today".
+    const masteryFloorStr = new Date(Date.now() - 14 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
     const latestScores = await prisma.masteryScore
       .findMany({
+        where: { date: { gte: masteryFloorStr } },
         orderBy: { date: "desc" },
         take: 100,
         select: { domain: true, score: true, delta: true, date: true },

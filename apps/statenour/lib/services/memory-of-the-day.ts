@@ -22,7 +22,10 @@ const SURFACE_CATEGORIES = [
   "strategic_plan",
   "qualitative_identity",
   "decision_pattern",
-  "nick_advice",
+  // nick_advice REMOVED (v-truth) — it leaked stale DATED advice ("Nick
+  // advice (2026-04-29): 5 jobs / $2,381.94") into the BRAIN ticker chip
+  // weeks later. operator-pulse + wisdom-suggest already reject it;
+  // memory-of-the-day was the one lane that didn't.
   "counter_intuitive",
   "meta_pattern",
 ];
@@ -102,6 +105,10 @@ export async function getMemoryOfTheDay() {
       FROM brain_memories
       WHERE deleted_at IS NULL
         AND confidence >= 0.5
+        -- v-truth · hard recency floor: never surface a "memory of the day"
+        -- older than 30 days as if it's current (the prior last_seen weight
+        -- bonus was just a tiebreaker, not a filter).
+        AND created_at >= NOW() - INTERVAL '30 days'
         AND category = ANY($1::text[])
       ORDER BY (
           confidence
