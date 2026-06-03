@@ -26,6 +26,7 @@ import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { StandardPage } from "@/components/layout/standard-page";
 
 // Phase XX (2026-05-19 AM) · authedFetch replaced with trpc · 2 sites
 // (timeline read + check-in mutation) on the operator router.
@@ -179,18 +180,12 @@ export default function BodyPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header with causation context */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">
-            Body
-          </h1>
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-            Body = business performance. When workouts stop, revenue follows within 5 days.
-          </p>
-        </div>
-        {progress && (
+    <StandardPage
+      eyebrow="Mastery"
+      title="Body"
+      description="Body = business performance. When workouts stop, revenue follows within 5 days."
+      actions={
+        progress && (
           <div className="text-right flex flex-col items-end gap-1">
             <span className="font-mono text-2xl font-bold text-[var(--text-primary)]">
               <AnimatedCounter value={progress.current} decimals={1} locale={false} />
@@ -205,9 +200,10 @@ export default function BodyPage() {
               onReload={load}
             />
           </div>
-        )}
-      </div>
-
+        )
+      }
+    >
+      <div className="flex flex-col gap-6">
       <PageNick page="body" />
 
       {/* Progress Summary */}
@@ -466,6 +462,7 @@ export default function BodyPage() {
           </p>
         </div>
       )}
-    </div>
+      </div>
+    </StandardPage>
   );
 }

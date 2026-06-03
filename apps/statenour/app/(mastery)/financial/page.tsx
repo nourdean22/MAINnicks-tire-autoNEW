@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { TrendingUp, TrendingDown, DollarSign, Target, BarChart3, Pencil, Check, X } from "lucide-react";
 import { PageNick } from "@/components/ai/page-nick";
 import { LocationRankingCard } from "@/components/financial/location-ranking-card";
+import { StandardPage } from "@/components/layout/standard-page";
 // misc-pages slice (2026-05-22) · the two polled reads moved off
 // authedFetch onto trpc.operator.financialSnapshot +
 // operator.revenueStats · React Query's refetchInterval replaces the
@@ -179,28 +180,28 @@ export default function FinancialPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-start justify-between">
-        <div>
-          <h1 className="text-lg font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">Money</h1>
-          <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-            {monthTotal > 0 ? (
-              <>
-                ${Math.round(monthTotal).toLocaleString()} this month ·{" "}
-                <span className={pctToTarget >= 80 ? "text-green-400" : pctToTarget >= 50 ? "text-amber-400" : "text-red-400"}>
-                  {pctToTarget.toFixed(0)}% to target
-                </span>
-                {" · "}${paceNeeded > 0 ? `need $${paceNeeded}/day` : "on pace"}
-              </>
-            ) : revenueQuery.isLoading ? (
-              "Loading revenue data..."
-            ) : revenueQuery.isError ? (
-              "Revenue feed unavailable — shop bridge not responding"
-            ) : (
-              "$0 this month so far — check the shop bridge if unexpected"
-            )}
-          </p>
-        </div>
+    <StandardPage
+      eyebrow="Mastery"
+      title="Money"
+      rhythm="loose"
+      description={
+        monthTotal > 0 ? (
+          <>
+            ${Math.round(monthTotal).toLocaleString()} this month ·{" "}
+            <span className={pctToTarget >= 80 ? "text-green-400" : pctToTarget >= 50 ? "text-amber-400" : "text-red-400"}>
+              {pctToTarget.toFixed(0)}% to target
+            </span>
+            {" · "}${paceNeeded > 0 ? `need $${paceNeeded}/day` : "on pace"}
+          </>
+        ) : revenueQuery.isLoading ? (
+          "Loading revenue data..."
+        ) : revenueQuery.isError ? (
+          "Revenue feed unavailable — shop bridge not responding"
+        ) : (
+          "$0 this month so far — check the shop bridge if unexpected"
+        )
+      }
+      actions={
         <div className="text-right flex flex-col items-end gap-1">
           <span className={`text-sm font-[var(--font-display)] font-bold ${pctToTarget >= 80 ? "neon-green" : pctToTarget >= 50 ? "text-[var(--gold)]" : "neon-red"}`}>
             {pctToTarget >= 80 ? "ON PACE" : pctToTarget >= 50 ? "BEHIND" : "CRITICAL"}
@@ -211,8 +212,8 @@ export default function FinancialPage() {
             onReload={reloadAll}
           />
         </div>
-      </header>
-
+      }
+    >
       <PageNick page="financial" />
 
       {/* ═══ REVENUE FORECAST CHART ═══ */}
@@ -384,7 +385,7 @@ export default function FinancialPage() {
       ) : (
         <p className="text-sm text-[var(--text-tertiary)]">No personal finance data recorded yet.</p>
       )}
-    </div>
+    </StandardPage>
   );
 }
 

@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useMemo, useState } from "react";
+import { StandardPage } from "@/components/layout/standard-page";
 
 type PaymentBehavior = "any" | "prompt" | "typical" | "slow";
 type LtvTier = "any" | "low" | "mid" | "high";
@@ -98,21 +99,20 @@ export default function OutreachPage() {
   ]);
 
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-2xl mx-auto px-6 py-10">
-        <p className="text-xs uppercase tracking-[0.18em] text-white/40 mb-1">
-          Outreach
-        </p>
-        <h1 className="text-2xl font-medium">Bulk SMS campaign</h1>
-        <p className="text-sm text-white/50 mt-2">
+    <StandardPage
+      eyebrow="Outreach"
+      title="Bulk SMS campaign"
+      description={
+        <>
           Propose → Telegram approval → Inngest dispatch.
           <br />
           <span className="text-white/30">
             The dispatch step is a TEMPLATE until the nickstire-side bulk-SMS
             endpoint is wired · proposing is safe today.
           </span>
-        </p>
-
+        </>
+      }
+    >
         {/* Segment */}
         <section className="mt-8 space-y-4">
           <h2 className="text-[10px] uppercase tracking-[0.22em] text-white/40">
@@ -224,8 +224,7 @@ export default function OutreachPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           dispatch · TEMPLATE · no real SMS yet
         </p>
-      </div>
-    </main>
+    </StandardPage>
   );
 }
 

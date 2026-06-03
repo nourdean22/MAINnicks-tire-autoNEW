@@ -35,6 +35,7 @@
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BridgeShell } from "@/components/mastery/bridge-shell";
+import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface GscSummary {
@@ -128,19 +129,19 @@ export default function SeoPage() {
   const pos = summary.avgPosition.toFixed(1);
 
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <header>
-          <h1 className="text-2xl font-medium tracking-tight">SEO</h1>
-          <p className="mt-2 text-sm text-white/50">
-            Search performance · {summary.from} → {summary.to} ·{" "}
-            <span className="text-emerald-300 font-mono">{summary.totalClicks.toLocaleString()}</span>{" "}
-            clicks ·{" "}
-            <span className="font-mono text-white/70">{summary.totalImpressions.toLocaleString()}</span>{" "}
-            impressions.
-          </p>
-        </header>
-
+    <StandardPage
+      eyebrow="NOUR OS · Intelligence"
+      title="SEO"
+      description={
+        <>
+          Search performance · {summary.from} → {summary.to} ·{" "}
+          <span className="text-emerald-300 font-mono">{summary.totalClicks.toLocaleString()}</span>{" "}
+          clicks ·{" "}
+          <span className="font-mono text-white/70">{summary.totalImpressions.toLocaleString()}</span>{" "}
+          impressions.
+        </>
+      }
+    >
         {/* KPI grid · 2×2 on mobile, 4-up on desktop */}
         <section className="mt-8">
           <MasterySectionLabel label="Performance" count={4} />
@@ -211,8 +212,7 @@ export default function SeoPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           via nickstire bridge · v11.7 · GSC nightly pipeline · refreshes every 15 min
         </p>
-      </div>
-    </main>
+    </StandardPage>
   );
 }
 

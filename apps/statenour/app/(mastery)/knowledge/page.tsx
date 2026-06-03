@@ -21,6 +21,7 @@ import { Search, ArrowLeft, FileText, FolderOpen, Sparkles } from "lucide-react"
 import { PageNick } from "@/components/ai/page-nick";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { StandardPage } from "@/components/layout/standard-page";
 
 // Phase ZZ (2026-05-19 AM) · authedFetch reads migrated to trpc · 3
 // sites (list · open · search).
@@ -203,9 +204,11 @@ export default function KnowledgePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="flex items-center justify-between">
-        <h1 className="text-lg font-[var(--font-display)] font-bold uppercase tracking-wider text-[var(--text-primary)]">Knowledge</h1>
+    <StandardPage
+      eyebrow="Mastery"
+      title="Knowledge"
+      rhythm="loose"
+      actions={
         <div className="flex items-center gap-2">
           <FreshnessChip
             lastFetchedAt={fetchedAt}
@@ -214,8 +217,8 @@ export default function KnowledgePage() {
           />
           <Badge variant="outline" className="font-mono"><AnimatedCounter value={files.length} /> files</Badge>
         </div>
-      </header>
-
+      }
+    >
       <PageNick page="knowledge" />
 
       {/* Knowledge corpus refresh · migrated from /pins in v10.0.485
@@ -324,7 +327,7 @@ export default function KnowledgePage() {
           </div>
         </section>
       )}
-    </div>
+    </StandardPage>
   );
 }
 

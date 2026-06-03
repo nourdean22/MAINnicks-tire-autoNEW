@@ -24,6 +24,7 @@
 
 import Link from "next/link";
 import { Target, BookOpen, Activity, DollarSign, Library } from "lucide-react";
+import { StandardPage } from "@/components/layout/standard-page";
 
 interface HubItem {
   href: string;
@@ -67,16 +68,11 @@ const ITEMS: HubItem[] = [
 
 export default function LifePage() {
   return (
-    <div className="max-w-3xl mx-auto px-3 py-6 space-y-6">
-      <header>
-        <h1 className="text-lg font-[var(--font-display)] font-bold lowercase tracking-wider text-[var(--text-primary)]">
-          life
-        </h1>
-        <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-          five surfaces · pick where to land
-        </p>
-      </header>
-
+    <StandardPage
+      eyebrow="Mastery"
+      title="life"
+      description="five surfaces · pick where to land"
+    >
       <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" aria-label="Life surfaces">
         {ITEMS.map((item) => {
           const Icon = item.icon;
@@ -109,6 +105,6 @@ export default function LifePage() {
         each card links to its full dashboard · the hub stays a router · the
         dashboards keep their depth
       </p>
-    </div>
+    </StandardPage>
   );
 }

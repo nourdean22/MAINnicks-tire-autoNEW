@@ -77,8 +77,9 @@ interface StandardPageProps {
   eyebrow: string;
   /** Display-typography title. Goes through Barlow Condensed via PageHeader's h1. */
   title: string;
-  /** One-line description. */
-  description?: string;
+  /** One-line description. ReactNode (v-truth) so adopters can carry
+   *  inline live-metric JSX in the subtitle (clicks/rates/pace). */
+  description?: ReactNode;
   /**
    * Optional inline pulse-strip slot · render `<TodayPulseStrip />` or
    * a similar intel-summary component here. Sits above main content,

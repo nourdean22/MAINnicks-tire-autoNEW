@@ -11,8 +11,9 @@
  */
 
 import { getCategories, totalTutorials, type Tutorial } from "@/lib/learn/build-your-own-x";
-import { Search, ExternalLink, Video, BookOpen } from "lucide-react";
+import { Search, ExternalLink, Video } from "lucide-react";
 import Link from "next/link";
+import { StandardPage } from "@/components/layout/standard-page";
 // TRACK consolidation (2026-05-21) · live AI learning engine (teach /
 // research · spaced-repetition review · decision-linked prompts) ·
 // rehomed here from the deleted /tasks TRACK tab. The static catalog is
@@ -105,34 +106,28 @@ async function LearnPageInner({
   const hasFilter = !!q || !!lang;
 
   return (
-    <div className="max-w-5xl mx-auto px-3 md:px-6 py-4">
-      {/* Header */}
-      <div className="mb-6">
-        <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)] mb-1">
-          knowledge
-        </p>
-        <h1 className="text-[24px] font-[var(--font-display)] font-bold text-[var(--text-primary)] flex items-center gap-2">
-          <BookOpen size={20} className="text-[var(--gold)]" />
-          Build Your Own X
-        </h1>
-        <p className="text-[13px] text-[var(--text-secondary)] mt-1.5 max-w-2xl">
-          curated tutorials for re-building canonical technologies from scratch.
-        </p>
-        {/* v10.0.529.55 · Feynman quote cut · audit Wave 9 flagged AI-slop
-            (every learning page ships this exact quote · adds nothing the
-            title doesn't say · breaks the spare aesthetic). */}
-        <p className="text-[11px] font-mono text-[var(--text-tertiary)] mt-2">
-          {total} tutorials · {cats.length} categories ·{" "}
-          <a
-            href="https://github.com/codecrafters-io/build-your-own-x"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[var(--gold)] hover:underline"
-          >
-            source
-          </a>
-        </p>
-      </div>
+    <StandardPage
+      eyebrow="knowledge"
+      title="Build Your Own X"
+      description="curated tutorials for re-building canonical technologies from scratch."
+      width="xl"
+    >
+      {/* v10.0.529.55 · Feynman quote cut · audit Wave 9 flagged AI-slop
+          (every learning page ships this exact quote · adds nothing the
+          title doesn't say · breaks the spare aesthetic). Stats line moved
+          out of the hand-rolled header into the body top when this surface
+          adopted the canonical StandardPage shell. */}
+      <p className="text-[11px] font-mono text-[var(--text-tertiary)]">
+        {total} tutorials · {cats.length} categories ·{" "}
+        <a
+          href="https://github.com/codecrafters-io/build-your-own-x"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[var(--gold)] hover:underline"
+        >
+          source
+        </a>
+      </p>
 
       {/* Filter form (GET, server-rendered, no client JS) */}
       <form
@@ -291,7 +286,7 @@ async function LearnPageInner({
       <div className="mt-10 pt-8 border-t border-[var(--border-default)]">
         <KommandoLearn />
       </div>
-    </div>
+    </StandardPage>
   );
 }
 

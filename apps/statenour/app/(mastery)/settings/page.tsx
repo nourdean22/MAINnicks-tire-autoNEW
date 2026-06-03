@@ -44,6 +44,7 @@ import { HQErrorsCard } from "@/components/ultron/hq-errors-card";
 import { SystemHealthCard } from "@/components/ultron/system-health-card";
 import { CommandSpinePulse } from "@/components/ultron/command-spine-pulse";
 import { DeployChip } from "@/components/ultron/deploy-chip";
+import { StandardPage } from "@/components/layout/standard-page";
 import { useSystemPulse } from "@/lib/hooks/use-system-pulse";
 
 /** Obsidian+gold group divider — labels an IA cluster of panels. */
@@ -62,16 +63,12 @@ export default function SettingsPage() {
   const pulse = useSystemPulse();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-lg font-[var(--font-display)] font-bold lowercase tracking-wider text-[var(--text-primary)]">
-          settings
-        </h1>
-        <p className="text-[11px] text-[var(--text-tertiary)] mt-0.5">
-          system ops · automation · ai · scoring · preferences
-        </p>
-      </div>
-
+    <StandardPage
+      eyebrow="Mastery"
+      title="settings"
+      description="system ops · automation · ai · scoring · preferences"
+      rhythm="loose"
+    >
       {/* ═══ SYSTEM OPS — live counts linking to every /system/* surface ═══ */}
       <SystemOpsHub pulse={pulse} />
 
@@ -151,6 +148,6 @@ export default function SettingsPage() {
       </GlassCard>
 
       <SystemInfoCard />
-    </div>
+    </StandardPage>
   );
 }
