@@ -19,13 +19,13 @@ const PAGES = [
   { path: "/system/costs", title: /AI Costs|Costs/i },
   { path: "/system/prompt", title: /System Prompt|Diagnostics/i },
   { path: "/intel", title: /Intel|Marketing/i },
-  { path: "/content/history", title: /Content History/i },
+  { path: "/content?tab=history", title: /Content/i },
   { path: "/pins", title: /Pinned Memory|Pins/i },
   { path: "/plan", title: /Day Planner|Plan/i },
-  { path: "/social", title: /Publish|Schedule/i },
+  { path: "/content?tab=publish", title: /Content/i },
   { path: "/photo-improver", title: /Photo Improver/i },
   // v10.0.378 · added new surfaces shipped in this sprint
-  { path: "/brain/wisdom", title: /Wisdom/i },
+  { path: "/brain?tab=wisdom", title: /Brain/i },
   { path: "/system/performance", title: /Observability|Trace/i },
   { path: "/system/health", title: /Health|Grid/i },
 ];
