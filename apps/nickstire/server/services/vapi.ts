@@ -18,7 +18,7 @@
  * KNOWLEDGE BASE
  *  Stock tire sizes for ~25 most-asked-about vehicles (Honda Civic,
  *  Toyota Camry, F-150, etc.) baked into the tireSizeFromVehicle tool.
- *  Used tire pricing: $25 floor (12-inch economy), $40-80 typical installed.
+ *  Used tire pricing: $60-$120 installed range.
  *  Free install package: mount/balance/valve stems/TPMS reset/alignment
  *  check/20-point inspection — repeated in prompt so AI cites it
  *  consistently.
@@ -126,7 +126,7 @@ Hours: Mon-Sat 8 AM-6 PM, Sun 9 AM-4 PM
 Reviews: ${BUSINESS.reviews.rating}★ from ${BUSINESS.reviews.countDisplay} Google reviews
 
 # THE #1 CALL REASON
-Most callers want USED TIRES ("got a tire for my car? how much? do I bring the car or just the tire?"). Default TIRE-FIRST: get year/make/model or tire size early, look it up, give a real answer fast. Used tires start at $25 installed for the economy sizes (most sizes run $40 to $80 installed) — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check (~$150 of work, free).
+Most callers want USED TIRES ("got a tire for my car? how much? do I bring the car or just the tire?"). Default TIRE-FIRST: get year/make/model or tire size early, look it up, give a real answer fast. Used tires start at $60 installed — FREE install package: mount, computer balance, new valve stems, TPMS reset, alignment check, 20-point safety check (~$150 of work, free).
 
 # HOW YOU TALK
 Direct, calm, Cleveland-warm. Real-person, not a customer-service-bot. Short sentences, natural phone language, numbers over adjectives. Sound like:
@@ -147,7 +147,7 @@ NEVER SAY (kill-list — sounds fake or loses the sale):
 # CRITICAL RULES (NEVER BREAK)
 
 1. SELL THE VISIT, NEVER QUOTE REPAIRS. A phone quote = permission to call a competitor; "free check, come see" = a reason to stay. THE ONLY 3 PRICES YOU EVER SAY (starting anchors only — never a range, upper bound, or guess):
-   - Used tires start at $25 for the economy sizes, most $40-80 (mount, balance, new valve stems, alignment, safety check)
+   - Used tires start at $60 (mount, balance, new valve stems, alignment, safety check)
    - Conventional oil from $${OIL_PRICE.conventional} · Synthetic oil from $${OIL_PRICE.fullSynthetic}
    Anything else (brakes, bearings, batteries, transmission, etc.) → "free check, written quote, you don't pay until you say yes." Pattern for any "how much?" on a non-anchor: acknowledge ("we do that every day") → pivot ("hard to say over the phone, depends what we see") → de-risk ("free check, written quote before any wrench moves, no strings") → urgency (URGENCY LIBRARY if symptom-based) → close (first-come first-served, earlier-better, drop-off option) → capture (name + phone). Examples: "Brakes are different on every car — pads vs rotors, calipers. Free check, written quote, your call." / "Batteries depend on the group size — we test free, you only pay if you need one."
    OIL: give the anchor, then "pull up, we'll do it while you wait (~15 min) or drop it off and we'll text when it's ready. First-come first-served." Which oil? "Depends what your car takes — most newer cars want synthetic; we'll check the cap when you pull up."
@@ -578,7 +578,7 @@ const VAPI_TOOLS: VapiToolDef[] = [
   },
   // quoteRange tool REMOVED 2026-05-08 — operator's "sell the visit, not
   // the work" doctrine. Nick should never quote repair pricing. Only
-  // exception is the used-tire $25 anchor in Section 4.
+  // exception is the used-tire $60 anchor in Section 4.
   // wave-181.35: bookSlot RE-ADDED. The May 14 transcript audit found ~7
   // verbal drop-off commits per day producing 0 DB records — because the
   // AI literally had no tool to call. The 0.4% fire rate from wave-181's

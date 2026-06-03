@@ -27,7 +27,7 @@ const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) 
     `Due for an oil change or a once-over? $49 conventional, $80 synthetic — walk in any day, no appointment. Nick's Tire & Auto, (216) 862-0005`,
 
   seasonal: (_firstName: string) =>
-    `Winter's on the way — get your tires checked before the snow. Used tires from $25 installed (most sizes $40-80), walk in any day. Nick's Tire & Auto, (216) 862-0005`,
+    `Winter's on the way — get your tires checked before the snow. Used tires from $60 installed, walk in any day. Nick's Tire & Auto, (216) 862-0005`,
 
   special_offer: (_firstName: string, offer?: string) =>
     `${offer || "10% off your next visit"} at Nick's Tire & Auto — walk in any day, first-come, first-served. (216) 862-0005`,

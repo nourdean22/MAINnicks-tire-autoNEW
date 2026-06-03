@@ -45,7 +45,7 @@ const STATIC_ESTIMATES: Record<string, { issues: PossibleIssue[] }> = {
   },
   tire: {
     issues: [
-      { issue: "Tire Replacement", likelihood: "likely", estimatedCostRange: { low: 60, high: 200 }, estimatedTime: "30-60 min", explanation: "Used tires from $25 (most sizes $40-80), new from $89+. Includes mounting, balancing, and TPMS reset." },
+      { issue: "Tire Replacement", likelihood: "likely", estimatedCostRange: { low: 60, high: 200 }, estimatedTime: "30-60 min", explanation: "Used tires from $60, new from $89+. Includes mounting, balancing, and TPMS reset." },
       { issue: "Flat Tire Repair", likelihood: "possible", estimatedCostRange: { low: 15, high: 25 }, estimatedTime: "15 min", explanation: "If the tire can be safely patched, repair is $15-25. We'll never sell you a new tire if repair is possible." },
     ],
   },
