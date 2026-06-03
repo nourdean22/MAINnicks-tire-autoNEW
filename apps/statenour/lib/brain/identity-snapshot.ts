@@ -737,7 +737,20 @@ export async function setManualOverride(axis: AxisKey, value: number | null): Pr
 export async function buildIdentityContextBlock(): Promise<string> {
   const snap = await loadIdentitySnapshot().catch(() => null);
   if (!snap) return "";
-  const lines: string[] = ["## Nour's identity snapshot (rolling self-model)"];
+  // v-truth · freshness honesty. The snapshot only refreshes when its cron
+  // runs; if that stalls, stale axis values get asserted as the CURRENT
+  // self-model on every turn. Tag the age so Nick hedges instead of stating
+  // a fossil ("2/100 ↓") as today's truth.
+  const ageDays = snap.computed_at
+    ? Math.floor((Date.now() - new Date(snap.computed_at).getTime()) / 86_400_000)
+    : null;
+  const staleNote =
+    ageDays != null && ageDays > 7
+      ? ` (snapshot ${ageDays}d stale — may not reflect current state)`
+      : "";
+  const lines: string[] = [
+    `## Nour's identity snapshot (rolling self-model)${staleNote}`,
+  ];
   for (const key of Object.keys(snap.axes) as AxisKey[]) {
     const a = snap.axes[key];
     const val = a.manual ?? a.value;

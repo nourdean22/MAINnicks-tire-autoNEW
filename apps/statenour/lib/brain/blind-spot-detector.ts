@@ -139,9 +139,11 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
       take: 50,
     }).catch((): never[] => []),
 
-    // Unresolved drift alerts
+    // Unresolved drift alerts — v-truth · only RECENT ones. Without the
+    // createdAt floor, months-old never-resolved alerts inflated the count
+    // into a false "the system is screaming". 14d mirrors stale-data-scanner.
     prisma.driftAlert.findMany({
-      where: { resolved: false },
+      where: { resolved: false, createdAt: { gte: fourteenDaysAgo } },
       select: { ruleName: true, severity: true, message: true, createdAt: true },
     }).catch((): never[] => []),
 
@@ -185,6 +187,10 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
   // ── Stale open loops ──
   for (const loop of staleLoops) {
     const daysStale = Math.floor((Date.now() - loop.updatedAt.getTime()) / 86400000);
+    // v-truth · age ceiling (mirror of the commitment fix above). A task
+    // untouched for 90+ days is abandoned-in-practice; it gets cleaned up in
+    // /tasks, not nagged about as a daily blind-spot chip.
+    if (daysStale > 90) continue;
     blindSpots.push({
       domain: loop.domain,
       description: `Open loop untouched: "${loop.title}"`,

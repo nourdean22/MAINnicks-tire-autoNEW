@@ -97,6 +97,12 @@ function extractEntities(text: string): string[] {
     "Status", "Booked", "Invoice", "Invoices", "Estimate", "Estimates",
     "Lead", "Leads", "Job", "Jobs", "Board", "Avg", "Ticket", "Slow",
     "Week", "Quarter", "Day", "Daily", "Morning", "Evening", "Night",
+    // v-truth · identity-AXIS + drift/strategy sentence-heads. "Velocity is
+    // falling" must not become "Why is Velocity drifting?" — axes are not
+    // draggable entities (same failure mode as "lead score for Shop").
+    "Velocity", "Patience", "Discipline", "Risk", "Reflection", "Drift",
+    "Identity", "Momentum", "Plan", "Vision", "Goal", "Goals", "Mission",
+    "Direction", "Focus", "Energy", "Mind", "Brain", "Maturity",
   ]);
   const out: string[] = [];
   let m: RegExpExecArray | null;
