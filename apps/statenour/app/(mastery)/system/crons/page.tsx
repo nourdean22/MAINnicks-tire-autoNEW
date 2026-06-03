@@ -26,7 +26,6 @@
  */
 
 import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -35,7 +34,6 @@ import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
-import { Stethoscope } from "lucide-react";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
 // authedFetch read is `trpc.system.cronDeck.useQuery`; the kill-switch
@@ -343,17 +341,6 @@ export default function CronsPage() {
       rhythm="loose"
       actions={
         <div className="flex items-center gap-2">
-          {/* v10.0.80 · cross-link to sister cron pages
-              v10.0.305 · runs link removed · /cron-runs index deleted ·
-              this page (the control deck) absorbs that role */}
-          <Link
-            href="/system/cron-diagnostics"
-            className="hidden md:flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100"
-            title="Why are my crons silent? — prioritized diagnoses"
-          >
-            <Stethoscope className="h-3.5 w-3.5" />
-            <span>diagnose →</span>
-          </Link>
           <FreshnessChip
             lastFetchedAt={feed?.generatedAt}
             source="config + db · CronJobLog"

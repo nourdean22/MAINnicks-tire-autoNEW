@@ -19,7 +19,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { PageHeader } from "@/components/layout/ui";
 import { Panel } from "@/components/panel";
 import { SortDropdown } from "@/components/ui/sort-dropdown";
@@ -354,13 +353,6 @@ export default function AlertsInspectorPage() {
                     </span>
                     <span className="opacity-60">·</span>
                     <span className="opacity-80">{relTime(alert.createdAt)}</span>
-                    <span className="opacity-60">·</span>
-                    <Link
-                      href={`/system/history?type=brainMemory&id=${encodeURIComponent(alert.id)}`}
-                      className="underline underline-offset-2 hover:opacity-100 opacity-80"
-                    >
-                      audit trail →
-                    </Link>
                   </div>
                   <p className="text-[12px] leading-snug">{alert.content}</p>
                 </li>

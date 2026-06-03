@@ -27,7 +27,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Sparkline } from "@/components/ui/sparkline";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Grid3x3, Sparkles, Brain } from "lucide-react";
+import { ChevronLeft, Grid3x3, Sparkles } from "lucide-react";
 
 type Mood = "energized" | "neutral" | "depleted" | "scattered";
 
@@ -214,12 +214,6 @@ export default function CalibrationPage() {
                 <span>Return here · cells light up by mood × kind hit rate</span>
               </li>
             </ol>
-            <Link
-              href="/system/operator-state"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border-default)] bg-[var(--bg-base)] px-3 py-1.5 text-[11px] text-[var(--text-secondary)] transition hover:border-[var(--gold)]/40 hover:text-[var(--gold)]"
-            >
-              <Brain size={11} aria-hidden /> see live operator-state
-            </Link>
           </div>
         ) : null}
 
