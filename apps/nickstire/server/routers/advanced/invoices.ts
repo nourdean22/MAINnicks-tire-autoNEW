@@ -322,24 +322,44 @@ export const invoicesRouter = router({
         periodComparison: { current: 0, previous: 0, change: 0 },
       };
       const days = input?.days ?? 30;
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
-      const prevCutoff = new Date();
-      prevCutoff.setDate(prevCutoff.getDate() - days * 2);
-
+      // wave-181.x Money · R2 fix · was JS `cutoff.setDate(-days)` — a
+      // rolling, tz-naive boundary anchored at the current time-of-day.
+      // `intelligence` uses `DATE_SUB(CURDATE(), INTERVAL n DAY)` (server-
+      // local MIDNIGHT), so the two windows captured different invoice
+      // sets and reported two different "Total Revenue" for the same 30d.
+      // Adopt the SAME midnight boundary here so both totals reconcile.
+      // Current window = [CURDATE()-days, now]; previous = [CURDATE()-2d,
+      // CURDATE()-days) — half-open so the midnight boundary isn't double-
+      // counted. `days` is zod int-bounded (1..3650), safe to interpolate.
       const currentInvoices = await d.select().from(invoices)
-        .where(and(gte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
+        .where(and(
+          sql`${invoices.invoiceDate} >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)`,
+          eq(invoices.paymentStatus, "paid"),
+        ));
       const prevInvoices = await d.select().from(invoices)
-        .where(and(gte(invoices.invoiceDate, prevCutoff), lte(invoices.invoiceDate, cutoff), eq(invoices.paymentStatus, "paid")));
+        .where(and(
+          sql`${invoices.invoiceDate} >= DATE_SUB(CURDATE(), INTERVAL ${days * 2} DAY)`,
+          sql`${invoices.invoiceDate} < DATE_SUB(CURDATE(), INTERVAL ${days} DAY)`,
+          eq(invoices.paymentStatus, "paid"),
+        ));
 
       type Inv = typeof currentInvoices[number];
       const totalRevenue = Math.round(currentInvoices.reduce((sum: number, inv: Inv) => sum + inv.totalAmount, 0) / 100);
       const prevRevenue = Math.round(prevInvoices.reduce((sum: number, inv: Inv) => sum + inv.totalAmount, 0) / 100);
 
-      // Revenue by day
+      // Revenue by day · R2 fix · was `toISOString().split` which buckets
+      // by UTC calendar day · that disagreed with the server-local window
+      // boundary (and with intelligence's `DATE(invoiceDate)`), so late-
+      // evening invoices fell into the wrong day. Bucket by LOCAL Y-M-D.
+      const localDayKey = (date: Date): string => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, "0");
+        const dd = String(date.getDate()).padStart(2, "0");
+        return `${y}-${m}-${dd}`;
+      };
       const byDay: Record<string, number> = {};
       currentInvoices.forEach((inv: Inv) => {
-        const day = new Date(inv.invoiceDate).toISOString().split("T")[0];
+        const day = localDayKey(new Date(inv.invoiceDate));
         byDay[day] = (byDay[day] || 0) + Math.round(inv.totalAmount / 100);
       });
 

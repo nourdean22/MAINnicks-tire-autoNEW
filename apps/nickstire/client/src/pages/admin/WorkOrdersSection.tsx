@@ -513,15 +513,30 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
 // ─── Stats Bar ──────────────────────────────────────────
 function StatsBar() {
-  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 15000 });
-  if (!stats) return null;
+  const { data: stats, isLoading, isError, refetch } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 15000 });
+
+  // wave-admin-audit W4 — was `if (!stats) return null`, so a stats-pipeline
+  // error silently vanished the whole bar (operator can't tell "0 blocked"
+  // from "stats failed to load"). Distinguish: loading stays quiet (the
+  // board's own spinner covers the page), error shows a terse inline marker
+  // with retry instead of disappearing.
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-red-400/70">
+        <AlertTriangle className="w-3.5 h-3.5" />
+        <span>Stats unavailable</span>
+        <button onClick={() => refetch()} className="text-primary hover:underline">Retry</button>
+      </div>
+    );
+  }
+  if (isLoading || !stats) return null;
 
   return (
     <div className="flex items-center gap-4 flex-wrap">
       <StatPill label="Active" value={stats.active} color="text-blue-400" />
       <StatPill label="In Progress" value={stats.inProgress} color="text-primary" />
-      <StatPill label="Blocked" value={stats.blocked} color="text-red-400" alert={stats.blocked > 0} />
-      <StatPill label="Overdue" value={stats.overdue} color="text-red-400" alert={stats.overdue > 0} />
+      <StatPill label="Blocked" value={stats.blocked} color="text-red-400" />
+      <StatPill label="Overdue" value={stats.overdue} color="text-red-400" />
       <StatPill label="Pickup Queue" value={stats.readyForPickup} color="text-emerald-400" />
       <div className="ml-auto text-xs text-foreground/40">
         ${stats.totalValueInProgress.toLocaleString()} in shop
@@ -530,9 +545,13 @@ function StatsBar() {
   );
 }
 
-function StatPill({ label, value, color, alert }: { label: string; value: number; color: string; alert?: boolean }) {
+// wave-admin-audit W1 — dropped the `alert` animate-pulse. Blocked +
+// Overdue both pulsed red simultaneously; two competing pulses are
+// AI-slop noise the operator desensitizes to (the Leads banner removed
+// this same anti-pattern). The red color alone already signals urgency.
+function StatPill({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <div className={`flex items-center gap-1.5 ${alert ? "animate-pulse" : ""}`}>
+    <div className="flex items-center gap-1.5">
       <span className="text-[11px] text-foreground/50 tracking-tight">{label}</span>
       <span className={`text-[14px] font-semibold tabular-nums ${color}`}>{value}</span>
     </div>

@@ -163,6 +163,22 @@ export default function DeclinedEstimatesSection() {
     return filtered; // date order from backend
   }, [rawEstimates, sortMode, minAmount]);
 
+  // wave-admin-audit D2 — the "🔥 SCORE" hot badge fired on ~85% of rows
+  // because the absolute >=150 cut sat below the live 130-225 score band,
+  // so almost everything lit up (no signal). Relative top-quartile cut
+  // instead: only the highest-scoring 25% of the *visible* rows get the
+  // flame. Self-adjusts as the distribution drifts (no magic constant to
+  // re-tune). Only meaningful when sorted by score; 0 rows → no threshold.
+  const hotScoreThreshold = useMemo(() => {
+    if (sortMode !== "score" || estimates.length === 0) return Infinity;
+    const scores = estimates
+      .map((e: DeclinedEstimate) => recoveryScore(e))
+      .sort((a: number, b: number) => b - a);
+    // 75th percentile — index into the descending-sorted scores.
+    const idx = Math.floor(scores.length * 0.25);
+    return scores[Math.min(idx, scores.length - 1)];
+  }, [estimates, sortMode]);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -441,7 +457,7 @@ export default function DeclinedEstimatesSection() {
             const isUrgent = daysOld <= 7;
             const isStale = daysOld >= 21;
             const score = Math.round(recoveryScore(est));
-            const isHotPriority = sortMode === "score" && score >= 150;
+            const isHotPriority = sortMode === "score" && recoveryScore(est) >= hotScoreThreshold;
             const isSelected = selectedIds.has(est.id);
 
             return (

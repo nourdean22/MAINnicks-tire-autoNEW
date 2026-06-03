@@ -104,26 +104,16 @@ function KanbanLeadCard({ lead, onUpdate }: {
   const [showMenu, setShowMenu] = useState(false);
   const currentStatusIdx = KANBAN_COLUMNS.findIndex(c => c.status === lead.status);
   const availableTransitions = KANBAN_COLUMNS.filter((_, i) => i !== currentStatusIdx);
-  // wave-187 — clamp display to 1-5. Legacy leads stored out-of-range
-  // urgencyScores (e.g. 36, 27) that rendered as "36/5" in this Kanban badge.
-  // Display-only; stored data untouched. Mirrors shared/cards.tsx UrgencyBadge.
-  const urgency = Math.min(5, Math.max(1, lead.urgencyScore ?? 3));
 
   return (
     <div className="bg-background border border-border/50 p-3 text-[12px] hover:border-primary/50 transition-colors">
       <div className="space-y-2">
-        {/* Name and Urgency */}
+        {/* Name and Urgency — wave-187+ · shared UrgencyBadge (clamps 1-5,
+            matches list view; replaced the bespoke inline badge that
+            rendered raw out-of-range scores like "36/5"). */}
         <div className="flex items-start justify-between gap-2">
           <h4 className="font-bold text-foreground">{lead.name}</h4>
-          <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 text-[10px] font-bold tracking-wider ${
-            urgency >= 4
-              ? "bg-red-500/20 text-red-400"
-              : urgency >= 3
-              ? "bg-amber-500/20 text-amber-400"
-              : "bg-foreground/10 text-foreground/50"
-          }`}>
-            {urgency}/5
-          </span>
+          <UrgencyBadge score={lead.urgencyScore ?? 3} />
         </div>
 
         {/* Career badge */}
@@ -133,11 +123,13 @@ function KanbanLeadCard({ lead, onUpdate }: {
           </span>
         )}
 
-        {/* Phone */}
-        <div className="flex items-center gap-2 text-foreground/70">
-          <Phone className="w-3 h-3 text-primary shrink-0" />
-          <a href={`tel:${lead.phone}`} className="hover:text-primary">{lead.phone}</a>
-        </div>
+        {/* Phone — guard null (tel:null renders a dead link otherwise) */}
+        {lead.phone && (
+          <div className="flex items-center gap-2 text-foreground/70">
+            <Phone className="w-3 h-3 text-primary shrink-0" />
+            <a href={`tel:${lead.phone}`} className="hover:text-primary">{lead.phone}</a>
+          </div>
+        )}
 
         {/* Vehicle */}
         {lead.vehicle && (
@@ -911,10 +903,12 @@ export default function LeadsSection() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="flex items-center gap-2 text-foreground/70">
-                          <Phone className="w-4 h-4 text-primary shrink-0" />
-                          <a href={`tel:${lead.phone}`} className="text-[13px] hover:text-primary">{lead.phone}</a>
-                        </div>
+                        {lead.phone && (
+                          <div className="flex items-center gap-2 text-foreground/70">
+                            <Phone className="w-4 h-4 text-primary shrink-0" />
+                            <a href={`tel:${lead.phone}`} className="text-[13px] hover:text-primary">{lead.phone}</a>
+                          </div>
+                        )}
                         {lead.email && (
                           <div className="flex items-center gap-2 text-foreground/70">
                             <Mail className="w-4 h-4 text-primary shrink-0" />
@@ -968,12 +962,14 @@ export default function LeadsSection() {
                     <div className="flex flex-row lg:flex-col gap-2 shrink-0">
                       {lead.status === "new" && (
                         <>
-                          <a
-                            href={`tel:${lead.phone}`}
-                            className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90"
-                          >
-                            <PhoneCall className="w-4 h-4" /> CALL
-                          </a>
+                          {lead.phone && (
+                            <a
+                              href={`tel:${lead.phone}`}
+                              className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 font-bold text-xs tracking-wide hover:bg-primary/90"
+                            >
+                              <PhoneCall className="w-4 h-4" /> CALL
+                            </a>
+                          )}
                           <MarkContactedButton leadId={lead.id} variant="list" />
                         </>
                       )}

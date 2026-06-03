@@ -129,6 +129,11 @@ export default function CustomersSection() {
 function CustomersList() {
   const utils = trpc.useUtils();
   const [search, setSearch] = useState("");
+  // C9 · debounce search before it hits the query. The input stays bound to
+  // `search` (responsive typing); only `debouncedSearch` feeds the tRPC
+  // list query + resets the page, so each keystroke no longer fires a heavy
+  // LIKE scan over ~2k rows (mirrors Leads' useUrlFilter debounce behavior).
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   // URL-persistent ?seg=recent|lapsed|unknown (default all not in URL)
   const [segment, setSegment] = useUrlFilter<Segment>(
     "seg", "all",
@@ -143,6 +148,17 @@ function CustomersList() {
   // manages its own state via the event bus.
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const pageSize = 25;
+
+  // C9 · 300ms debounce: when the user pauses typing, commit `search` to
+  // `debouncedSearch` and reset to page 1. Cleared on each keystroke so the
+  // query only runs once typing settles.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [search]);
   const [exporting, setExporting] = useState(false);
   const [minVisits, setMinVisits] = useState<number | undefined>();
   const [lastVisitDays, setLastVisitDays] = useState<number | undefined>();
@@ -176,7 +192,7 @@ function CustomersList() {
   const { data: listData, isLoading } = trpc.customers.list.useQuery({
     page,
     pageSize,
-    search: search || undefined,
+    search: debouncedSearch || undefined,
     segment,
     sortBy,
     sortDir,
@@ -381,6 +397,12 @@ function CustomersList() {
               a.click();
               URL.revokeObjectURL(url);
               toast.success(`Exported ${data.count ?? 0} customers`);
+              // wave-165 backend caps the export at 10k rows + returns
+              // `truncated`. Surface it so the operator knows rows past the
+              // cap were silently dropped (was ignored → silent data loss).
+              if (data.truncated) {
+                toast.warning("Export capped at 10,000 rows — narrow the segment or filters to export the rest");
+              }
             } catch (err) {
               toast.error(err instanceof Error ? err.message : "Export failed");
             } finally {
@@ -404,7 +426,7 @@ function CustomersList() {
               type="text"
               placeholder="Search name, phone, email, city, vehicle..."
               value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              onChange={e => setSearch(e.target.value)}
               className="w-full bg-card border border-border/30 pl-10 pr-4 py-2.5 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
             />
           </div>
@@ -553,7 +575,7 @@ function CustomersList() {
         {/* Active Filter Chips — auto-hides when nothing's active */}
         <FilterChips
           chips={[
-            { label: "Search", value: search, default: "", onClear: () => { setSearch(""); setPage(1); } },
+            { label: "Search", value: search, default: "", onClear: () => { setSearch(""); setDebouncedSearch(""); setPage(1); } },
             { label: "Segment", value: segment, default: "all", onClear: () => { setSegment("all"); setPage(1); } },
             { label: "Min Visits", value: minVisits ? String(minVisits) : "", default: "", onClear: () => { setMinVisits(undefined); setPage(1); }, displayValue: minVisits ? `${minVisits}+` : undefined },
             { label: "Last Visit", value: lastVisitDays ? String(lastVisitDays) : "", default: "", onClear: () => { setLastVisitDays(undefined); setPage(1); }, displayValue: lastVisitDays ? `≤${lastVisitDays}d` : undefined },
@@ -563,6 +585,7 @@ function CustomersList() {
           ]}
           onClearAll={() => {
             setSearch("");
+            setDebouncedSearch("");
             setSegment("all");
             setMinVisits(undefined);
             setLastVisitDays(undefined);
