@@ -1105,8 +1105,13 @@ async function runReasoningEngine(
       });
       rec.push("critique", "critique failed · shipping draft as-is");
     }
-  } else if (tier === "standard") {
-    // Standard tier · cheaper critique pass · skip refinement
+  } else if (TIER_CONFIG[tier].hasCritique && !TIER_CONFIG[tier].hasRefine) {
+    // Critique-only tiers (currently `standard`) · cheaper critique pass,
+    // ships the draft regardless of verdict · skip refinement. Config-gated
+    // (was `tier === "standard"`) so a future critique-only tier opts in
+    // automatically. Behavior here is DELIBERATELY distinct from the
+    // refine-tiers block above (lower confidence, quieter trace, silent
+    // catch) — do not merge them.
     try {
       const t = Date.now();
       const critique = await runCritique(request.question, draft, acc);
