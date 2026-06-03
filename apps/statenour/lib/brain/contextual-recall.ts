@@ -28,6 +28,25 @@ import { fuseRankings } from "@/lib/brain/rrf";
 import { rerank, isRerankAvailable } from "@/lib/brain/rerank";
 import { classifyQuery, coalaKindOf, coalaKindBoost } from "@/lib/brain/coala";
 import { classifyQueryTopics, tagWisdomTopics, topicBoost } from "@/lib/brain/wisdom-topic-tagger";
+import { getFlag } from "@/lib/feature-flags";
+import { scoreMessage } from "@/lib/brain/importance-scorer";
+
+/**
+ * v-truth · Importance-weighted recall (Generative-Agents R+R+I).
+ * Recall already scores Relevance (semantic) + Recency; this is the
+ * missing third axis — how much a memory MATTERS, not how SURE we are
+ * (confidence). Computed at recall time from content via the pure
+ * scoreMessage heuristic (no schema/migration), mapped to a GENTLE
+ * 0.92..1.25 multiplier so it nudges, never dominates.
+ *
+ * GATED off by default (NICK_IMPORTANCE_RECALL): when off this returns
+ * exactly 1.0 so the existing SOTA ranking is byte-for-byte unchanged.
+ */
+function importanceMultiplier(content: string, enabled: boolean): number {
+  if (!enabled) return 1.0;
+  const s = scoreMessage(content).score; // 0..10, pure/no-IO
+  return 0.92 + 0.033 * s; // 0.92 (s=0) .. 1.25 (s=10)
+}
 // 2026-05-17 follow-up · exclude binary-payload categories from
 // every recall path · keeps the prompt builder from pulling 100KB+
 // base64 audio blobs that have no semantic value (Phase 5 morning
@@ -338,6 +357,9 @@ export async function getContextualMemories(
     }
   };
 
+  // v-truth · importance axis · off by default (ranking unchanged).
+  const importanceOn = getFlag("NICK_IMPORTANCE_RECALL")?.isOn ?? false;
+
   const topics = await timed("topics", () => extractTopics(recentMessages));
 
   if (topics.length === 0) {
@@ -512,7 +534,9 @@ export async function getContextualMemories(
     const freshness = m.sFreshness ?? 1.0;
     // v10.0.397 · operator's favorite-persona bias (Greene · 1.10x)
     const favoriteMul = favoritePersonaBoost(m.key);
-    const hybrid = entry.score * trust * recencyMul * kindMul * topicMul * freshness * favoriteMul;
+    // v-truth · R+R+I third axis · 1.0 when NICK_IMPORTANCE_RECALL off.
+    const importanceMul = importanceMultiplier(m.content, importanceOn);
+    const hybrid = entry.score * trust * recencyMul * kindMul * topicMul * freshness * favoriteMul * importanceMul;
     return {
       id: m.id,
       category: m.category,

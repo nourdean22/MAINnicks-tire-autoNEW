@@ -1042,8 +1042,17 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         const { getPolicy } = await import("@/lib/automation/policy");
         const policy = await getPolicy(policyId).catch(() => null);
         const policyApproval = policy?.approvalClass ?? null;
+        // v-truth · FAIL-CLOSED. A rule fires unattended ONLY when an
+        // explicit `auto` AutomationPolicy exists. No policy (null) ->
+        // defer to /system/approvals, never auto-send. Makes the engine
+        // approval-only by default the moment NICK_AUTONOMY flips on;
+        // the operator seeds `auto` policies for rules they trust to run
+        // unattended. Pre-fix, a missing policy meant immediate auto-fire
+        // (19 of 20 rules were ungated — see the autonomy safety audit).
         const shouldDefer =
-          rule.approval === "ask" || policyApproval === "pending";
+          rule.approval === "ask" ||
+          policyApproval === "pending" ||
+          policyApproval === null;
         const isForbidden = policyApproval === "forbidden";
 
         if (isForbidden) {

@@ -119,6 +119,59 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Venice flux-2-pro is the primary; Replicate is only reached when this flag is on AND REPLICATE_API_KEY is set.",
     ownerDoc: "docs/runbooks/replicate-flux-cutover.md",
   },
+
+  // ── v-truth · Next-level intelligence pass (2026-06-02) ──────────
+  // Every capability below ships DEFAULT-OFF. Flip the env var on
+  // Railway to enable; surfaced on /system/migrations. Built so the
+  // default code path is byte-for-byte unchanged when off.
+  {
+    key: "NICK_IMPORTANCE_RECALL",
+    description: "Adds the Generative-Agents 'importance' axis (R+R+I) to brain recall ranking — weights memories by how much they MATTER (decision/commitment/insight/pain signals), not just confidence. Gentle 0.92-1.25x multiplier computed at recall time (no migration). OFF = recall ranking unchanged.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Recall ranks on relevance+recency+confidence+trust only (importance multiplier = 1.0).",
+    ownerDoc: "lib/brain/contextual-recall.ts",
+  },
+  {
+    key: "NICK_VERIFIED_REGEN",
+    description: "Consumes the output-critic's shouldRegen verdict (already computed every factual turn) to gate a single verifier-guided regeneration before the reply ships — best-of-2 on the turns the critic flags as weak. OFF = critic verdict is logged only (today's behavior).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "shouldRegen is computed + logged but never acted on; reply ships single-pass.",
+    ownerDoc: "lib/ai/chat/pre-stream-regen.ts",
+  },
+  {
+    key: "NICK_COVE",
+    description: "Chain-of-Verification on factual/operator-facing answers: after drafting, Nick generates isolated verification questions, answers them, and revises — the isolation step kills rubber-stamped hallucinations. Gated to factual intents. OFF = no CoVe pass.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Answers ship without a verification pass.",
+    ownerDoc: "lib/ai/chat/chain-of-verification.ts",
+  },
+  {
+    key: "NICK_DEEP_REASONING",
+    description: "Routes hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine) instead of the single-pass streamer. Adds latency/cost on hard turns only. OFF = all turns single-pass (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Every turn uses the single-pass streamer; the reasoning engine is reachable only via /api/nick/reason.",
+    ownerDoc: "lib/ai/reasoning/engine.ts",
+  },
+  {
+    key: "NICK_AUTONOMY",
+    description: "Enables the proactive autonomous-engine cron (22 built rules: revenue-pace, urgent-leads, drift, commitment enforcement, morning brief, etc.) + the nick-action propose->execute queue. ALL outputs route through the /qa Telegram approval gate FIRST — nothing auto-sends. OFF = no proactive proposals generated.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "runAutonomousActions + nick-action proposer never fire; the /qa approval queue stays empty.",
+    ownerDoc: "lib/brain/autonomous-engine.ts",
+  },
+  {
+    key: "NICK_CONTEXTUAL_RETRIEVAL",
+    description: "Anthropic Contextual Retrieval on brain ingestion: prepends a one-line LLM-generated context header (who/when/what-doc) to each chunk before embedding, cutting retrieval failures 35-49%. One-time cost at ingest. OFF = chunks embedded as-is (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Document chunks are embedded without a contextual header.",
+    ownerDoc: "lib/brain/contextual-retrieval.ts",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────

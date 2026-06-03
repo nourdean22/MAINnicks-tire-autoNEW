@@ -104,6 +104,14 @@ export const EVENING_JOBS: readonly string[] = [
   // unstructured signals (chat/captures/decisions) → stat XP. Idempotent;
   // first run backfills history, then only new signals each night.
   "/api/cron/mastery-xp",
+  // 2026-06-02 · v-truth · Nick autonomy resurrection (NICK_AUTONOMY-gated).
+  // Re-plugs runAutonomousActions (~22 proactive rules) which lost its cron
+  // route in the Wave-AE prune. The route HARD-SKIPS when NICK_AUTONOMY is
+  // off, so it's inert until the operator flips the env flag on Railway.
+  // The engine is now FAIL-CLOSED (autonomous-engine.ts): every rule defers
+  // to /system/approvals unless an explicit `auto` policy exists — nothing
+  // auto-sends. One evening pass matches the rules' ET-hour/24h-cooldown gates.
+  "/api/cron/autonomous-engine",
 ];
 
 /**
