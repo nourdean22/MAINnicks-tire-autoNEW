@@ -1116,11 +1116,28 @@ ${finalSystemPrompt}`;
           );
           log.info("multi_agent_auto_path", { intent: turnSignal.intent });
         } else if (deepOn) {
+          // v-truth · LIVE-DATA ACCESS for deep reasoning. The reasoning
+          // engine can't call tools, so it would otherwise reason blind to
+          // current numbers. Pre-fetch a compact real-business snapshot and
+          // prepend it to the reasoning context so it works from real data,
+          // not invented figures. Best-effort: skip on failure.
+          let liveSnapshot = "";
+          try {
+            const { getDashboardSummary } = await import(
+              "@/lib/services/business-intel"
+            );
+            const snap = await getDashboardSummary();
+            liveSnapshot =
+              `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
+              `${JSON.stringify(snap)}\n\n`;
+          } catch {
+            /* snapshot is best-effort — proceed without it */
+          }
           const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
           const reasoning = await reasonStreaming(
             {
               question: userContent,
-              brainContext: finalSystemPrompt.slice(0, 8000),
+              brainContext: (liveSnapshot + finalSystemPrompt).slice(0, 8000),
             },
             () => {},
           );
@@ -1128,6 +1145,7 @@ ${finalSystemPrompt}`;
           log.info("deep_reasoning_path", {
             tier: reasoning.tier,
             intent: turnSignal.intent,
+            hadSnapshot: liveSnapshot.length > 0,
           });
         } else if (regenOn) {
           const { generateText } = await import("ai");
