@@ -153,13 +153,15 @@ shipped** (tsc 0 · 919 ai tests green):
 dead no-op — **NOT applied.** `PROVIDERS` leads with the Venice+Ollama tag-team; if Venice is index 0
 that sort genuinely reorders Ollama to the front and is load-bearing. Left untouched pending proof.
 
-**Deferred to a fresh-context pass (all SAFE, but introduce new files / touch the 1584-ln persist
-file — better done unhurried):** extract the GSC-prefetch (~70ln) and customer-shape-hint (~28ln)
-blocks out of `route.ts` into sibling modules (matching the existing `context-hints.ts` pattern);
-hoist `customerShapeRegex` to module scope; relocate `looksLikeBrainDump` into a `brain-dump-detector`
-module; drop the derived `isLightweight`/`isHeavy` from `DeferredBackgroundCtx` (compute internally);
-extract a `buildMessageParts` helper in persist-assistant-turn. One RISKY item (collapse the
-`standard`-tier critique branch via `tier-config`) needs tier-config verification first.
+**Round 2 — the deferred §9 backlog SHIPPED (5 SAFE refactors, tsc 0 · 927 ai tests green):**
+extracted the GSC-prefetch (→ `app/api/ai/chat/gsc-prefetch.ts`, all 🚨 templates byte-for-byte) and
+customer-shape-hint (→ `app/api/ai/chat/customer-shape-hint.ts`, regex moved with it) out of `route.ts`;
+relocated `looksLikeBrainDump` → `lib/ai/chat/brain-dump-detector.ts`; dropped the derived
+`isLightweight`/`isHeavy` from `DeferredBackgroundCtx` (now computed inside `runDeferredBackgroundWork`
+with the identical thresholds); extracted a `buildMessageParts` helper in persist-assistant-turn
+(parameterized `alwaysIncludeText` — verify-don't-trust caught that the rewrite-patch site pushes text
+unconditionally vs the guarded initial-persist site). **Still deferred — the 1 RISKY item:** collapse
+the `standard`-tier critique branch via `tier-config` (needs tier-config value verification first).
 
 **NOT flagged (verified divergent-by-design, leave alone):** action-claim-detector vs
 action-intent-detector (output- vs input-side); the `buildOnFinish` file (cohesive sequential

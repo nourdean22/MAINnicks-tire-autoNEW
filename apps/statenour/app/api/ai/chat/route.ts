@@ -873,26 +873,14 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   // only fires on matches · non-customer turns stay unchanged.
   // Always-on (no env flag) because the cost of a wrong fabrication
   // is much higher than the cost of an extra tool call.
-  const customerShapeRegex = {
-    phone: /\b(?:\(?\d{3}\)?[\s.-]?)?\d{3}[\s.-]?\d{4}\b/,
-    nameWithAction: /\b(?:tell me about|show me|look up|find|search for|how (?:much|many|long)|what (?:about|did|does|has)|when (?:did|was|will)|customer named|customer called|client named)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b/i,
-    // v10.0.503 fix · "does <Name>" wasn't matching · `[A-Z]\b`
-    // required the cap letter to be the whole word. Use `[A-Z][a-z]+`
-    // to anchor on a proper-name token. Also widened to "did", "has",
-    // "was" forms since they imply customer-inquiry too.
-    ownershipPhrasing: /\b(?:(?:does|did|has|was|will)\s+[A-Z][a-z]+|[A-Z][a-z]+'s\s+(?:car|truck|vehicle|visits?|history|account|estimates?|invoices?|spend|plate))\b/,
-    plateLookup: /\b(?:plate|tag)\s+(?:number\s+)?[A-Z0-9]{4,8}\b/i,
-  };
+  //
+  // Detector + hard-hint assembly moved verbatim to
+  // app/api/ai/chat/customer-shape-hint.ts. The route just prepends the
+  // returned block; behavior is byte-identical.
   const userTextSlice = userContent.slice(0, 1500);
-  const customerSignals: string[] = [];
-  if (customerShapeRegex.phone.test(userTextSlice)) customerSignals.push("phone-digits");
-  if (customerShapeRegex.nameWithAction.test(userTextSlice)) customerSignals.push("name-with-action");
-  if (customerShapeRegex.ownershipPhrasing.test(userTextSlice)) customerSignals.push("ownership-phrase");
-  if (customerShapeRegex.plateLookup.test(userTextSlice)) customerSignals.push("plate");
-  if (customerSignals.length > 0) {
-    finalSystemPrompt = `## CUSTOMER QUERY DETECTED · signals: ${customerSignals.join(" + ")}\nYour user appears to be asking about a SPECIFIC customer. You MUST call the \`findCustomer\` tool FIRST with the name or phone digits before asserting any facts about that person (visits, estimates, spend, segment, vehicle, plate). If findCustomer returns no match, tell the user "no customer matched <term>" instead of fabricating details. Do NOT skip this step even if you think you remember the customer from earlier in the conversation · always re-look-up.\n\n${finalSystemPrompt}`;
-    log.info("customer_shape_detected", { signals: customerSignals });
-  }
+  const { buildCustomerShapeHint } = await import("./customer-shape-hint");
+  const customerHint = buildCustomerShapeHint(userTextSlice);
+  if (customerHint) finalSystemPrompt = customerHint + finalSystemPrompt;
 
   // v10.0.511 · GSC pre-fetch + inject · the 2026-05-12 smoke tests
   // showed venice-uncensored consistently ignores the tool-call-first
@@ -911,71 +899,13 @@ Reference Greene Laws ONLY on strategic decisions, not casual messages.`;
   //
   // Cost: 1 extra bridge call per matching turn (~200-500ms). Latency
   // hit is acceptable for the failure-mode it eliminates.
-  const SEO_QUERY_REGEX =
-    /\b(seo|gsc|google search console|search console|impressions?|clicks|ctr|rankings?|search performance|organic|traffic|keywords?|nickstire\.org|autonicks\.com|search ranks?|website performance|aeo)\b/i;
-  if (SEO_QUERY_REGEX.test(userTextSlice)) {
-    try {
-      const { queryNick } = await import("@/lib/nickstire/query");
-      // Date range parsing: pull "yesterday" / "today" / "last 7 days"
-      // from user content · default 30 days.
-      const today = new Date().toISOString().slice(0, 10);
-      const lower = userTextSlice.toLowerCase();
-      let from = new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-      let to = today;
-      let windowLabel = "last 30 days";
-      if (/\byesterday\b/.test(lower)) {
-        from = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
-        to = from;
-        windowLabel = "yesterday";
-      } else if (/\btoday\b/.test(lower)) {
-        from = today;
-        to = today;
-        windowLabel = "today";
-      } else if (/\blast\s*7\s*days?\b|\bthis\s*week\b/.test(lower)) {
-        from = new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10);
-        windowLabel = "last 7 days";
-      }
-      const gscStart = Date.now();
-      const res = await queryNick<{ totalClicks?: number; totalImpressions?: number; avgCtr?: number; avgPosition?: number; daysCovered?: number } | { error: string }>(
-        "gsc_summary",
-        { from, to },
-      );
-      const gscMs = Date.now() - gscStart;
-      log.info("gsc_prefetch", { windowLabel, from, to, ms: gscMs, ok: "data" in res });
-      if ("data" in res && res.data) {
-        const d = res.data as { totalClicks?: number; totalImpressions?: number; avgCtr?: number; avgPosition?: number; daysCovered?: number };
-        const hasNumbers = (d.totalClicks ?? 0) > 0 || (d.totalImpressions ?? 0) > 0;
-        if (hasNumbers) {
-          finalSystemPrompt = `# 🚨 LIVE GSC DATA INJECTED · ${windowLabel} (${from} to ${to}) · YOU MUST CITE THESE NUMBERS 🚨\n\nThe operator just asked about SEO / search performance. The nickstire bridge was queried LIVE BEFORE you started typing this reply. The actual data is here:\n\n\`\`\`json\n${JSON.stringify(d, null, 2)}\n\`\`\`\n\n## HARD RULES (violations are failures):\n\n- **DO NOT START YOUR REPLY WITH** "I cannot" / "Sorry" / "Unfortunately" / "I'm unable" / "I don't have access" — THE DATA IS RIGHT ABOVE. Saying you don't have it is FALSE.\n- **DO NOT FABRICATE** "Google logging errors", "data discrepancies", "outages between 2025 and 2026", or any narrative explaining away the numbers. The numbers ARE the truth.\n- **OPEN YOUR REPLY** by stating the actual numbers. Example shape: "${windowLabel} on nickstire.org: ${d.totalClicks ?? 0} clicks, ${d.totalImpressions ?? 0} impressions${typeof d.avgCtr === "number" ? `, ${(d.avgCtr * 100).toFixed(2)}% CTR` : ""}${typeof d.avgPosition === "number" ? `, avg position ${d.avgPosition.toFixed(1)}` : ""}."
-- If a number is ZERO, that means LITERALLY ZERO · acknowledge that directly: "no clicks captured for that window."
-- If the operator asks for top queries, you can additionally call \`getGscTopQueries\` for the same date range.
-- Voice: concrete · direct · no hedging. Nour wants the numbers, not a tour.
-
-${finalSystemPrompt}`;
-          log.info("gsc_data_injected", { windowLabel, hasNumbers });
-        } else {
-          finalSystemPrompt = `# 🚨 GSC DATA · ${windowLabel} (${from} to ${to}) · ZERO TRAFFIC CAPTURED 🚨\n\nThe nickstire bridge was queried LIVE for the requested window and returned zero clicks AND zero impressions. This is the actual state · not an unavailable bridge.\n\n## HARD RULES:\n\n- **DO NOT FABRICATE** "Google logging errors", "outages", or any narrative. The pipeline ran · the data is genuinely zero.\n- **DO NOT SAY** "I cannot provide information" / "Sorry, unable to" / "I don't have access" — you DO have the data. The data is "zero captured."
-- **OPEN YOUR REPLY** with: "No GSC data captured for ${windowLabel}." Then explain the two likely reasons (pipeline runs nightly so today's data may not be populated yet, OR the period had genuinely no search traffic). Suggest a wider window (e.g. last 7 days) as the next move.
-- Voice: direct · brief · helpful. Don't apologize · just report and offer next step.
-
-${finalSystemPrompt}`;
-          log.info("gsc_no_data", { windowLabel });
-        }
-      } else {
-        const errText = "error" in res ? res.error : "unknown";
-        finalSystemPrompt = `# 🚨 GSC BRIDGE FAILED · ${windowLabel} 🚨\n\nThe pre-fetch attempt errored: \`${errText}\`. The bridge is unavailable right now.\n\n## HARD RULES:\n\n- **DO NOT FABRICATE** numbers or "logging error" narratives.
-- **OPEN YOUR REPLY** with: "GSC bridge isn't responding right now (${errText}). Try again in a few minutes."
-- Voice: brief · operator wants to know it's a transient · not a deep apology.
-
-${finalSystemPrompt}`;
-        log.warn("gsc_prefetch_failed", { errText, windowLabel });
-      }
-    } catch (err) {
-      log.warn("gsc_prefetch_exception", { err: sanitizeError(err) });
-      // Non-fatal · fall through to existing path · model still has
-      // getGscSummary available in toolset (v10.0.510 pruner expansion)
-    }
-  }
+  //
+  // Regex + bridge call + all 3 branches moved verbatim to
+  // app/api/ai/chat/gsc-prefetch.ts. The route just prepends the
+  // returned block; behavior is byte-identical.
+  const { buildGscPrefetch } = await import("./gsc-prefetch");
+  const gscBlock = await buildGscPrefetch(userTextSlice);
+  if (gscBlock) finalSystemPrompt = gscBlock + finalSystemPrompt;
 
   // Venice params (web search, scraping, no safety prompt, think strip) are injected
   // via custom fetch wrapper in provider.ts — NOT providerOptions (AI SDK ignores custom fields).
@@ -1139,7 +1069,7 @@ ${finalSystemPrompt}`;
             const snap = await getDashboardSummary();
             liveSnapshot =
               `## LIVE DATA SNAPSHOT (real, as of this turn — reason from THESE numbers; do NOT invent figures)\n` +
-              `${JSON.stringify(snap)}\n\n`;
+              `${JSON.stringify(snap)}\n(snapshot captured ${new Date().toISOString()} — most figures are live, but review counts are cron-cached; call getReviewStats before quoting an exact review number)\n\n`;
           } catch {
             /* snapshot is best-effort — proceed without it */
           }
