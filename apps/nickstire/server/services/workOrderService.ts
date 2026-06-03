@@ -333,10 +333,12 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
 
       // Only send the legacy simple SMS when drop-off flow is NOT enabled
       if (!dropOffEnabled) {
-        const { db, workOrders, customers } = await getDbAndSchema();
+        const { db, workOrders } = await getDbAndSchema();
         const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
         if (wo?.customerId) {
-          const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
+          // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id.
+          const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
+          const cust = await resolveWorkOrderCustomer(wo.customerId);
           if (cust?.phone) {
             // Check smsOptOut before sending legacy pickup SMS
             if (cust.smsOptOut) {
@@ -359,10 +361,12 @@ async function executeAutoRules(workOrderId: string, newStatus: WorkOrderStatus)
   // Auto review request on close
   if (newStatus === "closed") {
     try {
-      const { db, workOrders, customers } = await getDbAndSchema();
+      const { db, workOrders } = await getDbAndSchema();
       const [wo] = await db.select().from(workOrders).where(eq(workOrders.id, workOrderId)).limit(1);
       if (wo?.customerId) {
-        const [cust] = await db.select().from(customers).where(eq(customers.id, parseInt(wo.customerId, 10))).limit(1);
+        // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id.
+        const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
+        const cust = await resolveWorkOrderCustomer(wo.customerId);
         if (cust?.phone) {
           const { createReviewRequest } = await import("../db");
           const scheduledAt = new Date(Date.now() + 2 * 60 * 60 * 1000); // 2 hours later

@@ -37,18 +37,12 @@ async function getWorkOrderContext(workOrderId: string) {
 
   let customer: { firstName: string; phone: string } | null = null;
   if (wo.customerId) {
-    const parsed = parseInt(wo.customerId, 10);
-    if (!isNaN(parsed)) {
-      const [cust] = await db
-        .select({
-          firstName: customers.firstName,
-          phone: customers.phone,
-        })
-        .from(customers)
-        .where(eq(customers.id, parsed))
-        .limit(1);
-      customer = cust || null;
-    }
+    // wave-182: resolve numeric-id OR phone-keyed (AI-chat / walk-in) customer_id
+    // so phone-keyed walk-ins stop silently missing the drop-off SMS flow (this
+    // function used to throw "No phone number" for them).
+    const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
+    const cust = await resolveWorkOrderCustomer(wo.customerId);
+    if (cust) customer = { firstName: cust.firstName, phone: cust.phone };
   }
 
   if (!customer?.phone) {
