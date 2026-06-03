@@ -44,9 +44,23 @@ export interface ShopSnapshot {
   };
 }
 
+// Resolve the bridge URL + key the SAME way as the canonical queryNick
+// client (lib/nickstire/query.ts) so the two bridge clients can't drift.
+// STATENOUR_SYNC_KEY is the live Railway key — reading only BRIDGE_API_KEY
+// here meant the fast dedicated bridge endpoints were skipped (snapshot fell
+// through to the slow 4-query batch; health returned null entirely).
+function resolveBridgeConfig(): { url: string | undefined; key: string | undefined } {
+  return {
+    url:
+      process.env.NICKSTIRE_URL ||
+      process.env.NICKS_ADMIN_URL ||
+      process.env.NICKSTIRE_BRIDGE_URL,
+    key: process.env.STATENOUR_SYNC_KEY || process.env.BRIDGE_API_KEY,
+  };
+}
+
 export async function fetchShopSnapshot(): Promise<ShopSnapshot | null> {
-  const url = process.env.NICKS_ADMIN_URL || process.env.NICKSTIRE_BRIDGE_URL;
-  const key = process.env.BRIDGE_API_KEY;
+  const { url, key } = resolveBridgeConfig();
 
   // Try live bridge first
   // v10.0.505 · ADR-0011 slow-path audit · added 4s timeout so a stalled
@@ -118,8 +132,7 @@ export async function fetchShopSnapshot(): Promise<ShopSnapshot | null> {
 }
 
 export async function fetchShopHealth(): Promise<{ status: string } | null> {
-  const url = process.env.NICKS_ADMIN_URL || process.env.NICKSTIRE_BRIDGE_URL;
-  const key = process.env.BRIDGE_API_KEY;
+  const { url, key } = resolveBridgeConfig();
 
   if (!url || !key) return null;
 

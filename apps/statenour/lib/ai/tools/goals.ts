@@ -37,8 +37,18 @@ export const goalsTools = {
       if (!domain || domain === "business" || domain === "finance") {
         try {
           const { queryNick } = await import("@/lib/nickstire/query");
-          const since = new Date(Date.now() - 30 * 86400000).toISOString();
-          const res = await queryNick<{ totalDollars?: number }>("revenue_range", { since });
+          // revenue_range filters on { from, to } date strings (ET), NOT
+          // `since` — sending `since` was silently ignored, so from/to both
+          // defaulted to today and the "30-day × 12" projection was really a
+          // 1-day window × 12 (wildly understated). Send the real 30-day span.
+          const fromIso = new Date(Date.now() - 30 * 86400000)
+            .toISOString()
+            .slice(0, 10);
+          const toIso = new Date().toISOString().slice(0, 10);
+          const res = await queryNick<{ totalDollars?: number }>(
+            "revenue_range",
+            { from: fromIso, to: toIso },
+          );
           if ("data" in res && typeof res.data?.totalDollars === "number") {
             const monthly = res.data.totalDollars;
             revenueProjection = { current: monthly, projectedAnnual: Math.round(monthly * 12) };
