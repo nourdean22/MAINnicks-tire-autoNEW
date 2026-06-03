@@ -1105,6 +1105,16 @@ ${finalSystemPrompt}`;
 
       if (deepOn || regenOn || selfConsistencyOn || multiAgentOn) {
         let winner = "";
+        // Shared generateText config for the regen + self-consistency
+        // branches (identical shape) — hoisted so a new field is added
+        // once, not in two places that could silently disagree.
+        const genBase = {
+          model,
+          messages: sanitizedModelMessages as never,
+          tools: prunedTools as never,
+          stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+          ...(maxOutputTokens ? { maxOutputTokens } : {}),
+        };
 
         if (multiAgentOn) {
           const { runAutoDecompose } = await import(
@@ -1149,13 +1159,6 @@ ${finalSystemPrompt}`;
           });
         } else if (regenOn) {
           const { generateText } = await import("ai");
-          const genBase = {
-            model,
-            messages: sanitizedModelMessages as never,
-            tools: prunedTools as never,
-            stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-            ...(maxOutputTokens ? { maxOutputTokens } : {}),
-          };
           const genOnce = async (sys: string, temp: number): Promise<string> => {
             const r = await generateText({
               ...genBase,
@@ -1183,13 +1186,6 @@ ${finalSystemPrompt}`;
           });
         } else if (selfConsistencyOn) {
           const { generateText } = await import("ai");
-          const genBase = {
-            model,
-            messages: sanitizedModelMessages as never,
-            tools: prunedTools as never,
-            stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
-            ...(maxOutputTokens ? { maxOutputTokens } : {}),
-          };
           const { selfConsistentAnswer } = await import(
             "@/lib/ai/chat/self-consistency"
           );
@@ -1377,12 +1373,11 @@ ${finalSystemPrompt}`;
     // a tool we WANT called" case · add another regex+toolName
     // branch above the generic action-intent block.
     ...(() => {
-      // Python-execute · most specific gate, checked first.
-      if (
-        /\b(run|execute|invoke)\s+(?:this\s+)?python\b|\bpython\s+(?:to\s+|and\s+)?(?:compute|calculate|run|execute)\b|\buse\s+(?:the\s+)?runPython\b|\brun\s+(?:this\s+)?code\b/i.test(
-          userContent,
-        )
-      ) {
+      // Python-execute · most specific gate, checked first. Reuse the
+      // hoisted `__pythonExecuteIntent` (computed once for the provider
+      // force) so the detection regex lives in exactly one place — the
+      // two can never drift apart on a future edit.
+      if (__pythonExecuteIntent) {
         log.info("python_execute_intent_detected", { surface: "chat" });
         return {
           toolChoice: {

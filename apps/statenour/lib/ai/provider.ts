@@ -567,24 +567,37 @@ function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
 // endpoint reset the breaker the moment it sees a non-402 from
 // Venice — so the user's "I added credits" doesn't have to wait the
 // full 2 min.
-let veniceQuotaExhaustedUntil = 0;
-const VENICE_QUOTA_COOLDOWN_MS = 2 * 60_000;
-export function markVeniceQuotaExhausted(): void {
-  veniceQuotaExhaustedUntil = Date.now() + VENICE_QUOTA_COOLDOWN_MS;
-  log.warn("provider.quota_exhausted", {
-    provider: "venice",
-    cooldownMin: VENICE_QUOTA_COOLDOWN_MS / 60_000,
-  });
+// Reusable per-provider quota circuit-breaker. Venice (402 → cooldown)
+// and Ollama Cloud share identical breaker logic, so one factory closes
+// over the cooldown deadline and the two can never drift. The returned
+// methods close over `until` (not `this`), so detaching them onto the
+// exported names below is safe.
+function makeQuotaBreaker(provider: ProviderName, cooldownMs: number) {
+  let until = 0;
+  return {
+    mark(): void {
+      until = Date.now() + cooldownMs;
+      log.warn("provider.quota_exhausted", {
+        provider,
+        cooldownMin: cooldownMs / 60_000,
+      });
+    },
+    clear(): void {
+      if (until > 0) {
+        until = 0;
+        log.info("provider.quota_cleared", { provider });
+      }
+    },
+    isExhausted(): boolean {
+      return Date.now() < until;
+    },
+  };
 }
-export function clearVeniceQuotaExhausted(): void {
-  if (veniceQuotaExhaustedUntil > 0) {
-    veniceQuotaExhaustedUntil = 0;
-    log.info("provider.quota_cleared", { provider: "venice" });
-  }
-}
-export function isVeniceQuotaExhausted(): boolean {
-  return Date.now() < veniceQuotaExhaustedUntil;
-}
+
+const veniceBreaker = makeQuotaBreaker("venice", 2 * 60_000);
+export const markVeniceQuotaExhausted = veniceBreaker.mark;
+export const clearVeniceQuotaExhausted = veniceBreaker.clear;
+export const isVeniceQuotaExhausted = veniceBreaker.isExhausted;
 
 function isVeniceAvailable(): boolean {
   if (!VENICE_API_KEY || VENICE_API_KEY === "your-new-key-here") return false;
@@ -603,26 +616,12 @@ function isOpenAIAvailable(): boolean {
 }
 
 // Apr 28 · Ollama Cloud Pro availability — same pattern as Venice
-// (key check + reusable quota breaker). Empty key or placeholder
+// (key check + the shared quota breaker above). Empty key or placeholder
 // counts as unavailable so getModel falls through to the next provider.
-let ollamaQuotaExhaustedUntil = 0;
-const OLLAMA_QUOTA_COOLDOWN_MS = 2 * 60_000;
-export function markOllamaQuotaExhausted(): void {
-  ollamaQuotaExhaustedUntil = Date.now() + OLLAMA_QUOTA_COOLDOWN_MS;
-  log.warn("provider.quota_exhausted", {
-    provider: "ollama",
-    cooldownMin: OLLAMA_QUOTA_COOLDOWN_MS / 60_000,
-  });
-}
-export function clearOllamaQuotaExhausted(): void {
-  if (ollamaQuotaExhaustedUntil > 0) {
-    ollamaQuotaExhaustedUntil = 0;
-    log.info("provider.quota_cleared", { provider: "ollama" });
-  }
-}
-export function isOllamaQuotaExhausted(): boolean {
-  return Date.now() < ollamaQuotaExhaustedUntil;
-}
+const ollamaBreaker = makeQuotaBreaker("ollama", 2 * 60_000);
+export const markOllamaQuotaExhausted = ollamaBreaker.mark;
+export const clearOllamaQuotaExhausted = ollamaBreaker.clear;
+export const isOllamaQuotaExhausted = ollamaBreaker.isExhausted;
 
 function isOllamaAvailable(): boolean {
   if (!OLLAMA_API_KEY || OLLAMA_API_KEY.length < 20) return false;
