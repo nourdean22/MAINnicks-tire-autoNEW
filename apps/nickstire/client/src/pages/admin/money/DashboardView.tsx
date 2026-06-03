@@ -314,7 +314,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
             <div style={{ height: 220 }}>
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day, i) => ({ day, count: kpi.dayOfWeekCounts[i] }))}>
-                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#888" }} />
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: CHART_THEME.axis }} />
                   <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} />
                   <RechartsTooltip contentStyle={CHART_THEME.tooltip} />
                   <Bar dataKey="count" fill={CHART_THEME.primary} radius={[2, 2, 0, 0]} />
@@ -398,8 +398,8 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <KPICard label="Total Revenue" value={formatDollars(intel.overview.totalRevenue)} icon={<DollarSign className="w-5 h-5" />} color="text-primary" />
             <KPICard label="Avg Daily Revenue" value={formatDollars(intel.overview.avgDailyRevenue)} icon={<TrendingUp className="w-5 h-5" />} color="text-emerald-400" />
-            <KPICard label="Unique Customers" value={intel.overview.uniqueCustomers} icon={<Users className="w-5 h-5" />} color="text-blue-400" />
-            <KPICard label="Active Days" value={intel.overview.activeDays} icon={<Calendar className="w-5 h-5" />} color="text-purple-400" />
+            <KPICard label="Unique Customers" value={intel.overview.uniqueCustomers ?? 0} icon={<Users className="w-5 h-5" />} color="text-blue-400" />
+            <KPICard label="Active Days" value={intel.overview.activeDays ?? 0} icon={<Calendar className="w-5 h-5" />} color="text-purple-400" />
           </div>
 
           {/* Labor vs Parts Split */}
@@ -496,7 +496,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                 <div style={{ height: 200 }}>
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={intel.dayOfWeek}>
-                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: "#888" }} tickFormatter={(v: string) => v.slice(0, 3)} />
+                      <XAxis dataKey="day" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: string) => v.slice(0, 3)} />
                       <YAxis tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${(v / 1000).toFixed(0)}K`} />
                       <RechartsTooltip contentStyle={CHART_THEME.tooltip}
                         formatter={(value: number) => [`$${value.toLocaleString()}`, "Revenue"]} />
@@ -515,7 +515,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={intel.serviceBreakdown.filter((s: ServiceItem) => s.category !== "Other").slice(0, 8)} layout="vertical">
                       <XAxis type="number" tick={{ fontSize: 10, fill: CHART_THEME.axis }} tickFormatter={(v: number) => `$${v}`} />
-                      <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: "#888" }} width={80} />
+                      <YAxis type="category" dataKey="category" tick={{ fontSize: 10, fill: CHART_THEME.axis }} width={80} />
                       <RechartsTooltip contentStyle={CHART_THEME.tooltip}
                         formatter={(value: number) => [`$${value.toLocaleString()}`, "Avg Ticket"]} />
                       <Bar dataKey="avgTicket" fill={CHART_THEME.quaternary} radius={[0, 2, 2, 0]} />
@@ -684,7 +684,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
               <p className="text-[9px] text-foreground/40 mt-1">One-Timers (&lt;$500)</p>
             </div>
             <div className="text-center p-3 rounded border border-red-500/20 bg-red-500/5">
-              <p className="text-2xl font-bold text-red-400">{custIntel.churnRisk.atRisk}</p>
+              <p className="text-2xl font-bold text-red-400">{custIntel.churnRisk.atRisk ?? 0}</p>
               <p className="text-[9px] text-foreground/40 mt-1">Churn Risk (60-180d quiet)</p>
             </div>
           </div>
@@ -754,7 +754,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
           <DollarSign className="w-10 h-10 mx-auto mb-3 text-foreground/20" />
           <h3 className="font-bold text-foreground tracking-[-0.01em] mb-2">NO REVENUE DATA YET</h3>
           <p className="text-[12px] text-foreground/40 max-w-md mx-auto">
-            Revenue data populates when invoices are created — either manually, from ShopDriver imports, or from Stripe payments.
+            Revenue data populates when invoices are created — either manually, from Auto Labor Guide (ALG) imports, or from Stripe payments.
           </p>
         </div>
       )}

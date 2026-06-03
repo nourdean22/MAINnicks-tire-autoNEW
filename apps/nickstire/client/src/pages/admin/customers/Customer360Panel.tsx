@@ -18,7 +18,7 @@ import type {
 export function Customer360Panel({ customer }: {
   customer: ListedCustomer;
 }) {
-  const { data: historyData, isLoading: historyLoading } = trpc.customers.history.useQuery(
+  const { data: historyData, isLoading: historyLoading, isError: historyError } = trpc.customers.history.useQuery(
     { phone: customer.phone },
     { enabled: !!customer.phone }
   );
@@ -35,7 +35,11 @@ export function Customer360Panel({ customer }: {
 
   // Risk assessment
   const getRiskAssessment = () => {
-    if (customer.totalVisits >= 3 && customer.totalSpent > 200000) {
+    // C6 · VIP predicate unified with StatusBadge + customers.ts vipCount
+    // (`isVip || totalVisits>=3`). The old `>=3 && totalSpent>200000` gate
+    // disagreed with the row's VIP badge — a 3-visit/$1500 customer showed
+    // the VIP badge but a non-VIP "LOYAL CUSTOMER" risk box in the same row.
+    if (customer.isVip || customer.totalVisits >= 3) {
       return { label: "VIP CUSTOMER", color: "text-amber-400", bg: "bg-amber-500/10", border: "border-amber-500/20" };
     }
     if (daysAgo && daysAgo > 60) {
@@ -252,6 +256,9 @@ export function Customer360Panel({ customer }: {
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="w-4 h-4 animate-spin text-primary" />
               </div>
+            ) : historyError ? (
+              // Distinct from empty — a thrown query must not read as "no data".
+              <p className="text-xs text-red-400/70 italic py-2">Couldn't load service history</p>
             ) : !historyData?.invoices?.length ? (
               <p className="text-xs text-foreground/30 italic py-2">No invoices found</p>
             ) : (

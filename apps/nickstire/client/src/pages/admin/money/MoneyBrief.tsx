@@ -66,13 +66,14 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
   const { data: declined } = trpc.invoices.declined.useQuery({ days: 60 }, { staleTime: 60_000 });
   const { data: intel } = trpc.invoices.intelligence.useQuery({ period: "30d" }, { staleTime: 60_000 });
 
-  // wave-181.x Money Phase 2 · agent code-review #2 fix · was only
-  // gating on `!stats || !kpi`. If declined resolved last, the Action
-  // line rendered with hotCount=0 and recoverable=0 in a false-zero
-  // way · same bug class as the OutreachBrief `&&` vs `||` catch.
-  // Gate on the SIGNAL-bearing queries (declined + intel) too. shop-
-  // Floor stays optional · the Pipeline line gracefully omits it.
-  if (!stats || !kpi || !declined || !intel) {
+  // wave-181.x Money Phase 2 · R1 fix · the all-or-nothing gate
+  // (!stats || !kpi || !declined || !intel) left the WHOLE brief stuck
+  // on the shimmer in prod because one of declined/intel never resolved
+  // for the brief while the dashboard below rendered fine off its own
+  // query copies. Now gate ONLY on the headline-bearing pair (stats +
+  // kpi); the Pipeline and Action lines lazy-fill once declined/intel
+  // arrive (each guarded individually below). shopFloor stays optional.
+  if (!stats || !kpi) {
     return (
       <div className="bg-card border border-border/40 rounded-lg p-4">
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
@@ -82,22 +83,25 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
     );
   }
 
-  // VELOCITY · total revenue this period vs daily target × period
+  // VELOCITY · total revenue this period vs daily target × period.
+  // Needs only stats; the "% of target" clause depends on intel and is
+  // gated by periodTarget > 0 (zero until intel resolves → clause hidden).
   const periodRevenue = stats.totalRevenue ?? 0;
   const dailyTarget = intel?.projections?.dailyTarget ?? 0;
   const periodTarget = dailyTarget * period;
   const pacingPercent = periodTarget > 0 ? Math.round((periodRevenue / periodTarget) * 100) : 0;
   const periodLabel = period === 1 ? "today" : period === 7 ? "this week" : `last ${period}d`;
 
-  // PIPELINE · $ in shop + $ recoverable from declined
+  // PIPELINE · $ in shop + $ recoverable from declined (both optional;
+  // line self-hides until at least one resolves to a non-zero value)
   const valueInShop = shopFloor?.totalValueInProgress ?? 0;
   const recoverableDollars = declined?.recoverable ?? 0;
 
-  // ACTION · count hot declined estimates (≥$500 · ≥7d old)
-  // Server query aliases estimateDate → invoiceDate (see
-  // server/routers/advanced/invoices.ts L682). Same shape used by
-  // DeclinedEstimatesSection's recoveryScore.
-  const estimates = declined.estimates ?? [];
+  // ACTION · count hot declined estimates (≥$500 · ≥7d old). Lazy-fills
+  // once `declined` arrives. Server query aliases estimateDate →
+  // invoiceDate (see server/routers/advanced/invoices.ts L682). Same
+  // shape used by DeclinedEstimatesSection's recoveryScore.
+  const estimates = declined?.estimates ?? [];
   const now = Date.now();
   const SEVEN_DAYS_MS = 7 * 86_400_000;
   const FIVE_HUNDRED_CENTS = 50_000;

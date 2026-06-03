@@ -17,6 +17,17 @@ type MemberRow = FoundLookup["members"][number];
 import { CheckCircle2, XCircle, Search, Loader2, Car, BadgeCheck } from "lucide-react";
 import { PageHeader } from "./shared";
 
+// Friendly labels for the non-active membership statuses — raw enums
+// (PAST_DUE / INCOMPLETE) leaked the underscore into the badge.
+const STATUS_LABELS: Record<string, string> = {
+  active: "Active",
+  past_due: "Past due",
+  canceled: "Canceled",
+  incomplete: "Incomplete",
+};
+const statusLabel = (status: string): string =>
+  STATUS_LABELS[status] ?? status;
+
 export default function MembershipsSection() {
   const [query, setQuery] = useState("");
   const [searchPhone, setSearchPhone] = useState<string | null>(null);
@@ -103,7 +114,7 @@ export default function MembershipsSection() {
               m.isActive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-400"
             }`}>
               {m.isActive ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-              {m.isActive ? "ACTIVE" : m.status.toUpperCase()}
+              {m.isActive ? "Active" : statusLabel(m.status)}
             </span>
           </div>
 

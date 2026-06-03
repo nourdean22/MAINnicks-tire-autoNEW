@@ -22,6 +22,16 @@ type QcChecklistItem = NonNullable<RouterOutputs["dispatch"]["getQcChecklist"]>[
 export default function DispatchSection() {
   const [tab, setTab] = useState<Tab>("bays");
 
+  // wave-admin-audit P3 — single dispatch.load query lifted to the section
+  // root. Previously MetricsStrip polled at 30s while BayGrid/ReadyQueue/
+  // TechManager polled the SAME query key at 10s — React-Query takes the
+  // last-registered interval for a shared key, so the effective rate was
+  // unpredictable and the MetricsStrip "30s" comment was dead. One hook at
+  // 10s (the real-time shop-floor expectation) feeds every consumer, so the
+  // interval is now explicit and consistent. Mirrors WorkOrdersSection's
+  // lifted-stats pattern.
+  const load = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+
   const TABS: { id: Tab; label: string }[] = [
     { id: "bays", label: "Bay Grid" },
     { id: "queue", label: "Ready Queue" },
@@ -37,7 +47,7 @@ export default function DispatchSection() {
         icon={<Wrench className="w-5 h-5" />}
       />
       {/* Metrics Strip */}
-      <MetricsStrip />
+      <MetricsStrip load={load} />
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-border/40">
@@ -56,23 +66,34 @@ export default function DispatchSection() {
         ))}
       </div>
 
-      {tab === "bays" && <BayGrid />}
-      {tab === "queue" && <ReadyQueue />}
+      {tab === "bays" && <BayGrid load={load} />}
+      {tab === "queue" && <ReadyQueue load={load} />}
       {tab === "qc" && <QcReview />}
-      {tab === "techs" && <TechManager />}
+      {tab === "techs" && <TechManager load={load} />}
     </div>
   );
 }
 
+// Shared shape for the lifted dispatch.load query handed to child views.
+// NB: ReturnType<typeof ...useQuery> collapses `data` to `{}` (tRPC's generic
+// useQuery loses TData under ReturnType), so type the fields the children
+// actually consume against the already-inferred DispatchLoad payload.
+type DispatchLoadQuery = {
+  data: DispatchLoad | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  refetch: () => void;
+};
+
 // ─── Metrics Strip ──────────────────────────────────
-function MetricsStrip() {
-  // wave-112 — was 10s polling × 3 queries (request churn + 18 calls/min for
-  // a single visible tab). Unified to 30s, matching the rest of admin.
-  // Operator's "live shop floor" expectation is still met within ~30s of any
-  // bay/tech state change — well under any human reaction window.
-  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 30000 });
-  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 30000 });
+function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
+  // wave-admin-audit P3 — dispatch.load now lifted to the section root and
+  // passed in (was a duplicate 30s subscription on the same key that fought
+  // BayGrid's 10s). stats + qcStats stay local (only this strip reads them);
+  // bumped to 10s to match the unified shop-floor cadence.
+  const { data: load, isError } = loadQuery;
+  const { data: stats } = trpc.workOrders.stats.useQuery(undefined, { refetchInterval: 10000 });
+  const { data: qcStats } = trpc.dispatch.qcStats.useQuery(undefined, { refetchInterval: 10000 });
 
   const clockedIn = load?.techs.filter((t: Tech) => t.clockedIn).length || 0;
   const freeBays = load?.bays.filter((b: Bay) => !b.occupied).length || 0;
@@ -82,13 +103,33 @@ function MetricsStrip() {
     { label: "Techs In", value: clockedIn, color: "text-emerald-400" },
     { label: "Bays Free", value: `${freeBays}/${totalBays}`, color: freeBays === 0 ? "text-red-400" : "text-blue-400" },
     { label: "In Progress", value: stats?.inProgress || 0, color: "text-primary" },
-    { label: "Ready Queue", value: (stats?.active || 0) - (stats?.inProgress || 0), color: "text-amber-400" },
+    // wave-admin-audit P1/P2 — was `active - inProgress`, which had two bugs:
+    // (1) the label "Ready Queue" implies the ready_for_bay count but the
+    // subtraction counted ALL active-not-in-progress WOs (queue + parts +
+    // assigned + qc + pickup), so the strip metric and the "Ready Queue" tab
+    // (which queries status:"ready_for_bay") showed different numbers under
+    // the same name; (2) it could mislabel/go negative. stats.byStatus carries
+    // the real per-status count, so show that — name now matches meaning and
+    // the tab.
+    { label: "Ready Queue", value: stats?.byStatus?.ready_for_bay || 0, color: "text-amber-400" },
     { label: "QC Pending", value: qcStats?.qcPending || 0, color: "text-purple-400" },
     // ?? not || — a real passRate of 0 (every QC check failed) must show
     // "0%", not fall through to the 100 default. || 0 would fake a green.
     { label: "QC Pass Rate", value: `${qcStats?.passRate ?? 100}%`, color: "text-emerald-400" },
     { label: "Comebacks (30d)", value: qcStats?.comebacks30d || 0, color: (qcStats?.comebacks30d || 0) > 0 ? "text-red-400" : "text-emerald-400" },
   ];
+
+  // wave-admin-audit P4 — was silent on a dispatch.load error (bay/tech
+  // metrics just showed 0/0 with no signal). Terse inline marker instead.
+  if (isError) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] text-red-400/70">
+        <XCircle className="w-3.5 h-3.5" />
+        <span>Shop-floor metrics unavailable</span>
+        <button onClick={() => loadQuery.refetch()} className="text-primary hover:underline">Retry</button>
+      </div>
+    );
+  }
 
   return (
     // wave-155 — was grid-cols-7 fixed. On 375px viewport each cell
@@ -106,10 +147,14 @@ function MetricsStrip() {
 }
 
 // ─── Bay Grid ───────────────────────────────────────
-function BayGrid() {
-  const { data: load, isLoading } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+function BayGrid({ load: loadQuery }: { load: DispatchLoadQuery }) {
+  // wave-admin-audit P3 — uses the lifted dispatch.load query (was its own
+  // 10s subscription). P4 — added the isError branch; pre-fix a load error
+  // rendered a blank grid with no signal (only ReadyQueue/QcReview handled it).
+  const { data: load, isLoading, isError } = loadQuery;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (isError) return <ErrorState message="Couldn't load the bay grid" onRetry={() => loadQuery.refetch()} />;
 
   const bays = load?.bays || [];
 
@@ -161,9 +206,11 @@ function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
 }
 
 // ─── Ready Queue ────────────────────────────────────
-function ReadyQueue() {
+function ReadyQueue({ load: loadQuery }: { load: DispatchLoadQuery }) {
   const { data: workOrders, isLoading, isError, refetch } = trpc.workOrders.list.useQuery({ status: "ready_for_bay" }, { refetchInterval: 10000 });
-  const { data: load } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+  // wave-admin-audit P3 — bays come from the lifted dispatch.load (was a
+  // duplicate 10s subscription on the same key).
+  const { data: load } = loadQuery;
   const [selectedWo, setSelectedWo] = useState<string | null>(null);
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
@@ -483,8 +530,10 @@ function CreateQcButton({ workOrderId }: { workOrderId: string }) {
 }
 
 // ─── Tech Manager ───────────────────────────────────
-function TechManager() {
-  const { data: load, isLoading } = trpc.dispatch.load.useQuery(undefined, { refetchInterval: 10000 });
+function TechManager({ load: loadQuery }: { load: DispatchLoadQuery }) {
+  // wave-admin-audit P3 — uses the lifted dispatch.load query. P4 — added
+  // the isError branch (was a silent empty tech list on a load failure).
+  const { data: load, isLoading, isError } = loadQuery;
   const utils = trpc.useUtils();
 
   // 2026-05-23 · added onError. Tech believes they're clocked in,
@@ -500,6 +549,7 @@ function TechManager() {
   });
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin" /></div>;
+  if (isError) return <ErrorState message="Couldn't load technicians" onRetry={() => loadQuery.refetch()} />;
 
   const techs = load?.techs || [];
 

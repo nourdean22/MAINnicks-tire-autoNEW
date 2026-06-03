@@ -125,10 +125,15 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
             </span>
           </button>
         ) : (
+          // C1 honesty fix · `stats.lapsed` is the materialized `segment`
+          // column (refreshed only by Sync/login enrich), NOT the live
+          // churnRisk / daysSinceLastVisit the row AT-RISK badges read. The
+          // two diverge, so a zero here does NOT mean zero at-risk. State the
+          // metric source plainly instead of asserting "roster is healthy".
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+            <AlertTriangle className="w-3.5 h-3.5 text-foreground/40 shrink-0" />
             <span className="text-[12.5px] text-foreground/85 leading-tight">
-              Action · zero lapsed customers · roster is healthy
+              Action · zero lapsed by segment metric · check row AT-RISK badges for live churn risk
             </span>
           </div>
         )}
