@@ -79,6 +79,15 @@ export const MORNING_JOBS: readonly string[] = [
   // would cause. Idempotency + per-week guards live in each route.
   "/api/cron/dossier-autodraft",
   "/api/cron/greene-law-tag-refresh",
+  // 2026-06-02 · v-truth · Nick Action Queue (NICK_AUTONOMY-gated). The
+  // proposer + executor HARD-SKIP when the flag is off, so these are
+  // inert until the operator opts in. Ordered prewarm -> proposal ->
+  // execute (fan-out runs array order): prewarm warms the outreach pick,
+  // proposal writes pending rows + Telegrams a /qa list, execute runs
+  // only operator-APPROVED rows (send_sms_outreach drafts, never sends).
+  "/api/cron/relationship-picks-prewarm",
+  "/api/cron/nick-action-proposal",
+  "/api/cron/nick-action-execute",
 ];
 
 /**

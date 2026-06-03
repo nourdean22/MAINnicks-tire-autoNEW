@@ -51,6 +51,14 @@ const NICK_ACTION_TYPES = new Set<string>([
 ]);
 
 export const GET = cronHandler(async () => {
+  // v-truth · NICK_AUTONOMY gate (defense-in-depth · the proposer is
+  // already gated, so with the flag off there are no approved rows to
+  // execute — this just makes the posture explicit).
+  const { getFlag } = await import("@/lib/feature-flags");
+  if (!getFlag("NICK_AUTONOMY")?.isOn) {
+    return { ok: true, skipped: "NICK_AUTONOMY off" };
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   // Wave AK · 2026-05-28 · operator-grade alerting wrapper. The
   // executor is operator-trust-critical · a silent fail at 9am means
