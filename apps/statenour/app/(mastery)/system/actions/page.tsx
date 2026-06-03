@@ -412,7 +412,7 @@ export default function ActionsPage() {
       </Panel>
 
       <p className="pt-2 text-center text-[10px] text-zinc-600">
-        auto-refresh 30s · source: AutonomousAction · rollback UI coming in W12 (per-rule)
+        auto-refresh 30s · source: AutonomousAction
       </p>
     </StandardPage>
   );

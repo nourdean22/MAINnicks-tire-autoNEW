@@ -123,7 +123,7 @@ const ORIGIN_META: Record<
     label: "Chat scrape",
     tradition: "Raw assistant output",
     intro:
-      "Recent assistant chat replies that passed an isWisdomWorthy() filter. Lower trust · the raw output isn't always principle-shaped · weighted at 0.7x in contextual recall (v10.0.354).",
+      "Recent assistant chat replies that passed an isWisdomWorthy() filter. Lower trust · the raw output isn't always principle-shaped · weighted at 0.7x in contextual recall.",
   },
   uncategorized: {
     label: "Uncategorized",
@@ -369,7 +369,7 @@ function WisdomPageInner() {
     <StandardPage
       eyebrow="Brain · Wisdom"
       title="Nick's Wisdom"
-      description={`${data.total.toLocaleString()} principles loaded · ${data.totalRecalls.toLocaleString()} cumulative recalls. The layer Nick draws on every conversation. Curated traditions sit alongside cron-distilled patterns; trust-weighted in recall (v10.0.354).`}
+      description={`${data.total.toLocaleString()} principles loaded · ${data.totalRecalls.toLocaleString()} cumulative recalls. The layer Nick draws on every conversation. Curated traditions sit alongside cron-distilled patterns; trust-weighted in recall.`}
       width="2xl"
       rhythm="loose"
     >
@@ -682,43 +682,6 @@ function WisdomPageInner() {
         );
       })}
 
-      {/* ── Most recalled (compact list) ───────────────────────────── */}
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-5">
-        <p className="text-eyebrow">Recall heat · top 5</p>
-        <h3 className="section-title text-base mt-1 mb-3">what Nick reaches for most</h3>
-        <ol className="space-y-2">
-          {data.hottest.map((e, i) => (
-            <li key={e.id} className="flex gap-3">
-              <span className="font-mono text-amber-400 text-sm w-12 shrink-0 tabular-nums">
-                {e.seenCount.toLocaleString()}×
-              </span>
-              <span className="text-[var(--text-secondary)] text-[13px] leading-snug" style={{ maxWidth: "60ch" }}>
-                {e.content.slice(0, 180)}
-                {e.content.length > 180 ? "…" : ""}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* ── Freshest 5 ───────────────────────────────────────────── */}
-      <section className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] p-5">
-        <p className="text-eyebrow">Just added</p>
-        <h3 className="section-title text-base mt-1 mb-3">newest principles in the brain</h3>
-        <ol className="space-y-2">
-          {data.freshest.map((e) => (
-            <li key={e.id} className="flex gap-3">
-              <span className="font-mono text-[var(--text-tertiary)] text-[11px] w-20 shrink-0 uppercase tracking-wider">
-                {ORIGIN_META[e.origin]?.label.split(" ")[0]?.toLowerCase() ?? e.origin}
-              </span>
-              <span className="text-[var(--text-secondary)] text-[13px] leading-snug" style={{ maxWidth: "60ch" }}>
-                {e.content.slice(0, 160)}
-                {e.content.length > 160 ? "…" : ""}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
       {/* 2026-05-24 · Wave V · iOS-PWA-safe confirm dialog mount ·
           renders null when no confirm is in-flight so this adds zero
           DOM cost in the steady state. */}

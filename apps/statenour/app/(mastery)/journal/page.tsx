@@ -43,7 +43,6 @@ import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
 import { cn } from "@/lib/utils";
 import { onDataChanged } from "@/lib/events/data-change";
 import { Calendar, NotebookPen, Search, X as XIcon } from "lucide-react";
-import { PageNick } from "@/components/ai/page-nick";
 import { ReflectComposer } from "@/components/journal/reflect-composer";
 import { ThreadRadar } from "@/components/journal/thread-radar";
 import { ThreadRail } from "@/components/journal/thread-rail";
@@ -399,15 +398,6 @@ function JournalPageInner() {
         subtitle="thinking · reasoning · insights · decisions · reflections"
         accent="gold"
         live
-      />
-
-      <PageNick
-        page="journal"
-        presets={[
-          "What's the emotional arc this week?",
-          "What patterns keep repeating?",
-          "What's the unresolved tension I keep avoiding?",
-        ]}
       />
 
       {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb.

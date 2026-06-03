@@ -209,7 +209,7 @@ export default function FunnelPage() {
         )}
 
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
-          via nickstire bridge · v11.6 · refreshes every 5 min
+          via nickstire bridge · refreshes every 5 min
         </p>
     </StandardPage>
   );

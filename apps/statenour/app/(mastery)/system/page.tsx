@@ -134,7 +134,8 @@ export default function SystemPage() {
   const { refreshing, onTouchStart, onTouchEnd } = usePullRefresh(refresh);
 
   const d = diagnostics;
-  const overallStatus = d?.db.connected ? "healthy" : "degraded";
+  const overallStatus =
+    d?.db.connected && (d?.queue.failed ?? 0) === 0 ? "healthy" : "degraded";
 
   return (
     <div
@@ -204,11 +205,6 @@ export default function SystemPage() {
           label="Errors (24h)"
           value={d?.kpis.errors_24h ?? "..."}
           hint={d && d.kpis.errors_24h > 0 ? "Check /system/errors" : "Clean"}
-        />
-        <MetricCard
-          label="AI Cost (7d)"
-          value={d ? `$${((d.kpis.ai_cost_7d_cents ?? 0) / 100).toFixed(2)}` : "..."}
-          hint="7 day total"
         />
       </div>
 

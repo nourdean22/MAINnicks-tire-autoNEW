@@ -139,7 +139,7 @@ export default function SettingsPage() {
             </p>
           </div>
           <Link
-            href="/tasks?loop=daily"
+            href="/missions"
             className="shrink-0 rounded-md border border-[var(--gold)]/40 bg-[var(--gold)]/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[var(--gold)] hover:bg-[var(--gold)]/20 transition-colors"
           >
             manage habits →

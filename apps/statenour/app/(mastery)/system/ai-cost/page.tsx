@@ -3,16 +3,10 @@
 /**
  * /system/ai-cost — historical cost breakdowns + 14d trend.
  *
- * v11.0 (W2.4). v10.0.80 · positioned as the historical sister surface
- * to the canonical /system/costs (live ops dashboard). Aggregates
- * AiGeneration across today · 7d · 30d with a 14-day daily trend
- * sparkline, breakdowns by feature + model, plus a burn-rate projection.
- *
- * When to use which:
- *   /system/costs    → live: provider health, latency leaderboard, what's
- *                      hurting reliability right now, daily budget gauge
- *   /system/ai-cost  → historical: where the tokens went, by-feature
- *                      and by-model spend, 14-day trend, burn-rate projection
+ * v11.0 (W2.4). Aggregates AiGeneration across today · 7d · 30d with a
+ * 14-day daily trend sparkline, breakdowns by feature + model, plus a
+ * burn-rate projection — the canonical answer to "where did the tokens
+ * go".
  *
  * Alive elements:
  *   · animated count-up on total cost
@@ -28,12 +22,10 @@
  */
 
 import { useState, useMemo } from "react";
-import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils/cn";
 import { TrendCounter } from "@/components/ui/trend-counter";
-import { Activity } from "lucide-react";
 import { trpc } from "@/lib/trpc/client";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@/lib/trpc/root";
@@ -160,15 +152,6 @@ export default function AiCostPage() {
       rhythm="loose"
       actions={
         <div className="flex items-center gap-2">
-          {/* v10.0.80 · cross-link to live ops sister page */}
-          <Link
-            href="/system/costs"
-            className="hidden sm:flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.02] px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100"
-            title="Live: provider health · latency · budget gauge · what's hurting reliability now"
-          >
-            <Activity className="h-3.5 w-3.5" />
-            <span>live ops →</span>
-          </Link>
           <button
             onClick={load}
             disabled={loading}

@@ -40,8 +40,9 @@ import {
   DollarSign,
   FileText,
   Radio,
-  Star,
+  Search,
   Stethoscope,
+  Target,
 } from "lucide-react";
 
 type Severity = "healthy" | "warning" | "critical" | "info" | "unknown";
@@ -198,7 +199,7 @@ const CARDS: HubCard[] = [
     title: "Brain Categories",
     icon: Brain,
     group: "ai",
-    description: "BrainMemory category heat-map + drift detector",
+    description: "Brain hub — memories, categories, recall + people intelligence",
     chip: (d) => {
       if (!d) return { label: "—", severity: "unknown" };
       return {
@@ -221,19 +222,20 @@ const CARDS: HubCard[] = [
     // Restore one honest, direct card so it stays reachable.
     href: "/system/calibration",
     title: "Calibration",
-    icon: Stethoscope,
+    icon: Target,
     group: "ai",
     description: "Prediction accuracy, judge-eval, drift + coverage",
     chip: () => ({ label: "eval", severity: "info" }),
   },
   {
-    // v-truth · reviews is a LIVE page with no hub card pre-prune — add one.
+    // v-truth · /system/reviews is the sanitized error-lookup page (look
+    // up an error by its short ID), NOT a review-request surface.
     href: "/system/reviews",
-    title: "Reviews",
-    icon: Star,
+    title: "Error Lookup",
+    icon: Search,
     group: "data",
-    description: "Review-request pipeline + ratings",
-    chip: () => ({ label: "open", severity: "info" }),
+    description: "Look up a sanitized error by its ID",
+    chip: () => ({ label: "lookup", severity: "info" }),
   },
 ];
 

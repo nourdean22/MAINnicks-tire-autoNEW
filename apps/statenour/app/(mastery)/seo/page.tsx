@@ -210,7 +210,7 @@ export default function SeoPage() {
         )}
 
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
-          via nickstire bridge · v11.7 · GSC nightly pipeline · refreshes every 15 min
+          via nickstire bridge · GSC nightly pipeline · refreshes every 15 min
         </p>
     </StandardPage>
   );

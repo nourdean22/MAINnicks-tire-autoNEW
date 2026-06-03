@@ -397,39 +397,6 @@ export default function SystemHealthPage() {
   );
 }
 
-function MetricTile({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  icon: typeof Activity;
-  label: string;
-  value: number | string;
-  sub?: string;
-  tone: "win" | "info" | "warn";
-}) {
-  const color =
-    tone === "win" ? "text-emerald-400"
-    : tone === "warn" ? "text-amber-400"
-    : "text-[var(--text-secondary)]";
-  return (
-    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-raised)] px-3 py-2">
-      <div className="flex items-center gap-1.5 mb-0.5">
-        <Icon size={10} className={color} />
-        <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
-          {label}
-        </span>
-      </div>
-      <div className={cn("text-lg font-[var(--font-display)] font-bold tabular-nums", color)}>
-        {typeof value === "number" ? <AnimatedCounter value={value} /> : value}
-      </div>
-      {sub && <div className="text-[9px] font-mono text-[var(--text-tertiary)]">{sub}</div>}
-    </div>
-  );
-}
-
 function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
   const ev = op.eval;
   const evalBad = ev !== null && ev.total > 0 && ev.passRate < 70;
@@ -464,8 +431,13 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
           href="/system/calibration"
           className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
         >
-          <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
-            AI eval pass-rate
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]">
+              AI eval pass-rate
+            </span>
+            <span className="text-[9px] font-mono text-[var(--text-tertiary)]/70">
+              calibration →
+            </span>
           </div>
           {ev && ev.total > 0 ? (
             <div

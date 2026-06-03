@@ -163,12 +163,12 @@ export function ReflectComposer() {
       const hash = window.location.hash;
       if (hash.includes("reflect")) {
         requestAnimationFrame(() => {
-          document.getElementById("ultron-reflect-composer")?.scrollIntoView({
+          document.getElementById("journal-reflect-composer")?.scrollIntoView({
             behavior: "smooth",
             block: "start",
           });
           const firstField = document.querySelector<HTMLTextAreaElement>(
-            "#ultron-reflect-composer textarea",
+            "#journal-reflect-composer textarea",
           );
           firstField?.focus();
         });
@@ -296,7 +296,7 @@ export function ReflectComposer() {
 
   // ── Render ──────────────────────────────────────────
   return (
-    <section id="ultron-reflect-composer" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3 scroll-mt-24">
+    <section id="journal-reflect-composer" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-3 scroll-mt-24">
       {/* Header */}
       <div className="flex items-center gap-2">
         <Eye size={12} className="text-emerald-400" />

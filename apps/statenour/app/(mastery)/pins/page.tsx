@@ -218,7 +218,7 @@ export default function PinsPage() {
       title="pinned memory"
       description={
         data?.stats
-          ? `${data.count} pins · top ${data.stats.injectedCount} injected · ${data.stats.estimatedPromptTokens} tokens`
+          ? `${data.count} pins`
           : "loading…"
       }
       width="lg"
