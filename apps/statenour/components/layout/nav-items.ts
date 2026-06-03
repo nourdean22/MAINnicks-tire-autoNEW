@@ -123,13 +123,13 @@ export const NAV_ITEMS: NavItem[] = [
   // /funnel · 6-stage Lead→Estimate→Drop-off→Job→Review→Retained
   //          consumes nickstire bridges funnel_overview +
   //          funnel_first_visit.
-  // /radar  · competitor + AI-visibility surface ·
-  //          consumes master_report bridge.
-  // /seo    · GSC + Ahrefs forensic surface ·
-  //          consumes nickstire seo bridges.
+  // Wave 2 surface merge · /radar + /seo folded into the tabbed /market
+  // surface; these two entries deep-link the Radar + Search tabs.
+  // /market?tab=radar  · competitor + AI-visibility · master_report bridge.
+  // /market?tab=search · GSC + Ahrefs forensic · nickstire seo bridges.
   { href: "/business?tab=funnel", label: "Funnel",          icon: Filter },
-  { href: "/radar",           label: "Radar",           icon: Radar },
-  { href: "/seo",             label: "SEO",             icon: Search },
+  { href: "/market?tab=radar",  label: "Radar",           icon: Radar },
+  { href: "/market?tab=search", label: "SEO",             icon: Search },
 
   // Wave AD · 2026-05-28 · /system/data-source-health deleted ·
   // folded into /system/health. next.config redirects in place.
