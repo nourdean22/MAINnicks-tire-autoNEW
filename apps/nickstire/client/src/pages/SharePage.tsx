@@ -70,14 +70,14 @@ function HealthScoreGauge({ score }: { score: number }) {
 
         {/* Score text in center */}
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-bold text-white">{clamped}</span>
-          <span className="text-xs text-white/60">out of 100</span>
+          <span className="text-4xl font-bold text-foreground">{clamped}</span>
+          <span className="text-xs text-foreground/60">out of 100</span>
         </div>
       </div>
 
       <div className="text-center">
-        <p className="font-semibold text-white">{label}</p>
-        <p className="text-sm text-white/70">Vehicle Health Score</p>
+        <p className="font-semibold text-foreground">{label}</p>
+        <p className="text-sm text-foreground/70">Vehicle Health Score</p>
       </div>
     </div>
   );
@@ -152,8 +152,8 @@ export default function SharePage() {
         />
         <div className="container min-h-screen flex items-center justify-center">
           <div className="text-center space-y-4">
-            <Loader className="w-12 h-12 mx-auto text-yellow-400 animate-spin" />
-            <p className="text-white">Loading service summary...</p>
+            <Loader className="w-12 h-12 mx-auto text-primary animate-spin" />
+            <p className="text-foreground">Loading service summary...</p>
           </div>
         </div>
       </PageLayout>
@@ -172,15 +172,15 @@ export default function SharePage() {
         <div className="container min-h-screen flex items-center justify-center">
           <div className="text-center space-y-6 max-w-md">
             <AlertCircle className="w-16 h-16 mx-auto text-orange-400" />
-            <h1 className="text-2xl font-bold text-white">
+            <h1 className="text-2xl font-bold text-foreground">
               Service Summary Not Found
             </h1>
-            <p className="text-white/70">
+            <p className="text-foreground/70">
               This service summary may have expired or is no longer available.
             </p>
             <a
               href="/"
-              className="inline-block bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 px-6 rounded-lg transition-colors"
+              className="inline-block bg-primary hover:bg-yellow-300 text-black font-bold py-3 px-6 rounded-lg transition-colors"
             >
               Back to Home
             </a>
@@ -200,36 +200,36 @@ export default function SharePage() {
       />
 
       {/* Hero - Branded Background */}
-      <section className="bg-gradient-to-br from-[#0A0A0A] to-[#1a1a1a] py-12 lg:py-16">
+      <section className="bg-gradient-to-br from-background to-secondary py-12 lg:py-16">
         <div className="container max-w-2xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="text-center space-y-2"
           >
-            <div className="text-3xl font-bold text-white">
+            <div className="text-3xl font-bold text-foreground">
               Nick's Tire & Auto
             </div>
-            <p className="text-yellow-400 font-semibold">Service Completion Summary</p>
+            <p className="text-primary font-semibold">Service Completion Summary</p>
           </motion.div>
         </div>
       </section>
 
       {/* Card */}
-      <section className="bg-[#0A0A0A] py-12 lg:py-16">
+      <section className="bg-background py-12 lg:py-16">
         <div className="container max-w-2xl">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-white/5 border border-white/10 rounded-2xl p-8 lg:p-10 space-y-8 backdrop-blur-sm"
+            className="bg-foreground/5 border border-foreground/10 rounded-2xl p-8 lg:p-10 space-y-8 backdrop-blur-sm"
           >
             {/* Vehicle Info */}
             {cardData.vehicleInfo && (
               <div>
-                <p className="text-xs text-yellow-400 tracking-wide font-semibold mb-2">
+                <p className="text-xs text-primary tracking-wide font-semibold mb-2">
                   VEHICLE
                 </p>
-                <p className="text-2xl font-bold text-white">{cardData.vehicleInfo}</p>
+                <p className="text-2xl font-bold text-foreground">{cardData.vehicleInfo}</p>
               </div>
             )}
 
@@ -239,14 +239,14 @@ export default function SharePage() {
                 <CheckCircle2 className="w-8 h-8 text-green-400" />
               </div>
               <div>
-                <p className="text-xs text-yellow-400 tracking-wide font-semibold mb-1">
+                <p className="text-xs text-primary tracking-wide font-semibold mb-1">
                   SERVICE COMPLETED
                 </p>
                 {cardData.serviceType && (
-                  <p className="text-xl font-bold text-white">{cardData.serviceType}</p>
+                  <p className="text-xl font-bold text-foreground">{cardData.serviceType}</p>
                 )}
                 {cardData.completedDate && (
-                  <p className="text-sm text-white/70">
+                  <p className="text-sm text-foreground/70">
                     {new Date(cardData.completedDate).toLocaleDateString("en-US", {
                       year: "numeric",
                       month: "long",
@@ -266,11 +266,11 @@ export default function SharePage() {
 
             {/* Health Details */}
             {cardData.healthDetails && (
-              <div className="bg-white/5 border border-white/10 rounded-lg p-6 space-y-3">
-                <p className="text-xs text-yellow-400 tracking-wide font-semibold">
+              <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-6 space-y-3">
+                <p className="text-xs text-primary tracking-wide font-semibold">
                   HEALTH DETAILS
                 </p>
-                <div className="text-white/80 text-sm whitespace-pre-wrap">
+                <div className="text-foreground/80 text-sm whitespace-pre-wrap">
                   {cardData.healthDetails}
                 </div>
               </div>
@@ -283,14 +283,14 @@ export default function SharePage() {
             </div>
 
             {/* Share Buttons */}
-            <div className="space-y-3 pt-6 border-t border-white/10">
-              <p className="text-xs text-white/60 text-center tracking-wide">
+            <div className="space-y-3 pt-6 border-t border-foreground/10">
+              <p className="text-xs text-foreground/60 text-center tracking-wide">
                 SHARE THIS WITH SOMEONE
               </p>
 
               <button
                 onClick={shareViaText}
-                className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-blue-600 hover:bg-blue-700 text-foreground font-semibold py-3 rounded-lg transition-colors"
               >
                 <MessageCircle className="w-5 h-5" />
                 Text to Someone
@@ -298,7 +298,7 @@ export default function SharePage() {
 
               <button
                 onClick={shareOnFacebook}
-                className="w-full flex items-center justify-center gap-3 bg-blue-900 hover:bg-blue-950 text-white font-semibold py-3 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-blue-900 hover:bg-blue-950 text-foreground font-semibold py-3 rounded-lg transition-colors"
               >
                 <Facebook className="w-5 h-5" />
                 Share on Facebook
@@ -306,7 +306,7 @@ export default function SharePage() {
 
               <button
                 onClick={copyLink}
-                className="w-full flex items-center justify-center gap-3 bg-white/10 hover:bg-white/20 text-white font-semibold py-3 rounded-lg transition-colors"
+                className="w-full flex items-center justify-center gap-3 bg-foreground/10 hover:bg-white/20 text-foreground font-semibold py-3 rounded-lg transition-colors"
               >
                 <Copy className="w-5 h-5" />
                 Copy Link
@@ -314,19 +314,19 @@ export default function SharePage() {
             </div>
 
             {/* CTA */}
-            <div className="space-y-3 pt-6 border-t border-white/10">
-              <p className="text-center text-white/60 text-sm">
+            <div className="space-y-3 pt-6 border-t border-foreground/10">
+              <p className="text-center text-foreground/60 text-sm">
                 Need auto repair?
               </p>
               <a
                 href="/"
-                className="block w-full bg-yellow-400 hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors text-center"
+                className="block w-full bg-primary hover:bg-yellow-300 text-black font-bold py-3 rounded-lg transition-colors text-center"
               >
                 Visit Nick's Tire & Auto
               </a>
               <a
                 href={BUSINESS.phone.href}
-                className="block w-full border-2 border-yellow-400 text-yellow-400 font-bold py-3 rounded-lg transition-colors text-center hover:bg-yellow-400/10"
+                className="block w-full border-2 border-primary text-primary font-bold py-3 rounded-lg transition-colors text-center hover:bg-primary/10"
               >
                 Call {BUSINESS.phone.display}
               </a>
@@ -336,8 +336,8 @@ export default function SharePage() {
       </section>
 
       {/* Footer */}
-      <section className="bg-[#0A0A0A] border-t border-white/10 py-8 text-center">
-        <div className="container text-white/60 text-sm space-y-1">
+      <section className="bg-background border-t border-foreground/10 py-8 text-center">
+        <div className="container text-foreground/60 text-sm space-y-1">
           <p>{BUSINESS.address.full}</p>
           <p>{BUSINESS.phone.display}</p>
           <p className="text-xs pt-3">{BUSINESS.hours.fullDisplay}</p>

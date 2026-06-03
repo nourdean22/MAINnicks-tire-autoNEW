@@ -12,20 +12,20 @@
  */
 import BookingWizard from "@/components/BookingWizard";
 import { SEOHead } from "@/components/SEO";
+import PageLayout from "@/components/PageLayout";
 import { BUSINESS } from "@shared/business";
 import { Clock, MapPin, Phone } from "lucide-react";
 
 export default function BookingPage() {
   return (
-    <>
+    <PageLayout activeHref="/booking">
       <SEOHead
         title="Drop Off · No Appointments · Nick's Tire & Auto Cleveland"
         description="No appointments at Nick's Tire & Auto. We work first come first served. Pull up at 17625 Euclid Ave. Drop off if you can't wait — we text when ready."
         canonicalPath="/booking"
       />
 
-      <main className="min-h-screen bg-background">
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:py-20">
+      <div className="mx-auto max-w-3xl px-4 py-12 sm:py-20">
           <div className="text-center mb-10">
             <p className="text-[11px] font-bold tracking-[0.18em] text-primary uppercase mb-3">
               How drop-off works
@@ -39,7 +39,7 @@ export default function BookingPage() {
               text you the second it&apos;s ready.
             </p>
             <p className="mt-4 text-[15px] text-foreground/80 leading-relaxed max-w-2xl mx-auto">
-              Repair work? Free check. Written quote. <span className="text-[#FDB913] font-semibold">You don&apos;t pay until you say yes.</span>
+              Repair work? Free check. Written quote. <span className="text-primary font-semibold">You don&apos;t pay until you say yes.</span>
             </p>
           </div>
 
@@ -100,7 +100,6 @@ export default function BookingPage() {
             </div>
           </div>
         </div>
-      </main>
-    </>
+    </PageLayout>
   );
 }

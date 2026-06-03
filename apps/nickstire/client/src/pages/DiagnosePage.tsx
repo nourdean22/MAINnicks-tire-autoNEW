@@ -273,8 +273,8 @@ function ScanAnimation() {
   return (
     <div className="relative w-full max-w-2xl mx-auto my-12">
       {/* Car outline ghost */}
-      <div className="relative h-48 bg-[#141414] rounded-xl border border-[#2A2A2A] overflow-hidden flex items-center justify-center">
-        <Car className="w-24 h-24 text-white/10" />
+      <div className="relative h-48 bg-card rounded-xl border border-[#2A2A2A] overflow-hidden flex items-center justify-center">
+        <Car className="w-24 h-24 text-foreground/10" />
         {/* Sweeping gold line */}
         <motion.div
           className="absolute top-0 left-0 w-1 h-full"
@@ -290,9 +290,9 @@ function ScanAnimation() {
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         />
         <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-          <Loader2 className="w-8 h-8 text-[#FDB913] animate-spin mb-3" />
-          <p className="text-[#FDB913] font-heading text-sm tracking-widest uppercase">Scanning your vehicle...</p>
-          <p className="text-white/40 text-xs mt-1">Our AI is analyzing your symptoms</p>
+          <Loader2 className="w-8 h-8 text-primary animate-spin mb-3" />
+          <p className="text-primary font-heading text-sm tracking-widest uppercase">Scanning your vehicle...</p>
+          <p className="text-foreground/40 text-xs mt-1">Our AI is analyzing your symptoms</p>
         </div>
       </div>
     </div>
@@ -462,7 +462,7 @@ export default function DiagnosePage() {
           <div className="absolute inset-0">
             {/* LCP fix · hero image (rendered at 20% opacity as bg, but still LCP candidate) */}
             <ResponsivePhoto loading="eager" fetchPriority="high" src={HERO_IMG} alt="Auto diagnostics at Nick's Tire & Auto Cleveland — check engine light + warning light testing" className="w-full h-full object-cover opacity-20" objectPosition="center 45%" />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#0A0A0A]/80 via-[#0A0A0A]/95 to-[#0A0A0A]" />
+            <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/95 to-background" />
           </div>
 
           <div className="relative container">
@@ -503,16 +503,16 @@ export default function DiagnosePage() {
 
             <FadeIn>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-[#FDB913]/20 rounded-lg flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-[#FDB913]" />
+                <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center">
+                  <Activity className="w-6 h-6 text-primary" />
                 </div>
-                <span className="font-mono text-[#FDB913]/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
+                <span className="font-mono text-primary/70 text-xs tracking-wide">AI-Powered Diagnostic Tool</span>
               </div>
-              <h1 className="font-heading text-4xl lg:text-6xl text-white tracking-tight leading-[0.95]">
+              <h1 className="font-heading text-4xl lg:text-6xl text-foreground tracking-tight leading-[0.95]">
                 WHAT'S WRONG WITH<br />
-                <span className="text-[#FDB913]">MY CAR</span>?
+                <span className="text-primary">MY CAR</span>?
               </h1>
-              <p className="mt-4 text-white/60 text-lg max-w-2xl">
+              <p className="mt-4 text-foreground/60 text-lg max-w-2xl">
                 Tap an area on the car below to select the problem zone, describe your symptoms, and our AI will provide a preliminary diagnosis in seconds.
               </p>
             </FadeIn>
@@ -520,14 +520,14 @@ export default function DiagnosePage() {
         </section>
 
         {/* Interactive Car Silhouette */}
-        <section className="bg-[#0A0A0A] py-12 lg:py-16">
+        <section className="bg-background py-12 lg:py-16">
           <div className="container max-w-4xl">
             <FadeIn>
               <div className="text-center mb-8">
-                <h2 className="font-heading text-2xl text-white tracking-tight mb-2">
-                  TAP THE <span className="text-[#FDB913]">PROBLEM AREA</span>
+                <h2 className="font-heading text-2xl text-foreground tracking-tight mb-2">
+                  TAP THE <span className="text-primary">PROBLEM AREA</span>
                 </h2>
-                <p className="text-white/50 text-sm">Click a zone on the car to get started</p>
+                <p className="text-foreground/50 text-sm">Click a zone on the car to get started</p>
               </div>
 
               <CarSilhouette
@@ -546,8 +546,8 @@ export default function DiagnosePage() {
                     onClick={() => handleZoneClick(zone.id)}
                     className={`px-4 py-2 rounded-full text-xs font-heading tracking-wider transition-all border ${
                       selectedZone === zone.id
-                        ? "bg-[#FDB913]/15 border-[#FDB913] text-[#FDB913]"
-                        : "bg-[#141414] border-[#2A2A2A] text-white/50 hover:border-[#FDB913]/50 hover:text-[#FDB913]/70"
+                        ? "bg-primary/15 border-primary text-primary"
+                        : "bg-card border-[#2A2A2A] text-foreground/50 hover:border-primary/50 hover:text-primary/70"
                     }`}
                   >
                     {zone.label}
@@ -559,21 +559,21 @@ export default function DiagnosePage() {
         </section>
 
         {/* Symptom Input & Vehicle Info */}
-        <section ref={formRef} className="bg-[#0A0A0A] py-12 lg:py-16">
+        <section ref={formRef} className="bg-background py-12 lg:py-16">
           <div className="container max-w-3xl">
             <FadeIn>
-              <div className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-6 lg:p-8 space-y-6">
+              <div className="bg-card border border-[#2A2A2A] rounded-xl p-6 lg:p-8 space-y-6">
                 {/* Vehicle Info (collapsible) */}
                 <div>
-                  <h3 className="font-heading text-lg text-white tracking-tight mb-1">
-                    VEHICLE DETAILS <span className="text-white/30 text-xs font-normal">(optional)</span>
+                  <h3 className="font-heading text-lg text-foreground tracking-tight mb-1">
+                    VEHICLE DETAILS <span className="text-foreground/30 text-xs font-normal">(optional)</span>
                   </h3>
-                  <p className="text-white/40 text-xs mb-4">Helps narrow down the most likely causes</p>
+                  <p className="text-foreground/40 text-xs mb-4">Helps narrow down the most likely causes</p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <select
                       value={vehicle.year}
                       onChange={(e) => setVehicle({ ...vehicle, year: e.target.value })}
-                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-[#FDB913]/50"
+                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
                     >
                       <option value="">Year</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
@@ -581,7 +581,7 @@ export default function DiagnosePage() {
                     <select
                       value={vehicle.make}
                       onChange={(e) => setVehicle({ ...vehicle, make: e.target.value })}
-                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-[#FDB913]/50"
+                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md focus:outline-none focus:border-primary/50"
                     >
                       <option value="">Make</option>
                       {MAKES.map(m => <option key={m} value={m}>{m}</option>)}
@@ -591,7 +591,7 @@ export default function DiagnosePage() {
                       value={vehicle.model}
                       onChange={(e) => setVehicle({ ...vehicle, model: e.target.value })}
                       placeholder="Model"
-                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50"
+                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
                     />
                     <input
                       type="text"
@@ -599,7 +599,7 @@ export default function DiagnosePage() {
                       value={vehicle.mileage}
                       onChange={(e) => setVehicle({ ...vehicle, mileage: e.target.value })}
                       placeholder="Mileage"
-                      className="bg-[#0A0A0A] border border-[#2A2A2A] text-white px-3 py-2.5 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50"
+                      className="bg-background border border-[#2A2A2A] text-foreground px-3 py-2.5 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50"
                     />
                   </div>
                 </div>
@@ -609,10 +609,10 @@ export default function DiagnosePage() {
 
                 {/* Symptom text area */}
                 <div>
-                  <h3 className="font-heading text-lg text-white tracking-tight mb-1">
+                  <h3 className="font-heading text-lg text-foreground tracking-tight mb-1">
                     DESCRIBE YOUR SYMPTOMS
                   </h3>
-                  <p className="text-white/40 text-xs mb-4">
+                  <p className="text-foreground/40 text-xs mb-4">
                     {selectedZone
                       ? "We've pre-filled based on your selection. Edit or add more detail below."
                       : "What's happening with your car? Be as specific as possible."}
@@ -622,7 +622,7 @@ export default function DiagnosePage() {
                     onChange={(e) => setSymptomText(e.target.value)}
                     rows={5}
                     placeholder="Example: My brakes are squealing loudly when I slow down, especially going downhill. It started about a week ago and seems to be getting worse..."
-                    className="w-full bg-[#0A0A0A] border border-[#2A2A2A] text-white px-4 py-3 text-sm rounded-md placeholder:text-white/25 focus:outline-none focus:border-[#FDB913]/50 resize-none leading-relaxed"
+                    className="w-full bg-background border border-[#2A2A2A] text-foreground px-4 py-3 text-sm rounded-md placeholder:text-foreground/25 focus:outline-none focus:border-primary/50 resize-none leading-relaxed"
                   />
                 </div>
 
@@ -630,7 +630,7 @@ export default function DiagnosePage() {
                 <button
                   onClick={handleAnalyze}
                   disabled={isAnalyzing || !symptomText.trim()}
-                  className="w-full flex items-center justify-center gap-3 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-3 bg-primary text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/90 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {isAnalyzing ? (
                     <>
@@ -656,7 +656,7 @@ export default function DiagnosePage() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-[#0A0A0A] overflow-hidden"
+              className="bg-background overflow-hidden"
             >
               <div className="container max-w-3xl">
                 <ScanAnimation />
@@ -673,7 +673,7 @@ export default function DiagnosePage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.5 }}
-              className="bg-[#0A0A0A] py-12 lg:py-16"
+              className="bg-background py-12 lg:py-16"
             >
               <div className="container max-w-3xl space-y-6">
                 {/* Severity banner */}
@@ -706,22 +706,22 @@ export default function DiagnosePage() {
 
                 {/* Diagnosis title */}
                 <div>
-                  <h2 className="font-heading text-3xl text-white tracking-tight mb-2">
+                  <h2 className="font-heading text-3xl text-foreground tracking-tight mb-2">
                     {result.title}
                   </h2>
                   {(vehicle.year || vehicle.make || vehicle.model) && (
-                    <p className="text-xs text-white/40">
+                    <p className="text-xs text-foreground/40">
                       <Car className="w-3.5 h-3.5 inline mr-1" />
                       Analysis for: {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ")}
                       {vehicle.mileage ? ` — ${vehicle.mileage} miles` : ""}
                     </p>
                   )}
-                  <p className="text-white/70 text-sm mt-3 leading-relaxed">{result.summary}</p>
+                  <p className="text-foreground/70 text-sm mt-3 leading-relaxed">{result.summary}</p>
                 </div>
 
                 {/* Likely Causes as severity-coded cards */}
                 <div className="space-y-3 stagger-in">
-                  <h3 className="font-heading text-sm text-[#FDB913] tracking-wider">POSSIBLE CAUSES</h3>
+                  <h3 className="font-heading text-sm text-primary tracking-wider">POSSIBLE CAUSES</h3>
                   {result.likelyCauses.map((cause, i) => {
                     // Assign severity color per cause based on likelihood
                     const causeStyle = cause.likelihood === "High"
@@ -741,19 +741,19 @@ export default function DiagnosePage() {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
                             <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: causeStyle.dot }} />
-                            <h4 className="font-heading text-white tracking-wider text-sm">{cause.cause}</h4>
+                            <h4 className="font-heading text-foreground tracking-wider text-sm">{cause.cause}</h4>
                           </div>
                           <span className="text-[10px] tracking-wider px-2 py-0.5 rounded" style={{ color: causeStyle.dot, backgroundColor: `${causeStyle.dot}20` }}>
                             {cause.likelihood.toUpperCase()} LIKELIHOOD
                           </span>
                         </div>
-                        <p className="text-white/60 text-sm leading-relaxed ml-[18px]">{cause.explanation}</p>
+                        <p className="text-foreground/60 text-sm leading-relaxed ml-[18px]">{cause.explanation}</p>
 
                         {/* Book This Repair CTA */}
                         <div className="mt-3 ml-[18px]">
                           <Link
                             href="/contact"
-                            className="inline-flex items-center gap-1.5 text-[#FDB913] text-xs font-heading tracking-wider hover:text-[#FDB913]/80 transition-colors"
+                            className="inline-flex items-center gap-1.5 text-primary text-xs font-heading tracking-wider hover:text-primary/80 transition-colors"
                           >
                             BOOK THIS REPAIR
                             <ChevronRight className="w-3.5 h-3.5" />
@@ -766,42 +766,42 @@ export default function DiagnosePage() {
 
                 {/* Service & Cost */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-[#141414] border border-[#FDB913]/20 rounded-xl p-5">
+                  <div className="bg-card border border-primary/20 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
-                      <Wrench className="w-4 h-4 text-[#FDB913]" />
-                      <span className="text-xs text-white/50 tracking-wide">Recommended Service</span>
+                      <Wrench className="w-4 h-4 text-primary" />
+                      <span className="text-xs text-foreground/50 tracking-wide">Recommended Service</span>
                     </div>
-                    <p className="font-heading text-white tracking-wider">{result.recommendedService}</p>
+                    <p className="font-heading text-foreground tracking-wider">{result.recommendedService}</p>
                   </div>
-                  <div className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-5">
+                  <div className="bg-card border border-[#2A2A2A] rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-2">
-                      <CircleDot className="w-4 h-4 text-white/40" />
-                      <span className="text-xs text-white/50 tracking-wide">Estimated Cost Range</span>
+                      <CircleDot className="w-4 h-4 text-foreground/40" />
+                      <span className="text-xs text-foreground/50 tracking-wide">Estimated Cost Range</span>
                     </div>
-                    <p className="font-heading text-white tracking-wider">{result.estimatedCostRange}</p>
-                    <p className="text-[10px] text-white/30 mt-1">*Actual cost determined after in-person diagnosis</p>
+                    <p className="font-heading text-foreground tracking-wider">{result.estimatedCostRange}</p>
+                    <p className="text-[10px] text-foreground/30 mt-1">*Actual cost determined after in-person diagnosis</p>
                   </div>
                 </div>
 
                 {/* Next Steps */}
                 <div>
-                  <h3 className="font-heading text-sm text-[#FDB913] tracking-wider mb-3">RECOMMENDED NEXT STEPS</h3>
+                  <h3 className="font-heading text-sm text-primary tracking-wider mb-3">RECOMMENDED NEXT STEPS</h3>
                   <ol className="space-y-2">
                     {result.nextSteps.map((step, i) => (
                       <li key={i} className="flex items-start gap-3">
-                        <span className="w-6 h-6 bg-[#FDB913]/20 text-[#FDB913] rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">
+                        <span className="w-6 h-6 bg-primary/20 text-primary rounded-full flex items-center justify-center text-xs shrink-0 mt-0.5">
                           {i + 1}
                         </span>
-                        <span className="text-white/70 text-sm leading-relaxed">{step}</span>
+                        <span className="text-foreground/70 text-sm leading-relaxed">{step}</span>
                       </li>
                     ))}
                   </ol>
                 </div>
 
                 {/* Disclaimer */}
-                <div className="bg-[#141414]/50 border border-[#2A2A2A] rounded-xl p-4">
-                  <p className="text-xs text-white/40 leading-relaxed">
-                    <Shield className="w-3.5 h-3.5 inline mr-1 text-white/30" />
+                <div className="bg-card/50 border border-[#2A2A2A] rounded-xl p-4">
+                  <p className="text-xs text-foreground/40 leading-relaxed">
+                    <Shield className="w-3.5 h-3.5 inline mr-1 text-foreground/30" />
                     This is a preliminary read based on the symptoms you described. For the real answer we want the car in front of us. ASE-trained hands, OBD-II tools, written quote before anyone touches a wrench.
                   </p>
                 </div>
@@ -811,14 +811,14 @@ export default function DiagnosePage() {
                   <a
                     href={BUSINESS.phone.href}
                     onClick={() => trackPhoneClick("diagnose-results")}
-                    className="flex items-center justify-center gap-2 bg-[#FDB913] text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/90 transition-colors flex-1"
+                    className="flex items-center justify-center gap-2 bg-primary text-black px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/90 transition-colors flex-1"
                   >
                     <Phone className="w-5 h-5" />
                     CALL {BUSINESS.phone.display}
                   </a>
                   <Link
                     href="/contact"
-                    className="flex items-center justify-center gap-2 border-2 border-[#FDB913]/40 text-[#FDB913] px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-[#FDB913]/10 hover:border-[#FDB913] transition-colors flex-1"
+                    className="flex items-center justify-center gap-2 border-2 border-primary/40 text-primary px-8 py-4 rounded-md font-heading text-base tracking-wider hover:bg-primary/10 hover:border-primary transition-colors flex-1"
                   >
                     SCHEDULE DROP-OFF
                     <ArrowRight className="w-5 h-5" />
@@ -827,14 +827,14 @@ export default function DiagnosePage() {
 
                 {/* Lead Capture */}
                 {!diagLeadSubmitted ? (
-                  <div className="bg-white/5 border border-white/10 rounded-xl p-5">
-                    <h4 className="font-heading text-white text-sm tracking-wider mb-1">WANT US TO LOOK AT IT?</h4>
-                    <p className="text-white/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick checks are free.</p>
+                  <div className="bg-foreground/5 border border-foreground/10 rounded-xl p-5">
+                    <h4 className="font-heading text-foreground text-sm tracking-wider mb-1">WANT US TO LOOK AT IT?</h4>
+                    <p className="text-foreground/50 text-xs mb-4">Leave your number — we'll check it out when you come in. Quick checks are free.</p>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <input type="text" placeholder="Your name" value={diagLeadName} onChange={e => setDiagLeadName(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/50" />
+                        className="flex-1 bg-foreground/5 border border-foreground/10 rounded px-3 py-2.5 text-foreground text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50" />
                       <input type="tel" placeholder="Phone number" value={diagLeadPhone} onChange={e => setDiagLeadPhone(e.target.value)}
-                        className="flex-1 bg-white/5 border border-white/10 rounded px-3 py-2.5 text-white text-sm placeholder:text-white/30 focus:outline-none focus:border-[#FDB913]/50" />
+                        className="flex-1 bg-foreground/5 border border-foreground/10 rounded px-3 py-2.5 text-foreground text-sm placeholder:text-foreground/30 focus:outline-none focus:border-primary/50" />
                       <button
                         disabled={!diagLeadName || !diagLeadPhone || diagLeadPhone.replace(/\D/g, "").length < 7 || diagLeadSaving}
                         onClick={async () => {
@@ -859,7 +859,7 @@ export default function DiagnosePage() {
                             setDiagLeadSaving(false);
                           }
                         }}
-                        className="px-6 py-2.5 rounded bg-[#FDB913] text-black font-bold text-sm hover:bg-[#FDB913]/90 transition-colors disabled:opacity-40 whitespace-nowrap"
+                        className="px-6 py-2.5 rounded bg-primary text-black font-bold text-sm hover:bg-primary/90 transition-colors disabled:opacity-40 whitespace-nowrap"
                       >
                         {diagLeadSaving ? "..." : "Send"}
                       </button>
@@ -868,13 +868,13 @@ export default function DiagnosePage() {
                 ) : (
                   <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-5 text-center">
                     <p className="font-bold text-emerald-400 text-sm">We'll have a look when you come in!</p>
-                    <p className="text-white/50 text-xs mt-1">Quick checks are free — just walk in.</p>
+                    <p className="text-foreground/50 text-xs mt-1">Quick checks are free — just walk in.</p>
                   </div>
                 )}
 
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-2 text-white/40 hover:text-white/60 text-xs tracking-wider transition-colors mx-auto"
+                  className="flex items-center gap-2 text-foreground/40 hover:text-foreground/60 text-xs tracking-wider transition-colors mx-auto"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   START OVER
