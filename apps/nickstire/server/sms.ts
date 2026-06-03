@@ -202,6 +202,11 @@ function queueForLater(to: string, body: string, opts?: SendSmsOptions): void {
         direction: "outbound",
         body,
         status: "queued",
+        // wave-2026-06 (telemetry dedup) — carry the caller's tier onto the
+        // durable queued row so a QUEUED tagged send is ONE tiered row, not
+        // an untagged queueForLater row + a tagged logOutboundSms row. The
+        // cron skips logOutboundSms when result.queued is true.
+        variantKey: opts?.variantKey ?? null,
       }).$returningId();
       queued.dbId = row?.id;
     } catch (err) {
@@ -620,6 +625,19 @@ interface SendSmsOptions {
    * 216-862-0005.
    */
   via?: "twilio" | "shop";
+  /**
+   * wave-2026-06 (telemetry dedup) — A/B / tier key carried onto the
+   * smsMessages row written by the OFFLINE queue (queueForLater). Callers
+   * that pass skipPersist also tag their send so that, when a send is
+   * QUEUED (outside-hours / gateway-offline), the single durable queued
+   * row already carries the tier. The cron then skips its own
+   * logOutboundSms for queued results (see the call sites) — without this
+   * the queued send produced TWO rows: an untagged one from queueForLater
+   * AND a tagged one from logOutboundSms (the "Untagged (pre-181.51)"
+   * 2x-count bug). The queued row stays load-bearing for delivery
+   * (rehydrate reads status='queued'); we just stamp its tier.
+   */
+  variantKey?: string;
 }
 
 // ─── Wave-103: SMS Gateway (Samsung F25e) integration ───
