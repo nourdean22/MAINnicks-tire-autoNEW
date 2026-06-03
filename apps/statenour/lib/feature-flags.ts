@@ -150,7 +150,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_DEEP_REASONING",
-    description: "WIRED. Routes hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine, reasonStreaming) instead of single-pass, then ships the answer as a stream + persists normally. Falls through to the normal stream on any error. OFF = all turns single-pass (today). Adds latency/cost on hard turns only.",
+    description: "WIRED + LIVE-DATA. Routes hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine). v-truth: now PRE-FETCHES a live business snapshot (getDashboardSummary: revenue/jobs/customers/reviews) and prepends it to the reasoning context, so it reasons from REAL current numbers instead of going tool-blind. Ships the answer as a stream + persists normally; falls through to the normal stream on error. OFF = single-pass. Adds latency on hard turns only.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "Every turn uses the single-pass streamer; the reasoning engine is reachable only via /api/nick/reason.",
