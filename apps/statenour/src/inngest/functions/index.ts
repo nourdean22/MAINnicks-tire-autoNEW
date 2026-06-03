@@ -23,3 +23,5 @@ export {
 } from "./journal-convergence";
 // 2026-05-31 · revived feeder (was deleted in Wave AE; starved recallIndustryIntel).
 export { industryPull } from "./industry-pull";
+// 2026-06-03 · v-truth · event-driven proactivity (NICK_EVENT_TRIGGERS · fail-closed)
+export { nickEventTriggers } from "./event-triggers";

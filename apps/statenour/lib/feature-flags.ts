@@ -214,6 +214,40 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "predictive-prefetch is keyword-matched tool pre-routing only; no embedding anticipation.",
     ownerDoc: "lib/ai/predictive-prefetch.ts",
   },
+
+  // ── v-truth · 3rd-tier (reasoning #3/#5 + autonomy U4/U5) · DEFAULT-OFF ──
+  {
+    key: "NICK_CONFIDENCE_TIER",
+    description: "Confidence-gated auto-execute: provably-SAFE, reversible, NON-MESSAGING autonomous actions (hardcoded allowlist) with a high operator-acceptance history auto-execute without waiting for /qa approval; money/people/messaging actions ALWAYS stay human-gated. Removes friction on the safe 80%. OFF = everything waits for approval (today's fail-closed behavior).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Every autonomous action waits for /qa approval (fail-closed); nothing auto-executes.",
+    ownerDoc: "lib/ai/confidence-tier.ts",
+  },
+  {
+    key: "NICK_EVENT_TRIGGERS",
+    description: "Event-driven proactivity: an Inngest event-triggered function reacts to brain-bus events (e.g. a new urgent lead) in seconds instead of waiting for the next cron poll — proposing the action into the /qa approval queue immediately (fail-closed, nothing auto-sends). OFF = poll-only proactivity (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Proactivity is cron-polled (every few hours); no real-time event reaction.",
+    ownerDoc: "src/inngest/functions/event-triggers.ts",
+  },
+  {
+    key: "NICK_SELF_CONSISTENCY",
+    description: "Difficulty-adaptive self-consistency: on HIGH-STAKES factual turns (revenue/customer claims), samples 2-3 answers and majority-votes on the extracted facts, keeping the consensus — catches fabricated numbers CoVe misses. Cost: N model calls on gated turns only. OFF = single answer (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "One answer per turn; no multi-sample voting.",
+    ownerDoc: "lib/ai/chat/self-consistency.ts",
+  },
+  {
+    key: "NICK_MULTI_AGENT_AUTO",
+    description: "Auto-decompose: when a turn is a multi-part / comparison / multi-entity question ('compare 3 X', 'audit Y across Z'), automatically fans out the existing multi-agent orchestrator instead of hoping the model picks the arsenal.multiAgent tool. OFF = model-discretion only (today, near-never fires).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Multi-agent runs only if the model chooses the arsenal.multiAgent tool.",
+    ownerDoc: "lib/ai/multi-agent-orchestrator.ts",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
