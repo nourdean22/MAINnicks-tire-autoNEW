@@ -141,6 +141,11 @@ export const WEEKLY_JOBS: readonly string[] = [
   // the slot shift (Sunday 23:00 UTC → Sunday-ET evening fan-out at
   // 03:00 UTC) is harmless — still the same ISO week.
   "/api/cron/relationship-weekly-synthesis",
+  // 2026-06-03 · v-truth · weekly brain-category reflection (Sunday 3am ->
+  // Sunday-ET weekly fan-out). Hosts the NICK_REFLECTION_TREES higher-order
+  // synthesis (which self-gates on the flag); the category reflections it
+  // also writes are an operator-facing built feature that was dormant.
+  "/api/cron/reflect-categories",
 ];
 
 /**
