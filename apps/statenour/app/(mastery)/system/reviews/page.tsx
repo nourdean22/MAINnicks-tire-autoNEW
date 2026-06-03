@@ -18,6 +18,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { PageHeader } from "@/components/layout/ui";
 
 interface LookupRow {
   id: string;
@@ -88,19 +89,19 @@ function ReviewsPageInner() {
   return (
     <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
-        <header className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
-            System · operator review
-          </p>
-          <h1 className="text-2xl font-medium text-[var(--text-primary)]">
-            Error lookup
-          </h1>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Paste an <code className="text-[var(--gold)]">errorId</code> from any
-            500 response (e.g. <code>err_lk3m2a_a7c9bd</code>) to see the full
-            sanitized stack, classification, and raw error message.
-          </p>
-        </header>
+        <PageHeader
+          parentHref="/system"
+          parentLabel="system"
+          eyebrow="System · operator review"
+          title="Error lookup"
+          description={
+            <>
+              Paste an <code className="text-[var(--gold)]">errorId</code> from any
+              500 response (e.g. <code>err_lk3m2a_a7c9bd</code>) to see the full
+              sanitized stack, classification, and raw error message.
+            </>
+          }
+        />
 
         {/* Search */}
         <section className="space-y-2">
