@@ -1256,11 +1256,22 @@ export function callbackConfirmationSms(name: string): string {
   return `Hi ${firstName}, we received your callback request at ${STORE_NAME}. One of our team members will call you back shortly during business hours (Mon-Sat 8AM-6PM, Sun 9AM-4PM). — ${STORE_PHONE}`;
 }
 
-/** Maintenance reminder SMS */
+/**
+ * TCPA/CTIA: bulk promotional SMS must carry opt-out instructions. Append a
+ * STOP footer unless the body already contains one. Idempotent — safe to call
+ * even on a body that already ends with a STOP line. Mirrors the same helper
+ * in routers/campaigns.ts (campaign sends); apply ONLY to bulk promo, never to
+ * transactional/1:1 messages.
+ */
+export function withOptOut(body: string): string {
+  return /\breply stop\b/i.test(body) ? body : `${body}\n\nReply STOP to opt out.`;
+}
+
+/** Maintenance reminder SMS (bulk promo · carries the TCPA opt-out footer) */
 export function maintenanceReminderSms(name: string, service: string, mileageNote?: string): string {
   const firstName = name.split(" ")[0];
   const mileage = mileageNote ? ` ${mileageNote}` : "";
-  return `Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or schedule a drop-off at nickstire.org. First-come, first-served.\n\n— ${STORE_NAME}`;
+  return withOptOut(`Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or schedule a drop-off at nickstire.org. First-come, first-served.\n\n— ${STORE_NAME}`);
 }
 
 /** Lead submission confirmation SMS */

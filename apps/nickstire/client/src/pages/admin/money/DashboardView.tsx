@@ -119,7 +119,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
        * shows (cleanup #6). Killed the block · the populated
        * panel below at L319 stays · clarity-gate: empty > fake. */}
       {shopFloor && (shopFloor.active > 0 || shopFloor.totalValueInProgress > 0) && (
-        <div className="bg-card border border-primary/20 rounded-lg p-5">
+        <div className="bg-card border border-primary/20 p-5">
           <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
             <Activity className="w-4 h-4 text-primary" />
             REVENUE PIPELINE — WORK IN PROGRESS

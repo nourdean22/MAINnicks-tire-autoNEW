@@ -238,7 +238,7 @@ function ThreadView({
   const displayName = conversation.customerName || formatPhone(conversation.customerPhone);
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border/30 rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full bg-card border border-border/30 overflow-hidden">
       {/* Header */}
       <header className="flex items-center gap-3 px-4 py-3 border-b border-border/20 bg-foreground/[0.02]">
         <button
@@ -517,7 +517,7 @@ function ConversationList({
   );
 
   return (
-    <div className="flex flex-col h-full bg-card border border-border/30 rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full bg-card border border-border/30 overflow-hidden">
       <header className="px-4 pt-4 pb-2 border-b border-border/20">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -705,7 +705,7 @@ export default function SmsSection() {
               key={selected.id /* re-mount per conversation so initialBody only seeds once */}
             />
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center bg-card border border-border/30 rounded-lg text-center px-6">
+            <div className="flex-1 flex flex-col items-center justify-center bg-card border border-border/30 text-center px-6">
               <MessageSquare className="w-10 h-10 text-foreground/15 mb-4" />
               <h3 className="font-semibold text-foreground/70 tracking-tight mb-1">Select a conversation</h3>
               <p className="text-foreground/40 text-sm max-w-xs">

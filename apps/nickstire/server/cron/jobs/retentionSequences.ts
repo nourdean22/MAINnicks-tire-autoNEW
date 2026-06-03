@@ -16,6 +16,7 @@
 import { createLogger } from "../../lib/logger";
 import { eq, and, isNotNull, sql, isNull, or, inArray } from "drizzle-orm";
 import { STORE_PHONE } from "@shared/const";
+import { withOptOut } from "../../sms";
 import type { FlagKey } from "../../services/featureFlags";
 
 import { BUSINESS } from "@shared/business";
@@ -256,10 +257,12 @@ async function processRetentionTier(tier: RetentionTier): Promise<number> {
       if (tier.variants && tier.variants.length > 0) {
         const { selectVariant } = await import("../../services/smsInstrumentation");
         const picked = selectVariant(c.id, tier.variants.map((v) => ({ key: v.key, payload: v.build })));
-        messageBody = picked.payload(firstName, vehicle);
+        // TCPA/CTIA: retention SMS is bulk promo — append the STOP footer
+        // (idempotent; withOptOut no-ops if the body already carries one).
+        messageBody = withOptOut(picked.payload(firstName, vehicle));
         variantKey = `${tierKey}_${picked.key}`;
       } else if (tier.message) {
-        messageBody = tier.message(firstName, vehicle);
+        messageBody = withOptOut(tier.message(firstName, vehicle));
         variantKey = tierKey;
       } else {
         // Misconfigured tier — skip rather than send empty SMS
