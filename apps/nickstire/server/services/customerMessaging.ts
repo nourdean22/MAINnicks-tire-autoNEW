@@ -86,13 +86,13 @@ export async function generateStatusMessage(params: {
   let customerName = "there";
   let customerPhone = "";
   try {
-    const custId = parseInt(wo.customerId, 10);
-    if (!isNaN(custId)) {
-      const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
-      if (cust) {
-        customerName = cust.firstName;
-        customerPhone = cust.phone;
-      }
+    // wave-182: resolve numeric-id OR phone-keyed walk-in customer_id so status
+    // messages reach AI-chat / walk-in customers, not just numeric-id ones.
+    const { resolveWorkOrderCustomer } = await import("../lib/resolveWorkOrderCustomer");
+    const cust = await resolveWorkOrderCustomer(wo.customerId);
+    if (cust) {
+      customerName = cust.firstName;
+      customerPhone = cust.phone;
     }
   } catch (err) {
     log.error("[CustomerMessaging] Customer lookup failed:", err instanceof Error ? err.message : err);
