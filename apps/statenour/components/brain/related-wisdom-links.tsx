@@ -11,7 +11,7 @@
  * actually wants the graph traversal.
  *
  * Renders compactly · just the related-wisdom keys + similarity ·
- * each links back to /brain/wisdom?focus=<key> so the operator can
+ * each links back to /brain?tab=wisdom&focus=<key> so the operator can
  * jump between related wisdoms without leaving the page.
  *
  * Auto-collapses on second click. Errors render as a small note

@@ -114,7 +114,7 @@ export type LandingSurface =
   | "/missions"
   | "/journal"
   | "/system"
-  | "/brain/board";
+  | "/brain?tab=board";
 
 export interface LandingRecommendation {
   surface: LandingSurface;
@@ -153,7 +153,7 @@ export function chooseLanding(snapshot: {
   }
   if (snapshot.focus < 0.3 && snapshot.capacity > 0.5) {
     return {
-      surface: "/brain/board",
+      surface: "/brain?tab=board",
       reason: "low focus, high capacity · use the multi-advisor board",
     };
   }

@@ -260,7 +260,7 @@ export function CommandPalette() {
       { id: "sys-api-tokens", label: "API Tokens · Chrome ext", group: "System Ops", icon: <CogIcon className="size-4" />, action: () => navigate("/system"), keywords: ["token", "api", "chrome", "extension", "bearer", "sn_"] },
       { id: "sys-judge-eval", label: "Judge-eval · V1↔V2 + calibration", group: "System Ops", icon: <TrendingUpIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["judge", "eval", "v1", "v2", "prompt", "shadow", "calibration", "ground truth"] },
       { id: "sys-lens-stats", label: "Lens Stats · framework fire-rate", group: "System Ops", icon: <ActivityIcon className="size-4" />, action: () => navigate("/system/calibration"), keywords: ["lens", "framework", "elon", "pareto", "stats", "fire"] },
-      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain/board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
+      { id: "nav-brain-board", label: "Brain Board · multi-advisor", group: "Pages", icon: <BrainIcon className="size-4" />, action: () => navigate("/brain?tab=board"), keywords: ["board", "advisor", "consult", "council", "elon", "buffett", "warren", "decision"] },
 
       // ═══ PAGES — remaining live surfaces ═══
       { id: "nav-body", label: "Body Tracking", group: "Pages", icon: <HeartPulseIcon className="size-4" />, action: () => navigate("/body"), keywords: ["weight", "workout", "boxing"] },
@@ -538,7 +538,7 @@ export function CommandPalette() {
     (hit: { id: string; sourceType: string }) => {
       setOpen(false);
       if (hit.sourceType === "brain_memory") {
-        router.push(`/brain/wisdom?focus=${encodeURIComponent(hit.id)}`);
+        router.push(`/brain?tab=wisdom&focus=${encodeURIComponent(hit.id)}`);
       } else if (hit.sourceType === "chat_message") {
         router.push(`/chat#${encodeURIComponent(hit.id)}`);
       } else {

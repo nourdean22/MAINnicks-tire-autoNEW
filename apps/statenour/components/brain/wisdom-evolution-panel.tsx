@@ -245,11 +245,11 @@ export function WisdomEvolutionPanel({ onChange }: { onChange?: () => void }) {
                 </div>
                 {/* v10.0.414 · low-trust gets review-then-deprecate · operator may
                     want to EDIT the wisdom rather than nuke it. The "review" link
-                    scrolls to the wisdom card on /brain/wisdom?focus=<key> where
-                    the existing inline edit affordance handles the rewrite. */}
+                    scrolls to the wisdom card on /brain?tab=wisdom&focus=<key>
+                    where the existing inline edit affordance handles the rewrite. */}
                 <div className="flex flex-col gap-1 shrink-0">
                   <a
-                    href={`/brain/wisdom?focus=${encodeURIComponent(c.key)}`}
+                    href={`/brain?tab=wisdom&focus=${encodeURIComponent(c.key)}`}
                     className="text-[10px] font-mono uppercase tracking-wider px-3 py-2 sm:px-2 sm:py-1 min-h-[44px] sm:min-h-0 flex items-center justify-center rounded border border-[var(--gold)]/40 text-[var(--gold)] hover:bg-[var(--gold)]/10 text-center"
                   >
                     review →

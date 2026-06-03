@@ -203,9 +203,10 @@ const nextConfig: NextConfig = {
     { source: "/system/providers", destination: "/system", permanent: false },
     { source: "/system/power", destination: "/system", permanent: false },
     { source: "/system/ghost-nour", destination: "/system/calibration", permanent: false },
-    // Reason consolidation.
-    { source: "/reason/history", destination: "/reason", permanent: false },
-    { source: "/reason/telemetry", destination: "/reason", permanent: false },
+    // Reason consolidation. Wave 2 (2026-06-03) · /reason itself folded
+    // into /brain?tab=reason · these two land there directly (single hop).
+    { source: "/reason/history", destination: "/brain?tab=reason", permanent: false },
+    { source: "/reason/telemetry", destination: "/brain?tab=reason", permanent: false },
     // Wave AN · 2026-05-28 · /relationships RENAMED to /people. Operator:
     // "lets change the name from relationships to something cool how
     // about people". Permanent redirect so bookmarks + deep links + the
@@ -229,6 +230,15 @@ const nextConfig: NextConfig = {
     // right tab.
     { source: "/seo", destination: "/market?tab=search", permanent: false },
     { source: "/radar", destination: "/market?tab=radar", permanent: false },
+
+    // Wave 2 surface merge · 2026-06-03 · /brain/board + /brain/wisdom +
+    // /reason folded into the tabbed /brain surface (Memory + Board +
+    // Wisdom + Reason tabs). Memory = the former /brain hub. Deep links +
+    // bookmarks land on the right tab; per-tab query params (?focus,
+    // ?evolution, ?q, ?h) ride through (Next forwards the query string).
+    { source: "/brain/board", destination: "/brain?tab=board", permanent: false },
+    { source: "/brain/wisdom", destination: "/brain?tab=wisdom", permanent: false },
+    { source: "/reason", destination: "/brain?tab=reason", permanent: false },
   ],
 };
 

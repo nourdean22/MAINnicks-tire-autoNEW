@@ -139,9 +139,9 @@ export function OperatorPulse({
         const askDeep = () => {
           try {
             sessionStorage.setItem("reason:pending-q", line.text);
-            window.location.href = "/reason?h=1";
+            window.location.href = "/brain?tab=reason&h=1";
           } catch {
-            window.location.href = `/reason?q=${encodeURIComponent(line.text.slice(0, 80))}`;
+            window.location.href = `/brain?tab=reason&q=${encodeURIComponent(line.text.slice(0, 80))}`;
           }
         };
         const body = (
