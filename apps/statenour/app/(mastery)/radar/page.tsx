@@ -35,6 +35,7 @@
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BridgeShell } from "@/components/mastery/bridge-shell";
+import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 // master_report engine result shape · matches
@@ -109,15 +110,11 @@ export default function RadarPage() {
   );
 
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <header>
-          <h1 className="text-2xl font-medium tracking-tight">Radar</h1>
-          <p className="mt-2 text-sm text-white/50">
-            Brand + competitive signal · what&apos;s moving externally.
-          </p>
-        </header>
-
+    <StandardPage
+      eyebrow="NOUR OS · Intelligence"
+      title="Radar"
+      description="Brand + competitive signal · what's moving externally."
+    >
         {!anyData && (
           <p className="mt-8 text-sm text-white/40">
             All radar engines returned empty. Either no recent data or the
@@ -231,8 +228,7 @@ export default function RadarPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           via nickstire bridge · v11.5+ master_report · refreshes every 5 min
         </p>
-      </div>
-    </main>
+    </StandardPage>
   );
 }
 
