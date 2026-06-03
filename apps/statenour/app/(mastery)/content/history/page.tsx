@@ -187,6 +187,7 @@ export default function ContentHistoryPage() {
       }
       width="3xl"
       rhythm="comfortable"
+      loading={loading}
     >
 
       {/* Filter row */}

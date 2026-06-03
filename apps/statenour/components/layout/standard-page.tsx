@@ -37,6 +37,7 @@
 import type { ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { PageHeader } from "@/components/layout/ui";
+import { PageSkeleton } from "@/components/ui/page-skeleton";
 import { cn } from "@/lib/utils/cn";
 
 /**
@@ -117,6 +118,14 @@ interface StandardPageProps {
    * renders the right back-link · no opt-in required.
    */
   parent?: { href: string; label: string } | null;
+  /**
+   * When true, render the shared `<PageSkeleton>` in the body instead of
+   * `children`. The header (eyebrow/title/description) still renders —
+   * those are known at mount, so only the data body shows the gold
+   * shimmer (no header flash). Default false = behavior unchanged. This
+   * is the canonical loading-state slot reserved in the header notes.
+   */
+  loading?: boolean;
 }
 
 export function StandardPage({
@@ -130,6 +139,7 @@ export function StandardPage({
   children,
   className,
   parent,
+  loading = false,
 }: StandardPageProps) {
   const pathname = usePathname();
   // Resolve the effective parent · explicit override > auto-detect.
@@ -158,8 +168,14 @@ export function StandardPage({
         parentHref={effectiveParent?.href}
         parentLabel={effectiveParent?.label}
       />
-      {pulseStrip ? <div className="px-1">{pulseStrip}</div> : null}
-      {children}
+      {loading ? (
+        <PageSkeleton />
+      ) : (
+        <>
+          {pulseStrip ? <div className="px-1">{pulseStrip}</div> : null}
+          {children}
+        </>
+      )}
     </div>
   );
 }
