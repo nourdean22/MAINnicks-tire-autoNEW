@@ -219,15 +219,34 @@ export async function syncVisitDatesFromInvoices(): Promise<{ recordsProcessed: 
 
     const affected = (result as Record<string, unknown>)?.affectedRows as number || 0;
 
-    // Also update from work orders (completedAt)
+    // Also update from completed work orders.
+    // wave-182 (architecture decision #1) — two fixes:
+    //  (a) Raw columns were camelCase (`customerId`/`completedAt`) but the
+    //      work_orders table is snake_case (`customer_id`/`completed_at`), so
+    //      this query threw "Unknown column" every run — swallowed by the outer
+    //      try/catch and reported "Failed", meaning visit dates were NEVER
+    //      synced from work orders. Corrected to the real column names.
+    //  (b) work_orders.customer_id is polymorphic — a numeric customers.id, a
+    //      raw phone string (AI-chat / walk-in WOs), or the "WALK-IN" sentinel.
+    //      The old `CAST(customer_id AS UNSIGNED)` join matched ONLY the numeric
+    //      form, silently dropping every phone-keyed WO. Resolve each WO to its
+    //      customer by numeric id OR last-10-digit phone match, then group by
+    //      the resolved id.
     const [woResult] = await db.execute(sql`
       UPDATE customers c
       INNER JOIN (
-        SELECT customerId, MAX(completedAt) as latestCompleted
-        FROM work_orders
-        WHERE completedAt IS NOT NULL AND customerId IS NOT NULL
-        GROUP BY customerId
-      ) wo ON c.id = CAST(wo.customerId AS UNSIGNED)
+        SELECT cust.id AS cid, MAX(w.completed_at) AS latestCompleted
+        FROM work_orders w
+        JOIN customers cust ON (
+          (w.customer_id REGEXP '^[0-9]+$' AND cust.id = CAST(w.customer_id AS UNSIGNED))
+          OR (w.customer_id NOT REGEXP '^[0-9]+$'
+              AND CHAR_LENGTH(REGEXP_REPLACE(w.customer_id, '[^0-9]', '')) >= 10
+              AND RIGHT(REGEXP_REPLACE(cust.phone, '[^0-9]', ''), 10)
+                = RIGHT(REGEXP_REPLACE(w.customer_id, '[^0-9]', ''), 10))
+        )
+        WHERE w.completed_at IS NOT NULL
+        GROUP BY cust.id
+      ) wo ON c.id = wo.cid
       SET c.lastVisitDate = wo.latestCompleted
       WHERE c.lastVisitDate IS NULL OR c.lastVisitDate < wo.latestCompleted
     `);
@@ -457,28 +476,32 @@ export async function enrichCustomerData(): Promise<{ recordsProcessed: number; 
     WHERE c.vehicleMake IS NULL
   `);
 
-  // 6. Smart segmentation — visit recency + spend tier + churn risk
-  // Segment logic:
-  //   recent = visited in last 90 days
-  //   lapsed = visited 90-365 days ago (churn risk)
-  //   new = only 1 visit ever OR never visited
-  //   unknown = visited but >365 days ago (likely lost)
+  // 6. Smart segmentation — the SINGLE authoritative writer of customers.segment
+  //    (architecture decision #2). Runs here in the canonical enrichment
+  //    pipeline, AFTER lastVisitDate is freshly synced above, so recency is
+  //    never stale. The standalone customerSegmentation cron is now a no-op.
+  //    Recency buckets:
+  //      recent  = visited in last 90 days
+  //      lapsed  = visited 91-365 days ago (churn risk)
+  //      unknown = visited but >365 days ago (likely lost)
+  //      new     = no visit date on record
+  //    Full-population coverage: every row is classified (no restrictive WHERE
+  //    that silently skipped lastVisitDate-NULL-but-visited rows); the
+  //    dirty-check guard alone prevents no-op writes / churn.
   await step("segments", sql`
     UPDATE customers
     SET segment = CASE
       WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
       WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
-      WHEN totalVisits <= 1 AND lastVisitDate IS NULL THEN 'new'
       WHEN lastVisitDate IS NOT NULL THEN 'unknown'
-      ELSE segment
+      ELSE 'new'
     END
-    WHERE (lastVisitDate IS NOT NULL OR totalVisits <= 1)
-      AND segment != CASE
-        WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
-        WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
-        WHEN totalVisits <= 1 AND lastVisitDate IS NULL THEN 'new'
-        ELSE 'unknown'
-      END
+    WHERE segment != CASE
+      WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 90 DAY) THEN 'recent'
+      WHEN lastVisitDate >= DATE_SUB(NOW(), INTERVAL 365 DAY) THEN 'lapsed'
+      WHEN lastVisitDate IS NOT NULL THEN 'unknown'
+      ELSE 'new'
+    END
   `);
 
   // 8. Reset retention funnel for customers who came back.

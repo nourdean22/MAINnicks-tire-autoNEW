@@ -1281,10 +1281,21 @@ export function startTieredScheduler(): void {
 
             // Wave-181.61: collapse N+1 — preload prior WOs into a Map keyed by customerId
             // (was: per-row lookup → 1 + N queries; now: 2 queries total).
+            // wave-182 (architecture decision #1): work_orders.customer_id is
+            // polymorphic and every anonymous walk-in shares the SAME sentinel
+            // string ("walk-in"/"WALK-IN"). Grouping by it treats unrelated
+            // walk-ins as one returning customer and fabricates "comebacks".
+            // Exclude the sentinels — a real returning customer is keyed by a
+            // numeric id or a stable phone string, both of which we keep.
+            const isAnonWoCustomer = (id: string | null): boolean => {
+              if (!id) return true;
+              const v = id.trim().toLowerCase();
+              return v === "" || v === "walk-in" || v === "walkin";
+            };
             const customerIds: string[] = Array.from(new Set(
               recentWOs
                 .map((wo: { customerId: string | null }) => wo.customerId)
-                .filter((id: string | null): id is string => !!id)
+                .filter((id: string | null): id is string => !isAnonWoCustomer(id))
             ));
             const priorByCustomer = new Map<string, Set<string>>();
             if (customerIds.length > 0) {
@@ -1305,7 +1316,7 @@ export function startTieredScheduler(): void {
 
             let comebacks = 0;
             for (const wo of recentWOs) {
-              if (!wo.customerId) continue;
+              if (isAnonWoCustomer(wo.customerId)) continue;
               const priorIds = priorByCustomer.get(wo.customerId);
               if (!priorIds) continue;
               // Comeback iff a qualifying prior WO exists that isn't this row itself

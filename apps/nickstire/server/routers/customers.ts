@@ -254,7 +254,12 @@ export const customersRouter = router({
         : period === "6mo" ? sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 6 MONTH)`
         : sql`i.invoiceDate >= DATE_SUB(NOW(), INTERVAL 1 YEAR)`;
 
-      // Revenue by period
+      // Revenue by period.
+      // wave-182 (architecture decision #3): "revenue" is canonically PAID-only
+      // (collected = the only operationally honest figure). Every revenue query
+      // in this panel filters `paymentStatus = 'paid'` so the headline total,
+      // top spenders, monthly trend, and breakdowns are mutually consistent and
+      // never inflated by pending / partial / refunded invoices.
       const [revenueSummary] = await d.execute(sql`
         SELECT
           COUNT(*) as invoiceCount,
@@ -264,7 +269,7 @@ export const customersRouter = router({
           COALESCE(SUM(i.partsCost), 0) as totalParts,
           COUNT(DISTINCT i.customerPhone) as uniqueCustomers
         FROM invoices i
-        WHERE ${dateFilter}
+        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
       `);
 
       // Top 10 spenders for the period
@@ -278,7 +283,7 @@ export const customersRouter = router({
         FROM customers c
         INNER JOIN invoices i ON RIGHT(REPLACE(REPLACE(REPLACE(c.phone, '-', ''), '(', ''), ')', ''), 10) =
           RIGHT(REPLACE(REPLACE(REPLACE(i.customerPhone, '-', ''), '(', ''), ')', ''), 10)
-        WHERE ${dateFilter}
+        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
         GROUP BY c.id
         ORDER BY periodSpent DESC
         LIMIT 10
@@ -292,7 +297,7 @@ export const customersRouter = router({
           COALESCE(SUM(totalAmount), 0) as revenue,
           COUNT(DISTINCT customerPhone) as customers
         FROM invoices
-        WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+        WHERE invoiceDate >= DATE_SUB(NOW(), INTERVAL 12 MONTH) AND paymentStatus = 'paid'
         GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
         ORDER BY month ASC
       `);
@@ -304,7 +309,7 @@ export const customersRouter = router({
           COUNT(*) as count,
           COALESCE(SUM(totalAmount), 0) as revenue
         FROM invoices i
-        WHERE ${dateFilter} AND serviceDescription IS NOT NULL AND serviceDescription != ''
+        WHERE ${dateFilter} AND i.paymentStatus = 'paid' AND serviceDescription IS NOT NULL AND serviceDescription != ''
         GROUP BY SUBSTRING_INDEX(serviceDescription, ',', 1)
         ORDER BY revenue DESC
         LIMIT 15
@@ -314,7 +319,7 @@ export const customersRouter = router({
       const [paymentBreakdown] = await d.execute(sql`
         SELECT paymentMethod, COUNT(*) as count, COALESCE(SUM(totalAmount), 0) as total
         FROM invoices i
-        WHERE ${dateFilter}
+        WHERE ${dateFilter} AND i.paymentStatus = 'paid'
         GROUP BY paymentMethod
         ORDER BY total DESC
       `);
