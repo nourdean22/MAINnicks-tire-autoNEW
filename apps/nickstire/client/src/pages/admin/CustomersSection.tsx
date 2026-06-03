@@ -783,7 +783,10 @@ function CustomersList() {
                       {(() => {
                         const a = affinityByCustomerId.get(c.id);
                         if (!a) return <span className="text-foreground/20 text-[11px]">{"—"}</span>;
-                        const conf = Math.round(a.confidence);
+                        // confidence is 0-1 (see serviceAffinity v2 shape, ~L178); ×100 for the
+                        // percentage the >=70/>=50 color tiers + "{conf}%" display assume. Without
+                        // this, 0.72 → Math.round = 1 → every prediction showed "0%"/"1%" in grey.
+                        const conf = Math.round(a.confidence * 100);
                         const confColor = conf >= 70
                           ? "text-emerald-400"
                           : conf >= 50
