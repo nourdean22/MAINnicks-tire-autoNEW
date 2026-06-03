@@ -20,6 +20,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
+import { StandardPage } from "@/components/layout/standard-page";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
 import { SkillLibraryPanel } from "@/components/settings/skill-library-panel";
@@ -82,51 +83,38 @@ function BrainPageInner() {
   }, []);
 
   return (
-    <div className="space-y-6">
-      {/* Canonical editorial header · matches /goals + /scoreboard pattern
-          per ADR-0015 design tokens. Pre-2026-05-18 PM the header used
-          lowercase Barlow Condensed with the page name only · now adds
-          the eyebrow supertitle, displays the .page-title scale, and
-          right-aligns the deep-dive nav. */}
-      <header className="flex items-start justify-between gap-3 flex-wrap">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
-            Mastery
-          </p>
-          <h1 className="text-2xl font-medium text-[var(--text-primary)]">
-            Brain
-          </h1>
-          <p className="text-xs text-[var(--text-tertiary)] mt-1.5 max-w-[60ch]">
-            Everything the system knows about you · learns every day.
-          </p>
-          {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
-           *  Surfaces system-noticed brain events (anomalies, identity
-           *  shifts, contradictions). Self-hides when zero events. */}
-          <div className="mt-4">
-            <CoachEventBanner surface="brain" />
-          </div>
-          {/* Mastery Layer Stage D · 2026-05-26 · mission-mode breadcrumb. */}
-          <div className="mt-2">
-            <MissionBreadcrumb />
-          </div>
-        </div>
-        {/* v10.0.529.49 · deep-dive nav cut from 8 buttons → 1.
-            Sub-routes /brain/search · /critique · /improve · /time-travel
-            · /galaxy were merged or killed in the consolidation wave.
-            The remaining sub-routes are /brain/health (memory rollup)
-            and /brain/wisdom + /brain/link-review (rendered inline below
-            as full panels), plus the deep-tabs on /health for categories
-            and continuity. */}
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
-          <a
-            href="/brain/health"
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] px-3 py-2 min-h-[44px] inline-flex items-center rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
-            title="memory rollup · categories · continuity"
-          >
-            health →
-          </a>
-        </div>
-      </header>
+    <StandardPage
+      eyebrow="Mastery"
+      title="Brain"
+      description="Everything the system knows about you · learns every day."
+      rhythm="loose"
+      actions={
+        // v10.0.529.49 · deep-dive nav cut from 8 buttons → 1.
+        // Sub-routes /brain/search · /critique · /improve · /time-travel
+        // · /galaxy were merged or killed in the consolidation wave.
+        // The remaining sub-routes are /brain/health (memory rollup)
+        // and /brain/wisdom + /brain/link-review (rendered inline below
+        // as full panels), plus the deep-tabs on /health for categories
+        // and continuity.
+        <a
+          href="/brain/health"
+          className="text-[10px] font-semibold uppercase tracking-[0.14em] px-3 py-2 min-h-[44px] inline-flex items-center rounded border border-[var(--border-default)] text-[var(--text-tertiary)] hover:border-[var(--gold)]/40 hover:text-[var(--gold)] transition-colors"
+          title="memory rollup · categories · continuity"
+        >
+          health →
+        </a>
+      }
+    >
+      {/* Mastery Layer Stage A · Coach Channel surface · 2026-05-26.
+       *  Surfaces system-noticed brain events (anomalies, identity
+       *  shifts, contradictions). Self-hides when zero events. Stage D ·
+       *  mission-mode breadcrumb directly under it. Relocated out of the
+       *  hand-rolled header into the page body when this surface adopted
+       *  the canonical StandardPage shell. */}
+      <div className="space-y-2">
+        <CoachEventBanner surface="brain" />
+        <MissionBreadcrumb />
+      </div>
 
       <BrainMaturityHeader refreshKey={refreshKey} />
 
@@ -234,7 +222,7 @@ function BrainPageInner() {
           <SuggestionTelemetryPanel />
         </div>
       </section>
-    </div>
+    </StandardPage>
   );
 }
 

@@ -29,6 +29,7 @@
  */
 
 import { Suspense } from "react";
+import { StandardPage } from "@/components/layout/standard-page";
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 // 2026-05-30 · the mastery leveling engine's face · every stat as an RPG
 // level card + an overall-power hero. Self-hides on error · honest Day-1 zero.
@@ -61,17 +62,8 @@ function StatsBodyFallback() {
 
 export default function StatsPage() {
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <header>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-tertiary)] mb-1">
-            Who you are · where you&apos;re going
-          </p>
-          <h1 className="text-2xl font-medium text-[var(--text-primary)]">
-            Stats
-          </h1>
-        </header>
-
+    <>
+      <StandardPage eyebrow="Who you are · where you're going" title="Stats">
         <Suspense fallback={<StatsBodyFallback />}>
           {/* ① WHO YOU ARE · the character sheet (the stats — the hero). */}
           <div className="mt-6">
@@ -91,7 +83,7 @@ export default function StatsPage() {
             <GoalBoard />
           </section>
         </Suspense>
-      </div>
+      </StandardPage>
 
       {/* Per-page Nick · grounded in goals (personal), presets about leveling
        *  + goal progress — no business / KPI framing on this surface. */}
@@ -107,6 +99,6 @@ export default function StatsPage() {
           ]}
         />
       </Suspense>
-    </main>
+    </>
   );
 }
