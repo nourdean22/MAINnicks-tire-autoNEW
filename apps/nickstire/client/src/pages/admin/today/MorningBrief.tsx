@@ -28,16 +28,13 @@
 import { useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Sunrise, Phone, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { formatDollars } from "../shared/format";
 
 interface MorningBriefProps {
   /** Number of items currently in the priority action queue */
   priorityQueueLength: number;
   /** Number of urgent leads (subset of hot leads) */
   urgentLeads: number;
-}
-
-function formatDollars(d: number): string {
-  return `$${Math.round(d).toLocaleString()}`;
 }
 
 /** Time-of-day greeting */

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter, ErrorState } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, ErrorState, formatDate, formatDateTime } from "./shared";
 // wave-181.x Outreach Phase 1 · confirmDialog on ACTIVATE + SEND
 // PENDING + RESUME (each fires real SMS to potentially hundreds of
 // customers · previously ungated). iOS-PWA-safe primitive.
@@ -37,7 +37,6 @@ const SEGMENT_LABELS: Record<string, string> = {
   lapsed: "Lapsed (90-180d)",
   dormant: "Dormant (180-365d)",
   lost: "Lost (365d+)",
-  declined: "Declined Work",
   tire_customer: "Tire Customers",
   vip: "VIP Customers",
   fleet: "Fleet/Commercial",
@@ -126,7 +125,7 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
             {(["lapsed", "dormant", "lost", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
               const labels: Record<string, string> = {
                 lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
-                declined: "Declined Work", tire_customer: "Tire Customers", vip: "VIP",
+                tire_customer: "Tire Customers", vip: "VIP",
                 fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
               };
               const count = customerStats?.[s as keyof typeof customerStats] ?? "?";
@@ -472,10 +471,10 @@ function CampaignDetail({ campaignId, onBack }: { campaignId: number; onBack: ()
                       </span>
                     </td>
                     <td className="p-3 text-[10px] text-foreground/40 hidden sm:table-cell">
-                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : "—"}
+                      {formatDateTime(s.scheduledAt)}
                     </td>
                     <td className="p-3 text-[10px] text-foreground/40 hidden md:table-cell">
-                      {s.sentAt ? new Date(s.sentAt).toLocaleString() : "—"}
+                      {formatDateTime(s.sentAt)}
                     </td>
                   </tr>
                 ))}
@@ -586,7 +585,7 @@ export default function WinBackSection() {
                     <span className="font-mono text-[10px] tracking-wider">{c.targetCount} TARGETS</span>
                     <span className="font-mono text-[10px] tracking-wider">{c.sentCount} SENT</span>
                     <span className="font-mono text-[10px] tracking-wider hidden sm:inline">
-                      {new Date(c.createdAt).toLocaleDateString()}
+                      {formatDate(c.createdAt)}
                     </span>
                   </div>
                 </div>

@@ -28,6 +28,9 @@ const STATUS_STYLES: Record<string, string> = {
   pending: "text-amber-400 bg-amber-500/10",
   sent: "text-emerald-400 bg-emerald-500/10",
   failed: "text-red-400 bg-red-500/10",
+  // canceled follow-ups are written as status="skipped" (admin.ts cancel
+  // mutation) — neutral/muted so they don't read as active or errored.
+  skipped: "text-foreground/40 bg-foreground/5",
 };
 
 export default function FollowUpsSection() {

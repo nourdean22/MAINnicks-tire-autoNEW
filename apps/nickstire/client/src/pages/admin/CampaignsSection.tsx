@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, formatDate } from "./shared";
+import { StatCard, formatDate, PageHeader } from "./shared";
 // wave-181.x Outreach Phase 1 · safety gate on bulk campaign send.
 // confirmDialog is iOS-PWA-safe (window.confirm is suppressed in
 // standalone mode per nickstire-ios-pwa-primitives skill).
@@ -340,7 +340,8 @@ export default function CampaignsSection() {
               </button>
               <button
                 onClick={handleCreateAndSend}
-                disabled={creating}
+                disabled={creating || preview.length === 0}
+                title={preview.length === 0 ? "No customers in this segment — nothing to send" : undefined}
                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded hover:bg-emerald-500/15 transition-colors disabled:opacity-50"
               >
                 {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
@@ -356,20 +357,21 @@ export default function CampaignsSection() {
   // List View — wave-132 minimalist refresh
   return (
     <div className="space-y-6">
-      {/* Header & Create Button */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-[15px] font-semibold text-foreground tracking-tight">Campaigns</h3>
-          <p className="text-foreground/50 text-[12px] mt-0.5">Schedule + send bulk SMS · routes through F25e shop gateway (216-862-0005)</p>
-        </div>
-        <button
-          onClick={() => setView("create")}
-          className="inline-flex items-center gap-2 px-3.5 py-2 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New campaign</span>
-        </button>
-      </div>
+      {/* Header & Create Button — canonical PageHeader (matches sibling outreach tabs) */}
+      <PageHeader
+        title="Campaigns"
+        subtitle="Schedule + send bulk SMS · routes through F25e shop gateway (216-862-0005)"
+        icon={<MessageSquare className="w-5 h-5" />}
+        actions={
+          <button
+            onClick={() => setView("create")}
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-primary text-primary-foreground rounded-md text-[13px] font-medium hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>New campaign</span>
+          </button>
+        }
+      />
 
       {/* Stats Grid — 2×2 on mobile, 4×1 on lg */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

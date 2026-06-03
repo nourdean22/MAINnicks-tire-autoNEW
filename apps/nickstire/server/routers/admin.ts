@@ -7,7 +7,7 @@ import { sendNotification, getDeliveryLog } from "../email-notify";
 import { getAnalyticsSnapshots, getBookingServiceBreakdown } from "../db";
 import { getDashboardStats, getSiteHealth } from "../admin-stats";
 import { z } from "zod";
-import { eq, desc, gte, sql, inArray, and, isNull } from "drizzle-orm";
+import { eq, ne, desc, gte, sql, inArray, and, isNull } from "drizzle-orm";
 import { bookings, leads, callbackRequests, customerNotifications, callEvents } from "../../drizzle/schema";
 import { sanitizeText, sanitizePhone, csvSafe } from "../sanitize";
 import { saveReviewStatsToDb } from "../google-reviews";
@@ -1076,7 +1076,12 @@ export const followUpsRouter = router({
   recent: adminProcedure.query(async () => {
     const d = await db();
     if (!d) return [];
+    // Exclude status='pending' — those rows are already shown in the
+    // `pending` query above. Without this filter, when total rows < 50
+    // the operator sees every pending item twice (once in PENDING, once
+    // in RECENT). `recent` is the sent/failed/skipped history list.
     return d.select().from(customerNotifications)
+      .where(ne(customerNotifications.status, "pending"))
       .orderBy(desc(customerNotifications.createdAt))
       .limit(50);
   }),

@@ -33,14 +33,11 @@
  */
 import { trpc } from "@/lib/trpc";
 import { Users, Crown, AlertTriangle, ArrowRight, DollarSign } from "lucide-react";
+import { formatCents } from "../shared/format";
 
 interface CustomersBriefProps {
   /** Click handler for the "View lapsed cohort" CTA · should setSegment("lapsed") */
   onLapsedAction: () => void;
-}
-
-function formatCents(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
 function greeting(): string {

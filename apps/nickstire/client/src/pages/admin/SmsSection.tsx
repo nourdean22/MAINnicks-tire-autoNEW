@@ -185,7 +185,9 @@ function ThreadView({
       void utils.smsConversations.unreadCount.invalidate();
       setReply("");
     },
-    onError: (e) => toast.error(`Send failed: ${e.message}`),
+    // onError toast intentionally omitted — handleSend's try/catch already
+    // surfaces exactly one toast per outcome (success/failure/throw). A
+    // mutation-level onError here would double-toast on a thrown error.
   });
   const scrollRef = useRef<HTMLDivElement | null>(null);
 

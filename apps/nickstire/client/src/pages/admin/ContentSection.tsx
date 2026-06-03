@@ -115,7 +115,7 @@ function ContentManager() {
         <StatCard label="Total Articles" value={articles?.length ?? 0} icon={<FileText className="w-4 h-4" />} color="text-foreground" />
         <StatCard label="Published" value={articles?.filter((a: Article) => a.status === "published").length ?? 0} icon={<CheckCircle2 className="w-4 h-4" />} color="text-emerald-400" />
         <StatCard label="Drafts" value={articles?.filter((a: Article) => a.status === "draft").length ?? 0} icon={<Newspaper className="w-4 h-4" />} color="text-amber-400" />
-        <StatCard label="AI Generations" value={genLog?.length ?? 0} icon={<Sparkles className="w-4 h-4" />} color="text-purple-400" />
+        <StatCard label="AI Generations" value={genLog?.length ?? 0} icon={<Sparkles className="w-4 h-4" />} color="text-primary" />
       </div>
 
       {/* Quick Link to Full Content Manager */}
@@ -339,16 +339,15 @@ function GBPPostGenerator() {
           </summary>
           <div className="mt-2 space-y-1.5">
             {history.map((row: GBPHistoryRow) => {
-              const date = new Date(row.postedAt);
-              const dayLabel = date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              const dayLabel = formatDate(row.postedAt);
               const archetypeColor =
                 row.archetype === "proof" ? "text-emerald-400" :
                 row.archetype === "anti" ? "text-amber-400" :
                 row.archetype === "math" ? "text-blue-400" :
-                "text-purple-400";
+                "text-primary";
               return (
                 <div key={row.id} className="flex items-center gap-3 text-[11px] py-1 border-b border-border/10">
-                  <span className="text-foreground/40 w-12 shrink-0">{dayLabel}</span>
+                  <span className="text-foreground/40 w-20 shrink-0">{dayLabel}</span>
                   <span className={`font-bold tracking-wider w-16 shrink-0 ${archetypeColor}`}>{row.archetype.toUpperCase()}</span>
                   <span className="text-foreground/30 text-[10px] w-12 shrink-0">{row.source}</span>
                   <span className="text-foreground/60 truncate flex-1">{row.postBody.split("\n")[0]}</span>

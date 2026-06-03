@@ -5,7 +5,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { toast } from "sonner";
-import { StatCard, PageHeader, useUrlFilter, FilterChips } from "./shared";
+import { StatCard, PageHeader, useUrlFilter, FilterChips, formatDate, formatDateTime } from "./shared";
 // wave-181.x Outreach Phase 1 · confirmDialog gate on backfill blast +
 // process queue (both fire real outbound SMS to dozens-to-hundreds of
 // customers · previously ungated).
@@ -271,14 +271,14 @@ export default function ReviewRequestsSection() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-[12px] text-foreground/50">
-                          {req.scheduledAt ? new Date(req.scheduledAt).toLocaleString() : "—"}
+                          {formatDateTime(req.scheduledAt)}
                         </td>
                         <td className="px-4 py-3 text-[12px] text-foreground/50">
-                          {req.sentAt ? new Date(req.sentAt).toLocaleString() : "—"}
+                          {formatDateTime(req.sentAt)}
                         </td>
                         <td className="px-4 py-3 text-[12px] text-foreground/50">
                           {req.clickedAt ? (
-                            <span className="text-emerald-400">{new Date(req.clickedAt).toLocaleString()}</span>
+                            <span className="text-emerald-400">{formatDateTime(req.clickedAt)}</span>
                           ) : "—"}
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -341,7 +341,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formDelay || settings?.delayMinutes || 120}
+                  value={formDelay !== "" ? formDelay : String(settings?.delayMinutes ?? 120)}
                   onChange={(e) => setFormDelay(e.target.value)}
                   min={0}
                   max={10080}
@@ -360,7 +360,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formMaxPerDay || settings?.maxPerDay || 20}
+                  value={formMaxPerDay !== "" ? formMaxPerDay : String(settings?.maxPerDay ?? 20)}
                   onChange={(e) => setFormMaxPerDay(e.target.value)}
                   min={1}
                   max={100}
@@ -379,7 +379,7 @@ export default function ReviewRequestsSection() {
                 <input
                   type="number"
                   inputMode="numeric"
-                  value={formCooldown || settings?.cooldownDays || 30}
+                  value={formCooldown !== "" ? formCooldown : String(settings?.cooldownDays ?? 30)}
                   onChange={(e) => setFormCooldown(e.target.value)}
                   min={1}
                   max={365}
@@ -490,7 +490,7 @@ export default function ReviewRequestsSection() {
                           <td className="px-4 py-2.5 text-[12px] text-foreground/50">{b.phone}</td>
                           <td className="px-4 py-2.5 text-foreground/70 text-xs">{b.service}</td>
                           <td className="px-4 py-2.5 text-[12px] text-foreground/50">
-                            {new Date(b.createdAt).toLocaleDateString()}
+                            {formatDate(b.createdAt)}
                           </td>
                         </tr>
                       ))}

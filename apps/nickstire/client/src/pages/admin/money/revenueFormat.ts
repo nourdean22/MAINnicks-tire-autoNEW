@@ -12,13 +12,10 @@ import { BUSINESS } from "@shared/business";
 
 export const MONTHLY_TARGET = BUSINESS.revenueTarget.monthly;
 
-export function formatCents(cents: number): string {
-  return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-export function formatDollars(dollars: number): string {
-  return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
+// formatCents / formatDollars hoisted to admin/shared/format (single
+// source of truth across all admin briefs). Re-exported here for back-
+// compat so existing money/ importers keep working unchanged.
+export { formatCents, formatDollars } from "../shared/format";
 
 // ─── DASHBOARD TYPES ────────────────────────────────────
 export interface FunnelStage { label: string; name?: string; count: number; revenue?: number }

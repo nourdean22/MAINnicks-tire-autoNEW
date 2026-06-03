@@ -59,3 +59,36 @@ export function timeAgoShort(d: Date | string | number): string {
   if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
   return `${Math.floor(sec / 86400)}d ago`;
 }
+
+/**
+ * MONEY FORMATTERS — single source of truth for admin $ display.
+ *
+ * Audit found ~5 private copies of these scattered across admin briefs
+ * with TWO different unit contracts (cents vs dollars) sharing the same
+ * names — a value copied across files = silent 100x bug. Canonicalized
+ * here; money/revenueFormat + money/moneyMath re-export these for back-
+ * compat. Bodies copied verbatim from those money/ sources (no logic
+ * change). The two formatters below are intentionally distinct — full-
+ * precision `$1,234` vs compact `$1.2K` — do not consolidate THEM.
+ *
+ * UNIT CONTRACTS (read the name — mismatching the unit is a 100x bug):
+ *  · formatCents(cents)       → takes CENTS    · "$1,234" (whole dollars)
+ *  · formatDollars(dollars)   → takes DOLLARS  · "$1,234" (whole dollars)
+ *  · formatMoneyShort(dollars)→ takes DOLLARS  · "$1.2K" / "$345" (compact)
+ */
+
+/** Takes CENTS. Full-precision whole-dollar display, e.g. 123456 → "$1,235". */
+export function formatCents(cents: number): string {
+  return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+/** Takes DOLLARS. Full-precision whole-dollar display, e.g. 1234 → "$1,234". */
+export function formatDollars(dollars: number): string {
+  return "$" + dollars.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+/** Takes DOLLARS. Compact display: "$1.2K" for >=1k, "$345" otherwise. */
+export function formatMoneyShort(dollars: number): string {
+  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}K`;
+  return `$${Math.round(dollars).toLocaleString()}`;
+}
