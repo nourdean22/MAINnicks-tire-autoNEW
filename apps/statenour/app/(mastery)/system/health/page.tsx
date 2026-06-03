@@ -206,7 +206,9 @@ export default function SystemHealthPage() {
         </header>
         {data.cron.jobs.length === 0 ? (
           <p className="px-3 py-3 text-[11px] text-[var(--text-tertiary)] italic">
-            No cron logs in {data.range}. Either crons aren't running or CronJobLog isn't wired — the shared cronHandler was patched Apr 17 to auto-log, so this table should populate on next fire.
+            No cron logs in {data.range} — crons may be idle in this window. Check{" "}
+            <Link href="/system/crons" className="underline underline-offset-2 hover:text-[var(--gold)]">/system/crons</Link>{" "}
+            for the live control deck.
           </p>
         ) : (
           <table className="w-full">
@@ -354,7 +356,7 @@ export default function SystemHealthPage() {
               strategic lens · {data.range}
             </h2>
             <Link
-              href="/system/lens-stats"
+              href="/system/calibration"
               className="ml-auto text-[9px] font-mono text-emerald-400/80 hover:text-emerald-300"
             >
               full →
@@ -388,12 +390,6 @@ export default function SystemHealthPage() {
             <h2 className="text-[10px] font-[var(--font-display)] font-bold uppercase tracking-[0.22em] text-amber-300">
               voice calls (VAPI) · {data.range}
             </h2>
-            <Link
-              href="/system/vapi-calls"
-              className="ml-auto text-[9px] font-mono text-amber-400/80 hover:text-amber-300"
-            >
-              full →
-            </Link>
           </header>
           <dl className="px-3 pb-2 text-[11px] font-mono space-y-0.5">
             <KVRow k="calls" v={data.voice.totalCalls} />
@@ -470,7 +466,7 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <Link
-          href="/system/eval-results"
+          href="/system/calibration"
           className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
         >
           <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
@@ -492,10 +488,7 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
             <div className="text-sm text-[var(--text-tertiary)]">no eval run yet</div>
           )}
         </Link>
-        <Link
-          href="/system/data-source-probes"
-          className="block rounded-md border border-[var(--border-default)] px-3 py-2 hover:bg-[var(--bg-void)]/30"
-        >
+        <div className="block rounded-md border border-[var(--border-default)] px-3 py-2">
           <div className="text-[9px] font-mono uppercase tracking-wider text-[var(--text-tertiary)] mb-0.5">
             bridge · data sources
           </div>
@@ -511,7 +504,7 @@ function OperationalStatus({ op }: { op: HealthReport["operational"] }) {
                 ? `${op.dataSources.failing} failing`
                 : `${op.dataSources.total} OK`}
           </div>
-        </Link>
+        </div>
       </div>
       {dsBad && (
         <ul className="mt-2 space-y-0.5">

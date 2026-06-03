@@ -19,7 +19,6 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
@@ -37,7 +36,6 @@ import {
   Bot,
   Clock,
   AlertTriangle,
-  ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -313,13 +311,9 @@ function ActionCard({
           <Clock size={10} />
           <span>{timeAgo(row.createdAt)}</span>
           {row.policyId && (
-            <Link
-              href={`/system/policies?search=${encodeURIComponent(row.policyId)}`}
-              className="ml-auto inline-flex items-center gap-0.5 text-blue-400/70 hover:text-blue-300 underline decoration-dotted"
-            >
+            <span className="ml-auto inline-flex items-center gap-0.5 text-zinc-500">
               {row.policyId}
-              <ExternalLink size={9} />
-            </Link>
+            </span>
           )}
         </div>
 
