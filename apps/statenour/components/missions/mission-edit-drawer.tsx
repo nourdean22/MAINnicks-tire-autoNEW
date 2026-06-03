@@ -23,6 +23,7 @@ import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const STATUSES = ["ACTIVE", "PAUSED", "COMPLETE", "KILLED"] as const;
 
@@ -62,6 +63,9 @@ function MissionEditDrawerBody({
   );
   const [submitting, setSubmitting] = useState(false);
 
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the delete guard always took the cancel path.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const createMission = trpc.task.createMission.useMutation();
   const utils = trpc.useUtils();
 
@@ -136,9 +140,12 @@ function MissionEditDrawerBody({
 
   const handleHardDelete = useCallback(async () => {
     if (!missionId) return;
-    const confirmed = window.confirm(
-      `Delete mission "${initial?.title ?? missionId}"?\n\nAll tasks attached to it become unattached. This cannot be undone.`,
-    );
+    const confirmed = await confirm({
+      title: `Delete mission "${initial?.title ?? missionId}"?`,
+      body: "All tasks attached to it become unattached. This cannot be undone.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
     if (!confirmed) return;
     setSubmitting(true);
     try {
@@ -157,7 +164,7 @@ function MissionEditDrawerBody({
     } finally {
       setSubmitting(false);
     }
-  }, [missionId, initial, utils, onSaved, onClose]);
+  }, [missionId, initial, utils, onSaved, onClose, confirm]);
 
   return (
     <div
@@ -289,6 +296,8 @@ function MissionEditDrawerBody({
           </button>
         </footer>
       </div>
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </div>
   );
 }

@@ -31,6 +31,7 @@ import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { trpc } from "@/lib/trpc/client";
 type Severity = "info" | "warn" | "critical";
@@ -105,6 +106,9 @@ function timeAgo(iso: string): string {
 }
 
 export function QualityLessonsView() {
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the delete guard always took the cancel path.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [domainFilter, setDomainFilter] = useState<Domain | "all">("all");
   const [sevFilter, setSevFilter] = useState<Severity | "all">("all");
   const [open, setOpen] = useState<Set<string>>(new Set());
@@ -214,7 +218,13 @@ export function QualityLessonsView() {
   }
 
   async function remove(key: string) {
-    if (!window.confirm(`delete anti-pattern "${key}"? this is not reversible.`)) return;
+    const ok = await confirm({
+      title: `delete anti-pattern "${key}"?`,
+      body: "this is not reversible.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!ok) return;
     try {
       await deleteMutation.mutateAsync({ key });
       toast.success(`deleted ${key}`);
@@ -532,6 +542,8 @@ export function QualityLessonsView() {
       <p className="pt-2 text-center text-[10px] text-zinc-600">
         source: BrainMemory(anti_pattern) · grepped by future Nick tool to warn on intent match
       </p>
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </div>
   );
 }

@@ -51,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ShimmerSkeleton } from "@/components/ui/shimmer-skeleton";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   Target,
@@ -192,6 +193,9 @@ const HORIZON_LABELS: Record<string, { label: string; accent: string }> = {
 };
 
 export function GoalBoard() {
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the archive branch never fired on the phone.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [goals, setGoals] = useState<LifeGoal[]>([]);
   const [loading, setLoading] = useState(true);
   // task.* tRPC for the goals CRUD. scattered-components slice
@@ -1223,13 +1227,14 @@ export function GoalBoard() {
                           return (
                             <button
                               type="button"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
-                                if (
-                                  confirm(
-                                    `Archive "${g.title}"?\n${v.reason}\n\nIt'll move to paused — you can revive it later from /goals.`,
-                                  )
-                                ) {
+                                const ok = await confirm({
+                                  title: `Archive "${g.title}"?`,
+                                  body: `${v.reason}\n\nIt'll move to paused — you can revive it later from /goals.`,
+                                  confirmLabel: "Archive",
+                                });
+                                if (ok) {
                                   void archiveGoal(g.id);
                                 }
                               }}
@@ -1788,6 +1793,8 @@ export function GoalBoard() {
           })}
         </div>
       )}
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </div>
   );
 }
