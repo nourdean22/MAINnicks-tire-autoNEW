@@ -2,6 +2,28 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
+## 🔵 Latest shipped — 2026-06-03 (admin overhaul + customer dedup + code-underneath fixes)
+
+**Customer data — DEDUPED + dupe-proofed (LIVE on prod TiDB):**
+- Customer count is **1,943** (was 1,964 — 21 same-name+same-vehicle duplicate rows merged 2026-06-03; row-level backups in `_bak_*_dedup_20260603`). Survivors retain both numbers (`phone` + `phone2`).
+- Phone is now canonical **10-digit** for new + merged rows. `findOrCreateCustomer` (`server/services/customerLookup.ts`) normalizes BOTH sides to last-10 before insert → **a chat `+1216…` can no longer create a twin of an existing `216…` import row.**
+- ⚠ TiDB **cannot** `ALTER`-add a STORED generated column, so the normalized-phone uniqueness is enforced **app-side** (the import guard) + the existing `uniq_customer_phone` key over now-uniform 10-digit values — there is **no** DB `phone_normalized` generated key.
+- 18 orphan invoices (`customerId IS NULL`) were linked by phone; ~299 remaining unlinked invoices are anonymous walk-ins/estimates with no matching customer (left as-is). Full record: `docs/admin-surface-audit/customer-dedup-plan.md` (§ EXECUTION OUTCOME) + reproducible `scripts/dedup-*.ts` / `scripts/orphan-invoices-*.ts` / `scripts/recompute-customers.ts`.
+
+**Crons:** `confirmation-calls` + `voice-recovery` now **fire on the daily tier** (`server/cron/scheduler.ts` TIER 4). They were previously registered only in `registerAllJobs()` (the HTTP-trigger registry, which boot never calls) and so never ran on a timer — `FEATURE_CONFIRMATION_CALLS` / `FEATURE_VOICE_RECOVERY` did nothing. Both self-gate on VAPI env + their flag (OFF by default) + at-most-once claims.
+
+**Security:** `getTrackingInfo` (public job tracker, `server/services/customerMessaging.ts`) **fails closed**. It used to verify the caller's phone only when `customer_id` was numeric, so walk-in / AI-chat WOs (non-numeric `customer_id`) returned status/vehicle/service to anyone with the (low-entropy) order number — an IDOR/PII leak. Every path now requires a phone match (numeric-id lookup OR `customer_id`-as-phone). Guarded by `server/services/customerMessaging.test.ts`.
+
+**Data-layer correctness (`docs/admin-surface-audit/code-underneath-audit-{data,logic}.md`):** enrich phone-join hardened to `RIGHT(REGEXP_REPLACE(phone,'[^0-9]',''),10)` (was a weak `RIGHT(phone,10)` → undercounted spend/visits); `lastRetentionTier` now resets on a return visit (was permanent D365 ineligibility); churnRisk/isVip scored for ALL customers (was top-200); 2 always-zero `customer_metrics` columns dropped from `customers.list`; win-back SMS no longer ship literal `{lastService}`/`{vehicleInfo}`; overnight leads no longer age out of speed-to-lead; `autoAdvanceWorkOrders` requires an on-row billing signal (`total>0 OR payment_status≠'unpaid'`) before `completed`→`invoiced` (the WO↔invoice link is type-incompatible + unpopulated — confirmed).
+
+**Env (Railway service `MAINnicks-tire-auto`):** `STATENOUR_SYNC_URL` repointed from the stale `https://autonicks.com` → `https://statenour-web-production.up.railway.app` (fixes the `statenour-live-sync` cron 404). `STATENOUR_SYNC_KEY` + other secrets untouched.
+
+**Admin UI surface:** all 31 admin pages audited + fixed across 9 waves (money-formatter centralized in `shared/format.ts`; square-`Panel` card uniformity; TCPA "Reply STOP" on retention/oil/voice bulk SMS; WalkIn oil presets re-anchored to advertised $49/$80; revenue KPI = paid-only over `DATE_SUB(CURDATE(),INTERVAL n DAY)`; ~40 defect fixes). Audit set: `docs/admin-surface-audit/*.md`.
+
+**OPEN — operator-decisions, NOT shipped:** (1) `work_orders.customer_id` is a varchar string-space (`"WALK-IN"`/phone) that can't join `customers.id` (int) — reconciliation joins miss; a schema refactor. (2) `customers.segment` has 3 writers on 3 cadences — pick one owner. (3) "Total revenue" is paid-only on 3 surfaces vs all-invoices on 4 — pick the canonical definition. (4) GBP content generator fabrication (held). Detail in `docs/admin-surface-audit/SESSION-CHECKPOINT.md`.
+
+---
+
 ## Canonical business facts (code)
 
 - **Address:** `17625 Euclid Ave, Cleveland, OH 44112` — source: `shared/business.ts` (`BUSINESS.address`).
