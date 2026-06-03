@@ -307,9 +307,9 @@ describe("chooseLanding · 2026-05-24 Wave W Phase 3", () => {
     expect(rec?.reason).toMatch(/momentum|wave/);
   });
 
-  it("recommends /brain/board on low-focus high-capacity (strategy time)", () => {
+  it("recommends the brain board tab on low-focus high-capacity (strategy time)", () => {
     const rec = chooseLanding({ ...base, focus: 0.2, capacity: 0.7 });
-    expect(rec?.surface).toBe("/brain/board");
+    expect(rec?.surface).toBe("/brain?tab=board");
     expect(rec?.reason).toMatch(/board|focus/);
   });
 

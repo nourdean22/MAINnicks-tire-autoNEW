@@ -529,7 +529,7 @@ async function pickWisdomForPulse(input: {
   return {
     text,
     attribution,
-    href: `/brain/wisdom?focus=${encodeURIComponent(best.row.id)}`,
+    href: `/brain?tab=wisdom&focus=${encodeURIComponent(best.row.id)}`,
   };
 }
 

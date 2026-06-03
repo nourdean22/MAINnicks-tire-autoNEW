@@ -131,7 +131,7 @@ export function DeepModeNudge() {
     <button
       type="button"
       onClick={() => {
-        router.push(`/reason?q=${encodeURIComponent(verdict.text)}`);
+        router.push(`/brain?tab=reason&q=${encodeURIComponent(verdict.text)}`);
       }}
       className="fixed bottom-4 right-4 z-50 inline-flex items-center gap-2 px-3 py-2 rounded-full border border-[var(--gold)]/40 bg-black/80 backdrop-blur text-[var(--gold)] text-[11px] font-mono uppercase tracking-[0.14em] shadow-lg hover:bg-[var(--gold)]/[0.1] transition"
       title={`Classifier sees this as ${verdict.tier}-tier. Click to send to Nick's reasoning engine.`}

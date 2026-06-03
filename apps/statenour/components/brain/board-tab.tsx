@@ -1,32 +1,26 @@
 "use client";
 
 /**
- * /brain/board · task #24 (2026-05-23) · multi-advisor board surface.
+ * BoardTab · the Board section of the merged /brain surface (Wave 2).
+ *
+ * Moved verbatim from the former app/(mastery)/brain/board/page.tsx — the
+ * only change is the outer <StandardPage> wrapper became a fragment (the
+ * page-level chrome now lives on /brain), and the former StandardPage
+ * `description` moved into an inline subtitle at the top of the fragment
+ * so nothing is lost. The board selector, question/consult flow, synthesis
+ * card, advisor takes, and recent-consultations list are unchanged.
  *
  * The strategic-intelligence amplifier. Operator picks a pre-configured
  * board (strategic · invest · product · operator · full), types a
- * question, and gets:
- *
- *   · A SYNTHESIS card on top · recommendation + consensus + divergences
- *     + tension axis + confidence
- *   · One ADVISOR TAKE per board member · expandable · preserves the
- *     advisor's distinct lens · the WHOLE point of the pattern (the
- *     existing strategic-frameworks lens-injection in Nick FUSES lenses
- *     into one answer · this surface KEEPS them distinct so divergence
- *     stays visible)
- *
- * Below the live consultation · a "recent consultations" list of past
- * runs persisted as `board_consultation` BrainMemory rows · operator
- * can scroll back through old strategic decisions.
+ * question, and gets a SYNTHESIS card + one ADVISOR TAKE per board
+ * member · expandable · preserves divergence rather than fusing lenses
+ * into one answer.
  *
  * Editorial-minimalist per docs/aesthetic-principles.md · gold-on-dark
- * · glass cards · 10-12px uppercase font-mono eyebrows · no purple
- * (board surface uses gold for the synthesis, zinc tones for advisor
- * takes, subtle amber when divergence is flagged).
+ * · glass cards · 10-12px uppercase font-mono eyebrows · no purple.
  */
 
 import { useState } from "react";
-import { StandardPage } from "@/components/layout/standard-page";
 import { trpc } from "@/lib/trpc/client";
 
 // Local mirror of BOARDS' display data · the boards module exports
@@ -80,7 +74,7 @@ function formatRelative(iso: string): string {
   return `${months}mo ago`;
 }
 
-export default function BrainBoardPage() {
+export function BoardTab() {
   const [boardId, setBoardId] = useState<BoardId>("strategic");
   const [question, setQuestion] = useState("");
   const [expandedTakes, setExpandedTakes] = useState<Set<string>>(new Set());
@@ -120,13 +114,13 @@ export default function BrainBoardPage() {
     !consultMutation.isPending && question.trim().length >= 8;
 
   return (
-    <StandardPage
-      eyebrow="brain"
-      title="board"
-      description="multi-advisor board · N lenses in parallel · preserves divergence rather than fusing into one answer · use when a decision has compound consequences."
-      width="md"
-      rhythm="comfortable"
-    >
+    <>
+      <p className="text-sm text-[var(--text-secondary)] mb-4" style={{ maxWidth: "60ch" }}>
+        multi-advisor board · N lenses in parallel · preserves divergence
+        rather than fusing into one answer · use when a decision has
+        compound consequences.
+      </p>
+
       {/* ── Board selector · row of chips ───────────────────────── */}
       <div>
         <p className="mb-2 text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
@@ -160,7 +154,7 @@ export default function BrainBoardPage() {
       </div>
 
       {/* ── Question + consult button ──────────────────────────── */}
-      <div className="space-y-2">
+      <div className="space-y-2 mt-5">
         <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
           question
         </p>
@@ -194,14 +188,14 @@ export default function BrainBoardPage() {
 
       {/* ── Error shell ────────────────────────────────────────── */}
       {consultMutation.isError && (
-        <div className="rounded border border-red-500/30 bg-red-500/[0.04] px-3 py-3 text-[11px] text-red-300">
+        <div className="rounded border border-red-500/30 bg-red-500/[0.04] px-3 py-3 text-[11px] text-red-300 mt-5">
           consultation failed · {consultMutation.error?.message ?? "unknown"}
         </div>
       )}
 
       {/* ── SYNTHESIS card · top of result · the operator's primary read ── */}
       {result && (
-        <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3">
+        <div className="rounded-lg border border-[var(--gold)]/30 bg-[var(--gold)]/[0.04] p-4 space-y-3 mt-5">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--gold)]">
               synthesis · {result.boardName.toLowerCase()}
@@ -269,7 +263,7 @@ export default function BrainBoardPage() {
 
       {/* ── Advisor takes · one per board member · expandable ──── */}
       {result && result.takes.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2 mt-5">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
             advisor takes ({result.takes.length})
           </p>
@@ -366,7 +360,7 @@ export default function BrainBoardPage() {
 
       {/* ── Recent consultations · scroll-back history ────────── */}
       {recents.length > 0 && (
-        <div className="pt-4 border-t border-[var(--border-default)] space-y-2">
+        <div className="pt-4 border-t border-[var(--border-default)] space-y-2 mt-5">
           <p className="text-[10px] font-mono uppercase tracking-[0.18em] text-[var(--text-tertiary)]">
             recent consultations ({recents.length})
           </p>
@@ -403,6 +397,6 @@ export default function BrainBoardPage() {
           </ul>
         </div>
       )}
-    </StandardPage>
+    </>
   );
 }
