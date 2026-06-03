@@ -21,7 +21,9 @@ import { db } from "../lib/db-helper";
 // Selectable segments: lapsed, dormant, lost, vip, fleet, recent.
 // (declined + tire_customer are RETIRED — see the notes below / in buildSegmentFilter.)
 // Each segment targets a different customer profile with personalized messaging.
-// Templates use {firstName}, {lastService}, {vehicleInfo} for personalization.
+// Templates use {firstName} and {vehicleInfo} for personalization — both are
+// substituted by personalizeWinbackBody() at activate/preview time. ({lastService}
+// was removed: no last-service description is available on the customers row.)
 const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; template: string }[]> = {
   // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
@@ -31,11 +33,11 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
     },
     {
       step: 2, delayDays: 4,
-      template: `{firstName}, quick follow-up from ${STORE_NAME}. We checked our records — last time you were in for {lastService}. It might be time for a follow-up check. We'll do a free inspection under 1 hour. Drop off your car, call an Uber out, we'll call when it's done. ${STORE_PHONE}`,
+      template: `{firstName}, quick follow-up from ${STORE_NAME}. It's been a bit since your last visit and it might be time for a follow-up check. We'll do a free inspection under 1 hour. Drop off your car, call an Uber out, we'll call when it's done. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 10,
-      template: `{firstName}, this is Nick from ${STORE_NAME}. Haven't heard back — just want to make sure your {vehicleInfo} is running right. We've seen a lot of {lastService} issues turn into bigger problems when left too long. Free diagnostic if you come in this week. ${STORE_PHONE}`,
+      template: `{firstName}, this is Nick from ${STORE_NAME}. Haven't heard back — just want to make sure your {vehicleInfo} is running right. We've seen small issues turn into bigger problems when left too long. Free diagnostic if you come in this week. ${STORE_PHONE}`,
     },
     {
       step: 4, delayDays: 21,
@@ -75,15 +77,15 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   declined: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, ${STORE_NAME} here. We gave you an estimate for {lastService} on your {vehicleInfo}. Just checking — did you get it taken care of? If not, that estimate is still valid. ${STORE_PHONE}`,
+      template: `Hi {firstName}, ${STORE_NAME} here. We gave you an estimate for work on your {vehicleInfo}. Just checking — did you get it taken care of? If not, that estimate is still valid. ${STORE_PHONE}`,
     },
     {
       step: 2, delayDays: 7,
-      template: `{firstName}, car problems rarely fix themselves. The {lastService} we quoted you on could get worse (and more expensive) with time. We offer $10 down financing if cost was the concern. ${STORE_PHONE}`,
+      template: `{firstName}, car problems rarely fix themselves. The work we quoted you on could get worse (and more expensive) with time. We offer $10 down financing if cost was the concern. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 21,
-      template: `{firstName}, final reminder from ${STORE_NAME}. Your {lastService} estimate expires in 7 days. After that, we'd need to re-inspect. Book now at nickstire.org or call ${STORE_PHONE}. We're open 7 days.`,
+      template: `{firstName}, final reminder from ${STORE_NAME}. Your estimate expires in 7 days. After that, we'd need to re-inspect. Book now at nickstire.org or call ${STORE_PHONE}. We're open 7 days.`,
     },
   ],
 
@@ -192,6 +194,32 @@ function buildSegmentFilter(segment: string) {
     default:
       return and(eq(customers.segment, segment as "recent" | "lapsed" | "new" | "unknown"), eq(customers.smsOptOut, 0))!;
   }
+}
+
+/**
+ * Substitute the merge tags a winback template can carry into a final SMS body.
+ * Replaces {firstName} and {vehicleInfo} — the two tokens whose data lives on
+ * the customer row. ({lastService} was removed from every template because no
+ * last-service description is available on the customers row at send time.)
+ *
+ * {vehicleInfo} resolves to "year make model" from the enriched vehicle fields,
+ * falling back to whatever parts exist, then to a neutral "vehicle" so a
+ * customer NEVER receives a literal "{vehicleInfo}". Must be applied anywhere a
+ * personalizedBody is built (activate) or previewed so the two stay in sync.
+ */
+function personalizeWinbackBody(
+  body: string,
+  customer: Pick<typeof customers.$inferSelect, "firstName" | "vehicleYear" | "vehicleMake" | "vehicleModel">
+): string {
+  const vehicleInfo =
+    [customer.vehicleYear, customer.vehicleMake, customer.vehicleModel]
+      .map((p) => (p ?? "").trim())
+      .filter((p) => p.length > 0)
+      .join(" ")
+      .trim() || "vehicle";
+  return body
+    .replace(/{firstName}/g, customer.firstName)
+    .replace(/{vehicleInfo}/g, vehicleInfo);
 }
 
 export const winbackRouter = router({
@@ -337,7 +365,7 @@ export const winbackRouter = router({
         messages: messages.map((m: WinbackMessageRow) => ({
           step: m.step,
           delayDays: m.delayDays,
-          body: m.body.replace(/{firstName}/g, c.firstName),
+          body: personalizeWinbackBody(m.body, c),
         })),
       }));
     }),
@@ -384,7 +412,7 @@ export const winbackRouter = router({
             messageId: msg.id,
             step: msg.step,
             phone: customer.phone,
-            personalizedBody: msg.body.replace(/{firstName}/g, customer.firstName),
+            personalizedBody: personalizeWinbackBody(msg.body, customer),
             scheduledAt,
             status: "pending",
           });

@@ -555,8 +555,16 @@ export async function predictCustomerLTV() {
     // to detach.
     const dbRef = await db();
     try {
+      // Score-write ALL customers, not just the top 200. The prior
+      // `.slice(0, 200)` left the ~2,300-customer tail stuck on the
+      // INSERT-seeded churnRisk='low'/isVip=0 forever, so the churn/at-risk
+      // UI read stale 'low' for everyone outside the top cohort.
+      // No perf cost to uncapping: the loop below collapses every customer
+      // into at most 6 distinct (churnRisk x isVip) groups, then writes each
+      // group in <=500-id chunks — so the UPDATE count is O(groups), not
+      // O(customers). The scoring itself already ran for all rows above.
       const groups: Record<string, { ids: number[]; isVip: number }> = {};
-      for (const s of scored.slice(0, 200)) {
+      for (const s of scored) {
         const key = `${s.churnRisk}:${s.ltvScore >= 70 ? 1 : 0}`;
         if (!groups[key]) groups[key] = { ids: [], isVip: s.ltvScore >= 70 ? 1 : 0 };
         groups[key].ids.push(s.id);
