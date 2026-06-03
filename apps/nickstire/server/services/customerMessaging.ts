@@ -174,8 +174,14 @@ export async function getTrackingInfo(orderNumber: string, phone: string) {
     if (!isNaN(custId)) {
       const [cust] = await db.select().from(customers).where(eq(customers.id, custId));
       if (cust && normalize(cust.phone) === provided) verified = true;
-    } else if (normalize(wo.customerId) === provided) {
-      // walk-in / AI-chat WO: customer_id holds the customer's phone string.
+    }
+    // ALSO accept when customer_id itself holds the phone. Walk-in / AI-chat WOs
+    // store a raw phone string (which parseInt happily turns into a non-existent
+    // numeric "id" — so the branch above MISSES it and would wrongly deny the
+    // customer their own tracking) or the literal "WALK-IN" sentinel. Matching
+    // the caller's phone against customer_id covers the phone case and still
+    // denies "WALK-IN" (no digits -> empty -> never equals a 10-digit phone).
+    if (!verified && normalize(wo.customerId) === provided) {
       verified = true;
     }
   } catch (err) {
