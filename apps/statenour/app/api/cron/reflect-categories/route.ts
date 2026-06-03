@@ -92,8 +92,19 @@ export const GET = cronHandler(async () => {
     }
   }
 
+  // v-truth · NICK_REFLECTION_TREES (default-OFF) · higher-order synthesis
+  // of the leaf reflections this run + the week. Additive (new rows/edges
+  // only, never overwrites sources); self-gates + self-guards.
+  const { buildReflectionTrees } = await import("@/lib/brain/reflection-trees");
+  const trees = await buildReflectionTrees().catch(() => ({
+    insightsWritten: 0,
+    edgesWritten: 0,
+    skipped: "error" as const,
+  }));
+
   return {
     ok: true,
+    trees,
     ran,
     skipped,
     insightsWritten,

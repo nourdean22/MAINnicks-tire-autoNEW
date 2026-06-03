@@ -337,6 +337,19 @@ export async function resolveContradiction(
       .catch(() => {});
   }
 
+  // v-truth · NICK_CONTRADICTION_CLEANUP (default-OFF) · soft-delete the
+  // SUPERSEDED memory so the stale belief leaves the recall pool. Layers
+  // on top of the confidence-floor above; self-gates + graceful, no-ops
+  // for both_valid/dismissed (no loser). Flag off = byte-identical to today.
+  const { cleanupResolvedContradiction } = await import(
+    "@/lib/brain/contradiction-cleanup"
+  );
+  await cleanupResolvedContradiction(
+    status,
+    parsed.new_memory_id,
+    parsed.old_memory_id,
+  );
+
   return { ...resolved, key, createdAt: row.createdAt.toISOString() };
 }
 

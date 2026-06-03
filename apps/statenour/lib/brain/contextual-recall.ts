@@ -590,7 +590,13 @@ export async function getContextualMemories(
 
   // Build result: always include top wisdom + top scored
   const relevant: RelevantMemory[] = [];
-  const wisdomSlots = 3;
+  // v-truth · NICK_EPISODIC_SPLIT (default-OFF) · on an episodic
+  // (time-anchored) query, free 2 of the 3 forced-semantic wisdom slots
+  // so recent episodic memories ("what did I do last week") aren't
+  // crowded out by timeless wisdom. Flag off OR non-episodic query = 3
+  // (byte-identical to today).
+  const episodicSplitOn = getFlag("NICK_EPISODIC_SPLIT")?.isOn ?? false;
+  const wisdomSlots = episodicSplitOn && queryKind === "episodic" ? 1 : 3;
   const directSlots = maxMemories - wisdomSlots;
 
   // Always include top wisdom memories.

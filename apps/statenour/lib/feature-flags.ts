@@ -172,6 +172,40 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Document chunks are embedded without a contextual header.",
     ownerDoc: "lib/brain/contextual-retrieval.ts",
   },
+
+  // ── v-truth · 2nd-tier intelligence (2026-06-03) · all DEFAULT-OFF ──
+  {
+    key: "NICK_CONTRADICTION_CLEANUP",
+    description: "When a contradiction is resolved, soft-deletes (deletedAt) the SUPERSEDED memory so the stale belief leaves the recall pool — Nick stops confidently citing outdated facts. Conservative: only the explicitly-losing side, soft-delete (reversible), never hard-delete. OFF = both contradicting rows stay in recall (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Contradictions are surfaced as nudges only; the losing memory stays recallable.",
+    ownerDoc: "lib/brain/contradiction-cleanup.ts",
+  },
+  {
+    key: "NICK_EPISODIC_SPLIT",
+    description: "Reserves recall slots for episodic ('what happened') vs semantic ('what's true') memories so a time-anchored query ('what did I do last week') isn't crowded out by timeless wisdom, and vice-versa (Generative-Agents episodic/semantic split). OFF = single ranked pool (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Recall returns one ranked pool; wisdom can dominate time-anchored queries.",
+    ownerDoc: "lib/brain/contextual-recall.ts",
+  },
+  {
+    key: "NICK_REFLECTION_TREES",
+    description: "Nightly synthesis of reflections-of-reflections: clusters recent low-level reflections into higher-order insights ('you consistently over-commit on Mondays') written as MemoryEdge chains — abstracted self-knowledge vs raw episodic rows (Generative-Agents memory stream). Additive (never overwrites sources). OFF = flat daily/weekly reflections only.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Reflection engine produces flat reflections; no higher-order synthesis.",
+    ownerDoc: "lib/brain/reflection-trees.ts",
+  },
+  {
+    key: "NICK_OUTCOME_LEARNING",
+    description: "The autonomous-action proposer reads each rule's recent accepted/rejected rate from AutonomousAction history and reranks — chronically-rejected proposal types sink, accepted ones rise. Moves Nick from fixed rules to learning the operator's actual preferences. Ranking-only, never auto-executes. OFF = deterministic ranking (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Proposer ranks by static rules with no memory of what the operator accepted/rejected.",
+    ownerDoc: "lib/ai/propose-actions.ts",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
