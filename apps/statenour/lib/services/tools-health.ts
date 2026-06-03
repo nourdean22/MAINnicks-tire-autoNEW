@@ -48,6 +48,14 @@ export async function buildToolsHealth(): Promise<ToolsHealthReport> {
 
   // ── DATABASE ──
   try {
+    // Warm the pooled connection FIRST, then time a SECOND probe — so we
+    // measure steady-state latency, not cold-connection setup. A fresh
+    // serverless invocation's first query carries connect overhead
+    // (regularly >500ms) even though the DB is fast warm (~260ms per
+    // /api/health) — that cold spike was flipping database to "degraded"
+    // and dragging arsenal to PARTIAL on an otherwise-healthy DB.
+    // (2026-06-02 audit.)
+    await prisma.$queryRawUnsafe("SELECT 1");
     const start = Date.now();
     await prisma.$queryRawUnsafe("SELECT 1");
     const latency = Date.now() - start;

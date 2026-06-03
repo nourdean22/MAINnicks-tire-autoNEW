@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-export const revalidate = 300; // ISR: cache at edge, regenerate every 300s
+// Live diagnostic — must NOT prerender. With ISR/static, the build-time
+// render (no env vars, no DB) reported every category "down" + "Missing:
+// VENICE_API_KEY" and served that false snapshot. force-dynamic = always
+// reflects real runtime state. (2026-06-02 audit.)
+export const dynamic = "force-dynamic";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -13,6 +17,9 @@ export async function GET() {
 
   // ── DATABASE ──
   try {
+    // Warm the pooled connection first, then time a second probe (measure
+    // steady-state, not cold-connection setup). Mirrors the service copy.
+    await prisma.$queryRawUnsafe("SELECT 1");
     const start = Date.now();
     await prisma.$queryRawUnsafe("SELECT 1");
     const latency = Date.now() - start;
