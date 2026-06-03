@@ -80,6 +80,12 @@ const OLLAMA_API_KEY = cleanEnv(process.env.OLLAMA_API_KEY);
 const COHERE_API_KEY = cleanEnv(process.env.COHERE_API_KEY);
 const OLLAMA_MODEL =
   cleanEnv(process.env.OLLAMA_MODEL) || "qwen3-vl:235b-instruct";
+// v-truth · separate VISION model. The default chat model (OLLAMA_MODEL) may
+// be a smarter TEXT-only model (e.g. qwen3.5:397b); image turns must still use
+// a multimodal model. createOllamaModel routes taskType:"vision" here. Default
+// keeps today's multimodal flagship so vision never regresses.
+const OLLAMA_VISION_MODEL =
+  cleanEnv(process.env.OLLAMA_VISION_MODEL) || "qwen3-vl:235b-instruct";
 const OLLAMA_BASE_URL =
   cleanEnv(process.env.OLLAMA_BASE_URL) || "https://ollama.com";
 
@@ -522,8 +528,7 @@ function createOpenAIModel(): LanguageModel {
 // Ollama doesn't have Venice's reasoning_effort knob — but the param
 // is kept for parity in case we add per-task model routing later
 // (e.g. fast → qwen3-coder-next, deep → deepseek-v4-pro).
-function createOllamaModel(_taskType: TaskType = "reason"): LanguageModel {
-  void _taskType;
+function createOllamaModel(taskType: TaskType = "reason"): LanguageModel {
   const ollama = createOpenAI({
     apiKey: OLLAMA_API_KEY!,
     baseURL: `${OLLAMA_BASE_URL}/v1`,
@@ -536,7 +541,10 @@ function createOllamaModel(_taskType: TaskType = "reason"): LanguageModel {
   // 400 with 'input[N]: unknown input item type: "item_reference"'.
   // Same fix Venice uses at line 492 · v529.58's sanitizer was on
   // the wrong layer (after this) so it never saw the bad parts.
-  return ollama.chat(OLLAMA_MODEL);
+  // v-truth · per-task model routing — vision turns need the multimodal
+  // model; all other turns use the (possibly smarter, text-only) chat model.
+  const ollamaModel = taskType === "vision" ? OLLAMA_VISION_MODEL : OLLAMA_MODEL;
+  return ollama.chat(ollamaModel);
 }
 
 // ---------------------------------------------------------------------------
