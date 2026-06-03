@@ -635,6 +635,8 @@ interface ProviderEntry {
 
 // Apr 28 · TAG-TEAM 1st: Venice + Ollama Cloud share the top spot.
 //
+// HISTORICAL (this paragraph is superseded by the v10.0.529.46 note
+// below + the PROVIDERS array — Ollama is now 1st, Venice a fallback):
 // Default order: Venice 1st (faster TTFT for short prompts), Ollama 2nd
 // (1M context — kicks in when Venice is exhausted OR getModel is called
 // with `preferLargeContext: true` for content-mode prompts that exceed

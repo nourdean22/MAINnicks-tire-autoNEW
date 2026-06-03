@@ -18,7 +18,10 @@ import { describe, it, expect } from "vitest";
 import {
   detectActionClaims,
   detectActionClaimsWithoutTools,
+  EDGE_CLAIM_PATTERNS,
 } from "@/lib/ai/chat/action-claim-detector";
+import { ACTION_VOCAB } from "@/lib/ai/action-vocab";
+import { TOOL_CATALOG } from "@/lib/ai/tools/catalog";
 
 describe("detectActionClaims · the Bay 5 case", () => {
   it("flags the exact Bay 5 fabrication phrasing", () => {
@@ -36,7 +39,8 @@ describe("detectActionClaims · the Bay 5 case", () => {
 
   it("flags 'sent the email'", () => {
     const r = detectActionClaims("Done — sent the email to the customer.");
-    expect(r.claims.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+    // Real chat tool is composeEmail (there is no sendEmail chat tool).
+    expect(r.claims.some((c) => c.expectedTool.includes("composeEmail"))).toBe(true);
   });
 
   it("flags 'scheduled follow-up'", () => {
@@ -52,7 +56,8 @@ describe("detectActionClaims · the Bay 5 case", () => {
 
   it("flags 'pinned' memory writes", () => {
     const r = detectActionClaims("Pinned that to the brain so I'll remember next time.");
-    expect(r.claims.some((c) => c.expectedTool.includes("updatePinnedMemory"))).toBe(true);
+    // Real chat tool is pinMemory (there is no updatePinnedMemory).
+    expect(r.claims.some((c) => c.expectedTool.includes("pinMemory"))).toBe(true);
   });
 });
 
@@ -130,10 +135,10 @@ describe("detectActionClaimsWithoutTools · the gate behavior", () => {
 
   it("matches multiple acceptable tools via pipe alternation", () => {
     const text = "Sent it to the customer.";
-    // sendEmail OR sendTelegram should satisfy
+    // composeEmail OR sendTelegram should satisfy (both are real tools).
     const r1 = detectActionClaimsWithoutTools(text, [{ name: "sendTelegram" }]);
     expect(r1).toHaveLength(0);
-    const r2 = detectActionClaimsWithoutTools(text, [{ name: "sendEmail" }]);
+    const r2 = detectActionClaimsWithoutTools(text, [{ name: "composeEmail" }]);
     expect(r2).toHaveLength(0);
     const r3 = detectActionClaimsWithoutTools(text, []);
     expect(r3.length).toBeGreaterThan(0);
@@ -166,7 +171,7 @@ describe("detectActionClaims · per-sentence hedge isolation", () => {
     const text =
       "I can add more later. Sent the email to the customer just now.";
     const result = detectActionClaimsWithoutTools(text, []);
-    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+    expect(result.some((c) => c.expectedTool.includes("composeEmail"))).toBe(true);
   });
 });
 
@@ -179,7 +184,7 @@ describe("detectActionClaims · abbreviation-safe sentence split", () => {
       "Sent it, i.e. the email to the customer.",
       [],
     );
-    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+    expect(result.some((c) => c.expectedTool.includes("composeEmail"))).toBe(true);
   });
 
   it("detects a claim straddling an 'e.g.' clause", () => {
@@ -187,6 +192,91 @@ describe("detectActionClaims · abbreviation-safe sentence split", () => {
       "Sent it, e.g. the email to the customer.",
       [],
     );
-    expect(result.some((c) => c.expectedTool.includes("sendEmail"))).toBe(true);
+    expect(result.some((c) => c.expectedTool.includes("composeEmail"))).toBe(true);
+  });
+});
+
+// ── v-truth · the live "POSSIBLY FABRICATED" false-positive family ──
+// Reproduced from the bdnick.info screenshot: Nick wrote a reflective
+// coaching message citing [brain:recall] and was flagged as having
+// fabricated a linkResource + send action — even though he claimed no
+// action at all. These pin the fixes (citation strip + first-person
+// anchor on relational verbs + second-person reflection hedge).
+describe("detectActionClaims · citation + reflection false positives", () => {
+  it("does NOT flag a [brain:recall] citation framed as 'Linked to:'", () => {
+    // The exact screenshot phrasing. [brain:recall] is sanctioned
+    // citation syntax; "Linked to:" is editorial, not a link action.
+    const r = detectActionClaimsWithoutTools(
+      "Next move: deploy Statenour. Linked to: [brain:recall] (past guilt).",
+      [],
+    );
+    expect(r).toHaveLength(0);
+  });
+
+  it("does NOT flag 'linked to your goals' (relational prose)", () => {
+    const r = detectActionClaimsWithoutTools(
+      "This habit is linked to your goals from last month.",
+      [],
+    );
+    expect(r).toHaveLength(0);
+  });
+
+  it("does NOT flag reflecting the user's past send ('you texted Dania')", () => {
+    const r = detectActionClaimsWithoutTools(
+      "Commitment overdue: you texted Dania tonight but never followed up.",
+      [],
+    );
+    expect(r).toHaveLength(0);
+  });
+
+  it("does NOT flag reflecting the user's past completion ('you finished')", () => {
+    const r = detectActionClaimsWithoutTools(
+      "Last week you finished the brake job ahead of schedule.",
+      [],
+    );
+    expect(r).toHaveLength(0);
+  });
+
+  it("STILL flags a real first-person link claim ('I linked it…')", () => {
+    // The anchor must not blind us to genuine fabrications.
+    const r = detectActionClaimsWithoutTools(
+      "I linked it to the Bay 5 project for you.",
+      [],
+    );
+    expect(r.some((c) => c.expectedTool.includes("updateTask"))).toBe(true);
+  });
+
+  it("STILL flags a real send when Nick is the subject ('Sent the email')", () => {
+    const r = detectActionClaimsWithoutTools("Sent the email to the customer.", []);
+    expect(r.length).toBeGreaterThan(0);
+  });
+});
+
+// ── v-truth · poka-yoke · every expected-tool must be a REAL tool ──
+// The bug this prevents: the detector mapped claims to tools that
+// don't exist in nourTools (saveToBrain, linkResource, moveTask,
+// publishContent, updatePinnedMemory, sendEmail). An unsatisfiable
+// expectedTool can NEVER match a fired tool → the claim is flagged as
+// fabricated FOREVER, even when the model did the right thing. The
+// vocab-parity test only checked regex symmetry, not tool existence —
+// this closes that gap. If you rename a tool, this fails until the
+// vocab/edge mapping catches up.
+describe("action-claim detector · expected tools all exist in the catalog", () => {
+  const REAL_TOOLS = new Set(TOOL_CATALOG.map((t) => t.name));
+
+  it("every ACTION_VOCAB tool resolves to a registered chat tool", () => {
+    for (const concept of ACTION_VOCAB) {
+      for (const tool of concept.tool.split("|")) {
+        expect(REAL_TOOLS.has(tool), `vocab "${concept.intent}" → unknown tool "${tool}"`).toBe(true);
+      }
+    }
+  });
+
+  it("every EDGE_CLAIM_PATTERNS mapsToTool resolves to a registered chat tool", () => {
+    for (const edge of EDGE_CLAIM_PATTERNS) {
+      for (const tool of edge.mapsToTool.split("|")) {
+        expect(REAL_TOOLS.has(tool), `edge "${edge.verb}" → unknown tool "${tool}"`).toBe(true);
+      }
+    }
   });
 });

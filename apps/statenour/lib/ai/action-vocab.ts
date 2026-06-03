@@ -75,6 +75,16 @@ export interface ActionConcept {
    * Allowed character distance between verb and object. Default 30.
    */
   gap?: number;
+  /**
+   * When true, the CLAIM (output-side) regex requires a first-person
+   * subject ("I linked", "I've moved", "just linked") before the verb.
+   * Relational verbs like "linked"/"moved" appear constantly in
+   * descriptive prose ("Linked to: [brain:recall]", "you moved to a
+   * new shop") that asserts no action — anchoring to first person
+   * stops those benign uses registering as fabricated claims. The
+   * input-side intent regex is unaffected.
+   */
+  claimNeedsFirstPerson?: boolean;
 }
 
 /**
@@ -132,9 +142,13 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     gap: 30,
   },
   // ── Memory write ──
+  // tool MUST be the real registered chat tool. The model fires
+  // `pinMemory` on "remember this"/"pin this" — there is no
+  // `saveToBrain` tool (that's a service, never in nourTools), so the
+  // old pin meant every correct pin was flagged fabricated forever.
   {
     intent: "memory-write",
-    tool: "saveToBrain",
+    tool: "pinMemory",
     imperative: ["save", "remember", "note", "capture"],
     past: ["saved", "remembered", "noted", "captured", "pinned"],
     objects: ["memory", "note", "brain", "that", "this"],
@@ -159,32 +173,35 @@ export const ACTION_VOCAB: readonly ActionConcept[] = [
     gap: 30,
   },
   // ── Linking / moving (claim-only — input forms are ambiguous) ──
+  // Both fold into `updateTask` (the real tool that absorbed
+  // reframe/move/link — tasks.ts) — `linkResource`/`moveTask` were
+  // never registered, so the claim could never be satisfied.
+  // claimNeedsFirstPerson: "linked"/"moved" dominate descriptive prose
+  // ("Linked to: [brain:recall]", "you moved shops") — only a
+  // first-person subject ("I linked it…") signals a real action claim.
   {
     intent: "link",
-    tool: "linkResource",
+    tool: "updateTask",
     imperative: ["link"],
     past: ["linked"],
     objects: ["to", "with"],
     gap: 40,
+    claimNeedsFirstPerson: true,
   },
   {
     intent: "move",
-    tool: "moveTask",
+    tool: "updateTask",
     imperative: ["move"],
     past: ["moved"],
     objects: ["project", "mission", "inbox"],
     connector: ["to"],
     gap: 40,
+    claimNeedsFirstPerson: true,
   },
   // ── Posting / publishing ──
-  {
-    intent: "publish",
-    tool: "publishContent",
-    imperative: ["post", "publish"],
-    past: ["posted", "published"],
-    objects: ["to", "on"],
-    gap: 40,
-  },
+  // (removed v-truth) — there is no `publishContent` chat tool, so the
+  // claim was permanently unsatisfiable AND the input side wrongly
+  // forced toolChoice:"required" for a tool the model doesn't have.
 ] as const;
 
 /**
@@ -234,18 +251,25 @@ export function intentRegex(concept: ActionConcept): RegExp {
 export function claimRegex(concept: ActionConcept): RegExp {
   const past = alternation(concept.past);
   const gap = concept.gap ?? 30;
+  // First-person anchor: require "I" / "I've" / "just" (then ≤2 words)
+  // immediately before the verb, so relational verbs only register as
+  // a self-claim ("I linked it…"), not as descriptive prose ("Linked
+  // to: …", "you moved shops"). Empty for normal concepts.
+  const fp = concept.claimNeedsFirstPerson
+    ? `\\b(?:I|I'?ve|just)\\b\\s+(?:\\w+\\s+){0,2}`
+    : "";
   if (!concept.objects || concept.objects.length === 0) {
-    return new RegExp(`\\b(?:${past})\\b`, "i");
+    return new RegExp(`${fp}\\b(?:${past})\\b`, "i");
   }
   const obj = alternation(concept.objects);
   if (concept.connector && concept.connector.length > 0) {
     const conn = alternation(concept.connector);
     return new RegExp(
-      `\\b(?:${past})\\b.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
+      `${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${conn})\\b.{0,${gap}}\\b(?:${obj})\\b`,
       "i",
     );
   }
-  return new RegExp(`\\b(?:${past})\\b.{0,${gap}}\\b(?:${obj})\\b`, "i");
+  return new RegExp(`${fp}\\b(?:${past})\\b.{0,${gap}}\\b(?:${obj})\\b`, "i");
 }
 
 export interface IntentEntry {
