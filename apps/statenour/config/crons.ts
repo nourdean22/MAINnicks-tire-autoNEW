@@ -529,6 +529,14 @@ export const CRONS: CronDef[] = [
     maxDuration: 600,
     addedAt: "2026-05-28",
   },
+  {
+    name: "autonomous-engine",
+    schedule: null,
+    mode: "folded",
+    category: "action",
+    foldedInto: "mega-evening",
+    description: "FOLDED into mega-evening · NICK_AUTONOMY-gated proactive engine (~22 rules: revenue-pace, urgent-leads, drift escalation, commitment enforcement, morning brief, expired-quote follow-up). Hard-skips when the flag is off. FAIL-CLOSED: every rule defers to /system/approvals unless an explicit `auto` AutomationPolicy exists — nothing auto-sends.",
+  },
 ];
 
 /** Names of crons that SHOULD exist as routes (for verifier). */

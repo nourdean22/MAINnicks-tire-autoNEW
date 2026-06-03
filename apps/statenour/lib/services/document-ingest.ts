@@ -24,6 +24,8 @@
 import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getEmbedding } from "@/lib/ai/provider";
+import { contextualizeChunk } from "@/lib/brain/contextual-retrieval";
+import { getFlag } from "@/lib/feature-flags";
 import {
   isPgvectorAvailable,
   knnSearch,
@@ -91,7 +93,18 @@ export async function ingestDocument(input: {
   let stored = 0;
   for (let i = 0; i < chunks.length; i++) {
     try {
-      const vec = await getEmbedding(chunks[i]);
+      // v-truth · Contextual Retrieval (NICK_CONTEXTUAL_RETRIEVAL).
+      // Prepend an LLM context header before embedding so the chunk
+      // carries who/when/what-doc. Embed AND store the SAME string so
+      // recalled text matches its vector. Flag off -> chunk unchanged.
+      const toEmbed = getFlag("NICK_CONTEXTUAL_RETRIEVAL")?.isOn
+        ? await contextualizeChunk(chunks[i], {
+            title: input.filename,
+            source: parsed.format,
+            fullDocExcerpt: parsed.text,
+          })
+        : chunks[i];
+      const vec = await getEmbedding(toEmbed);
       if (!vec || vec.length === 0) continue;
 
       const created = await prisma.vectorEmbedding.create({
@@ -102,7 +115,7 @@ export async function ingestDocument(input: {
             documentId,
             filename: input.filename,
             chunkIndex: i,
-            text: chunks[i],
+            text: toEmbed,
           }),
           embedding: JSON.stringify(vec),
         },

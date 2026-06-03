@@ -719,6 +719,41 @@ export function buildOnFinish(deps: BuildOnFinishInput) {
       }
       const hasContent = cleanedText.trim().length > 0;
 
+      // v-truth · Chain-of-Verification (NICK_COVE) · verify factual
+      // answers in ISOLATION before the row persists, so the stored
+      // reply + next-turn context carry the verified text. Runs
+      // post-stream (the user already saw the streamed draft), so it
+      // never affects perceived latency. Flag OFF by default -> skipped
+      // entirely; graceful on any failure (never breaks the turn).
+      if (hasContent) {
+        try {
+          const { getFlag } = await import("@/lib/feature-flags");
+          const FACTUAL_INTENTS = new Set([
+            "factual",
+            "analytical",
+            "procedural",
+            "instructional",
+          ]);
+          if (getFlag("NICK_COVE")?.isOn && FACTUAL_INTENTS.has(turnSignal.intent)) {
+            const { verifyAndRevise } = await import(
+              "@/lib/ai/chat/chain-of-verification"
+            );
+            const cove = await verifyAndRevise(cleanedText, userContent);
+            if (cove.changed) {
+              log.info("cove_revised", {
+                conversationId: convId,
+                questions: cove.questions.length,
+              });
+              cleanedText = cove.revised;
+            }
+          }
+        } catch (err) {
+          log.warn("cove_skipped", {
+            error: err instanceof Error ? err.message.slice(0, 160) : String(err),
+          });
+        }
+      }
+
       // ═══ Apr 19 · Output critic ═══
       const critic = hasContent
         ? contentMode
