@@ -582,7 +582,7 @@ export const voiceAgentRouter = router({
 
         return {
           success: true,
-          message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $60 installed.`,
+          message: `Got it — I've sent the tire info to the shop. ${input.tireSize ? `Looking for ${input.tireSize}.` : ""} Walk in any day, we usually have most common sizes on the rack from $25 installed (most sizes $40 to $80).`,
         };
       } catch (err) {
         log.error("Voice agent tire inquiry failed", { err: err instanceof Error ? err.message : String(err) });

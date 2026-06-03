@@ -83,7 +83,7 @@ export function generateStaticContent(request: ContentRequest): ContentOutput | 
       return { content: `Brakes squealing? Free inspection at Nick's Tire & Auto. Pads from $89. (216) 862-0005. Reply STOP to opt out` };
     }
     if (topic.includes("tire")) {
-      return { content: `New & used tires from $60 at Nick's. Free mounting & balancing. Walk-ins 7 days. (216) 862-0005. Reply STOP to opt out` };
+      return { content: `Used tires from $25, new from $89 at Nick's. Free mounting & balancing. Walk-ins 7 days. (216) 862-0005. Reply STOP to opt out` };
     }
   }
 
