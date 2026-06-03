@@ -92,12 +92,10 @@ async function analyzePagePatterns(): Promise<PagePattern> {
     insights.push(`LATE NIGHT PATTERN: ${lateNightCount} visits after 11pm this week. This correlates with overthinking and poor next-day performance.`);
   }
 
-  const commandVisits = pageCounts["/command"] || 0;
-  const taskVisits = pageCounts["/tasks"] || 0;
-  if (commandVisits > 0 && taskVisits === 0) {
-    insights.push("Nour checks Command but never opens Tasks — he's monitoring but not executing.");
-  }
-
+  // Wave 2 (2026-06-03) · the old "/command + /tasks monitoring" insight was
+  // dropped here too — /command and /tasks are both retired/redirected routes,
+  // so their pageCounts are permanently 0 and the heuristic never fires.
+  //
   // Wave 2 (2026-06-03) · the old "/drift + /body avoidance" insight was
   // dropped here: both are now redirected routes (/drift retired; /body
   // folded into /stats#body), so pageCounts for them are permanently 0 and

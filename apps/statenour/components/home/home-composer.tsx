@@ -23,7 +23,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Send, Mic, Paperclip } from "lucide-react";
+import { Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const SEED_KEY = "chat:seed";
@@ -72,24 +72,10 @@ export function HomeComposer() {
       className="rounded-lg border border-[var(--gold)]/25 bg-[var(--bg-base)] focus-within:border-[var(--gold)]/45 transition-colors"
     >
       <div className="flex items-end gap-1 p-2">
-        {/* Left affordances · navigate to full /chat for media/voice */}
-        <button
-          type="button"
-          onClick={() => router.push("/chat")}
-          aria-label="voice input"
-          className="shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-all"
-        >
-          <Mic size={16} strokeWidth={1.75} />
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push("/chat")}
-          aria-label="attach"
-          className="shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-md text-[var(--text-tertiary)] hover:text-[var(--gold)] active:scale-95 transition-all"
-        >
-          <Paperclip size={16} strokeWidth={1.75} />
-        </button>
-
+        {/* 2026-06-03 · Wave 2 cleanup · removed the mic + paperclip buttons:
+            both just router.push("/chat") — a misleading affordance (the mic
+            implied inline voice it never did). The textarea + send is the real
+            quick action; voice/attach live on /chat, reachable via nav. */}
         <textarea
           ref={taRef}
           value={draft}

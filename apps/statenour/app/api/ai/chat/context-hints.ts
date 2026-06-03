@@ -234,13 +234,11 @@ export async function buildContextHints(
       "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
       "/pins": "pinMemory · searchMemories",
       "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
-      // /mastery + /plan both consolidated into /stats · merged tool bias.
-      "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
-      "/life": "setLifeGoal · logGoalProgress · archiveGoal · getCommitments",
+      // /mastery + /plan + /life + /body all consolidated into /stats · merged tool bias.
+      "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · archiveGoal · getCommitments · getBodyData · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
       "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
       "/system": "getCronStatus · toolHealth · getBrainHealth",
       "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
-      "/body": "getBodyData",
       "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
     };
     const biasKey = Object.keys(TOOL_BIAS).find((k) => contextRoute.startsWith(k));

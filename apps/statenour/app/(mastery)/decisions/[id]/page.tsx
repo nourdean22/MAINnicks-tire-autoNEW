@@ -32,7 +32,6 @@ import { Panel } from "@/components/panel";
 import { PageHeader } from "@/components/layout/ui";
 import { TrendCounter } from "@/components/ui/trend-counter";
 import { DecisionSpread } from "@/components/ui/decision-spread";
-import { GlassCard } from "@/components/ui/glass-card";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import {
   ComparisonMatrix,
@@ -246,6 +245,7 @@ export default function DecisionDetailPage() {
       return {
         id: `sib-${s.id}`,
         label: s.title.slice(0, 48),
+        href: `/decisions/${s.id}`,
         _grade: s.grade,
         _ageDays: ageDays,
         _reviewDueDays: reviewDueDays,
@@ -561,55 +561,10 @@ export default function DecisionDetailPage() {
         </section>
       )}
 
-      {/* ── Sibling decisions in the same domain ─────────────────── */}
-      {lineage.siblings.length > 0 && (
-        <section className="space-y-2">
-          <header className="flex items-baseline justify-between">
-            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-[var(--text-tertiary)]">
-              siblings in {d.domain}
-            </p>
-            <span className="text-[10px] font-mono tracking-wider text-[var(--text-tertiary)]/70">
-              {siblingGrades.length}/{lineage.siblings.length} graded
-            </span>
-          </header>
-          <div className="space-y-1.5">
-            {lineage.siblings.map((s) => (
-              <Link
-                key={s.id}
-                href={`/decisions/${s.id}`}
-                className="block"
-              >
-                <GlassCard className="hover:border-[var(--gold)]/30 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <span className="text-[10px] font-mono text-[var(--text-tertiary)] tabular-nums w-20 shrink-0">
-                      {s.date}
-                    </span>
-                    <span className="flex-1 text-[12px] text-[var(--text-primary)] truncate">
-                      {s.title}
-                    </span>
-                    {s.grade ? (
-                      <span
-                        className={cn(
-                          "font-mono text-sm font-bold tabular-nums w-7 text-right",
-                          s.grade === "A" || s.grade === "B" ? "text-emerald-300"
-                          : s.grade === "C" ? "text-[var(--gold)]"
-                          : "text-rose-300",
-                        )}
-                      >
-                        {s.grade}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--text-tertiary)]/70 w-7 text-right">
-                        —
-                      </span>
-                    )}
-                  </div>
-                </GlassCard>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* Wave 2 cleanup (2026-06-03): the standalone sibling LIST that used to
+          render here was removed -- it duplicated the domain-scan matrix below.
+          The matrix now renders each sibling's label as a Link (MatrixOption
+          href), so it is BOTH the comparison view AND the navigation. */}
 
       {/* ── ComparisonMatrix · domain scan view ────────────────────
        *   Shipped 2026-05-23 · task #8 from operator backlog. Renders
@@ -633,7 +588,7 @@ export default function DecisionDetailPage() {
             options={matrixOptions}
             criteria={matrixCriteria}
             cells={matrixCells}
-            caption="current decision + siblings · per-column color-coding · click a header to sort"
+            caption="current decision + siblings · click a sibling to open it · click a header to sort"
             defaultSortCriterion="grade"
           />
         </section>

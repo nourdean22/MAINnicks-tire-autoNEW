@@ -33,12 +33,17 @@
 import { useMemo, useState, useCallback } from "react";
 import type { KeyboardEvent } from "react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 // ── Public types ────────────────────────────────────────────────────────
 
 export interface MatrixOption {
   id: string;
   label: string;
+  /** Optional · when set, the row label renders as a Link to this href
+   *  (lets a matrix double as a navigation surface · added Wave 2 2026-06-03
+   *  so /decisions sibling rows are clickable without a separate list). */
+  href?: string;
   [k: string]: unknown;
 }
 
@@ -354,7 +359,16 @@ export function ComparisonMatrix({
                     scope="row"
                     className="sticky left-0 z-[5] bg-[var(--bg-card)] px-3 py-2 text-left text-[12px] font-medium text-[var(--text-primary)] min-w-[160px] border-r border-[var(--border-soft)] align-top"
                   >
-                    {opt.label}
+                    {opt.href ? (
+                      <Link
+                        href={opt.href}
+                        className="hover:text-[var(--gold)] hover:underline transition-colors"
+                      >
+                        {opt.label}
+                      </Link>
+                    ) : (
+                      opt.label
+                    )}
                   </th>
                   {criteria.map((crit) => {
                     const cell = cells(opt, crit);
