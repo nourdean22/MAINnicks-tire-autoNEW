@@ -141,11 +141,16 @@ export function StatCard({ label, value, icon, color = "text-foreground", trend,
 }
 
 export function UrgencyBadge({ score }: { score: number }) {
-  const config = score >= 4
-    ? { label: `URGENT (${score}/5)`, color: "text-red-400 bg-red-500/10 border-red-500/20" }
-    : score >= 3
-    ? { label: `MEDIUM (${score}/5)`, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" }
-    : { label: `LOW (${score}/5)`, color: "text-foreground/50 bg-foreground/5 border-border/30" };
+  // wave-187 — clamp display to 1-5. Legacy rows stored out-of-range
+  // urgencyScores (e.g. 36, 27) from before gemini.ts clamped on capture;
+  // rendering raw produced nonsense like "36/5". Display-only clamp; stored
+  // data is untouched.
+  const s = Math.min(5, Math.max(1, score));
+  const config = s >= 4
+    ? { label: `URGENT (${s}/5)`, color: "text-red-400 bg-red-500/10 border-red-500/20" }
+    : s >= 3
+    ? { label: `MEDIUM (${s}/5)`, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" }
+    : { label: `LOW (${s}/5)`, color: "text-foreground/50 bg-foreground/5 border-border/30" };
 
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide border ${config.color}`}>

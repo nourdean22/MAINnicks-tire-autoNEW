@@ -403,7 +403,7 @@ export const invoicesRouter = router({
       const days = periodMap[input?.period ?? "30d"];
 
       // All queries in parallel for speed
-      const [overviewRows, laborPartsRows, monthlyRows, paymentRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows] = await Promise.all([
+      const [overviewRows, laborPartsRows, monthlyRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows] = await Promise.all([
         // 1. Overview stats
         d.execute(rawSql`
           SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount),0) as rev,
@@ -435,13 +435,11 @@ export const invoicesRouter = router({
           GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
           ORDER BY month DESC LIMIT 24
         `),
-        // 4. Payment method breakdown
-        d.execute(rawSql`
-          SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as rev
-          FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
-          GROUP BY paymentMethod ORDER BY rev DESC
-        `),
-        // 5. Service category breakdown (from description keywords)
+        // wave-187 — payment-method breakdown query REMOVED. Its only consumer
+        // was the dead `intelligence.paymentMix` return field; the payment pie
+        // on DashboardView reads `stats.revenueByPayment` instead. This GROUP BY
+        // ran every intel call for nothing.
+        // Service category breakdown (from description keywords)
         d.execute(rawSql`
           SELECT
             CASE
@@ -507,7 +505,6 @@ export const invoicesRouter = router({
       const overview = ((overviewRows as RawResult)?.[0]?.[0] || {}) as RawRow;
       const lp = ((laborPartsRows as RawResult)?.[0]?.[0] || {}) as RawRow;
       const monthly = (((monthlyRows as RawResult)?.[0] || []) as RawRow[]).reverse();
-      const payments = ((paymentRows as RawResult)?.[0] || []) as RawRow[];
       const services = ((serviceRows as RawResult)?.[0] || []) as RawRow[];
       const topDays = ((topDaysRows as RawResult)?.[0] || []) as RawRow[];
       const byDayOfWeek = ((hourRows as RawResult)?.[0] || []) as RawRow[];
@@ -548,11 +545,6 @@ export const invoicesRouter = router({
           labor: Math.round(Number(m.labor || 0) / 100),
           parts: Math.round(Number(m.parts || 0) / 100),
           avgTicket: Math.round(Number(m.avgTicket || 0) / 100),
-        })),
-        paymentMix: payments.map((p: RawRow) => ({
-          method: p.paymentMethod || "unknown",
-          count: Number(p.cnt),
-          revenue: Math.round(Number(p.rev || 0) / 100),
         })),
         serviceBreakdown: services.map((s: RawRow) => ({
           category: s.category,

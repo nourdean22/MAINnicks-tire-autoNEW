@@ -495,8 +495,13 @@ export default function DeclinedEstimatesSection() {
                       </span>
                     )}
                     {isFollowUp && (
+                      // wave-187 — `isFollowUp` (paymentStatus==="partial") means
+                      // the 7-day recovery SMS was ALREADY sent. The old "FOLLOW-UP"
+                      // label read as a to-do CTA, so the operator couldn't tell
+                      // never-contacted from already-contacted. Past-tense "7D SENT"
+                      // matches Customer360Panel's wording.
                       <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 font-semibold">
-                        FOLLOW-UP
+                        7D SENT
                       </span>
                     )}
                     {isUrgent && !isFollowUp && (

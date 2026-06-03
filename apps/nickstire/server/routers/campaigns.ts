@@ -293,70 +293,14 @@ export const campaignsRouter = router({
     };
   }),
 
-  /** Pause a running campaign */
-  pause: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      await d.update(smsCampaigns).set({ status: "paused" }).where(eq(smsCampaigns.id, input.id));
-      return { success: true };
-    }),
-
-  /** Resume a paused campaign */
-  resume: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      await d.update(smsCampaigns).set({ status: "active" }).where(eq(smsCampaigns.id, input.id));
-      return { success: true };
-    }),
-
-  /** Cancel a campaign (stops all pending sends) */
-  cancel: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      await d.update(smsCampaigns).set({ status: "cancelled" }).where(eq(smsCampaigns.id, input.id));
-      // Cancel pending sends
-      await d.update(smsCampaignSends)
-        .set({ status: "cancelled" })
-        .where(and(eq(smsCampaignSends.campaignId, input.id), eq(smsCampaignSends.status, "pending")));
-      return { success: true };
-    }),
-
-  /** Delete a campaign and all its sends */
-  delete: adminProcedure
-    .input(z.object({ id: z.number() }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      // Delete sends first (FK constraint)
-      await d.delete(smsCampaignSends).where(eq(smsCampaignSends.campaignId, input.id));
-      await d.delete(smsCampaigns).where(eq(smsCampaigns.id, input.id));
-      return { success: true };
-    }),
-
-  /** Update campaign name or template */
-  update: adminProcedure
-    .input(z.object({
-      id: z.number(),
-      name: z.string().min(1).max(255).optional(),
-      message: z.string().max(500).optional(),
-    }))
-    .mutation(async ({ input }) => {
-      const d = await db();
-      if (!d) return { success: false };
-      const updates: Record<string, unknown> = {};
-      if (input.name) updates.name = input.name.replace(/<[^>]*>/g, "").trim();
-      if (input.message) updates.message = input.message;
-      if (Object.keys(updates).length > 0) {
-        await d.update(smsCampaigns).set(updates).where(eq(smsCampaigns.id, input.id));
-      }
-      return { success: true };
-    }),
+  // wave-187 — REMOVED dead pause/resume/cancel/delete/update mutations.
+  // None had a UI caller (grep: zero `campaigns.{pause,resume,cancel,delete,update}`
+  // in client/), and they wrote enum values the schema rejects: status "paused"/
+  // "cancelled" are not in the sms_campaigns enum ["draft","active","completed"]
+  // (and "cancelled" is not in smsCampaignSends ["pending","sent","failed"]), plus
+  // `update` wrote a non-existent `message` column (real col is customMessage).
+  // Latent strict-mode crashes if ever wired. Deleted per kaizen (delete > maintain).
+  // The send/resume lifecycle is handled by processCampaignSends + resumeStuckCampaigns.
 });
 
 // ─── ASYNC SEND PROCESSING ────────────────────────────
