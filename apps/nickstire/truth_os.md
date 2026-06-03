@@ -2,6 +2,25 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
+## 🟢 Latest shipped — 2026-06-03 PM (front-facing site audit: truth + two-tier tire pricing, 8 commits)
+
+**Tire pricing is TWO-TIER by surface (canonical current state):**
+- **WEBSITE + its SEO/crawler layer** (hero, LocalBusiness + FAQPage schema, `client/public/ai.txt`, the `_core` LLM site-index): used tires **"from $25 installed"** — a deliberate decoy hook — carrying the fine print **"12-inch rims, subject to availability"** + the honest band **"most sizes $40-80"**. Centralized in `BUSINESS.usedTires` (`shared/business.ts`).
+- **QUOTING CHANNELS** (phone VAPI, SMS, voice agent, web chatbot `gemini.ts`, IG autopost, the AI price-compliance validator): used tires **"$60 installed"** — the real average. High-intent callers (often sending tow trucks) get the honest price, not the decoy. `838c1968` reverted a brief $25 experiment back to $60.
+- **NEW tires "from $89 installed"** everywhere (`BUSINESS.newTires`) + positioning "Any tire, any brand. Nick never says no" (no ™). **GBP** pricing ($60) held/untouched.
+- VAPI live assistant `150fe622-…` re-deployed at $60 (PATCH 200, transfer `+16056916315` + 10 tools preserved).
+
+**Truth fixes (were broadcast to Google + AI answer engines):**
+- **Warranty:** false **"36-month/36,000-mile"** → canonical **12-month/12,000-mile** across `shared/services.ts`/`blog.ts`/`guides.ts`/`seo-pages.ts`, the chatbot (`gemini.ts`), GBP/IG generators, and `client/public/{ai.txt,business-data.json,services-schema.json}`. The legit 36-mo **battery** warranty (`server/routers/nick/utils.ts`) left intact.
+- **Founding:** "Since 2005" (LandingPage) + "over 20 years"/"1,688 reviews" (WomensSafety) → real **2018 / 1,700+**.
+- **Geo:** removed `scripts/patch-prerender-copy.mjs` rules that reverted the canonical Google-pinned coords (`41.5525118/-81.5571875`) back to wrong, + its straggler-check that flagged the CORRECT coords as stale.
+
+**Brand-voice / SEO / chrome / visual:** "family-owned"→"family-run" (/about, /careers SEO + TrustStrip chip); NotificationBar self-"trust"→concrete; quality/premium/"inspection" kill-words cleared on touched lines; DiagnosticsPage gained the "| Nick's" title suffix; PriceEstimator breadcrumb leaf `/estimate`→`/pricing`; StatusTracker dead `rounded-2xl rounded-lg`; RoundupTile slug formula 404'd 4/7 competitors → explicit route map; **BookingPage** wrapped in `PageLayout` (CustomerPortal + LandingPage left chrome-less by design); DiagnosePage/SharePage/TrackJob/WomensSafety hardcoded hex/gray → design tokens (~145 classes, zero-shift); undefined `--nick-yellow-alpha` → `--color-nick-yellow`.
+
+**Commits:** `66d5fda6` (site truth + $25/$89) · `c0e190e0` (brand-voice/SEO/links) · `15c47e10` (dead-links) · `aa6e69d0` (chrome+tokens) · `6df2ebda` (channels→$25, **SUPERSEDED**) · `838c1968` (channels→$60). Each: tsc 0 · brand-voice 0 · build green · landed attempt 1. ⚠ **Prerendered `prerendered/*.html` refreshes on the next CI regen** (Puppeteer broken on this Windows box; the live hydrated site is already correct). Detail: `docs/frontface-audit/{PLAN,CHANGELOG}.md`.
+
+---
+
 ## 🔵 Latest shipped — 2026-06-03 (admin overhaul + customer dedup + code-underneath + architecture decisions + SMS voice sweep + VAPI receptionist slim-down)
 
 **Customer data — DEDUPED + dupe-proofed (LIVE on prod TiDB):**
