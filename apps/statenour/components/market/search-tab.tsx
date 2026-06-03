@@ -1,41 +1,33 @@
 "use client";
 
 /**
- * /seo · Intelligence Dispersal Wave 3 follow-through · #79 (2026-05-24)
+ * SearchTab · the Search section of the merged /market surface (Wave 2).
  *
- * The statenour home for nickstire shop's search-performance signal:
- *   GSC summary · Top queries · Top pages.
+ * Moved verbatim from the former app/(mastery)/seo/page.tsx — the only
+ * change is the outer <StandardPage> wrapper became a fragment (the page-
+ * level chrome now lives on /market), and the former StandardPage
+ * `description` (clicks/impressions summary line) moved to an inline
+ * subtitle at the top of the fragment so nothing is lost. Data fetching,
+ * loading/down states, the 4-KPI grid, top-queries + top-pages tables,
+ * and the footer are unchanged.
  *
  * Pulls via the bridge contract v11.7:
  *   · gsc_summary · 30-day clicks / impressions / CTR / position
  *   · gsc_top_queries · top 10 query strings by clicks
- *   · gsc_top_pages · top 10 landing pages by clicks (new in v11.7)
+ *   · gsc_top_pages · top 10 landing pages by clicks
  *
  * All three actions live in nickstire (see apps/nickstire/server/
  * routes/nour-os-query.ts) and are wrapped by the browser-safe proxy
  * at /api/nickstire/query. Bridge contract:
  * apps/nickstire/docs/NICKSTIRE-QUERY-CONTRACT.md §v11.7.
  *
- * Aesthetic: editorial-minimalist · matches /funnel + /scoreboard's
- * NickHealthSection. Card visual contract:
- * `border-white/10 bg-white/[0.02]` + `text-[10px] uppercase
- * tracking-[0.18em] text-white/40` eyebrow.
- *
- * Graceful degradation: self-hides on bridge failure · no error toast ·
- * matches the pattern from /funnel and /scoreboard.
- *
- * Mobile: single column · KPIs stack 2×2 · tables truncate gracefully.
- *
- * Per docs/2026-05-24-intelligence-dispersal-plan.md §5 Wave 3 · this
- * is the second of the two remaining statenour gap surfaces (the
- * other is /radar). nickstire never had a dedicated SEO surface · the
- * GSC pipeline was only used by the AI COO. This page makes it a
- * first-class operator surface.
+ * Note: "top pages" here = GSC clicks (search demand). The /market
+ * Radar tab's "top pages" = CRM conversion — a different signal; the
+ * tabs keep their own labels so the two never read as the same thing.
  */
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BridgeShell } from "@/components/mastery/bridge-shell";
-import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface GscSummary {
@@ -82,7 +74,7 @@ type SummaryRaw = Omit<GscSummary, "ok">;
 type QueriesRaw = Omit<GscQueriesData, "ok">;
 type PagesRaw = Omit<GscPagesData, "ok">;
 
-export default function SeoPage() {
+export function SearchTab() {
   // 2026-05-24 · Wave X.g · migrated off the inline 40-LOC fetch loop
   // onto three `usePollingFetch` calls. Each runs independently · the
   // page already isolated per-sub-report degrade so the hook's
@@ -129,19 +121,15 @@ export default function SeoPage() {
   const pos = summary.avgPosition.toFixed(1);
 
   return (
-    <StandardPage
-      eyebrow="NOUR OS · Intelligence"
-      title="SEO"
-      description={
-        <>
-          Search performance · {summary.from} → {summary.to} ·{" "}
-          <span className="text-emerald-300 font-mono">{summary.totalClicks.toLocaleString()}</span>{" "}
-          clicks ·{" "}
-          <span className="font-mono text-white/70">{summary.totalImpressions.toLocaleString()}</span>{" "}
-          impressions.
-        </>
-      }
-    >
+    <>
+      <p className="text-sm text-white/60 mb-4">
+        Search performance · {summary.from} → {summary.to} ·{" "}
+        <span className="text-emerald-300 font-mono">{summary.totalClicks.toLocaleString()}</span>{" "}
+        clicks ·{" "}
+        <span className="font-mono text-white/70">{summary.totalImpressions.toLocaleString()}</span>{" "}
+        impressions.
+      </p>
+
         {/* KPI grid · 2×2 on mobile, 4-up on desktop */}
         <section className="mt-8">
           <MasterySectionLabel label="Performance" count={4} />
@@ -212,7 +200,7 @@ export default function SeoPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           via nickstire bridge · GSC nightly pipeline · refreshes every 15 min
         </p>
-    </StandardPage>
+    </>
   );
 }
 

@@ -1,41 +1,31 @@
 "use client";
 
 /**
- * /radar · Intelligence Dispersal Wave 3 follow-through · #79 (2026-05-24)
+ * RadarTab · the Radar section of the merged /market surface (Wave 2).
  *
- * The statenour home for nickstire shop's brand + competitive radar:
- *   Review velocity · Review sentiment · Competitor gap · Content
- *   performance · Market share.
+ * Moved verbatim from the former app/(mastery)/radar/page.tsx — the only
+ * change is the outer <StandardPage> wrapper became a fragment (the page-
+ * level chrome now lives on /market), and the former StandardPage
+ * `description` moved to an inline subtitle at the top of the fragment so
+ * nothing is lost. Data fetching, the empty/loading/down states, every
+ * card, the unwrap* shape projectors, and the footer are unchanged.
  *
  * Pulls via the bridge contract v11.5+:
  *   · master_report · 13-component health report, derives everything
  *
- * No new bridge action needed for /radar · the data already exists
+ * No new bridge action needed for Radar · the data already exists
  * inside master_report.marketing + master_report.competitive +
- * master_report.growth. This page is a focused projection of the
+ * master_report.growth. This tab is a focused projection of the
  * brand/competitive slice. See apps/nickstire/server/services/
  * masterIntelligence.ts for the engine.
  *
- * Aesthetic: editorial-minimalist · matches /seo · /funnel ·
- * /scoreboard NickHealthSection. Card visual contract:
- * `border-white/10 bg-white/[0.02]` + `text-[10px] uppercase
- * tracking-[0.18em] text-white/40` eyebrow.
- *
- * Graceful degradation: self-hides individual cards when their
- * sub-report errored (master_report does isolation per engine) ·
- * matches the resilience pattern of every other gap surface.
- *
- * Mobile: single column · cards stack · score badges right-aligned.
- *
- * Per docs/2026-05-24-intelligence-dispersal-plan.md §5 Wave 3 · this
- * is the last remaining statenour gap surface and completes the
- * Intelligence Dispersal sequence (Wave 1 cut · Wave 2 absorb ·
- * Wave 3 statenour gap fills · housekeeping delete).
+ * Note: "top pages" here = CRM conversion (content performance). The
+ * /market Search tab's "top pages" = GSC clicks — a different signal;
+ * the tabs keep their own labels so the two never read as the same thing.
  */
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BridgeShell } from "@/components/mastery/bridge-shell";
-import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 // master_report engine result shape · matches
@@ -76,7 +66,7 @@ interface MasterReport {
   };
 }
 
-export default function RadarPage() {
+export function RadarTab() {
   // 2026-05-24 · Wave X.g · migrated off the inline `let cancelled /
   // setInterval` block onto the canonical `usePollingFetch` primitive.
   // Hook bonuses · tab-visibility pause (no fetch while tab is hidden)
@@ -110,11 +100,11 @@ export default function RadarPage() {
   );
 
   return (
-    <StandardPage
-      eyebrow="NOUR OS · Intelligence"
-      title="Radar"
-      description="Brand + competitive signal · what's moving externally."
-    >
+    <>
+      <p className="text-sm text-white/60 mb-4">
+        Brand + competitive signal · what&apos;s moving externally.
+      </p>
+
         {!anyData && (
           <p className="mt-8 text-sm text-white/40">
             All radar engines returned empty. Either no recent data or the
@@ -228,7 +218,7 @@ export default function RadarPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           via nickstire bridge · master_report · refreshes every 5 min
         </p>
-    </StandardPage>
+    </>
   );
 }
 

@@ -223,6 +223,12 @@ const nextConfig: NextConfig = {
     // bookmarks land on the right tab.
     { source: "/financial", destination: "/business?tab=money", permanent: false },
     { source: "/funnel", destination: "/business?tab=funnel", permanent: false },
+
+    // Wave 2 surface merge · /seo + /radar folded into the tabbed /market
+    // surface (Search + Radar tabs). Deep links + bookmarks land on the
+    // right tab.
+    { source: "/seo", destination: "/market?tab=search", permanent: false },
+    { source: "/radar", destination: "/market?tab=radar", permanent: false },
   ],
 };
 
