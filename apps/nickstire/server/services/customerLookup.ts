@@ -3,8 +3,9 @@
  * Matches by phone (primary), email (secondary), or ID.
  */
 
-import { eq, like } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { createLogger } from "../lib/logger";
+import { phoneRawDigits } from "../lib/phone";
 
 const log = createLogger("customer-lookup");
 
@@ -27,9 +28,18 @@ export async function findCustomer(identifier: { phone?: string; email?: string;
   }
 
   if (identifier.phone) {
-    const normalized = identifier.phone.replace(/\D/g, "").slice(-10);
+    // Canonical key = last-10 digits (strips +1 / punctuation / leading country-1).
+    const normalized = phoneRawDigits(identifier.phone);
     if (normalized.length === 10) {
-      const [result] = await db.select().from(customers).where(like(customers.phone, `%${normalized}`)).limit(1);
+      // Normalize BOTH sides in SQL so a row stored in ANY format
+      // (E.164 "+1…", punctuated "(216) …", 11-digit "1…") still matches.
+      // A bare LIKE '%<last10>' would miss punctuated stored values and is a
+      // weaker comparison than the dedup key (RIGHT(REGEXP_REPLACE(...),10)).
+      const [result] = await db
+        .select()
+        .from(customers)
+        .where(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', ''), 10) = ${normalized}`)
+        .limit(1);
       return result || null;
     }
   }
@@ -73,6 +83,14 @@ export async function findOrCreateCustomer(data: {
   const firstName = nameParts[0] || "";
   const lastName = nameParts.slice(1).join(" ") || null;
 
+  // Dedup guard (customer-dedup-plan §8): store the phone in ONE canonical
+  // format (last-10 digits) so chat/booking E.164 inserts ("+1216…") no longer
+  // create a second row alongside an existing 10-digit import row for the same
+  // person. The lookup above already normalizes to last-10, so find + insert now
+  // agree on the key. Fall back to the raw input only when normalization fails
+  // (too-short / non-US numbers) so an unusual number can still create a row.
+  const phoneToStore = phoneRawDigits(data.phone) || data.phone;
+
   // wave-116 — race-safe insert. If two callers hit findOrCreate with
   // the same phone simultaneously, both find no existing customer, both
   // INSERT, duplicate created. Post-migration 0034, the unique
@@ -83,7 +101,7 @@ export async function findOrCreateCustomer(data: {
     await db.insert(customers).values({
       firstName,
       lastName,
-      phone: data.phone,
+      phone: phoneToStore,
       email: data.email?.toLowerCase() ?? undefined,
     });
   } catch (err) {
@@ -91,10 +109,11 @@ export async function findOrCreateCustomer(data: {
     if (!/Duplicate entry|ER_DUP_ENTRY/i.test(msg)) {
       throw err;
     }
-    log.warn("Customer race detected in findOrCreate — falling through to lookup", { phone: data.phone });
+    log.warn("Customer race detected in findOrCreate — falling through to lookup", { phone: phoneToStore });
   }
 
-  // Fetch by phone since we just created with that phone (or found existing)
+  // Fetch by phone since we just created with that phone (or found existing).
+  // findCustomer re-normalizes, so the original data.phone resolves the new row.
   const newCustomer = await findCustomer({ phone: data.phone });
   log.info("New customer created (or recovered from race)", { name: data.name });
   return { customer: newCustomer!, isNew: true };
