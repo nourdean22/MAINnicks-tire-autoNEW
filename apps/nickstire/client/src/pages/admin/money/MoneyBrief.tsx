@@ -38,7 +38,8 @@ import { trpc } from "@/lib/trpc";
 import { TrendingUp, DollarSign, AlertTriangle, ArrowRight, Activity } from "lucide-react";
 // wave-181.x Money Phase 2 · agent code-review M4 fix · DAILY_DECAY_
 // RATE was duplicated · hoisted to shared moneyMath helper.
-import { agedRecoverableDollars, dailyBurnDollars, formatMoneyShort } from "./moneyMath";
+import { agedRecoverableDollars, dailyBurnDollars } from "./moneyMath";
+import { formatMoneyShort } from "../shared/format";
 
 interface MoneyBriefProps {
   /** Number of days the parent dashboard is showing · 1 / 7 / 30 / 90 */
@@ -47,7 +48,7 @@ interface MoneyBriefProps {
   onDeclinedAction: () => void;
 }
 
-// formatDollars · use the shared helper from moneyMath
+// formatDollars · alias for the shared compact formatMoneyShort helper
 const formatDollars = formatMoneyShort;
 
 function greeting(): string {

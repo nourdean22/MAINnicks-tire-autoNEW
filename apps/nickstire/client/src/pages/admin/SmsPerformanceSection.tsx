@@ -85,7 +85,7 @@ export default function SmsPerformanceSection() {
       )}
 
       {/* Totals row */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-card border border-border/30 rounded-md p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · 30d</span>
           <span className="text-2xl font-semibold tabular-nums">{sumLoading ? "—" : totalSent}</span>

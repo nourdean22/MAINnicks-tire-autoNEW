@@ -55,10 +55,7 @@ export function dailyBurnDollars(agedRecoverable: number): number {
   return Math.round(agedRecoverable * DAILY_DECAY_RATE);
 }
 
-/**
- * Compact dollar formatter · $1.2K for ≥1k, $345 otherwise.
- */
-export function formatMoneyShort(dollars: number): string {
-  if (dollars >= 1000) return `$${(dollars / 1000).toFixed(1)}K`;
-  return `$${Math.round(dollars).toLocaleString()}`;
-}
+// Compact dollar formatter ($1.2K for >=1k, $345 otherwise) hoisted to
+// admin/shared/format (single source of truth). Re-exported here for
+// back-compat so existing money/ importers keep working unchanged.
+export { formatMoneyShort } from "../shared/format";

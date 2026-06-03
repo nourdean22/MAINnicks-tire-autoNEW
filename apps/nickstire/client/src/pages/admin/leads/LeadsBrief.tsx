@@ -39,6 +39,7 @@
  */
 import { trpc, type RouterOutputs } from "@/lib/trpc";
 import { Zap, DollarSign, Clock, TrendingUp } from "lucide-react";
+import { formatCents } from "../shared/format";
 
 // wave-181.x Leads Phase 2 · use the tRPC-inferred row type rather
 // than a manual mirror of the schema. Keeps this brief in sync with
@@ -48,10 +49,6 @@ type Lead = RouterOutputs["lead"]["list"][number];
 interface LeadsBriefProps {
   /** Click handler for the SLA-breach action CTA · scrolls to + flashes the urgent banner. */
   onSlaAction: () => void;
-}
-
-function formatCents(cents: number): string {
-  return `$${Math.round(cents / 100).toLocaleString()}`;
 }
 
 function greeting(): string {

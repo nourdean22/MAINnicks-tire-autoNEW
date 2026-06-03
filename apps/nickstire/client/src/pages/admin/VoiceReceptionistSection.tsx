@@ -21,6 +21,7 @@ import {
   Panel,
   MetricGrid,
   EmptyState,
+  SearchInput,
 } from "./shared";
 import {
   PhoneCall,
@@ -302,16 +303,13 @@ export default function VoiceReceptionistSection() {
           <div className="px-4 py-3 border-b border-border/20 bg-foreground/[0.01] space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               {/* Search */}
-              <div className="relative flex-1 min-w-[180px] max-w-[280px]">
-                <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/30 pointer-events-none" />
-                <input
-                  type="search"
-                  placeholder="Search number / name / summary"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border/30 rounded pl-7 pr-2.5 py-1.5 text-[12px] text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
-                />
-              </div>
+              <SearchInput
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search number / name / summary"
+                size="compact"
+                className="flex-1 min-w-[180px] max-w-[280px]"
+              />
 
               {/* Sort dropdown */}
               <div className="relative inline-flex items-center gap-1.5">

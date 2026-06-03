@@ -8,7 +8,7 @@ import { VAPI_LINKS } from "./format";
 // hours stay visually clean. 5-second refetch · phone-friendly.
 //
 // State colors picked to read at-a-glance:
-//   greeted          violet  · just hello, waiting for intent
+//   greeted          primary · just hello, waiting for intent
 //   intent_captured  blue    · agent has read shop info / customer
 //   tool_called      amber   · agent is writing (booking, callback)
 //   confirmed        emerald · sendConfirmationSms fired · success
@@ -38,14 +38,14 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
     label: string;
     color: string;
   }> = [
-    { key: "greeted", label: "Greeted", color: "violet" },
+    { key: "greeted", label: "Greeted", color: "primary" },
     { key: "intent_captured", label: "Intent", color: "blue" },
     { key: "tool_called", label: "Tool", color: "amber" },
     { key: "confirmed", label: "Confirmed", color: "emerald" },
   ];
 
   const colorClasses: Record<string, { bg: string; text: string; ring: string }> = {
-    violet: { bg: "bg-violet-500/10", text: "text-violet-300", ring: "ring-violet-500/30" },
+    primary: { bg: "bg-primary/10", text: "text-primary", ring: "ring-primary/30" },
     blue: { bg: "bg-blue-500/10", text: "text-blue-300", ring: "ring-blue-500/30" },
     amber: { bg: "bg-amber-500/10", text: "text-amber-300", ring: "ring-amber-500/30" },
     emerald: { bg: "bg-emerald-500/10", text: "text-emerald-300", ring: "ring-emerald-500/30" },
@@ -54,17 +54,17 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
   return (
     // wave-181.x Voice Phase 2 · `voice-live-calls` id targets the
     // VoiceBrief stuck-calls action CTA (scrollIntoView + flash).
-    <div id="voice-live-calls" className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-4">
+    <div id="voice-live-calls" className="rounded-lg border border-primary/30 bg-primary/5 p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-violet-400 opacity-75 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-violet-400" />
+            <span className="absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
           </span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-violet-300">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-primary">
             Live calls
           </span>
-          <span className="text-[10px] font-mono text-violet-300/70">
+          <span className="text-[10px] font-mono text-primary/70">
             {data.count} in flight · last {data.windowMinutes}m
           </span>
         </div>
@@ -100,7 +100,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
       <div className="space-y-1">
         {data.states.map((s) => {
           const c = colorClasses[
-            stateOrder.find((so) => so.key === s.latestState)?.color ?? "violet"
+            stateOrder.find((so) => so.key === s.latestState)?.color ?? "primary"
           ];
           return (
             <div
@@ -109,16 +109,16 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
               tabIndex={0}
               onClick={() => onSelectCall(s.callId)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectCall(s.callId); } }}
-              className="flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--bg-base)] border border-[var(--border-default)] cursor-pointer hover:border-[var(--border-strong)] focus:outline-none focus:ring-2 focus:ring-violet-400/40 transition-colors"
+              className="flex items-center gap-2 px-2 py-1.5 rounded bg-card border border-border cursor-pointer hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-colors"
               aria-label={`Open call details for ${s.callId}`}
             >
               <span className={`text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded ${c.bg} ${c.text}`}>
                 {(s.latestState || "").replace("_", " ")}
               </span>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)] flex-1 truncate">
+              <span className="text-[10px] font-mono text-muted-foreground flex-1 truncate">
                 {s.callId.slice(0, 16)}…
               </span>
-              <span className="text-[10px] font-mono text-[var(--text-tertiary)]">
+              <span className="text-[10px] font-mono text-muted-foreground">
                 {s.stateAgeSeconds < 60
                   ? `${s.stateAgeSeconds}s`
                   : `${Math.floor(s.stateAgeSeconds / 60)}m`}
@@ -132,7 +132,7 @@ export function LiveCallsCard({ onSelectCall }: { onSelectCall: (callId: string)
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="text-[var(--text-tertiary)] hover:text-violet-300 transition-colors"
+                className="text-muted-foreground hover:text-primary transition-colors"
                 title="Open in VAPI dashboard"
                 aria-label="Open in VAPI dashboard (external)"
               >
