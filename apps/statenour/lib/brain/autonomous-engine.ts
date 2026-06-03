@@ -1089,6 +1089,71 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         }
 
         if (shouldDefer) {
+          // v-truth · NICK_CONFIDENCE_TIER auto-execute escape hatch.
+          // A provably-safe, reversible, NON-MESSAGING, NON-MONEY
+          // allowlisted action type with a high operator-acceptance record
+          // skips the queue and executes now. Flag OFF (default) ->
+          // canAutoExecute returns false, so this is inert and the row
+          // defers exactly as today. Money/people/messaging types can NEVER
+          // pass (allowlist + denylist, two walls in confidence-tier.ts).
+          {
+            const { canAutoExecute } = await import("@/lib/ai/confidence-tier");
+            const since = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000);
+            const tally = await prisma.autonomousAction
+              .groupBy({
+                by: ["approval"],
+                where: {
+                  actionType: rule.actionType,
+                  approval: { in: ["approved", "rejected"] },
+                  createdAt: { gte: since },
+                },
+                _count: { id: true },
+              })
+              .catch(
+                () => [] as Array<{ approval: string; _count: { id: number } }>,
+              );
+            const approved =
+              tally.find((t) => t.approval === "approved")?._count.id ?? 0;
+            const rejected =
+              tally.find((t) => t.approval === "rejected")?._count.id ?? 0;
+            const decided = approved + rejected;
+            const rate = decided > 0 ? approved / decided : 0;
+            if (canAutoExecute(rule.actionType, rate, decided)) {
+              try {
+                const autoResult = await rule.action(item);
+                await prisma.autonomousAction
+                  .update({
+                    where: { id: lockAttempt.row.id },
+                    data: {
+                      executedAt: new Date(),
+                      approval: "approved",
+                      result: autoResult.result,
+                      payload: autoResult.payload ?? null,
+                    },
+                  })
+                  .catch(() => undefined);
+                fireEnvelope.setReason(
+                  `Rule ${rule.name} AUTO-EXECUTED by confidence-tier (allowlisted · accept ${(rate * 100).toFixed(0)}% of ${decided}) · result: ${autoResult.result}`,
+                );
+                {
+                  const { logPolicyFire } = await import("@/lib/automation/policy");
+                  void logPolicyFire(policyId, "success");
+                }
+                void __recordTrace(
+                  {
+                    traceId: fireTraceId,
+                    source: "autonomous",
+                    label: `autonomous-fire-autotier:${rule.name}`,
+                    metadata: { envelope: fireEnvelope.build() },
+                  },
+                  { durationMs: Date.now() - fireStarted, toolCalls: 1 },
+                );
+                continue;
+              } catch {
+                // auto path threw → fall through to the normal defer-park.
+              }
+            }
+          }
           // Persist the matched item into payload so the approval
           // queue can replay rule.action(deferredItem) on approve.
           // The row stays approval="pending" + result="pending_approval"

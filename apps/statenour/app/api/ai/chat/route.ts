@@ -1064,26 +1064,58 @@ ${finalSystemPrompt}`;
   // flag on Railway (rollback = delete the env var). Flag-off = zero change.
   const __deepReasonFlag = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
   const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
-  if (__deepReasonFlag || __verifiedRegenFlag) {
+  const __selfConsistencyFlag = getFlag("NICK_SELF_CONSISTENCY")?.isOn ?? false;
+  const __multiAgentAutoFlag = getFlag("NICK_MULTI_AGENT_AUTO")?.isOn ?? false;
+  if (
+    __deepReasonFlag ||
+    __verifiedRegenFlag ||
+    __selfConsistencyFlag ||
+    __multiAgentAutoFlag
+  ) {
     try {
       const { shouldGateForIntent, maybePreStreamRegen } = await import(
         "@/lib/ai/chat/pre-stream-regen"
       );
+      const { isMultiPartQuestion } = await import(
+        "@/lib/ai/chat/multi-agent-detect"
+      );
+      // Mutually-exclusive gates · priority multi-agent > deep > regen > self-consistency.
+      const multiAgentOn =
+        __multiAgentAutoFlag && isMultiPartQuestion(userContent);
       const deepOn =
+        !multiAgentOn &&
         __deepReasonFlag &&
         turnSignal.complexity === "complex" &&
         (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
       const regenOn =
+        !multiAgentOn &&
         !deepOn &&
         __verifiedRegenFlag &&
         shouldGateForIntent(
           turnSignal.intent as Parameters<typeof shouldGateForIntent>[0],
         );
+      const selfConsistencyOn =
+        !multiAgentOn &&
+        !deepOn &&
+        !regenOn &&
+        __selfConsistencyFlag &&
+        (turnSignal.intent === "factual" ||
+          turnSignal.intent === "decision" ||
+          turnSignal.intent === "analytical");
 
-      if (deepOn || regenOn) {
+      if (deepOn || regenOn || selfConsistencyOn || multiAgentOn) {
         let winner = "";
 
-        if (deepOn) {
+        if (multiAgentOn) {
+          const { runAutoDecompose } = await import(
+            "@/lib/ai/chat/multi-agent-detect"
+          );
+          winner = await runAutoDecompose(
+            userContent,
+            finalSystemPrompt.slice(0, 8000),
+          );
+          log.info("multi_agent_auto_path", { intent: turnSignal.intent });
+        } else if (deepOn) {
           const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
           const reasoning = await reasonStreaming(
             {
@@ -1097,7 +1129,7 @@ ${finalSystemPrompt}`;
             tier: reasoning.tier,
             intent: turnSignal.intent,
           });
-        } else {
+        } else if (regenOn) {
           const { generateText } = await import("ai");
           const genBase = {
             model,
@@ -1129,6 +1161,35 @@ ${finalSystemPrompt}`;
           winner = regen.text;
           log.info("verified_regen_path", {
             regenFired: regen.regenFired,
+            intent: turnSignal.intent,
+          });
+        } else if (selfConsistencyOn) {
+          const { generateText } = await import("ai");
+          const genBase = {
+            model,
+            messages: sanitizedModelMessages as never,
+            tools: prunedTools as never,
+            stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+            ...(maxOutputTokens ? { maxOutputTokens } : {}),
+          };
+          const { selfConsistentAnswer } = await import(
+            "@/lib/ai/chat/self-consistency"
+          );
+          const sc = await selfConsistentAnswer({
+            samples: 3,
+            generate: async () => {
+              const r = await generateText({
+                ...genBase,
+                system: finalSystemPrompt,
+                temperature: Math.min(0.9, turnSignal.temperature + 0.15),
+              } as Parameters<typeof generateText>[0]);
+              return r.text;
+            },
+          });
+          winner = sc.answer;
+          log.info("self_consistency_path", {
+            agreed: sc.agreed,
+            samples: sc.samples,
             intent: turnSignal.intent,
           });
         }

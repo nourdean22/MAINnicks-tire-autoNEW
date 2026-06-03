@@ -79,6 +79,24 @@ export interface DriftFiredPayload {
  */
 export async function emitDriftFired(payload: DriftFiredPayload): Promise<string | null> {
   const dedupeKey = `drift_${payload.ruleId}_${payload.date}`;
+  // v-truth · real-time lane (NICK_EVENT_TRIGGERS) · fan the drift alert to
+  // the event-driven proposer so it reacts in seconds (the consumer self-
+  // gates on the flag + writes a PENDING proposal, never sends). Best-effort:
+  // a send failure must not block the durable bus write below.
+  try {
+    const { getInngest } = await import("@/src/inngest/client");
+    await getInngest().send({
+      name: "nick/urgent.signal",
+      data: {
+        signalId: payload.ruleId,
+        signal: "drift",
+        trigger: `Drift · ${payload.ruleName} · ${payload.severity}`,
+        rationale: payload.message.slice(0, 140),
+      },
+    });
+  } catch {
+    /* swallow · the durable bus row is still written below */
+  }
   return tryEmit("drift.fired", "drift.alert_created", payload, dedupeKey);
 }
 
