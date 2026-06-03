@@ -29,6 +29,22 @@
 
 ---
 
+## ✅ EXECUTED 2026-06-03 — OUTCOME (clarity-gate: live data differed from the phone-dupe assumption)
+
+Ran read-only sizing FIRST — the discipline paid off:
+- **Phone column was ALREADY clean**: 1,960/1,964 ten-digit, **0 phone10 dupe clusters**. The planned phone-merge (§5) was a NO-OP; the audit's E.164-vs-10-digit hypothesis did not hold live.
+- **Real dupes = 21 same-name clusters, SAME vehicle, DIFFERENT phones** (Aaron GEORGE 2010 F150 $3,105×2; Roy Hutchinson 2016 Acadia; Tina Williams 2017 Fiat, phones differing by one digit; …). `keeper_spend == loser_spend` on every pair = one person's history double-attributed → inflated Total Customers + spend tiers. `alsCustomerId` collisions: 0 (gold key empty).
+
+- **(a) MERGE — DONE.** Re-keyed §5 on **name + CONSISTENT vehicle** (excludes same-name/different-car; 1 ambiguous cluster correctly HELD). Backup-first (`_bak_*_dedup_20260603`: 41 rows + 8 child tables). Transactional: COALESCE-up profile (+ retained loser's phone as survivor `phone2`), repointed the 8 int-FK children (§4a), deleted loser metrics+rows, normalized survivor phones, verified 0 dupes, COMMIT. **1,964 → 1,943** (21 merged). Scripts: `scripts/dedup-merge-{1-backup-preview,2-execute,3-finalize}.ts`, `scripts/dedup-{sizing,investigate,investigate2}.ts`.
+- **(b) NORMALIZED UNIQUE KEY — via equivalent.** TiDB rejects `ALTER TABLE … ADD … STORED generated column`, so a pure-DB normalized key isn't addable here. Equivalent guarantee: import guard (c) normalizes phone→10-digit on write + all phones now 10-digit + existing `uniq_customer_phone(raw)` ⇒ a `+1216…`/`216…` pair can't recur. A DB generated-key would need a table rebuild (deferred).
+- **(c) IMPORT GUARD — DONE** (shipped `eae7ad60`): `findOrCreateCustomer` normalizes both sides + stores canonical 10-digit; stops new dupes at the source.
+- **(d) ORPHAN INVOICES — DONE.** "2,388 missing phone" = mostly LINKED invoices lacking the denormalized phone field (cosmetic). Truly unlinked (`customerId IS NULL`) = **317**; only **18** matched exactly one customer by phone → linked (backup `_bak_orphan_inv_link_20260603`). The other **299** are anonymous walk-ins/estimates ("John Doe"/"@MOES"/".?, Estimate") with no matching customer — correctly LEFT (linking = fabrication). Scripts: `scripts/orphan-invoices-{investigate,link}.ts`.
+- **RECOMPUTE — DONE.** Canonical `enrichCustomerData()` + `refreshCustomerMetrics()` (1,943 metrics rebuilt) → survivors + linked customers authoritative. Script: `scripts/recompute-customers.ts`.
+
+**ROLLBACK (if ever needed):** restore from `_bak_cust_dedup_20260603`; un-repoint children from `_bak_<table>_dedup_20260603` (set fk-col back to `old_customer_id` by `child_id`); un-link from `_bak_orphan_inv_link_20260603` (set `customerId=NULL` by `invoice_id`); then re-run enrich + refreshMetrics.
+
+---
+
 ## 1. Root-cause evidence (CONFIRMED file:line)
 
 ### 1a. The unique key is on the raw string
