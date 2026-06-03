@@ -356,7 +356,11 @@ export function registerBridgeRoutes(app: Express): void {
       const db = await getDb();
       if (!db) { res.status(503).json({ error: "DB unavailable" }); return; }
 
-      // Get invoice stats directly
+      // Get invoice stats directly.
+      // wave-182 (architecture decision #3): canonical revenue = PAID-only.
+      // This endpoint feeds statenour's Nick intelligence; without the filter
+      // Nick read an all-invoice total inflated by pending / partial / refunded
+      // rows. Filter to collected revenue (consistent with the admin surfaces).
       const [stats] = await db.execute(sql`
         SELECT
           COUNT(*) as totalInvoices,
@@ -370,6 +374,7 @@ export function registerBridgeRoutes(app: Express): void {
           COUNT(DISTINCT customerName) as uniqueCustomers,
           COUNT(DISTINCT DATE(invoiceDate)) as operatingDays
         FROM invoices
+        WHERE paymentStatus = 'paid'
       `);
 
       // Monthly trend
@@ -381,6 +386,7 @@ export function registerBridgeRoutes(app: Express): void {
           SUM(laborCost) as labor,
           SUM(partsCost) as parts
         FROM invoices
+        WHERE paymentStatus = 'paid'
         GROUP BY DATE_FORMAT(invoiceDate, '%Y-%m')
         ORDER BY month
       `);
@@ -388,7 +394,7 @@ export function registerBridgeRoutes(app: Express): void {
       // Payment method breakdown
       const [payments] = await db.execute(sql`
         SELECT paymentMethod, COUNT(*) as cnt, SUM(totalAmount) as revenue
-        FROM invoices GROUP BY paymentMethod ORDER BY revenue DESC
+        FROM invoices WHERE paymentStatus = 'paid' GROUP BY paymentMethod ORDER BY revenue DESC
       `);
 
       // Customer stats

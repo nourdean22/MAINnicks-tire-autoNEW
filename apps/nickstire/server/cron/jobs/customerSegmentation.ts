@@ -4,57 +4,20 @@
  * Segments: recent (0-90d), lapsed (91-365d), new (no visits yet), unknown (>365d or no data).
  */
 import { createLogger } from "../../lib/logger";
-import { sql } from "drizzle-orm";
 
 const log = createLogger("cron:segmentation");
 
 export async function processCustomerSegmentation(): Promise<{ recordsProcessed: number }> {
-  try {
-    const { getDb } = await import("../../db");
-    const db = await getDb();
-    if (!db) return { recordsProcessed: 0 };
-
-    // Bulk update all segments in 4 SQL statements for efficiency
-
-    // 1. recent: visited in last 90 days
-    const recentResult = await db.execute(sql`
-      UPDATE customers
-      SET segment = 'recent'
-      WHERE lastVisitDate IS NOT NULL
-        AND DATEDIFF(CURDATE(), lastVisitDate) <= 90
-    `);
-
-    // 2. lapsed: visited 91-365 days ago
-    const lapsedResult = await db.execute(sql`
-      UPDATE customers
-      SET segment = 'lapsed'
-      WHERE lastVisitDate IS NOT NULL
-        AND DATEDIFF(CURDATE(), lastVisitDate) BETWEEN 91 AND 365
-    `);
-
-    // 3. unknown: visited >365 days ago
-    await db.execute(sql`
-      UPDATE customers
-      SET segment = 'unknown'
-      WHERE lastVisitDate IS NOT NULL
-        AND DATEDIFF(CURDATE(), lastVisitDate) > 365
-    `);
-
-    // 4. new: no visits recorded (no lastVisitDate)
-    await db.execute(sql`
-      UPDATE customers
-      SET segment = 'new'
-      WHERE lastVisitDate IS NULL
-    `);
-
-    const affected =
-      ((recentResult as any)[0]?.affectedRows ?? 0) +
-      ((lapsedResult as any)[0]?.affectedRows ?? 0);
-
-    log.info(`Customer segmentation complete — recent+lapsed rows updated: ${affected}`);
-    return { recordsProcessed: affected };
-  } catch (err) {
-    log.error("Customer segmentation failed", { error: err instanceof Error ? err.message : String(err) });
-    return { recordsProcessed: 0 };
-  }
+  // wave-182 (architecture decision #2 — single segment owner):
+  // `customers.segment` is now written EXCLUSIVELY by enrichCustomerData()
+  // (dataPipelines.ts, step 6), which runs inside the canonical enrichment
+  // pipeline AFTER lastVisitDate is freshly recomputed, and uses a dirty-check
+  // guard to avoid churn. This standalone cron was a redundant full-table sweep
+  // registered THREE times (cron/index.ts + scheduler Tier 3 + Tier 4), firing
+  // 10+×/day on possibly-stale lastVisitDate and racing the pipeline. It is now
+  // a no-op so segment ownership is unambiguous. The function is kept exported
+  // so the scheduler/job-registry wiring is undisturbed. Fully reversible —
+  // restore the four UPDATE statements from git history to re-enable.
+  log.info("Customer segmentation skipped — owned by enrichCustomerData() pipeline (step 6)");
+  return { recordsProcessed: 0 };
 }
