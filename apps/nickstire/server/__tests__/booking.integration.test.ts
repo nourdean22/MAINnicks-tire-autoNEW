@@ -124,8 +124,8 @@ describe("Booking Confirmation", () => {
   it("confirmation SMS template generates correct message", async () => {
     const { bookingConfirmationRequestSms } = await import("../sms");
     const msg = bookingConfirmationRequestSms("John", "2:00 PM");
-    expect(msg).toContain("John");
-    expect(msg).toContain("confirm");
+    expect(msg).not.toContain("John");
+    expect(msg.toLowerCase()).toContain("yes");
     expect(msg).toContain("(216) 862-0005");
   });
 });

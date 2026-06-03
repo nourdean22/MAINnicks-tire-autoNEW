@@ -206,7 +206,7 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
     if (!due || due.length === 0) return { recordsProcessed: 0, details: "No drip steps due" };
 
     const { CAMPAIGNS, personalizeMessage } = await import("./dripCampaigns");
-    const { sendSms } = await import("../sms");
+    const { sendSms, withOptOut } = await import("../sms");
     let sent = 0;
 
     for (const enrollment of due) {
@@ -274,7 +274,9 @@ export async function processDripSteps(): Promise<{ recordsProcessed: number; de
             `);
             const optedOut = !!((optRows as Array<{ smsOptOut?: number }>)[0]?.smsOptOut);
             if (!optedOut) {
-              await sendSms(enrollment.customerPhone, msg, { via: "shop" });
+              // wave-182: drip sequences are enrollment-based promotional sends →
+              // TCPA opt-out on every step (idempotent if the body already has one).
+              await sendSms(enrollment.customerPhone, withOptOut(msg), { via: "shop" });
             }
           }
         } else if (step.channel === "email") {

@@ -1230,48 +1230,41 @@ export async function sendSms(to: string, body: string, opts?: SendSmsOptions): 
 // ─── MESSAGE TEMPLATES ─────────────────────────────────
 
 /** Booking confirmation SMS */
-export function bookingConfirmationSms(name: string, service: string, refCode?: string): string {
-  const firstName = name.split(" ")[0];
+export function bookingConfirmationSms(_name: string, _service: string, refCode?: string): string {
   const ref = refCode ? ` Ref: #${refCode}` : "";
-  return `Hi ${firstName}, your ${service.toLowerCase()} appointment at ${STORE_NAME} has been received. We'll confirm your time slot shortly.${ref}\n\nQuestions? Call ${STORE_PHONE}`;
+  return `Got your request at ${STORE_NAME}. We're walk-in, first-come first-served — pull up any day (Mon-Sat 8-6, Sun 9-4) and we'll take care of you.${ref} Questions? ${STORE_PHONE}`;
 }
 
 /** Status update SMS */
-export function statusUpdateSms(name: string, stage: string, refCode?: string): string {
-  const firstName = name.split(" ")[0];
+export function statusUpdateSms(_name: string, stage: string, refCode?: string): string {
   const ref = refCode ? ` (Ref: #${refCode})` : "";
 
   const stageMessages: Record<string, string> = {
-    received: `your vehicle has been received and is in our queue`,
-    inspecting: `our technicians are now inspecting your vehicle`,
-    "waiting-parts": `we're waiting for parts to arrive for your repair. We'll update you as soon as they're in`,
-    "in-progress": `your vehicle is actively being repaired`,
-    "quality-check": `your repair is done and going through our quality check`,
-    ready: `your vehicle is READY FOR PICKUP! Come by anytime during business hours (Mon-Sat 8AM-6PM, Sun 9AM-4PM)`,
+    received: `We've got your vehicle in the queue`,
+    inspecting: `We're checking your vehicle now`,
+    "waiting-parts": `We're waiting on parts — we'll let you know the moment they're in`,
+    "in-progress": `Work's underway on your vehicle`,
+    "quality-check": `Work's done — giving it a final once-over`,
+    ready: `Ready for pickup! Pull up any time during business hours (Mon-Sat 8-6, Sun 9-4)`,
   };
 
-  const statusMsg = stageMessages[stage] || "your vehicle status has been updated";
-  const pickup = stage === "ready" ? "" : `\n\nTrack status: nickstire.org/status`;
-
-  return `Hi ${firstName}, ${statusMsg}.${ref}${pickup}\n\n${STORE_NAME} — ${STORE_PHONE}`;
+  const statusMsg = stageMessages[stage] || `Quick status update on your vehicle`;
+  return `${statusMsg}.${ref}\n\n${STORE_NAME} — ${STORE_PHONE}`;
 }
 
 /** 24-hour thank-you SMS */
-export function thankYouSms(name: string, service: string): string {
-  const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, thank you for choosing ${STORE_NAME} for your ${service.toLowerCase()}. We appreciate your business! If anything doesn't feel right, call us at ${STORE_PHONE}. — Nick's Team`;
+export function thankYouSms(_name: string, _service: string): string {
+  return `Work's done and backed by our 12-month/12,000-mile warranty. Anything comes up, we're a call or text away. — ${STORE_NAME} ${STORE_PHONE}`;
 }
 
 /** 7-day review request SMS */
-export function reviewRequestSms(name: string): string {
-  const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, hope your vehicle is running great! If you have 30 seconds, a Google review helps other Cleveland drivers find honest repair:\n\nnickstire.org/review\n\nThank you! — ${STORE_NAME}`;
+export function reviewRequestSms(_name: string): string {
+  return `If we earned it, a quick word on Google goes a long way for the next Cleveland driver looking for a straight-shooting shop:\n\nnickstire.org/review\n\n— ${STORE_NAME}`;
 }
 
 /** Callback confirmation SMS */
-export function callbackConfirmationSms(name: string): string {
-  const firstName = name.split(" ")[0];
-  return `Hi ${firstName}, we received your callback request at ${STORE_NAME}. One of our team members will call you back shortly during business hours (Mon-Sat 8AM-6PM, Sun 9AM-4PM). — ${STORE_PHONE}`;
+export function callbackConfirmationSms(_name: string): string {
+  return `Got your callback request at ${STORE_NAME} — we'll reach out during business hours (Mon-Sat 8-6, Sun 9-4). Need us sooner? Call ${STORE_PHONE}.`;
 }
 
 /**
@@ -1286,38 +1279,28 @@ export function withOptOut(body: string): string {
 }
 
 /** Maintenance reminder SMS (bulk promo · carries the TCPA opt-out footer) */
-export function maintenanceReminderSms(name: string, service: string, mileageNote?: string): string {
-  const firstName = name.split(" ")[0];
-  const mileage = mileageNote ? ` ${mileageNote}` : "";
-  return withOptOut(`Hi ${firstName}, it may be time for your next ${service.toLowerCase()}.${mileage} Call ${STORE_PHONE} or schedule a drop-off at nickstire.org. First-come, first-served.\n\n— ${STORE_NAME}`);
+export function maintenanceReminderSms(_name: string, _service: string, _mileageNote?: string): string {
+  return withOptOut(`Due for an oil change? $49 conventional, $80 full synthetic — walk in any day, no appointment. ${STORE_NAME}, 17625 Euclid Ave. ${STORE_PHONE}`);
 }
 
 /** Lead submission confirmation SMS */
-export function leadConfirmationSms(name: string): string {
-  const firstName = name.split(" ")[0];
-  return `Thanks for contacting ${STORE_NAME}! We received your request and will call you shortly. Questions? Call us at ${STORE_PHONE}`;
+export function leadConfirmationSms(_name: string): string {
+  return `Got your message at ${STORE_NAME} — we'll call you right back. Can't wait? We're walk-in any day, or reach us at ${STORE_PHONE}.`;
 }
 
 /** Booking confirmation request SMS — asks customer to reply YES */
-export function bookingConfirmationRequestSms(name: string, preferredTime?: string): string {
-  const firstName = name.split(" ")[0];
-  const timeNote = preferredTime && preferredTime !== "no-preference" ? ` (${preferredTime})` : "";
-  return `Hi ${firstName}, confirming your visit to ${STORE_NAME}${timeNote}. Reply YES to confirm or call ${STORE_PHONE} to reschedule.`;
+export function bookingConfirmationRequestSms(_name: string, _preferredTime?: string): string {
+  return `Still planning to swing by ${STORE_NAME}? Reply YES and we'll keep an eye out — or just walk in any day, first-come, first-served. ${STORE_PHONE}`;
 }
 
 /** Appointment reminder — 24 hours before */
-export function appointmentReminder24hSms(name: string, service: string, vehicle?: string, preferredTime?: string): string {
-  const firstName = name.split(" ")[0];
-  const vehicleNote = vehicle ? ` for your ${vehicle}` : "";
-  const timeNote = preferredTime ? ` at ${preferredTime}` : "";
-  return `Hi ${firstName}, reminder: your ${service.toLowerCase()} appointment${vehicleNote} is tomorrow${timeNote}. If you need to reschedule, call ${STORE_PHONE}.\n\n— ${STORE_NAME}`;
+export function appointmentReminder24hSms(_name: string, _service: string, _vehicle?: string, _preferredTime?: string): string {
+  return `See you tomorrow at ${STORE_NAME}. We're first-come, first-served — pull up any time during business hours (Mon-Sat 8-6, Sun 9-4). Questions? ${STORE_PHONE}`;
 }
 
 /** Appointment reminder — 1 hour before */
-export function appointmentReminder1hSms(name: string, vehicle?: string): string {
-  const firstName = name.split(" ")[0];
-  const vehicleNote = vehicle ? ` with your ${vehicle}` : "";
-  return `Hi ${firstName}, your appointment at ${STORE_NAME} is in about 1 hour${vehicleNote}. See you soon! ${STORE_PHONE}`;
+export function appointmentReminder1hSms(_name: string, _vehicle?: string): string {
+  return `You're up at ${STORE_NAME} within the hour — we're at 17625 Euclid Ave. Pull up when you're ready, first-come, first-served. ${STORE_PHONE}`;
 }
 
 // ─── EXPORTS ───────────────────────────────────────────

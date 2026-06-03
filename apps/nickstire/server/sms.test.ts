@@ -64,10 +64,9 @@ describe("SMS Module", () => {
       maintenanceReminderSms = mod.maintenanceReminderSms;
     });
 
-    it("booking confirmation includes first name and service", () => {
+    it("booking confirmation is business-voice with ref code, no customer name", () => {
       const msg = bookingConfirmationSms("John Smith", "Brake Repair", "NT-ABC123");
-      expect(msg).toContain("John");
-      expect(msg).toContain("brake repair");
+      expect(msg).not.toContain("John");
       expect(msg).toContain("NT-ABC123");
       expect(msg).toContain("Nick's Tire & Auto");
       expect(msg).toContain("(216) 862-0005");
@@ -75,41 +74,40 @@ describe("SMS Module", () => {
 
     it("booking confirmation works without ref code", () => {
       const msg = bookingConfirmationSms("Jane Doe", "Oil Change");
-      expect(msg).toContain("Jane");
-      expect(msg).toContain("oil change");
+      expect(msg).not.toContain("Jane");
+      expect(msg).toContain("Nick's Tire & Auto");
       expect(msg).not.toContain("Ref:");
     });
 
     it("status update includes correct stage message", () => {
       const msg = statusUpdateSms("Mike Johnson", "ready", "NT-XYZ789");
-      expect(msg).toContain("Mike");
-      expect(msg).toContain("READY FOR PICKUP");
+      expect(msg).not.toContain("Mike");
+      expect(msg.toLowerCase()).toContain("ready for pickup");
       expect(msg).toContain("NT-XYZ789");
     });
 
     it("status update for in-progress stage", () => {
       const msg = statusUpdateSms("Sarah Lee", "in-progress");
-      expect(msg).toContain("Sarah");
-      expect(msg).toContain("actively being repaired");
-      expect(msg).toContain("nickstire.org/status");
+      expect(msg).not.toContain("Sarah");
+      expect(msg).toContain("underway");
     });
 
     it("status update for waiting-parts stage", () => {
       const msg = statusUpdateSms("Bob Brown", "waiting-parts");
-      expect(msg).toContain("Bob");
-      expect(msg).toContain("waiting for parts");
+      expect(msg).not.toContain("Bob");
+      expect(msg).toContain("waiting on parts");
     });
 
-    it("thank-you SMS includes first name and service", () => {
+    it("thank-you SMS is business-voice with warranty, no customer name", () => {
       const msg = thankYouSms("Alice Cooper", "Tire Rotation");
-      expect(msg).toContain("Alice");
-      expect(msg).toContain("tire rotation");
+      expect(msg).not.toContain("Alice");
+      expect(msg).toContain("warranty");
       expect(msg).toContain("Nick's Tire & Auto");
     });
 
     it("review request SMS includes Google review link", () => {
       const msg = reviewRequestSms("Tom Wilson");
-      expect(msg).toContain("Tom");
+      expect(msg).not.toContain("Tom");
       expect(msg).toContain("nickstire.org/review");
       expect(msg).toContain("Cleveland");
     });
@@ -122,17 +120,17 @@ describe("SMS Module", () => {
 
     it("callback confirmation SMS includes business hours", () => {
       const msg = callbackConfirmationSms("Lisa Park");
-      expect(msg).toContain("Lisa");
+      expect(msg).not.toContain("Lisa");
       expect(msg).toContain("callback request");
-      expect(msg).toContain("Mon-Sat 8AM-6PM");
+      expect(msg).toContain("Mon-Sat 8-6");
     });
 
-    it("maintenance reminder SMS includes service and store info", () => {
+    it("maintenance reminder SMS includes oil anchor and store info", () => {
       const msg = maintenanceReminderSms("Dave King", "Oil Change", "Based on your last visit 5,000 miles ago.");
-      expect(msg).toContain("Dave");
+      expect(msg).not.toContain("Dave");
       expect(msg).toContain("oil change");
-      expect(msg).toContain("5,000 miles ago");
-      expect(msg).toContain("nickstire.org");
+      expect(msg).toContain("$49");
+      expect(msg).toContain("Nick's Tire & Auto");
     });
 
     it("all messages are under 1600 characters", () => {

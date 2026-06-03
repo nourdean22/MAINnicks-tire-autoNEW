@@ -17,13 +17,14 @@ describe("SMS Templates", () => {
     expect(sms.bookingConfirmationRequestSms("John").length).toBeGreaterThan(20);
   });
 
-  it("templates include customer first name", async () => {
+  it("templates are business-voice with no customer name", async () => {
     const sms = await import("../sms");
 
-    expect(sms.appointmentReminder24hSms("Nour", "Brakes")).toContain("Nour");
-    expect(sms.thankYouSms("Dania", "Tires")).toContain("Dania");
-    expect(sms.reviewRequestSms("Ahmed")).toContain("Ahmed");
-    expect(sms.bookingConfirmationRequestSms("Mike")).toContain("Mike");
+    // wave-182: messages are intentionally name-free (no-personalization directive).
+    expect(sms.appointmentReminder24hSms("Nour", "Brakes")).not.toContain("Nour");
+    expect(sms.thankYouSms("Dania", "Tires")).not.toContain("Dania");
+    expect(sms.reviewRequestSms("Ahmed")).not.toContain("Ahmed");
+    expect(sms.bookingConfirmationRequestSms("Mike")).not.toContain("Mike");
   });
 
   it("templates include shop phone number", async () => {
@@ -38,7 +39,6 @@ describe("SMS Templates", () => {
     const sms = await import("../sms");
     const msg = sms.bookingConfirmationRequestSms("John");
     expect(msg.toLowerCase()).toContain("yes");
-    expect(msg.toLowerCase()).toContain("confirm");
   });
 
   it("SMS messages are under 160 chars or properly segmented", async () => {

@@ -12,7 +12,7 @@ import { z } from "zod";
 import { eq, sql, desc, and, lte, isNull } from "drizzle-orm";
 import { customers } from "../../drizzle/schema";
 import { winbackCampaigns, winbackMessages, winbackSends } from "../../drizzle/schema";
-import { sendSms } from "../sms";
+import { sendSms, withOptOut } from "../sms";
 import { STORE_PHONE, STORE_NAME } from "@shared/const";
 
 import { db } from "../lib/db-helper";
@@ -21,27 +21,29 @@ import { db } from "../lib/db-helper";
 // Selectable segments: lapsed, dormant, lost, vip, fleet, recent.
 // (declined + tire_customer are RETIRED — see the notes below / in buildSegmentFilter.)
 // Each segment targets a different customer profile with personalized messaging.
-// Templates use {firstName} and {vehicleInfo} for personalization — both are
-// substituted by personalizeWinbackBody() at activate/preview time. ({lastService}
-// was removed: no last-service description is available on the customers row.)
+// wave-182: default templates are now placeholder-free (business voice — no
+// {firstName}/{vehicleInfo}, per the no-personalization directive). Each message
+// is concrete, low-pressure, kill-list-clean, and carries no planted negatives.
+// personalizeWinbackBody() still substitutes those tokens IF an operator's custom
+// message includes them, and wraps every send in the TCPA "Reply STOP" footer.
 const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; template: string }[]> = {
   // ── LAPSED (90-180 days, was active) — 4-step sequence ──
   lapsed: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME}. It's been a while since we last worked on your {vehicleInfo}. Your vehicle may be due for maintenance — car problems rarely stay the same, they usually get worse. Drop by or call ${STORE_PHONE}. No appointment needed.`,
+      template: `It's been a while since your last visit to ${STORE_NAME}. Due for an oil change or a once-over? Walk in any day — first-come, first-served, no appointment. $49 conventional, $80 synthetic. ${STORE_PHONE}`,
     },
     {
       step: 2, delayDays: 4,
-      template: `{firstName}, quick follow-up from ${STORE_NAME}. It's been a bit since your last visit and it might be time for a follow-up check. We'll do a free inspection under 1 hour. Drop off your car, call an Uber out, we'll call when it's done. ${STORE_PHONE}`,
+      template: `Still here at ${STORE_NAME} whenever it's easy. Drop it off any morning for a free check — written quote, you don't pay until you say yes — and we'll reach out when it's ready. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 10,
-      template: `{firstName}, this is Nick from ${STORE_NAME}. Haven't heard back — just want to make sure your {vehicleInfo} is running right. We've seen small issues turn into bigger problems when left too long. Free diagnostic if you come in this week. ${STORE_PHONE}`,
+      template: `${STORE_NAME} — open 7 days, walk-ins welcome. A free check tells you exactly what's going on with the car, no charge and no obligation. Pull up any day. ${STORE_PHONE}`,
     },
     {
       step: 4, delayDays: 21,
-      template: `Last check-in, {firstName}. ${STORE_NAME} — we're here 7 days a week, no appointment needed. If your car is giving you any trouble, don't wait. Drop it off early, we'll get to it same day. ${STORE_PHONE} or book at nickstire.org`,
+      template: `Last note from ${STORE_NAME} for now — we're here 7 days a week, no appointment. Walk in or drop off any time and we'll take care of you. ${STORE_PHONE} or nickstire.org`,
     },
   ],
 
@@ -49,15 +51,15 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   dormant: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, ${STORE_NAME} here. It's been over 6 months since your last visit. Your {vehicleInfo} is overdue for a checkup. We're offering a free safety inspection for returning customers — no strings. Drop by or call ${STORE_PHONE}.`,
+      template: `It's been a while since ${STORE_NAME} saw you. A free check is the easy way to see where the car stands — written quote, you don't pay until you say yes. Walk in any day. ${STORE_PHONE}`,
     },
     {
       step: 2, delayDays: 7,
-      template: `{firstName}, the longer you wait on maintenance, the more expensive it gets. We've seen $200 brake jobs turn into $800 rotor replacements. Let us catch it early. Free inspection, 7 days a week. ${STORE_PHONE}`,
+      template: `Still 7 days a week at ${STORE_NAME}, walk-ins welcome. Whenever you want a second set of eyes on the car, the check is free and the quote's in writing. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 14,
-      template: `{firstName}, last message from ${STORE_NAME}. If you've found another shop, no hard feelings. But if you haven't — we're still here, still honest, still fast. 4.9 stars, 1700+ reviews. ${STORE_PHONE}`,
+      template: `Last message from ${STORE_NAME} for now. If you've found another shop, all good. If not — we're here, 4.9 stars from 1,700+ Cleveland drivers. Walk in any day. ${STORE_PHONE}`,
     },
   ],
 
@@ -65,11 +67,11 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   lost: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, this is ${STORE_NAME} — Nick's Tire & Auto at 17625 Euclid Ave. It's been over a year since your last visit. A lot has changed — new equipment, faster service, same honest pricing. Come see what's new. ${STORE_PHONE}`,
+      template: `It's been over a year since your last visit to ${STORE_NAME}, 17625 Euclid Ave. Same fair pricing, walk in any day — first-come, first-served. ${STORE_PHONE}`,
     },
     {
       step: 2, delayDays: 10,
-      template: `{firstName}, we're offering 10% off your first service back at ${STORE_NAME}. Tires, brakes, oil change — whatever your {vehicleInfo} needs. No appointment, just drop in. ${STORE_PHONE}`,
+      template: `Come back to ${STORE_NAME} and take 10% off your first service — tires, brakes, oil, whatever the car needs. No appointment, just drop in. ${STORE_PHONE}`,
     },
   ],
 
@@ -77,15 +79,15 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   declined: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, ${STORE_NAME} here. We gave you an estimate for work on your {vehicleInfo}. Just checking — did you get it taken care of? If not, that estimate is still valid. ${STORE_PHONE}`,
+      template: `${STORE_NAME} — that estimate we wrote up is still good. Free re-check whenever you're ready, written quote, you don't pay until you say yes. ${STORE_PHONE}`,
     },
     {
       step: 2, delayDays: 7,
-      template: `{firstName}, car problems rarely fix themselves. The work we quoted you on could get worse (and more expensive) with time. We offer $10 down financing if cost was the concern. ${STORE_PHONE}`,
+      template: `Still here at ${STORE_NAME}. If cost was the holdup on that estimate, $10 down splits it across 4 lenders. Free re-check first, no charge. ${STORE_PHONE}`,
     },
     {
       step: 3, delayDays: 21,
-      template: `{firstName}, final reminder from ${STORE_NAME}. Your estimate expires in 7 days. After that, we'd need to re-inspect. Book now at nickstire.org or call ${STORE_PHONE}. We're open 7 days.`,
+      template: `Last note on that estimate from ${STORE_NAME} — stop in within the week and we'll honor it as-is. After that we'd just re-check, still free. nickstire.org or ${STORE_PHONE}`,
     },
   ],
 
@@ -98,11 +100,11 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   vip: [
     {
       step: 1, delayDays: 0,
-      template: `{firstName}, this is Nick personally from ${STORE_NAME}. You're one of our top customers and we haven't seen you in a while. Everything good with your {vehicleInfo}? If anything comes up, you get priority — call me direct at ${STORE_PHONE}.`,
+      template: `You're one of our top customers at ${STORE_NAME} and we haven't seen you in a while. Whenever the car needs anything, you get priority — walk in any day or call ${STORE_PHONE}.`,
     },
     {
       step: 2, delayDays: 10,
-      template: `{firstName}, just a heads up — we're offering our VIP customers early access to winter tire deals before the rush. Limited stock on popular sizes. Let me know if you want us to set a set aside. ${STORE_PHONE}`,
+      template: `Heads up for our VIP customers — winter tire deals are landing before the rush, limited stock on popular sizes. Want us to hold a set for you? ${STORE_PHONE}`,
     },
   ],
 
@@ -110,11 +112,11 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   fleet: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, ${STORE_NAME} fleet services here. We service commercial vehicles 7 days a week with priority scheduling for business accounts. If your fleet needs maintenance, call ${STORE_PHONE} for fleet pricing.`,
+      template: `${STORE_NAME} runs fleet and commercial accounts 7 days a week with priority scheduling. Whenever your vehicles need work, call ${STORE_PHONE} for fleet pricing.`,
     },
     {
       step: 2, delayDays: 7,
-      template: `{firstName}, fleet downtime costs money. ${STORE_NAME} offers same-day service for commercial accounts — tires, brakes, diagnostics, emissions. Let's set up a maintenance schedule. ${STORE_PHONE}`,
+      template: `Fleet downtime adds up. ${STORE_NAME} keeps commercial accounts moving — tires, brakes, check-engine, emissions, all under one roof. Let's set up a schedule. ${STORE_PHONE}`,
     },
   ],
 
@@ -122,7 +124,7 @@ const WINBACK_TEMPLATES: Record<string, { step: number; delayDays: number; templ
   recent: [
     {
       step: 1, delayDays: 0,
-      template: `Hi {firstName}, thanks for choosing ${STORE_NAME}! As a valued customer, you get priority service — no appointment needed, just drop in. If your {vehicleInfo} needs anything, we're here 7 days a week. ${STORE_PHONE}`,
+      template: `Thanks for coming by ${STORE_NAME}. Walk-ins are always welcome 7 days a week — whenever the car needs anything, just pull up. ${STORE_PHONE}`,
     },
   ],
 };
@@ -217,9 +219,14 @@ function personalizeWinbackBody(
       .filter((p) => p.length > 0)
       .join(" ")
       .trim() || "vehicle";
-  return body
-    .replace(/{firstName}/g, customer.firstName)
-    .replace(/{vehicleInfo}/g, vehicleInfo);
+  // wave-182: every winback send is bulk promotional → TCPA requires opt-out.
+  // Wrap centrally here so all segments + any operator custom message comply
+  // (idempotent: withOptOut no-ops if the body already carries a STOP line).
+  return withOptOut(
+    body
+      .replace(/{firstName}/g, customer.firstName)
+      .replace(/{vehicleInfo}/g, vehicleInfo),
+  );
 }
 
 export const winbackRouter = router({

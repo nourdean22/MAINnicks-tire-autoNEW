@@ -224,7 +224,7 @@ export const leadRouter = router({
 
       // Send SMS: financing pre-approval gets a special message
       if (input.source === "financing_preapproval") {
-        const financingSms = `You may qualify for $10 down financing at Nick's! Bring your ID when you drop off. (216) 862-0005`;
+        const financingSms = `$10 down and a soft check (no credit-score ding) at Nick's Tire & Auto — Acima, Snap, Koalafi, American First. Walk in any day, bring your ID. (216) 862-0005`;
         withRetry(
           // Wave-108: financing preapproval via shop gateway (transactional)
           () => sendSms(input.phone, financingSms, { via: "shop" }),

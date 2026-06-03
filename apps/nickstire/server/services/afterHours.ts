@@ -83,10 +83,9 @@ export async function handleAfterHoursCapture(params: {
     } else {
       await sendSms(
         params.phone,
-        `Hi ${params.name}! Thanks for reaching out to Nick's Tire & Auto. ` +
-          `We're currently closed but we got your message! ` +
-          `We'll call you back first thing when we open at ${nextOpen}. ` +
-          `For emergencies, call ${STORE_PHONE}. — Nour`,
+        `Thanks for reaching out to Nick's Tire & Auto — we're closed right now, ` +
+          `but we've got your message and we'll call you back when we open at ${nextOpen}. ` +
+          `Need us sooner? ${STORE_PHONE}.`,
         { via: "shop" }
       );
       log.info("After-hours auto-SMS sent", {
