@@ -27,7 +27,9 @@ async function main(): Promise<void> {
   const { measureBackfill, runComprehensiveBackfill } = await import(
     "@/lib/mastery/comprehensive-backfill"
   );
-  const { revertBackfillRun } = await import("@/lib/mastery/credit");
+  const { revertBackfillRun, summarizeBackfillRun } = await import(
+    "@/lib/mastery/credit"
+  );
 
   if (mode === "measure") {
     const m = await measureBackfill();
@@ -46,6 +48,14 @@ async function main(): Promise<void> {
     const r = await runComprehensiveBackfill({ dryRun: false, runTag: tag });
     console.log(JSON.stringify(r, null, 2));
     console.log(`\nDONE · runTag=${tag} · revert with: ... revert ${tag}`);
+  } else if (mode === "status") {
+    if (!arg) {
+      console.error("status needs a <tag>");
+      process.exit(1);
+    }
+    const s = await summarizeBackfillRun(arg);
+    console.log(`=== BACKFILL RUN FOOTPRINT · tag=${arg} (read-only) ===`);
+    console.log(JSON.stringify(s, null, 2));
   } else if (mode === "revert") {
     if (!arg) {
       console.error("revert needs a <tag>");
