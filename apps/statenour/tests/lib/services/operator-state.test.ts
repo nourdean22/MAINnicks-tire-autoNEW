@@ -296,14 +296,14 @@ describe("chooseLanding · 2026-05-24 Wave W Phase 3", () => {
     expect(rec?.reason).toMatch(/capacity|reflect/);
   });
 
-  it("recommends /tasks when energized + momentum", () => {
+  it("recommends /missions when energized + momentum", () => {
     const rec = chooseLanding({
       ...base,
       focus: 0.7,
       momentum: 0.6,
       mood: "energized",
     });
-    expect(rec?.surface).toBe("/tasks");
+    expect(rec?.surface).toBe("/missions");
     expect(rec?.reason).toMatch(/momentum|wave/);
   });
 

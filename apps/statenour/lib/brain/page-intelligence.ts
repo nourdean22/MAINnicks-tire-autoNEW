@@ -20,15 +20,12 @@ interface PagePattern {
 }
 
 const IMPORTANT_PAGES = [
-  { path: "/command", label: "Command Deck", critical: true },
-  { path: "/tasks", label: "Tasks", critical: true },
-  { path: "/mastery", label: "Growth", critical: false },
-  { path: "/drift", label: "Drift Detection", critical: true },
-  { path: "/financial", label: "Financial", critical: false },
+  { path: "/missions", label: "Missions", critical: true },
+  { path: "/stats", label: "Stats", critical: false },
+  { path: "/business", label: "Business", critical: false },
   { path: "/body", label: "Body", critical: false },
   { path: "/chat", label: "Nick AI", critical: false },
   { path: "/strategy", label: "Strategy", critical: false },
-  { path: "/habits", label: "Habits", critical: true },
 ];
 
 /**

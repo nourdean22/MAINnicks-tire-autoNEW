@@ -93,7 +93,7 @@ export function pickSmartNow(args: {
   // ── 4. TIME-OF-DAY ──
   // Morning · 5am-10am → plan the day
   if (hour >= 5 && hour < 10) {
-    const target = "/plan";
+    const target = "/stats";
     if (!pathname.startsWith(target)) {
       return {
         href: target,
@@ -107,7 +107,7 @@ export function pickSmartNow(args: {
 
   // Afternoon · 10am-5pm → execute tasks
   if (hour >= 10 && hour < 17) {
-    const target = "/tasks";
+    const target = "/missions";
     if (!pathname.startsWith(target)) {
       return {
         href: target,

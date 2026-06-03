@@ -73,7 +73,7 @@ export async function GET(req: Request) {
   // Detect blind spots (important pages not visited in 3+ days).
   // v10 Ultron cleanup: /command and /drift retired — they redirect to /.
   // Updated list reflects the current live page set.
-  const importantPages = ["/", "/tasks", "/mastery", "/financial", "/body", "/chat", "/journal"];
+  const importantPages = ["/", "/missions", "/stats", "/business", "/body", "/chat", "/journal"];
   const blindSpots: string[] = [];
   const threeDaysAgo = Date.now() - 3 * 24 * 60 * 60 * 1000;
 

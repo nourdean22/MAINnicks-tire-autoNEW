@@ -386,7 +386,7 @@ function MoveSlot({
       </div>
 
       <Link
-        href={`/tasks?focus=${encodeURIComponent(task.id)}`}
+        href={`/missions?focus=${encodeURIComponent(task.id)}`}
         onClick={() => onFocus?.(task.id)}
         className="block group"
         aria-label={`open task ${task.title}`}

@@ -153,7 +153,7 @@ export function LinkedMissionsPanel({ missionId }: { missionId: string }) {
                   {relLabel}
                 </span>
                 <a
-                  href={`/plan?missionId=${other.id}`}
+                  href={`/stats?missionId=${other.id}`}
                   className="flex-1 text-[12px] text-[var(--text-primary)] hover:text-[var(--gold)] truncate"
                   title={other.title}
                 >

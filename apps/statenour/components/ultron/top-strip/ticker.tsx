@@ -83,7 +83,7 @@ function pagePreferred(pathname: string | null): Set<string> {
   const p = pathname ?? "";
   if (p.startsWith("/business"))
     return new Set(["shop", "market", "macro"]);
-  if (p.startsWith("/stats") || p.startsWith("/goals"))
+  if (p.startsWith("/stats"))
     return new Set(["timeline", "brain"]);
   if (p.startsWith("/brain") || p.startsWith("/radar") || p.startsWith("/seo"))
     return new Set(["brain", "industry"]);

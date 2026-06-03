@@ -102,7 +102,7 @@ export const NAV_ITEMS: NavItem[] = [
   // not in the bottom nav (those tabs are sacred — 5 wide).
   // 2026-05-21 · KommandoShell dismantle · Phase 3 · the dead `/plan`
   // entry removed — there is no /plan page (next.config.ts redirects
-  // /plan → /goals) and goal authoring now lives at /goals (added to
+  // /plan → /stats) and goal authoring now lives at /stats (added to
   // the DEPTH section above).
   { href: "/pins",            label: "Pinned Memory",   icon: Pin },
   // v10.0.302 · /intel removed · automotive-RSS dashboard's business

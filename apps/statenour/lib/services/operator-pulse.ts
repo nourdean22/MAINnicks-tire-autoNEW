@@ -306,7 +306,7 @@ function composeForHome(i: ComposerInput): Pick<OperatorPulseSnapshot, "pulse" |
   } else if (trailing && trailing.score < 5) {
     drift = {
       text: `Trailing axis · ${trailing.domain} ${trailing.score.toFixed(1)}/10`,
-      href: `/goals#axis-${encodeURIComponent(trailing.domain)}`,
+      href: `/stats#axis-${encodeURIComponent(trailing.domain)}`,
       tone: "amber",
     };
   }
