@@ -32,7 +32,7 @@ import { Brain, X, GripVertical, AlertTriangle, Sparkles, ChevronRight } from "l
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { MultiTurnChat } from "@/components/mastery/multi-turn-chat";
-import { usePollingFetch } from "@/hooks/use-polling-fetch";
+import { useCoachEvents } from "@/lib/hooks/use-coach-events";
 import type { CoachEvent, CoachEventSurface } from "@/lib/services/coach-events-types";
 
 const STORAGE_KEY = "nour:nick-side-pane:open:v1";
@@ -52,10 +52,6 @@ interface NickSidePaneProps {
    *  proactive event chips shown above PageNick. Default: matches
    *  `page` if it's a valid surface · falls back to no subscription. */
   coachSurface?: CoachEventSurface;
-}
-
-interface CoachEventsResponse {
-  events: CoachEvent[];
 }
 
 const DEFAULT_PRESETS = [
@@ -85,11 +81,9 @@ export function NickSidePane({
     (["tasks", "goals", "journal", "brain", "scoreboard"].includes(page)
       ? (page as CoachEventSurface)
       : undefined);
-  const { data: coachData } = usePollingFetch<CoachEventsResponse>(
-    surface ? `/api/coach/events?surface=${encodeURIComponent(surface)}&limit=3` : "",
-    { intervalMs: 60_000, skip: !surface || !open },
-  );
-  const coachEvents = coachData?.events ?? [];
+  // Shared, surface-keyed poller (de-duped with CoachEventBanner). `enabled`
+  // mirrors the old `skip` gate — no poll runs while the pane is closed.
+  const { events: coachEvents } = useCoachEvents(surface, { enabled: open });
 
   // Restore persisted state on mount · SSR-safe.
   useEffect(() => {
