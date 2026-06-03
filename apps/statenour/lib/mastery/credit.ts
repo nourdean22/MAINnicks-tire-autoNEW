@@ -157,6 +157,37 @@ export async function xpEventTotalsSince(
  * are fully recomputable, so a hard delete is clean + safe. Returns the count
  * removed. The character sheet re-sums from the surviving rows on next read.
  */
+/**
+ * Inspect a backfill run's ACTUAL footprint in prod — counts the
+ * mastery_xp_event rows it created (`metadata.backfillRun = runTag`) and sums
+ * their XP per stat. Read-only. This is the runtime-observable proof that a
+ * run's credits landed (and into which stats), distinct from `measureBackfill`
+ * which counts what's left to do.
+ */
+export async function summarizeBackfillRun(
+  runTag: string,
+): Promise<{ count: number; xpTotal: number; byStat: Record<string, number> }> {
+  const rows = await prisma.brainMemory
+    .findMany({
+      where: {
+        category: MASTERY_XP_CATEGORY,
+        metadata: { path: ["backfillRun"], equals: runTag },
+      },
+      select: { metadata: true },
+    })
+    .catch(() => [] as { metadata: unknown }[]);
+  const byStat: Record<string, number> = {};
+  let xpTotal = 0;
+  for (const r of rows) {
+    const m = (r.metadata ?? {}) as { stat?: string; xp?: number };
+    if (typeof m.stat === "string" && typeof m.xp === "number") {
+      byStat[m.stat] = Math.round(((byStat[m.stat] ?? 0) + m.xp) * 10) / 10;
+      xpTotal = Math.round((xpTotal + m.xp) * 10) / 10;
+    }
+  }
+  return { count: rows.length, xpTotal, byStat };
+}
+
 export async function revertBackfillRun(runTag: string): Promise<number> {
   if (!runTag) return 0;
   const res = await prisma.brainMemory

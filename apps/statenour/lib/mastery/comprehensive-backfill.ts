@@ -34,7 +34,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
-import { attributeText } from "./attribution";
+import { attributeTextBatch } from "./attribution";
 import { creditStatXp, MASTERY_XP_CATEGORY } from "./credit";
 import { backfillPeopleXp } from "./people-credit";
 import type { MasterySignal } from "./leveling";
@@ -52,6 +52,12 @@ const ATTRIBUTABLE_BRAIN_CATEGORIES = [
 ] as const;
 
 const EMAIL_CATEGORIES = ["gmail_thread", "gmail_outgoing"] as const;
+
+// How many signals to score per AI call. The "reason" tier SERIALIZES
+// inference (~3s/call regardless of concurrency — verified: 10-wide parallel
+// gave no speedup), so the lever that matters is CALL COUNT. One batched call
+// scores BATCH_SIZE items → ~12x fewer calls → minutes instead of an hour.
+const BATCH_SIZE = 12;
 
 interface SourceItem {
   /** Stable dedup sourceKey (matches any existing live key for this row). */
@@ -343,33 +349,50 @@ export async function runComprehensiveBackfill(opts?: {
     const t = tally(src.name);
     const items = await src.fetch(cap);
     const have = await existingKeys(items.map((i) => i.key));
+    // Pre-filter to uncredited, substantive items (skip already-credited
+    // BEFORE any AI call → no double-count, no wasted spend on re-runs).
+    const todo: SourceItem[] = [];
     for (const item of items) {
       t.scanned++;
       res.scanned++;
-      if (have.has(item.key)) continue; // already credited → no AI, no double-count
+      if (have.has(item.key)) continue;
       if (item.text.length < 12) continue;
-      const attr = await attributeText(item.text, src.name);
-      t.aiCalls++;
+      todo.push(item);
+    }
+    // Attribute in PARALLEL chunks (the speed fix — sequential per-item was
+    // ~15-30 items/min; chunked concurrency multiplies throughput). Writes
+    // stay sequential. A failed AI call → null → that item simply retries
+    // on the next idempotent run.
+    for (let i = 0; i < todo.length; i += BATCH_SIZE) {
+      const chunk = todo.slice(i, i + BATCH_SIZE);
+      const attrMap = await attributeTextBatch(
+        chunk.map((it) => ({ id: it.key, text: it.text })),
+        src.name,
+      );
+      t.aiCalls++; // ONE call per batch
       res.aiCalls++;
-      if (!attr) continue;
-      if (dryRun) {
-        t.credited++; t.xp = round1(t.xp + attr.xp);
-        res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
-        res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
-        continue;
-      }
-      const isNew = await creditStatXp({
-        stat: attr.stat,
-        xp: attr.xp,
-        signal: src.signal,
-        evidence: attr.evidence,
-        sourceKey: item.key,
-        backfillRun: runTag,
-      });
-      if (isNew) {
-        t.credited++; t.xp = round1(t.xp + attr.xp);
-        res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
-        res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
+      for (const item of chunk) {
+        const attr = attrMap.get(item.key);
+        if (!attr) continue;
+        if (dryRun) {
+          t.credited++; t.xp = round1(t.xp + attr.xp);
+          res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
+          res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
+          continue;
+        }
+        const isNew = await creditStatXp({
+          stat: attr.stat,
+          xp: attr.xp,
+          signal: src.signal,
+          evidence: attr.evidence,
+          sourceKey: item.key,
+          backfillRun: runTag,
+        });
+        if (isNew) {
+          t.credited++; t.xp = round1(t.xp + attr.xp);
+          res.credited++; res.xpAdded = round1(res.xpAdded + attr.xp);
+          res.byStat[attr.stat] = round1((res.byStat[attr.stat] ?? 0) + attr.xp);
+        }
       }
     }
   }

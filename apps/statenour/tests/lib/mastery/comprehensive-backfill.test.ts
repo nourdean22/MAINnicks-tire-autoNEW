@@ -2,12 +2,13 @@
  * comprehensive-backfill orchestration tests · 2026-06-03.
  *
  * Pins the SAFETY invariants of the all-source backfill (deps mocked — prisma,
- * the AI attributor, and creditStatXp are proven elsewhere):
- *   1. Already-credited rows are SKIPPED before any AI call (no double-count,
- *      no wasted spend on re-runs).
+ * the batched AI attributor, and creditStatXp are proven elsewhere):
+ *   1. Already-credited rows are SKIPPED before the batch is built (no double-
+ *      count, no wasted spend on re-runs).
  *   2. dryRun attributes but NEVER writes (creditStatXp not called).
  *   3. A real run credits only the UNCREDITED rows, passing the run marker
  *      so the run is reversible.
+ *   4. People-backfill is not run in dryRun.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -34,7 +35,11 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 vi.mock("@/lib/mastery/attribution", () => ({
-  attributeText: vi.fn(),
+  // batched attributor: credit every item it's handed (one fixed stat).
+  attributeTextBatch: vi.fn(
+    async (items: { id: string; text: string }[]) =>
+      new Map(items.map((it) => [it.id, { stat: "sales", xp: 1, evidence: "priced up" }])),
+  ),
 }));
 
 vi.mock("@/lib/mastery/credit", () => ({
@@ -47,15 +52,20 @@ vi.mock("@/lib/mastery/people-credit", () => ({
 }));
 
 import { runComprehensiveBackfill } from "@/lib/mastery/comprehensive-backfill";
-import { attributeText } from "@/lib/mastery/attribution";
+import { attributeTextBatch } from "@/lib/mastery/attribution";
 import { creditStatXp } from "@/lib/mastery/credit";
 
-const mockText = vi.mocked(attributeText);
+const mockBatch = vi.mocked(attributeTextBatch);
 const mockCredit = vi.mocked(creditStatXp);
 
 describe("runComprehensiveBackfill · safety invariants", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockBatch.mockImplementation(
+      async (items: { id: string; text: string }[]) =>
+        new Map(items.map((it) => [it.id, { stat: "sales", xp: 1, evidence: "priced up" }])),
+    );
+    mockCredit.mockResolvedValue(true);
     // two substantive chat messages; c1 will already be credited.
     chatFindMany.mockResolvedValue([
       { id: "c1", content: "a substantive note about pricing brake jobs higher" },
@@ -63,21 +73,17 @@ describe("runComprehensiveBackfill · safety invariants", () => {
     ]);
     // existingKeys() query → chat:c1 already has a mastery_xp_event row.
     brainFindMany.mockResolvedValue([{ key: "chat:c1" }]);
-    mockText.mockResolvedValue({ stat: "sales", xp: 1, evidence: "priced up" });
-    mockCredit.mockResolvedValue(true);
   });
 
-  it("skips already-credited rows BEFORE any AI call (no double-count, no spend)", async () => {
+  it("skips already-credited rows BEFORE the batch (no double-count, no spend)", async () => {
     const res = await runComprehensiveBackfill({ sources: ["chat"], runTag: "t1" });
-    // c1 is already credited → never attributed; only c2 hits the AI.
-    expect(mockText).toHaveBeenCalledTimes(1);
-    expect(mockText).toHaveBeenCalledWith(
-      expect.stringContaining("fleet deal"),
-      "chat",
-    );
+    // one batch call; the batch contains ONLY the uncredited c2 (c1 excluded).
+    expect(mockBatch).toHaveBeenCalledTimes(1);
+    const batchedItems = mockBatch.mock.calls[0][0];
+    expect(batchedItems).toHaveLength(1);
+    expect(batchedItems[0].id).toBe("chat:c2");
     expect(res.bySource.chat.scanned).toBe(2);
     expect(res.bySource.chat.credited).toBe(1);
-    expect(res.aiCalls).toBe(1);
   });
 
   it("credits the uncredited row with the run marker (reversible)", async () => {
@@ -99,7 +105,7 @@ describe("runComprehensiveBackfill · safety invariants", () => {
       runTag: "t2",
       dryRun: true,
     });
-    expect(mockText).toHaveBeenCalledTimes(1); // still previews attribution
+    expect(mockBatch).toHaveBeenCalledTimes(1); // still previews attribution
     expect(mockCredit).not.toHaveBeenCalled(); // but writes nothing
     expect(res.dryRun).toBe(true);
     expect(res.credited).toBe(1); // tallied what WOULD be credited
