@@ -53,7 +53,7 @@ export function classifyVoiceIntent(speech: string): VoiceIntent {
     return {
       intent: "pricing",
       // oil price: keep in sync with OIL_PRICE
-      message: "Our pricing depends on the service and vehicle. Oil changes start at $49, brake pads from $89, and used tires from $25 (most sizes $40-80). For an exact quote, visit nickstire dot org or call us during business hours at 216-862-0005.",
+      message: "Our pricing depends on the service and vehicle. Oil changes start at $49, brake pads from $89, and used tires from $60. For an exact quote, visit nickstire dot org or call us during business hours at 216-862-0005.",
     };
   }
 
