@@ -172,7 +172,7 @@ export default function StatusTracker() {
                   const isReady = booking.stage === "ready";
 
                   return (
-                    <div key={booking.id} className={`bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl rounded-lg p-6 lg:p-8 ${isReady ? "ring-2 ring-nick-teal" : "bg-card/80"}`}>
+                    <div key={booking.id} className={`bg-[oklch(0.08_0.004_260/0.8)] border border-[oklch(0.17_0.004_260)] rounded-2xl p-6 lg:p-8 ${isReady ? "ring-2 ring-nick-teal" : "bg-card/80"}`}>
                       {/* Header */}
                       <div className="flex items-start justify-between mb-6">
                         <div>

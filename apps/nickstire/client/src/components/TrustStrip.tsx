@@ -22,8 +22,8 @@ const SIGNALS = [
   },
   {
     icon: Shield,
-    value: "Family Owned",
-    sub: "1,700+ Google Reviews",
+    value: "Family-Run",
+    sub: "On Euclid since 2018",
     iconClass: "text-primary",
   },
   {

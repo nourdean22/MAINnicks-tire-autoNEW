@@ -123,7 +123,7 @@ const ALL_NOTIFICATIONS: Notification[] = [
   {
     id: "sp-1",
     strategy: "social_proof",
-    text: `4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews — Cleveland drivers trust Nick's`,
+    text: `4.9 stars from ${BUSINESS.reviews.countDisplay} Google reviews — Euclid Ave, open 7 days`,
     icon: <Star className="w-4 h-4" />,
   },
   {

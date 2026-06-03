@@ -64,7 +64,7 @@ export default function PriceEstimator() {
         description="Cleveland auto repair pricing made plain. Free check, written quote, you don't pay until you say yes. Brakes, tires, oil — see typical ranges, walk in any day."
         canonicalPath="/pricing"
       />
-      <Breadcrumbs items={[{ label: "Cost Estimator", href: "/estimate" }]} />
+      <Breadcrumbs items={[{ label: "Pricing" }]} />
       <LocalBusinessSchema />
 
       {/* Hero */}
