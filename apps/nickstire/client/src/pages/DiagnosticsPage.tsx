@@ -20,7 +20,7 @@ const CONFIG: ServicePageConfig = {
   // improved from 51.8 but CTR is still 0% — title isn't differentiated
   // enough in SERP. Adding "FREE Code Pull" up-front as the click hook
   // (no competitor leads with FREE), price anchor for the full diag.
-  title: "Check Engine Light Cleveland · Free Scan · No Pay Til Yes",
+  title: "Check Engine Light Cleveland · Free Scan · No Pay Til Yes | Nick's",
   description: "Cleveland check-engine-light shop. Free scan, plain-English read, written quote before any wrench moves. You don't pay until you say yes. 4.9★ from 1,700+ drivers. (216) 862-0005",
   eyebrow: "CHECK ENGINE LIGHT · CLEVELAND'S NOISE TRANSLATOR",
   // wave-177 · GSC: /diagnostics at pos 51.8 / 0% CTR over 204 imp.

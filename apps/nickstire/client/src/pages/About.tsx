@@ -49,7 +49,7 @@ export default function About() {
     <PageLayout activeHref="/about" showChat={true}>
       <SEOHead
         title="About Nick's Tire & Auto · Cleveland's Honest Crew Since 2018"
-        description={`Family-owned auto repair on Euclid Ave. 4.9★ Google rating across ${BUSINESS.reviews.countDisplay} reviews, ${BUSINESS.warranty.display}, and a coffee maker older than half our customers. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
+        description={`Family-run auto repair on Euclid Ave. 4.9★ Google rating across ${BUSINESS.reviews.countDisplay} reviews, ${BUSINESS.warranty.display}, and a coffee maker older than half our customers. Walk-ins welcome 7 days. ${BUSINESS.phone.display}`}
         canonicalPath="/about"
       />
 
