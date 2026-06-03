@@ -388,7 +388,7 @@ export default function CampaignsSection() {
             <CampaignRow key={campaign.id} campaign={campaign} />
           ))
         ) : (
-          <div className="bg-card border border-border/30 rounded-lg py-12 px-6 text-center">
+          <div className="bg-card border border-border/30 py-12 px-6 text-center">
             <MessageSquare className="w-8 h-8 text-foreground/15 mx-auto mb-3" />
             <h4 className="text-foreground/70 font-medium tracking-tight">No campaigns yet</h4>
             <p className="text-foreground/40 text-[13px] mt-1 max-w-sm mx-auto">

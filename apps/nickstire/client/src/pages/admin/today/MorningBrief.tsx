@@ -122,7 +122,7 @@ export function MorningBrief({ priorityQueueLength, urgentLeads }: MorningBriefP
   }, [dashStats, smsGw, callsData, priorityQueueLength, urgentLeads]);
 
   return (
-    <div className="bg-card border border-border/40 rounded-lg p-4 space-y-2.5">
+    <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">

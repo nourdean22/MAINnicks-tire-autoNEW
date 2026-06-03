@@ -54,7 +54,7 @@ export default function SiteHealthSection() {
           subtitle="Domain status · search rankings · review velocity · GA4 + GSC · vendor uptime"
           icon={<Heart className="w-5 h-5" />}
         />
-        <div className="bg-card border border-border/30 rounded-lg py-12 px-6 text-center">
+        <div className="bg-card border border-border/30 py-12 px-6 text-center">
           <Heart className="w-8 h-8 text-foreground/15 mx-auto mb-3" />
           <h4 className="text-foreground/70 font-medium tracking-tight">Health data unavailable</h4>
           <p className="text-foreground/40 text-[13px] mt-1 max-w-sm mx-auto">

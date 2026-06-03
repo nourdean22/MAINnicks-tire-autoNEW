@@ -86,26 +86,26 @@ export default function SmsPerformanceSection() {
 
       {/* Totals row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · 30d</span>
           <span className="text-2xl font-semibold tabular-nums">{sumLoading ? "—" : totalSent}</span>
         </div>
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Reply rate</span>
           <span className="text-2xl font-semibold text-emerald-400 tabular-nums">{sumLoading ? "—" : pct(totalReplied, totalSent)}</span>
         </div>
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Conv rate · 14d</span>
           <span className="text-2xl font-semibold text-primary tabular-nums">{sumLoading ? "—" : pct(totalConverted, totalSent)}</span>
         </div>
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Opt-out rate</span>
           <span className="text-2xl font-semibold text-red-400 tabular-nums">{sumLoading ? "—" : pct(totalOptedOut, totalSent)}</span>
         </div>
       </div>
 
       {/* Per-tier table */}
-      <div className="bg-card border border-border/30 rounded-md overflow-hidden">
+      <div className="bg-card border border-border/30 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
           <MessageSquare className="w-4 h-4 text-foreground/60" />
           <span className="text-xs uppercase tracking-[0.15em] text-foreground/70 font-medium">By tier · 30d</span>
@@ -154,7 +154,7 @@ export default function SmsPerformanceSection() {
       </div>
 
       {/* Recent-sends drill-in */}
-      <div ref={drillInRef} className="bg-card border border-border/30 rounded-md overflow-hidden">
+      <div ref={drillInRef} className="bg-card border border-border/30 overflow-hidden">
         <div className="px-4 py-3 border-b border-border/30 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-4 h-4 text-foreground/60" />

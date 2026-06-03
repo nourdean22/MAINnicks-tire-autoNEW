@@ -71,7 +71,7 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
   // Clarity-gate · loading state · don't render fake numbers
   if (isLoading || !leadsData) {
     return (
-      <div className="bg-card border border-border/40 rounded-lg p-4">
+      <div className="bg-card border border-border/40 p-4">
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
           Loading lead pipeline…
         </div>
@@ -122,7 +122,7 @@ export function LeadsBrief({ onSlaAction }: LeadsBriefProps) {
   const showActionLine = hasSlaBreach || hasStaleContacted;
 
   return (
-    <div className="bg-card border border-border/40 rounded-lg p-4 space-y-2.5">
+    <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
           {greeting()} · lead brief
