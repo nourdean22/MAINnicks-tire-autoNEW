@@ -48,8 +48,15 @@ import type { SubAgentTask } from "@/lib/ai/multi-agent-orchestrator";
 import { classifyReasoning } from "./classifier";
 import { TIER_CONFIG } from "./tier-config";
 import { BRAIN_CATEGORIES } from "@/lib/brain/categories";
+import { makeTracedAiChat } from "@/lib/ai/traced-aichat";
 
 const log = rootLogger.withSurface("ai/reasoning/engine");
+
+// wave-AO audit #438 · every reasoning sub-call routes through the
+// budget-gated traced aiChat so it inherits the daily-budget cap. One
+// shared instance (was dynamically re-imported + re-constructed in each
+// sub-function · the engine is server-only, so a static import is safe).
+const tracedAiChat = makeTracedAiChat("reasoning-engine", "brain");
 
 // ── Per-step micro-helpers ──────────────────────────────────────────
 
@@ -134,8 +141,7 @@ async function runPlan(
   // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
   const reply = await aiChat(
     [
       {
@@ -378,8 +384,7 @@ async function runRouter(
   // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
   const reply = await aiChat(
     [
       {
@@ -463,8 +468,7 @@ async function runDraft(
   // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
   const reply = await aiChat(
     [
       {
@@ -503,8 +507,7 @@ async function runCritique(
   // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
   const reply = await aiChat(
     [
       {
@@ -562,8 +565,7 @@ async function runRefine(
   // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
   const reply = await aiChat(
     [
       {
@@ -652,8 +654,7 @@ async function runReasoningEngine(
     // wave-AO follow-up · audit #438 · was bare aiChat (bypassed budget cap).
   // Routed via makeTracedAiChat factory · inherits the daily-budget gate
   // installed in traced-aichat.ts. Drop-in: call signature unchanged.
-  const { makeTracedAiChat } = await import("@/lib/ai/traced-aichat");
-  const aiChat = makeTracedAiChat("reasoning-engine", "brain");
+  const aiChat = tracedAiChat;
     const t = Date.now();
     const reply = await aiChat(
       [

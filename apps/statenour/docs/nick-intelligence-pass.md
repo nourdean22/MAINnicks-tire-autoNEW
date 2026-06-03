@@ -43,13 +43,14 @@ Remove (revert): `railway variables delete X --service statenour-web`.
 | `NICK_OUTCOME_LEARNING` | Learns from proposal accept/reject history | `true` | ON |
 | `NICK_SELF_CONSISTENCY` | N-sample vote on numeric/high-stakes answers | `true` | ON |
 | `NICK_MULTI_AGENT_AUTO` | Auto-decompose complex turns into sub-agents | `true` | ON |
-| `NICK_EVENT_TRIGGERS` | Inngest event-fn reacts to brain-bus drift in seconds | `true` | ON* |
+| `NICK_EVENT_TRIGGERS` | Inngest event-fn reacts to brain-bus drift in seconds | `true` | ON |
 | `NICK_DEEP_REASONING` | Hard turns → reasoning engine (decompose→plan→critique→refine) + live-data snapshot | `true` | ON |
 | `NICK_VERIFIED_REGEN` | Critic-gated best-of-2 regen before shipping (non-streaming) | `true` | OFF |
 | `NICK_CONFIDENCE_TIER` | Auto-execute the 4 safe internal actions w/o /qa (paranoid-gated) | `true` | OFF |
 
-\* `NICK_EVENT_TRIGGERS` is ON but needs `INNGEST_EVENT_KEY` set on Railway to actually deliver
-events (safe no-op until then).
+`NICK_EVENT_TRIGGERS` is fully live: `INNGEST_EVENT_KEY` IS set on Railway (verified 2026-06-03,
+alongside `INNGEST_SIGNING_KEY`), so brain-bus drift events deliver in real time — no further
+action needed.
 
 **Held OFF by operator choice / tradeoff:** `NICK_VERIFIED_REGEN` (trades token streaming for a
 slower full-generate), `NICK_CONFIDENCE_TIER` (removes the human-approval gate).
@@ -124,8 +125,43 @@ tag, body weight-freshness, MIND/journal/brain mislabels.
 
 ---
 
-## 8. Follow-ups (non-deficit)
+## 8. Follow-ups (status as of 2026-06-03)
 
-- Set `INNGEST_EVENT_KEY` to activate `NICK_EVENT_TRIGGERS` real-time delivery.
-- Optional: shared `PageSkeleton` loading slot for full loading-state uniformity.
-- Half-installed `protect-mcp` hooks in global `~/.claude/settings.json` (separate task).
+- ~~Set `INNGEST_EVENT_KEY`~~ — **DONE / already set.** Verified present + non-empty on Railway;
+  `NICK_EVENT_TRIGGERS` is fully live.
+- ~~Half-installed `protect-mcp` hooks~~ — **N/A.** Re-checked: no `~/.claude/keys/` dir exists and
+  zero `protect-mcp` refs in the global `settings.json`. Nothing was installed; nothing to roll back.
+- Optional: shared `PageSkeleton` loading slot for full loading-state uniformity (still open, polish).
+
+## 9. Code-health pass — chat pipeline simplification (2026-06-03)
+
+A read-only code-explorer audit of the chat pipeline (`app/api/ai/chat/route.ts`,
+`lib/services/chat/persist-assistant-turn.ts`, `lib/ai/provider.ts`, `lib/ai/reasoning/engine.ts`,
+`lib/ai/chat/*`) produced a 12-item simplification backlog. **5 SAFE, behavior-preserving wins
+shipped** (tsc 0 · 919 ai tests green):
+
+- **route.ts** — python-execute regex deduped (reuse the hoisted `__pythonExecuteIntent` instead of
+  a second copy of the 130-char literal); `genBase` hoisted once above the regen/self-consistency
+  branches (was two identical literals).
+- **provider.ts** — Venice + Ollama quota circuit-breakers (byte-for-byte parallel) collapsed into a
+  single `makeQuotaBreaker(provider, cooldownMs)` factory; the divergent `isXAvailable()` predicates
+  stay separate. Exported names preserved.
+- **reasoning/engine.ts** — the 6 repeated `await import("traced-aichat") + makeTracedAiChat(...)`
+  blocks replaced by one shared module-scope `tracedAiChat` (engine is server-only → static import safe).
+
+**Verify-don't-trust catch:** the audit flagged the `preferLargeContext` sort in `provider.ts` as a
+dead no-op — **NOT applied.** `PROVIDERS` leads with the Venice+Ollama tag-team; if Venice is index 0
+that sort genuinely reorders Ollama to the front and is load-bearing. Left untouched pending proof.
+
+**Deferred to a fresh-context pass (all SAFE, but introduce new files / touch the 1584-ln persist
+file — better done unhurried):** extract the GSC-prefetch (~70ln) and customer-shape-hint (~28ln)
+blocks out of `route.ts` into sibling modules (matching the existing `context-hints.ts` pattern);
+hoist `customerShapeRegex` to module scope; relocate `looksLikeBrainDump` into a `brain-dump-detector`
+module; drop the derived `isLightweight`/`isHeavy` from `DeferredBackgroundCtx` (compute internally);
+extract a `buildMessageParts` helper in persist-assistant-turn. One RISKY item (collapse the
+`standard`-tier critique branch via `tier-config`) needs tier-config verification first.
+
+**NOT flagged (verified divergent-by-design, leave alone):** action-claim-detector vs
+action-intent-detector (output- vs input-side); the `buildOnFinish` file (cohesive sequential
+pipeline, not a god-file to shatter); the 4 flag-gated alt-path branches (different internals,
+`winner` is already the right boundary).
