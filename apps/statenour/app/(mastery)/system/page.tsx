@@ -225,7 +225,7 @@ export default function SystemPage() {
           two-column grid (Devices + Nick brain panels) + the
           Integrations panel were all duplicated downstream:
             · Devices panel · same data + drift alerts surface on
-              /system/devices (linked via the hub-grid card)
+              /system/devices (route since removed in the hub-grid prune)
             · Nick brain panel · same memory counts surface on
               /brain · /brain/health · /system/coverage
             · Integrations · same status surfaces on the hub-grid

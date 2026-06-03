@@ -25,6 +25,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/layout/ui";
 import {
   RefreshCw,
   CheckCircle2,
@@ -33,7 +34,6 @@ import {
   Database,
   Activity,
   Flame,
-  ChevronLeft,
   Archive,
 } from "lucide-react";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
@@ -83,51 +83,46 @@ export default function SystemHealthPage() {
   return (
     <main className="max-w-4xl mx-auto px-3 py-4 space-y-4">
       {/* Header */}
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link
-            href="/system"
-            className="shrink-0 text-[var(--text-tertiary)] hover:text-[var(--gold)] transition-colors"
-            aria-label="back to system"
-          >
-            <ChevronLeft size={16} />
-          </Link>
-          <h1 className="text-lg font-[var(--font-display)] font-bold lowercase tracking-[0.14em] text-[var(--text-primary)]">
-            os health
-          </h1>
-          <FreshnessChip
-            lastFetchedAt={data.generatedAt}
-            source="health-report"
-            onReload={load}
-          />
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="inline-flex rounded-md border border-[var(--border-default)] overflow-hidden">
-            {(["24h", "7d", "30d"] as const).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={cn(
-                  "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
-                  range === r
-                    ? "bg-[var(--gold)]/15 text-[var(--gold)]"
-                    : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
-                )}
-              >
-                {r}
-              </button>
-            ))}
+      <PageHeader
+        parentHref="/system"
+        parentLabel="system"
+        eyebrow="System"
+        title="os health"
+        description="Provider, database, cron + integration health at a glance."
+        actions={
+          <div className="flex items-center gap-2">
+            <FreshnessChip
+              lastFetchedAt={data.generatedAt}
+              source="health-report"
+              onReload={load}
+            />
+            <div className="inline-flex rounded-md border border-[var(--border-default)] overflow-hidden">
+              {(["24h", "7d", "30d"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={cn(
+                    "px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider transition-colors",
+                    range === r
+                      ? "bg-[var(--gold)]/15 text-[var(--gold)]"
+                      : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]",
+                  )}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={load}
+              className="p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)]"
+              aria-label="refresh"
+              title="refresh"
+            >
+              <RefreshCw size={14} />
+            </button>
           </div>
-          <button
-            onClick={load}
-            className="p-1.5 rounded text-[var(--text-tertiary)] hover:text-[var(--gold)] hover:bg-[var(--bg-raised)]"
-            aria-label="refresh"
-            title="refresh"
-          >
-            <RefreshCw size={14} />
-          </button>
-        </div>
-      </header>
+        }
+      />
 
       {/* 2026-05-29 · "What's broken now" — operational rollup (AI eval
           pass-rate + nickstire bridge / data-source probes). The two
