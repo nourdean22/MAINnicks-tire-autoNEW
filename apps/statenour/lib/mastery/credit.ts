@@ -24,6 +24,11 @@ export interface XpCredit {
   evidence: string;
   /** Stable per-source id for dedup, e.g. `journal:<entryId>`. */
   sourceKey: string;
+  /** Optional · stamps `metadata.backfillRun = <tag>` on NEWLY-created rows
+   *  only (preserved across re-runs, NEVER added to a live-credited row on
+   *  update) so a backfill run is cleanly reversible via `revertBackfillRun`
+   *  without ever deleting a row some live code path created. */
+  backfillRun?: string;
 }
 
 /**
@@ -44,9 +49,19 @@ export async function creditStatXp(ev: XpCredit): Promise<boolean> {
   const existing = await prisma.brainMemory
     .findUnique({
       where: { category_key: { category: MASTERY_XP_CATEGORY, key } },
-      select: { id: true },
+      select: { id: true, metadata: true },
     })
     .catch(() => null);
+  // Backfill-run marker is stamped ONLY on create, and PRESERVED (never newly
+  // added) on update — so re-running a backfill keeps its own rows marked, but
+  // a backfill that idempotently re-credits a LIVE row (e.g. a task's
+  // goal-task: key) can never mis-mark that live row for deletion.
+  const priorRun =
+    (existing?.metadata as { backfillRun?: string } | null)?.backfillRun;
+  const createMeta: Record<string, unknown> = { stat: ev.stat, xp: ev.xp, signal: ev.signal };
+  if (ev.backfillRun) createMeta.backfillRun = ev.backfillRun;
+  const updateMeta: Record<string, unknown> = { stat: ev.stat, xp: ev.xp, signal: ev.signal };
+  if (priorRun) updateMeta.backfillRun = priorRun;
   await prisma.brainMemory
     .upsert({
       where: { category_key: { category: MASTERY_XP_CATEGORY, key } },
@@ -56,11 +71,11 @@ export async function creditStatXp(ev: XpCredit): Promise<boolean> {
         content: ev.evidence.slice(0, 280),
         source: "mastery-xp",
         createdBy: "system",
-        metadata: { stat: ev.stat, xp: ev.xp, signal: ev.signal } as object,
+        metadata: createMeta as object,
       },
       update: {
         content: ev.evidence.slice(0, 280),
-        metadata: { stat: ev.stat, xp: ev.xp, signal: ev.signal } as object,
+        metadata: updateMeta as object,
       },
     })
     .catch(() => {});
@@ -133,4 +148,24 @@ export async function xpEventTotalsSince(
   since: Date,
 ): Promise<Map<string, number>> {
   return (await sumStatXpSql(since)) ?? (await sumStatXpJs(since));
+}
+
+/**
+ * Reverse a backfill run · hard-deletes every `mastery_xp_event` row stamped
+ * with this `backfillRun` tag — i.e. ONLY rows the run itself CREATED (live
+ * code paths never stamp the marker, so their rows are untouched). XP events
+ * are fully recomputable, so a hard delete is clean + safe. Returns the count
+ * removed. The character sheet re-sums from the surviving rows on next read.
+ */
+export async function revertBackfillRun(runTag: string): Promise<number> {
+  if (!runTag) return 0;
+  const res = await prisma.brainMemory
+    .deleteMany({
+      where: {
+        category: MASTERY_XP_CATEGORY,
+        metadata: { path: ["backfillRun"], equals: runTag },
+      },
+    })
+    .catch(() => ({ count: 0 }));
+  return res.count;
 }
