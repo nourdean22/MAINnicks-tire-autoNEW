@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { ActiveTaskCompanion } from "./active-task-companion";
 import { Badge } from "@/components/ui/badge";
+import { usePromptDialog } from "@/components/ui/confirm-dialog";
 
 import { trpc } from "@/lib/trpc/client";
 // ── Types mirroring /api/ultron/todo-desk response ──────────
@@ -131,6 +132,9 @@ void Moon; void AlertTriangle; void Archive; void Inbox;
 //   alive without a dead-code warning when those sections drop too.
 
 export function TodoDesk() {
+  // iOS-PWA-safe prompt · window.prompt() is silently suppressed in
+  // standalone mode (returns undefined) so the skip flow died silently.
+  const { prompt, dialog: promptDialog } = usePromptDialog();
   const [busyId, setBusyId] = useState<string | null>(null);
   // showWhy state dropped Apr 19 — the why-this-now expander lived
   // on the active-task row which no longer renders expanders on HQ.
@@ -209,7 +213,10 @@ export function TodoDesk() {
   const archive = (id: string) =>
     patchTask(id, { status: "ARCHIVED", autoPriorityExplanation: "parked via desk" }, "parked");
   const skip = async (id: string) => {
-    const reason = window.prompt("skip reason? (one line — logged)");
+    const reason = await prompt({
+      title: "skip reason?",
+      placeholder: "one line — logged",
+    });
     if (reason === null) return;
     const explanation = reason.trim() ? `skipped · ${reason.trim()}` : "skipped";
     await patchTask(id, { status: "INBOX", autoPriorityExplanation: explanation }, "skipped · logged");
@@ -400,6 +407,8 @@ export function TodoDesk() {
        *  DESK surface per the "less bells, more powerful" brief. Both
        *  still live on /tasks where they belong — HQ stays focused on
        *  "what to do right now". */}
+      {/* iOS-PWA-safe prompt mount · renders null when idle. */}
+      {promptDialog}
     </section>
   );
 }

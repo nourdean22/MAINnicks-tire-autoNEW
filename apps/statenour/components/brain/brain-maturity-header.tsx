@@ -19,6 +19,7 @@ import { toast } from "sonner";
 // reset is a `useMutation`.
 import { trpc } from "@/lib/trpc/client";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
+import { useConfirmDialog, usePromptDialog } from "@/components/ui/confirm-dialog";
 
 interface Maturity {
   score: number;               // 0-100 aggregate
@@ -45,6 +46,11 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
   // refreshKey from the parent /brain page polling loop is forwarded as
   // a no-op query input so a bump triggers a refetch on cadence.
   const utils = trpc.useUtils();
+  // iOS-PWA-safe two-gate reset · window.confirm()/prompt() are silently
+  // suppressed in standalone mode · preserve danger-confirm THEN typed
+  // "reset my brain" prompt before nuking the brain state.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
+  const { prompt, dialog: promptDialog } = usePromptDialog();
   const maturityQuery = trpc.brain.maturity.useQuery(undefined);
   const resetMutation = trpc.brain.reset.useMutation();
   const data = (maturityQuery.data as Maturity | undefined) ?? null;
@@ -76,9 +82,18 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
   }, [utils]);
 
   const resetBrain = useCallback(async () => {
-    const first = confirm("Reset the ENTIRE brain state? This clears skills, identity, beliefs, contradictions, ghost accuracy, qualitative identity, and chat importance rows. CANNOT be undone.");
+    const first = await confirm({
+      title: "Reset the ENTIRE brain state?",
+      body: "This clears skills, identity, beliefs, contradictions, ghost accuracy, qualitative identity, and chat importance rows. CANNOT be undone.",
+      confirmLabel: "Continue",
+      tone: "danger",
+    });
     if (!first) return;
-    const second = prompt('Type "reset my brain" to confirm.');
+    const second = await prompt({
+      title: 'Type "reset my brain" to confirm.',
+      placeholder: "reset my brain",
+      confirmLabel: "Reset",
+    });
     if (second !== "reset my brain") {
       toast.info("reset cancelled");
       return;
@@ -89,7 +104,7 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
     } catch (e) {
       toast.error(`reset failed: ${e instanceof Error ? e.message : e}`);
     }
-  }, [resetMutation]);
+  }, [resetMutation, confirm, prompt]);
 
   // The parent /brain polling loop bumps `refreshKey` on cadence ·
   // refetch the maturity rollup on each bump (the initial 0 is the
@@ -191,9 +206,12 @@ export function BrainMaturityHeader({ refreshKey = 0 }: { refreshKey?: number })
         </div>
       </div>
       <p className="text-[9px] text-[var(--text-tertiary)] mt-3">
-        Rollup of all 7 brain subsystems. Refreshes every minute on this page. Higher score = the
+        Rollup of all 7 brain subsystems. Refreshes when brain data changes. Higher score = the
         brain has more signal about who you are and how you operate.
       </p>
+      {/* iOS-PWA-safe two-gate reset mounts · render null when idle. */}
+      {confirmDialog}
+      {promptDialog}
     </GlassCard>
   );
 }

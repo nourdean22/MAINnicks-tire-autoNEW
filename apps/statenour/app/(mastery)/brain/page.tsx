@@ -359,7 +359,7 @@ function LearningVelocityScoreboard() {
           delta={null}
         />
         <ScoreboardCell
-          label="beliefs revised"
+          label="contradictions resolved"
           value={data.contradictionsResolved}
           delta={null}
         />

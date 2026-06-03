@@ -18,7 +18,9 @@
  */
 
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface LedgerEntry {
   id: string;
@@ -163,6 +165,9 @@ export default function LedgerTimeline({
   entries,
   personId,
 }: LedgerTimelineProps) {
+  // iOS-PWA-safe confirm · window.confirm()/alert() are silently
+  // suppressed in standalone mode so the delete guard + error path died.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   // Seed already-pinned ledger ids so the row renders the chip on first paint
   const { data: alphaMoments = [] } = trpc.task.listAlphaMoments.useQuery({
     personId,
@@ -189,14 +194,17 @@ export default function LedgerTimeline({
 
   const handleDelete = async (ledgerId: string, note: string) => {
     const trimmed = note.length > 60 ? note.slice(0, 60) + "…" : note;
-    const confirmed = window.confirm(
-      `Delete this ledger entry?\n\n"${trimmed}"\n\nThe row disappears + interactionCount drops by 1.`,
-    );
+    const confirmed = await confirm({
+      title: "Delete this ledger entry?",
+      body: `"${trimmed}"\n\nThe row disappears + interactionCount drops by 1.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
     if (!confirmed) return;
     try {
       await deleteMutation.mutateAsync({ ledgerId });
     } catch {
-      window.alert("Couldn't delete the entry. Try again.");
+      toast.error("Couldn't delete the entry. Try again.");
     }
   };
 
@@ -279,6 +287,8 @@ export default function LedgerTimeline({
           })}
         </ol>
       )}
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </section>
   );
 }

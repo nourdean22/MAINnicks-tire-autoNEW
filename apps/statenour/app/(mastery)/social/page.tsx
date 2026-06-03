@@ -38,6 +38,7 @@ import { Send, Calendar, Loader2, CheckCircle, AlertCircle, Image as ImageIcon, 
 // socialSchedule / socialRecentImages (queries) and socialPublish /
 // scheduleSocialPost (mutations).
 import { trpc } from "@/lib/trpc/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 interface BufferProfile {
   id: string;
   service: string;
@@ -79,6 +80,9 @@ function SocialPageInner() {
   // &platforms=instagram,facebook  Defaults preserved when params are
   // missing so direct visits still work.
   const searchParams = useSearchParams();
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode · these are irreversible publish/schedule actions.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const initialCaption = searchParams?.get("caption") ?? "";
   const initialImageUrl = searchParams?.get("imageUrl") ?? "";
   const platformsParam = searchParams?.get("platforms");
@@ -150,7 +154,13 @@ function SocialPageInner() {
       setError("Instagram requires an image");
       return;
     }
-    if (!confirm(`Publish to ${targets.join(" + ")}? This is irreversible.`)) return;
+    const ok = await confirm({
+      title: `Publish to ${targets.join(" + ")}?`,
+      body: "This is irreversible.",
+      confirmLabel: "Publish",
+      tone: "danger",
+    });
+    if (!ok) return;
     setPublishing(true);
     try {
       // tRPC surfaces a non-2xx as a thrown error (replacing the
@@ -174,7 +184,7 @@ function SocialPageInner() {
     } finally {
       setPublishing(false);
     }
-  }, [caption, imageUrl, platforms, publishMutation]);
+  }, [caption, imageUrl, platforms, publishMutation, confirm]);
 
   const handleSchedule = useCallback(async () => {
     setError(null);
@@ -196,7 +206,13 @@ function SocialPageInner() {
       : scheduleMode === "datetime"
         ? `Schedule for ${scheduledAt}`
         : "Add to Buffer next-available slot";
-    if (!confirm(`${summary}? Will queue ${selectedProfiles.length} update(s).`)) return;
+    const ok = await confirm({
+      title: `${summary}?`,
+      body: `Will queue ${selectedProfiles.length} update(s).`,
+      confirmLabel: "Schedule",
+      tone: "danger",
+    });
+    if (!ok) return;
     setScheduling(true);
     try {
       // tRPC surfaces a non-2xx as a thrown error (same fix as
@@ -220,7 +236,7 @@ function SocialPageInner() {
     } finally {
       setScheduling(false);
     }
-  }, [caption, imageUrl, selectedProfiles, scheduleMode, scheduledAt, scheduleMutation]);
+  }, [caption, imageUrl, selectedProfiles, scheduleMode, scheduledAt, scheduleMutation, confirm]);
 
   return (
     <StandardPage
@@ -502,6 +518,8 @@ function SocialPageInner() {
           </div>
         </Panel>
       )}
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </StandardPage>
   );
 }

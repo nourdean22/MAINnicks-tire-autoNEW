@@ -30,6 +30,7 @@ import { Pin, PinOff, Plus, Edit3, Save, X, Sparkles, AlertCircle } from "lucide
 // imports remain. Legacy REST route stays mounted.
 import { trpc } from "@/lib/trpc/client";
 import { notifyDataChanged, onDataChanged } from "@/lib/events/data-change";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 interface PinRow {
   id: string;
   key: string;
@@ -79,6 +80,9 @@ function staleClass(s: ReturnType<typeof staleness>): string {
 }
 
 export default function PinsPage() {
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the early-return always fired.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [data, setData] = useState<PinsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +173,12 @@ export default function PinsPage() {
   };
 
   const unpin = async (id: string) => {
-    if (!confirm("Unpin this? (Removes from system-prompt context)")) return;
+    const ok = await confirm({
+      title: "Unpin this?",
+      body: "Removes from system-prompt context.",
+      confirmLabel: "Unpin",
+    });
+    if (!ok) return;
     try {
       await deletePinMutation.mutateAsync({ id });
       await load();
@@ -401,6 +410,8 @@ export default function PinsPage() {
           </p>
         </Panel>
       )}
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </StandardPage>
   );
 }

@@ -229,7 +229,7 @@ export default function DraftsPage() {
                     )}
                     {isApproved && (
                       <Link
-                        href={`/social?draft=${encodeURIComponent(d.key)}`}
+                        href={`/social?caption=${encodeURIComponent(d.content)}`}
                         className="min-h-[44px] px-4 rounded-md border border-sky-500/40 bg-sky-500/10 text-sky-200 text-sm font-medium hover:bg-sky-500/15 inline-flex items-center"
                       >
                         Schedule →

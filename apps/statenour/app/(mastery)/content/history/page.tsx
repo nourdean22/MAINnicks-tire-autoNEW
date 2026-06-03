@@ -319,7 +319,7 @@ export default function ContentHistoryPage() {
                     <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
                       {r.metadata.overall ?? "—"}
                     </span>
-                    <span className="opacity-70">{r.metadata.turnIntent}/{r.metadata.turnShape}</span>
+                    <span className="opacity-70">{r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}</span>
                     <span className="ml-2 opacity-60">
                       {new Date(r.createdAt).toLocaleDateString()}
                     </span>
@@ -340,7 +340,7 @@ export default function ContentHistoryPage() {
                     <span className={cn("font-bold mr-2", scoreTone(r.metadata.overall ?? 0))}>
                       {r.metadata.overall ?? "—"}
                     </span>
-                    <span className="opacity-70">{r.metadata.turnIntent}/{r.metadata.turnShape}</span>
+                    <span className="opacity-70">{r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}</span>
                     <span className="ml-2 opacity-60">
                       {new Date(r.createdAt).toLocaleDateString()}
                     </span>
@@ -428,7 +428,7 @@ export default function ContentHistoryPage() {
                       {r.metadata.cta ?? "—"}
                     </td>
                     <td className="hidden md:table-cell px-2 py-1.5 font-mono text-[10px] text-zinc-400">
-                      {r.metadata.turnIntent}/{r.metadata.turnShape}
+                      {r.metadata.turnIntent ?? "—"}/{r.metadata.turnShape ?? "—"}
                     </td>
                     <td className="hidden md:table-cell px-2 py-1.5 truncate max-w-md text-zinc-300">
                       {r.content.slice(0, 80)}

@@ -25,6 +25,7 @@ import { Loader2, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/lib/trpc/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import type { Project, Task } from "@/components/actions/shared";
 
 // wave-AB.c-audit · enum values mirror the Prisma TaskStatus + the
@@ -86,6 +87,9 @@ function TaskEditSheetBody({
     () => (task as unknown as { loopKind?: string }).loopKind ?? "ONCE",
   );
 
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the delete guard always took the cancel path.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const updateMutation = trpc.task.update.useMutation();
   const deleteMutation = trpc.task.delete.useMutation();
   const utils = trpc.useUtils();
@@ -155,7 +159,11 @@ function TaskEditSheetBody({
   ]);
 
   const handleDelete = useCallback(async () => {
-    const confirmed = window.confirm(`Delete task "${task.title}"?`);
+    const confirmed = await confirm({
+      title: `Delete task "${task.title}"?`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
     if (!confirmed) return;
     try {
       await deleteMutation.mutateAsync({ id: task.id });
@@ -166,7 +174,7 @@ function TaskEditSheetBody({
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Delete failed.");
     }
-  }, [task, deleteMutation, utils, onSaved, onClose]);
+  }, [task, deleteMutation, utils, onSaved, onClose, confirm]);
 
   return (
     <div
@@ -367,6 +375,8 @@ function TaskEditSheetBody({
           </button>
         </footer>
       </div>
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </div>
   );
 }

@@ -952,7 +952,7 @@ function LearningVelocityTicker() {
         <span className="tabular-nums">· {data.newConnections} new connections</span>
       )}
       {data.contradictionsResolved > 0 && (
-        <span className="tabular-nums">· {data.contradictionsResolved} beliefs revised</span>
+        <span className="tabular-nums">· {data.contradictionsResolved} contradictions resolved</span>
       )}
       {data.wisdomPromotions > 0 && (
         <span className="tabular-nums">· {data.wisdomPromotions} wisdom</span>

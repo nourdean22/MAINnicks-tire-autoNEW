@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import { trpc } from "@/lib/trpc/client";
 interface StaleExample {
@@ -44,6 +45,9 @@ interface StaleReport {
 }
 
 export function CoverageStaleView() {
+  // iOS-PWA-safe confirm · window.confirm() is silently suppressed in
+  // standalone mode so the purge guards always took the cancel path.
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
   const [purging, setPurging] = useState<string | null>(null); // category id or "all"
 
   // Phase VV (2026-05-22) · REST→tRPC · the scanner read is a typed
@@ -60,11 +64,13 @@ export function CoverageStaleView() {
   const purgeMutation = trpc.system.purgeStaleData.useMutation();
 
   async function purgeCategory(category: string, title: string) {
-    if (
-      !window.confirm(
-        `Purge "${title}"?\n\nThis will modify DB rows — see the action blurb on the card for exactly what happens. The scanner will re-run afterward so you can verify.`,
-      )
-    ) {
+    const ok = await confirm({
+      title: `Purge "${title}"?`,
+      body: "This will modify DB rows — see the action blurb on the card for exactly what happens. The scanner will re-run afterward so you can verify.",
+      confirmLabel: "Purge",
+      tone: "danger",
+    });
+    if (!ok) {
       return;
     }
     setPurging(category);
@@ -84,11 +90,13 @@ export function CoverageStaleView() {
 
   async function purgeAll() {
     if (!report || report.totalStaleRows === 0) return;
-    if (
-      !window.confirm(
-        `Purge ALL stale data? ${report.totalStaleRows} rows across ${report.categories.filter((c) => c.count > 0).length} categories will be affected. Each category's action is listed on its card. This is reversible in the sense that nothing is destructively deleted beyond the DeviceEvents + orphan conversations — but the action-markers on drift/contradictions/actions are final.`,
-      )
-    ) {
+    const ok = await confirm({
+      title: "Purge ALL stale data?",
+      body: `${report.totalStaleRows} rows across ${report.categories.filter((c) => c.count > 0).length} categories will be affected. Each category's action is listed on its card. This is reversible in the sense that nothing is destructively deleted beyond the DeviceEvents + orphan conversations — but the action-markers on drift/contradictions/actions are final.`,
+      confirmLabel: "Purge all",
+      tone: "danger",
+    });
+    if (!ok) {
       return;
     }
     setPurging("all");
@@ -252,6 +260,8 @@ export function CoverageStaleView() {
         rows are marked resolved / archived where possible; only
         DeviceEvents &gt; 180d and orphan conversations are hard-deleted.
       </p>
+      {/* iOS-PWA-safe confirm mount · renders null when idle. */}
+      {confirmDialog}
     </div>
   );
 }

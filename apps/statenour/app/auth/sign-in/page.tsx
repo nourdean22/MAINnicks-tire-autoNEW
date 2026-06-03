@@ -19,7 +19,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const callbackUrl =
     (rawCallback.startsWith("/") && !rawCallback.startsWith("//"))
       ? rawCallback
-      : process.env.NEXT_PUBLIC_APP_URL || "/habits";
+      : process.env.NEXT_PUBLIC_APP_URL || "/chat";
 
   if (runtimeMode === "google" && operator.email === (process.env.AUTH_ALLOWED_EMAIL || "").trim()) {
     redirect(callbackUrl);
