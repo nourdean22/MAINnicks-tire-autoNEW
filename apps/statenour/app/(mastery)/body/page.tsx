@@ -102,7 +102,18 @@ export default function BodyPage() {
       }));
       setEntries(normalized as unknown as typeof entries);
       setProgress(view.progress ?? null);
-      setFetchedAt(new Date().toISOString());
+      // v-truth · FreshnessChip should reflect the LATEST WEIGH-IN date, not
+      // the fetch time — else a 60-day-old weight always read "live". Robust
+      // max over YYYY-MM-DD (lexical == chronological); falls back to now if
+      // there are no entries.
+      const latestEntryDate = normalized.reduce<string>(
+        (max, e) => {
+          const d = (e as { date?: string }).date ?? "";
+          return d > max ? d : max;
+        },
+        "",
+      );
+      setFetchedAt(latestEntryDate || new Date().toISOString());
     } catch (err) {
       if ((err as { name?: string })?.name === "AbortError") return;
       log.error("body_load_exception", {

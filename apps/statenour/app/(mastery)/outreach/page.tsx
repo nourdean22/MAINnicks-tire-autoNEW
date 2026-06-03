@@ -25,10 +25,14 @@ type LtvTier = "any" | "low" | "mid" | "high";
 
 export default function OutreachPage() {
   const [campaignId, setCampaignId] = useState<string>(suggestCampaignId());
+  // v-truth · neutral defaults. Pre-fix the form opened pre-set to a SPECIFIC
+  // segment (high-LTV slow-payer declined>=$500) that read like a recommended
+  // target but was just a hardcoded default. Default to "any"/"any"/$0 so the
+  // resolved segment honestly reads "all customers" until the operator narrows.
   const [paymentBehavior, setPaymentBehavior] =
-    useState<PaymentBehavior>("slow");
-  const [ltvTier, setLtvTier] = useState<LtvTier>("high");
-  const [minDeclinedDollars, setMinDeclinedDollars] = useState<number>(500);
+    useState<PaymentBehavior>("any");
+  const [ltvTier, setLtvTier] = useState<LtvTier>("any");
+  const [minDeclinedDollars, setMinDeclinedDollars] = useState<number>(0);
   const [recipientCount, setRecipientCount] = useState<number>(1);
   const [bodyPreview, setBodyPreview] = useState<string>(
     "Hey {firstName} — Nour here from Nick's Tire & Auto. Following up on that work we quoted you. We can fit you in this week if you reply with a good time.",
