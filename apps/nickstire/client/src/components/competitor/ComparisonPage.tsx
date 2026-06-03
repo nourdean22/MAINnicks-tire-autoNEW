@@ -382,7 +382,20 @@ function ClosingCta({ headline, sub }: { headline: string; sub: string }) {
 
 /* ─── ROUNDUP TILE (used in roundup format) ──────────────── */
 function RoundupTile({ profile, rank, isNicks }: { profile: CompetitorProfile; rank: number; isNicks: boolean }) {
-  const link = isNicks ? "/" : `/${profile.slug}-tire-alternative-cleveland`;
+  // wave-183b: the competitor "alternative" routes are NOT uniform (firestone/ntb
+  // have no "tire-", monro is "mr-tire-", big-o is "tires-"), so the old
+  // `/${slug}-tire-alternative-cleveland` formula 404'd for 4 of 7 tiles. Map to the
+  // real registered routes (App.tsx); the formula stays as a graceful fallback.
+  const ALT_ROUTES: Record<string, string> = {
+    conrads: "/conrads-tire-alternative-cleveland",
+    mavis: "/mavis-tire-alternative-cleveland",
+    "discount-tire": "/discount-tire-alternative-cleveland",
+    firestone: "/firestone-alternative-cleveland",
+    monro: "/monro-mr-tire-alternative-cleveland",
+    "big-o": "/big-o-tires-alternative-cleveland",
+    ntb: "/ntb-alternative-cleveland",
+  };
+  const link = isNicks ? "/" : (ALT_ROUTES[profile.slug] ?? `/${profile.slug}-tire-alternative-cleveland`);
   return (
     <div className={`rounded-[1.5rem] p-[3px] h-full ${isNicks ? "bg-[#FDB913]/[0.06] ring-1 ring-[#FDB913]/30" : "bg-white/[0.025] ring-1 ring-white/[0.06]"}`}>
       <div className="bg-[#141414] rounded-[calc(1.5rem-3px)] p-6 lg:p-7 h-full flex flex-col shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
