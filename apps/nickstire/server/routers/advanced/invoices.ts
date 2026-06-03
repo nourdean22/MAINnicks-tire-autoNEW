@@ -425,6 +425,14 @@ export const invoicesRouter = router({
       // All queries in parallel for speed
       const [overviewRows, laborPartsRows, monthlyRows, serviceRows, topDaysRows, hourRows, weeklyRows, velocityRows] = await Promise.all([
         // 1. Overview stats
+        // wave-181.x Money · R2 fix · `stats` (the source of the top KPI)
+        // sums only paymentStatus='paid' invoices, but this overview summed
+        // ALL invoices (paid + pending + partial + refunded) — so the two
+        // "Total Revenue" figures for the same period never reconciled.
+        // Scope the overview revenue/realized aggregates to paid so they
+        // match the KPI (paid = honest realized revenue). The labor/parts
+        // split (query 2) and service breakdown (query 4) are SEPARATE
+        // queries and intentionally LEFT all-invoices — see note below.
         d.execute(rawSql`
           SELECT COUNT(*) as cnt, COALESCE(SUM(totalAmount),0) as rev,
                  COALESCE(SUM(laborCost),0) as labor, COALESCE(SUM(partsCost),0) as parts,
@@ -433,6 +441,7 @@ export const invoicesRouter = router({
                  COUNT(DISTINCT customerName) as uniqueCustomers,
                  COUNT(DISTINCT DATE(invoiceDate)) as activeDays
           FROM invoices WHERE invoiceDate >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+            AND paymentStatus = 'paid'
         `),
         // 2. Labor vs Parts ratio
         // NOTE: `both` is a reserved word in TiDB/MySQL — use `bothJobs`.

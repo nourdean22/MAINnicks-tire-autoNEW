@@ -85,7 +85,7 @@ function NextBestActions() {
   if (!data?.actions?.length) return null;
 
   return (
-    <div className="bg-card border-2 border-red-500/30 rounded-lg p-5">
+    <div className="bg-card border-2 border-red-500/30 p-5">
       <div className="flex items-center gap-3 mb-4">
         <div className="p-1.5 rounded bg-red-500/15">
           <Zap className="w-4 h-4 text-red-400" />
@@ -659,7 +659,7 @@ export default function OverviewSection() {
       <NextBestActions />
 
       {/* ─── PRIORITY ACTION QUEUE · the action surface ─── */}
-      <div id="priority-action-queue" className="stat-card !p-5 !border-primary/20 transition-all rounded-xl">
+      <div id="priority-action-queue" className="stat-card !p-5 !border-primary/20 transition-all">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xs font-semibold text-primary tracking-wide uppercase flex items-center gap-2">
             <Zap className="w-3.5 h-3.5" />
@@ -995,7 +995,7 @@ export default function OverviewSection() {
               tabIndex={0}
               onClick={() => navigateToAdminSection("customers")}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") navigateToAdminSection("customers"); }}
-              className="bg-card border border-primary/20 rounded-lg p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
+              className="bg-card border border-primary/20 p-4 cursor-pointer hover:ring-1 hover:ring-primary/40 transition-shadow"
               aria-label="Open customers / work orders"
             >
               <div className="flex items-center gap-3 mb-3">

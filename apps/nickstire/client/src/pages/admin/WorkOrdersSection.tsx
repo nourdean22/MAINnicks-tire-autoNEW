@@ -311,7 +311,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
           {/* Blocker */}
           {wo.blockerType && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 flex items-start gap-2">
+            <div className="bg-red-500/10 border border-red-500/20 p-3 flex items-start gap-2">
               <AlertTriangle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
               <div>
                 <div className="text-xs font-semibold text-red-400">{wo.blockerType.replace(/_/g, " ").toUpperCase()}</div>
@@ -323,14 +323,14 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
 
           {/* Vehicle + Service */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="bg-card border border-border/30 rounded-lg p-3">
+            <div className="bg-card border border-border/30 p-3">
               <div className="text-[10px] text-foreground/40 mb-1">VEHICLE</div>
               <div className="text-xs font-medium">
                 {[wo.vehicleYear, wo.vehicleMake, wo.vehicleModel].filter(Boolean).join(" ") || "—"}
               </div>
               {wo.vehicleVin && <div className="text-[10px] text-foreground/30 mt-0.5 font-mono">{wo.vehicleVin}</div>}
             </div>
-            <div className="bg-card border border-border/30 rounded-lg p-3">
+            <div className="bg-card border border-border/30 p-3">
               <div className="text-[10px] text-foreground/40 mb-1">SERVICE</div>
               <div className="text-xs font-medium line-clamp-2">{wo.serviceDescription || "—"}</div>
             </div>
@@ -404,7 +404,7 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                   ) : [];
 
                   return (
-                    <div key={item.id} className="bg-card border border-border/30 rounded-lg p-2.5">
+                    <div key={item.id} className="bg-card border border-border/30 p-2.5">
                       <div className="flex items-center gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-medium truncate">{item.description}</div>
@@ -482,21 +482,21 @@ function WorkOrderDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           {wo.techNotes && (
             <div>
               <div className="text-[10px] font-semibold text-foreground/40 tracking-wide mb-1">TECH NOTES</div>
-              <div className="text-xs text-foreground/60 bg-card border border-border/30 rounded-lg p-3">{wo.techNotes}</div>
+              <div className="text-xs text-foreground/60 bg-card border border-border/30 p-3">{wo.techNotes}</div>
             </div>
           )}
 
           {/* Financial summary */}
           <div className="grid grid-cols-3 gap-2">
-            <div className="bg-card border border-border/30 rounded-lg p-2.5 text-center">
+            <div className="bg-card border border-border/30 p-2.5 text-center">
               <div className="text-[10px] text-foreground/40">Quoted</div>
               <div className="text-sm font-bold">${Number(wo.quotedTotal || 0).toFixed(2)}</div>
             </div>
-            <div className="bg-card border border-border/30 rounded-lg p-2.5 text-center">
+            <div className="bg-card border border-border/30 p-2.5 text-center">
               <div className="text-[10px] text-foreground/40">Actual</div>
               <div className="text-sm font-bold">${Number(wo.total || 0).toFixed(2)}</div>
             </div>
-            <div className="bg-card border border-border/30 rounded-lg p-2.5 text-center">
+            <div className="bg-card border border-border/30 p-2.5 text-center">
               <div className="text-[10px] text-foreground/40">Margin</div>
               <div className={`text-sm font-bold ${Number(wo.total || 0) > Number(wo.quotedTotal || 0) ? "text-emerald-400" : "text-foreground/60"}`}>
                 {wo.quotedTotal && Number(wo.quotedTotal) > 0
@@ -579,7 +579,7 @@ function PendingPartsView({ onSelectWO }: { onSelectWO: (id: string) => void }) 
     <div className="space-y-4">
       <div className="text-xs text-foreground/40">{parts.length} parts awaiting delivery across {Object.keys(bySupplier).length} suppliers</div>
       {Object.entries(bySupplier).map(([supplier, items]) => (
-        <div key={supplier} className="border border-border/30 rounded-lg overflow-hidden">
+        <div key={supplier} className="border border-border/30 overflow-hidden">
           <div className="bg-card px-3 py-2 flex items-center justify-between border-b border-border/20">
             <span className="text-xs font-semibold flex items-center gap-1.5"><Truck className="w-3.5 h-3.5 text-foreground/40" /> {supplier}</span>
             <span className="text-[10px] text-foreground/40">{(items as PendingPart[]).length} parts</span>
@@ -720,7 +720,7 @@ function PickupQueueView({ onSelectWO }: { onSelectWO: (id: string) => void }) {
           tabIndex={0}
           onClick={() => onSelectWO(String(wo.id))}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectWO(String(wo.id)); } }}
-          className="bg-card border border-emerald-500/20 rounded-lg p-3 flex items-center gap-3 cursor-pointer hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-colors"
+          className="bg-card border border-emerald-500/20 p-3 flex items-center gap-3 cursor-pointer hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 transition-colors"
           aria-label={`Open work order ${wo.orderNumber}`}
         >
           <div className="flex-1 min-w-0">
@@ -803,7 +803,7 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
   }
 
   return (
-    <div className={`${bgColor} border ${borderColor} rounded-lg p-4`}>
+    <div className={`${bgColor} border ${borderColor} p-4`}>
       <div className="flex items-center gap-4 flex-wrap">
         {/* Mood emoji + label — wave-134 lighter weight (was font-black
             tracking-widest uppercase) */}
