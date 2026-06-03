@@ -25,6 +25,7 @@ import { checkAiRateLimit } from "@/lib/rate-limit";
 import { logger as rootLogger } from "@/lib/logger";
 import { buildStreamErrorHandler } from "@/lib/services/chat/stream-error-handler";
 import { buildOnFinish } from "@/lib/services/chat/persist-assistant-turn";
+import { getFlag } from "@/lib/feature-flags";
 // hooks-lib REST→tRPC slice (2026-05-22) · the conversation-list read ·
 // also called by the new `chat.list` tRPC procedure · drift impossible.
 import { listConversations } from "@/lib/services/chat-conversation-read";
@@ -1033,6 +1034,156 @@ ${finalSystemPrompt}`;
     messages,
     log,
   });
+
+  // ═══ v-truth · PRE-STREAM ALTERNATE PATHS (flag-gated · DEFAULT OFF) ═══
+  // Two opt-in paths that generate the FULL reply up front, then ship it as a
+  // simulated stream and persist via the SAME buildOnFinish pipeline (so
+  // history/importance/action-parse all keep working):
+  //   · NICK_DEEP_REASONING — hard turns (complex + decision/analytical) go
+  //     through the decompose->plan->critique->refine reasoning engine.
+  //   · NICK_VERIFIED_REGEN — factual/decision turns get a critic-gated
+  //     best-of-2 (maybePreStreamRegen) before shipping.
+  // SAFETY: strict env+turnSignal gate; the entire block is wrapped in
+  // try/catch — on ANY error (or both flags off) it falls through to the
+  // untouched streamText path below. Operator runtime-verifies by flipping the
+  // flag on Railway (rollback = delete the env var). Flag-off = zero change.
+  const __deepReasonFlag = getFlag("NICK_DEEP_REASONING")?.isOn ?? false;
+  const __verifiedRegenFlag = getFlag("NICK_VERIFIED_REGEN")?.isOn ?? false;
+  if (__deepReasonFlag || __verifiedRegenFlag) {
+    try {
+      const { shouldGateForIntent, maybePreStreamRegen } = await import(
+        "@/lib/ai/chat/pre-stream-regen"
+      );
+      const deepOn =
+        __deepReasonFlag &&
+        turnSignal.complexity === "complex" &&
+        (turnSignal.intent === "decision" || turnSignal.intent === "analytical");
+      const regenOn =
+        !deepOn &&
+        __verifiedRegenFlag &&
+        shouldGateForIntent(
+          turnSignal.intent as Parameters<typeof shouldGateForIntent>[0],
+        );
+
+      if (deepOn || regenOn) {
+        let winner = "";
+
+        if (deepOn) {
+          const { reasonStreaming } = await import("@/lib/ai/reasoning/engine");
+          const reasoning = await reasonStreaming(
+            {
+              question: userContent,
+              brainContext: finalSystemPrompt.slice(0, 8000),
+            },
+            () => {},
+          );
+          winner = reasoning.trace.answer ?? "";
+          log.info("deep_reasoning_path", {
+            tier: reasoning.tier,
+            intent: turnSignal.intent,
+          });
+        } else {
+          const { generateText } = await import("ai");
+          const genBase = {
+            model,
+            messages: sanitizedModelMessages as never,
+            tools: prunedTools as never,
+            stopWhen: stepCountIs(mode === "deep" ? 5 : 3),
+            ...(maxOutputTokens ? { maxOutputTokens } : {}),
+          };
+          const genOnce = async (sys: string, temp: number): Promise<string> => {
+            const r = await generateText({
+              ...genBase,
+              system: sys,
+              temperature: temp,
+            } as Parameters<typeof generateText>[0]);
+            return r.text;
+          };
+          const regen = await maybePreStreamRegen({
+            intent: turnSignal.intent as Parameters<
+              typeof maybePreStreamRegen
+            >[0]["intent"],
+            shape: turnSignal.outputShape,
+            generateOnce: () => genOnce(finalSystemPrompt, turnSignal.temperature),
+            regenOnce: ({ suggestedSystemPrefix }) =>
+              genOnce(
+                `${suggestedSystemPrefix}\n\n${finalSystemPrompt}`,
+                Math.min(0.9, turnSignal.temperature + 0.1),
+              ),
+          });
+          winner = regen.text;
+          log.info("verified_regen_path", {
+            regenFired: regen.regenFired,
+            intent: turnSignal.intent,
+          });
+        }
+
+        if (winner && winner.trim().length > 0) {
+          // Reuse the EXACT persist pipeline streamText would have run.
+          const __altPersist = buildOnFinish({
+            log,
+            convId,
+            conversationId,
+            provider,
+            modelId,
+            model,
+            mode,
+            modeOverride,
+            personality,
+            contentMode,
+            finalSystemPrompt,
+            systemPrompt,
+            finalTaskType,
+            userContent,
+            turnSignal,
+            contextBlocksFired,
+            deeperContextCount,
+            deeperContextTypes,
+            startedAt,
+            firstTokenRef: __firstTokenRef,
+            traceId: __traceId,
+            recordTrace,
+            messages,
+            topicTier,
+          });
+          const { simulateStreamFromText } = await import(
+            "@/lib/ai/chat/simulate-stream-from-text"
+          );
+          const { buildChatResponse } = await import(
+            "@/lib/services/chat/response-shape"
+          );
+          const streamResponse = simulateStreamFromText({
+            text: winner,
+            chunkSize: 24,
+            chunkDelayMs: 8,
+            onComplete: () =>
+              __altPersist({ text: winner, finishReason: "stop" }),
+          });
+          return buildChatResponse({
+            streamResponse,
+            convId: convId!,
+            traceId: __traceId,
+            mode,
+            modeOverride,
+            personality,
+            turnSignal,
+            deeperContextCount,
+            deeperContextTypes,
+            contextBlocksFired,
+          });
+        }
+        // empty winner → fall through to the normal streamText path
+      }
+    } catch (altErr) {
+      log.warn("prestream_alt_path_fallthrough", {
+        error:
+          altErr instanceof Error
+            ? altErr.message.slice(0, 200)
+            : String(altErr),
+      });
+      // fall through to the normal streamText path — the turn still works
+    }
+  }
 
   // v11.0 W7 strict · the AI SDK's streamText options type is extremely
   // narrow about the shape of tools + messages + onFinish combined.
