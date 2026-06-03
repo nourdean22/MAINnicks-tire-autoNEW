@@ -616,6 +616,21 @@ async function chatPostInner(req: Request) {
     systemPrompt += `\n\n# CONTEXT MEMORIES\n${contextMemories.slice(0, mode === "deep" ? 2000 : 1000)}`;
   }
 
+  // v-truth · NICK_ANTICIPATORY_RECALL (default-OFF) · embedding-based
+  // likely-next lane: pre-warm the memories Nick will need NEXT turn from
+  // the conversation trajectory (topic pivots). Self-gates -> "" when off
+  // (zero added latency); 2s-capped + graceful, never breaks the chat.
+  try {
+    const { anticipateMemories } = await import("@/lib/brain/anticipatory-recall");
+    const likelyNext = await anticipateMemories(
+      messages as { role: string; content: string }[],
+      contextMemories ?? "",
+    );
+    if (likelyNext) systemPrompt += `\n\n${likelyNext}`;
+  } catch {
+    /* additive lane — never break chat */
+  }
+
   // v10.0.163 · Entity truth-grounding. Pre-fetch DB state for any
   // project/mission named in the recent turns and inject it as
   // ground truth so the model can't claim a different count.

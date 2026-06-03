@@ -206,6 +206,14 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Proposer ranks by static rules with no memory of what the operator accepted/rejected.",
     ownerDoc: "lib/ai/propose-actions.ts",
   },
+  {
+    key: "NICK_ANTICIPATORY_RECALL",
+    description: "Embedding-based anticipatory recall: in addition to today's keyword tool-prefetch, embeds the recent turn trajectory and pre-warms the memories Nick will likely need NEXT turn (topic pivots), so he doesn't 'forget what we were just discussing'. Additive lane; graceful timeout. OFF = keyword prefetch only (today).",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "predictive-prefetch is keyword-matched tool pre-routing only; no embedding anticipation.",
+    ownerDoc: "lib/ai/predictive-prefetch.ts",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
