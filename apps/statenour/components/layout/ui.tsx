@@ -8,7 +8,10 @@ type PageHeaderProps = {
    *  link-review primitive makes this pattern useful on detail pages. */
   eyebrow: React.ReactNode;
   title: string;
-  description: string;
+  // v-truth · ReactNode (was string) so pages with live-metric subtitles
+  // (seo clicks, funnel rates, financial pace) can adopt StandardPage
+  // without dropping their inline JSX. string still satisfies ReactNode.
+  description: React.ReactNode;
   actions?: React.ReactNode;
   /** v10.0.529.50 · Wave 4 nav upgrade · optional back-link to a
    *  parent hub. When set, renders a thin "← <label>" link above the

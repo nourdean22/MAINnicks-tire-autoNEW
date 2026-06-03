@@ -32,6 +32,7 @@
 
 import { MasterySectionLabel } from "@/components/mastery/mastery-section-label";
 import { BridgeShell } from "@/components/mastery/bridge-shell";
+import { StandardPage } from "@/components/layout/standard-page";
 import { usePollingFetch } from "@/hooks/use-polling-fetch";
 
 interface FunnelStage {
@@ -99,19 +100,19 @@ export default function FunnelPage() {
   if (bridgeOk === "loading" || !overview) return <BridgeShell title="Funnel" state="loading" />;
 
   return (
-    <main className="min-h-[100dvh] bg-[var(--bg-base)] text-white">
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
-        <header>
-          <h1 className="text-2xl font-medium tracking-tight">Funnel</h1>
-          <p className="mt-2 text-sm text-white/50">
-            Nick&apos;s shop conversion · Leads through Retained ·{" "}
-            <span className="text-emerald-300 font-mono">{overview.leadToJobRate}%</span>{" "}
-            lead-to-job ·{" "}
-            <span className="text-emerald-300 font-mono">{overview.leadToRetainedRate}%</span>{" "}
-            lead-to-retained.
-          </p>
-        </header>
-
+    <StandardPage
+      eyebrow="NOUR OS · Intelligence"
+      title="Funnel"
+      description={
+        <>
+          Nick&apos;s shop conversion · Leads through Retained ·{" "}
+          <span className="text-emerald-300 font-mono">{overview.leadToJobRate}%</span>{" "}
+          lead-to-job ·{" "}
+          <span className="text-emerald-300 font-mono">{overview.leadToRetainedRate}%</span>{" "}
+          lead-to-retained.
+        </>
+      }
+    >
         {/* 6-stage funnel */}
         <section className="mt-8 space-y-3">
           <MasterySectionLabel label="Stages" count={overview.stages.length} />
@@ -210,7 +211,6 @@ export default function FunnelPage() {
         <p className="mt-12 text-[10px] uppercase tracking-[0.22em] text-white/30">
           via nickstire bridge · v11.6 · refreshes every 5 min
         </p>
-      </div>
-    </main>
+    </StandardPage>
   );
 }
