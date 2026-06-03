@@ -104,7 +104,16 @@ export async function proposeNickActions(
   // a deterministic morning ordering (same operator state = same queue).
   all.sort((a, b) => PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
 
-  return all.slice(0, MAX_ACTIONS);
+  // v-truth · NICK_OUTCOME_LEARNING (default-OFF) · ranking-only rerank
+  // within priority bands by the operator's historical accept/reject rate
+  // (chronically-rejected types sink past the slice; accepted ones rise).
+  // Flag off = returns `all` unchanged. Never changes WHAT executes.
+  const { scoreByAcceptanceHistory } = await import(
+    "@/lib/ai/propose-actions-history"
+  );
+  const reranked = await scoreByAcceptanceHistory(all);
+
+  return reranked.slice(0, MAX_ACTIONS);
 }
 
 // ── Source 1: archive_mission ──────────────────────────────────────
