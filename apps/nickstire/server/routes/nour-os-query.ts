@@ -696,20 +696,30 @@ const QUERY_HANDLERS: Record<string, QueryHandler> = {
       const rev = report.revenue as { pacing?: { month?: { jobCount?: number } } } | undefined;
       const mkt = report.marketing as { reviewVelocity?: { thisMonth?: number } } | undefined;
 
+      // v-truth · track whether each stage's value came from a REAL source
+      // or a ratio-derived ESTIMATE (the `?? Math.round(...)` fallback). The
+      // statenour /funnel page marks synthetic stages so the operator can tell
+      // real data from a guess — previously these fabricated values rendered
+      // identically to real ones with plausible-looking conversion %.
       const leads = ops?.pipeline?.total ?? cust?.velocity?.totalLeads ?? 0;
-      const estimates = ops?.pipeline?.estimated ?? Math.round(leads * 0.6);
-      const dropoffs = ops?.pipeline?.booked ?? cust?.velocity?.thisMonth ?? Math.round(estimates * 0.4);
-      const jobs = rev?.pacing?.month?.jobCount ?? Math.round(dropoffs * 0.8);
-      const reviews = mkt?.reviewVelocity?.thisMonth ?? Math.round(jobs * 0.15);
-      const retained = cust?.retention?.returning ?? Math.round(jobs * 0.3);
+      const estimatesReal = ops?.pipeline?.estimated;
+      const estimates = estimatesReal ?? Math.round(leads * 0.6);
+      const dropoffsReal = ops?.pipeline?.booked ?? cust?.velocity?.thisMonth;
+      const dropoffs = dropoffsReal ?? Math.round(estimates * 0.4);
+      const jobsReal = rev?.pacing?.month?.jobCount;
+      const jobs = jobsReal ?? Math.round(dropoffs * 0.8);
+      const reviewsReal = mkt?.reviewVelocity?.thisMonth;
+      const reviews = reviewsReal ?? Math.round(jobs * 0.15);
+      const retainedReal = cust?.retention?.returning;
+      const retained = retainedReal ?? Math.round(jobs * 0.3);
 
       const stagesRaw = [
-        { label: "Leads", value: leads },
-        { label: "Estimates", value: estimates },
-        { label: "Drop-Offs", value: dropoffs },
-        { label: "Jobs Done", value: jobs },
-        { label: "Reviews", value: reviews },
-        { label: "Retained", value: retained },
+        { label: "Leads", value: leads, synthetic: false },
+        { label: "Estimates", value: estimates, synthetic: estimatesReal == null },
+        { label: "Drop-Offs", value: dropoffs, synthetic: dropoffsReal == null },
+        { label: "Jobs Done", value: jobs, synthetic: jobsReal == null },
+        { label: "Reviews", value: reviews, synthetic: reviewsReal == null },
+        { label: "Retained", value: retained, synthetic: retainedReal == null },
       ];
       const top = stagesRaw[0]?.value ?? 0;
       const stages = stagesRaw.map((s, i) => {
