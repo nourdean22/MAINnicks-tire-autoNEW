@@ -3,7 +3,7 @@
  * all-time, all-source mastery-XP backfill (lib/mastery/comprehensive-backfill).
  *
  * Run via railway so it reads PROD data with prod env (DB + AI keys):
- *   railway run --service statenour-web pnpm exec tsx scripts/backfill-mastery.ts measure
+ *   railway run --service statenour-web pnpm exec node --conditions=react-server --import tsx scripts/backfill-mastery.ts measure
  *     → FREE, read-only. Counts uncredited items per source ≈ the AI-call count
  *       (the spend) the real run will make. Run this FIRST, before any spend.
  *   railway run ... pnpm exec tsx scripts/backfill-mastery.ts dry
