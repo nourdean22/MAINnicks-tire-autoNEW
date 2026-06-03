@@ -48,6 +48,14 @@ interface SimulateStreamArgs {
    * default if omitted.
    */
   messageId?: string;
+  /**
+   * Optional · fired AFTER the full text is written (post text-end),
+   * before the stream closes. Mirrors streamText's `onFinish` so a
+   * caller shipping a pre-computed reply can still run the SAME
+   * persistence pipeline (buildOnFinish). Errors are swallowed — a
+   * persistence failure must NEVER break the already-delivered stream.
+   */
+  onComplete?: () => void | Promise<void>;
 }
 
 /**
@@ -61,6 +69,7 @@ export function simulateStreamFromText({
   chunkSize = 0,
   chunkDelayMs = 0,
   messageId,
+  onComplete,
 }: SimulateStreamArgs): Response {
   const stream = createUIMessageStream({
     generateId: messageId ? () => messageId : undefined,
@@ -88,6 +97,18 @@ export function simulateStreamFromText({
       }
 
       writer.write({ type: "text-end", id: textPartId });
+
+      // Persist on completion — mirrors streamText's onFinish so the
+      // assistant turn lands in history even though no streamText ran.
+      // Swallow errors: the reply is already delivered; a persist failure
+      // must not surface to the client as a broken stream.
+      if (onComplete) {
+        try {
+          await onComplete();
+        } catch {
+          /* intentionally ignored — delivered stream must not break */
+        }
+      }
     },
   }) as ReadableStream<Parameters<UIMessageStreamWriter<UIMessage>["write"]>[0]>;
 

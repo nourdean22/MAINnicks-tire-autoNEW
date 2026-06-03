@@ -134,7 +134,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_VERIFIED_REGEN",
-    description: "RESERVED · NOT YET WIRED — flipping this currently has NO effect. Will consume the output-critic's shouldRegen verdict (already computed every factual turn) to gate a verifier-guided regeneration before the reply ships. Deferred: needs a pre-stream refactor (the route must generate-before-stream); see INTELLIGENCE-PASS-PLAN W3a. lib/ai/chat/pre-stream-regen.ts is the built engine awaiting wiring.",
+    description: "WIRED. On factual/decision/analytical/procedural/instructional turns, generates the reply non-streaming, runs the critic, and regenerates ONCE (critic-gated best-of-2) before shipping the winner as a stream. Persists via the normal pipeline. Falls through to the normal stream on any error. OFF = single-pass (today's behavior). Adds latency on the regen path only.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "shouldRegen is computed + logged but never acted on; reply ships single-pass.",
@@ -150,7 +150,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_DEEP_REASONING",
-    description: "RESERVED · NOT YET WIRED — flipping this currently has NO effect. Will route hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine) instead of single-pass. Deferred: same pre-stream/SSE refactor as NICK_VERIFIED_REGEN, too risky to ship unverified; see INTELLIGENCE-PASS-PLAN W4. lib/ai/reasoning/engine.ts is the built engine awaiting wiring.",
+    description: "WIRED. Routes hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine, reasonStreaming) instead of single-pass, then ships the answer as a stream + persists normally. Falls through to the normal stream on any error. OFF = all turns single-pass (today). Adds latency/cost on hard turns only.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "Every turn uses the single-pass streamer; the reasoning engine is reachable only via /api/nick/reason.",
