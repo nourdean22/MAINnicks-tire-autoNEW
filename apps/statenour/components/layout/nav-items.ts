@@ -109,9 +109,9 @@ export const NAV_ITEMS: NavItem[] = [
   // value moved to nickstire (per its own docstring); the personal-OS
   // version was low-signal noise. Page deleted, API kept (still used
   // by chat adaptive-placeholder). Best part is no part.
-  { href: "/social",          label: "Publish",         icon: Send },
+  { href: "/content?tab=publish", label: "Publish",      icon: Send },
   { href: "/photo-improver",  label: "Photo Improver",  icon: ImageIcon },
-  { href: "/content/history", label: "Content History", icon: History },
+  { href: "/content?tab=history", label: "Content History", icon: History },
   // Wave AD · 2026-05-28 · /system/prompt + /system/costs deleted ·
   // /system/ai-cost is the only cost surface now · /system/prompt
   // collapsed into /system. next.config redirects in place.

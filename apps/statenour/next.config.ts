@@ -246,6 +246,16 @@ const nextConfig: NextConfig = {
     // catalog (force-static dev reference) → NOT redirected.
     { source: "/body", destination: "/stats#body", permanent: false },
     { source: "/life", destination: "/stats", permanent: false },
+
+    // Wave 2 surface merge · 2026-06-03 · /content/drafts + /content/history
+    // + /social + /outreach folded into the tabbed /content surface (Drafts +
+    // History + Publish + Outreach tabs). Deep links + bookmarks land on the
+    // right tab; the Publish ?caption/?imageUrl/?platforms bridge rides
+    // through (Next forwards the query string).
+    { source: "/content/drafts", destination: "/content?tab=drafts", permanent: false },
+    { source: "/content/history", destination: "/content?tab=history", permanent: false },
+    { source: "/social", destination: "/content?tab=publish", permanent: false },
+    { source: "/outreach", destination: "/content?tab=outreach", permanent: false },
   ],
 };
 

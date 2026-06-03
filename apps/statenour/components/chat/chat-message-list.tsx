@@ -273,7 +273,7 @@ export function ChatMessageList({
                         onSendToSocial={() => {
                           const text = extractMessageText(msg);
                           if (!text) return;
-                          const url = `/social?caption=${encodeURIComponent(text.slice(0, 2200))}`;
+                          const url = `/content?tab=publish&caption=${encodeURIComponent(text.slice(0, 2200))}`;
                           window.open(url, "_blank", "noopener");
                         }}
                         onRegenerate={() => regenerate()}
