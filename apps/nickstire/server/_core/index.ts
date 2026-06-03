@@ -459,7 +459,7 @@ Sitemap: ${SITE_URL}/sitemap-images.xml
 
 ## Services
 - [Brake repair](${b}/brakes): Pads from $149/axle, pads + rotors from $279/axle. Free check, written quote, same-day.
-- [Tires - new & used](${b}/tires): Used from $40 installed, new from $60 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
+- [Tires - new & used](${b}/tires): Used from $25 installed (most sizes $40-80), new from $89 installed. Free install package (mount, balance, valve stems, TPMS reset, alignment check).
 - [Oil change](${b}/oil-change): Conventional from $49, full synthetic from $80. Free 21-point check included.
 - [Engine diagnostics / check-engine light](${b}/diagnostics): Free code scan, honest diagnosis, written estimate first.
 - [Ohio E-Check / emissions](${b}/emissions): Failed-emissions repair, O2 sensors, EVAP, catalytic converters. Same-day pass.
