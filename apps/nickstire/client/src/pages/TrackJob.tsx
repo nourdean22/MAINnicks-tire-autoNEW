@@ -39,7 +39,7 @@ export default function TrackJob() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <SEOHead
         title="Track Your Vehicle Repair | Nick's Tire & Auto Cleveland"
         description="Track your vehicle repair status in real-time at Nick's Tire & Auto. Enter your order number and phone to see live updates on your service."
@@ -49,8 +49,8 @@ export default function TrackJob() {
       <div className="w-full max-w-md space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-white">Track Your Vehicle</h1>
-          <p className="text-sm text-[#A0A0A0] mt-1">Nick's Tire & Auto Service</p>
+          <h1 className="text-2xl font-bold text-foreground">Track Your Vehicle</h1>
+          <p className="text-sm text-muted-foreground mt-1">Nick's Tire & Auto Service</p>
         </div>
 
         {/* Search form */}
@@ -60,19 +60,19 @@ export default function TrackJob() {
             placeholder="Order Number (e.g. WO-2026-123456)"
             value={orderNumber}
             onChange={e => { setOrderNumber(e.target.value); setSearched(false); }}
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:border-[#FDB913]/50 focus:outline-none"
+            className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-lg text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
           />
           <input
             type="tel"
             placeholder="Phone Number"
             value={phone}
             onChange={e => { setPhone(e.target.value); setSearched(false); }}
-            className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder:text-white/30 focus:border-[#FDB913]/50 focus:outline-none"
+            className="w-full px-4 py-3 bg-foreground/5 border border-foreground/10 rounded-lg text-foreground placeholder:text-foreground/30 focus:border-primary/50 focus:outline-none"
           />
           <button
             type="submit"
             disabled={isLoading || !orderNumber || phone.length < 10}
-            className="w-full py-3 bg-[#FDB913] text-black font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-primary text-black font-semibold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
             Track My Vehicle
@@ -82,16 +82,16 @@ export default function TrackJob() {
         {/* Results */}
         {searched && !isLoading && !data && (
           <div className="text-center py-8">
-            <p className="text-[#A0A0A0]">No matching order found. Please check your order number and phone number.</p>
+            <p className="text-muted-foreground">No matching order found. Please check your order number and phone number.</p>
           </div>
         )}
 
         {data && (
-          <div className="border border-white/10 rounded-xl p-5 bg-white/5 space-y-5">
+          <div className="border border-foreground/10 rounded-xl p-5 bg-foreground/5 space-y-5">
             {/* Vehicle */}
             <div className="text-center">
-              <div className="text-lg font-semibold text-white">{data.vehicle || "Your Vehicle"}</div>
-              <div className="text-sm text-[#A0A0A0]">Order #{data.orderNumber}</div>
+              <div className="text-lg font-semibold text-foreground">{data.vehicle || "Your Vehicle"}</div>
+              <div className="text-sm text-muted-foreground">Order #{data.orderNumber}</div>
             </div>
 
             {/* Status badge */}
@@ -101,7 +101,7 @@ export default function TrackJob() {
                   ? "bg-emerald-500/20 text-emerald-400"
                   : data.statusKey === "on_hold"
                   ? "bg-amber-500/20 text-amber-400"
-                  : "bg-[#FDB913]/20 text-[#FDB913]"
+                  : "bg-primary/20 text-primary"
               }`}>
                 {data.status}
               </span>
@@ -119,16 +119,16 @@ export default function TrackJob() {
                   <div key={step.key} className="flex items-center">
                     <div className="flex flex-col items-center">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                        active ? "bg-[#FDB913] text-black" : "bg-white/10 text-white/30"
+                        active ? "bg-primary text-black" : "bg-foreground/10 text-foreground/30"
                       }`}>
                         <Icon className="w-4 h-4" />
                       </div>
-                      <span className={`text-[9px] mt-1 ${active ? "text-white" : "text-white/30"}`}>
+                      <span className={`text-[9px] mt-1 ${active ? "text-foreground" : "text-foreground/30"}`}>
                         {step.label}
                       </span>
                     </div>
                     {i < STATUS_STEPS.length - 1 && (
-                      <div className={`w-8 h-0.5 mx-1 ${active ? "bg-[#FDB913]" : "bg-white/10"}`} />
+                      <div className={`w-8 h-0.5 mx-1 ${active ? "bg-primary" : "bg-foreground/10"}`} />
                     )}
                   </div>
                 );
@@ -138,11 +138,11 @@ export default function TrackJob() {
             {/* Service details */}
             {data.services && data.services.length > 0 && (
               <div>
-                <div className="text-xs text-[#A0A0A0] mb-1">Services</div>
+                <div className="text-xs text-muted-foreground mb-1">Services</div>
                 <div className="space-y-1">
                   {data.services.map((s: string, i: number) => (
-                    <div key={i} className="flex items-center gap-2 text-sm text-white/80">
-                      <ArrowRight className="w-3 h-3 text-[#FDB913]" />
+                    <div key={i} className="flex items-center gap-2 text-sm text-foreground/80">
+                      <ArrowRight className="w-3 h-3 text-primary" />
                       {s}
                     </div>
                   ))}
@@ -152,7 +152,7 @@ export default function TrackJob() {
 
             {/* Promise time */}
             {data.promisedAt && (
-              <div className="flex items-center gap-2 text-sm text-[#A0A0A0] pt-2 border-t border-white/10">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t border-foreground/10">
                 <Clock className="w-4 h-4" />
                 <span>Estimated ready: {new Date(data.promisedAt).toLocaleDateString()} at {new Date(data.promisedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
@@ -161,8 +161,8 @@ export default function TrackJob() {
         )}
 
         {/* Footer */}
-        <div className="text-center text-xs text-[#A0A0A0]">
-          Questions? Call <a href={BUSINESS.phone.href} className="text-[#FDB913] hover:underline">{BUSINESS.phone.display}</a>
+        <div className="text-center text-xs text-muted-foreground">
+          Questions? Call <a href={BUSINESS.phone.href} className="text-primary hover:underline">{BUSINESS.phone.display}</a>
         </div>
       </div>
     </div>
