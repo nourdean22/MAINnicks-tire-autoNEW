@@ -25,16 +25,16 @@ const CONFIG: ServicePageConfig = {
   // upfront. H1 dropped the "no funny business" cliché for the
   // sharper "no time bombs" — operator 4 (anti-pattern of selling
   // tires nobody inspected the DOT date on).
-  title: "Used Tires Cleveland · 4-Point Check · From $40 Installed | Nick's",
+  title: "Used Tires Cleveland · 4-Point Check · From $25 Installed | Nick's",
   description: "Cleveland used tires that don't insult your intelligence. Every tire passes a 4-point check — tread, sidewall, DOT date, plug history — before it earns a spot on your car. Walk-ins 7 days. 4.9★ 1,700+ reviews.",
   eyebrow: "USED TIRES — CLEVELAND'S BEST-KEPT SECRET",
   h1: "USED TIRES CLEVELAND.\n4-POINT CHECK. NO TIME BOMBS.",
   sub: "Need a tire today, not a payment plan? We carry checked used tires in most popular sizes — fully installed, free mount, free balance. Every tire passes a 4-point check before it earns a spot on your car: tread depth measured (not eyeballed), sidewall walked for cracks, DOT date verified (no time bombs), plug history reviewed. Call your size before you drive over — we'll tell you what's on the rack and what we'd put on our own family's car.",
-  startingPrice: "From $40 installed · walk-in 7 days · most under 90 min",
+  startingPrice: "From $25 installed (12-inch rims, subject to availability) · walk-in 7 days · most under 90 min",
   pricingTitle: "USED TIRE PRICING — TRANSPARENT BY DEFAULT",
   pricingSub: "Concrete starting prices below — your exact quote depends on size, but you know the floor before driving over. Mount, balance, valve stems, and disposal included on every install. No mystery 'shop supply' fees. We don't believe in those.",
   tiers: [
-    { name: "Single Used Tire", price: "From $40", sub: "installed (mount, balance, disposal · all-in)", use: "You popped one and need to match the others — most common Cleveland-pothole moment" },
+    { name: "Single Used Tire", price: "From $25", sub: "12-inch rims; most sizes $40-80 installed (mount, balance, disposal · all-in)", use: "You popped one and need to match the others — most common Cleveland-pothole moment" },
     { name: "Pair (matching)", price: "From $79", sub: "two used tires, axle-matched · all-in", use: "Drive-axle replacement — match the pair, not just the one. The other side is wearing too.", featured: true },
     { name: "Full Set (4)", price: "From $159", sub: "four used tires + free alignment check · all-in", use: "Old set is bald, budget is tight, you still want the car safe — the friend-and-family option" },
   ],
@@ -69,7 +69,7 @@ const CONFIG: ServicePageConfig = {
     rows: [
       { label: "Big-box / chain (no inspection disclosure)", price: "$70-100" },
       { label: "Tire-only used lot (no install)", price: "$45-80 + $30 mount fee" },
-      { label: "Nick's Tire & Auto — inspected + installed", price: "From $40 all-in", ours: true },
+      { label: "Nick's Tire & Auto — inspected + installed", price: "From $25 all-in", ours: true },
     ],
     source: "Cleveland-area pricing as observed 2024-2026. 'All-in' means mount, balance, disposal, and tax included.",
   },

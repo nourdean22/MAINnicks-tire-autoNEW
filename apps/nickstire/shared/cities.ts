@@ -89,8 +89,8 @@ export const CITIES: CityData[] = [
     // want LOCAL Parma) wasn't overcome by the Uber drive-time bait.
     // Reframing around price + Sunday-hours value props that local Parma
     // shops don't offer — the only thing that overcomes 25-min drive.
-    metaTitle: "Parma Auto Repair · Used Tires $40 · Open Sundays | Nick's",
-    metaDescription: "Parma drivers — Nick's Tire & Auto. Used tires from $40 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
+    metaTitle: "Parma Auto Repair · Used Tires $25 · Open Sundays | Nick's",
+    metaDescription: "Parma drivers — Nick's Tire & Auto. Used tires from $25 installed (chains won't sell them). Open Sundays 9a-4p when shops close. ★4.9 · 1,700+ reviews. (216) 862-0005",
     heroHeadline: "AUTO REPAIR\nWORTH THE DRIVE FROM PARMA",
     heroSubline: "Parma drivers tired of three different local shops giving three different prices for the same job come to Nick's Tire & Auto for one answer — the honest one. 25 minutes up I-480, and we Uber you home and back so you don't sacrifice a Saturday sitting around. 4.9★ from 1,700+ Cleveland-area drivers who came in skeptical and left with a working car.",
     distance: "15 miles",

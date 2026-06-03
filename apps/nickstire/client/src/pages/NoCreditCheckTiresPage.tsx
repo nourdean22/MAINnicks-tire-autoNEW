@@ -29,10 +29,10 @@ const CONFIG: ServicePageConfig = {
   canonicalPath: "/no-credit-check-tires-cleveland",
   heroImage: "/photos/shopfront-clear-vertical-sign-bays.webp",
   title: "No Credit Check Tires Cleveland · $10 Down · 4 Lenders | Nick's",
-  description: "Cleveland tire shop that doesn't pull credit. $10 down, soft pre-qualification, 4 lenders. Used tires from $40 installed, new from quote. Walk in 7 days. (216) 862-0005",
+  description: "Cleveland tire shop that doesn't pull credit. $10 down, soft pre-qualification, 4 lenders. Used tires from $25 installed, new from quote. Walk in 7 days. (216) 862-0005",
   eyebrow: "NO CREDIT CHECK TIRES CLEVELAND",
   h1: "NO CREDIT CHECK TIRES.\n$10 DOWN · WALK IN ANY DAY.",
-  sub: "Cleveland tire shop that doesn't pull credit. Soft pre-qualification — no FICO ding, no hard inquiry on your report. Four lenders compete for your business (Acima, Snap, Koalafi, American First) so when one says no, the next says yes. $10 starts most approvals. You pick used tires from $40 or new from $80, sign on the tablet, walk out on new tires the same visit when capacity allows. The chains want $200 down and a credit card. Nick's wants $10 and your phone number.",
+  sub: "Cleveland tire shop that doesn't pull credit. Soft pre-qualification — no FICO ding, no hard inquiry on your report. Four lenders compete for your business (Acima, Snap, Koalafi, American First) so when one says no, the next says yes. $10 starts most approvals. You pick used tires from $25 or new from $89, sign on the tablet, walk out on new tires the same visit when capacity allows. The chains want $200 down and a credit card. Nick's wants $10 and your phone number.",
   startingPrice: "$10 down · 4 lenders · no hard credit pull",
   pricingTitle: "WHAT $10 DOWN GETS YOU AT NICK'S",
   pricingSub: "Real out-the-door pricing — mount, balance, valve stems, TPMS reset, and alignment check included. Financing splits the rest into manageable bites.",
@@ -40,13 +40,13 @@ const CONFIG: ServicePageConfig = {
     {
       name: "Used Set of 4",
       price: "From $160",
-      sub: "$40/tire installed · ~$40 down on financing",
+      sub: "$25/tire installed · $10 down on financing",
       use: "DOT-dated tires with measured tread depth — the honest used tire that gets you legal and through Cleveland winter for cheap.",
     },
     {
       name: "New Set of 4",
-      price: "From $320",
-      sub: "$80/tire installed · ~$80 down on financing",
+      price: "From $356",
+      sub: "$89/tire installed · $10 down on financing",
       use: "Fresh treadwear, full warranty, road-hazard coverage available. The set that lasts 4 Cleveland seasons without ever skipping a hill.",
       featured: true,
     },
@@ -84,7 +84,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Can I finance used tires?",
-      a: "Yes. Most chain financing won't cover used tires (or even sell them). Nick's used tires from $40 installed CAN be financed through our 4 lenders — the same $10 minimum down applies. A used set of 4 ($160) is small enough that most customers pay it off inside the 90-day same-as-cash window with no interest.",
+      a: "Yes. Most chain financing won't cover used tires (or even sell them). Nick's used tires from $25 installed CAN be financed through our 4 lenders — the same $10 minimum down applies. A used set of 4 ($160) is small enough that most customers pay it off inside the 90-day same-as-cash window with no interest.",
     },
     {
       q: "How is this different from your /financing page?",

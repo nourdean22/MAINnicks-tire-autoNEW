@@ -245,7 +245,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           {/* Subheadline */}
           {/* 2026-05-06 audit fix · subhead now leads with FCFS model +
               required language: first-come-first-served · used tires
-              from $40 · written estimate before any wrench moves ·
+              from $25 · written estimate before any wrench moves ·
               payment programs (NOT "financing", banned word).
               Closes on the loss-aversion anchor. */}
           {/* 2026-05-06 wave-22 · subhead repositioned to stay clear of the
@@ -271,7 +271,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               animationFillMode: "forwards",
             }}
           >
-            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$40</span> installed. Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
+            Cleveland's first-come-first-served shop on Euclid Ave. Walk in 7 days. Used tires from <span className="text-[#FDB913] font-semibold">$25</span> installed (12-inch rims). Written estimate before any wrench moves. Payment programs on the spot. <span className="text-[#FDB913] font-semibold">Don't let the problem get bigger.</span>
           </p>
 
           {/* 2026-05-06 audit fix · 3-CTA stack per HOMEPAGE_MOCKUP:
@@ -350,7 +350,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
           </div>
 
           {/* 2026-05-06 audit fix · 5-point trust strip per mockup spec:
-              4.9★ · FCFS · $40 tires · Payment programs · Open 7 days.
+              4.9★ · FCFS · $25 tires · Payment programs · Open 7 days.
               Replaces "Financing" (banned) with "Payment programs."
               Drops "free coffee · free opinions" — moved to body. */}
           <div
@@ -366,7 +366,7 @@ function Hero({ reviewData }: { reviewData: HomeReviewData }) {
               {rating.toFixed(1)} from {totalReviews.toLocaleString()}+ reviews
             </span>
             <span className="text-[#A0A0A0]">&bull; First-come-first-served</span>
-            <span className="text-[#A0A0A0]">&bull; Used tires from $40</span>
+            <span className="text-[#A0A0A0]">&bull; Used tires from $25</span>
             <span className="text-[#A0A0A0]">&bull; Payment programs available</span>
             <span className="text-[#A0A0A0]">&bull; Open 7 days incl. Sunday</span>
           </div>
@@ -1121,10 +1121,10 @@ export default function Home() {
       {/* wave-174 — GSC showed homepage at pos 10.7 with 1.37% CTR over
           3,514 impressions. Description was 178 chars → SERP truncated at
           ~160, cutting off the phone number. Trimmed to 156 chars so the
-          phone CTA survives + "$40 used tires" hooks earlier. */}
+          phone CTA survives + "$25 used tires" hooks earlier. */}
       <SEOHead
         title="Nick's Tire & Auto Cleveland · Pull Up for Tires, Drop Off"
-        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $40. Walk in 7 days. Free check, written quote, you don't pay until you say yes. (216) 862-0005"
+        description="Cleveland's first-come-first-served tire + auto shop on Euclid Ave. Used tires from $25. Walk in 7 days. Free check, written quote, you don't pay until you say yes. (216) 862-0005"
         canonicalPath="/"
       />
       <LocalBusinessSchema includeHowTo includeReviews includeServices />

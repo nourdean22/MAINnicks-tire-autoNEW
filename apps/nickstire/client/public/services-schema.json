@@ -34,7 +34,7 @@
       "description": "Installation FREE with tire purchase. Tire prices vary by size and brand.",
       "availability": "https://schema.org/InStock"
     },
-    "termsOfService": "36-month / 36,000-mile labor warranty on all installations",
+    "termsOfService": "12-month / 12,000-mile labor warranty on all installations",
     "hoursAvailable": [
       {
         "@type": "OpeningHoursSpecification",
@@ -265,7 +265,7 @@
     "@type": "Service",
     "serviceType": "Suspension Repair",
     "name": "Suspension & Steering Repair",
-    "description": "Full suspension and steering repair: struts, shocks, control arms, ball joints, tie rods, wheel bearings, and sway bar links. Cleveland's potholes cause constant suspension wear — we fix it right the first time with a 36-month warranty.",
+    "description": "Full suspension and steering repair: struts, shocks, control arms, ball joints, tie rods, wheel bearings, and sway bar links. Cleveland's potholes cause constant suspension wear — we fix it right the first time with a 12-month warranty.",
     "provider": {
       "@type": "AutoRepair",
       "name": "Nick's Tire & Auto",
@@ -349,7 +349,7 @@
     "@type": "Service",
     "serviceType": "Engine Repair",
     "name": "General Engine Repair",
-    "description": "Water pump, timing belt and chain, head gasket, radiator, thermostat, serpentine belt, hoses, and coolant flush. Comprehensive engine repair backed by 36-month / 36,000-mile warranty.",
+    "description": "Water pump, timing belt and chain, head gasket, radiator, thermostat, serpentine belt, hoses, and coolant flush. Comprehensive engine repair backed by 12-month / 12,000-mile warranty.",
     "provider": {
       "@type": "AutoRepair",
       "name": "Nick's Tire & Auto",

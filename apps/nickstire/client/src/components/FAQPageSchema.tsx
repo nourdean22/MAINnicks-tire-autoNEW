@@ -122,7 +122,7 @@ export const TIRE_REPAIR_FAQ: FAQItem[] = [
   },
   {
     q: "What about used tires for replacement?",
-    a: "We stock used tires starting at $40 installed. New tires from $60 installed. Installation includes mount, balance, valve stems, and disposal of your old tire.",
+    a: "We stock used tires from $25 installed (12-inch rims; most sizes $40-80). New tires from $89 installed. Installation includes mount, balance, valve stems, and disposal of your old tire.",
   },
 ];
 
@@ -155,7 +155,7 @@ export const OIL_CHANGE_FAQ: FAQItem[] = [
 export const TIRE_BUYING_FAQ: FAQItem[] = [
   {
     q: "How much do tires cost in Cleveland?",
-    a: "Used tires start at $40 installed · new tires start at $60 installed. Installation is free with every tire — mount, balance, valve stems, and disposal of your old tire all included. We quote your exact size live · no surprise add-ons at the counter.",
+    a: "Used tires from $25 installed (12-inch rims; most sizes $40-80) · new tires from $89 installed. Installation is free with every tire — mount, balance, valve stems, and disposal of your old tire all included. We quote your exact size live · no surprise add-ons at the counter.",
   },
   {
     q: "What's included when I buy tires at Nick's?",
@@ -175,7 +175,7 @@ export const TIRE_BUYING_FAQ: FAQItem[] = [
   },
   {
     q: "Are used tires safe to buy?",
-    a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $40 installed.",
+    a: "The ones we sell are. Every used tire passes a 4-point check before it goes on a car — tread depth, sidewall condition, DOT date, and plug history. We don't sell a tire we wouldn't put on our own family's car. From $25 installed (12-inch rims; most sizes $40-80).",
   },
 ];
 

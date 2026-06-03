@@ -919,7 +919,7 @@ export default function TireFinder() {
             "@type": "Product",
             name: "New & Used Tires at Nick's Tire & Auto",
             description:
-              "Used tires from $40 installed, new tires from $80. Free mount, balance, valve stems, TPMS reset, alignment check on every set. Cleveland's first-come-first-served tire shop on Euclid Ave.",
+              "Used tires from $25 installed, new tires from $89. Free mount, balance, valve stems, TPMS reset, alignment check on every set. Cleveland's first-come-first-served tire shop on Euclid Ave.",
             brand: { "@type": "Brand", name: "Nick's Tire & Auto" },
             category: "Auto Tires",
             image: [
@@ -1092,9 +1092,9 @@ export default function TireFinder() {
               rows={[
                 { label: "Big-box (Costco / Sam's tire centers)", price: "$135 + $89 install" },
                 { label: "Chain shop (Pep Boys / Firestone)", price: "$120 + $99 install" },
-                { label: "Nick's — tire + free install package", price: "From $40", ours: true },
+                { label: "Nick's — tire + free install package", price: "From $25", ours: true },
               ]}
-              source="Nick's free Premium Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $40."
+              source="Nick's free Installation Package ($289+ value): mounting, balancing, valve stems, TPMS reset, disposal, tire rotation for life. Used tires from $25."
             />
             <div className="mt-8">
               <FearCalibrationBlock
@@ -1110,7 +1110,7 @@ export default function TireFinder() {
                   {
                     value: "$1,200",
                     consequence:
-                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $40 used tire would have prevented it.",
+                      "Average bill from a Cleveland-pothole blowout when the tire was already past wear-bar. New rim, new tire, sometimes alignment + suspension. A $25 used tire would have prevented it.",
                     source: "City of Cleveland pothole-claim data; in-shop incident reports.",
                   },
                   {
@@ -1742,7 +1742,7 @@ export default function TireFinder() {
           <div className="grid gap-3 sm:grid-cols-2">
             <a href="/used-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">
               <p className="text-xs font-mono text-primary tracking-wider mb-1">USED TIRES</p>
-              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $40 installed</h3>
+              <h3 className="text-base font-bold text-foreground mb-1.5 group-hover:text-primary transition-colors">From $25 installed</h3>
               <p className="text-foreground/60 text-xs leading-relaxed">Quality-inspected. Tread, sidewall, DOT date verified before install.</p>
             </a>
             <a href="/new-tires-cleveland" className="group block bg-card/60 border border-border/30 rounded-lg p-5 hover:border-primary/40 transition-colors">

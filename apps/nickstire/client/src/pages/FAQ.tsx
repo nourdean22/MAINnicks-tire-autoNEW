@@ -80,7 +80,7 @@ const FAQ_DATA: FAQItem[] = [
   {
     category: "Tires",
     question: "Do you sell new and used tires?",
-    answer: "Yes. New tires from major brands — Goodyear, Cooper, Michelin, Bridgestone — and used tires from $40 installed. Mount, balance, valve stems, alignment check included with every set."
+    answer: "Yes. New tires from major brands — Goodyear, Cooper, Michelin, Bridgestone — and used tires from $25 installed. Mount, balance, valve stems, alignment check included with every set."
   },
   {
     category: "Tires",

@@ -1478,7 +1478,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "What Does an Alternator Replacement Cost?",
-        content: "Alternator replacement in Cleveland runs $350 to $700 for most vehicles, including parts and labor. Some vehicles — especially those with the alternator buried under other components — cost more due to labor time. We use quality replacement alternators with solid warranties. Cheap rebuilt alternators from discount stores fail frequently, and then you are paying for the job twice. At Nick's, we stand behind the repair with our 36-month, 36,000-mile warranty."
+        content: "Alternator replacement in Cleveland runs $350 to $700 for most vehicles, including parts and labor. Some vehicles — especially those with the alternator buried under other components — cost more due to labor time. We use quality replacement alternators with solid warranties. Cheap rebuilt alternators from discount stores fail frequently, and then you are paying for the job twice. At Nick's, we stand behind the repair with our 12-month, 12,000-mile warranty."
       },
       {
         heading: "Get It Diagnosed Right the First Time",
@@ -1517,7 +1517,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Power Steering Repair at Nick's Tire & Auto",
-        content: "We figure out and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 36-month, 36,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
+        content: "We figure out and repair both hydraulic and electric power steering systems. Our technicians identify the exact leak point or failed component so you only pay for what is actually broken. All power steering repairs are covered by our 12-month, 12,000-mile warranty. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. We serve Cleveland, Euclid, Collinwood, and all of Northeast Ohio."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1762,7 +1762,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get an Honest AC Diagnosis at Nick's",
-        content: "We figure out the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 36-month, 36,000-mile warranty."
+        content: "We figure out the actual problem before recommending any repair. A proper AC diagnosis includes pressure testing, leak detection, and component testing. We tell you exactly what is wrong and what it costs before we do any work. No surprises. Call (216) 862-0005 or drive to 17625 Euclid Ave, Euclid. All AC repairs backed by our 12-month, 12,000-mile warranty."
       }
     ],
     relatedServices: ["/general-repair", "/diagnostics"],
@@ -1876,21 +1876,21 @@ export const BLOG_ARTICLES: BlogArticle[] = [
   {
     slug: "warranty-on-auto-repairs-what-to-know",
     title: "Warranty on Auto Repairs: What You Should Know",
-    metaTitle: "Auto Repair Warranty | 36-Month Warranty | Nick's Tire & Auto Cleveland",
-    metaDescription: "Not all repair warranties are equal. Learn what Nick's 36-month/36,000-mile warranty covers and how it compares to industry standards.",
+    metaTitle: "Auto Repair Warranty | 12-Month Warranty | Nick's Tire & Auto Cleveland",
+    metaDescription: "Not all repair warranties are equal. Learn what Nick's 12-month/12,000-mile warranty covers and how it compares to industry standards.",
     category: "Cost Guide",
     publishDate: "2026-04-13",
     readTime: "5 min read",
     heroImage: "https://d2xsxph8kpxj0f.cloudfront.net/310519663423717611/FqYRztyCVa3fHbrFjU6jAV/hero-diagnostics-AN7H3iz5Tow2ab2METgner.webp",
-    excerpt: "A repair is only as good as the warranty behind it. Here is what Nick's 36-month, 36,000-mile warranty covers and why it matters.",
+    excerpt: "A repair is only as good as the warranty behind it. Here is what Nick's 12-month, 12,000-mile warranty covers and why it matters.",
     sections: [
       {
         heading: "Industry Standard Warranties — What Most Shops Offer",
         content: "Most independent auto repair shops offer 12 months or 12,000 miles on parts and labor. Some offer 90 days. Chain shops like Midas or Meineke typically offer 12 to 24 months depending on the service. Dealerships usually offer 12 months or 12,000 miles on non-warranty repair work. The industry average is 12/12 — meaning if the same part fails 13 months later, you are paying for the repair again. That is the standard, and most drivers do not think about it until something fails."
       },
       {
-        heading: "Nick's 36-Month, 36,000-Mile Warranty",
-        content: "We warranty our repairs for 36 months or 36,000 miles — three times the industry standard. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. This is not a gimmick — it is a commitment to doing the job right the first time. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
+        heading: "Nick's 12-Month, 12,000-Mile Warranty",
+        content: "We warranty our repairs for 12 months or 12,000 miles — three times the industry standard. This covers both parts and labor on the repair we performed. If the same component we replaced fails within that window, we repair it again at no cost. This is not a gimmick — it is a commitment to doing the job right the first time. We can offer this warranty because we use quality parts and our technicians do thorough work. Cheap parts and rushed repairs fail early. Quality work lasts, and we back it up."
       },
       {
         heading: "What the Warranty Covers",
@@ -1902,11 +1902,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Repairs You Can Trust",
-        content: "At Nick's Tire and Auto, every repair comes with our 36-month, 36,000-mile warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid. The longest warranty on Euclid Ave in Cleveland."
+        content: "At Nick's Tire and Auto, every repair comes with our 12-month, 12,000-mile warranty. We use quality parts, our technicians take the time to do it right, and we stand behind every job. Call (216) 862-0005 or visit 17625 Euclid Ave, Euclid. The longest warranty on Euclid Ave in Cleveland."
       }
     ],
     relatedServices: ["/brakes", "/general-repair", "/diagnostics"],
-    tags: ["auto repair warranty", "36 month warranty auto repair", "car repair guarantee Cleveland", "warranty on brake repair", "Nick's Tire warranty"]
+    tags: ["auto repair warranty", "12 month warranty auto repair", "car repair guarantee Cleveland", "warranty on brake repair", "Nick's Tire warranty"]
   },
   {
     slug: "auto-repair-payment-programs-bad-credit-cleveland",
@@ -2326,7 +2326,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get the Right Tires at the Right Price",
-        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $40, new budget tires competitively priced, all mounted and balanced on site. We are at 17625 Euclid Ave, Euclid, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — $89 brake specials."
+        content: "Stop by Nick's Tire and Auto and tell us your vehicle, your driving habits, and your budget. We will give you an honest recommendation — not the most expensive tire on the rack, but the right tire for your situation. We carry new and used tires in most common sizes and can special order anything within a day or two. Used tires from $25, new budget tires competitively priced, all mounted and balanced on site. We are at 17625 Euclid Ave, Euclid, open 7 days a week. Call (216) 862-0005 or browse our [tire finder](/tires). Need [brakes](/brakes) while you are here? We do that too — $89 brake specials."
       }
     ],
     relatedServices: ["/tires"],
@@ -2361,7 +2361,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "When to Replace — The Nick's Standard",
-        content: "Here is our recommendation for Cleveland drivers. Replace tires when any of these are true: tread depth is at 4/32 or below (the quarter test), the tire is 6 years old or older regardless of tread, there are visible sidewall cracks or bulges, or there is any sign of belt separation — bumps or waves in the tread surface. Do not wait for all four conditions. Any one of them is enough. Come to Nick's Tire and Auto for a free tire inspection any day of the week. We check tread depth, age, sidewall condition, and wear patterns. If your tires are fine, we will tell you. If they need replacing, we have quality used tires from $40 and new tires at competitive prices. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Browse our [tire inventory](/tires)."
+        content: "Here is our recommendation for Cleveland drivers. Replace tires when any of these are true: tread depth is at 4/32 or below (the quarter test), the tire is 6 years old or older regardless of tread, there are visible sidewall cracks or bulges, or there is any sign of belt separation — bumps or waves in the tread surface. Do not wait for all four conditions. Any one of them is enough. Come to Nick's Tire and Auto for a free tire inspection any day of the week. We check tread depth, age, sidewall condition, and wear patterns. If your tires are fine, we will tell you. If they need replacing, we have quality used tires from $25 and new tires at competitive prices. Call (216) 862-0005 or stop by 17625 Euclid Ave, Euclid. Browse our [tire inventory](/tires)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2396,7 +2396,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Free Tire Safety Inspections at Nick's",
-        content: "Drive into Nick's Tire and Auto any day and we will inspect your tires for free — pressure, tread depth, sidewall condition, age, and signs of internal damage. If something is wrong, we will tell you exactly what it is and what your options are. Used tires from $40, new tires at competitive prices, all mounted and balanced on site. Do not gamble on old or damaged tires — a blowout on I-90 or the Shoreway is not worth the risk. Visit us at 17625 Euclid Ave, Euclid or call (216) 862-0005. Check our [tire inventory](/tires) or schedule a [tire inspection](/contact)."
+        content: "Drive into Nick's Tire and Auto any day and we will inspect your tires for free — pressure, tread depth, sidewall condition, age, and signs of internal damage. If something is wrong, we will tell you exactly what it is and what your options are. Used tires from $25, new tires at competitive prices, all mounted and balanced on site. Do not gamble on old or damaged tires — a blowout on I-90 or the Shoreway is not worth the risk. Visit us at 17625 Euclid Ave, Euclid or call (216) 862-0005. Check our [tire inventory](/tires) or schedule a [tire inspection](/contact)."
       }
     ],
     relatedServices: ["/tires"],
@@ -2921,7 +2921,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Get Back on the Road at Nick's",
-        content: "Whether you limp in on a spare or get towed to our door, Nick's Tire and Auto at 17625 Euclid Ave handles it from there. [Flat tire repair](/tires) starting at $15, quality used tires from $40, new tires from $80, and we are open 7 days a week. No appointment needed for tire emergencies. Call (216) 862-0005 or just show up. We will get you back on the road fast."
+        content: "Whether you limp in on a spare or get towed to our door, Nick's Tire and Auto at 17625 Euclid Ave handles it from there. [Flat tire repair](/tires) starting at $15, quality used tires from $25, new tires from $89, and we are open 7 days a week. No appointment needed for tire emergencies. Call (216) 862-0005 or just show up. We will get you back on the road fast."
       }
     ],
     relatedServices: ["/tires", "/general-repair"],
@@ -3959,7 +3959,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "The used-tire math the chains don't show you",
-        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a used tire from $40 installed × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a $40 used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $40 installed at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
+        content: "Most tire chains don't sell used tires. Corporate policy. The reasons are real — liability, warranty consistency, brand standards. We respect that. But the math the chains don't show you: a used tire from $25 installed × 4 = $240 out the door. A comparable new tire at $200 each + $80 install fees = $880. Same car. Same driving. $640 difference. Used tires are not always the right call — bald is bald, age cracking is age cracking, and a used tire on a high-speed-rated sports car probably isn't a fit. But for the Toyota Camry that does 12 miles a day on Euclid Ave, a $25 used tire with 7/32\" of tread will outlast the $200 new one's relevance to the car's resale value. We sell used tires from $25 installed at Nick's, and every used tire passes a 4-point inspection (tread depth, sidewall integrity, bead seat, age date) stricter than the Ohio driver's test. If a used tire is wrong for your car, we tell you and put new ones on instead."
       },
       {
         heading: "Winter, all-season, all-weather — the Ohio reality",
@@ -3991,11 +3991,11 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "How to pick a tire shop",
-        content: "Chains are fine for some things. National warranty (you can get the same tire serviced anywhere). Brand familiarity. Location density. Coupons. Independents are better at other things. Transparent pricing without coupon games. Walk-in flexibility without appointment friction. Used-tire access. Sunday hours (most chains close). Written estimate before any wrench moves. Red flags at any shop: advertised tire price without total-ticket disclosure (the labor + valve stems + TPMS service + disposal fees that get added at checkout). Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure on adjacent work. Closed Sunday in a 7-day-a-week economy. Green flags: estimate hits your hand in writing before installation. Mechanic shows you the worn part with a flashlight before recommending replacement. Honest about when a $40 used tire fits vs when new is the right call. Open when you're not at work."
+        content: "Chains are fine for some things. National warranty (you can get the same tire serviced anywhere). Brand familiarity. Location density. Coupons. Independents are better at other things. Transparent pricing without coupon games. Walk-in flexibility without appointment friction. Used-tire access. Sunday hours (most chains close). Written estimate before any wrench moves. Red flags at any shop: advertised tire price without total-ticket disclosure (the labor + valve stems + TPMS service + disposal fees that get added at checkout). Recommended-services list that grows mid-job past your authorization. 'While we have it on the lift' upsell pressure on adjacent work. Closed Sunday in a 7-day-a-week economy. Green flags: estimate hits your hand in writing before installation. Mechanic shows you the worn part with a flashlight before recommending replacement. Honest about when a $25 used tire fits vs when new is the right call. Open when you're not at work."
       },
       {
         heading: "Pull up to Nick's",
-        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $40 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served — no appointment system, walk in any day we're awake. Used tires from $25 installed (mount, balance, valve stems, TPMS reset, alignment check, all free). New tires at competitive market rate, with the labor disclosed in writing before the wrench moves. Drop the car off and we'll Uber you back to work; call when it's ready. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
     relatedServices: ["/tires", "/used-tires-cleveland", "/new-tires-cleveland", "/alignment", "/best-tire-shops-cleveland"],
@@ -4140,7 +4140,7 @@ export const BLOG_ARTICLES: BlogArticle[] = [
       },
       {
         heading: "Pull up to Nick's",
-        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served, walk in any day we're awake. Pothole damage assessments, alignment after impact, brake-line + fuel-line inspections, undercarriage rust evaluation, wheel-bend diagnosis — all under one roof. Annual pre-winter and spring damage inspections free whether or not you buy work from us. Used tires from $40 installed when a used tire fits the car. Written estimate before any wrench moves. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
+        content: "Nick's Tire & Auto is at 17625 Euclid Ave, Cleveland, OH 44112. Open Mon-Sat 8am-6pm and Sunday 9am-4pm. The chains close. We don't. First-come-first-served, walk in any day we're awake. Pothole damage assessments, alignment after impact, brake-line + fuel-line inspections, undercarriage rust evaluation, wheel-bend diagnosis — all under one roof. Annual pre-winter and spring damage inspections free whether or not you buy work from us. Used tires from $25 installed when a used tire fits the car. Written estimate before any wrench moves. The yellow sign on Euclid Ave you've probably driven past. (216) 862-0005."
       }
     ],
     relatedServices: ["/alignment", "/tires", "/brakes", "/general-repair", "/best-tire-shops-cleveland"],
