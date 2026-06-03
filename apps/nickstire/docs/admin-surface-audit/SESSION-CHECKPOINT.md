@@ -1,0 +1,36 @@
+# Admin Surface Audit — STATUS (waves 1-3 shipped; held items = operator decisions)
+
+> **Updated:** 2026-06-03 · **Worktree:** `C:\Users\nourd\NOURCITY\.worktrees\nickstire-admin-audit`
+> The full surface of every admin page was audited (5 docs in this dir) and ALL FIX-NOW-safe
+> items shipped across 3 waves. What's left is operator-gated (legal / FTC / pricing /
+> destructive / taste) — listed at the bottom. Read this to resume.
+
+## SHIPPED to origin/main (verified: tsc 0 · vitest 661 · vite+esbuild build green each wave)
+- **Wave 1** `97e15952` — SiteHealth false-zeros + fake integration statuses, Overview ALG-button wrong tab, urgency clamp (List), Declined "7D SENT", dead campaigns mutations, dead intelligence.paymentMix, dead loyalty.awardPoints.
+- **CommandCenter / Y12** `b9f7b110` — deleted the nav-dead, 404-broken NOUR OS Bridge page; kept the consumed nourOsBridge router.
+- **Wave 2** (orig f4c170a0 → rebased `e9e61cd5`) — **U1** money-formatter centralization (shared/format.ts single source; money/ re-exports; 4 private brief copies deleted; WalkIn left — its formatCents is 2-decimal, a genuinely distinct fn). **Uniformity** (U8 resolved → Tailwind semantic tokens canonical): LiveCallsCard violet→primary + undefined-vars→bg-card/text-muted-foreground/border-border; ContentSection purple→primary + GBP date→formatDate; VoiceReceptionist→SearchInput; Campaigns→PageHeader; ReviewRequests/WinBack dates→shared. **Fix-now**: SmsSection double-toast, followUpsRouter.recent excludes pending, Campaigns send-to-0 guard, ReviewRequests "0" input, FollowUps skipped style, WinBack dead declined-segment, SmsPerformance responsive grid.
+- **Wave 3** (orig a908276c → rebased `168199e0`) — **Money**: R1 MoneyBrief now renders (was invisible — all-or-nothing gate relaxed to stats+kpi, lazy-fill); R2 two 30d revenue windows aligned to DATE_SUB midnight + local-day buckets; R4 blank-KPI guards; R8 #888→CHART_THEME.axis (3 sites); R9 ALG copy; C4 dangling comment; M1 membership labels; S2 specials seed dates relative. **Leads/Cust**: L3 Kanban shared UrgencyBadge; L4 tel guards; C1 CustomersBrief honest (no false "healthy"); C5 Customer360 isError; C6 VIP predicate unified; C7 CSV truncation toast; C9 search debounce. **Work/Dispatch**: D2 hot-score top-quartile; W1 drop double-pulse; W4 StatsBar error; P1/P2 Ready-Queue metric = byStatus.ready_for_bay; P3 unified dispatch.load 10s; P4 BayGrid/MetricsStrip/TechManager isError.
+
+## KEY RESOLUTIONS (evidence-based, do NOT re-litigate)
+- **U8 (token system):** Tailwind/shadcn SEMANTIC TOKENS win. The neutral theme (`index.css:1617`) overrides exactly those + defaults to "grit". Standardize on `bg-card`/`text-foreground`/`border-border`/`text-primary`; convert raw/undefined-var outliers to them.
+- **Admin purple:** `--data-purple` (#a855f7) is a SANCTIONED admin data-semantic (`index.css:230-234`). Only decorative raw purple→primary; data-state purple (qc_review) is KEPT.
+- **WalkIn formatters:** its `formatCents` is 2-decimal ($X.XX) — NOT the whole-dollar canonical; correctly not consolidated. (Follow-up: rename to `formatCents2dp` to kill the name-collision.)
+
+## STILL OPEN — OPERATOR DECISIONS (do NOT auto-execute; each risks "messing something up")
+1. **U2 — card-shape uniformity** (the core "make uniform" ask, now unblocked by U8): 5 big sections use `rounded-lg` raw cards + 166 raw `bg-card` usages bypass the square canonical `Panel`. Recommend: square `Panel` = canonical → migrate. High visual churn → wants the operator's go + a direction confirm (square vs rounded).
+2. **R2 residual** — `stats` is paid-only, `intelligence.overview` sums ALL invoices (also drives labor/parts breakdown). Windows now match; totals still differ if unpaid invoices fall in-window. Which is the canonical "Total Revenue" — paid-only or all?
+3. **TCPA** — retention / oil-reminder / voice-callback bulk SMS lack "Reply STOP". `withOptOut()` exists (campaigns.ts:45). Legal — apply at every bulk-send site?
+4. **GBP (Y1 + CT1)** — generator fabricates names/prices → Google AND posts 14/14 identical. FTC risk. Gate/rework before it keeps posting.
+5. **WalkIn oil presets (Y9/W1 + W2)** — quote $82/$127 vs advertised $49/$80; used-tire $145 for "$60 each". Re-anchor to advertised? (operator owns real pricing.)
+6. **WinBack tire_customer (Y8)** — message claims "you got tires" with zero tire signal; overlaps lapsed. Gate on a real tire signal or retire the segment.
+7. **Revenue display** — R3 (labor/parts 0% panel), R5 (all-time tiers under period header), R10 ("MONTHLY PACE" = 3mo avg, not MTD). Label/hide decisions.
+8. **Specials / Coupons** — S1 (no admin-all query → expired specials unmanageable), S4 ("50% off rotation" seed value — real?), Coupons Y13 (maxRedemptions unsettable + unenforced).
+9. **SmsPerformance double-count** — every tagged send logged twice (untagged + tiered) → all rates ~2x. Needs server send-logging root-cause (risky; out of UI scope).
+10. **WinBack segmentCounts** — 5/7 segments show "?"; needs a new `winback.segmentCounts` tRPC route driven by buildSegmentFilter (the send's own source).
+11. **Customers** — C2 (duplicate records → the customer-dedup-plan.md, DESTRUCTIVE, awaiting sign-off + sizing query), C3 (2 dead stat tiles), C4 (Next-Service confidence 0-1 vs 0-100 verify).
+12. **WorkOrders** — W3 (revenue target realism), W5 (200-row pagination cap).
+13. **Env** — stale `STATENOUR_SYNC_URL` on Railway nickstire = the real CommandCenter-404 root cause (code default already correct). Non-secret URL; operator/env action. (Also surfaced live by SettingsStatusTab Cron Health: statenour-live-sync 404, 2388 invoices missing phone, ig-autopost 401 — backend issues, spin off separately.)
+
+## DEFERRED-SAFE (low value, not done): W2 (extract time formatters to shared), various inline-edit/update-mutation nice-to-haves (C3/S3/L2 etc.).
+
+## GOTCHAS: edit only in this worktree; NODE_OPTIONS=--max-old-space-size=3072 + single-fork vitest, never concurrent builds; `pnpm run check`=tsc; push via `bash ~/push-main.sh`. `ReturnType<typeof trpc.x.useQuery>` collapses `data` to `{}` — type lifted-query props against `RouterOutputs[...]` instead.
