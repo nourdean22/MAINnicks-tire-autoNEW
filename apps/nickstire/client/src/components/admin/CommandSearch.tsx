@@ -38,7 +38,6 @@ const SECTION_SHORTCUTS: { id: AdminSection; label: string; keywords: string[]; 
   // below (or click "Walk-In Quote" button on Leads page).
   { id: "overview", label: "Dashboard Overview", keywords: ["dashboard", "overview", "home", "today"], group: "Operations" },
   { id: "trafficFunnel", label: "Traffic → Revenue", keywords: ["funnel", "traffic", "seo", "conversion", "clicks"], group: "Operations" },
-  { id: "commandCenter", label: "NOUR OS Bridge", keywords: ["nour", "brain", "bridge", "sync", "command"], group: "Operations" },
 
   // Sales Pipeline
   // 2026-05-19 MONEY consolidation · Declined + Snap are now inner tabs

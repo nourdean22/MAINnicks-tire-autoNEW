@@ -38,7 +38,6 @@ const SettingsSection = lazy(() => import("./admin/SettingsSection"));
 const RevenueSection = lazy(() => import("./admin/RevenueSection"));
 const CallTrackingSection = lazy(() => import("./admin/CallTrackingSection"));
 const CampaignsSection = lazy(() => import("./admin/OutreachHubSection"));
-const CommandCenterSection = lazy(() => import("./admin/CommandCenterSection"));
 const MembershipsSection = lazy(() => import("./admin/MembershipsSection"));
 // wave-181.x Intelligence Dispersal Wave 3 (2026-05-24) · Intelligence-
 // Section retired entirely. Signals are dispersed to canonical surfaces:
@@ -78,7 +77,6 @@ function SectionContent({ section }: { section: AdminSection }) {
   return (
     <AdminSectionBoundary sectionName={section}>
       <Suspense fallback={<SectionSpinner />}>
-        {section === "commandCenter" && <CommandCenterSection />}
         {section === "overview" && <OverviewSection />}
         {section === "leads" && <LeadsSection />}
         {section === "content" && <ContentSection />}
@@ -171,7 +169,15 @@ const TAB_ALIASES: Record<string, AdminSection> = {
   "money": "revenue",
   "traffic-revenue": "trafficFunnel",
   "content-and-ai": "content",
+  // 2026-06-03 · CommandCenterSection (NOUR OS Bridge page) deleted — it was
+  // nav-orphaned and wrapped a dead Vercel push (404 DEPLOYMENT_NOT_FOUND).
+  // The live cross-ring link is the STATENOUR_SYNC_KEY-gated pull bridge
+  // (server/_core/statenour-bridge-routes.ts). Old bookmarks land on Settings
+  // (which houses system/health/integrations). The footer already links to
+  // bdnick.info for the chat/dashboard, so no NOUR-OS visibility is lost.
   "nour-os-bridge": "settings",
+  commandcenter: "settings",
+  command: "settings",
 
   // Deleted sections (2026-04-24 admin audit) — redirect old bookmarks
   // to the closest live section so no one hits a broken deep-link.
@@ -217,7 +223,7 @@ const TAB_ALIASES: Record<string, AdminSection> = {
 // TAB_ALIASES redirects ?tab=intelligence to "overview" so legacy
 // bookmarks still resolve.
 const VALID_SECTIONS: ReadonlySet<AdminSection> = new Set<AdminSection>([
-  "commandCenter", "overview", "leads", "content", "customers",
+  "overview", "leads", "content", "customers",
   "campaigns", "settings", "revenue", "callTrackingView",
   "trafficFunnel", "voiceReceptionist", "memberships",
 ]);

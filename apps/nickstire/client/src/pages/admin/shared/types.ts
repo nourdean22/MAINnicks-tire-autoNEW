@@ -12,8 +12,13 @@ import type React from "react";
 // 2026-05-19 · walkInCalc removed from union — converted to event-bus
 // drawer (WalkInQuoteDrawer · openWalkInQuote() fires it from anywhere).
 // Old URLs redirect via COMPOUND_REDIRECTS in Admin.tsx.
+// 2026-06-03 · `commandCenter` removed — the NOUR OS Bridge page
+// (CommandCenterSection) was nav-orphaned and wrapped a dead Vercel push
+// (404). Old URLs redirect to "settings" via Admin.tsx TAB_ALIASES. The
+// nourOsBridge tRPC router stays (Admin/Overview/Money/Revenue read its
+// shopFloor query).
 export type AdminSection =
-  | "commandCenter" | "overview" | "leads" | "content" | "customers"
+  | "overview" | "leads" | "content" | "customers"
   | "campaigns" | "settings" | "revenue" | "callTrackingView"
   | "trafficFunnel" | "voiceReceptionist" | "memberships";
 // 2026-05-09 — `reEngagement` removed from AdminSection union. Was a zombie

@@ -64,7 +64,6 @@ export const CHART_THEME = {
 } as const;
 
 export const SECTION_TITLES: Record<AdminSection, string> = {
-  commandCenter: "NOUR OS Bridge",
   overview: "Today",
   leads: "Leads & Estimates",
   content: "Content & AI",
