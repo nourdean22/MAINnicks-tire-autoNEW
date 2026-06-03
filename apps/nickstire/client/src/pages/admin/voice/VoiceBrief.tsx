@@ -74,7 +74,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   // Clarity-gate · loading state · don't render fake numbers
   if (!metrics || !live) {
     return (
-      <div className="bg-card border border-border/40 rounded-lg p-4">
+      <div className="bg-card border border-border/40 p-4">
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
           Loading voice brief…
         </div>
@@ -96,7 +96,7 @@ export function VoiceBrief({ onStuckCallsAction }: VoiceBriefProps) {
   const stuckCount = live.byState?.tool_called ?? 0;
 
   return (
-    <div className="bg-card border border-border/40 rounded-lg p-4 space-y-2.5">
+    <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
           {greeting()} · voice brief

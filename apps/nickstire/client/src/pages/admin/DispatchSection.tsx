@@ -137,7 +137,7 @@ function MetricsStrip({ load: loadQuery }: { load: DispatchLoadQuery }) {
     // Now: 2 cols mobile, 4 cols sm, 7 cols lg.
     <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
       {metrics.map(m => (
-        <div key={m.label} className="bg-card border border-border/40 rounded-lg p-3 text-center">
+        <div key={m.label} className="bg-card border border-border/40 p-3 text-center">
           <div className={`text-xl font-bold ${m.color}`}>{m.value}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">{m.label}</div>
         </div>
@@ -171,7 +171,7 @@ function BayCard({ bay, techs }: { bay: Bay; techs: Tech[] }) {
   const tech = bay.currentTechId ? techs.find(t => t.id === bay.currentTechId) : null;
 
   return (
-    <div className={`border rounded-lg p-4 transition-colors ${
+    <div className={`border p-4 transition-colors ${
       bay.occupied
         ? "border-primary/40 bg-primary/5"
         : "border-border/40 bg-card"
@@ -291,7 +291,7 @@ function AssignmentPanel({ workOrderId, bays }: { workOrderId: string; bays: Bay
   });
 
   return (
-    <div className="border border-border/40 rounded-lg p-4 bg-card space-y-4">
+    <div className="border border-border/40 p-4 bg-card space-y-4">
       <h3 className="text-sm font-medium">Assign Work Order</h3>
 
       {/* Tech recommendations */}
@@ -435,7 +435,7 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
 
   if (!checklist) {
     return (
-      <div className="border border-border/40 rounded-lg p-4 bg-card text-center">
+      <div className="border border-border/40 p-4 bg-card text-center">
         <p className="text-sm text-muted-foreground mb-3">No QC checklist yet</p>
         <CreateQcButton workOrderId={workOrderId} />
       </div>
@@ -447,7 +447,7 @@ function QcChecklistPanel({ workOrderId }: { workOrderId: string }) {
   const roadTestOk = !checklist.roadTestRequired || checklist.roadTestCompleted;
 
   return (
-    <div className="border border-border/40 rounded-lg p-4 bg-card space-y-3">
+    <div className="border border-border/40 p-4 bg-card space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">QC Checklist</h3>
         <span className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -558,7 +558,7 @@ function TechManager({ load: loadQuery }: { load: DispatchLoadQuery }) {
       <h3 className="text-sm font-medium text-muted-foreground mb-2">Technicians ({techs.length})</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
         {techs.map((tech: Tech) => (
-          <div key={tech.id} className="border border-border/40 rounded-lg p-4 bg-card">
+          <div key={tech.id} className="border border-border/40 p-4 bg-card">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-muted-foreground" />

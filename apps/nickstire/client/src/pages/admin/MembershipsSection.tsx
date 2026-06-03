@@ -96,7 +96,7 @@ export default function MembershipsSection() {
       )}
 
       {searchPhone && !lookup.isFetching && lookup.data && !lookup.data.found && (
-        <div className="rounded-lg border border-border/40 bg-card p-6 text-center">
+        <div className="border border-border/40 bg-card p-6 text-center">
           <XCircle className="w-7 h-7 text-foreground/25 mx-auto mb-2" />
           <p className="text-foreground/70 font-medium">No member found for that number.</p>
           <p className="text-foreground/40 text-sm mt-1">They can join at nickstire.org/nonstop-nick or at the counter.</p>
@@ -104,7 +104,7 @@ export default function MembershipsSection() {
       )}
 
       {lookup.data?.found && lookup.data.members.map((m: MemberRow) => (
-        <div key={m.id} className="rounded-lg border border-border/40 bg-card p-5">
+        <div key={m.id} className="border border-border/40 bg-card p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="font-bold text-foreground">{m.name || "Member"}</p>

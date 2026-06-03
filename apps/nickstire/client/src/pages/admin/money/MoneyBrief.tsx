@@ -75,7 +75,7 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
   // arrive (each guarded individually below). shopFloor stays optional.
   if (!stats || !kpi) {
     return (
-      <div className="bg-card border border-border/40 rounded-lg p-4">
+      <div className="bg-card border border-border/40 p-4">
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
           Loading money brief…
         </div>
@@ -129,7 +129,7 @@ export function MoneyBrief({ period, onDeclinedAction }: MoneyBriefProps) {
   const showActionLine = hotCount > 0;
 
   return (
-    <div className="bg-card border border-border/40 rounded-lg p-4 space-y-2.5">
+    <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
           {greeting()} · money brief

@@ -56,7 +56,7 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
   // Clarity-gate · loading state · don't render fake numbers
   if (isLoading) {
     return (
-      <div className="bg-card border border-border/40 rounded-lg p-4">
+      <div className="bg-card border border-border/40 p-4">
         <div className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/30 animate-pulse">
           Loading customer roster…
         </div>
@@ -77,7 +77,7 @@ export function CustomersBrief({ onLapsedAction }: CustomersBriefProps) {
   const emailCoverage = totalCustomers > 0 ? Math.round((withEmail / totalCustomers) * 100) : 0;
 
   return (
-    <div className="bg-card border border-border/40 rounded-lg p-4 space-y-2.5">
+    <div className="bg-card border border-border/40 p-4 space-y-2.5">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold tracking-[0.18em] uppercase text-foreground/45">
           {greeting()} · customer brief

@@ -94,15 +94,15 @@ export default function FollowUpsSection() {
           for ~1-2s while pending+recent queries resolved, then
           flashing the real numbers. Now placeholders during load. */}
       <div className="grid grid-cols-3 gap-4">
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Pending</span>
           <span className="text-2xl font-semibold text-amber-400 tabular-nums">{isLoading ? "—" : pendingCount}</span>
         </div>
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Sent · recent 50</span>
           <span className="text-2xl font-semibold text-emerald-400 tabular-nums">{isLoading ? "—" : sentCount}</span>
         </div>
-        <div className="bg-card border border-border/30 rounded-md p-4">
+        <div className="bg-card border border-border/30 p-4">
           <span className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-1.5">Failed</span>
           <span className="text-2xl font-semibold text-red-400 tabular-nums">{isLoading ? "—" : failedCount}</span>
         </div>
