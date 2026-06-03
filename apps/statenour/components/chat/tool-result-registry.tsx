@@ -512,7 +512,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Drafting mission plan…",
     icon: Trophy,
     color: "gold",
-    link: { href: "/plan", label: "Plan" },
+    link: { href: "/stats", label: "Plan" },
     subtitle: (out) => {
       const o = out as { missionId?: string; title?: string; steps?: unknown[]; count?: number } | null;
       if (!o) return null;
@@ -528,7 +528,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Recording objectives + key results…",
     icon: Target,
     color: "blue",
-    link: { href: "/plan", label: "Plan" },
+    link: { href: "/stats", label: "Plan" },
     subtitle: (out) => {
       const o = out as { count?: number; okrs?: unknown[]; objective?: string } | null;
       if (!o) return null;
@@ -543,7 +543,7 @@ export const TOOL_CONFIG: Record<string, ToolConfig> = {
     runningLabel: "Locking this week's targets…",
     icon: ListChecks,
     color: "gold",
-    link: { href: "/plan", label: "Plan" },
+    link: { href: "/stats", label: "Plan" },
     subtitle: (out) => {
       const o = out as { count?: number; targets?: unknown[] } | null;
       const n = o?.count ?? o?.targets?.length;

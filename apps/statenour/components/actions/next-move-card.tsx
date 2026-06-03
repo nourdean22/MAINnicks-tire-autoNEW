@@ -81,7 +81,7 @@ export function NextMoveCard() {
             <li key={i}>
               {s.taskId ? (
                 <Link
-                  href={`/tasks?focus=${encodeURIComponent(s.taskId)}`}
+                  href={`/missions?focus=${encodeURIComponent(s.taskId)}`}
                   className="flex items-center justify-between gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-raised)]/[0.04] px-2.5 py-1.5 hover:border-[var(--gold)]/40 hover:bg-[var(--gold)]/[0.06] transition-colors focus-visible:outline-none focus-visible:border-[var(--gold)]/60"
                   aria-label={`open task ${s.title}`}
                 >

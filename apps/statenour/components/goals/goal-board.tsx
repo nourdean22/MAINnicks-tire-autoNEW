@@ -1543,7 +1543,7 @@ export function GoalBoard() {
                         );
                         return actionable ? (
                           <Link
-                            href={`/tasks?goalId=${g.id}`}
+                            href={`/missions?goalId=${g.id}`}
                             onClick={(e) => e.stopPropagation()}
                             title={`Add a daily-increment task for this goal (${suggestedAmount}/day)`}
                             className={cn(
@@ -1572,7 +1572,7 @@ export function GoalBoard() {
                           action" answer at a glance, on every goal. */}
                       {g.nextMove && (
                         <Link
-                          href={`/tasks?taskId=${g.nextMove.id}`}
+                          href={`/missions?taskId=${g.nextMove.id}`}
                           onClick={(e) => e.stopPropagation()}
                           className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-1.5 py-0.5 text-[9px] hover:bg-emerald-500/10 transition-colors w-full text-left"
                           title="Open this task on the Actions page"

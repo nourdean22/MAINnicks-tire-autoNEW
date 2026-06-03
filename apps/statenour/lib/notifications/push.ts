@@ -134,7 +134,8 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
 
   // v10.0.529.96 · Wave 40 · chatSeed wins · routes operator to /chat
   // pre-seeded with the suggested prompt + suggestion anchor. Falls
-  // back to payload.url then /command as before.
+  // back to payload.url then home (`/`) — the retired /command route
+  // redirects to home, so land there directly to avoid a dead-route hop.
   let clickUrl: string;
   if (payload.chatSeed) {
     const params = new URLSearchParams({ q: payload.chatSeed.prompt });
@@ -142,7 +143,7 @@ export async function sendPush(payload: PushPayload): Promise<{ sent: number; fa
     if (payload.chatSeed.suggId) params.set("suggId", payload.chatSeed.suggId);
     clickUrl = `/chat?${params.toString()}`;
   } else {
-    clickUrl = payload.url || "/command";
+    clickUrl = payload.url || "/";
   }
 
   // Build notification options based on level
@@ -277,7 +278,7 @@ export async function pushRevenueAlert(amount: number, target: number): Promise<
       title: "🎯 TARGET HIT",
       body: `$${amount.toLocaleString()} — target exceeded!`,
       level: "high",
-      url: "/command",
+      url: "/",
       tag: "revenue",
     });
   } else if (pct >= 80) {
@@ -285,7 +286,7 @@ export async function pushRevenueAlert(amount: number, target: number): Promise<
       title: "📈 Almost There",
       body: `$${amount.toLocaleString()} (${pct}% of target)`,
       level: "medium",
-      url: "/command",
+      url: "/",
       tag: "revenue",
     });
   }
@@ -300,7 +301,7 @@ export async function pushDriftAlert(message: string): Promise<void> {
     title: "⚠️ DRIFT DETECTED",
     body: message,
     level: "high",
-    url: "/command",
+    url: "/",
     tag: "drift",
     chatSeed: {
       prompt: `drift alert just fired · "${message.slice(0, 200)}" · walk me through what's actually happening and what to do about it`,
@@ -316,7 +317,7 @@ export async function pushScoreReminder(): Promise<void> {
     title: "📝 Log Your Score",
     body: "The system can't help what it can't see. 30 seconds.",
     level: "medium",
-    url: "/command#score",
+    url: "/#score",
     tag: "score",
     chatSeed: {
       prompt: `let's log today's score · ask me one quick question at a time (overall · energy · discipline · workout · mood) and updateMasteryScore as we go`,

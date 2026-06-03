@@ -662,12 +662,15 @@ export async function runBrainCycle(): Promise<{ alerts: string[]; patterns: str
       return hour != null && (hour >= 23 || hour <= 4);
     }).length;
 
-    if (!visitedPages.has("/drift") && driftAlerts > 0) {
-      alerts.push(`${driftAlerts} unacknowledged drift alerts but Nour hasn't opened the Drift page today`);
+    // /drift retired → drift + blind-spot signals now live on /brain. (Pre-fix
+    // this checked the dead /drift route, which can never be "visited", so the
+    // alert fired every day driftAlerts>0.)
+    if (!visitedPages.has("/brain") && driftAlerts > 0) {
+      alerts.push(`${driftAlerts} unacknowledged drift alerts but Nour hasn't opened the Brain page (drift + blind-spots) today`);
     }
 
-    if (!visitedPages.has("/tasks") && openTasks > 5) {
-      alerts.push(`${openTasks} open tasks but Tasks page not visited today — execution stalling`);
+    if (!visitedPages.has("/missions") && openTasks > 5) {
+      alerts.push(`${openTasks} open tasks but Missions page not visited today — execution stalling`);
     }
 
     if (lateNightVisits > 3) {

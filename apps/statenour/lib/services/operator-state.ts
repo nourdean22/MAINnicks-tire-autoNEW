@@ -28,7 +28,7 @@
  * NOT in v1 · journal sentiment · mastery deltas · heart-rate-style
  * external signals. Those can layer in later as additional weighted
  * components without changing the public type. The v1 shape is
- * stable enough to consume from /chat · /tasks · /journal surfaces.
+ * stable enough to consume from /chat · /missions · /journal surfaces.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -103,15 +103,15 @@ export function inferMood(input: {
  * Mapping rules (priority order · first match wins):
  *   1. drift >= 0.6 (scattered)        → /system  · triage the noise
  *   2. capacity <= 0.25 (depleted)     → /journal · reflect/recover
- *   3. mood == "energized" + momentum  → /tasks   · ride the wave
+ *   3. mood == "energized" + momentum  → /missions · ride the wave
  *   4. focus < 0.3 + capacity > 0.5    → /brain/board · low-focus
  *                                          high-capacity = strategy
- *   5. fallback                         → /tasks   · default
+ *   5. fallback                         → /missions · default
  *
  * Pure · no side effects · easy to unit-test the boundaries.
  */
 export type LandingSurface =
-  | "/tasks"
+  | "/missions"
   | "/journal"
   | "/system"
   | "/brain/board";
@@ -147,7 +147,7 @@ export function chooseLanding(snapshot: {
   }
   if (snapshot.mood === "energized" && snapshot.momentum >= 0.5) {
     return {
-      surface: "/tasks",
+      surface: "/missions",
       reason: "energy + momentum · ride the wave",
     };
   }
@@ -157,7 +157,7 @@ export function chooseLanding(snapshot: {
       reason: "low focus, high capacity · use the multi-advisor board",
     };
   }
-  // Neutral state · default to /tasks (the daily-driver) ·
+  // Neutral state · default to /missions (the daily-driver) ·
   // operator chip can still show but with a soft "default" reason.
   return null;
 }

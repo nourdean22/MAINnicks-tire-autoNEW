@@ -73,7 +73,7 @@ function extractEntity(
       out.lastJournalEntryId = cleanHash.slice(3);
     } else if (pathname.startsWith("/pins") && cleanHash.startsWith("pin-")) {
       out.lastPinId = cleanHash.slice(4);
-    } else if (pathname.startsWith("/tasks") && cleanHash.startsWith("task-row-")) {
+    } else if (pathname.startsWith("/missions") && cleanHash.startsWith("task-row-")) {
       out.lastTaskId = cleanHash.slice(9);
     }
   }

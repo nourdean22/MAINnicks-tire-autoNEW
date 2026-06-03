@@ -22,7 +22,7 @@ const STORAGE_KEY = "nour-floating-home:recents-v1";
 const MAX_ENTRIES = 3;
 
 export interface RecentPage {
-  /** Top-level path · e.g. "/chat", "/tasks", "/system/health" */
+  /** Top-level path · e.g. "/chat", "/missions", "/system/health" */
   href: string;
   /** Human label · derived from path segments */
   label: string;

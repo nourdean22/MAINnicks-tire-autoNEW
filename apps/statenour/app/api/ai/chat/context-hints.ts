@@ -230,16 +230,16 @@ export async function buildContextHints(
     // on /journal really meant journalDecision). Mapping is intentionally
     // small · only the cases where two tools could plausibly fire.
     const TOOL_BIAS: Record<string, string> = {
-      "/tasks": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
+      "/missions": "createTask · completeTask · snoozeTask · setTaskPriority · updateTask",
       "/journal": "logSituation · journalDecision · classifyThought · reviewDecisionReplay",
       "/pins": "pinMemory · searchMemories",
       "/knowledge": "syncKnowledge · searchColdMemory · searchSkills",
-      "/mastery": "updateMasteryScore · setLifeGoal · logGoalProgress",
+      // /mastery + /plan both consolidated into /stats · merged tool bias.
+      "/stats": "updateMasteryScore · setLifeGoal · logGoalProgress · createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
       "/life": "setLifeGoal · logGoalProgress · archiveGoal · getCommitments",
-      "/plan": "createMissionPlan · setOKRs · setWeeklyTargets · suggestMIT",
       "/brain": "pinMemory · searchMemories · getBlindSpots · buildArchitectureMemory",
       "/system": "getCronStatus · toolHealth · getBrainHealth",
-      "/financial": "getFinancialSnapshot · getProjections · compareLiveRevenue",
+      "/business": "getFinancialSnapshot · getProjections · compareLiveRevenue",
       "/body": "getBodyData",
       "/decisions": "journalDecision · reviewDecisionReplay · getDecisionReplays",
     };
