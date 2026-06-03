@@ -88,6 +88,15 @@ function extractEntities(text: string): string[] {
     "Added", "Created", "Made", "Sent", "Scheduled", "Saved", "Pinned",
     "Linked", "Moved", "Marked", "Completed", "Removed", "Deleted",
     "Started", "Stopped", "Updated", "Posted", "Published",
+    // v-truth · generic business nouns Nick uses about the operator's OWN
+    // shop/metrics — NOT lead/person entities. Pre-fix "Shop status: slow"
+    // made the extractor treat "Shop" as a lead -> nonsensical
+    // "lead score for Shop" / "Open Shop in /leads" chips. Same for the
+    // other metric words that head a sentence in a business reply.
+    "Shop", "Revenue", "Week", "Weekly", "Month", "Projection", "Pipeline",
+    "Status", "Booked", "Invoice", "Invoices", "Estimate", "Estimates",
+    "Lead", "Leads", "Job", "Jobs", "Board", "Avg", "Ticket", "Slow",
+    "Week", "Quarter", "Day", "Daily", "Morning", "Evening", "Night",
   ]);
   const out: string[] = [];
   let m: RegExpExecArray | null;
