@@ -260,9 +260,14 @@ export async function processCrossSellOutreach(): Promise<{ recordsProcessed: nu
       const serviceLabel = SERVICE_LABELS[p.predictedService] || p.predictedService;
       const message = `Hey ${firstName} — based on your last check-up, you're due for ${serviceLabel}. Free check, you don't pay until you say yes. Drop it off anytime. Reply STOP to opt out.`;
 
-      const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true });
-      const { logOutboundSms } = await import("../../services/smsInstrumentation");
-      await logOutboundSms(p.customerPhone, message, result, "cross_sell");
+      const result = await sendSms(p.customerPhone, message, { via: "shop", skipPersist: true, variantKey: "cross_sell" });
+      // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
+      // row from queueForLater (now carries variantKey); logging here too
+      // would double-count it as an untagged twin. Only log the online path.
+      if (!result.queued) {
+        const { logOutboundSms } = await import("../../services/smsInstrumentation");
+        await logOutboundSms(p.customerPhone, message, result, "cross_sell");
+      }
 
       if (result.success) {
         sent++;

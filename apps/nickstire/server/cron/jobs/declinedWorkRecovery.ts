@@ -434,8 +434,15 @@ export async function runDeclinedWorkRecovery(opts?: RecoveryOptions): Promise<R
           serviceDescription: est.serviceDescription,
           customer,
         });
-        const res = await sendSms(est.customerPhone, body, { via: "shop", skipPersist: true });
-        await logOutboundSms(est.customerPhone, body, res, variantKey(touch, profile));
+        const vKey = variantKey(touch, profile);
+        const res = await sendSms(est.customerPhone, body, { via: "shop", skipPersist: true, variantKey: vKey });
+        // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE
+        // tiered row from queueForLater (it carries variantKey now); logging
+        // here too would double-count it as an untagged twin. Only log the
+        // online path, where skipPersist made logOutboundSms the sole writer.
+        if (!res.queued) {
+          await logOutboundSms(est.customerPhone, body, res, vKey);
+        }
 
         if (res.success) {
           // Mark sent column (touch-specific, like the claim above)

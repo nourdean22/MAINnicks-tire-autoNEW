@@ -136,10 +136,15 @@ async function sendWeatherSms(triggerId: string): Promise<number> {
       const firstName = c.firstName || "there";
       const msg = template.replace("{name}", firstName);
       try {
-        const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true });
+        const result = await sendSms(c.phone, msg, { via: "shop", skipPersist: true, variantKey });
         // Log with the weather variantKey so the cooldown above sees this
         // send on the next run and the admin SMS tile counts it.
-        await logOutboundSms(c.phone, msg, result, variantKey);
+        // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
+        // row from queueForLater (now carries variantKey); logging here too
+        // would double-count it as an untagged twin. Only log the online path.
+        if (!result.queued) {
+          await logOutboundSms(c.phone, msg, result, variantKey);
+        }
         if (result.success) sent++;
       } catch (err) {
         log.warn(`Weather SMS failed for customer #${c.id}`, { error: err instanceof Error ? err.message : String(err) });

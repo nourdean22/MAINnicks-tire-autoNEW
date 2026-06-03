@@ -123,13 +123,17 @@ export async function processAbandonedForms(): Promise<{ recordsProcessed: numbe
       const firstName = partial.name?.split(" ")[0] || "there";
       const message = `Hi ${firstName}, looks like you didn't finish booking at Nick's Tire & Auto. Need help? Call (216) 862-0005 or reply here!`;
 
-      const result = await sendSms(partial.phone, message, { via: "shop", skipPersist: true });
+      const result = await sendSms(partial.phone, message, { via: "shop", skipPersist: true, variantKey: "abandoned_form" });
       // Persist with variantKey="abandoned_form" so the cooldown above
       // sees this send next run and the admin SMS tile counts it.
-      // Logged unconditionally (mirrors crossSellOutreach) — a failed
-      // send is recorded as failed.
-      const { logOutboundSms } = await import("./smsInstrumentation");
-      await logOutboundSms(partial.phone, message, result, "abandoned_form");
+      // wave-2026-06 (telemetry dedup) — a QUEUED send already has ONE tiered
+      // row from queueForLater (now carries variantKey); logging here too
+      // would double-count it as an untagged twin. Only log the online path
+      // (a failed online send is still recorded as failed by logOutboundSms).
+      if (!result.queued) {
+        const { logOutboundSms } = await import("./smsInstrumentation");
+        await logOutboundSms(partial.phone, message, result, "abandoned_form");
+      }
       if (result.success) {
         processed++;
         log.info("Abandoned form recovery sent", { sessionId, phone: partial.phone.slice(-4) });
