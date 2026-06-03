@@ -1,6 +1,6 @@
 # Session Changelog — 2026-06-03
 
-Nick's Tire admin overhaul + live customer dedup + code-underneath fixes. Operator-facing record of what shipped to production. Code/file detail lives in the linked audit docs in this directory.
+Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3 architecture decisions. Operator-facing record of what shipped to production. Code/file detail lives in the linked audit docs in this directory.
 
 ## 🔐 Security
 - **Closed a customer-data leak (IDOR)** in the public job tracker — anyone with an order number could pull a walk-in customer's status / vehicle / service list **without** proving their phone. Now fails closed (a phone match is required on every path). `3ac1f22f`, `5cd1151d` (+ regression test).
@@ -10,6 +10,11 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes. Operat
 - **Dupe-proofed going forward** — a new customer from chat/booking now merges into the existing record instead of spawning a twin. `eae7ad60`
 - **Linked 18 orphaned invoices** back to their customers (restores those customers' lifetime value). The remaining ~299 unlinked are anonymous walk-ins / estimates with no real customer — correctly left alone.
 - Phones standardized to 10-digit; customer metrics recomputed so the deduped numbers are authoritative.
+
+## 🏗️ Architecture decisions 1–3 (wave-182, `96ba44d9` — all pure-code, reversible, no schema migration, no prod data-write)
+1. **Work-order ↔ customer joins no longer miss.** `work_orders.customer_id` is polymorphic (a numeric customer id **or** a raw phone string for AI-chat/walk-in jobs **or** the "WALK-IN" sentinel). The reconciliation joins matched only the numeric form, so every phone-keyed job was silently dropped from a customer's backlog and visit history. Both joins now resolve each job to its customer by numeric-id **or** last-10-digit phone. *(Chose this over adding a new indexed column + a production backfill — unnecessary at 1,943 customers and it would add drift risk.)* Bonus: revived a visit-date sync query that had been **throwing every run** (wrong column names) so visit dates were never syncing from work orders; and killed a "comeback" miscount where every anonymous walk-in was treated as the same returning customer.
+2. **`customers.segment` now has one owner.** It was being rewritten by a redundant job registered **three times** (firing 10+×/day, sometimes on stale data) *and* by the main enrichment pipeline. The pipeline is now the single authoritative writer (with full coverage); the redundant job is a no-op (reversible).
+3. **"Total revenue" means one thing everywhere = PAID/collected.** Six surfaces already used paid-only (the headline KPIs); three diverged to all-invoices and were inflated by unpaid/pending/refunded. Standardized the Customers analytics panel (5 queries) **and** the feed into Nick's intelligence (3 queries) to collected revenue.
 
 ## 🤖 Automation / crons
 - **Two "dead" voice features now actually work** — the confirmation-call bot and the voice-recovery closer were registered but **never scheduled** (a wiring bug), so turning their feature flags on did nothing. Now they fire on the daily tier when enabled. `5cd1151d`
@@ -34,11 +39,9 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes. Operat
 ## ⚙️ Infra
 - Fixed the recurring `statenour-live-sync` cron **404** — repointed a stale env URL on Railway (`STATENOUR_SYNC_URL`).
 
-## 🟡 Open — needs an operator decision (not shipped)
-1. `work_orders.customer_id` is a string space that can't join `customers.id` (int) — reconciliation joins miss; a schema refactor.
-2. `customers.segment` has 3 writers on 3 schedules — pick the single owner.
-3. "Total revenue" is paid-only on 3 surfaces vs all-invoices on 4 — pick the canonical definition.
-4. GBP content generator fabricates names/prices to Google — held pending your go.
+## 🟡 Still open
+- **GBP content generator** fabricates names/prices to Google — **held** pending your go (say "unhold GBP").
+- **Deferred (flagged, not half-fixes of #1):** the app-layer SMS paths (drop-off / pickup / decline-recovery) still skip phone-keyed walk-in jobs — a real silent-SMS bug, but it changes live send paths so it needs live-SMS verification as its own unit. Plus a dead always-zero `customerMetrics.totalRevenue` read by the VIP lookup.
 
 ---
 *Full technical detail:* `SESSION-CHECKPOINT.md` (anchored resume record) · `customer-dedup-plan.md` (§ EXECUTION OUTCOME + rollback) · `code-underneath-audit-{data,logic}.md` · the surface audit set (`money.md`, `outreach.md`, `leads-customers.md`, `ops-system.md`, `voice-content-uniformity.md`).
