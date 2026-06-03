@@ -119,12 +119,9 @@ export async function sendDropOffConfirmation(workOrderId: string): Promise<void
       : "We'll text you with a time estimate shortly.";
 
     const message = [
-      `Hi ${ctx.name}! Your car is checked in at Nick's.`,
-      `By dropping off your vehicle, you authorize inspection and approved repairs.`,
-      `We'll text you updates as we work on ${ctx.vehicle}.`,
+      `Your vehicle's checked in at Nick's Tire & Auto.`,
       timeNote,
-      `Need a ride? Uber/Lyft from our location: ${GOOGLE_MAPS_LINK}`,
-      `Questions? ${STORE_PHONE_DISPLAY}`,
+      `We'll keep you posted as the work moves along. Questions? ${STORE_PHONE_DISPLAY}`,
     ].join(" ");
 
     // Wave-103 — drop-off confirmation goes through the shop's real
@@ -159,9 +156,9 @@ export async function sendInProgressUpdate(workOrderId: string): Promise<void> {
       : "";
 
     const message = [
-      `Update: Your ${ctx.vehicle} is now being worked on.`,
+      `Update from Nick's — the work is underway.`,
       timeNote,
-      `We'll text you when it's ready. ${STORE_PHONE_DISPLAY}`,
+      `We'll let you know when it's ready. ${STORE_PHONE_DISPLAY}`,
     ].filter(Boolean).join(" ");
 
     await sendSms(ctx.phone, message, { via: "shop" });
@@ -189,12 +186,10 @@ export async function sendReadyForPickup(workOrderId: string): Promise<void> {
     const { sendSms } = await import("../sms");
 
     const closingTime = getClosingTime();
-    const totalNote = ctx.total ? ` Total: ${ctx.total}.` : "";
 
     const message = [
-      `Great news! Your ${ctx.vehicle} is ready for pickup at Nick's Tire & Auto.`,
-      totalNote,
-      `We're open until ${closingTime} today.`,
+      `Your car's ready for pickup at Nick's Tire & Auto.`,
+      `We're open until ${closingTime} today — pull up any time.`,
       STORE_PHONE_DISPLAY,
     ].filter(Boolean).join(" ");
 

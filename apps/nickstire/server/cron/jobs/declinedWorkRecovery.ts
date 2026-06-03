@@ -66,28 +66,25 @@ function formatMoney(cents: number): string {
 //     this time?) so the relief mechanism lands hardest here.
 //   - "Still on the fence" softened to customer-language phrasing
 //   - Quote-honoring made the explicit hook (sunk-cost recovery)
-export function buildSevenDayMessage(params: {
+export function buildSevenDayMessage(_params: {
   name: string;
   amountCents: number;
   service: string | null;
 }): string {
-  const svc = params.service && params.service.length > 0
-    ? params.service.slice(0, 60)
-    : "the work we quoted";
   return (
-    `Hey ${params.name} — Nick's Tire & Auto. That ${formatMoney(params.amountCents)} ${svc} quote? ` +
-    `Still good this week. Free re-check, no charge, you don't pay until you say yes. ` +
-    `Drop off anytime. Reply STOP to opt out.`
+    `Hey — Nick's Tire & Auto. That quote we wrote up is still good this week. ` +
+    `Free re-check, no charge, you don't pay until you say yes. ` +
+    `Drop off any day. Reply STOP to opt out.`
   );
 }
 
-export function buildThirtyDayMessage(params: {
+export function buildThirtyDayMessage(_params: {
   name: string;
   amountCents: number;
 }): string {
   return (
-    `Hey ${params.name} — it's been a month since we quoted ${formatMoney(params.amountCents)}. ` +
-    `Car stuff doesn't fix itself. We'll honor that quote, free re-check first — you don't pay until you say yes. ` +
+    `Hey — it's been about a month. We'll still honor that quote, ` +
+    `free re-check first, and you don't pay until you say yes. ` +
     `(216) 862-0005. Reply STOP to opt out.`
   );
 }

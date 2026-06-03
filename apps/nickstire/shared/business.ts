@@ -21,7 +21,9 @@ export const SITE_URL =
 export const BUSINESS = {
   name: "Nick's Tire & Auto",
   legalName: "Nick's Tire And Auto",
-  tagline: "Cleveland's Trusted Shop",
+  // wave-182: "Trusted" is on the brand-voice kill list (sounds fake). A plain
+  // descriptive line carries the walk-in eagerness beat + is stronger for SEO.
+  tagline: "Cleveland's walk-in tire & auto shop",
 
   // ─── CONTACT ─────────────────────────────────────────
   phone: {
@@ -163,8 +165,11 @@ export const BUSINESS = {
   },
 
   // ─── USED TIRES (the "too good to be true" hook) ────
+  // wave-182: was a stale "from $40" — the canonical Tire Haiku + VAPI prompt +
+  // all live copy say "$60 installed". A divergent constant is a landmine if any
+  // copy path pulls from here.
   usedTires: {
-    priceDisplay: "from $40",
+    priceDisplay: "from $60 installed",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
   },

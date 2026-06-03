@@ -23,17 +23,17 @@ const log = createLogger("routers:campaigns");
 // ─── CAMPAIGN TEMPLATES ────────────────────────────────
 
 const CAMPAIGN_TEMPLATES: Record<string, (name: string, customMessage?: string) => string> = {
-  maintenance: (firstName: string) =>
-    `Hi ${firstName}, it's been a while! Your vehicle may be due for maintenance. Schedule at Nick's Tire: (216) 862-0005`,
+  maintenance: (_firstName: string) =>
+    `Due for an oil change or a once-over? $49 conventional, $80 synthetic — walk in any day, no appointment. Nick's Tire & Auto, (216) 862-0005`,
 
-  seasonal: (firstName: string) =>
-    `Winter's coming! Get your tires checked before the snow hits. Nick's Tire: (216) 862-0005`,
+  seasonal: (_firstName: string) =>
+    `Winter's on the way — get your tires checked before the snow. Used tires from $60 installed, walk in any day. Nick's Tire & Auto, (216) 862-0005`,
 
-  special_offer: (firstName: string, offer?: string) =>
-    `Exclusive for our customers: ${offer || "10% off your next visit"}. Call Nick's Tire: (216) 862-0005`,
+  special_offer: (_firstName: string, offer?: string) =>
+    `${offer || "10% off your next visit"} at Nick's Tire & Auto — walk in any day, first-come, first-served. (216) 862-0005`,
 
-  winback: (firstName: string) =>
-    `We miss you at Nick's Tire! Come back for 10% off your next visit. (216) 862-0005`,
+  winback: (_firstName: string) =>
+    `It's been a while — come back to Nick's Tire & Auto for 10% off your next visit. Walk in any day, no appointment. (216) 862-0005`,
 };
 
 /**
