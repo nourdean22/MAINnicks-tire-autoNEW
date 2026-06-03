@@ -1080,6 +1080,32 @@ export function startTieredScheduler(): void {
         },
       },
       {
+        // wave-181.84 · AgentPhone Confirmation Bot · was registered ONLY in
+        // registerAllJobs() (the HTTP-trigger registry), but ABSENT from this
+        // tiered scheduler — and _core/index.ts boots ONLY startTieredScheduler(),
+        // so it NEVER fired on a timer (FEATURE_CONFIRMATION_CALLS=1 did nothing).
+        // code-underneath audit · logic finding #1. Now in the daily tier next
+        // to its outreach siblings. Safe to schedule unconditionally: self-gates
+        // on VAPI env + FEATURE_CONFIRMATION_CALLS (OFF by default) + at-most-once
+        // claims + a per-run cap. Left in registerAllJobs for the HTTP path.
+        name: "confirmation-calls",
+        handler: async () => {
+          const { runConfirmationCalls } = await import("./jobs/confirmationCalls");
+          return runConfirmationCalls();
+        },
+      },
+      {
+        // wave-181.85 · AgentPhone Voice Recovery escalation · same timer-dead
+        // bug, same fix — now in the daily tier. Self-gates on FEATURE_VOICE_
+        // RECOVERY (OFF by default) + AGENTPHONE_RECOVERY_AGENT_ID / VAPI env +
+        // at-most-once claims. Left in registerAllJobs for the HTTP-trigger path.
+        name: "voice-recovery",
+        handler: async () => {
+          const { runVoiceRecovery } = await import("./jobs/voiceRecovery");
+          return runVoiceRecovery();
+        },
+      },
+      {
         name: "declined-work-recovery",
         handler: async () => {
           const { getDeclinedWorkLedger } = await import("../services/declinedWorkRecovery");
