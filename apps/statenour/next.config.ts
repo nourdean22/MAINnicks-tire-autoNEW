@@ -218,6 +218,11 @@ const nextConfig: NextConfig = {
     { source: "/system/tire-stock-requests", destination: "https://nickstire.org/admin", permanent: false },
     { source: "/system/vapi-calls", destination: "https://nickstire.org/admin", permanent: false },
     { source: "/customer-360/:customerId*", destination: "https://nickstire.org/admin", permanent: false },
+    // Wave 2 surface merge · 2026-06-03 · /financial + /funnel consolidated
+    // into the tabbed /business surface (Money + Funnel tabs). Deep links +
+    // bookmarks land on the right tab.
+    { source: "/financial", destination: "/business?tab=money", permanent: false },
+    { source: "/funnel", destination: "/business?tab=funnel", permanent: false },
   ],
 };
 

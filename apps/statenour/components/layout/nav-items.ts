@@ -127,7 +127,7 @@ export const NAV_ITEMS: NavItem[] = [
   //          consumes master_report bridge.
   // /seo    · GSC + Ahrefs forensic surface ·
   //          consumes nickstire seo bridges.
-  { href: "/funnel",          label: "Funnel",          icon: Filter },
+  { href: "/business?tab=funnel", label: "Funnel",          icon: Filter },
   { href: "/radar",           label: "Radar",           icon: Radar },
   { href: "/seo",             label: "SEO",             icon: Search },
 

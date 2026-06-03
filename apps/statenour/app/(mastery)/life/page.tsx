@@ -47,7 +47,7 @@ const ITEMS: HubItem[] = [
     icon: Activity,
   },
   {
-    href: "/financial",
+    href: "/business?tab=money",
     label: "financial",
     blurb: "net worth · revenue target · monthly snapshot",
     icon: DollarSign,

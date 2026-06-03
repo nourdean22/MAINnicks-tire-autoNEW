@@ -114,7 +114,7 @@ async function pickRevenueToday(): Promise<ScoreboardNumber> {
     trend: "flat",
     anomalous: false,
     why: null,
-    link: "/financial",
+    link: "/business?tab=money",
   };
 }
 

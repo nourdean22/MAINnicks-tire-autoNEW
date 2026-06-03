@@ -234,7 +234,7 @@ export function CommandPalette() {
       { id: "nav-tasks", label: "Tasks / Actions", group: "Navigate", icon: <ClipboardListIcon className="size-4" />, action: () => navigate("/missions"), shortcut: "G T", keywords: ["tasks", "actions", "missions", "loops", "queue"] },
       { id: "nav-journal", label: "Journal", group: "Navigate", icon: <BookOpenIcon className="size-4" />, action: () => navigate("/journal"), shortcut: "G J", keywords: ["journal", "reflect", "dump"] },
       { id: "nav-mastery", label: "Stats", group: "Navigate", icon: <BrainIcon className="size-4" />, action: () => navigate("/stats"), keywords: ["mastery", "growth", "goals", "character", "level", "xp", "stats"] },
-      { id: "nav-financial", label: "Financial / Money", group: "Navigate", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/financial"), keywords: ["money", "income"] },
+      { id: "nav-financial", label: "Financial / Money", group: "Navigate", icon: <DollarSignIcon className="size-4" />, action: () => navigate("/business?tab=money"), keywords: ["money", "income", "business", "funnel"] },
       { id: "nav-settings", label: "Settings", group: "Navigate", icon: <CogIcon className="size-4" />, action: () => navigate("/settings") },
 
       // ═══ DIAGNOSTICS — push+pull probe hub (ENR3/ENR4) ═══
