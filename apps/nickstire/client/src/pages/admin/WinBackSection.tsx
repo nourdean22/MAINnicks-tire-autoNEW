@@ -37,7 +37,6 @@ const SEGMENT_LABELS: Record<string, string> = {
   lapsed: "Lapsed (90-180d)",
   dormant: "Dormant (180-365d)",
   lost: "Lost (365d+)",
-  tire_customer: "Tire Customers",
   vip: "VIP Customers",
   fleet: "Fleet/Commercial",
   recent: "Recent (30-90d)",
@@ -52,7 +51,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bgColor: str
 
 function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated: (id: number) => void }) {
   const [name, setName] = useState("");
-  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "tire_customer" | "vip" | "fleet" | "recent">("lapsed");
+  const [segment, setSegment] = useState<"lapsed" | "dormant" | "lost" | "vip" | "fleet" | "recent">("lapsed");
   const [creating, setCreating] = useState(false);
 
   const { data: customerStats } = trpc.customers.stats.useQuery();
@@ -66,10 +65,10 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
   });
 
   // wave-112 — was `as any`; now honest cast. customers.stats only
-  // exposes 4 of the 8 win-back segment keys (lapsed, recent, vipCount,
-  // commercial). For the others (dormant, lost, declined, tire_customer)
-  // the lookup is undefined → 0. TODO: add winback.segmentCounts server
-  // route exposing all 8 so the operator sees real counts before launching.
+  // exposes a few of the win-back segment keys (lapsed, recent). For the
+  // others (dormant, lost, vip, fleet) the lookup is undefined → 0.
+  // TODO: add a winback.segmentCounts server route exposing every
+  // selectable segment so the operator sees real counts before launching.
   const stats = customerStats as Record<string, number> | undefined | null;
   const segmentCount = stats?.[segment] ?? 0;
 
@@ -117,15 +116,16 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
 
         <div>
           <label className="block text-[11px] uppercase tracking-[0.15em] text-foreground/50 font-medium mb-2">Target segment</label>
-          {/* wave-133 — was grid-cols-4 fixed; 8 segments × ~79px wide
+          {/* wave-133 — was grid-cols-4 fixed; many segments × ~79px wide
               at 375px = unusable touch targets. Mobile collapses to
               2 cols (~160px each), 4 cols only at sm+ (640px+). */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {/* wave-150 · "declined" removed — the 50/day declined-recovery cron now owns that pool (a winback campaign here would double-text it). */}
-            {(["lapsed", "dormant", "lost", "tire_customer", "vip", "fleet", "recent"] as const).map(s => {
+            {/* wave-150 · "declined" removed — the 50/day declined-recovery cron now owns that pool (a winback campaign here would double-text it).
+                "tire_customer" removed — no tire signal (filter was just <90d), so "you got tires from us" was a false claim to non-tire customers. */}
+            {(["lapsed", "dormant", "lost", "vip", "fleet", "recent"] as const).map(s => {
               const labels: Record<string, string> = {
                 lapsed: "Lapsed (90-180d)", dormant: "Dormant (180-365d)", lost: "Lost (365d+)",
-                tire_customer: "Tire Customers", vip: "VIP",
+                vip: "VIP",
                 fleet: "Fleet/Commercial", recent: "Recent (30-90d)",
               };
               const count = customerStats?.[s as keyof typeof customerStats] ?? "?";
@@ -172,12 +172,6 @@ function CreateCampaign({ onClose, onCreated }: { onClose: () => void; onCreated
               <>
                 <StepPreview step={1} delay="Immediately" desc="Re-introduction: A lot has changed, come see what's new" />
                 <StepPreview step={2} delay="Day 10" desc="Incentive: 10% off first service back" />
-              </>
-            )}
-            {segment === "tire_customer" && (
-              <>
-                <StepPreview step={1} delay="Immediately" desc="Rotation due: Quick in-and-out, extends tire life" />
-                <StepPreview step={2} delay="Day 14" desc="Wear warning: Uneven wear cuts tire life in half" />
               </>
             )}
             {segment === "vip" && (

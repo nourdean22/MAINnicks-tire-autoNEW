@@ -2,7 +2,7 @@
  * Specials/Promotions Router — CRUD for active deals
  */
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { router, publicProcedure, adminProcedure } from "../_core/trpc";
 import { randomUUID } from "crypto";
 
@@ -28,6 +28,15 @@ export const specialsRouter = router({
       log.error("[Specials] Failed to fetch specials:", err instanceof Error ? err.message : err);
       return [];
     }
+  }),
+
+  /** Admin: ALL specials regardless of active/expiry, newest-first. Powers the manager's audit/history view. */
+  all: adminProcedure.query(async () => {
+    const { getDb } = await import("../db");
+    const { specials } = await import("../../drizzle/schema");
+    const db = await getDb();
+    if (!db) return [];
+    return db.select().from(specials).orderBy(desc(specials.createdAt));
   }),
 
   create: adminProcedure
@@ -92,7 +101,7 @@ export const specialsRouter = router({
       { title: "Conventional Oil Change", description: "Full conventional oil change with filter replacement. Includes complimentary multi-point vehicle inspection.", discountType: "fixed" as const, discountValue: "20", serviceCategory: "oil-change", couponCode: "OILSAVE20", startsAt, expiresAt, maxUses: 100 },
       { title: "Economy Brake Pad Replacement", description: "New economy brake pads installed per axle. Includes rotor inspection and brake system check.", discountType: "fixed" as const, discountValue: "50", serviceCategory: "brakes", couponCode: "BRAKES50", startsAt, expiresAt, maxUses: 50 },
       { title: "Free Diagnostic Scan", description: "Check engine light on? Free OBD-II diagnostic scan with any repair over $200.", discountType: "free_service" as const, discountValue: "89.99", serviceCategory: "diagnostics", couponCode: "FREESCAN", startsAt, expiresAt, maxUses: 100 },
-      { title: "Tire Rotation", description: "Extend tire life with professional 4-tire rotation. Includes pressure check and visual inspection.", discountType: "percent" as const, discountValue: "50", serviceCategory: "tires", couponCode: "ROTATE50", startsAt, expiresAt, maxUses: 100 },
+      { title: "Tire Rotation", description: "Extend tire life with professional 4-tire rotation. Includes pressure check and visual inspection. Free for life when you buy your tires from us.", discountType: "fixed" as const, discountValue: "10", serviceCategory: "tires", couponCode: "ROTATE10", startsAt, expiresAt, maxUses: 100 },
       { title: "AC System Inspection", description: "Refrigerant level check and visual inspection of AC components. Stay cool this summer.", discountType: "fixed" as const, discountValue: "40", serviceCategory: "ac-repair", couponCode: "COOLOFF40", startsAt, expiresAt, maxUses: 50 },
       { title: "Winter Prep Package", description: "Battery load test, coolant strength check, brake inspection, and full tire evaluation — all in one visit.", discountType: "fixed" as const, discountValue: "60", serviceCategory: "general-repair", couponCode: "WINTERPREP", startsAt, expiresAt, maxUses: 100 },
     ];

@@ -164,6 +164,8 @@ function CustomersList() {
   const [lastVisitDays, setLastVisitDays] = useState<number | undefined>();
   const [hasDeclined, setHasDeclined] = useState(false);
   const [hasBacklog, setHasBacklog] = useState(false);
+  const [hasEmail, setHasEmail] = useState(false);
+  const [commercialOnly, setCommercialOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: stats } = trpc.customers.stats.useQuery(undefined, { refetchInterval: 30000 });
@@ -200,6 +202,8 @@ function CustomersList() {
     lastVisitDays,
     hasDeclined: hasDeclined || undefined,
     hasBacklog: hasBacklog || undefined,
+    hasEmail: hasEmail || undefined,
+    customerType: commercialOnly ? "commercial" : undefined,
   }, { refetchInterval: 30000 });
 
   const enrichMutation = trpc.customers.enrich.useMutation({
@@ -268,10 +272,9 @@ function CustomersList() {
         }}
       />
 
-      {/* Stats Row — wave-127 — clickable filters. 6/8 wire to existing
-          server-side filter state (segment + minVisits + sortBy). With Email
-          and Commercial stay display-only because the server query has no
-          column filter for those — wiring them would require API scope creep. */}
+      {/* Stats Row — clickable filters. All 8 tiles now wire to server-side
+          filter state: segment + minVisits + sortBy for 6, plus hasEmail and
+          customerType="commercial" (added to customers.list) for the last two. */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
         <StatCard
           label="Total Customers"
@@ -322,11 +325,23 @@ function CustomersList() {
           color="text-amber-400"
           onClick={() => { setSegment("lapsed"); setPage(1); }}
         />
-        <StatCard label="With Email" value={stats?.withEmail ?? 0} icon={<Mail className="w-4 h-4" />} color="text-blue-400" />
+        <StatCard
+          label="With Email"
+          value={stats?.withEmail ?? 0}
+          icon={<Mail className="w-4 h-4" />}
+          color="text-blue-400"
+          onClick={() => { setSegment("all"); setHasEmail(true); setCommercialOnly(false); setPage(1); }}
+        />
         {/* wave-181.x bug-fix · was text-purple-400 · purple was DELETED
             from canonical 3-signal palette in wave-181.92. Now uses
             text-foreground/60 (neutral). */}
-        <StatCard label="Commercial" value={stats?.commercial ?? 0} icon={<Building2 className="w-4 h-4" />} color="text-foreground/60" />
+        <StatCard
+          label="Commercial"
+          value={stats?.commercial ?? 0}
+          icon={<Building2 className="w-4 h-4" />}
+          color="text-foreground/60"
+          onClick={() => { setSegment("all"); setCommercialOnly(true); setHasEmail(false); setPage(1); }}
+        />
       </div>
 
       {/* Campaign Progress + Retry + Export */}
@@ -581,6 +596,8 @@ function CustomersList() {
             { label: "Last Visit", value: lastVisitDays ? String(lastVisitDays) : "", default: "", onClear: () => { setLastVisitDays(undefined); setPage(1); }, displayValue: lastVisitDays ? `≤${lastVisitDays}d` : undefined },
             { label: "Has Declined", value: hasDeclined ? "1" : "", default: "", onClear: () => { setHasDeclined(false); setPage(1); }, displayValue: hasDeclined ? "ALG est unmatched" : undefined },
             { label: "Has Backlog", value: hasBacklog ? "1" : "", default: "", onClear: () => { setHasBacklog(false); setPage(1); }, displayValue: hasBacklog ? "Open WOs" : undefined },
+            { label: "Has Email", value: hasEmail ? "1" : "", default: "", onClear: () => { setHasEmail(false); setPage(1); }, displayValue: hasEmail ? "Email on file" : undefined },
+            { label: "Type", value: commercialOnly ? "1" : "", default: "", onClear: () => { setCommercialOnly(false); setPage(1); }, displayValue: commercialOnly ? "Commercial" : undefined },
             { label: "Sort", value: sortBy, default: "totalSpent", onClear: () => { setSortBy("totalSpent"); setPage(1); }, displayValue: sortBy === "totalSpent" ? undefined : sortBy },
           ]}
           onClearAll={() => {
@@ -591,6 +608,8 @@ function CustomersList() {
             setLastVisitDays(undefined);
             setHasDeclined(false);
             setHasBacklog(false);
+            setHasEmail(false);
+            setCommercialOnly(false);
             setSortBy("totalSpent");
             setSortDir("desc");
             setPage(1);

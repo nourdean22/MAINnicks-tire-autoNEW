@@ -8,7 +8,21 @@ import { Loader2, XCircle, Zap, Tag } from "lucide-react";
 import { PageHeader } from "./shared";
 import { confirmDialog } from "@/components/admin/ConfirmDialog";
 
-type Special = RouterOutputs["specials"]["getActive"][number];
+type Special = RouterOutputs["specials"]["all"][number];
+
+type SpecialStatus = "Active" | "Inactive" | "Expired";
+
+function statusOf(s: Special): SpecialStatus {
+  if (!s.isActive) return "Inactive";
+  if (s.expiresAt && new Date(s.expiresAt) < new Date()) return "Expired";
+  return "Active";
+}
+
+const STATUS_STYLE: Record<SpecialStatus, string> = {
+  Active: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
+  Inactive: "text-foreground/40 border-border/30 bg-foreground/5",
+  Expired: "text-amber-400 border-amber-500/30 bg-amber-500/10",
+};
 
 const EMPTY_FORM = {
   title: "",
@@ -23,14 +37,14 @@ const EMPTY_FORM = {
 };
 
 export default function SpecialsSection() {
-  const { data: specials, isLoading } = trpc.specials.getActive.useQuery();
+  const { data: specials, isLoading } = trpc.specials.all.useQuery();
   const utils = trpc.useUtils();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
 
   const createSpecial = trpc.specials.create.useMutation({
     onSuccess: () => {
-      utils.specials.getActive.invalidate();
+      utils.specials.all.invalidate();
       setShowForm(false);
       setForm({ ...EMPTY_FORM });
       toast.success("Special created");
@@ -40,7 +54,7 @@ export default function SpecialsSection() {
 
   const deleteSpecial = trpc.specials.delete.useMutation({
     onSuccess: () => {
-      utils.specials.getActive.invalidate();
+      utils.specials.all.invalidate();
       toast.success("Special deleted");
     },
     onError: (err) => toast.error(err.message),
@@ -48,7 +62,7 @@ export default function SpecialsSection() {
 
   const seedSpecials = trpc.specials.seed.useMutation({
     onSuccess: (data) => {
-      utils.specials.getActive.invalidate();
+      utils.specials.all.invalidate();
       toast.success(`Seeded ${data.seeded}/${data.total} specials`);
     },
     onError: (err) => toast.error(err.message),
@@ -216,7 +230,7 @@ export default function SpecialsSection() {
       ) : (specials ?? []).length === 0 ? (
         <div className="text-center py-12 text-foreground/40">
           <Zap className="w-8 h-8 mx-auto mb-3 opacity-30" />
-          <p className="text-[13px]">No active specials. Create your first one above.</p>
+          <p className="text-[13px]">No specials yet. Create your first one above.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -224,6 +238,7 @@ export default function SpecialsSection() {
             <div key={s.id} className="bg-card border border-border/30 p-4 flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`text-[10px] font-bold tracking-wide px-1.5 py-0.5 border ${STATUS_STYLE[statusOf(s)]}`}>{statusOf(s).toUpperCase()}</span>
                   <span className="font-bold text-primary text-lg">{discountLabel(s)}</span>
                   <span className="font-bold text-foreground text-sm tracking-wider">{s.title}</span>
                   {s.couponCode && (

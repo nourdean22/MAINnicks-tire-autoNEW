@@ -761,11 +761,30 @@ function ShopPulseMood({ stats }: { stats: AdminDashboardStats | undefined }) {
 
   const revenueToday = Math.round(Number(shopFloor.revenueToday || 0));
   const jobsClosed = Number(shopFloor.invoicesToday || 0);
-  // Daily target = monthly run-rate target / 26 working days (M–Sat).
-  // Was hardcoded $909/day from when monthly target was $20K. After the
-  // bump to $100K (or whatever the dynamic floor is), this needs to track
-  // the current target so the BUSY/NORMAL/SLOW mood signal stays useful.
-  const dailyTarget = Math.max(1, Math.round(BUSINESS.revenueTarget.monthly / 26));
+  // W3 fix · the mood used `BUSINESS.revenueTarget.monthly / 26` = $100K/26 =
+  // ~$3,846/day as the daily bar. Real daily revenue runs ~$2,000, so EVERY
+  // normal day scored <70% and read a demoralizing false "SLOW DAY". The
+  // $100K monthly number is an aspirational run-rate FLOOR, not a realistic
+  // single-day expectation. DATABASE-ARCHITECT: base the mood on the shop's
+  // OWN trailing daily average (revenueThisWeek / days-elapsed-this-week),
+  // which self-calibrates to real performance — both fields are already in
+  // shopFloor, no new query. Fall back to the month-average early in the week
+  // (≤1 day elapsed), then to a conservative aspirational/30 floor if neither
+  // trailing figure is populated. A normal day now reads NORMAL, not SLOW.
+  const now = new Date();
+  const dowMon0 = (now.getDay() + 6) % 7; // 0 = Monday ... 6 = Sunday
+  const daysElapsedThisWeek = dowMon0 + 1; // inclusive of today
+  const dayOfMonth = now.getDate();
+  const weekAvg = shopFloor.revenueThisWeek && daysElapsedThisWeek >= 2
+    ? Number(shopFloor.revenueThisWeek) / daysElapsedThisWeek
+    : 0;
+  const monthAvg = shopFloor.revenueThisMonth && dayOfMonth >= 2
+    ? Number(shopFloor.revenueThisMonth) / dayOfMonth
+    : 0;
+  const trailingDailyAvg = weekAvg > 0 ? weekAvg : monthAvg;
+  // Conservative fallback only when the shop has no trailing data yet (brand-
+  // new month + new week): /30 instead of /26 so it isn't an unreachable bar.
+  const dailyTarget = Math.max(1, Math.round(trailingDailyAvg > 0 ? trailingDailyAvg : BUSINESS.revenueTarget.monthly / 30));
   const pacePercent = dailyTarget > 0 ? Math.round((revenueToday / dailyTarget) * 100) : 0;
 
   let mood: "busy" | "normal" | "slow";
@@ -890,6 +909,12 @@ export default function WorkOrdersSection() {
     return filteredWorkOrders.filter((wo: WOListItem) => wo.status === "on_hold" || wo.status === "cancelled");
   }, [filteredWorkOrders]);
 
+  // W5 fix · the list query caps at limit:200 (newest-first), so once active
+  // work orders exceed 200 the oldest silently vanish from the board with no
+  // signal. YAGNI on load-more at current volume — just be honest that the
+  // board is truncated so the operator knows older active WOs exist off-board.
+  const listHitCap = (workOrders?.length ?? 0) >= 200;
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -963,6 +988,16 @@ export default function WorkOrdersSection() {
             onChange={e => setSearchQuery(e.target.value)}
             className="w-full bg-card border border-border/50 text-foreground pl-10 pr-4 py-2.5 text-[13px] rounded placeholder:text-foreground/30 focus:outline-none focus:border-primary/50"
           />
+        </div>
+      )}
+
+      {/* W5 · honest truncation indicator — board fetch is capped at 200
+          newest-first. No load-more (YAGNI at current volume); just signal
+          that older active work orders exist beyond the board. */}
+      {view === "board" && listHitCap && !searchQuery.trim() && (
+        <div className="flex items-center gap-2 text-[11px] text-foreground/40 px-0.5">
+          <AlertTriangle className="w-3 h-3 shrink-0 text-amber-400/70" />
+          <span>Showing newest 200 — older active work orders not listed.</span>
         </div>
       )}
 

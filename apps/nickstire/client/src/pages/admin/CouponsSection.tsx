@@ -19,14 +19,14 @@ export default function CouponsSection() {
   const [form, setForm] = useState({
     title: "", description: "", code: "", discountType: "dollar" as "dollar" | "percent" | "free",
     discountValue: 0, applicableServices: "all", terms: "", isFeatured: 0 as number,
-    expiresAt: "",
+    maxRedemptions: 0, expiresAt: "",
   });
 
   // 2026-05-23 · added onError to all three. Money-impacting toggle
   // (homepage hero promo) previously failed silently — same class as
   // the updateMarkup fix.
   const createCoupon = trpc.coupons.create.useMutation({
-    onSuccess: () => { utils.coupons.all.invalidate(); setShowForm(false); setForm({ title: "", description: "", code: "", discountType: "dollar", discountValue: 0, applicableServices: "all", terms: "", isFeatured: 0, expiresAt: "" }); toast.success("Coupon created"); },
+    onSuccess: () => { utils.coupons.all.invalidate(); setShowForm(false); setForm({ title: "", description: "", code: "", discountType: "dollar", discountValue: 0, applicableServices: "all", terms: "", isFeatured: 0, maxRedemptions: 0, expiresAt: "" }); toast.success("Coupon created"); },
     onError: (err) => toast.error(`Create failed: ${err.message}`),
   });
   const toggleCoupon = trpc.coupons.update.useMutation({
@@ -85,7 +85,7 @@ export default function CouponsSection() {
               <input type="datetime-local" value={form.expiresAt} onChange={(e) => setForm({ ...form, expiresAt: e.target.value })} className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm focus:border-primary outline-none" />
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-foreground/60 text-xs mb-1">Applicable Services</label>
               <input type="text" value={form.applicableServices} onChange={(e) => setForm({ ...form, applicableServices: e.target.value })} placeholder="all" className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm focus:border-primary outline-none" />
@@ -93,6 +93,10 @@ export default function CouponsSection() {
             <div>
               <label className="block text-foreground/60 text-xs mb-1">Terms</label>
               <input type="text" value={form.terms} onChange={(e) => setForm({ ...form, terms: e.target.value })} className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm focus:border-primary outline-none" />
+            </div>
+            <div>
+              <label className="block text-foreground/60 text-xs mb-1">Max redemptions (0 = unlimited)</label>
+              <input type="number" min={0} value={form.maxRedemptions} onChange={(e) => setForm({ ...form, maxRedemptions: Math.max(0, Number(e.target.value)) })} className="w-full bg-background border border-border/50 text-foreground px-3 py-2 text-sm focus:border-primary outline-none" />
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -130,7 +134,14 @@ export default function CouponsSection() {
                   {c.code && <span className="text-xs bg-foreground/5 text-foreground/50 px-1.5 py-0.5">{c.code}</span>}
                 </div>
                 <p className="text-foreground/50 text-xs mt-1">{c.description}</p>
-                {c.expiresAt && <p className="text-foreground/30 text-xs mt-1">Expires: {new Date(c.expiresAt).toLocaleDateString()}</p>}
+                <div className="flex items-center gap-3 mt-1">
+                  {c.expiresAt && <span className="text-foreground/30 text-xs">Expires: {new Date(c.expiresAt).toLocaleDateString()}</span>}
+                  {c.maxRedemptions > 0 && (
+                    <span className="text-foreground/30 text-xs">
+                      Redeemed: {c.currentRedemptions ?? 0}/{c.maxRedemptions}
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button
