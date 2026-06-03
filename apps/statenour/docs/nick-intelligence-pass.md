@@ -165,3 +165,31 @@ extract a `buildMessageParts` helper in persist-assistant-turn. One RISKY item (
 action-intent-detector (output- vs input-side); the `buildOnFinish` file (cohesive sequential
 pipeline, not a god-file to shatter); the 4 flag-gated alt-path branches (different internals,
 `winner` is already the right boundary).
+
+## 10. Chat ↔ rest-of-statenour connectivity audit (2026-06-03)
+
+A read-only audit traced every seam between the chat pipeline and the rest of the app (tools →
+nickstire bridge, brain recall, mastery/XP, business-intel, persist-back). **2 real wiring bugs
+fixed** (both made Nick give wrong/empty answers):
+
+- **`getProjections` 30-day revenue was actually 1-day** (`lib/ai/tools/goals.ts`) — the tool sent
+  the `revenue_range` bridge query a `{ since }` filter, but the nickstire handler reads `{ from, to }`
+  (both default to *today*). So Nick's "30-day revenue × 12" annual projection was really today × 12.
+  Fixed to send the real 30-day `{ from, to }` span (matches the tool's own `revenue_30d` label).
+- **Bridge env-key drift** (`lib/services/bridge.ts`) — `fetchShopSnapshot` + `fetchShopHealth`
+  resolved the key as `BRIDGE_API_KEY` only, while the canonical `queryNick` client uses
+  `STATENOUR_SYNC_KEY || BRIDGE_API_KEY` (the live Railway key). Snapshot silently fell through to the
+  slow 4-query batch; health returned `null` outright. Unified both onto a shared `resolveBridgeConfig()`
+  matching the canonical client.
+
+**Deferred (low-severity / cross-app-unverifiable / graceful-degrade — documented, not rushed):**
+deep-reasoning `getDashboardSummary` snapshot may cite a cron-cached review count (label it with a
+timestamp); `marketing_attribution` depends on a hand-applied nickstire `leads.invoiceId` migration
+(soft-fails gracefully if absent); the `chat_claim_warn` rows persist but the `/api/ai/chat/claim-warnings`
+reader route was never built (hedge banner on stored text already works — display gap only); the
+`leads_urgent` fallback unpack in `bridge.ts` guesses `count` (needs the nickstire-side shape confirmed).
+
+**Verified HEALTHY (no action):** all 8 `brain-context.ts` parallel module imports; `compareLiveRevenue`
+two-call collision fix; `queryNick` env priority; `buildConcernsContextBlock`/`buildTaskContextBlock`
+exports; the chat's graceful-degrade `.catch(() => null)` recall lane (works as designed). The chat has
+no real-time mastery/XP write — that's cron-driven by design, not a broken wire.
