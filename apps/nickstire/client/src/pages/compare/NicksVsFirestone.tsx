@@ -12,7 +12,7 @@ export default function NicksVsFirestone() {
       primary={COMPETITORS.firestone}
       slug="nicks-tire-vs-firestone-cleveland"
       seoTitle="Nick's Tire & Auto vs Firestone Cleveland · Honest Compare"
-      seoDescription="Firestone wants chain pricing and an appointment. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent labor, used tires from $40, written quote up front."
+      seoDescription="Firestone wants chain pricing and an appointment. Nick's Tire & Auto on Euclid Ave: walk-in 7 days, transparent labor, used tires from $25, written quote up front."
       intro="Firestone is corporate Bridgestone. Chain-level labor rates. Appointment-required. Lifetime alignment program (the genuine value play). Dealership-style upsell pressure on the recommended-services list. Nick's Tire & Auto on Euclid Ave is the opposite of corporate. Mechanic-owned. Walk in 7 days. Free check. Written quote. You don't pay until you say yes. One stop for tires + brakes + repair. Yellow sign. Real address. Phone answered by an actual person at the shop."
       extraFaqs={[
         {

@@ -26,7 +26,7 @@ export const GLOBAL_FAQ_QUESTIONS = [
     name: "Do you sell used tires?",
     acceptedAnswer: {
       "@type": "Answer" as const,
-      text: "Yes. We carry a large selection of checked used tires from $40 installed. Every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on your car. Used tires include the same install package. Walk-ins welcome — inventory changes daily.",
+      text: "Yes. We carry a large selection of checked used tires from $25 installed. Every used tire passes a 4-point check — tread depth, sidewall, DOT date, plug history — before it goes on your car. Used tires include the same install package. Walk-ins welcome — inventory changes daily.",
     },
   },
   {

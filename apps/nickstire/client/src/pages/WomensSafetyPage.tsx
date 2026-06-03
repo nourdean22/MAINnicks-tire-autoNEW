@@ -134,13 +134,13 @@ export default function WomensSafetyPage() {
       <section className="bg-gray-900 border-t border-gray-800 py-12 px-4">
         <div className="max-w-3xl mx-auto text-center">
           <p className="text-gray-500 text-sm leading-relaxed">
-            Nick's Tire & Auto has served Cleveland for over 20 years. We're a
-            family-owned shop that believes every customer — regardless of gender —
+            Nick's Tire & Auto has served Cleveland since 2018. We're a
+            family-run shop that believes every customer — regardless of gender —
             deserves honest, transparent, pressure-free service. If you ever feel
             uncomfortable, tell us. We'll make it right.
           </p>
           <p className="text-yellow-400 font-semibold text-sm mt-4">
-            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; 1,688+ Five-Star Reviews
+            📍 Cleveland, OH &nbsp;·&nbsp; Open 7 Days &nbsp;·&nbsp; 1,700+ Five-Star Reviews
           </p>
         </div>
       </section>

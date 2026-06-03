@@ -136,8 +136,8 @@ export default function LocalBusinessSchema({
         },
         {
           "@type": "Offer",
-          itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires starting at $40 installed (4-point check: tread, sidewall, DOT date, plug history)." },
-          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "40" },
+          itemOffered: { "@type": "Service", name: "Used Tires", description: "Checked used tires from $25 installed (12-inch rims; most sizes $40-80). 4-point check: tread, sidewall, DOT date, plug history." },
+          priceSpecification: { "@type": "PriceSpecification", priceCurrency: "USD", minPrice: "25" },
         },
         {
           "@type": "Offer",

@@ -384,7 +384,7 @@ export default function SpecialsPage() {
 
       {/* ── HERO ─────────────────────────────────────────── */}
       <section className="relative pt-32 lg:pt-40 pb-16 lg:pb-20 bg-[#0A0A0A]">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--nick-yellow-alpha)_0%,_transparent_60%)] opacity-20" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--color-nick-yellow)_0%,_transparent_60%)] opacity-20" />
         <div className="relative container">
           <Breadcrumbs items={[{ label: "Specials & Coupons" }]} />
           <LocalBusinessSchema />

@@ -169,9 +169,25 @@ export const BUSINESS = {
   // all live copy say "$60 installed". A divergent constant is a landmine if any
   // copy path pulls from here.
   usedTires: {
-    priceDisplay: "from $60 installed",
+    // wave-183: $25 = advertised floor (12-inch economy rims). The fineprint + band
+    // MUST travel with the $25 everywhere it shows (honesty/FTC + protects the
+    // 4.9-star moat from "advertised $25, charged double" reviews).
+    priceDisplay: "from $25 installed",
+    fineprint: "12-inch rims, subject to availability",
+    typicalBand: "most sizes $40-80 installed",
     turnaround: "Under 20 minutes",
     dailyVolume: "50+ per day",
+  },
+
+  // ─── NEW TIRES (floor + positioning) ────────────────
+  // wave-183: keep a price FLOOR for SEO (price-in-page is a proven ranking lever —
+  // the $49 oil fix drove /oil-change impressions +1149%), standardized to the real
+  // NewTiresClevelandPage tier ($89). Positioning line replaces per-size price
+  // confusion. No (TM): unregistered, and the shop DOES decline unsafe tires, so the
+  // line stays bounded to ordering/selection.
+  newTires: {
+    priceDisplay: "from $89 installed",
+    positioning: "Any tire, any brand. Nick never says no.",
   },
 
   // ─── BRAND TAGLINES ─────────────────────────────────

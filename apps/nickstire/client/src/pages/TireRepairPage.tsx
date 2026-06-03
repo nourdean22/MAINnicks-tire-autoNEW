@@ -39,7 +39,7 @@ const CONFIG: ServicePageConfig = {
   sub: "Nail in your tire? Slow leak that ruined your morning? Drive-on flat? Nick's Tire & Auto on Euclid Ave — pull up, hand us the keys, we'll check the tire free first. We don't push you toward a new tire when a quick repair would have held. Serving Cleveland, Euclid, Parma, Cleveland Heights, Lakewood, Lyndhurst, and every neighborhood in between — walk in any day we're open including Sunday.",
   startingPrice: "Free check · written quote · walk-in 7 days",
   pricingTitle: "TIRE REPAIR PRICING — STRAIGHTFORWARD",
-  pricingSub: "Every repair starts with a free check. If it's safe and effective to fix, we fix it. If the damage is in the sidewall or shoulder zone (unrepairable per industry standard), we'll show you why and offer a used tire from $40 installed.",
+  pricingSub: "Every repair starts with a free check. If it's safe and effective to fix, we fix it. If the damage is in the sidewall or shoulder zone (unrepairable per industry standard), we'll show you why and offer a used tire from $25 installed.",
   tiers: [
     {
       name: "Plug Repair",
@@ -56,7 +56,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       name: "Used Tire Replacement",
-      price: "From $40 installed",
+      price: "From $25 installed",
       sub: "when repair isn't safe",
       use: "Sidewall puncture or shoulder damage = unrepairable per industry standard. We'll show you why, then mount a used tire from our 800+ inventory same visit.",
     },
@@ -76,7 +76,7 @@ const CONFIG: ServicePageConfig = {
   faqs: [
     {
       q: "How much does a tire repair cost in Cleveland?",
-      a: "Plug repair runs $25 typical, plug-and-patch combo $35, depending on tire size and damage location. Final pricing is set after the free inspection — we won't quote blind because the wrong fix on a sidewall puncture costs you the tire later. If the damage is unrepairable per industry standard, we'll show you why and offer a used tire from $40 installed.",
+      a: "Plug repair runs $25 typical, plug-and-patch combo $35, depending on tire size and damage location. Final pricing is set after the free check — we won't quote blind because the wrong fix on a sidewall puncture costs you the tire later. If the damage is unrepairable per industry standard, we'll show you why and offer a used tire from $25 installed.",
     },
     {
       q: "How long does tire repair take?",
@@ -84,7 +84,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "Can my tire be repaired or do I need a new one?",
-      a: "Industry-standard rule: punctures up to 1/4\" in the tire's tread center (between the shoulder grooves) are typically repairable. Damage in the sidewall or shoulder zone is NOT repairable per RMA (Rubber Manufacturers Association) guidelines — the repair won't hold under flexing and you risk a blowout. Our free inspection determines this in 60 seconds.",
+      a: "Industry-standard rule: punctures up to 1/4\" in the tire's tread center (between the shoulder grooves) are typically repairable. Damage in the sidewall or shoulder zone is NOT repairable per RMA (Rubber Manufacturers Association) guidelines — the repair won't hold under flexing and you risk a blowout. Our free check determines this in 60 seconds.",
     },
     {
       q: "Is a plug or a patch better?",
@@ -100,7 +100,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What if you can't repair it — do you have used tires in my size?",
-      a: "Yes — Nick's stocks 800+ used tires across every common size for the cars Cleveland actually drives (Toyota, Honda, Ford, Chevy, GM, plus most European). Used tires start at $40 installed, mounted, balanced, and warrantied for 30 days. If your size is in stock, we'll have you back on the road within the same visit.",
+      a: "Yes — Nick's stocks 800+ used tires across every common size for the cars Cleveland actually drives (Toyota, Honda, Ford, Chevy, GM, plus most European). Used tires start at $25 installed, mounted, balanced, and warrantied for 30 days. If your size is in stock, we'll have you back on the road within the same visit.",
     },
     {
       q: "Do you charge to inspect a flat?",

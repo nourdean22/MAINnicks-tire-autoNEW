@@ -85,12 +85,12 @@ export const SERVICES: ServiceData[] = [
     title: "TIRES",
     shortDesc: "New and used tires. Mounting, balancing, rotation, TPMS sensors, and flat repair. We carry all major brands at fair prices.",
     metaTitle: "Tire Shop Cleveland · Walk-In 7 Days · From $40 | Nick's",
-    metaDescription: "Cleveland tire shop on Euclid Ave — walk in 7 days incl Sundays. Used tires from $40 installed. Stay in car, crew works outside. 4.9★ 1,700+ reviews. (216) 862-0005",
+    metaDescription: "Cleveland tire shop on Euclid Ave — walk in 7 days incl Sundays. Used tires from $25 installed. Stay in car, crew works outside. 4.9★ 1,700+ reviews. (216) 862-0005",
     heroHeadline: "Tires from $40.\nOr whatever your budget says.",
-    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $40, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
+    heroSubline: "Pull up, stay in your car — we come out to you. Used tires from $25, new tires from all major brands. In and out in under 20 minutes for tire repairs. Rain or shine, like a pit stop. Cleveland's top-rated tire shop.",
     heroCTA: "GET A TIRE QUOTE",
     turnaround: "Most tire repairs done in under 20 minutes. Full installations under an hour. Walk-ins welcome — just pull up.",
-    pricingNote: "Stay in your car · We come to you · Used tires from $40 · All major brands",
+    pricingNote: "Stay in your car · We come to you · Used tires from $25 · All major brands",
     urgencyNote: "Tires below the legal tread limit triple your stopping distance on wet roads. Cleveland's freeze-thaw cycles and potholes accelerate wear — don't wait for a blowout.",
     signs: [
       "Tread depth below 2/32 of an inch (the penny test)",
@@ -174,7 +174,7 @@ export const SERVICES: ServiceData[] = [
     duration: "30-60 min",
     startingPrice: "See tire prices",
     priceRange: "",
-    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 36-month warranty backed by 4.9 stars and 1,700+ reviews. Walk in any day of the week -- no appointment needed.",
+    whyChooseUs: "Nick's carries all major tire brands plus quality used tires at prices that make sense. Every tire install includes mounting, balancing, TPMS reset, and a 12-month warranty backed by 4.9 stars and 1,700+ reviews. Walk in any day of the week -- no appointment needed.",
     commonSymptoms: [
       "Car shaking at highway speed",
       "Tire keeps losing air overnight",
@@ -258,7 +258,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find brake repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake checks, same-day brake service starting at $129/axle, and a 36-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is open 7 days a week for brake repair. We offer free brake checks, same-day brake service starting at $129/axle, and a 12-month warranty on all brake work. Walk-ins welcome. Call (216) 862-0005."
       }
     ],
     includedItems: [
@@ -279,7 +279,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1-3 hours",
     startingPrice: "FREE check",
     priceRange: "",
-    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 36-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
+    whyChooseUs: "Every brake job at Nick's starts with a free check -- we show you the worn parts before quoting a penny. Our 12-month warranty on parts and labor, same-day turnaround, and the price up front before we touch anything are why Cleveland drivers give us 4.9 stars across 1,700+ reviews.",
     commonSymptoms: [
       "Car making grinding noise when braking",
       "Brake pedal goes to the floor",
@@ -382,7 +382,7 @@ export const SERVICES: ServiceData[] = [
     duration: "30-60 min",
     startingPrice: "$59.99 (credited toward repair)",
     priceRange: "",
-    whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 36-month warranty.",
+    whyChooseUs: "We test before we replace -- no parts guessing. Our advanced OBD-II scanners and live data analysis pinpoint the exact failed component so you only pay for what you need. Diagnostic fee is credited toward your repair, and everything is backed by our 12-month warranty.",
     commonSymptoms: [
       "Check engine light on and off",
       "Check engine light near me",
@@ -483,7 +483,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Free check now / 1-2 days (repair)",
     startingPrice: "FREE E-Check check",
     priceRange: "",
-    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 36-month warranty on repairs.",
+    whyChooseUs: "The state runs the official E-Check — we run a free readiness check that tells you if you'll pass before you go, and we fix it if you won't. We specialize in Ohio E-Check failures and know the exact drive cycles to get your monitors to complete fast. We fix the root cause -- not just clear codes. Walk-ins 7 days, same-day diagnosis, and a 12-month warranty on repairs.",
     commonSymptoms: [
       "Failed Ohio E-Check inspection",
       "Check engine light before emissions test",
@@ -675,7 +675,7 @@ export const SERVICES: ServiceData[] = [
       },
       {
         question: "Where can I find auto repair near me in Cleveland?",
-        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 36-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
+        answer: "Nick's Tire & Auto at 17625 Euclid Ave, Cleveland, OH 44112, Cleveland is a full-service auto repair shop open 7 days a week. Whether you need brake repair, oil changes, engine diagnostics, or suspension work, we handle it all with free estimates, written quotes, and a 12-month warranty. 4.9 stars from 1,700+ Google reviews. Call (216) 862-0005."
       },
       {
         question: "How do I find a good mechanic near me?",
@@ -697,7 +697,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Varies — we'll call with estimate",
     startingPrice: "FREE estimates",
     priceRange: "",
-    whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no checkout-math charges, and a 36-month warranty. Open 7 days with same-day service for most repairs.",
+    whyChooseUs: "From suspension and steering to exhaust and cooling, Nick's diagnoses the root cause and explains every repair in plain language. Written estimates before any work, no checkout-math charges, and a 12-month warranty. Open 7 days with same-day service for most repairs.",
     commonSymptoms: [
       "Car making clunking noise over bumps",
       "Steering wheel vibrating while driving",
@@ -792,7 +792,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Recharge: 30-60 min. Component repair: 2-4 hours. Evaporator: 4-8 hours.",
     startingPrice: "From $149",
     priceRange: "",
-    whyChooseUs: "We diagnose before we recharge -- too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 36-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
+    whyChooseUs: "We diagnose before we recharge -- too many shops just dump refrigerant in and call it fixed. Nick's finds the actual leak, gives you a written estimate, and backs every repair with a 12-month warranty. Same-day service for most AC jobs, walk-ins welcome 7 days a week.",
     commonSymptoms: [
       "Car AC blowing warm air",
       "Musty smell from car vents",
@@ -933,7 +933,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Fluid service: 1 hour. Repairs: 1-3 days.",
     startingPrice: "From $150",
     priceRange: "",
-    whyChooseUs: "Transmission work requires precision -- Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 36-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
+    whyChooseUs: "Transmission work requires precision -- Nick's diagnoses shifting problems with proper scan tools and road testing, not guesswork. You get an honest assessment, a written estimate before any work, and a 12-month warranty. We tell you if a fluid service will fix it before recommending a rebuild.",
     commonSymptoms: [
       "Car jerking when shifting gears",
       "Transmission slipping out of gear",
@@ -996,7 +996,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Battery/alternator: 1-2 hours. Wiring: varies.",
     startingPrice: "FREE battery test",
     priceRange: "",
-    whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault -- no parts-swapping guesswork. Free battery and charging system test, same-day service, and a 36-month warranty on all repairs.",
+    whyChooseUs: "Electrical problems stump most shops. Nick's uses wiring diagrams, multimeters, and systematic circuit testing to find the actual fault -- no parts-swapping guesswork. Free battery and charging system test, same-day service, and a 12-month warranty on all repairs.",
     commonSymptoms: [
       "Car won't start clicking sound",
       "Battery dies every morning",
@@ -1053,7 +1053,7 @@ export const SERVICES: ServiceData[] = [
     duration: "15–30 minutes",
     startingPrice: "FREE test",
     priceRange: "",
-    whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 36-month warranty -- most replacements done in 30 minutes. Walk in any day, no appointment needed.",
+    whyChooseUs: "Nick's tests your battery and charging system for free before recommending anything. If you need a replacement, we install quality batteries at fair prices with a 12-month warranty -- most replacements done in 30 minutes. Walk in any day, no appointment needed.",
     commonSymptoms: [
       "Car won't start in cold weather",
       "Slow engine crank in the morning",
@@ -1121,7 +1121,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
     priceRange: "",
-    whyChooseUs: "Nick's inspects your entire exhaust system from manifold to tailpipe before quoting anything. We handle mufflers, catalytic converters, and emissions-related exhaust work with same-day service, written estimates, and a 36-month warranty on parts and labor.",
+    whyChooseUs: "Nick's inspects your entire exhaust system from manifold to tailpipe before quoting anything. We handle mufflers, catalytic converters, and emissions-related exhaust work with same-day service, written estimates, and a 12-month warranty on parts and labor.",
     commonSymptoms: [
       "Exhaust louder than normal suddenly",
       "Rattling noise from underneath the car",
@@ -1181,7 +1181,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1–4 hours depending on repair",
     startingPrice: "From $100",
     priceRange: "",
-    whyChooseUs: "Overheating damage is preventable. Nick's pressure-tests your cooling system, diagnoses the root cause, and uses the correct coolant for your vehicle. Same-day service for most cooling repairs, written estimates before work begins, and a 36-month warranty.",
+    whyChooseUs: "Overheating damage is preventable. Nick's pressure-tests your cooling system, diagnoses the root cause, and uses the correct coolant for your vehicle. Same-day service for most cooling repairs, written estimates before work begins, and a 12-month warranty.",
 
     commonSymptoms: [
       "Car temperature gauge in the red",
@@ -1296,7 +1296,7 @@ export const SERVICES: ServiceData[] = [
     duration: "Belt: 30 min–1 hr. Timing belt: 4–8 hrs.",
     startingPrice: "From $80",
     priceRange: "",
-    whyChooseUs: "Belts and hoses fail without warning -- a $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 36-month warranty.",
+    whyChooseUs: "Belts and hoses fail without warning -- a $50 belt replacement prevents a $500 tow. Nick's inspects belts and hoses during every service visit and recommends replacement before they leave you stranded. Same-day service, fair prices, and a 12-month warranty.",
     commonSymptoms: [
       "Squealing noise from engine on startup",
       "Cracks visible on serpentine belt",
@@ -1354,7 +1354,7 @@ export const SERVICES: ServiceData[] = [
     duration: "1–3 hours",
     startingPrice: "FREE test",
     priceRange: "",
-    whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause -- no parts-swapping guesswork. Free charging system test, same-day replacement for most vehicles, and a 36-month warranty on parts and labor.",
+    whyChooseUs: "When your car won't start, Nick's tests the battery, starter, and alternator to find the actual cause -- no parts-swapping guesswork. Free charging system test, same-day replacement for most vehicles, and a 12-month warranty on parts and labor.",
     commonSymptoms: [
       "Car won't start just clicks",
       "Battery keeps dying after replacement",

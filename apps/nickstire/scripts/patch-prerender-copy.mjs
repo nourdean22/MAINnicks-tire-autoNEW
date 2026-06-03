@@ -55,10 +55,9 @@ const EDITS = [
   ],
 
   // ─── CONTACT: GPS coords were 3.6km off from real address ──────
-  [/"latitude":\s*41\.5525118/g, '"latitude": 41.5855'],
-  [/"longitude":\s*-81\.5571875/g, '"longitude": -81.5268'],
-  [/41\.5525118/g, "41.5855"],
-  [/-81\.5571875/g, "-81.5268"],
+  // wave-183: REMOVED 4 GPS-coord rules — they reverted the canonical
+  // Google-pinned coords (41.5525118 / -81.5571875) to the WRONG 41.5855 /
+  // -81.5268. business.ts wave-170 is canonical — Google wins. Do not re-add.
 ];
 
 function walk(dir) {
@@ -121,7 +120,7 @@ function main() {
   let stragglers = 0;
   for (const file of files) {
     const content = fs.readFileSync(file, "utf8");
-    if (/\$0[- ]down|36-month warranty|36 months \/ 36,000|appointments are recommended for faster service|41\.5525118|-81\.5571875/.test(content)) {
+    if (/\$0[- ]down|36-month warranty|36 months \/ 36,000|appointments are recommended for faster service/.test(content)) {
       stragglers++;
       if (stragglers <= 5) console.log(`  STRAGGLER: ${path.relative(ROOT, file)}`);
     }

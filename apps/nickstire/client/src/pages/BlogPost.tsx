@@ -122,7 +122,7 @@ function TableOfContents({ sections }: { sections: { heading: string }[] }) {
  */
 const CATEGORY_TO_SERVICE: Record<string, { slug: string; label: string; pitch: string }> = {
   Brakes: { slug: "brakes", label: "Brake Service", pitch: "Free brake check. Pads from $129/axle. Pictures of worn parts before any replacement." },
-  Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + quality used tires from $40/installed. Walk-ins welcome." },
+  Tires: { slug: "tires", label: "Tires & Wheels", pitch: "Free mount + balance + valve stems. New + inspected used tires from $25/installed. Walk-ins welcome." },
   Diagnostics: { slug: "diagnostics", label: "Check Engine Light", pitch: "Free OBD-II code scan. $95 deeper check credited to repair if you say yes. We test before we replace." },
   Maintenance: { slug: "oil-change", label: "Oil Change & Maintenance", pitch: "Full conventional oil change from $29.99. Free 27-point check every visit." },
   Emissions: { slug: "emissions", label: "Emissions / E-Check", pitch: "Free pre-test before you waste a state appointment. We catch the actual cause, not just the code." },

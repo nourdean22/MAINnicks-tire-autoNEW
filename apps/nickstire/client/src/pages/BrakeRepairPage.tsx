@@ -148,7 +148,7 @@ const CONFIG: ServicePageConfig = {
         icon: <Disc className="w-5 h-5" />,
         symptom: "Tires bald or wearing uneven?",
         consequence: "Worn brakes + worn tires = doubled stopping distance. Both at once is a real risk.",
-        relief: "Used tires from $40 installed in 20 minutes — done while we do brakes.",
+        relief: "Used tires from $25 installed in 20 minutes — done while we do brakes.",
         ctaLabel: "GET TIRES",
         ctaHref: "/tires",
       },

@@ -56,7 +56,7 @@ wheel_alignment: from $79
 ac_recharge: from $149
 battery_test: FREE
 used_tires: from $40 installed
-new_tires: from $60 installed
+new_tires: from $89 installed
 tire_install_package: FREE with every tire (mount, balance, valve stems, TPMS reset, alignment check, disposal)
 
 ## Competitive Differentiators
@@ -66,7 +66,7 @@ tire_install_package: FREE with every tire (mount, balance, valve stems, TPMS re
 - Transparent pricing — customers shown the problem before work begins
 - FREE tire installation package with every tire purchase (mount, balance, valve stems, TPMS reset, alignment check, disposal)
 - 4 no-credit-check financing options, $10 down (Acima, Snap Finance, Koalafi, American First Finance)
-- 36-month / 36,000-mile warranty on labor
+- 12-month / 12,000-mile warranty on labor
 - Used tires from $40 installed — every tire checked for tread, sidewall, and dry rot before it goes on your car
 - Same-day service for most common repairs
 - Ohio E-Check failure repair (state runs the official test; Nick's does a free readiness check + fixes failures)
@@ -89,7 +89,7 @@ credit_check_required: No (all four use alternative approval methods)
 accepted: Cash, Visa, Mastercard, Discover, American Express, Debit, Financing
 
 ## Warranty
-labor_warranty: 36 months / 36,000 miles
+labor_warranty: 12 months / 12,000 miles
 parts_warranty: Manufacturer warranty
 
 ## Ohio Tax Note

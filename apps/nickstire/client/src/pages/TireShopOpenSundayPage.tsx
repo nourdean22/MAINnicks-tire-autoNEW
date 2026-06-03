@@ -38,7 +38,7 @@ const CONFIG: ServicePageConfig = {
   tiers: [
     {
       name: "Tire Mount & Balance",
-      price: "From $40 / tire installed",
+      price: "From $25 / tire installed",
       sub: "used · DOT-dated · tread-measured",
       use: "Sunday-flat emergency? We mount + balance + valve-stem + TPMS-reset every Sunday. Most Sunday installs finish in under 90 minutes including the line.",
     },
@@ -103,7 +103,7 @@ const CONFIG: ServicePageConfig = {
     },
     {
       q: "What about Sunday emergency tire repair?",
-      a: "Most flat-tire emergencies we patch ($25 typical) or plug same-day Sunday. If the sidewall's blown, we stock a deep used-tire inventory ($40 installed) for fast replacement. Pull straight in — no appointment, no phone call required. If you can drive to us, we'll get you back on the road before close at 4pm.",
+      a: "Most flat-tire emergencies we patch ($25 typical) or plug same-day Sunday. If the sidewall's blown, we stock a deep used-tire inventory ($25 installed) for fast replacement. Pull straight in — no appointment, no phone call required. If you can drive to us, we'll get you back on the road before close at 4pm.",
     },
   ],
   bookingService: "tires",
