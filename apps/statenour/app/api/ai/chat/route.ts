@@ -329,6 +329,29 @@ async function chatPostInner(req: Request) {
       userContent,
     );
 
+  // v-truth · Generic action intent ("add this task", "remember this",
+  // "send the email") ALSO drives the provider pick. toolChoice:
+  // "required" is set below for these turns, but forcing only EXECUTES
+  // on a provider that honors strict tool_choice. Ollama qwen3 does
+  // (and is the live primary · provider.ts PROVIDERS[0]); Venice strips
+  // tool_choice, so a forced action landing on the Venice fallback gets
+  // narrated, never run. Mirror the python pattern so a genuine action
+  // routes to the lane that actually fires the tool. Hoisted here (was
+  // recomputed inline in the streamText config) so it's detected ONCE
+  // and reused for both the provider force and toolChoice below.
+  // Degrades safely: if Ollama is unavailable, getModel falls through.
+  const __actionIntent = __pythonExecuteIntent
+    ? null
+    : (() => {
+        try {
+          const { detectActionIntent } =
+            require("@/lib/ai/chat/action-intent-detector") as typeof import("@/lib/ai/chat/action-intent-detector");
+          return detectActionIntent(userContent);
+        } catch {
+          return null;
+        }
+      })();
+
   let model: ReturnType<typeof getModel>;
   try {
     // Apr 28 · Tag-team Venice + Ollama Cloud. When the prompt is in
@@ -349,10 +372,15 @@ async function chatPostInner(req: Request) {
     // reliably + free tier covers our usage + 1M context window.
     model = getModel(finalTaskType, {
       preferLargeContext: finalPreferLargeContext,
-      ...(__pythonExecuteIntent ? { forceProviderFirst: "ollama" as const } : {}),
+      ...(__pythonExecuteIntent || __actionIntent
+        ? { forceProviderFirst: "ollama" as const }
+        : {}),
     });
-    if (__pythonExecuteIntent) {
-      log.info("python_execute_provider_override", { forced: "ollama" });
+    if (__pythonExecuteIntent || __actionIntent) {
+      log.info("tool_provider_override", {
+        forced: "ollama",
+        reason: __pythonExecuteIntent ? "python_execute" : "action_intent",
+      });
     }
   } catch (err) {
     recordError("chat:request", err, { reason: "no_provider" });
@@ -1119,17 +1147,10 @@ ${finalSystemPrompt}`;
         };
       }
 
-      const intent = (() => {
-        try {
-          // Lazy import — keeps the chat hot path lean when the
-          // user message has no action verb.
-          const { detectActionIntent } = require("@/lib/ai/chat/action-intent-detector") as
-            typeof import("@/lib/ai/chat/action-intent-detector");
-          return detectActionIntent(userContent);
-        } catch {
-          return null;
-        }
-      })();
+      // Reuse the hoisted detection (computed above for the provider
+      // force) — one detectActionIntent call drives both the provider
+      // pick AND toolChoice, so the two can never disagree.
+      const intent = __actionIntent;
       if (intent) {
         log.info("action_intent_detected", {
           intent: intent.intent,

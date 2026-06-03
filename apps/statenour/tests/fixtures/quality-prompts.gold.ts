@@ -13,7 +13,7 @@
  * they form the regression armor for output quality.
  *
  * When to run:
- *   · After any model version change (model-versions.ts edit)
+ *   · After any model version change (lib/ai/provider.ts model IDs)
  *   · After any system prompt change (lib/ai/system-prompt.ts)
  *   · After any output-sanitizer change
  *   · Weekly via cron (planned)
@@ -21,8 +21,8 @@
  * When a prompt fails:
  *   · Investigate WHY (model regression vs prompt change vs critic drift)
  *   · Either fix the underlying issue OR update the gold-standard
- *   · NEVER lower the score floor without a documented reason in
- *     model-versions.ts CHANGELOG
+ *   · NEVER lower the score floor without a documented reason in the
+ *     commit message + provider.ts model changelog comment
  */
 
 export interface QualityCheck {

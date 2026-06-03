@@ -25,6 +25,7 @@
  */
 
 import { claimEntries, type ClaimEntry } from "@/lib/ai/action-vocab";
+import { stripCitations } from "@/lib/ai/memory-citations";
 
 /**
  * Edge-case patterns that don't decompose into past-verb+object.
@@ -33,7 +34,11 @@ import { claimEntries, type ClaimEntry } from "@/lib/ai/action-vocab";
  *
  * Mirrors the EDGE_INTENT_PATTERNS list in action-intent-detector.ts.
  */
-const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
+// Exported so the tool-existence CI guard (action-claim-detector
+// .test.ts) can assert every mapsToTool resolves to a REAL nourTools
+// entry — the drift that let `saveToBrain`/`updatePinnedMemory`/
+// `sendEmail` linger as permanently-unsatisfiable expected tools.
+export const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   // Subject-prefix forms ("I've added the tasks") — verb is buried
   // and the object may not follow within 40 chars.
   { regex: /\bI'?ve?\s+added\b/i, verb: "I've added", mapsToTool: "createTask" },
@@ -42,18 +47,20 @@ const EDGE_CLAIM_PATTERNS: ClaimEntry[] = [
   { regex: /\btask(?:s)?\s+(?:added|created)\b/i, verb: "task(s) added", mapsToTool: "createTask" },
   // Set reminder — atypical verb→object pair
   { regex: /\bset\b.{0,40}\breminder\b/i, verb: "set reminder", mapsToTool: "scheduleFollowUp" },
-  // Email-specific terse claim
-  { regex: /\bemail\s+sent\b/i, verb: "email sent", mapsToTool: "sendEmail" },
-  // Bare-verb send claim ("Sent it.") — output-side accepts any of
-  // composeEmail / sendEmail / sendTelegram. Vocab forces composeEmail
-  // on input but model may have legitimately routed via sendTelegram.
+  // Email-specific terse claim. The chat tool is `composeEmail` (there
+  // is no `sendEmail` chat tool — that's a service), so map there.
+  { regex: /\bemail\s+sent\b/i, verb: "email sent", mapsToTool: "composeEmail" },
+  // Bare-verb send claim ("Sent it.") — accept either real send tool.
+  // `sendEmail` dropped (never a chat tool); the model routes a send
+  // via composeEmail or sendTelegram.
   {
     regex: /\b(?:sent|emailed|messaged|texted)\b(?!\s+(?:via|on|by|to\s+(?:say|let)))/i,
     verb: "sent (bare)",
-    mapsToTool: "composeEmail|sendEmail|sendTelegram",
+    mapsToTool: "composeEmail|sendTelegram",
   },
-  // Pinned — bare past-participle, no object required
-  { regex: /\bpinned\b/i, verb: "pinned", mapsToTool: "updatePinnedMemory" },
+  // Pinned — bare past-participle, no object required. Real tool is
+  // `pinMemory` (there is no `updatePinnedMemory`).
+  { regex: /\bpinned\b/i, verb: "pinned", mapsToTool: "pinMemory" },
 ];
 
 /**
@@ -77,6 +84,12 @@ const HEDGE_PATTERNS: RegExp[] = [
   /\bi(?:'ll|\s+will)\s+(?:add|create|send|schedule|set)/i,
   /\bi\s+(?:recommend|suggest)\b/i,
   /\bdo\s+you\s+want\s+me\s+to\b/i,
+  // Second-person reflection — Nick describing what the USER did
+  // ("you texted Dania", "you finished the task", "you've added X").
+  // That is not a self-claim, so it must not count as fabrication.
+  // Tight adjacency (you + ≤1 word + past verb) so it doesn't eat
+  // "you wanted me to add…" where the action is actually Nick's.
+  /\byou(?:'ve| have| had| never| also| still)?\s+(?:\w+\s+)?(?:added|created|sent|texted|emailed|messaged|linked|finished|completed|scheduled|posted|published|saved|noted|pinned|moved|bumped)\b/i,
 ];
 
 export interface ActionClaim {
@@ -139,7 +152,14 @@ function sentenceIsHedged(sentence: string): boolean {
  * Pure — no IO. Safe to call from inside a hot path.
  */
 export function detectActionClaims(text: string): ActionClaimReport {
-  const sentences = splitSentences(text);
+  // Strip [brain:TAG] citation markers FIRST. They are sanctioned by
+  // the citation protocol (memory-citations.ts) and assert no action —
+  // but their surrounding prose ("Linked to: [brain:recall]") used to
+  // trip the link/send claim patterns. Stripping the tag removes the
+  // marker; the first-person anchor on relational verbs handles the
+  // residual editorial prose. Single strip point covers every caller.
+  const cleaned = stripCitations(text);
+  const sentences = splitSentences(cleaned);
   const hedgedFlags = sentences.map(sentenceIsHedged);
   const liveSentences = sentences.filter((_, i) => !hedgedFlags[i]);
 
