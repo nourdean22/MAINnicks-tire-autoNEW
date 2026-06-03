@@ -166,6 +166,12 @@ export async function detectBlindSpots(): Promise<BlindSpot[]> {
     const daysOverdue = Math.floor(
       (Date.now() - new Date(c.deadline + "T12:00:00").getTime()) / 86400000
     );
+    // v-truth · age ceiling. A commitment 90+ days overdue with no update
+    // is abandoned-in-practice; nagging about it daily for months/years
+    // (e.g. the 809-day-overdue "text Dania" one) is noise, not signal.
+    // Suppress the per-item attention flag past the window — ancient
+    // commitments get cleaned up in /commitments, not via a daily chip.
+    if (daysOverdue > 90) continue;
     blindSpots.push({
       domain: c.domain || "general",
       description: `Commitment overdue: "${c.description}"`,
