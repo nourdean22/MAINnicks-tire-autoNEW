@@ -269,7 +269,7 @@ async function fetchSelfMetricsTop(): Promise<TickerItem[]> {
           deltaPct: null,
           severity: "win",
           domain: "body",
-          href: "/body",
+          href: "/stats#body",
         });
       }
     }
