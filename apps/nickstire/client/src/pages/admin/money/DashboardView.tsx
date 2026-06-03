@@ -669,6 +669,7 @@ export function DashboardView({ stats, topCustomers, kpi, shopFloor, funnel, per
         <div className="bg-card border border-border/30 p-5">
           <h3 className="font-bold text-sm text-foreground tracking-wider mb-4 flex items-center gap-2">
             <Users className="w-4 h-4 text-blue-400" /> CUSTOMER INTELLIGENCE
+            <span className="text-[10px] font-normal text-foreground/40 ml-1 normal-case">· all-time (ignores the period above)</span>
           </h3>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
             <div className="text-center p-3 rounded border border-primary/20 bg-primary/5">
