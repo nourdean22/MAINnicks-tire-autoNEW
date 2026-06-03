@@ -255,6 +255,7 @@ export default function RelationshipsPage() {
       description="Your Power Atlas — tap a name to open their dossier, ledger, and open promises."
       rhythm="comfortable"
       width="2xl"
+      loading={loading && !data}
       actions={
         <div className="flex items-center gap-2">
           <Button
@@ -595,11 +596,9 @@ export default function RelationshipsPage() {
         </div>
       )}
 
-      {loading && !data && (
-        <div className="text-sm text-[var(--text-tertiary)]">
-          loading people…
-        </div>
-      )}
+      {/* Initial load → StandardPage `loading` slot renders <PageSkeleton>;
+          the old inline "loading people…" was unreachable under the same
+          `loading && !data` guard, so it was removed. */}
       {error && !data && (
         <div className="text-sm text-rose-300">
           people-intelligence unavailable · tap reload
