@@ -81,7 +81,7 @@ const SNOOZE_MS = 24 * 60 * 60 * 1000;
 // globally — page context only reorders the calm middle (Edge Feed spec).
 function pagePreferred(pathname: string | null): Set<string> {
   const p = pathname ?? "";
-  if (p.startsWith("/money") || p.startsWith("/scoreboard") || p.startsWith("/funnel"))
+  if (p.startsWith("/financial") || p.startsWith("/funnel"))
     return new Set(["shop", "market", "macro"]);
   if (p.startsWith("/stats") || p.startsWith("/goals"))
     return new Set(["timeline", "brain"]);
