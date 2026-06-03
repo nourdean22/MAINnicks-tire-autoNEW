@@ -1,6 +1,6 @@
 # Session Changelog — 2026-06-03
 
-Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3 architecture decisions. Operator-facing record of what shipped to production. Code/file detail lives in the linked audit docs in this directory.
+Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3 architecture decisions + the SMS voice rewrite. Operator-facing record of what shipped to production. Code/file detail lives in the linked audit docs in this directory.
 
 ## 🔐 Security
 - **Closed a customer-data leak (IDOR)** in the public job tracker — anyone with an order number could pull a walk-in customer's status / vehicle / service list **without** proving their phone. Now fails closed (a phone match is required on every path). `3ac1f22f`, `5cd1151d` (+ regression test).
@@ -33,6 +33,14 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3
 - **TCPA "Reply STOP to opt out"** added to retention / oil-reminder bulk texts that lacked it. `d4e0f259`
 - Retired the misleading "you got tires from us" win-back segment (no tire signal behind it). `7cdf96e6`
 
+## 📲 SMS voice rewrite (wave-182, `4238dbc0` + `55dd7bad`)
+- **Every customer text rewritten (~80 messages)** to a tighter voice — business/purpose-first, concrete, low-pressure, quietly persuasive. **No name or personal details** in any message (your call), no planted negatives ("no pressure" / "problems get worse" / "if anything's wrong"), nothing salesy or obvious — all inside your existing brand-voice rules.
+- **Honesty fixes:** removed the **Uber/Lyft ride** promise (claimed 8× — not a real program), dropped a fake "referral code" (it was just the phone's last 4 digits), killed every "same-day" promise and "this is Nick personally" line, and stopped quoting repair prices the system shouldn't (only the $60 tire / $49 oil / $80 synthetic anchors stay). Kept only what you confirmed real: $25 referral, 10% VIP/win-back, 4.9★/1,700+, $10-down financing.
+- **Compliance:** "Reply STOP" now on **every** win-back and drip text (was missing on all 20 win-back + every drip — a TCPA gap).
+- **Wrong-price-proofed the AI texter** — the model that drafts SMS replies now knows the only 3 prices it may quote, so it can't invent a number.
+- **Consistency:** one business name everywhere ("Nick's Tire & Auto"), fixed a stale used-tire price ($40→$60), replaced the "Trusted Shop" tagline (a word your brand voice bans).
+- **Reliability:** phone-keyed walk-in jobs (booked by the AI chat) were **silently getting no texts** — no drop-off, pickup, or review messages, and the drop-off flow actually errored out for them. Fixed with a shared customer-resolver (numeric-id → phone fallback). *(The audit's "double-send" turned out not to be a real auto-bug — that path is a manual admin button, not a cron.)*
+
 ## 🎨 Admin UI surface (9 waves)
 - All **31 admin pages** audited and cleaned: uniform square cards, consistent money/date formatting, honest empty-states + labels (no more false "0 indexed" / "0%/1%" / fake-green statuses), the Next-Service prediction column un-broken, ~40 defect fixes, and dead-page / dead-code removal (incl. the broken NOUR-OS Bridge page). Commits `e9e61cd5` → `715523b5`.
 
@@ -41,7 +49,7 @@ Nick's Tire admin overhaul + live customer dedup + code-underneath fixes + the 3
 
 ## 🟡 Still open
 - **GBP content generator** fabricates names/prices to Google — **held** pending your go (say "unhold GBP").
-- **Deferred (flagged, not half-fixes of #1):** the app-layer SMS paths (drop-off / pickup / decline-recovery) still skip phone-keyed walk-in jobs — a real silent-SMS bug, but it changes live send paths so it needs live-SMS verification as its own unit. Plus a dead always-zero `customerMetrics.totalRevenue` read by the VIP lookup.
+- **Optional polish:** a couple of VAPI voicemail micro-tweaks (recovery voicemail could add the "we honor the quote" line; confirmation voicemail the address) — deploy-gated (needs a VAPI re-push to take effect). Plus a dead always-zero `customerMetrics.totalRevenue` read by the VIP lookup (cosmetic — the live VIP signal already uses `customers.totalSpent`).
 
 ---
 *Full technical detail:* `SESSION-CHECKPOINT.md` (anchored resume record) · `customer-dedup-plan.md` (§ EXECUTION OUTCOME + rollback) · `code-underneath-audit-{data,logic}.md` · the surface audit set (`money.md`, `outreach.md`, `leads-customers.md`, `ops-system.md`, `voice-content-uniformity.md`).
