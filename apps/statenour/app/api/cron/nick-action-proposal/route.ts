@@ -34,6 +34,15 @@ import { proposeNickActions } from "@/lib/ai/propose-actions";
 export const maxDuration = 60;
 
 export const GET = cronHandler(async () => {
+  // v-truth · NICK_AUTONOMY gate. The proposer is the ENTRY POINT of the
+  // action queue — gating it here means no pending rows + no Telegram /qa
+  // list are ever produced while the flag is off, so the whole queue is
+  // inert until the operator opts in on Railway. (execute also self-gates.)
+  const { getFlag } = await import("@/lib/feature-flags");
+  if (!getFlag("NICK_AUTONOMY")?.isOn) {
+    return { ok: true, skipped: "NICK_AUTONOMY off" };
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   // Wave AK · 2026-05-28 · operator-grade alerting wrapper. The
   // proposer is operator-trust-critical · a silent fail at 8am means

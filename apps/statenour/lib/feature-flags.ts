@@ -134,7 +134,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_VERIFIED_REGEN",
-    description: "Consumes the output-critic's shouldRegen verdict (already computed every factual turn) to gate a single verifier-guided regeneration before the reply ships — best-of-2 on the turns the critic flags as weak. OFF = critic verdict is logged only (today's behavior).",
+    description: "RESERVED · NOT YET WIRED — flipping this currently has NO effect. Will consume the output-critic's shouldRegen verdict (already computed every factual turn) to gate a verifier-guided regeneration before the reply ships. Deferred: needs a pre-stream refactor (the route must generate-before-stream); see INTELLIGENCE-PASS-PLAN W3a. lib/ai/chat/pre-stream-regen.ts is the built engine awaiting wiring.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "shouldRegen is computed + logged but never acted on; reply ships single-pass.",
@@ -150,7 +150,7 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
   },
   {
     key: "NICK_DEEP_REASONING",
-    description: "Routes hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine) instead of the single-pass streamer. Adds latency/cost on hard turns only. OFF = all turns single-pass (today).",
+    description: "RESERVED · NOT YET WIRED — flipping this currently has NO effect. Will route hard turns (complexity:complex + intent:decision/analytical) through the full reasoning engine (decompose -> plan -> critique -> refine) instead of single-pass. Deferred: same pre-stream/SSE refactor as NICK_VERIFIED_REGEN, too risky to ship unverified; see INTELLIGENCE-PASS-PLAN W4. lib/ai/reasoning/engine.ts is the built engine awaiting wiring.",
     status: "experimental",
     onValue: "true",
     defaultBehavior: "Every turn uses the single-pass streamer; the reasoning engine is reachable only via /api/nick/reason.",

@@ -501,9 +501,10 @@ export const CRONS: CronDef[] = [
   // so 8am cron at 3-4am ET ran with empty outreach slot every day.
   {
     name: "relationship-picks-prewarm",
-    schedule: "0 7 * * *",
-    mode: "dormant",
+    schedule: null,
+    mode: "folded",
     category: "action",
+    foldedInto: "mega-morning",
     description: "Daily 7am UTC · pre-warms RELATIONSHIPS_PICKS_TODAY cache so the 8am nick-action-proposal has outreach data. Idempotent · returns cached value if already populated.",
     memory: 512,
     maxDuration: 60,
@@ -511,9 +512,10 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "nick-action-proposal",
-    schedule: "0 8 * * *",
-    mode: "dormant",
+    schedule: null,
+    mode: "folded",
     category: "action",
+    foldedInto: "mega-morning",
     description: "Daily 8am UTC · Nick proposes 3-6 actions (SMS outreach · mission archive · task move · journal commit · AI spend confirm) · writes AutonomousAction rows + Telegram push w/ approve/reject syntax. Wave AK alerting · sends Telegram on failure.",
     memory: 1024,
     maxDuration: 300,
@@ -521,9 +523,10 @@ export const CRONS: CronDef[] = [
   },
   {
     name: "nick-action-execute",
-    schedule: "0 9 * * *",
-    mode: "dormant",
+    schedule: null,
+    mode: "folded",
     category: "action",
+    foldedInto: "mega-morning",
     description: "Daily 9am UTC · executes operator-approved AutonomousAction rows from the last 24h · logs results to ledger/journal/brain.",
     memory: 1024,
     maxDuration: 600,
