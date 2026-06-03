@@ -328,7 +328,7 @@ nickstire `pnpm --filter nicks-tire-auto env:validate`; statenour `pnpm --filter
 | `DATABASE_URL` | Neon pooled connection (`pgbouncer=true`) — **required** |
 | `DIRECT_URL` | Neon direct (non-pooled) connection for migrations |
 | `AUTH_SECRET`, `AUTH_GOOGLE_CLIENT_ID` / `_SECRET`, `AUTH_ALLOWED_EMAIL` | NextAuth (single-operator Google sign-in) |
-| `VENICE_API_KEY` (+ `VENICE_MODEL`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | AI provider chain (Venice default) |
+| `OLLAMA_API_KEY` (+ `OLLAMA_MODEL`), `VENICE_API_KEY` (+ `VENICE_MODEL`), `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY` | AI provider chain (Ollama Cloud primary -> Venice -> OpenAI -> Anthropic; see `lib/ai/provider.ts`) |
 | `CRON_SECRET`, `STATENOUR_SYNC_KEY` | Cron + sync/bridge auth |
 | `TELEGRAM_BOT_TOKEN` / `_CHAT_ID` / `_WEBHOOK_SECRET` | Ops alerts + ✓/✗ confirms |
 | `TWILIO_*`, `VAPID_*`, `STRIPE_*`, `RESEND_API_KEY` | SMS, web-push, payments, email |
