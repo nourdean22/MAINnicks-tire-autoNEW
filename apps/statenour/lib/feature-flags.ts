@@ -248,6 +248,51 @@ export const FLAG_REGISTRY: FeatureFlag[] = [
     defaultBehavior: "Multi-agent runs only if the model chooses the arsenal.multiAgent tool.",
     ownerDoc: "lib/ai/multi-agent-orchestrator.ts",
   },
+
+  // ── Operational / routing flags ────────────────────────────────
+  // These are read via raw `process.env.X` across the code; registered
+  // here (Phase Q.2 coexistence pattern · call sites untouched) so the
+  // /system/migrations board + getFlag() see them. 2026-06-04 · M1.
+  {
+    key: "NICK_PRIME_PROMPT",
+    description: "Switches Nick's system prompt to the v2 prompt assembler (lib/ai/prompt/v2). Dev opt-in (=1); production stays on the v1 prompt until v2 is proven. OFF = v1 prompt assembler.",
+    status: "experimental",
+    onValue: "1",
+    defaultBehavior: "v1 prompt assembler (production default).",
+    ownerDoc: "lib/ai/prompt/v2/index.ts",
+  },
+  {
+    key: "ENABLE_SPECIALIST_ROUTING",
+    description: "Activates the specialist-agent routing layer — routes a turn to a domain specialist instead of the general agent. Must literally equal `true`. OFF = every turn handled by the general agent.",
+    status: "experimental",
+    onValue: "true",
+    defaultBehavior: "Specialist routing bypassed; general agent handles all turns.",
+    ownerDoc: "lib/ai/agents/router.ts",
+  },
+  {
+    key: "NICK_HIGH_SPEC_GATE",
+    description: "Gates the high-spec model path in the chat route — when `on`, eligible turns use the higher-spec model tier. Default off, reversible.",
+    status: "experimental",
+    onValue: "on",
+    defaultBehavior: "Standard model tier for all turns.",
+    ownerDoc: "app/api/ai/chat/route.ts",
+  },
+  {
+    key: "NICK_CHAT_INTENSITY",
+    description: "Selects Nick's chat behavior-directive intensity: MINIMAL (MINIMAL/0/OFF) · STANDARD (default) · HIGH (HIGH/1/ON). Tunes how assertive the behavior directives are. Unset or STANDARD = baseline.",
+    status: "experimental",
+    onValue: "MINIMAL|HIGH|ON|OFF|0|1",
+    defaultBehavior: "STANDARD intensity behavior directives.",
+    ownerDoc: "lib/ai/knowledge/behavior-directive.ts",
+  },
+  {
+    key: "INNGEST_MEGA_V2",
+    description: "Activates the Inngest mega fan-out dispatcher — the daily morning/evening cron children fan out via Inngest instead of the Railway cron path. Must equal `true` (disable the Railway cron to avoid double-fire). OFF = mega fan-out returns skipped.",
+    status: "canary",
+    onValue: "true",
+    defaultBehavior: "Mega fan-out skips; daily children run via the Railway cron path.",
+    ownerDoc: "src/inngest/functions/mega-fanout.ts",
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────
