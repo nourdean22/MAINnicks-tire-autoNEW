@@ -98,7 +98,8 @@ describe("pickSmartNow · time-of-day defaults", () => {
       pulse: pulse(),
       hour: 7,
     });
-    expect(result?.href).toBe("/plan");
+    // Wave 2 consolidation · /plan → /stats (next.config redirect, permanent).
+    expect(result?.href).toBe("/stats");
     expect(result?.label).toMatch(/Plan today/);
   });
 
@@ -108,7 +109,8 @@ describe("pickSmartNow · time-of-day defaults", () => {
       pulse: pulse(),
       hour: 14,
     });
-    expect(result?.href).toBe("/tasks");
+    // Wave 2 consolidation · /tasks → /missions (next.config redirect).
+    expect(result?.href).toBe("/missions");
     expect(result?.label).toMatch(/Active tasks/);
   });
 
@@ -144,13 +146,14 @@ describe("pickSmartNow · skip when already on target", () => {
     expect(result?.href).not.toBe("/system/health");
   });
 
-  it("returns null when on /tasks during afternoon (already executing)", () => {
+  it("returns null when on /missions during afternoon (already executing)", () => {
     const result = pickSmartNow({
-      pathname: "/tasks",
+      pathname: "/missions",
       pulse: pulse(),
       hour: 14,
     });
-    // Afternoon → tasks · already there · should fall through to default chat
+    // Afternoon → /missions (Wave 2: was /tasks) · already there · should
+    // fall through to default chat.
     expect(result?.href).toBe("/chat");
   });
 
@@ -181,6 +184,7 @@ describe("pickSmartNow · null pulse", () => {
       pulse: null,
       hour: 7,
     });
-    expect(result?.href).toBe("/plan");
+    // Wave 2 consolidation · /plan → /stats.
+    expect(result?.href).toBe("/stats");
   });
 });
