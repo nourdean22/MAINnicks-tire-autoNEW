@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { CronFoldTree } from "@/components/system/cron-fold-tree";
+import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 
 // Phase B.7a (2026-05-22) · REST→tRPC system-pages slice · the
 // authedFetch read is `trpc.system.cronDeck.useQuery`; the kill-switch
@@ -101,15 +102,6 @@ const CATEGORY_META: Record<Category, { label: string; tint: string; glow: strin
 // isn't yet mapped above — keeps the page rendering instead of throwing
 // "Cannot read properties of undefined (reading 'tint')".
 const FALLBACK_META = { label: "other", tint: "text-zinc-300", glow: "" };
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
-  return `${Math.round(ms / 86_400_000)}d ago`;
-}
 
 function nextRunIn(iso: string | null, now: number): string {
   if (!iso) return "—";

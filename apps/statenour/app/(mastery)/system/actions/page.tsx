@@ -33,6 +33,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 // AbortController the prior code juggled is React Query's job now.
 // The 30s `cache:"no-store"` poll maps to `refetchInterval`.
 import { trpc } from "@/lib/trpc/client";
+import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 
 interface RuleRow {
   ruleName: string;
@@ -69,15 +70,6 @@ interface Feed {
 }
 
 type Win = "24h" | "7d" | "30d";
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
-  return `${Math.round(ms / 86_400_000)}d ago`;
-}
 
 function resultTint(result: string | null): string {
   if (result === "success") return "text-emerald-400";

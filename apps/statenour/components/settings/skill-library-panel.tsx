@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { relativeTimeMinutes as timeAgo } from "@/lib/utils/datetime";
 
 interface StoredSkill {
   dbId: string;
@@ -70,15 +71,6 @@ function isStale(s: StoredSkill): boolean {
 }
 
 type Tab = "candidates" | "active" | "graduated";
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-  return `${Math.round(diff / 86_400_000)}d ago`;
-}
 
 function tierColor(tier: StoredSkill["tier"]): string {
   return tier === "tiny" ? "text-emerald-400" : tier === "tactical" ? "text-[var(--gold)]" : "text-violet-400";

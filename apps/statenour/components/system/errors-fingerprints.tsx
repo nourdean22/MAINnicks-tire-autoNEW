@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils/cn";
 import { toast } from "sonner";
 import { AnimatedCounter } from "@/components/ui/animated-counter";
 import { trpc } from "@/lib/trpc/client";
+import { relativeTimeSeconds as timeAgo } from "@/lib/utils/datetime";
 
 interface Grouped {
   message: string;
@@ -41,15 +42,6 @@ interface LogRow {
 }
 
 type Level = "all" | "fatal" | "error" | "warn";
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return `${Math.max(1, Math.round(ms / 1000))}s ago`;
-  if (ms < 3_600_000) return `${Math.round(ms / 60_000)}m ago`;
-  if (ms < 86_400_000) return `${Math.round(ms / 3_600_000)}h ago`;
-  return `${Math.round(ms / 86_400_000)}d ago`;
-}
 
 function levelTint(level: string): string {
   const l = level.toLowerCase();

@@ -24,6 +24,7 @@ import { FreshnessChip } from "@/components/ui/freshness-chip";
 import { Play, Loader2, Clock, CheckCircle2, XCircle, Power, Search } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc/client";
+import { relativeTimeMinutes as timeAgo } from "@/lib/utils/datetime";
 
 // CronRow shape is inferred from the system.cronCatalog procedure
 // return type — kept as a type alias only for the local helpers'
@@ -72,15 +73,6 @@ function cadenceBucket(expr: string): string {
   if (hour.startsWith("*/")) return "every N hours";
   if (dow && dow !== "*") return "weekly";
   return "daily";
-}
-
-function timeAgo(iso: string | null): string {
-  if (!iso) return "never";
-  const diff = Date.now() - new Date(iso).getTime();
-  if (diff < 60_000) return "just now";
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
-  return `${Math.round(diff / 86_400_000)}d ago`;
 }
 
 export function CronControlPanel() {
