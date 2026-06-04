@@ -2,6 +2,28 @@
 
 **Purpose:** Single place to record what must be **true in production** for this repo. Update when you ship behavior or infra changes.
 
+## 🟢 Latest shipped — 2026-06-04 (VAPI receptionist live-bug fixes + SMS pre-launch hardening — receptionist + SMS TURNED ON)
+
+Operator turned the AI receptionist + customer SMS back ON; F25e gateway back online (was ~22h offline). A live-call review caught real bugs the static audit + harness-secret theory both missed; all fixed + deployed; new prompt pushed to the live assistant.
+
+**VAPI receptionist:**
+- **Tool args-parse — THE live bug (`3e20e5a7`):** the webhook dispatcher did `JSON.parse(call.function.arguments)`, but VAPI sends `function.arguments` as an already-parsed OBJECT on some events → `JSON.parse("[object Object]")` throws → EVERY custom tool (tireInquiry/bookSlot/lookupCustomer/checkTireStock) failed → the AI gave up and forwarded the call (why the call log was a wall of "Assistant forwarded call"). Fixed in `server/routes/webhooks/vapi.ts`: accept object-OR-string args. Webhook signature was always fine (tools reached the dispatcher). Same root cause as the `vapi-harness` "tool dispatch FAILED" checks — NOT a secret drift.
+- **Conversion attribution (`3e20e5a7`):** dispatcher now injects the real `event.call.id` into tool args so bookSlot/tireInquiry/escalate stamp `convertedToLead` on `vapi_call_logs` (the LLM never supplies callId → was silently dead).
+- **Prompt human-ness (`0720a97d`, pushed live to 150fe622):** killed two robot tells from a real call — (1) re-greeting/re-announcing the shop after a caller's "hello?/you there?" → now a brief reassure, never a second intro; (2) stacked filler ("Give me a moment. Hold on…") → one line then act. Added to the kill-list + HOW YOU TALK in `ASSISTANT_SYSTEM_PROMPT`; no logic/tool/transfer change.
+- **"Push Latest Config" was updating the WRONG assistant (`0c197739`):** the two VAPI assistants share the display name "Nick's Tire & Auto Receptionist" but are DIFFERENT — **`150fe622` = INBOUND receptionist (`VAPI_RECEPTIONIST_ASSISTANT_ID`, phone-bound, every live call); `afcad79e` = OUTBOUND follow-up (`VAPI_FOLLOWUP_ASSISTANT_ID`)**. The panel pushed `status.assistants[0]` = the follow-up, so the receptionist never received new config. Fixed: `vapi.updateAssistant` defaults `assistantId` to `VAPI_RECEPTIONIST_ASSISTANT_ID` server-side; the panel button stops passing the first-in-list id. **Do NOT delete `afcad79e` — it's the follow-up assistant, not a duplicate.**
+
+**SMS — pre-launch hardening (`8a92375b`):**
+- **TCPA: non-exact STOP now honored.** `smsResponseParser` + `smsBot` were exact-match only ("STOP please" / "Stop texting me" did NOT opt out); the shop F25e gateway has no carrier-level opt-out, so the app must catch variants → now leading-keyword match. CANCEL-as-cancel-appointment preserved in the parser.
+- **Appointment reminders no longer silently dropped:** `sms-scheduler` passes `transactional: true` for confirmation/24h/1h/thank-you so they bypass the promo daily-cap + 5-min cooldown; `maintenance-reminder` stays capped (it's promo, keeps its STOP footer).
+- **Campaigns:** per-batch gateway reachability re-check — if F25e dies mid-blast, remaining rows stay `pending` for `resumeStuckCampaigns` instead of phantom `sent`.
+
+**Env confirmed (railway `MAINnicks-tire-auto`):** `VAPI_WEBHOOK_SECRET` SET · `VAPI_API_KEY` SET · `VAPI_RECEPTIONIST_ASSISTANT_ID=150fe622…` · `VAPI_FOLLOWUP_ASSISTANT_ID=afcad79e…`. Phone `+1 216 424 9249` inbound assistant = the receptionist (VAPI dashboard); phone-level **Fallback Destination is EMPTY** (optional hard-failure safety net — set to the shop line if wanted).
+
+⚠ **Operator spot-check pending:** live test-call to confirm tools answer naturally + no re-greet + clean transfer.
+
+---
+
+
 ## 🟢 Latest shipped — 2026-06-03 PM (front-facing site audit: truth + two-tier tire pricing, 8 commits)
 
 **Tire pricing is TWO-TIER by surface (canonical current state):**
