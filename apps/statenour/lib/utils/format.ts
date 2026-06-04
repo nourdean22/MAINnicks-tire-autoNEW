@@ -61,57 +61,6 @@ export function formatDateTime(value: string | Date | null | undefined): string 
   }).format(date);
 }
 
-export function formatRelativeTime(value: string | Date | null | undefined): string {
-  if (!value) {
-    return "just now";
-  }
-
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "unknown";
-  }
-
-  const diffMs = date.getTime() - Date.now();
-  const diffMinutes = Math.round(diffMs / (1000 * 60));
-  const absoluteMinutes = Math.abs(diffMinutes);
-
-  if (absoluteMinutes < 1) {
-    return "just now";
-  }
-
-  if (absoluteMinutes < 60) {
-    return diffMinutes > 0 ? `in ${absoluteMinutes}m` : `${absoluteMinutes}m ago`;
-  }
-
-  const absoluteHours = Math.round(absoluteMinutes / 60);
-  if (absoluteHours < 24) {
-    return diffMinutes > 0 ? `in ${absoluteHours}h` : `${absoluteHours}h ago`;
-  }
-
-  const absoluteDays = Math.round(absoluteHours / 24);
-  return diffMinutes > 0 ? `in ${absoluteDays}d` : `${absoluteDays}d ago`;
-}
-
-export function formatRelativeDays(target: string | Date | null | undefined): string {
-  if (!target) {
-    return "No deadline";
-  }
-
-  const date = target instanceof Date ? target : new Date(target);
-  const diffMs = date.getTime() - Date.now();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) {
-    return "Today";
-  }
-
-  if (diffDays > 0) {
-    return `${diffDays}d left`;
-  }
-
-  return `${Math.abs(diffDays)}d late`;
-}
-
 export function toSentenceCase(value: string): string {
   return value
     .toLowerCase()
