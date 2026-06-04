@@ -3,10 +3,7 @@
   "ui": "stream",
   "globalDependencies": [
     "pnpm-lock.yaml",
-    "pnpm-workspace.yaml",
-    ".env",
-    ".env.local",
-    ".env.production"
+    "pnpm-workspace.yaml"
   ],
   "globalEnv": [
     "NODE_ENV",
@@ -31,8 +28,7 @@
         ".next-prod/**",
         "!.next-prod/cache/**",
         "dist/**",
-        "client/dist/**",
-        "node_modules/.prisma/**"
+        "client/dist/**"
       ],
       "passThroughEnv": [],
       "env": [
