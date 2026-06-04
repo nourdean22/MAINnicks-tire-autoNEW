@@ -310,10 +310,10 @@ off by TTL; brain + audit + decision data is `forever`.
 Declared in `lib/ai/provider.ts`. Set `AI_PROVIDER` env to pin one.
 
 ```
-Venice          (primary · GLM-4.7-flash-heretic)
+Ollama Cloud   (primary · large-context · qwen3-vl:235b-instruct)
    │   if down:
    ▼
-Ollama Cloud   (co-primary for content/deep · large-context preference)
+Venice          (fallback · GLM-4.7-flash-heretic)
    │   if down:
    ▼
 OpenAI          (GPT-5 fallback)

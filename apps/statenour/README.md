@@ -107,8 +107,8 @@ spot a problem.
 
 statenour is a Next.js 16 App Router app deployed to Railway. Prisma
 7 talks to Neon Postgres (current model count in RECONCILIATION). Nick
-runs through a pluggable provider chain (Venice primary → Ollama Cloud
-→ OpenAI → Anthropic → Gemini fallback) via `lib/ai/provider.ts`, with
+runs through a pluggable provider chain (Ollama Cloud primary → Venice
+→ OpenAI → Anthropic fallback) via `lib/ai/provider.ts`, with
 `streamWithFallback` providing pre-first-token same-turn rotation.
 System prompt assembly + tool selection + output critique live in
 `lib/ai/*`. Scheduled crons manage ingestion (Gmail/Calendar/Drive/
