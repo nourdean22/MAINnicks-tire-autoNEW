@@ -58,7 +58,7 @@ const SKIP_DIRS = new Set(["node_modules", ".next", ".next-prod", ".next-ci", ".
 const SCAN_EXTS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 
 // Files where actual secrets ARE expected (env templates, examples)
-const SECRET_ALLOWLIST = new Set([".env.example", ".env.template"]);
+const SECRET_ALLOWLIST = new Set([".env.example"]);
 
 // Skip the audit script itself · its pattern strings will match every check.
 const SELF_PATH_FRAGMENT = "scripts/security-audit.ts";

@@ -640,39 +640,11 @@ interface ProviderEntry {
   modelId: string;
 }
 
-// Apr 28 · TAG-TEAM 1st: Venice + Ollama Cloud share the top spot.
-//
-// HISTORICAL (this paragraph is superseded by the v10.0.529.46 note
-// below + the PROVIDERS array — Ollama is now 1st, Venice a fallback):
-// Default order: Venice 1st (faster TTFT for short prompts), Ollama 2nd
-// (1M context — kicks in when Venice is exhausted OR getModel is called
-// with `preferLargeContext: true` for content-mode prompts that exceed
-// Venice's 65k char system-prompt limit).
-//
-// The `getModel(task, opts)` function below reorders this list when
-// opts.preferLargeContext is set — Ollama becomes the first pick.
-//
-// Venice 3rd slot is the existing retry-on-failure pattern.
-// OpenAI + Anthropic remain last-resort fallbacks for full provider death.
-//
-// v10.0.213 · operational reality: Anthropic key is currently
-// UNCONFIGURED in this deployment. isAnthropicAvailable() returns
-// false and getModel() skips it cleanly — but it means the
-// effective chain is Venice → Ollama → Venice retry → OpenAI (4
-// attempts, 3 distinct providers), not the 5-provider story the
-// rest of this comment block implies. Add ANTHROPIC_API_KEY to
-// recover the safety-net tier. Surfaced by smoke-deep-fit's
-// provider-heartbeat check.
-// v10.0.529.46 · Ollama Cloud promoted to primary chat provider.
-// Pre-fix · Venice was first · went 402 (insufficient credit) and
-// the chat surface returned 3 failed attempts with no fallback (the
-// circuit breaker requires markVeniceQuotaExhausted() to be called,
-// which only happens on the venice-status probe, not the streamText
-// path). User got zero responses on "hi".
-// Post-fix · Ollama Cloud is the default · Venice drops to fallback ·
-// known-good as the chat-completions tier on the operator's plan
-// (the embed endpoint is what's missing there, /v1/chat/completions
-// works). OpenAI + Anthropic stay as safety net.
+// Provider order. Ollama Cloud is the default primary chat provider;
+// Venice, OpenAI, and Anthropic are fallbacks (in that order). The
+// `getModel(task, opts)` function below reorders this list to put Ollama
+// first when opts.preferLargeContext is set. Set the `AI_PROVIDER` env to
+// pin one provider (incident triage).
 const PROVIDERS: ProviderEntry[] = [
   { name: "ollama", available: isOllamaAvailable, create: (t) => createOllamaModel(t), modelId: OLLAMA_MODEL },
   { name: "venice", available: isVeniceAvailable, create: (t) => createVeniceModel(t), modelId: VENICE_MODEL },
@@ -825,27 +797,6 @@ export function getModel(
   throw new Error(
     "No AI provider available. Set VENICE_API_KEY, OLLAMA_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY."
   );
-}
-
-/**
- * Whether the active provider supports tool calling.
- *
- * wave-fix-2026-05-25 · audit · was hardcoded `return true` claiming
- * "All current providers (Venice, OpenAI, Anthropic) support tools" —
- * but ProviderName ALSO includes `ollama` and `emergency`. Ollama's
- * tool-calling format differs from OpenAI-compatible providers and is
- * unreliable for the multi-step tool loops we use (especially with
- * kimi-k2.5:cloud as a cost-saving backup). `emergency` is a stub
- * with no tool support. Returning true for them caused tool-loop
- * dispatch to attempt calls that silently failed mid-conversation.
- *
- * Now allowlists exactly the 3 providers we've verified work with
- * the AI SDK's tool wire format. Adding new providers requires
- * verification — opt them in by name.
- */
-export function activeProviderSupportsTools(): boolean {
-  const info = getActiveProviderInfo();
-  return info.provider === "venice" || info.provider === "openai" || info.provider === "anthropic";
 }
 
 /**
