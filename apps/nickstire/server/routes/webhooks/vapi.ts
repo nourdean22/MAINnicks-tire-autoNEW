@@ -152,7 +152,7 @@ export function isForwardedEndedReason(endedReason: string | null | undefined): 
 interface VapiToolCall {
   id: string;
   type: "function";
-  function: { name: string; arguments: string };
+  function: { name: string; arguments: string | Record<string, unknown> };
 }
 
 async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promise<{
@@ -161,7 +161,17 @@ async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promi
 }> {
   let args: Record<string, unknown> = {};
   try {
-    args = JSON.parse(call.function.arguments || "{}");
+    // VAPI sends function.arguments as a JSON STRING on most events but as an
+    // already-parsed OBJECT on others. JSON.parse(object) coerces to the string
+    // "[object Object]" and throws "is not valid JSON" — which silently killed
+    // every custom tool (tireInquiry/bookSlot/lookupCustomer/etc.) and forced
+    // the call to forward. Accept both shapes.
+    const rawArgs = call.function.arguments;
+    if (typeof rawArgs === "string") {
+      args = (JSON.parse(rawArgs || "{}") ?? {}) as Record<string, unknown>;
+    } else if (rawArgs && typeof rawArgs === "object") {
+      args = rawArgs as Record<string, unknown>;
+    }
   } catch (err) {
     return {
       toolCallId: call.id,
