@@ -17,6 +17,10 @@ import { goalsByStat, type GoalForStats } from "./goal-stats";
 export interface StatLevel {
   key: string;
   label: string;
+  /** Short display name for the UI (falls back to label). */
+  shortLabel: string;
+  /** One-line plain-coach description of what this stat is. */
+  description: string;
   icon: string;
   color: string;
   /** Which skill-tree branch this stat belongs to (body/mind/empire/influence). */
@@ -114,6 +118,8 @@ export async function computeCharacterSheet(): Promise<StatLevel[]> {
     return {
       key: d.key,
       label: d.label,
+      shortLabel: d.shortLabel,
+      description: d.description,
       icon: d.icon,
       color: d.color,
       branch: d.branch,

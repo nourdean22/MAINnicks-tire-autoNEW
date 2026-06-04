@@ -31,6 +31,8 @@ import { BRANCHES } from "@/lib/mastery/config";
 interface StatLevel {
   key: string;
   label: string;
+  shortLabel?: string;
+  description?: string;
   icon: string;
   color: string;
   branch: string;
@@ -128,13 +130,13 @@ export function CharacterSheet() {
             title={`Fastest riser this week · +${topRiser.rising7dXp} XP`}
           >
             <span style={{ color: topRiser.color }}>▲ week</span> {topRiser.icon}{" "}
-            {topRiser.label}{" "}
+            {topRiser.shortLabel || topRiser.label}{" "}
             <span className="tabular-nums text-white/50">+{topRiser.rising7dXp}</span>
           </p>
         ) : (
           <p className="text-[11px] text-white/70 truncate" title="Peak stat">
             <span className="text-white/35">peak</span> {peak.tierEmoji} {peak.icon}{" "}
-            {peak.label}
+            {peak.shortLabel || peak.label}
           </p>
         )}
       </div>
@@ -156,7 +158,7 @@ export function CharacterSheet() {
             {nextRep.icon}
           </span>
           <span className="truncate text-[12px] font-medium text-white/85">
-            {nextRep.label}
+            {nextRep.shortLabel || nextRep.label}
           </span>
           <span
             className="ml-auto shrink-0 text-[11px] font-semibold tabular-nums"
@@ -229,7 +231,7 @@ function StatCard({ stat }: { stat: StatLevel }) {
         {/* line 1 · label + level + tier emoji */}
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate text-[11.5px] font-medium text-white/80">
-            {stat.label}
+            {stat.shortLabel || stat.label}
           </span>
           <span className="shrink-0 text-[11px] font-semibold tabular-nums text-white/90">
             Lvl {stat.level}
@@ -239,6 +241,11 @@ function StatCard({ stat }: { stat: StatLevel }) {
           </span>
         </div>
         {/* line 2 · thin progress bar (stat color) + xp-into-level */}
+        {stat.description ? (
+          <p className="mt-0.5 text-[10px] leading-snug text-white/35" title={stat.description}>
+            {stat.description}
+          </p>
+        ) : null}
         <div className="mt-1 flex items-center gap-1.5">
           <div className="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.08]">
             <div
