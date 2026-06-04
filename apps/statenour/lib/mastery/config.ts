@@ -44,22 +44,22 @@ export type BranchKey = typeof BRANCHES[number]["key"];
 
 export const DOMAINS = [
   // ── BODY · the vessel ─────────────────────────────────────────────
-  { key: "physical", label: "Physical Vitality", color: "#F97316", baseline: 4.0, icon: "🫀", branch: "body" },
-  { key: "combat", label: "Combat", color: "#DC2626", baseline: 5.0, icon: "🥊", branch: "body" },
-  { key: "conditioning", label: "Strength & Conditioning", color: "#EA580C", baseline: 4.5, icon: "🏋️", branch: "body" },
-  { key: "mobility", label: "Mobility & Flexibility", color: "#FB923C", baseline: 3.0, icon: "🤸", branch: "body" },
+  { key: "physical", label: "Physical Vitality", color: "#F97316", baseline: 4.0, shortLabel: "Vitality", description: "Your baseline energy, health, and how alive your body feels.",icon: "🫀", branch: "body" },
+  { key: "combat", label: "Combat", color: "#DC2626", baseline: 5.0, shortLabel: "Combat", description: "The skill and nerve to defend yourself and hold your ground.",icon: "🥊", branch: "body" },
+  { key: "conditioning", label: "Strength & Conditioning", color: "#EA580C", baseline: 4.5, shortLabel: "Strength", description: "Raw power and stamina, and the work that builds them.",icon: "🏋️", branch: "body" },
+  { key: "mobility", label: "Mobility & Flexibility", color: "#FB923C", baseline: 3.0, shortLabel: "Mobility", description: "Moving freely, full range of motion, without pain.",icon: "🤸", branch: "body" },
   // ── MIND · the inner game ─────────────────────────────────────────
   // 2026-05-30 · Mental Clarity MERGED into Focus (operator: kill the one
   // genuine dup). Key stays `mental` to preserve its lifetime XP history;
   // only the label/icon/color become Focus. The separate `focus` key (added
   // earlier today, ~no history) is removed below. Future "focus" signals
   // attribute here since the AI returns the key for label "Focus".
-  { key: "mental", label: "Focus", color: "#38BDF8", baseline: 5.0, icon: "🎯", branch: "mind" },
-  { key: "fortitude", label: "Mental Fortitude", color: "#0EA5E9", baseline: 4.5, icon: "🛡️", branch: "mind" },
-  { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, icon: "🫂", branch: "mind" },
-  { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, icon: "🌊", branch: "mind" },
-  { key: "courage", label: "Courage & Facing Fears", color: "#60A5FA", baseline: 5.0, icon: "🦁", branch: "mind" },
-  { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, icon: "🕌", branch: "mind" },
+  { key: "mental", label: "Focus", color: "#38BDF8", baseline: 5.0, shortLabel: "Focus", description: "Holding attention on one thing without drifting or numbing out.",icon: "🎯", branch: "mind" },
+  { key: "fortitude", label: "Mental Fortitude", color: "#0EA5E9", baseline: 4.5, shortLabel: "Fortitude", description: "Staying steady and functional under stress and pressure.",icon: "🛡️", branch: "mind" },
+  { key: "emotional_intelligence", label: "Emotional Intelligence", color: "#14B8A6", baseline: 4.5, shortLabel: "Emotional IQ", description: "Reading emotions, yours and others', and responding well.",icon: "🫂", branch: "mind" },
+  { key: "adaptability", label: "Adaptability", color: "#22D3EE", baseline: 4.5, shortLabel: "Adaptability", description: "Adjusting fast when the plan, conditions, or facts change.",icon: "🌊", branch: "mind" },
+  { key: "courage", label: "Courage & Facing Fears", color: "#60A5FA", baseline: 5.0, shortLabel: "Courage", description: "Doing the thing you're afraid of anyway.",icon: "🦁", branch: "mind" },
+  { key: "faith", label: "Faith & Purpose", color: "#2DD4BF", baseline: 5.5, shortLabel: "Faith", description: "Trusting something larger and knowing why you're doing this.",icon: "🕌", branch: "mind" },
   // 2026-05-30 · operator-added. These overlap existing Mind stats, so the
   // boundaries below keep the AI attributor from double-counting:
   //   · patience        = tolerance of delay + playing the long game
@@ -67,53 +67,53 @@ export const DOMAINS = [
   //   · self_confidence = self-belief / self-worth
   //     (Courage & Facing Fears = acting *despite* fear)
   // baselines here are UNVERIFIED placeholder self-ratings — tune them.
-  { key: "self_confidence", label: "Inner Self-Confidence", color: "#818CF8", baseline: 5.0, icon: "💎", branch: "mind" },
-  { key: "patience", label: "Patience", color: "#5EEAD4", baseline: 4.0, icon: "⏳", branch: "mind" },
+  { key: "self_confidence", label: "Inner Self-Confidence", color: "#818CF8", baseline: 5.0, shortLabel: "Self-Confidence", description: "Quiet certainty in your own worth that doesn't need proving.",icon: "💎", branch: "mind" },
+  { key: "patience", label: "Patience", color: "#5EEAD4", baseline: 4.0, shortLabel: "Patience", description: "Letting things take the time they need without forcing them.",icon: "⏳", branch: "mind" },
   // 2026-05-30 · "size of my balls, figuratively" → audacity: boldness of
   // moves / risk-appetite / nerve. Distinct from Courage (overcoming fear
   // of a specific thing) and Inner Self-Confidence (self-worth) — this is
   // how BIG you're willing to swing.
-  { key: "audacity", label: "Audacity", color: "#4F46E5", baseline: 6.0, icon: "🦍", branch: "mind" },
+  { key: "audacity", label: "Audacity", color: "#4F46E5", baseline: 6.0, shortLabel: "Audacity", description: "Taking bold action despite fear; how big you're willing to swing.",icon: "🦍", branch: "mind" },
   // 2026-05-30 · phone-notes coverage pass. Boundaries vs neighbors:
   //   · wisdom     = accumulated judgment / life-philosophy / mental models
   //     (Faith = spirituality/meaning · Critical Thinking = live reasoning)
   //   · discipline = daily consistency / self-control / showing up
   //     (Fortitude = enduring pain · Follow-Through = closing old loops)
-  { key: "wisdom", label: "Wisdom & Philosophy", color: "#0D9488", baseline: 5.0, icon: "🦉", branch: "mind" },
-  { key: "discipline", label: "Discipline", color: "#0891B2", baseline: 5.5, icon: "🧱", branch: "mind" },
+  { key: "wisdom", label: "Wisdom & Philosophy", color: "#0D9488", baseline: 5.0, shortLabel: "Wisdom", description: "Knowing what actually matters, and acting on it.",icon: "🦉", branch: "mind" },
+  { key: "discipline", label: "Discipline", color: "#0891B2", baseline: 5.5, shortLabel: "Discipline", description: "Doing what needs doing regardless of how you feel.",icon: "🧱", branch: "mind" },
   // ── CRAFT & EMPIRE · the builder ──────────────────────────────────
-  { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, icon: "🏪", branch: "empire" },
-  { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, icon: "📊", branch: "empire" },
-  { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, icon: "💻", branch: "empire" },
-  { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, icon: "♟️", branch: "empire" },
-  { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 6.0, icon: "🧰", branch: "empire" },
-  { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, icon: "🏁", branch: "empire" },
+  { key: "business_ops", label: "Business Operations", color: "#FDB913", baseline: 6.5, shortLabel: "Business Ops", description: "Running the day-to-day so the business actually works.",icon: "🏪", branch: "empire" },
+  { key: "financial", label: "Financial Mastery", color: "#10B981", baseline: 4.0, shortLabel: "Finance", description: "Earning, keeping, and growing money on purpose.",icon: "📊", branch: "empire" },
+  { key: "technical", label: "Technical Craft", color: "#3B82F6", baseline: 7.5, shortLabel: "Technical", description: "Building and fixing the tools and systems you rely on.",icon: "💻", branch: "empire" },
+  { key: "strategy", label: "Strategic Vision", color: "#6366F1", baseline: 6.0, shortLabel: "Strategy", description: "Seeing several moves ahead toward a clear goal.",icon: "♟️", branch: "empire" },
+  { key: "delegation", label: "Delegation & Leverage", color: "#84CC16", baseline: 6.0, shortLabel: "Delegation", description: "Getting more done through other people and systems.",icon: "🧰", branch: "empire" },
+  { key: "follow_through", label: "Follow-Through", color: "#EAB308", baseline: 3.0, shortLabel: "Follow-Through", description: "Finishing what you start, all the way to done.",icon: "🏁", branch: "empire" },
   // 2026-05-30 · phone-notes coverage. Critical Thinking is the STAT you
   // level; the critical-thinking LENSES (five-whys · inversion · second-
   // order) are how Nick reasons it — that's the stat↔lens synergy. Learning
   // = the meta-skill: speed of acquiring new skills (vs Wisdom = applied
   // judgment · Technical Craft = an already-built skill).
-  { key: "critical_thinking", label: "Critical Thinking", color: "#4338CA", baseline: 6.0, icon: "🧩", branch: "empire" },
-  { key: "learning", label: "Learning", color: "#22C55E", baseline: 6.0, icon: "📚", branch: "empire" },
+  { key: "critical_thinking", label: "Critical Thinking", color: "#4338CA", baseline: 6.0, shortLabel: "Critical Thinking", description: "Cutting through noise to what's actually true.",icon: "🧩", branch: "empire" },
+  { key: "learning", label: "Learning", color: "#22C55E", baseline: 6.0, shortLabel: "Learning", description: "Picking up new skills and knowledge fast, and keeping them.",icon: "📚", branch: "empire" },
   // ── INFLUENCE & PEOPLE · the outer game ───────────────────────────
-  { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, icon: "💼", branch: "influence" },
-  { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, icon: "🗣️", branch: "influence" },
-  { key: "marketing", label: "Communication & Storytelling", color: "#8B5CF6", baseline: 4.5, icon: "🎤", branch: "influence" },
-  { key: "leadership", label: "Leadership & People", color: "#EC4899", baseline: 4.0, icon: "👥", branch: "influence" },
-  { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, icon: "❤️", branch: "influence" },
-  { key: "service", label: "Service & Impact", color: "#D946EF", baseline: 4.0, icon: "👐", branch: "influence" },
-  { key: "languages", label: "Languages", color: "#C026D3", baseline: 2.5, icon: "🌎", branch: "influence" },
+  { key: "sales", label: "Sales", color: "#EF4444", baseline: 3.0, shortLabel: "Sales", description: "Turning conversations into closed deals.",icon: "💼", branch: "influence" },
+  { key: "persuasion", label: "Persuasion & Influence", color: "#A855F7", baseline: 3.5, shortLabel: "Persuasion", description: "Moving people to your point of view.",icon: "🗣️", branch: "influence" },
+  { key: "marketing", label: "Communication & Storytelling", color: "#8B5CF6", baseline: 4.5, shortLabel: "Communication", description: "Making people feel something and remember it.",icon: "🎤", branch: "influence" },
+  { key: "leadership", label: "Leadership & People", color: "#EC4899", baseline: 4.0, shortLabel: "Leadership", description: "Getting people to follow you toward something worth doing.",icon: "👥", branch: "influence" },
+  { key: "relationships", label: "Relationships & Family", color: "#F59E0B", baseline: 5.0, shortLabel: "Relationships", description: "Building bonds that actually last.",icon: "❤️", branch: "influence" },
+  { key: "service", label: "Service & Impact", color: "#D946EF", baseline: 4.0, shortLabel: "Service", description: "Making a real difference in other people's lives.",icon: "👐", branch: "influence" },
+  { key: "languages", label: "Languages", color: "#C026D3", baseline: 2.5, shortLabel: "Languages", description: "Speaking and understanding beyond your native tongue.",icon: "🌎", branch: "influence" },
   // 2026-05-30 · operator-added. Boundaries vs neighbors (no double-count):
   // advertising = PAID promotion / ad creative / reach-buying (Communication
   // & Storytelling stays = organic voice / content) · seduction = charm /
   // allure / magnetism, Greene-style (Persuasion = framing to win a point ·
   // Sales = closing the deal).
-  { key: "advertising", label: "Advertising", color: "#F472B6", baseline: 4.0, icon: "📣", branch: "influence" },
-  { key: "seduction", label: "Seduction", color: "#E11D48", baseline: 4.5, icon: "🌹", branch: "influence" },
+  { key: "advertising", label: "Advertising", color: "#F472B6", baseline: 4.0, shortLabel: "Advertising", description: "Getting the right message in front of the right people.",icon: "📣", branch: "influence" },
+  { key: "seduction", label: "Seduction", color: "#E11D48", baseline: 4.5, shortLabel: "Seduction", description: "Charm, allure, and presence as a trainable skill.",icon: "🌹", branch: "influence" },
   // 2026-05-30 · "would help greatly" add. Networking & Alliances = building
   // your strategic connections / power network (Greene) — distinct from
   // Relationships & Family (personal) · Leadership (leading) · Seduction (1:1).
-  { key: "networking", label: "Networking & Alliances", color: "#9333EA", baseline: 4.5, icon: "🤝", branch: "influence" },
+  { key: "networking", label: "Networking & Alliances", color: "#9333EA", baseline: 4.5, shortLabel: "Networking", description: "Building a web of relationships that open doors.",icon: "🤝", branch: "influence" },
 ] as const;
 
 export type DomainKey = typeof DOMAINS[number]["key"];
