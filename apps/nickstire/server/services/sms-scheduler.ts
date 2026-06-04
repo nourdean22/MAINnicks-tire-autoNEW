@@ -330,7 +330,11 @@ export async function processScheduledSms() {
     // Was missing from wave-181.46's batch — booking confirmations + 24h/1h
     // reminders + thank-you + maintenance-reminder all flow through this path.
     // Without { via: "shop" } they hit the kill switch.
-    const result = await sendSms(booking.phone, message, { via: "shop" });
+    // Appointment-related reminders are transactional — must not be silently
+    // dropped by the promo daily-cap/cooldown. Only maintenance-reminder is
+    // promotional (stays capped + carries its own STOP footer).
+    const isTransactional = reminder.type !== "maintenance-reminder";
+    const result = await sendSms(booking.phone, message, { via: "shop", transactional: isTransactional });
 
     if (result.success) {
       await db.update(appointmentReminders)

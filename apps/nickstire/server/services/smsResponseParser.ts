@@ -40,7 +40,7 @@ const PATTERNS: Array<{ pattern: RegExp; intent: ParsedResponse["intent"]; autoA
   // "cancel" means cancel-my-appointment (matched above), not opt-out-of-
   // all-SMS. Inbound SMS over the F25e gateway gets no carrier-level
   // opt-out handling, so this app must catch these keywords itself.
-  { pattern: /^(stop|unsubscribe|opt out|end|quit|remove me)$/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
+  { pattern: /^\s*(stop|stopall|unsubscribe|opt[\s-]?out|end|quit|remove\s+me)\b/i, intent: "unsubscribe", autoAction: "unsubscribe-customer", confidence: 99 },
 
   // Reschedule hints
   { pattern: /reschedule|different (time|day|date)|move (my|the) appointment|change (time|date)/i, intent: "reschedule", autoAction: "flag-for-followup", confidence: 85 },
