@@ -34,13 +34,23 @@ async function fetchBridge<T = unknown>(
   }
 }
 
-interface ActionRule {
+interface ActionRule<T = unknown> {
   name: string;
-  trigger: () => Promise<any[]>; // returns items to act on
-  action: (item: any) => Promise<{ result: string; payload?: any }>;
+  trigger: () => Promise<T[]>; // returns items to act on
+  action: (item: T) => Promise<{ result: string; payload?: unknown }>;
   approval: "auto" | "ask"; // auto = execute immediately, ask = notify and wait
   actionType: string;
   targetType: string;
+}
+
+/**
+ * Existential wrapper: preserves each rule's intra-rule item typing
+ * (trigger output type flows to action's `item`) while letting the
+ * heterogeneous RULES array hold rules with different item types,
+ * erased to `unknown`. Identity at runtime.
+ */
+function defineRule<T>(rule: ActionRule<T>): ActionRule<unknown> {
+  return rule as ActionRule<unknown>;
 }
 
 const RULES: ActionRule[] = [
@@ -52,7 +62,7 @@ const RULES: ActionRule[] = [
   // failure → empty array → rule no-ops (does NOT fire follow-ups
   // on stale or partial data, which would email customers about
   // quotes Nick can't actually verify exist).
-  {
+  defineRule({
     name: "auto_followup_expired_quote",
     trigger: async () => {
       const data = await fetchBridge<{
@@ -91,7 +101,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_email",
     targetType: "quote",
-  },
+  }),
 
   // v10.0.529.103 · Wave 47 · `auto_remind_unreviewed_applicant` rule
   // deleted. Applicant entity moved to nickstire admin in v10.0.50.
@@ -104,7 +114,7 @@ const RULES: ActionRule[] = [
   // returns 4h+-old `pending` appointments with customer name,
   // phone, service, and preferred slot — exactly what the action
   // template needs. Filter is applied bridge-side via filters.
-  {
+  defineRule({
     name: "auto_remind_pending_appointment",
     trigger: async () => {
       const data = await fetchBridge<{
@@ -138,10 +148,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "appointment",
-  },
+  }),
 
   // ── Decision replays due ───────────────────────────────────
-  {
+  defineRule({
     name: "decision_replay_due",
     trigger: async () => {
       return prisma.decisionReplay.findMany({
@@ -162,7 +172,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "decision",
-  },
+  }),
 
   // ── Dynamic pricing adjustment suggestion ──────────────────
   // v10.0.50 · Wave A · Wired to queryNick. `quotes_pending` (now
@@ -170,9 +180,11 @@ const RULES: ActionRule[] = [
   // bridge data shape includes a `bookedCount` separate from `count`
   // so we can derive the conversion rate. Bridge failure → empty so
   // the rule no-ops (safer than firing a misleading alert).
-  {
+  defineRule({
     name: "suggest_pricing_adjustment",
-    trigger: async () => {
+    trigger: async (): Promise<
+      Array<{ type: "underpriced" | "overpriced"; rate: number; total: number; booked: number }>
+    > => {
       const data = await fetchBridge<{
         count?: number;
         bookedCount?: number;
@@ -211,7 +223,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "pricing",
-  },
+  }),
 
   // ── Daily score reminder ──────────────────────────────────
   // v10.0.50 · Wave A · The legacy DailyScore model was retired Apr 19;
@@ -222,7 +234,7 @@ const RULES: ActionRule[] = [
   // BrainMemory row was updated today (the refresh-identity cron rolls
   // it forward at 4:30am ET; an evening roll only happens if Nour
   // engaged with the mastery surface). Soft-delete-aware.
-  {
+  defineRule({
     name: "daily_score_reminder",
     trigger: async () => {
       const hour = hourET();
@@ -252,7 +264,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "daily_score",
-  },
+  }),
 
   // ── Commitment check-in (3-5 days old window) ──────────────
   // 2026-05-27 · operator volume cleanup. Pre-fix this fired on
@@ -263,7 +275,7 @@ const RULES: ActionRule[] = [
   // Fix: this rule now ONLY fires on 3-5d-old commitments · 5+d
   // belongs to commitment_escalation_day5 exclusively. Hard ceiling
   // of one rule firing per commitment regardless of age.
-  {
+  defineRule({
     name: "commitment_checkin",
     trigger: async () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -287,7 +299,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "commitment",
-  },
+  }),
 
   // ── Workout reminder (if not done by 4pm on weekdays) ─────
   // v10.0.50 · Wave A · Replaces the retired DailyScore.workoutDone
@@ -297,7 +309,7 @@ const RULES: ActionRule[] = [
   // Soft-delete-aware. If no workout DAILY task exists at all, the
   // rule fires (assumes Nour intends to work out) — that matches the
   // pre-existing prompt: "No workout logged today, body = business".
-  {
+  defineRule({
     name: "workout_reminder",
     trigger: async () => {
       const hour = hourET();
@@ -336,12 +348,12 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "workout",
-  },
+  }),
 
   // ── Weekly target check (Wednesday noon) ───────────────────
-  {
+  defineRule({
     name: "midweek_target_check",
-    trigger: async () => {
+    trigger: async (): Promise<Array<{ noTargets?: boolean; targets?: string }>> => {
       const dayOfWeek = weekdayET();
       const hour = hourET();
       if (dayOfWeek !== 3 || hour !== 12) return []; // Wednesday noon only
@@ -364,14 +376,14 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "weekly_targets",
-  },
+  }),
 
   // ── Stale leads alert (business hours) ─────────────────────
   // v10.0.50 · Wave A · Wired to queryNick("stale_leads_count"). Pre-
   // fix the trigger was a hardcoded `Promise.resolve(0)` → the rule
   // never fired because stale was always 0. Now reads the live count
   // from the bridge.
-  {
+  defineRule({
     name: "stale_leads_alert",
     trigger: async () => {
       const hour = hourET();
@@ -396,11 +408,11 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "leads",
-  },
+  }),
 
   // ── Active task overload ──────────────────────────────────
   // Apr 18: OpenLoop retired → unified Task queue.
-  {
+  defineRule({
     name: "task_overload_alert",
     trigger: async () => {
       // v9.1.15 · added deletedAt:null — soft-deleted tasks were
@@ -429,7 +441,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "loops",
-  },
+  }),
 
   // ── Revenue pace alert (Friday if behind) ──────────────────
   // v10.0.50 · Wave A · Wired to queryNick("revenue_range"). Pre-fix
@@ -437,7 +449,7 @@ const RULES: ActionRule[] = [
   // always 0 → projected was always 0 → rule fired every Friday 2pm
   // claiming the gap was = target (full miss). Now pulls real
   // month-to-date revenue from nickstire.
-  {
+  defineRule({
     name: "friday_revenue_check",
     trigger: async () => {
       const day = weekdayET();
@@ -466,7 +478,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "revenue",
-  },
+  }),
 
   // ── Drift pattern escalation ───────────────────────────────
   // v10.0.50 · Wave A · Replaces retired-DailyScore lookup. Now reads
@@ -474,7 +486,7 @@ const RULES: ActionRule[] = [
   // touched in 3+ days (rolling cron + manual engagement both
   // refresh updatedAt), Nour has drifted. Pre-fix this rule fired
   // every 24h forever (recentScores was always []).
-  {
+  defineRule({
     name: "drift_escalation",
     trigger: async () => {
       const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
@@ -505,10 +517,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "drift",
-  },
+  }),
 
   // ── Morning brief push (7am weekdays) ──────────────────────
-  {
+  defineRule({
     name: "morning_brief_push",
     trigger: async () => {
       const hour = hourET();
@@ -537,10 +549,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "morning_brief",
-  },
+  }),
 
   // ── Overdue commitment escalation ──────────────────────────
-  {
+  defineRule({
     name: "overdue_commitment_escalation",
     trigger: async () => {
       const overdue = await prisma.commitment.findMany({
@@ -558,7 +570,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "commitment",
-  },
+  }),
 
   // ══════════════════════════════════════════════════════════
   // v6.0 — NEW AUTONOMOUS RULES
@@ -570,7 +582,7 @@ const RULES: ActionRule[] = [
   // lastCompletedAt. A Task's streak indicates how reliably Nour
   // hits it. We surface easy ones (streak ≥ 14 days) the same way
   // the old rule surfaced 90%+ completion.
-  {
+  defineRule({
     name: "adaptive_habit_upgrade",
     trigger: async () => {
       const dailyTasks = await prisma.task
@@ -607,10 +619,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "habits",
-  },
+  }),
 
   // ── Commitment enforcement loop (Day 5 escalation) ────────
-  {
+  defineRule({
     name: "commitment_escalation_day5",
     trigger: async () => {
       const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000);
@@ -669,10 +681,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "commitment",
-  },
+  }),
 
   // ── Memory promotion pipeline ─────────────────────────────
-  {
+  defineRule({
     name: "memory_promotion",
     trigger: async () => {
       // Find memories with high seen count that aren't yet wisdom
@@ -764,7 +776,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "promote_memory",
     targetType: "memory",
-  },
+  }),
 
   // v10.0.529.103 · Wave 47 · `adderall_timing_insight` rule deleted.
   // Depended on retired DailyScore.adderallTime/focusQuality fields
@@ -777,7 +789,7 @@ const RULES: ActionRule[] = [
   // rev was always 0 → never fired (false negative). Now reads the
   // live shop number; bridge failure → empty (safer than firing on
   // dead data).
-  {
+  defineRule({
     name: "revenue_overconfidence_gate",
     trigger: async () => {
       const hour = hourET();
@@ -802,10 +814,10 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "revenue",
-  },
+  }),
 
   // ── Decision review due ───────────────────────────────────
-  {
+  defineRule({
     name: "decision_review_due",
     trigger: async () => {
       return prisma.masteryDecision.findMany({
@@ -827,7 +839,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "decision",
-  },
+  }),
 
   // ── Quote conversion tracking ─────────────────────────────
   // v10.0.50 · Wave A · Wired to queryNick("quotes_pending") with a
@@ -835,7 +847,7 @@ const RULES: ActionRule[] = [
   // gave total=0/booked=0 → never fired (false negative every Sunday).
   // Now pulls real numbers; the action sub-query also pulls real
   // quote distribution by price range.
-  {
+  defineRule({
     name: "quote_conversion_insight",
     trigger: async () => {
       const day = weekdayET();
@@ -898,7 +910,7 @@ const RULES: ActionRule[] = [
     approval: "auto",
     actionType: "send_telegram",
     targetType: "pricing",
-  },
+  }),
 ];
 
 /**
@@ -915,11 +927,18 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
       if (items.length === 0) continue;
 
       for (const item of items) {
+        // Items are heterogeneous (Prisma rows / object literals) erased to
+        // `unknown` by the existential RULES array. Most carry no `id`; the
+        // ones that do (commitments, memories, decisions) expose it here.
+        // Single honest boundary read — value is unchanged at runtime
+        // (Commitment.id stays a number; the cooldown layer stringifies on
+        // write exactly as before).
+        const itemId = (item as { id?: string | null }).id;
         // Check cooldown — don't fire same rule on same target twice in 24h
         const recent = await prisma.autonomousAction.findFirst({
           where: {
             ruleName: rule.name,
-            targetId: item.id ?? null,
+            targetId: itemId ?? null,
             createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
           },
         });
@@ -937,12 +956,12 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         if (
           rule.targetType === "commitment" &&
           rule.name.startsWith("commitment_") &&
-          item.id
+          itemId
         ) {
           const familyRecent = await prisma.autonomousAction.findFirst({
             where: {
               ruleName: { startsWith: "commitment_" },
-              targetId: item.id,
+              targetId: itemId,
               createdAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
             },
           });
@@ -959,7 +978,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
         const key = idempotencyRecipe.autonomousAction({
           ruleName: rule.name,
           targetType: rule.targetType,
-          targetId: item.id ?? null,
+          targetId: itemId ?? null,
           bucketSeconds: 3600,
         });
 
@@ -985,7 +1004,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
             trigger: `Auto-triggered: ${items.length} items matched`,
             actionType: rule.actionType,
             targetType: rule.targetType,
-            targetId: item.id ?? null,
+            targetId: itemId ?? null,
             approval: rule.approval,
             result: "pending",
             idempotencyKey: key,
@@ -1026,7 +1045,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
           .addFact(`targetType: ${rule.targetType}`)
           .addFact(`approval: ${rule.approval}`)
           .addFact(`trigger: ${items.length} items matched`);
-        if (item.id) fireEnvelope.addFact(`targetId: ${item.id}`);
+        if (itemId) fireEnvelope.addFact(`targetId: ${itemId}`);
 
         // v10.0.157 · side-effect gating. Look up the AutomationPolicy
         // for this rule. If the policy declares approvalClass="pending"
@@ -1128,7 +1147,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
                       executedAt: new Date(),
                       approval: "approved",
                       result: autoResult.result,
-                      payload: autoResult.payload ?? null,
+                      payload: (autoResult.payload ?? null) as Prisma.InputJsonValue,
                     },
                   })
                   .catch(() => undefined);
@@ -1196,12 +1215,12 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
               data: {
                 executedAt: new Date(),
                 result: result.result,
-                payload: result.payload ?? null,
+                payload: (result.payload ?? null) as Prisma.InputJsonValue,
               },
             })
             .catch(() => undefined);
           fireEnvelope.setReason(
-            `Rule ${rule.name} fired against target ${rule.targetType}${item.id ? `:${item.id}` : ""} · result: ${result.result}`,
+            `Rule ${rule.name} fired against target ${rule.targetType}${itemId ? `:${itemId}` : ""} · result: ${result.result}`,
           );
           fireEnvelope.recordToolCall(rule.actionType, true, Date.now() - fireStarted);
           // v10.0.151 · log policy fire so /system/policies fireCount
@@ -1230,7 +1249,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
               ruleName: rule.name,
               actionType: rule.actionType,
               targetType: rule.targetType,
-              targetId: item.id ? String(item.id) : null,
+              targetId: itemId ? String(itemId) : null,
               result: "success",
               idempotencyKey: key,
             });
@@ -1250,7 +1269,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
             .catch(() => undefined);
           const errMsg = err instanceof Error ? err.message : "Unknown error";
           fireEnvelope.setReason(
-            `Rule ${rule.name} FAILED against target ${rule.targetType}${item.id ? `:${item.id}` : ""}: ${errMsg.slice(0, 120)}`,
+            `Rule ${rule.name} FAILED against target ${rule.targetType}${itemId ? `:${itemId}` : ""}: ${errMsg.slice(0, 120)}`,
           );
           fireEnvelope.recordToolCall(rule.actionType, false, Date.now() - fireStarted);
           {
@@ -1283,7 +1302,7 @@ export async function runAutonomousActions(): Promise<{ executed: number; errors
               ruleName: rule.name,
               actionType: rule.actionType,
               targetType: rule.targetType,
-              targetId: item.id ? String(item.id) : null,
+              targetId: itemId ? String(itemId) : null,
               result: "failed",
               error: err instanceof Error ? err.message : "Unknown error",
               idempotencyKey: key,
