@@ -5,7 +5,7 @@
  * again. The contract has to stay tight.
  */
 import { describe, it, expect } from "vitest";
-import { looksLikeBrainDump } from "@/lib/services/chat/persist-assistant-turn";
+import { looksLikeBrainDump } from "@/lib/ai/chat/brain-dump-detector";
 
 describe("looksLikeBrainDump · questions (must NOT ingest)", () => {
   it("rejects messages ending in `?`", () => {
