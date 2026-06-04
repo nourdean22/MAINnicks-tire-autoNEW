@@ -7,10 +7,15 @@ wired. Built 2026-06-03.
 
 **Code:**
 - `lib/mastery/comprehensive-backfill.ts` — the engine (`measureBackfill`,
-  `runComprehensiveBackfill`).
-- `lib/mastery/credit.ts` — `creditStatXp` (the idempotent credit seam, now
-  with an optional `backfillRun` marker) + `revertBackfillRun`.
-- `scripts/backfill-mastery.ts` — the operator CLI.
+  `runComprehensiveBackfill`). Credits ride one shared `recordCredit` helper so
+  the credited/xp/byStat tallies can't drift.
+- `lib/mastery/attribution.ts` — `attributeText` (one signal) + **`attributeTextBatch`**
+  (the backfill fast-path: one AI call scores up to `BATCH_SIZE` signals).
+- `lib/mastery/credit.ts` — `creditStatXp` (the idempotent credit seam, with an
+  optional `backfillRun` marker) + `revertBackfillRun` (undo) + **`summarizeBackfillRun`**
+  (read-only footprint: count/xpTotal/byStat a run actually wrote).
+- `scripts/backfill-mastery.ts` — the operator CLI (`measure` · `dry` · `run` ·
+  `status` · `revert`).
 
 ---
 
@@ -43,6 +48,14 @@ Newly-created backfill rows are stamped `metadata.backfillRun = <tag>`
 **(create-only** — preserved across re-runs, **never** added to a row some live
 path created). `revertBackfillRun(<tag>)` hard-deletes exactly those rows. So a
 bad run is one command to undo, and a live-credited row is never collateral.
+
+### Batched attribution (the speed lever)
+The "reason" tier **serializes** inference (~10-95s/call regardless of
+concurrency — a 10-wide parallel test gave no speedup). So the cost that matters
+is **call count**, not parallelism. `attributeTextBatch` scores up to
+`BATCH_SIZE` (=12) signals per call → ~12x fewer calls. Items the model omits
+(no-skill) or that fail to parse simply aren't in the returned map → they earn
+nothing this run and retry on the next idempotent pass. Writes stay sequential.
 
 ### Non-circular attribution
 BrainMemory attribution is **whitelisted** to operator-signal categories
@@ -104,21 +117,35 @@ railway run --service statenour-web pnpm exec \
 railway run --service statenour-web pnpm exec \
   node --conditions=react-server --import tsx scripts/backfill-mastery.ts run <tag>
 
-# 4. REVERT — undo exactly that run (deletes only the rows it created).
+# 4. STATUS — read-only footprint of a run: how many rows it actually wrote,
+#    total XP, and byStat. The runtime proof a run's credits LANDED (distinct
+#    from `measure`, which counts what's LEFT to do). Safe to run mid-run.
+railway run --service statenour-web pnpm exec \
+  node --conditions=react-server --import tsx scripts/backfill-mastery.ts status <tag>
+
+# 5. REVERT — undo exactly that run (deletes only the rows it created).
 railway run --service statenour-web pnpm exec \
   node --conditions=react-server --import tsx scripts/backfill-mastery.ts revert <tag>
 ```
 
 ### Operating gotchas
-- **Background runs die on session-resume.** A long run (~25 min for ~1.8k
-  items) launched with `run_in_background` does NOT survive the agent session
-  being suspended/resumed. It's idempotent, so just re-run the same tag — it
-  resumes. For an unattended full run, prefer a stable session or chunk it.
-- **Rate** ≈ ~1 item/sec on the "reason" tier → budget ~25–30 min for a full
-  ~1.8k-item run. Structured sources (body) are instant (no AI).
-- **Cost** ≈ one cheap "reason"-tier `attributeText` call per uncredited item.
-  ~1.8k items = cents–low-dollars on the cheap tier. `measure` tells you the
-  count before you spend.
+- **Verify it landed with `status`, don't trust the run summary.** A run's
+  printed `credited` is only what THAT process newly wrote; if a prior
+  interrupted run (or an overlapping detached process) shares the tag, the DB
+  total is higher. `status <tag>` against prod is the authoritative count.
+  Convergence = a fresh full run credits ~0 (everything attributable is already
+  in store #2).
+- **Background runs can be raced/resumed.** A run launched with
+  `run_in_background` may overlap a prior detached run under the same tag —
+  harmless (idempotent upsert on sourceKey = zero double-count), but the per-run
+  `credited` then under-reports the real total. Re-run the same tag to resume.
+- **Provider chain is brittle.** "reason" tier order is ollama/glm-5.1 (works,
+  slow ~10-95s/call) -> venice (400: min_p+logit_bias unsupported with
+  speculative decoding) -> openai/gpt-4o-mini (quota/billing). In practice
+  ollama is the only live one; a batch that fails all three retries next pass.
+- **Rate / cost** — batched at `BATCH_SIZE`=12, a full ~1.8k-item run is ~35 AI
+  calls (not ~1.8k), minutes on the cheap tier. `measure` gives the candidate
+  count before you spend; structured sources (body) are free (no AI).
 - **Prod access is gated** — `railway run` against `statenour-web` requires
   explicit operator approval naming the prod target.
 
@@ -126,9 +153,16 @@ railway run --service statenour-web pnpm exec \
 
 ## Run log
 
-- **2026-06-03 · tag `backfill-all-2026-06-03`** — measured ~1,769 uncredited
-  (chat+journal ~855, situation 331, reflection 208, brain-memory 347, misc).
-  First run interrupted by a session-resume after ~200 credits (chat 198,
-  braindump 3); resumed under the same tag to finish the remaining ~1,576.
-  email/goals/body = 0 (no data yet). Reversible via
+- **2026-06-03 · tag `backfill-all-2026-06-03` · COMPLETE + verified** —
+  measured ~1,769 candidate uncredited items (chat+journal ~855, situation 331,
+  reflection 208, brain-memory 347, misc). Ran across several resumed/overlapping
+  processes under the one tag (idempotent, so zero double-count); the final full
+  pass scanned all 1,846 items and credited only 58 new = **converged** (the
+  idempotent fixpoint — a further run adds ~0). **Final prod footprint (via
+  `status`): 1,434 rows · 1,609.5 XP · 30 stats** — top stats: critical_thinking
+  265.5, marketing 210.5, discipline 208, follow_through 184, strategy 149.5,
+  technical 78.5, advertising 76, seduction 52.5. email/goals/body = 0 (no data
+  yet). **End-to-end verified** on `bdnick.info/stats` (Claude-in-Chrome): POWER
+  Lvl 203 · 3,501 XP, with "▲ week Discipline +352.8" = the backfill rows
+  surfacing through the live character-sheet read path. Reversible via
   `revert backfill-all-2026-06-03`.
