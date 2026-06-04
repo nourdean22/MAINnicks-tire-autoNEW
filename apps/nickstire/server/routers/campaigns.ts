@@ -328,6 +328,14 @@ async function processCampaignSends(campaignId: number, batchSize: number = 50):
   let totalFailed = 0;
 
   while (true) {
+    // Re-check gateway EACH batch: the entry gate only catches an offline
+    // start. If F25e dies mid-campaign, stop here — leave remaining rows
+    // 'pending' for resumeStuckCampaigns rather than marking phantom 'sent'
+    // on sends that sendSms silently queues while offline.
+    if (isShopGatewayConfigured() && !(await isShopGatewayReachable())) {
+      log.warn(`[Campaigns] F25e gateway offline mid-run — pausing campaign ${campaignId} (${totalSent} sent so far); rest stay pending for resume.`);
+      break;
+    }
     // Get next batch of pending sends
     const pendingSends = await d.select()
       .from(smsCampaignSends)

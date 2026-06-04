@@ -94,7 +94,7 @@ export async function handleIncomingSMS(from: string, body: string): Promise<str
   }
 
   // Handle STOP keywords (TCPA-compliant set) — persist to DB so opt-out survives restarts
-  if (["STOP", "HALT", "UNSUBSCRIBE", "CANCEL", "END", "QUIT"].includes(message)) {
+  if (/^(STOP|STOPALL|HALT|UNSUBSCRIBE|CANCEL|END|QUIT)\b/.test(message)) {
     optOutSet.add(phone);
     try {
       const { getDb } = await import("../db");

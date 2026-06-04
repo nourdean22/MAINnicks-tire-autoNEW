@@ -155,7 +155,7 @@ interface VapiToolCall {
   function: { name: string; arguments: string };
 }
 
-async function dispatchToolCall(call: VapiToolCall): Promise<{
+async function dispatchToolCall(call: VapiToolCall, phoneCallId?: string): Promise<{
   toolCallId: string;
   result: string;
 }> {
@@ -168,6 +168,12 @@ async function dispatchToolCall(call: VapiToolCall): Promise<{
       result: JSON.stringify({ error: "Invalid arguments JSON", details: err instanceof Error ? err.message : String(err) }),
     };
   }
+
+  // Inject the real VAPI phone-call id so write-tools (bookSlot/tireInquiry/
+  // escalate/etc.) can stamp convertedToLead/leadId on vapi_call_logs — the
+  // LLM never supplies callId, so without this the conversion attribution is
+  // silently dead. Only set when the tool didn't already provide one.
+  if (phoneCallId && args.callId == null) args.callId = phoneCallId;
 
   log.info("Vapi tool call", { name: call.function.name, args });
 
@@ -350,7 +356,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
         // scheduleDropoff fired twice). allSettled isolates per-call
         // outcomes so the webhook always 200s with a per-tool result.
         const calls = event.toolCalls || [];
-        const settled = await Promise.allSettled(calls.map(dispatchToolCall));
+        const settled = await Promise.allSettled(calls.map((c) => dispatchToolCall(c, event.call?.id)));
         const results = settled.map((s, i) => {
           if (s.status === "fulfilled") return s.value;
           const err = s.reason instanceof Error ? s.reason.message : String(s.reason);
@@ -361,7 +367,7 @@ router.post("/vapi", async (req: Request, res: Response) => {
           });
           return {
             toolCallId: calls[i]?.id,
-            error: err,
+            result: JSON.stringify({ error: "Tool execution failed", details: err }),
           };
         });
         res.json({ results });
