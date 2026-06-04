@@ -17,6 +17,7 @@
     "audit:surfaces": "node scripts/audit-system-surfaces.mjs",
     "start": "next start",
     "lint": "eslint .",
+    "check": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "check:env": "tsx scripts/check-env.ts",
     "check:env:prod": "tsx scripts/check-env.ts --prod",
