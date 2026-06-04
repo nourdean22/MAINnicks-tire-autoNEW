@@ -175,13 +175,22 @@ export const vapiRouter = router({
 
   updateAssistant: adminProcedure
     .input(z.object({
-      assistantId: z.string().min(1).max(100),
+      // Optional — defaults to the canonical INBOUND receptionist
+      // (VAPI_RECEPTIONIST_ASSISTANT_ID). The panel used to pass the first
+      // assistant in the list, which is actually the OUTBOUND follow-up
+      // (afcad79e) — so "Push Latest Config" silently updated the wrong
+      // assistant and the receptionist never got the new prompt/config.
+      assistantId: z.string().min(1).max(100).optional(),
       serverUrl: z.string().url().optional(),
     }))
     .mutation(async ({ input }) => {
       const { updateAssistant } = await import("../services/vapi");
       const serverUrl = input.serverUrl || "https://nickstire.org/api/webhooks/vapi";
-      return updateAssistant(input.assistantId, serverUrl);
+      const assistantId = input.assistantId || process.env.VAPI_RECEPTIONIST_ASSISTANT_ID;
+      if (!assistantId) {
+        return { success: false as const, error: "No receptionist assistant id (VAPI_RECEPTIONIST_ASSISTANT_ID unset)" };
+      }
+      return updateAssistant(assistantId, serverUrl);
     }),
 
   // wave-141 · re-push the OUTBOUND follow-up assistant (separate VAPI

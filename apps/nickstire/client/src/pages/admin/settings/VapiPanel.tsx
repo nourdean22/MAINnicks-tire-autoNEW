@@ -117,7 +117,7 @@ export default function VapiPanel() {
             <p className="text-[10px] font-bold tracking-[0.15em] uppercase text-foreground/50">Configured Assistants</p>
             {firstAssistantId && (
               <button
-                onClick={() => updateAssistant.mutate({ assistantId: firstAssistantId, serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
+                onClick={() => updateAssistant.mutate({ serverUrl: "https://nickstire.org/api/webhooks/vapi" })}
                 disabled={updateAssistant.isPending}
                 className="flex items-center gap-1.5 border border-primary/30 text-primary bg-primary/5 px-3 py-1 text-[10px] font-bold tracking-wide hover:bg-primary/10 disabled:opacity-50"
               >
